@@ -1,7 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-
-test.describe.configure({ mode: 'serial' });
 
 test('start and stop a timer with a new project and tag', async ({ page }) => {
   await login(page);
@@ -57,14 +55,18 @@ test('manual entry across midnight, edit and delete with undo', async ({ page })
   await page.screenshot({ path: 'test-results/timer-list.png', fullPage: true });
 });
 
-test('keyboard shortcuts start, stop and continue', async ({ page }) => {
+test('keyboard shortcuts start, stop and continue', async ({ page, data }) => {
+  // A finished entry from yesterday, 10:00 to 11:15 UTC, gives "c" something to continue
+  // without crossing a day boundary in Europe/Madrid.
+  const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  await data.createEntry({ description: 'Shortcut seed', start: `${day}T10:00:00Z`, stop: `${day}T11:15:00Z` });
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByRole('button', { name: 'Timer mode' }).click();
   await page.locator('body').click({ position: { x: 5, y: 400 } });
   await page.keyboard.press('c');
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
-  await expect(timer.getByLabel('Description')).toHaveValue('Night deploy');
+  await expect(timer.getByLabel('Description')).toHaveValue('Shortcut seed');
   await page.locator('body').click({ position: { x: 5, y: 400 } });
   await page.keyboard.press('s');
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();

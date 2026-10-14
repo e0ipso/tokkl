@@ -1,10 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
 test('favorites, split, shortcut help and trash restore', async ({ page }) => {
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
-  if (await timer.getByRole('button', { name: 'Stop timer' }).isVisible()) await timer.getByRole('button', { name: 'Stop timer' }).click();
   await timer.getByRole('button', { name: 'Manual mode' }).click();
   await timer.getByLabel('Description').fill('Pairing session');
   await timer.getByLabel('Start time').fill('8:00');
@@ -61,6 +60,4 @@ test('favorites, split, shortcut help and trash restore', async ({ page }) => {
   await timer.getByLabel('End time').fill('8:45');
   await timer.getByRole('button', { name: 'Add entry' }).click();
   await expect(page.locator('.entry-line', { has: page.locator('input[value="Overlapping call"]') }).locator('.overlap-mark')).toBeVisible();
-  // Leave the account in timer mode for the other specs.
-  await timer.getByRole('button', { name: 'Timer mode' }).click();
 });

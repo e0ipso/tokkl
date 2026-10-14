@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
 test('calendar view shows entries and creates one by dragging', async ({ page }) => {
