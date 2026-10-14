@@ -55,6 +55,20 @@ Where Toggl's own sources disagree, this document says so and picks a behavior. 
 3. **Undo over confirm.** Deleting an entry is instant and reversible. Deleted entries go to a trash, not into the void.
 4. **One timezone.** Toggl uses the browser clock on the timer page and the profile timezone in reports, so entries can jump days between the two. This app uses the account timezone everywhere.
 5. **Boring infrastructure.** One process, one SQLite file. A backup is a file copy.
+6. **Loud look, plain function.** The app looks like surf-shop graffiti: saturated colour, one display face, hand-made texture. Any style that costs a readable number, a reachable control or a passing test gets dropped.
+
+### Visual direction
+
+This is the brief every restyle ticket is checked against.
+
+- **Palette roles.** Light theme: sand background, ink text, sunset orange primary, aqua secondary, hot pink and lime for states. Dark theme: deep navy background with a neon counterpart for each role. The design tokens ticket (TT-0067) picks the exact values.
+- **Typeface.** One display face for the wordmark, headings, the running clock and totals. Body text, controls and tables use the system font stack.
+- **Texture.** CSS gradients or inline SVG only, never raster images. Texture never sits behind data tables or inputs.
+- **Type effects.** Rotated or skewed type is decoration only. It never appears on controls, numbers or labels.
+- **Motion.** All motion sits behind `prefers-reduced-motion`. With reduced motion set, nothing animates.
+- **No outbound assets.** The display face and every texture ship with the server. This restates the non-goal on outbound traffic: no CDN fonts and no other third-party assets.
+- **Contrast and signals.** Both themes meet WCAG AA: 4.5:1 for text, 3:1 for non-text elements such as borders, icons and focus rings. Colour is never the only signal for a state. Section 9 has the accessibility requirement.
+- **Test and device limits.** The ARIA names and class selectors the Playwright tests use stay as they are. Every page fits a 390x844 phone screen.
 
 ## 5. Functional requirements
 
