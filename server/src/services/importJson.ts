@@ -85,7 +85,8 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
           id = createProject(db, wid, {
             name, client_id: clientId, color: project.color, active: project.active, billable: project.billable,
             estimated_hours: project.estimated_hours, rate: project.rate, currency: project.currency,
-            fixed_fee: project.fixed_fee, end_date: project.end_date, template: project.template,
+            fixed_fee: project.fixed_fee, start_date: project.start_date, end_date: project.end_date,
+            is_private: project.is_private, template: project.template,
           }).id;
           result.projects++;
         }
