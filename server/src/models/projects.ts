@@ -3,7 +3,7 @@ import { nowIso } from '../db/index.ts';
 import { PROJECT_COLORS, isHexColor } from '../../../shared/colors.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import {
-  asBool, optionalBool, optionalId, optionalNumber, optionalString, requireName, togglTime,
+  asBool, optionalBool, optionalId, optionalNumber, optionalRate, optionalString, requireName, togglTime,
 } from '../lib/values.ts';
 import { createClient, getClient } from './clients.ts';
 
@@ -154,7 +154,7 @@ export function createProject(db: Db, wid: number, body: Record<string, unknown>
     Number(optionalBool(body.is_private, 'is_private') ?? true),
     Number(optionalBool(body.billable, 'billable') ?? false),
     optionalNumber(body.estimated_hours, 'estimated_hours') ?? null,
-    optionalNumber(body.rate, 'rate') ?? null,
+    optionalRate(body.rate, 'rate') ?? null,
     parseCurrency(body.currency, null),
     optionalNumber(body.fixed_fee, 'fixed_fee') ?? null,
     parseDate(body.start_date, 'start_date', null),
@@ -182,7 +182,7 @@ export function updateProject(db: Db, wid: number, id: number, body: Record<stri
     Number(pick(optionalBool(body.is_private, 'is_private'), asBool(current.is_private))),
     Number(pick(optionalBool(body.billable, 'billable'), asBool(current.billable))),
     pick(optionalNumber(body.estimated_hours, 'estimated_hours'), current.estimated_hours),
-    pick(optionalNumber(body.rate, 'rate'), current.rate),
+    pick(optionalRate(body.rate, 'rate'), current.rate),
     parseCurrency(body.currency, current.currency),
     pick(optionalNumber(body.fixed_fee, 'fixed_fee'), current.fixed_fee),
     parseDate(body.start_date, 'start_date', current.start_date),

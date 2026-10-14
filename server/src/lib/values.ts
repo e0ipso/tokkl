@@ -65,6 +65,16 @@ export function optionalNumber(value: unknown, field: string): number | null | u
   throw badRequest(`Invalid ${field}: expected a non-negative number`);
 }
 
+/** Highest hourly rate accepted. Keeps rate × 100 and billed amounts finite; larger rates overflow to Infinity in reports. */
+export const MAX_HOURLY_RATE = 1_000_000_000;
+
+/** An optional hourly rate: a finite non-negative number up to MAX_HOURLY_RATE, or null. */
+export function optionalRate(value: unknown, field: string): number | null | undefined {
+  const rate = optionalNumber(value, field);
+  if (rate != null && rate > MAX_HOURLY_RATE) throw badRequest(`Invalid ${field}: expected at most ${MAX_HOURLY_RATE}`);
+  return rate;
+}
+
 export function requireName(value: unknown, field: string, maxLength: number): string {
   if (typeof value !== 'string' || value.trim() === '') throw badRequest(`${field} can't be blank`);
   const trimmed = value.trim();
