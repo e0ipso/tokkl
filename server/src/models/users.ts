@@ -1,7 +1,9 @@
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
 import { generateApiToken, hashPassword } from '../auth/crypto.ts';
+import { badRequest } from '../lib/errors.ts';
 import { togglTime } from '../lib/values.ts';
+import { MAX_DESCRIPTION_LENGTH } from './timeEntries.ts';
 import { createWorkspace } from './workspaces.ts';
 
 export interface UserRow {
@@ -41,6 +43,61 @@ export const DEFAULT_PREFERENCES = {
 
 export type Preferences = Record<string, unknown>;
 
+export const MAX_FAVORITES = 9;
+
+interface PreferenceRule {
+  valid: (value: unknown) => boolean;
+  expected: string;
+}
+
+const boolean: PreferenceRule = { valid: (value) => typeof value === 'boolean', expected: 'a boolean' };
+// Formats are free text so clients can save custom patterns.
+const format: PreferenceRule = {
+  valid: (value) => typeof value === 'string' && value.trim() !== '' && value.length <= 255,
+  expected: 'a non-empty string of at most 255 characters',
+};
+const oneOf = (...values: string[]): PreferenceRule => ({
+  valid: (value) => typeof value === 'string' && values.includes(value),
+  expected: `one of ${values.join(', ')}`,
+});
+
+const isOptionalId = (value: unknown) => value === null || (Number.isSafeInteger(value) && (value as number) > 0);
+
+function isFavorite(value: unknown): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const favorite = value as Record<string, unknown>;
+  return typeof favorite.description === 'string' && favorite.description.length <= MAX_DESCRIPTION_LENGTH
+    && isOptionalId(favorite.project_id) && isOptionalId(favorite.task_id)
+    && Array.isArray(favorite.tags) && favorite.tags.every((tag) => typeof tag === 'string' && tag.length <= 255)
+    && typeof favorite.billable === 'boolean';
+}
+
+/** Known preferences the web app reads, with the values it can render. Other keys are stored as sent. */
+const PREFERENCE_RULES: Record<string, PreferenceRule> = {
+  date_format: format,
+  timeofday_format: format,
+  duration_format: oneOf('improved', 'classic', 'decimal'),
+  theme: oneOf('system', 'light', 'dark'),
+  timerView: oneOf('list', 'calendar'),
+  collapseTimeEntries: boolean,
+  manualMode: boolean,
+  keyboard_shortcuts_enabled: boolean,
+  showTimeInTitle: boolean,
+  favorites: {
+    valid: (value) => Array.isArray(value) && value.length <= MAX_FAVORITES && value.every(isFavorite),
+    expected: `a list of at most ${MAX_FAVORITES} favorites with description, project_id, task_id, tags and billable`,
+  },
+};
+
+const isUsable = (key: string, value: unknown) => PREFERENCE_RULES[key]?.valid(value) ?? true;
+
+/** Throws 400 for a known preference with a value the app cannot use. */
+export function validatePreferenceChanges(changes: Preferences): void {
+  for (const [key, value] of Object.entries(changes)) {
+    if (!isUsable(key, value)) throw badRequest(`Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`);
+  }
+}
+
 export function countUsers(db: Db): number {
   return (db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n;
 }
@@ -78,7 +135,9 @@ export async function createOwner(
 }
 
 export function getPreferences(user: UserRow): Preferences {
-  return { ...DEFAULT_PREFERENCES, ...(JSON.parse(user.preferences) as Preferences) };
+  // Values saved before validation existed fall back to the defaults instead of reaching clients.
+  const stored = Object.entries(JSON.parse(user.preferences) as Preferences).filter(([key, value]) => isUsable(key, value));
+  return { ...DEFAULT_PREFERENCES, ...Object.fromEntries(stored) };
 }
 
 export function serializeUser(user: UserRow, options: { includeToken: boolean }) {

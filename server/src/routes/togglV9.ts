@@ -21,7 +21,7 @@ import {
   createTimeEntry, deleteTimeEntry, getRunningEntry, getTimeEntry, listTimeEntries, patchTimeEntries,
   serializeTimeEntry, stopTimeEntry, updateTimeEntry, type TimeEntryFilter,
 } from '../models/timeEntries.ts';
-import { getPreferences, getUser, serializeUser, type UserRow } from '../models/users.ts';
+import { getPreferences, getUser, serializeUser, type UserRow, validatePreferenceChanges } from '../models/users.ts';
 import { getWorkspace, listWorkspaces, serializeWorkspace, type WorkspaceRow } from '../models/workspaces.ts';
 
 /** Without filters Toggl returns entries that started in the last 9 days. */
@@ -173,6 +173,7 @@ export function togglV9Routes(deps: Deps): Router {
   const savePreferences = async (req: Request, res: express.Response) => {
     const user = res.locals.user;
     const body = readJson(req);
+    validatePreferenceChanges(body);
     const merged = { ...(JSON.parse(user.preferences) as Record<string, unknown>), ...body };
     const serialized = JSON.stringify(merged);
     if (serialized.length > 64 * 1024) throw badRequest('Preferences are too large');
