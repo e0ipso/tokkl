@@ -6,13 +6,30 @@ export function togglTime(iso: string | null | undefined): string | null {
   return `${iso.slice(0, 19)}+00:00`;
 }
 
-/** Parses an RFC 3339 timestamp and truncates it to whole seconds. */
+/** RFC 3339 date-time with seconds and an explicit "Z" or numeric offset (upper-case T and Z only). */
+const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+/** True when the fields name a real calendar date and time of day, so 2026-02-30 is not rolled into March. */
+function isRealDateTime(parts: number[]): boolean {
+  const [year, month, day, hour, minute, second] = parts as [number, number, number, number, number, number];
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+    && hour <= 23 && minute <= 59 && second <= 59;
+}
+
+/**
+ * Parses an RFC 3339 timestamp and truncates it to whole seconds. Timestamps without a zone,
+ * impossible dates and non-string values are rejected rather than guessed.
+ */
 export function parseInstant(value: unknown, field: string): Date {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
-    throw badRequest(`Invalid ${field}: expected an RFC 3339 timestamp`);
-  }
-  const ms = Date.parse(value);
-  if (Number.isNaN(ms)) throw badRequest(`Invalid ${field}: expected an RFC 3339 timestamp`);
+  const invalid = () => badRequest(`Invalid ${field}: expected an RFC 3339 timestamp`);
+  const match = typeof value === 'string' ? RFC3339.exec(value) : null;
+  if (!match) throw invalid();
+  const [offsetHours, offsetMinutes] = [match[7], match[8]].map((part) => Number(part ?? 0)) as [number, number];
+  if (!isRealDateTime(match.slice(1, 7).map(Number)) || offsetHours > 23 || offsetMinutes > 59) throw invalid();
+  const ms = Date.parse(value as string);
+  if (Number.isNaN(ms)) throw invalid();
   return new Date(Math.floor(ms / 1000) * 1000);
 }
 

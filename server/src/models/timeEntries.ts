@@ -212,7 +212,7 @@ export function createTimeEntry(db: Db, user: UserRow, wid: number, body: Record
     const start = body.start === undefined || body.start === null ? new Date() : parseInstant(body.start, 'start');
     const duration = readDuration(body.duration);
     let stop: Date | null = null;
-    if (typeof body.stop === 'string') stop = parseInstant(body.stop, 'stop');
+    if (body.stop !== undefined && body.stop !== null) stop = parseInstant(body.stop, 'stop');
     else if (duration !== undefined && duration >= 0) stop = new Date(start.getTime() + duration * 1000);
 
     const { projectId, taskId, project } = resolveProjectAndTask(db, wid, body, { projectId: null, taskId: null });
@@ -257,7 +257,7 @@ export function updateTimeEntry(
     const start = body.start === undefined || body.start === null ? currentStart : parseInstant(body.start, 'start');
     const duration = readDuration(body.duration);
     let stop = currentStop;
-    if (typeof body.stop === 'string') {
+    if (body.stop !== undefined && body.stop !== null) {
       stop = parseInstant(body.stop, 'stop');
     } else if (duration !== undefined) {
       stop = duration >= 0 ? new Date(start.getTime() + duration * 1000) : null;
