@@ -13,12 +13,22 @@ const BASELINE_PREFERENCES = {
   collapseTimeEntries: true,
   keyboard_shortcuts_enabled: true,
   favorites: [],
+  timeofday_format: 'H:mm',
+  timerView: 'list',
 };
 
 interface SeedEntry {
   description: string;
   start: string;
   stop: string;
+}
+
+interface Favorite {
+  description: string;
+  project_id: number | null;
+  task_id: number | null;
+  tags: string[];
+  billable: boolean;
 }
 
 async function ok(response: APIResponse): Promise<APIResponse> {
@@ -56,6 +66,19 @@ export class TestData {
       headers: CSRF,
       data: { ...entry, created_with: 'e2e' },
     }));
+  }
+
+  async createClient(name: string): Promise<{ id: number }> {
+    return json(this.api.post(`/api/v9/workspaces/${this.workspaceId}/clients`, { headers: CSRF, data: { name } }));
+  }
+
+  async createProject(project: { name: string; client_id?: number }): Promise<{ id: number }> {
+    return json(this.api.post(`/api/v9/workspaces/${this.workspaceId}/projects`, { headers: CSRF, data: project }));
+  }
+
+  /** Saves preferences; the fixture puts every key in BASELINE_PREFERENCES back after the test. */
+  async savePreferences(preferences: { timeofday_format?: string; favorites?: Favorite[] }): Promise<void> {
+    await ok(await this.api.post('/api/v9/me/preferences', { headers: CSRF, data: preferences }));
   }
 
   /** Deletes every entry (running or not), the trash, projects, clients and tags, and resets preferences. */

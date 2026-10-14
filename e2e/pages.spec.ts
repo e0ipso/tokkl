@@ -41,3 +41,85 @@ test('every page renders without errors and core management flows work', async (
   await expect(page).toHaveURL(/tags=none/);
   expect(errors).toEqual([]);
 });
+
+test('deleting a client renames its project when a clientless one has the same name', async ({ page, data }) => {
+  const acme = await data.createClient('Acme');
+  const kept = await data.createProject({ name: 'Website' });
+  const moved = await data.createProject({ name: 'Website', client_id: acme.id });
+  await login(page);
+  await page.getByRole('link', { name: 'Clients' }).click();
+  await page.getByRole('button', { name: 'More actions for Acme' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete Acme?' });
+  await expect(dialog).toContainText('If a project without a client already has the same name, "(Acme)" is added to the moved one.');
+  await dialog.getByRole('button', { name: 'Delete client' }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.getByRole('link', { name: 'Projects' }).click();
+  await expect(page.getByRole('cell', { name: 'Website (Acme)', exact: true })).toBeVisible();
+  const projects = await (await page.request.get(`/api/v9/workspaces/${data.workspaceId}/projects?active=both`)).json();
+  expect(projects.map((p: { id: number; name: string; client_id: number | null }) => [p.id, p.name, p.client_id]))
+    .toEqual(expect.arrayContaining([[kept.id, 'Website', null], [moved.id, 'Website (Acme)', null]]));
+  expect(projects).toHaveLength(2);
+});
+
+test('logging out from the menu and from settings ends the session', async ({ page }) => {
+  await login(page);
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  expect((await page.request.get('/api/v9/me')).status()).toBe(403);
+
+  await login(page);
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await page.locator('#session').getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  expect((await page.request.get('/api/v9/me')).status()).toBe(403);
+});
+
+test('JSON restore reports what it cannot import and takes a running entry once the timer stops', async ({ page }) => {
+  await login(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await timer.getByLabel('Description').fill('Running here');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+
+  const backup = await (await page.request.get('/api/app/export.json')).json();
+  backup.time_entries = [
+    { id: 9001, description: 'Running there', start: '2025-05-05T09:00:00Z', stop: null },
+    { id: 9002, description: 'Missing project', start: '2025-05-06T09:00:00Z', stop: '2025-05-06T10:00:00Z', project_id: 424242 },
+    { id: 9003, description: 'No zone', start: '2025-05-07T09:00:00', stop: '2025-05-07T10:00:00Z' },
+    { id: 9004, description: 'No such day', start: '2025-02-28T09:00:00Z', stop: '2025-02-30T10:00:00Z' },
+    { id: 9005, description: 'Fine', start: '2025-05-08T09:00:00Z', stop: '2025-05-08T10:00:00Z' },
+  ];
+  const file = { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) };
+  const summary = page.locator('.import-summary');
+  const upload = async () => {
+    await page.getByRole('link', { name: 'Settings' }).click();
+    await page.locator('input[type=file][accept*="json"]').setInputFiles(file);
+  };
+
+  await upload();
+  await expect(summary).toContainText('1 entry to add');
+  await expect(summary).toContainText('4 problems');
+  await summary.getByText('Problems', { exact: true }).click();
+  const problems = summary.locator('.import-errors li');
+  await expect(problems).toHaveCount(4);
+  await expect(problems.filter({ hasText: 'time_entry 9001:' })).toContainText('Another timer is running here');
+  await expect(problems.filter({ hasText: 'time_entry 9002:' })).toContainText('Its project 424242 was not imported');
+  await expect(problems.filter({ hasText: 'time_entry 9003:' })).toContainText('Invalid start: expected an RFC 3339 timestamp');
+  await expect(problems.filter({ hasText: 'time_entry 9004:' })).toContainText('Invalid stop: expected an RFC 3339 timestamp');
+
+  await page.getByRole('link', { name: 'Timer' }).click();
+  await timer.getByRole('button', { name: 'Stop timer' }).click();
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  await upload();
+  await expect(summary).toContainText('2 entries to add');
+  await expect(summary).toContainText('3 problems');
+  await page.getByRole('button', { name: 'Restore' }).click();
+  await expect(summary).toContainText('2 entries added');
+
+  // Restoring the same file again adds nothing, the running entry included.
+  await upload();
+  await expect(summary).toContainText('0 entries to add');
+  await expect(summary).toContainText('2 already here, skipped');
+});
