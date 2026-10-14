@@ -294,8 +294,9 @@ input.entry-duration:hover { border-color: var(--border); }
 
 /* Modal */
 .modal-backdrop { position: fixed; inset: 0; background: rgb(10 8 16 / 0.45); display: grid; place-items: center; z-index: 900; padding: 16px; }
+/* min-width: 0 stops wide content from stretching the backdrop's grid track past a phone screen. */
 .modal {
-  width: min(560px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column;
+  width: min(560px, 100%); min-width: 0; max-height: calc(100vh - 32px); display: flex; flex-direction: column;
   background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); border: 1px solid var(--border);
 }
 .modal-wide { width: min(820px, 100%); }
@@ -323,7 +324,9 @@ input.entry-duration:hover { border-color: var(--border); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .card + .card { margin-top: 16px; }
 .card h2 { margin-bottom: 12px; }
-.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+/* Positioned so absolutely positioned content, like .visually-hidden headers, scrolls with the table
+   instead of widening the page. */
+.table-wrap { position: relative; overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 table.table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .table th { font-size: 0.8rem; color: var(--muted); font-weight: 600; background: var(--surface-2); white-space: nowrap; }

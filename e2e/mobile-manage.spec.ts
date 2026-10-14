@@ -10,8 +10,7 @@ test('the bottom navigation reaches every page and stays usable after scrolling 
   const api = await EntityApi.open(page);
   for (let i = 1; i <= 40; i++) await api.createTag(`tag ${String(i).padStart(2, '0')}`);
 
-  // Projects is left out here: TT-0064, staged below.
-  for (const name of ['Reports', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer']) await tapNav(page, name);
+  for (const name of ['Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer']) await tapNav(page, name);
 
   // Forty tags make the page scroll; the fixed navigation stays on screen and tappable.
   await tapNav(page, 'Tags');
@@ -81,10 +80,9 @@ test('client and tag dialogs and menus finish by touch on a phone and save what 
   await expectNoPageOverflow(page);
 });
 
-// The visually hidden "Actions" header is absolutely positioned with no positioned ancestor, so it
-// escapes .table-wrap's horizontal scroll. The page grows to 551 px, and the fixed navigation
-// stretches with it: Trash and Settings end up off screen and the bar sits below the viewport.
-test.fixme('TT-0064: the Projects page fits a phone, and its editor and row menu finish by touch', async ({ page }) => {
+// The Projects table is wider than a phone. It must scroll inside its wrapper: anything escaping
+// the wrapper widens the page, and the fixed navigation stretches off screen with it (TT-0064).
+test('the Projects page fits a phone, and its editor and row menu finish by touch', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
   const project = await api.createProject({ name: 'Website' });

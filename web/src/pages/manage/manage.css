@@ -67,11 +67,12 @@
 
 /* Tasks inside the project editor */
 .project-tasks { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
-.project-tasks .inline-controls input { flex: 1; }
+/* min-width: 0 lets the input shrink below its intrinsic width, so the editor fits a phone. */
+.project-tasks .inline-controls input { flex: 1; min-width: 0; }
 .task-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
 .task-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; min-height: 42px; }
 .task-row + .task-row { border-top: 1px solid var(--border); }
-.task-name { flex: 1; border-color: transparent; background: transparent; }
+.task-name { flex: 1; min-width: 0; border-color: transparent; background: transparent; }
 .task-name:hover, .task-name:focus { border-color: var(--border); }
 .task-row.is-done .task-name { text-decoration: line-through; color: var(--muted); }
 .task-tracked { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
