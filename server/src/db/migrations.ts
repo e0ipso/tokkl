@@ -119,4 +119,13 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX time_entry_tags_tag ON time_entry_tags(tag_id);
   `,
+  // Project and task totals sum live entries per project or task. These partial indexes cover
+  // those sums so they read one project's or task's rows instead of scanning the whole history.
+  // deleted_at is always NULL in them; listing it lets SQLite answer the sums from the index alone.
+  `
+  CREATE INDEX time_entries_project_live ON time_entries(project_id, start, stop, deleted_at)
+    WHERE deleted_at IS NULL AND project_id IS NOT NULL;
+  CREATE INDEX time_entries_task_live ON time_entries(task_id, start, stop, deleted_at)
+    WHERE deleted_at IS NULL AND task_id IS NOT NULL;
+  `,
 ];
