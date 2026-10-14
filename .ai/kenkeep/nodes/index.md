@@ -12,7 +12,7 @@ _None._
 
 ## Conventions (how we build)
 - Open [**Parse incoming timestamps with parseInstant**](practice-parse-api-timestamps-with-parseinstant.md) to learn about: Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)). #server #validation #time #api
-- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) to learn about: npm run test:e2e builds the UI first; each run gets its own data dir; an auto fixture wipes data around every test, so specs seed their own. #testing #e2e #playwright #workflow
+- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) to learn about: test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them. #testing #e2e #playwright #workflow
 - Open [**UI time math uses account-local wall-clock helpers**](practice-ui-time-math-uses-wall-clock-helpers.md) to learn about: Calendar positions and day/clock shifts use shared/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work. #web #time #dst #calendar #shared
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](practice-write-paths-validate-refs-not-totals.md) to learn about: Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals. #server #models #performance #validation
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](practice-twelve-hour-time-entry-parsing-rules.md) to learn about: parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now. #web #shared #time #parsing
@@ -24,7 +24,7 @@ _None._
 - Open [**Validate hourly rates with optionalRate and MAX_HOURLY_RATE**](practice-hourly-rates-go-through-optionalrate.md) to learn about: Workspace and project rates share optionalRate, capped at MAX_HOURLY_RATE (1e9); a finite check alone lets reports overflow. #server #validation #reports #money
 
 ## Components (what exists)
-- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) to learn about: The web app's reports are aggregated server-side by /api/app/report/*; Toggl v3 report routes keep a 366-day cap. #server #reports #api #web
+- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) to learn about: Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings. #server #reports #api #web
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) to learn about: npm test runs only server/test and shared tests; web/src logic is tested via shared helpers or e2e; no lint script; typecheck skips e2e. #testing #typecheck #tooling #workflow
 
 ## By topic
@@ -44,24 +44,24 @@ _None._
 ### #web
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](practice-twelve-hour-time-entry-parsing-rules.md) — parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now.
 - Open [**UI time math uses account-local wall-clock helpers**](practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use shared/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
-- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — The web app's reports are aggregated server-side by /api/app/report/*; Toggl v3 report routes keep a 366-day cap.
+- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 ### #api
 - Open [**Parse incoming timestamps with parseInstant**](practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
-- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — The web app's reports are aggregated server-side by /api/app/report/*; Toggl v3 report routes keep a 366-day cap.
+- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 ### #performance
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](practice-write-paths-validate-refs-not-totals.md) — Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals.
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 ### #reports
 - Open [**Validate hourly rates with optionalRate and MAX_HOURLY_RATE**](practice-hourly-rates-go-through-optionalrate.md) — Workspace and project rates share optionalRate, capped at MAX_HOURLY_RATE (1e9); a finite check alone lets reports overflow.
-- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — The web app's reports are aggregated server-side by /api/app/report/*; Toggl v3 report routes keep a 366-day cap.
+- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 ### #shared
 - Open [**UI time math uses account-local wall-clock helpers**](practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use shared/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](practice-twelve-hour-time-entry-parsing-rules.md) — parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now.
 ### #testing
-- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — npm run test:e2e builds the UI first; each run gets its own data dir; an auto fixture wipes data around every test, so specs seed their own.
+- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — npm test runs only server/test and shared tests; web/src logic is tested via shared helpers or e2e; no lint script; typecheck skips e2e.
 ### #workflow
-- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — npm run test:e2e builds the UI first; each run gets its own data dir; an auto fixture wipes data around every test, so specs seed their own.
+- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — npm test runs only server/test and shared tests; web/src logic is tested via shared helpers or e2e; no lint script; typecheck skips e2e.
 ### #auth
 - Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Login, Basic auth and password change share the per-address limiter; new passwords cap at 1024 chars; cookie writes need X-Timetrack-CSRF: 1.
@@ -78,7 +78,7 @@ _None._
 ### #dst
 - Open [**UI time math uses account-local wall-clock helpers**](practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use shared/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
 ### #e2e
-- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — npm run test:e2e builds the UI first; each run gets its own data dir; an auto fixture wipes data around every test, so specs seed their own.
+- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 ### #import
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.
 ### #migrations
@@ -90,7 +90,7 @@ _None._
 ### #parsing
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](practice-twelve-hour-time-entry-parsing-rules.md) — parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now.
 ### #playwright
-- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — npm run test:e2e builds the UI first; each run gets its own data dir; an auto fixture wipes data around every test, so specs seed their own.
+- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 ### #preferences
 - Open [**Preferences: known keys validated, unknown keys stored verbatim**](practice-preferences-validated-by-known-key.md) — PREFERENCE_RULES in users.ts validates the keys the web app reads; other keys pass through; bad stored values read back as defaults.
 ### #projects
