@@ -47,7 +47,10 @@
    chart-billable on surface             other   3.59 AA     5.16 AA
    chart-other on surface                other   3.44 AA     5.19 AA
    The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
-   separation) on the surface colour in each theme. */
+   separation) on the surface colour in each theme.
+   The entry-row Project placeholder (.add-project, text) and the empty-tags icon (.entry-tags,
+   other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
+   above are their pairs. Fading them with opacity breaks those ratios. */
 :root {
   color-scheme: light dark;
 
@@ -365,7 +368,9 @@ code, kbd {
 .entry-project:hover, .entry-tags:hover, .entry-times:hover:not(:disabled) { background: var(--surface-2); }
 .entry-times:disabled { cursor: default; }
 .add-project { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); opacity: 0; }
-.entry-line:hover .add-project, .entry-project:focus-visible .add-project, .entry-tags:not(.has-tags) { opacity: 0.6; }
+/* The placeholder shows at full opacity: muted is AA on its own (see the table at the top), but
+   faded to 0.6 it fell to 2.52:1 on surface-2. */
+.entry-line:hover .add-project, .entry-project:focus-visible .add-project { opacity: 1; }
 .entry-tags { color: var(--muted); flex-wrap: wrap; }
 .entry-times { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: var(--text-md); }
 .entry-duration {
@@ -396,7 +401,7 @@ input.entry-duration:hover { border-color: var(--border); }
   .entry-line .entry-project { grid-column: 1 / 3; }
   .entry-times { display: none; }
   .entry-continue { opacity: 1; }
-  .add-project { opacity: 0.6; }
+  .add-project { opacity: 1; }
 }
 
 /* Pickers, popovers, menus */

@@ -78,7 +78,7 @@ for (const scheme of ['light', 'dark'] as const) {
       const label = button.locator('.add-project');
       await expect(label).toHaveCSS('opacity', '0');
       await tabTo(page, button);
-      await expect(label).toHaveCSS('opacity', '0.6');
+      await expect(label).toHaveCSS('opacity', '1');
       await expectRing(button);
     });
 
