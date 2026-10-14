@@ -2,7 +2,6 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
 test('calendar view shows entries and creates one by dragging', async ({ page }) => {
-  page.on('pageerror', (error) => console.log('PAGEERROR', error.message));
   await login(page);
   await page.getByRole('button', { name: 'Calendar' }).click();
   const todayColumn = page.locator('.calendar-column.today');

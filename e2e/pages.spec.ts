@@ -2,11 +2,8 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
 test('every page renders without errors and core management flows work', async ({ page }) => {
-  // Logging in starts with an expected 403 from /api/v9/me, so collect errors only afterwards.
+  // The runtimeErrors fixture fails this scenario on any page error, console error or failed request.
   await login(page);
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
 
   await page.getByRole('link', { name: 'Projects' }).click();
   await page.getByRole('button', { name: 'New project' }).click();
@@ -39,7 +36,6 @@ test('every page renders without errors and core management flows work', async (
   await page.getByRole('button', { name: /Tag.*not Without tags/ }).click();
   await page.getByRole('button', { name: 'Is', exact: true }).click();
   await expect(page).toHaveURL(/tags=none/);
-  expect(errors).toEqual([]);
 });
 
 test('deleting a client renames its project when a clientless one has the same name', async ({ page, data }) => {

@@ -1,4 +1,5 @@
 import { test as base, expect, request, type APIRequestContext, type APIResponse } from '@playwright/test';
+import { RuntimeErrors } from './runtime-errors.ts';
 
 export const EMAIL = 'e2e@example.com';
 export const PASSWORD = 'e2e password';
@@ -105,13 +106,20 @@ export class TestData {
   }
 }
 
-export const test = base.extend<{ data: TestData }>({
+export const test = base.extend<{ data: TestData; runtimeErrors: RuntimeErrors }>({
   data: [async ({ baseURL }, use) => {
     const data = await TestData.open(baseURL!);
     await data.reset();
     await use(data);
     await data.reset();
     await data.close();
+  }, { auto: true }],
+  // Fails any scenario that hits an uncaught error, a console error or a failed request; see
+  // e2e/runtime-errors.ts for the logged-out 403 rule and runtimeErrors.allowResponse.
+  runtimeErrors: [async ({ page }, use, testInfo) => {
+    const errors = new RuntimeErrors(page);
+    await use(errors);
+    await errors.verify(testInfo);
   }, { auto: true }],
 });
 

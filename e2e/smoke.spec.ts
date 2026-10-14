@@ -127,7 +127,8 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
 });
 
-test('a manual entry across the autumn clock change moves the date to its stop day', async ({ page }) => {
+test('a manual entry across the autumn clock change moves the date to its stop day', async ({ page, runtimeErrors }) => {
+  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/v9\/workspaces\/\d+\/time_entries$/, reason: 'the scenario fakes a failed save' });
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByRole('button', { name: 'Manual mode' }).click();
