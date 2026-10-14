@@ -84,7 +84,7 @@
 
   /* Type. The root size is relative, so the browser's font size setting scales the whole app. */
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display: var(--font-body);
+  --font-display: 'Anybody', var(--font-body);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-xs: 0.72rem;
   --text-sm: 0.82rem;
@@ -129,9 +129,21 @@
 :root[data-theme='light'] { color-scheme: light; }
 :root[data-theme='dark'] { color-scheme: dark; }
 
+/* Anybody by Etcetera Type Co., SIL Open Font License 1.1 (web/public/fonts/OFL.txt). One variable file
+   covers width 50-150% and weight 100-900. index.html preloads it. */
+@font-face {
+  font-family: 'Anybody';
+  src: url('/fonts/anybody-wdth-wght.woff2') format('woff2');
+  font-weight: 100 900;
+  font-stretch: 50% 150%;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   font-family: var(--font-body);
   font-size: 93.75%;
+  font-variant-numeric: tabular-nums;
   line-height: 1.45;
   color: var(--text);
   background: var(--bg);
@@ -153,6 +165,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 }
 input[type='checkbox'] { accent-color: var(--primary); width: 16px; height: 16px; padding: 0; }
 a { color: var(--primary); }
+/* Display face: wordmark, headings, the running clock and totals. */
+h1, h2, h3, .brand, .timer-clock, .timer-summary strong, .day-total, .manual-duration {
+  font-family: var(--font-display); font-stretch: 85%;
+}
+h1, h2, h3 { font-weight: 800; }
 h1 { font-size: var(--text-xl); margin: 0 0 16px; }
 h2 { font-size: var(--text-lg); margin: 0; }
 h3 { font-size: var(--text-base); margin: 0; }
