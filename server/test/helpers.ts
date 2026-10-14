@@ -1,4 +1,8 @@
 import { after } from 'node:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Worker } from 'node:worker_threads';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
@@ -51,6 +55,11 @@ export async function setup(options: { timezone?: string } = {}): Promise<TestCo
   const user = await createOwner(db, {
     email: 'me@example.com', password: PASSWORD, fullname: 'Test User', timezone: options.timezone ?? 'UTC',
   });
+  return serve(db, user);
+}
+
+/** Serves an app over `db` and signs every request in as `user` with its API token. */
+function serve(db: Db, user: UserRow): TestContext {
   const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
   const auth = `Basic ${Buffer.from(`${user.api_token}:api_token`).toString('base64')}`;
   const request = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -65,6 +74,31 @@ export async function setup(options: { timezone?: string } = {}): Promise<TestCo
     return { status: response.status, body: text ? JSON.parse(text) : null, headers: response.headers };
   };
   return { db, user, wid: user.default_workspace_id, request, json };
+}
+
+/**
+ * Copies the context's database into a file in a temporary directory and serves a second app over
+ * the copy, signed in as the same user. The copy holds the same rows, so both apps must answer the
+ * same requests identically. Report jobs on the copy run in the report worker, which needs a file;
+ * jobs on an in-memory database run inline. The directory is removed when the test file ends.
+ */
+export function fileBackedCopy(ctx: TestContext): TestContext & { path: string } {
+  const dir = mkdtempSync(join(tmpdir(), 'timetrack-test-'));
+  const path = join(dir, 'timetrack.db');
+  ctx.db.exec(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
+  const db = openDatabase(path);
+  // The report worker's message port keeps the test process alive once the worker has started, so
+  // stop every worker started from here on along with the database.
+  const workers: Worker[] = [];
+  const track = (worker: Worker) => workers.push(worker);
+  process.on('worker', track);
+  after(async () => {
+    process.off('worker', track);
+    await Promise.all(workers.map((worker) => worker.terminate()));
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+  return { ...serve(db, ctx.user), path };
 }
 
 export function iso(value: string): string {

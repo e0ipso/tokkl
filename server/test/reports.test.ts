@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, type TestContext } from './helpers.ts';
+import { once } from 'node:events';
+import { renameSync } from 'node:fs';
+import type { Worker } from 'node:worker_threads';
+import { fileBackedCopy, setup, type TestContext } from './helpers.ts';
 import { formatDuration, parseDuration } from '../../shared/duration.ts';
 import { transaction } from '../src/db/index.ts';
 import { parseCsv } from '../src/lib/csv.ts';
@@ -484,4 +487,99 @@ test('app detailed entries page through every match in a stable global order', a
   assert.equal((await page({ page: 0 })).status, 400);
   const empty = await page({ start_date: '2025-01-01', end_date: '2025-01-31', page: 4 });
   assert.deepEqual([empty.body.total, empty.body.page, empty.body.pages, empty.body.entries], [0, 1, 1, []]);
+});
+
+/** Report requests covering every job shape the worker returns: JSON with headers, and CSV. */
+function reportRequests(wid: number): Array<[string, Record<string, unknown>]> {
+  const range = { start_date: '2026-10-05', end_date: '2026-10-11' };
+  return [
+    [`/reports/api/v3/workspace/${wid}/summary/time_entries`, { ...range, grouping: 'projects', sub_grouping: 'time_entries' }],
+    [`/reports/api/v3/workspace/${wid}/search/time_entries`, { ...range, page_size: 2, order_dir: 'ASC' }],
+    [`/reports/api/v3/workspace/${wid}/search/time_entries.csv`, range],
+    ['/api/app/report', range],
+    ['/api/app/report/entries', range],
+    ['/api/app/report/detailed.csv', range],
+    ['/api/app/report/summary.csv', { ...range, grouping: 'clients', sub_grouping: 'projects' }],
+  ];
+}
+
+/** Status, headers and body of a response, without the headers that depend on the clock or socket. */
+async function snapshot(response: Response) {
+  const headers = [...response.headers].filter(([name]) => !['date', 'connection', 'keep-alive'].includes(name));
+  return { status: response.status, headers, body: await response.text() };
+}
+
+async function statusAndBody(response: Response) {
+  return { status: response.status, body: await response.text() };
+}
+
+/** Records every worker thread the process starts and how each one exits. */
+function watchWorkers() {
+  const started: Array<{ worker: Worker; exitCode: number | null }> = [];
+  const listener = (worker: Worker) => {
+    const record = { worker, exitCode: null as number | null };
+    worker.on('exit', (code) => (record.exitCode = code));
+    started.push(record);
+  };
+  process.on('worker', listener);
+  return { started, stop: () => process.off('worker', listener) };
+}
+
+test('reports on a file-backed database are built in the worker and match the inline build', async (t) => {
+  const ctx = await setup();
+  await seed(ctx);
+  const file = fileBackedCopy(ctx);
+  // An in-memory database builds reports inline; a file-backed one hands them to the worker.
+  assert.equal(ctx.db.location(), null);
+  assert.equal(file.db.location(), file.path);
+  const workers = watchWorkers();
+  t.after(workers.stop);
+
+  for (const [path, body] of reportRequests(ctx.wid)) {
+    const inline = await snapshot(await ctx.request('POST', path, body));
+    const worker = await snapshot(await file.request('POST', path, body));
+    assert.equal(inline.status, 200, `${path}: ${inline.body}`);
+    assert.deepEqual(worker, inline, path);
+  }
+  // One worker took every job and is still running.
+  assert.equal(workers.started.length, 1);
+  assert.equal(workers.started[0]!.exitCode, null);
+});
+
+test('a crashed report worker fails its pending jobs with 500 and the next report starts a new worker', async (t) => {
+  const ctx = await setup();
+  await seed(ctx);
+  const file = fileBackedCopy(ctx);
+  const workers = watchWorkers();
+  t.after(workers.stop);
+  const logged = t.mock.method(console, 'error', () => {});
+  const [summary, , csv] = reportRequests(ctx.wid);
+
+  // With the database file gone the worker throws while opening it, before it takes any job. The
+  // app keeps its own open connection, so only report jobs are affected.
+  const moved = `${file.path}.moved`;
+  renameSync(file.path, moved);
+  const failed = await Promise.all([summary!, csv!].map(([path, body]) => file.request('POST', path, body)));
+  assert.deepEqual(await Promise.all(failed.map(statusAndBody)), [
+    { status: 500, body: '"Internal Server Error"' },
+    { status: 500, body: '"Internal Server Error"' },
+  ]);
+  assert.equal(logged.mock.callCount(), 2);
+  for (const call of logged.mock.calls) assert.match(String(call.arguments[0]), /unable to open database file/);
+  const crashed = [...workers.started];
+  assert.ok(crashed.length >= 1);
+  await Promise.all(crashed.map(({ worker, exitCode }) => (exitCode === null ? once(worker, 'exit') : null)));
+  for (const record of crashed) assert.equal(record.exitCode, 1);
+  // Requests that read on the main connection keep working while reports fail.
+  assert.equal((await file.json('GET', '/api/v9/me/time_entries/current')).status, 200);
+
+  renameSync(moved, file.path);
+  for (const [path, body] of [summary!, csv!]) {
+    const inline = await snapshot(await ctx.request('POST', path, body));
+    assert.deepEqual(await snapshot(await file.request('POST', path, body)), inline, path);
+  }
+  const restarted = workers.started.slice(crashed.length);
+  assert.equal(restarted.length, 1);
+  assert.equal(restarted[0]!.exitCode, null);
+  assert.equal(logged.mock.callCount(), 2);
 });
