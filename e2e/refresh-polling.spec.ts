@@ -129,12 +129,13 @@ test('a refresh keeps the description being typed in the running timer and in a 
   await expect.poll(async () => (await device.entries()).get(oldId)?.description).toBe('Local row draft');
 });
 
-// With similar entries grouped (the default), a row's React key is its description, project, task,
-// tags and billable flag. When another device changes any of them on the entry being typed in,
-// the refresh remounts the row: focus and the unsaved text are gone, and Enter saves nothing.
-test.fixme('TT-0060: a refresh keeps an unsaved row description when another device edits that entry', async ({ page }) => {
+// With similar entries grouped (the default), rows merge by description, project, task, tags and
+// billable flag, so another device's edit to the entry being typed in must not remount its row
+// or reset the unsaved text.
+test('a refresh keeps an unsaved row description when another device edits that entry', async ({ page }) => {
   await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
   const project = await device.createProject('Acme');
+  await page.clock.install();
   await login(page);
   await expect(page.locator('.entry-list .entry-line')).toHaveCount(1);
   const row = page.locator('.entry-list .entry-line').first();
@@ -148,6 +149,15 @@ test.fixme('TT-0060: a refresh keeps an unsaved row description when another dev
   await expect(row.locator('.project-label')).toContainText('Acme');
   await expect(rowDescription).toBeFocused();
   await expect(rowDescription).toHaveValue('Local row draft');
+
+  // A rename of the same entry arrives with the 60-second poll and still leaves the draft alone.
+  await device.updateEntry(id, { description: 'Renamed elsewhere' });
+  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v9/me/time_entries');
+  await page.clock.fastForward(60_000);
+  await refreshed;
+  await expect(rowDescription).toBeFocused();
+  await expect(rowDescription).toHaveValue('Local row draft');
+
   await rowDescription.press('Enter');
   await expect.poll(async () => (await device.entries()).get(id)?.description).toBe('Local row draft');
 });

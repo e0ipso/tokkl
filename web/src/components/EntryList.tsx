@@ -66,16 +66,19 @@ function useDeleteEntries() {
   };
 }
 
+/**
+ * Rows are keyed by their oldest member's id, not by the fields they are grouped on, so an edit
+ * from another device does not remount the row someone is typing in. A group keeps its key when
+ * entries join it (a split adds a newer id).
+ */
 function rowsForDay(entries: TimeEntry[], collapse: boolean): Row[] {
   if (!collapse) return entries.map((entry) => ({ key: String(entry.id), entries: [entry] }));
-  const rows = new Map<string, Row>();
+  const groups = new Map<string, TimeEntry[]>();
   for (const entry of entries) {
-    const key = similarityKey(entry);
-    const row = rows.get(key);
-    if (row) row.entries.push(entry);
-    else rows.set(key, { key, entries: [entry] });
+    const similar = similarityKey(entry);
+    groups.set(similar, [...(groups.get(similar) ?? []), entry]);
   }
-  return [...rows.values()];
+  return [...groups.values()].map((members) => ({ key: String(Math.min(...members.map((e) => e.id))), entries: members }));
 }
 
 export function EntryList({ entries, onContinue }: { entries: TimeEntry[]; onContinue: (entry: TimeEntry) => void }) {
@@ -204,7 +207,15 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
   const entry = entries[0]!;
   const single = entries.length === 1;
   const [description, setDescription] = useState(entry.description);
-  useEffect(() => setDescription(entry.description), [entry.description]);
+  const descriptionRef = useRef<HTMLInputElement>(null);
+  const storedDescription = useRef(entry.description);
+  // Follow the stored description, unless the user is typing a change of their own: a refresh
+  // must not throw that away. Committing it then saves the typed text.
+  useEffect(() => {
+    const typing = document.activeElement === descriptionRef.current && description !== storedDescription.current;
+    storedDescription.current = entry.description;
+    if (!typing) setDescription(entry.description);
+  }, [entry.description]);
   const [picker, setPicker] = useState<'project' | 'tags' | 'menu' | null>(null);
   const [editing, setEditing] = useState(false);
   const projectRef = useRef<HTMLButtonElement>(null);
@@ -261,6 +272,7 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
       <input type="checkbox" className="entry-select" aria-label="Select entry" checked={selected} onChange={(event) => onSelect(event.target.checked)} />
       {countBadge}
       <input
+        ref={descriptionRef}
         className="entry-description"
         value={description}
         placeholder="Add description"
