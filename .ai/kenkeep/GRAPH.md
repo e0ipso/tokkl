@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:a759ee300c49c6ef8c8227a33a662aa759fbb1d337aec0ffb6ae215e4ac77635'
-node_count: 13
+nodes_hash: 'sha256:8b8a7bd30ab0fcb675330f496fe5ed3d86218b17765429b23539dfca84392b8b'
+node_count: 16
 ---
 # kenkeep Graph
 
-Total nodes: 13
+Total nodes: 16
 
 ## map-app-report-endpoints
 
@@ -13,6 +13,14 @@ Total nodes: 13
 - **title:** Web app report endpoints under /api/app/report
 - **path:** map-app-report-endpoints.md
 - **tags:** server, reports, api, web
+
+## map-history-scale-bench
+
+- **kind:** map
+- **title:** History-scale bench: npm run bench:history
+- **path:** map-history-scale-bench.md
+- **tags:** performance, bench, tooling, reports
+- **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
 
 ## map-test-and-static-analysis-layout
 
@@ -28,6 +36,13 @@ Total nodes: 13
 - **title:** Deleting a client detaches its projects and never merges them
 - **path:** practice-client-deletion-keeps-projects.md
 - **tags:** server, clients, projects
+
+## practice-clipboard-copy-needs-http-fallback
+
+- **kind:** practice
+- **title:** Clipboard copy needs a fallback on plain HTTP
+- **path:** practice-clipboard-copy-needs-http-fallback.md
+- **tags:** web, clipboard, self-hosting
 
 ## practice-e2e-test-workflow
 
@@ -93,6 +108,13 @@ Total nodes: 13
 - **title:** UI time math uses account-local wall-clock helpers
 - **path:** practice-ui-time-math-uses-wall-clock-helpers.md
 - **tags:** web, time, dst, calendar, shared
+
+## practice-web-ui-survives-background-refetches
+
+- **kind:** practice
+- **title:** Web UI state must survive background refetches
+- **path:** practice-web-ui-survives-background-refetches.md
+- **tags:** web, react-query, timer, entry-list
 
 ## practice-write-paths-validate-refs-not-totals
 
