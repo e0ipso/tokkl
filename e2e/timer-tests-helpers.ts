@@ -1,0 +1,111 @@
+import { expect, type APIResponse, type Page } from '@playwright/test';
+
+// Cookie-authenticated writes must carry this header (server/src/auth/middleware.ts).
+const CSRF = { 'X-Timetrack-CSRF': '1' };
+
+export interface EntryView {
+  id: number;
+  description: string;
+  start: string;
+  stop: string | null;
+  project_id: number | null;
+  task_id: number | null;
+  tags: string[];
+  billable: boolean;
+}
+
+/** The metadata Continue, favorites and autocomplete promise to copy. */
+export type Metadata = Pick<EntryView, 'description' | 'project_id' | 'task_id' | 'tags' | 'billable'>;
+
+async function ok<T>(response: APIResponse): Promise<T> {
+  if (!response.ok()) throw new Error(`${response.url()} answered ${response.status()}: ${await response.text()}`);
+  return response.json() as Promise<T>;
+}
+
+/**
+ * Reads and seeds data through the page's own session, so call it after logging in. The automatic
+ * fixture in e2e/fixtures.ts deletes everything created here, tasks included with their projects.
+ */
+export class TimerApi {
+  private readonly page: Page;
+  readonly workspaceId: number;
+
+  private constructor(page: Page, workspaceId: number) {
+    this.page = page;
+    this.workspaceId = workspaceId;
+  }
+
+  static async open(page: Page): Promise<TimerApi> {
+    const me = await ok<{ default_workspace_id: number }>(await page.request.get('/api/v9/me'));
+    return new TimerApi(page, me.default_workspace_id);
+  }
+
+  private get ws(): string {
+    return `/api/v9/workspaces/${this.workspaceId}`;
+  }
+
+  async createProject(name: string, billable = false): Promise<number> {
+    return (await ok<{ id: number }>(await this.page.request.post(`${this.ws}/projects`, { headers: CSRF, data: { name, billable } }))).id;
+  }
+
+  async createTask(projectId: number, name: string): Promise<number> {
+    return (await ok<{ id: number }>(await this.page.request.post(`${this.ws}/projects/${projectId}/tasks`, { headers: CSRF, data: { name } }))).id;
+  }
+
+  async createEntry(entry: Partial<Metadata> & { start: string; stop: string }): Promise<EntryView> {
+    return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, created_with: 'e2e' } })));
+  }
+
+  async current(): Promise<EntryView | null> {
+    const entry = await ok<EntryView | null>(await this.page.request.get('/api/v9/me/time_entries/current'));
+    return entry ? view(entry) : null;
+  }
+
+  async entries(): Promise<EntryView[]> {
+    const all = await ok<EntryView[]>(await this.page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
+    return all.map(view);
+  }
+
+  async preferences(): Promise<Record<string, unknown>> {
+    return ok(await this.page.request.get('/api/v9/me/preferences'));
+  }
+
+  async savePreferences(preferences: Record<string, unknown>): Promise<void> {
+    await ok(await this.page.request.post('/api/v9/me/preferences', { headers: CSRF, data: preferences }));
+  }
+}
+
+/** Keeps the compared fields only, with tags sorted so their order never matters. */
+export function view(entry: EntryView): EntryView {
+  const { id, description, start, stop, project_id, task_id, billable } = entry;
+  return { id, description, start, stop, project_id, task_id, tags: [...(entry.tags ?? [])].sort(), billable };
+}
+
+export function metadataOf(entry: Metadata): Metadata {
+  const { description, project_id, task_id, billable } = entry;
+  return { description, project_id, task_id, tags: [...entry.tags].sort(), billable };
+}
+
+/** Waits until a running entry other than `previousId` exists and returns it. */
+export async function nextRunning(api: TimerApi, previousId: number | null): Promise<EntryView> {
+  let running: EntryView | null = null;
+  await expect.poll(async () => {
+    running = await api.current();
+    return running !== null && running.id !== previousId;
+  }).toBe(true);
+  return running!;
+}
+
+/** Date key (YYYY-MM-DD) and 24-hour clock text of an instant in Europe/Madrid, the e2e account zone. */
+export function madridWallClock(at: Date): { day: string; time: string } {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Madrid', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(at).map((part) => [part.type, part.value]));
+  return { day: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+/** API timestamps carry "+00:00"; compare instants, not strings. */
+export function instant(iso: string | null): number {
+  expect(iso).not.toBeNull();
+  return Date.parse(iso!);
+}
