@@ -8,6 +8,11 @@ import { findSessionUser, SESSION_COOKIE } from './sessions.ts';
 
 export const CSRF_HEADER = 'x-timetrack-csrf';
 
+/** A cross-site form cannot set this header, and the server never grants the CORS preflight it needs. */
+export function hasCsrfHeader(req: Request): boolean {
+  return req.headers[CSRF_HEADER] === '1';
+}
+
 function decodeBasic(header: string): { username: string; password: string } | null {
   const match = /^Basic\s+(.+)$/i.exec(header);
   if (!match) return null;
@@ -53,7 +58,7 @@ export function requireAuth(deps: Deps): RequestHandler {
     const token = getCookie(req, SESSION_COOKIE);
     const user = token ? findSessionUser(deps.db, token) : undefined;
     if (!user) throw forbidden('Incorrect username and/or password');
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.headers[CSRF_HEADER] !== '1') {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !hasCsrfHeader(req)) {
       throw forbidden('Missing CSRF header');
     }
     res.locals.user = user;

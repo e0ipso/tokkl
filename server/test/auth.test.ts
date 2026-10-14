@@ -53,7 +53,11 @@ test('session cookie login requires the CSRF header for writes', async () => {
   });
   assert.equal(withCsrf.status, 200);
 
-  const logout = await ctx.request('POST', '/api/app/logout', undefined, { authorization: '', cookie: session });
+  const logoutNoCsrf = await ctx.request('POST', '/api/app/logout', undefined, { authorization: '', cookie: session });
+  assert.equal(logoutNoCsrf.status, 403);
+  const stillIn = await ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: session });
+  assert.equal(stillIn.status, 200);
+  const logout = await ctx.request('POST', '/api/app/logout', undefined, { authorization: '', cookie: session, 'x-timetrack-csrf': '1' });
   assert.equal(logout.status, 200);
   const after = await ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: session });
   assert.equal(after.status, 403);

@@ -1,7 +1,7 @@
 import express, { type Request, type Response, type Router } from 'express';
 import { MAX_PASSWORD_LENGTH, safeEqual, verifyAgainstDummy, verifyPassword } from '../auth/crypto.ts';
-import { requireAuth } from '../auth/middleware.ts';
-import { createSession, deleteSession, SESSION_COOKIE } from '../auth/sessions.ts';
+import { hasCsrfHeader, requireAuth } from '../auth/middleware.ts';
+import { createSession, deleteSession, findSessionUser, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie, query, readJson, readText } from '../http/context.ts';
 import { HttpError, badRequest, forbidden, notFound } from '../lib/errors.ts';
@@ -77,9 +77,14 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     return res.json({ ok: true });
   });
 
+  // Ending an active session is a cookie-authenticated write, so it needs the CSRF header.
+  // Without an active session there is nothing to protect and logout stays idempotent.
   app.post('/logout', (req, res) => {
     const token = getCookie(req, SESSION_COOKIE);
-    if (token) deleteSession(db, token);
+    if (token && findSessionUser(db, token)) {
+      if (!hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
+      deleteSession(db, token);
+    }
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     return res.json({ ok: true });
   });
