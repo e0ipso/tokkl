@@ -1,0 +1,123 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { setup } from './helpers.ts';
+
+const TOGGL_CSV = [
+  'User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount (EUR)',
+  'Me,me@example.com,ACME,Website,Design,"Homepage, hero",Yes,2026-09-01,09:00:00,2026-09-01,10:30:00,01:30:00,"design, web",150.00',
+  'Me,me@example.com,,Internal,,Inbox zero,No,2026-09-01,23:30:00,2026-09-02,00:15:00,00:45:00,,',
+  'Me,me@example.com,,,,"=cmd()",No,2026-09-02,08:00:00,,,00:10:00,,',
+  'Me,me@example.com,,,,Broken row,No,not-a-date,08:00:00,,,00:10:00,,',
+].join('\n');
+
+test('imports a Toggl detailed CSV in the account timezone and skips duplicates on re-import', async () => {
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const dry = await ctx.request('POST', '/api/app/import/toggl-csv?dry_run=true', TOGGL_CSV, { 'content-type': 'text/csv' });
+  const dryBody = await dry.json() as any as any;
+  assert.equal(dryBody.created, 3);
+  assert.equal((await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03')).body.length, 0);
+
+  const first = await (await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' })).json() as any;
+  assert.equal(first.created, 3);
+  assert.deepEqual(first.errors, [{ row: 5, message: 'Invalid start date or time' }]);
+  assert.deepEqual(first.created_clients, ['ACME']);
+  assert.deepEqual(first.created_projects.sort(), ['Internal', 'Website (ACME)']);
+
+  const entries = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03&meta=true');
+  const design = entries.body.find((e: any) => e.description === 'Homepage, hero');
+  // 09:00 in Madrid (CEST, UTC+2) is 07:00 UTC.
+  assert.equal(design.start, '2026-09-01T07:00:00+00:00');
+  assert.equal(design.duration, 5400);
+  assert.equal(design.billable, true);
+  assert.equal(design.client_name, 'ACME');
+  assert.equal(design.task_name, 'Design');
+  assert.deepEqual(design.tags, ['design', 'web']);
+  const midnight = entries.body.find((e: any) => e.description === 'Inbox zero');
+  assert.equal(midnight.duration, 2700);
+
+  const second = await (await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' })).json() as any;
+  assert.equal(second.created, 0);
+  assert.equal(second.skipped_duplicates, 3);
+});
+
+test('CSV export round-trips through the importer and neutralises formulas', async () => {
+  const ctx = await setup({ timezone: 'America/New_York' });
+  await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' });
+  const exported = await ctx.request('GET', '/api/app/export.csv');
+  assert.equal(exported.status, 200);
+  const csv = await exported.text();
+  assert.match(csv, /^User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags\r\n/);
+  assert.match(csv, /'=cmd\(\)/);
+  assert.match(csv, /"Homepage, hero"/);
+
+  const other = await setup({ timezone: 'America/New_York' });
+  const result = await (await other.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  assert.equal(result.created, 3);
+  const before = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-08-30&end_date=2026-09-05')).body;
+  const after = (await other.json('GET', '/api/v9/me/time_entries?start_date=2026-08-30&end_date=2026-09-05')).body;
+  const shape = (list: any[]) => list.map((e) => [e.description, e.start, e.stop, e.billable, e.tags]).sort();
+  assert.deepEqual(shape(after), shape(before));
+});
+
+test('JSON export contains every entity and never the password hash or token', async () => {
+  const ctx = await setup();
+  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 60, tags: ['a'] });
+  const res = await ctx.request('GET', '/api/app/export.json');
+  const text = await res.text();
+  const body = JSON.parse(text);
+  assert.equal(body.format, 'timetrack-export');
+  assert.equal(body.time_entries.length, 1);
+  assert.equal(body.tags.length, 1);
+  assert.ok(!text.includes(ctx.user.api_token));
+  assert.ok(!text.includes('scrypt$'));
+});
+
+test('JSON export restores into a fresh account, including colors, rates, tasks and tags', async () => {
+  const source = await setup({ timezone: 'Europe/Madrid' });
+  const base = `/api/v9/workspaces/${source.wid}`;
+  const client = await source.json('POST', `${base}/clients`, { name: 'ACME' });
+  const project = await source.json('POST', `${base}/projects`, { name: 'Site', client_id: client.body.id, color: '#d92b2b', rate: 90, billable: true });
+  const task = await source.json('POST', `${base}/projects/${project.body.id}/tasks`, { name: 'Design' });
+  await source.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 3600, task_id: task.body.id, tags: ['ux'], description: 'Wireframes' });
+  await source.json('POST', `${base}/time_entries`, { start: '2026-10-02T08:00:00Z', duration: 60, description: 'Gone' }).then((r) =>
+    source.request('DELETE', `${base}/time_entries/${r.body.id}`));
+  const exported = await (await source.request('GET', '/api/app/export.json')).text();
+
+  const target = await setup({ timezone: 'Europe/Madrid' });
+  const dry = await (await target.request('POST', '/api/app/import/json?dry_run=true', exported)).json() as any;
+  assert.equal(dry.time_entries, 1);
+  assert.equal((await target.json('GET', '/api/v9/me/projects')).body.length, 0);
+
+  const restored = await (await target.request('POST', '/api/app/import/json', exported)).json() as any;
+  assert.deepEqual([restored.clients, restored.projects, restored.tasks, restored.tags, restored.time_entries], [1, 1, 1, 1, 1]);
+  assert.deepEqual(restored.errors, []);
+  const projects = (await target.json('GET', '/api/v9/me/projects')).body;
+  assert.equal(projects[0].color, '#d92b2b');
+  assert.equal(projects[0].rate, 90);
+  assert.equal(projects[0].client_name, 'ACME');
+  const entries = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-30&end_date=2026-10-05&meta=true')).body;
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].task_name, 'Design');
+  assert.deepEqual(entries[0].tags, ['ux']);
+  assert.equal(entries[0].billable, true);
+
+  const again = await (await target.request('POST', '/api/app/import/json', exported)).json() as any;
+  assert.equal(again.time_entries, 0);
+  assert.equal(again.skipped_duplicates, 1);
+
+  const bad = await target.request('POST', '/api/app/import/json', '{"hello":1}');
+  assert.equal(bad.status, 400);
+});
+
+test('CSV import rejects impossible dates instead of rolling them over', async () => {
+  const ctx = await setup();
+  const csv = [
+    'Description,Start date,Start time,End date,End time',
+    'Feb 31,2026-02-31,09:00:00,2026-02-31,10:00:00',
+    'Month 13,13/25/2026,09:00:00,13/25/2026,10:00:00',
+    'Fine,2026-02-28,09:00:00,2026-02-28,10:00:00',
+  ].join('\n');
+  const result = await (await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  assert.equal(result.created, 1);
+  assert.deepEqual(result.errors.map((e: any) => e.row), [2, 3]);
+});

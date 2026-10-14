@@ -1,0 +1,36 @@
+{
+  "name": "timetrack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted, single-user time tracker with a Toggl Track compatible API",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node --watch server/src/index.ts",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts",
+    "start": "node server/src/index.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
+    "test": "node --test --test-reporter=spec 'server/test/**/*.test.ts' 'shared/**/*.test.ts'",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tanstack/react-query": "^5.104.2",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4",
+    "wouter": "^3.13.0"
+  },
+  "dependencies": {
+    "express": "^5.3.0"
+  }
+}

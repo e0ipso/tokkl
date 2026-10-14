@@ -1,0 +1,243 @@
+import type { Db } from '../db/index.ts';
+import { parseCsv } from '../lib/csv.ts';
+import { badRequest } from '../lib/errors.ts';
+import { parseDuration } from '../../../shared/duration.ts';
+import { zonedToUtc } from '../../../shared/time.ts';
+import { createClient } from '../models/clients.ts';
+import { createProject } from '../models/projects.ts';
+import { createTask } from '../models/tasks.ts';
+import { createTimeEntry } from '../models/timeEntries.ts';
+import type { UserRow } from '../models/users.ts';
+
+export interface ImportResult {
+  dry_run: boolean;
+  rows: number;
+  created: number;
+  skipped_duplicates: number;
+  created_projects: string[];
+  created_clients: string[];
+  errors: Array<{ row: number; message: string }>;
+}
+
+const HEADER_ALIASES: Record<string, string[]> = {
+  client: ['client'],
+  project: ['project'],
+  task: ['task'],
+  description: ['description'],
+  billable: ['billable'],
+  startDate: ['start date'],
+  startTime: ['start time'],
+  endDate: ['end date', 'stop date'],
+  endTime: ['end time', 'stop time'],
+  duration: ['duration'],
+  tags: ['tags'],
+};
+
+const MAX_ROWS = 100_000;
+const MAX_ERRORS = 100;
+
+function columnIndex(header: string[]): Record<string, number> {
+  const normalized = header.map((name) => name.trim().toLowerCase());
+  const index: Record<string, number> = {};
+  for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
+    const position = normalized.findIndex((name) => aliases.includes(name));
+    if (position >= 0) index[key] = position;
+  }
+  return index;
+}
+
+function parseDate(value: string): { year: number; month: number; day: number } | null {
+  const parsed = parseLooseDate(value);
+  if (!parsed) return null;
+  // Reject dates like 2026-02-31 instead of letting Date.UTC roll them into March.
+  const check = new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day));
+  if (check.getUTCMonth() !== parsed.month - 1 || check.getUTCDate() !== parsed.day) return null;
+  return parsed;
+}
+
+function parseLooseDate(value: string): { year: number; month: number; day: number } | null {
+  let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value);
+  if (match) return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+  match = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(value);
+  if (!match) return null;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  // Dots and dashes mean day first; slashes follow Toggl's US default (month first) unless that is impossible.
+  const dayFirst = !value.includes('/') || a > 12;
+  return { year: Number(match[3]), month: dayFirst ? b : a, day: dayFirst ? a : b };
+}
+
+function parseTime(value: string): { hour: number; minute: number; second: number } | null {
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?m\.?)?$/i.exec(value.trim());
+  if (!match) return null;
+  let hour = Number(match[1]);
+  const meridiem = match[4]?.toLowerCase().replace(/\./g, '');
+  if (meridiem === 'pm' && hour < 12) hour += 12;
+  if (meridiem === 'am' && hour === 12) hour = 0;
+  const minute = Number(match[2]);
+  const second = Number(match[3] ?? 0);
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  return { hour, minute, second };
+}
+
+function instant(dateValue: string, timeValue: string, timeZone: string): Date | null {
+  const date = parseDate(dateValue.trim());
+  const time = parseTime(timeValue);
+  if (!date || !time) return null;
+  return zonedToUtc(date.year, date.month, date.day, time.hour, time.minute, time.second, timeZone);
+}
+
+/** Undoes the quote prefix that spreadsheet-safe CSV writers add before =, +, - and @. */
+function unescapeCell(value: string): string {
+  return /^'[=+\-@]/.test(value) ? value.slice(1) : value;
+}
+
+class Rollback extends Error {}
+
+/**
+ * Imports a Toggl Track detailed-report CSV export. Times are read in the account's timezone.
+ * Missing clients, projects, tasks and tags are created. Rows matching an existing entry
+ * (same start, stop, description and project) are skipped, so re-importing a file is safe.
+ */
+export function importTogglCsv(db: Db, user: UserRow, text: string, options: { dryRun: boolean }): ImportResult {
+  const rows = parseCsv(text);
+  const header = rows.shift();
+  if (!header) throw badRequest('The file is empty');
+  if (rows.length > MAX_ROWS) throw badRequest(`At most ${MAX_ROWS} rows per import`);
+  const col = columnIndex(header);
+  if (col.startDate === undefined || col.startTime === undefined) {
+    throw badRequest('Missing "Start date" and "Start time" columns. Export a Detailed report as CSV from Toggl Track.');
+  }
+  if (col.duration === undefined && (col.endDate === undefined || col.endTime === undefined)) {
+    throw badRequest('Missing "End date"/"End time" or "Duration" columns.');
+  }
+
+  const wid = user.default_workspace_id;
+  const result: ImportResult = {
+    dry_run: options.dryRun, rows: rows.length, created: 0, skipped_duplicates: 0,
+    created_projects: [], created_clients: [], errors: [],
+  };
+  const cell = (row: string[], key: string): string => {
+    const position = col[key];
+    return position === undefined ? '' : unescapeCell((row[position] ?? '').trim());
+  };
+  const clientIds = new Map<string, number>();
+  const projectIds = new Map<string, number>();
+  const taskIds = new Map<string, number>();
+  const duplicate = db.prepare(`
+    SELECT 1 FROM time_entries
+    WHERE user_id = ? AND deleted_at IS NULL AND start = ? AND stop = ? AND description = ? AND IFNULL(project_id, 0) = ?
+  `);
+
+  const clientId = (name: string): number | null => {
+    if (!name) return null;
+    const key = name.toLowerCase();
+    let id = clientIds.get(key);
+    if (id === undefined) {
+      const existing = db.prepare('SELECT id FROM clients WHERE workspace_id = ? AND name = ? COLLATE NOCASE').get(wid, name) as { id: number } | undefined;
+      if (existing) id = existing.id;
+      else {
+        id = createClient(db, wid, { name }).id;
+        result.created_clients.push(name);
+      }
+      clientIds.set(key, id);
+    }
+    return id;
+  };
+
+  const projectId = (name: string, client: string): number | null => {
+    if (!name) return null;
+    const key = `${client.toLowerCase()}\u0000${name.toLowerCase()}`;
+    let id = projectIds.get(key);
+    if (id === undefined) {
+      const cid = clientId(client);
+      const existing = db.prepare(`
+        SELECT id FROM projects WHERE workspace_id = ? AND IFNULL(client_id, 0) = ? AND name = ? COLLATE NOCASE
+      `).get(wid, cid ?? 0, name) as { id: number } | undefined;
+      if (existing) id = existing.id;
+      else {
+        id = createProject(db, wid, { name, client_id: cid }).id;
+        result.created_projects.push(client ? `${name} (${client})` : name);
+      }
+      projectIds.set(key, id);
+    }
+    return id;
+  };
+
+  const taskId = (name: string, pid: number | null): number | null => {
+    if (!name || pid === null) return null;
+    const key = `${pid}\u0000${name.toLowerCase()}`;
+    let id = taskIds.get(key);
+    if (id === undefined) {
+      const existing = db.prepare('SELECT id FROM tasks WHERE project_id = ? AND name = ? COLLATE NOCASE').get(pid, name) as { id: number } | undefined;
+      id = existing?.id ?? createTask(db, wid, pid, { name }).id;
+      taskIds.set(key, id);
+    }
+    return id;
+  };
+
+  const run = () => {
+    rows.forEach((row, index) => {
+      const rowNumber = index + 2;
+      const createdProjects = result.created_projects.length;
+      const createdClients = result.created_clients.length;
+      db.exec('SAVEPOINT import_row');
+      try {
+        const start = instant(cell(row, 'startDate'), cell(row, 'startTime'), user.timezone);
+        if (!start) throw new Error('Invalid start date or time');
+        let stop: Date | null = null;
+        if (cell(row, 'endDate') && cell(row, 'endTime')) {
+          stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
+        } else if (cell(row, 'duration')) {
+          const seconds = parseDuration(cell(row, 'duration'));
+          if (seconds !== null) stop = new Date(start.getTime() + seconds * 1000);
+        }
+        if (!stop) throw new Error('Invalid end time or duration');
+
+        const pid = projectId(cell(row, 'project'), cell(row, 'client'));
+        const description = cell(row, 'description');
+        if (duplicate.get(user.id, start.toISOString(), stop.toISOString(), description, pid ?? 0)) {
+          result.skipped_duplicates++;
+          db.exec('RELEASE import_row');
+          return;
+        }
+        const tags = cell(row, 'tags').split(',').map((tag) => tag.trim()).filter(Boolean);
+        createTimeEntry(db, user, wid, {
+          description,
+          start: start.toISOString(),
+          stop: stop.toISOString(),
+          project_id: pid,
+          task_id: taskId(cell(row, 'task'), pid),
+          billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
+          tags,
+          created_with: 'timetrack-csv-import',
+        });
+        result.created++;
+        db.exec('RELEASE import_row');
+      } catch (error) {
+        db.exec('ROLLBACK TO import_row');
+        db.exec('RELEASE import_row');
+        // Entities created for this row were rolled back, so forget their cached ids.
+        clientIds.clear();
+        projectIds.clear();
+        taskIds.clear();
+        result.created_projects.length = createdProjects;
+        result.created_clients.length = createdClients;
+        if (result.errors.length < MAX_ERRORS) {
+          result.errors.push({ row: rowNumber, message: error instanceof Error ? error.message : 'Invalid row' });
+        }
+      }
+    });
+  };
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    run();
+    if (options.dryRun) throw new Rollback();
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    if (!(error instanceof Rollback)) throw error;
+  }
+  return result;
+}
