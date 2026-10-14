@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:8b8a7bd30ab0fcb675330f496fe5ed3d86218b17765429b23539dfca84392b8b'
-node_count: 16
+nodes_hash: 'sha256:14e6429dcc4224e6303506a6d82890f17e87cf38e66a8f206eefc538d5701301'
+node_count: 17
 ---
 # kenkeep Graph
 
-Total nodes: 16
+Total nodes: 17
 
 ## map-app-report-endpoints
 
@@ -86,6 +86,14 @@ Total nodes: 16
 - **title:** Password checks go through FailureLimiter.attempt; writes need the CSRF header
 - **path:** practice-password-checks-and-csrf-rules.md
 - **tags:** server, auth, security, rate-limit, csrf
+
+## practice-phone-layout-css-gotchas
+
+- **kind:** practice
+- **title:** Phone layout CSS: position scroll wrappers, min-width: 0 on grid/flex items
+- **path:** practice-phone-layout-css-gotchas.md
+- **tags:** web, css, mobile, layout
+- **relates_to:** practice-e2e-test-workflow
 
 ## practice-preferences-validated-by-known-key
 

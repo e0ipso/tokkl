@@ -33,4 +33,6 @@ Writing specs:
 - `getByRole`/`getByLabel` name matching is a case-insensitive substring match unless you pass `exact: true`.
 - A synthetic `visibilitychange` must be dispatched with `{ bubbles: true }` when fired on `document`, because the focus listener in `web/src/main.tsx` listens on `window`.
 - For timer-driven behaviour use `page.clock.install()` with `fastForward`. Do not use `clock.pauseAt`: TanStack Query's notify scheduler uses `setTimeout(0)`, which then never fires and queries stop updating the UI.
+- Phone specs (`mobile-timer`, `mobile-reports`, `mobile-transfer`, `mobile-manage`) call `test.use(PHONE)` from `e2e/mobile-tests-helpers.ts`: a 390x844 viewport with `isMobile` and `hasTouch`. Drive them with the helpers. `tap` runs `expectFits` first, which checks the control is fully on screen, and `expectNoPageOverflow` fails if the page scrolls sideways.
+- Chromium's mobile emulation snaps a touch on bare margin to a nearby control. To close a popover the way a finger does, use `tapOutside` on plain text away from the popover, such as a heading.
 - On this host 127.0.0.1:8142 and 8143 are held by a rootless Docker listener, so do not pick an `E2E_PORT` that lands on them (directly or through the +50 disposable range).
