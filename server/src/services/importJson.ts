@@ -34,7 +34,7 @@ class Rollback extends Error {}
  * Restores a file written by GET /api/app/export.json into the current account. Clients, projects,
  * tasks and tags are matched by name (created when missing); entries that already exist with the
  * same start, stop, description and project are skipped, so restoring twice changes nothing.
- * Running entries in the file are imported as running only if nothing runs here.
+ * A running entry in the file is reported and skipped while another timer runs here.
  */
 export function importJsonExport(db: Db, user: UserRow, data: unknown, options: { dryRun: boolean }): JsonImportResult {
   if (typeof data !== 'object' || data === null || (data as Item).format !== 'timetrack-export') {
@@ -131,6 +131,7 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
       SELECT 1 FROM time_entries WHERE user_id = ? AND deleted_at IS NULL AND start = ? AND IFNULL(stop, '') = ?
         AND description = ? AND IFNULL(project_id, 0) = ?
     `);
+    const runningHere = db.prepare('SELECT 1 FROM time_entries WHERE user_id = ? AND stop IS NULL AND deleted_at IS NULL');
     for (const entry of list(file.time_entries, 'time_entries')) {
       db.exec('SAVEPOINT import_entry');
       try {
@@ -148,13 +149,14 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
           db.exec('RELEASE import_entry');
           continue;
         }
-        const running = !stop && Boolean(db.prepare(
-          'SELECT 1 FROM time_entries WHERE user_id = ? AND stop IS NULL AND deleted_at IS NULL',
-        ).get(user.id));
+        // A running entry must not replace the timer running here, and a stopped copy would be new on every restore.
+        if (!stop && runningHere.get(user.id)) {
+          throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
+        }
         createTimeEntry(db, user, wid, {
           description,
           start: start.toISOString(),
-          ...(stop ? { stop: stop.toISOString() } : running ? { stop: new Date().toISOString() } : { duration: -1 }),
+          ...(stop ? { stop: stop.toISOString() } : { duration: -1 }),
           project_id: projectId,
           task_id: entry.task_id == null ? null : taskIds.get(Number(entry.task_id)) ?? null,
           billable: entry.billable === true,
