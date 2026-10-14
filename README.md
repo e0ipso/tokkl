@@ -18,7 +18,7 @@ The product requirements, the Toggl research behind them, and the status of each
 
 ## Screenshots
 
-The data is synthetic: two clients, five projects and five weeks of entries, with one timer running.
+The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as [README screenshots](#readme-screenshots) explains.
 
 **Timer.** The running entry is at the top and history is grouped by day. Favorites appear as numbered chips.
 
@@ -123,9 +123,10 @@ npm install
 npm run dev        # API server on :8080, restarts on change
 npm run dev:web    # Vite dev server on :5173, proxies /api and /reports to :8080
 npm test           # server and shared unit/API tests (node --test)
-npm run typecheck  # tsc over server, shared, bench, web, e2e and playwright.config.ts
+npm run typecheck  # tsc over server, shared, bench, web, e2e, scripts and the Playwright configs
 npm run build      # builds the web app into dist/web
 npm run test:e2e   # builds the web app, then runs the Playwright browser tests
+npm run screenshots  # builds the web app, then rewrites docs/screenshots/*.png
 ```
 
 The server runs TypeScript directly through Node's type stripping, so there is no server build step. Layout:
@@ -135,6 +136,7 @@ server/src   Express app, Toggl v9 and Reports v3 routes, SQLite models, import/
 shared/      duration, time-of-day and timezone helpers used by server and web
 web/src      React app
 e2e/         Playwright tests
+scripts/     README screenshot generator
 docs/PRD.md  product requirements
 ```
 
@@ -159,6 +161,14 @@ If neither is available, the run stops before any test with a message that says 
 Every scenario starts from an empty account. An automatic fixture in `e2e/fixtures.ts` deletes all entries, the trash, projects, clients and tags, and resets the preferences the scenarios change, before and after each test. A scenario that needs existing data seeds it through the fixture's `data` helper, so any test can run alone or in any order.
 
 The same fixtures fail a scenario on any uncaught page error, console error (React logs errors that the page-level ErrorBoundary catches this way), failed request or error response. The failure lists what happened and keeps the trace. Requests sent without a session cookie may get 403, because that is how the app finds out it is logged out. A scenario that provokes a failed response on purpose declares it with `runtimeErrors.allowResponse({ status, method, path, reason })`. The rules live in `e2e/runtime-errors.ts`, and `e2e/guard.spec.ts` checks that the guard still catches each kind of error.
+
+### README screenshots
+
+`npm run screenshots` builds the web app, then rewrites the nine images in `docs/screenshots`. Run it after a visible UI change and commit the images with the change.
+
+It uses its own Playwright config, `scripts/screenshots.config.ts`, so `npm run test:e2e` never runs it. The server starts on a throwaway database in a temporary directory. The script loads `e2e/fixtures-data/transfer/restore-full.json` through the JSON restore, together with the extra client, projects and five weeks of entries defined in `scripts/screenshots-data.ts`. The server and browser clocks are fixed at Thursday 16 July 2026, 15:20 in Europe/Madrid, so repeated runs on the same machine write identical files. Desktop images are 1440x900 and phone images 390x844, both at device scale factor 2, in the light theme.
+
+`CHROMIUM_PATH` works as for the e2e tests. `SCREENSHOTS_PORT` changes the server port (default 8096).
 
 ### History-scale measurements
 

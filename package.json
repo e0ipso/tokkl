@@ -12,11 +12,12 @@
     "dev:web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
     "start": "node server/src/index.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p e2e/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p e2e/tsconfig.json && tsc -p scripts/tsconfig.json",
     "test": "node --test --test-reporter=spec 'server/test/**/*.test.ts' 'shared/**/*.test.ts'",
     "test:e2e": "npm run build && playwright test",
     "test:e2e:install": "playwright install --only-shell chromium",
-    "bench:history": "npm run build && node bench/history.ts"
+    "bench:history": "npm run build && node bench/history.ts",
+    "screenshots": "npm run build && playwright test --config scripts/screenshots.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
