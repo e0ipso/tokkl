@@ -129,3 +129,24 @@ export function daysAgo(days: number): string {
 export function entryRow(page: Page, description: string) {
   return page.locator('.entry-line', { has: page.locator(`input.entry-description[value="${description}"]`) });
 }
+/** Reports the page as hidden or visible and fires visibilitychange, as switching tabs or apps does. */
+export async function setVisibility(page: Page, state: 'hidden' | 'visible'): Promise<void> {
+  await page.evaluate((next) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => next });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => next === 'hidden' });
+    // The browser's event bubbles to window, where TanStack Query listens.
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
+  }, state);
+}
+
+/** Counts the GET requests the page sends for the running timer and for the history list. */
+export function countPolls(page: Page): { current: number; history: number } {
+  const counts = { current: 0, history: 0 };
+  page.on('request', (req) => {
+    if (req.method() !== 'GET') return;
+    const path = new URL(req.url()).pathname;
+    if (path === '/api/v9/me/time_entries/current') counts.current++;
+    else if (path === '/api/v9/me/time_entries') counts.history++;
+  });
+  return counts;
+}
