@@ -256,7 +256,6 @@ code, kbd {
 .timer-bar.is-running { border-color: var(--state-running); }
 .timer-description { position: relative; flex: 1 1 260px; min-width: 0; }
 .timer-description input { width: 100%; border: none; background: transparent; font-size: var(--text-base); padding: 8px 4px; }
-.timer-description input:focus-visible { outline: none; }
 .timer-controls { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 .timer-attr .project-label { max-width: 180px; }
 .timer-clock {
@@ -330,7 +329,7 @@ code, kbd {
 .entry-project:hover, .entry-tags:hover, .entry-times:hover:not(:disabled) { background: var(--surface-2); }
 .entry-times:disabled { cursor: default; }
 .add-project { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); opacity: 0; }
-.entry-line:hover .add-project, .entry-tags:not(.has-tags) { opacity: 0.6; }
+.entry-line:hover .add-project, .entry-project:focus-visible .add-project, .entry-tags:not(.has-tags) { opacity: 0.6; }
 .entry-tags { color: var(--muted); flex-wrap: wrap; }
 .entry-times { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: var(--text-md); }
 .entry-duration {
