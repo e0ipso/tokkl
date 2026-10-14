@@ -1,0 +1,122 @@
+import { expect, test } from './fixtures.ts';
+import { login } from './helpers.ts';
+import { EntityApi } from './entity-tests-helpers.ts';
+import { PHONE, expectFits, expectNoPageOverflow, tap, tapNav } from './mobile-tests-helpers.ts';
+
+test.use(PHONE);
+
+test('the bottom navigation reaches every page and stays usable after scrolling a long list', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  for (let i = 1; i <= 40; i++) await api.createTag(`tag ${String(i).padStart(2, '0')}`);
+
+  // Projects is left out here: TT-0064, staged below.
+  for (const name of ['Reports', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer']) await tapNav(page, name);
+
+  // Forty tags make the page scroll; the fixed navigation stays on screen and tappable.
+  await tapNav(page, 'Tags');
+  const last = page.getByRole('button', { name: 'Delete tag 40' });
+  await expect(last).toBeAttached();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const box = (await nav.boundingBox())!;
+  expect([Math.round(box.x), Math.round(box.width), Math.round(box.y + box.height)]).toEqual([0, 390, 844]);
+  // The last row is not hidden behind the navigation.
+  await tap(last);
+  const confirm = page.getByRole('dialog', { name: 'Delete tag 40?' });
+  await expectFits(confirm);
+  await tap(confirm.getByRole('button', { name: 'Delete tag' }));
+  await expect(confirm).toBeHidden();
+  expect((await api.tags()).map((tag) => tag.name)).not.toContain('tag 40');
+  await expect.poll(async () => (await api.tags()).length).toBe(39);
+
+  await tapNav(page, 'Settings');
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await tapNav(page, 'Timer');
+});
+
+test('client and tag dialogs and menus finish by touch on a phone and save what the desktop saves', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+
+  // Client dialog, then archive through its confirmation.
+  await tapNav(page, 'Clients');
+  await tap(page.getByRole('button', { name: 'New client' }));
+  const clientEditor = page.getByRole('dialog', { name: 'New client' });
+  await expectFits(clientEditor);
+  await clientEditor.getByLabel('Name').fill('Northwind');
+  await clientEditor.getByLabel('Notes').fill('Net 30');
+  await tap(clientEditor.getByRole('button', { name: 'Create client' }));
+  await expect(clientEditor).toBeHidden();
+  const [client] = await api.clients();
+  expect(client).toMatchObject({ name: 'Northwind', notes: 'Net 30', archived: false });
+  await tap(page.getByRole('button', { name: 'More actions for Northwind', exact: true }));
+  const menu = page.getByRole('menu');
+  await expectFits(menu);
+  await tap(menu.getByRole('menuitem', { name: 'Archive' }));
+  const confirm = page.getByRole('dialog', { name: 'Archive Northwind?' });
+  await expectFits(confirm);
+  await tap(confirm.getByRole('button', { name: 'Archive' }));
+  await expect(confirm).toBeHidden();
+  expect((await api.client(client!.id)).archived).toBe(true);
+  await expectNoPageOverflow(page);
+
+  // Tags: add, rename by tapping the chip and then the heading, delete through the dialog.
+  await tapNav(page, 'Tags');
+  await page.getByRole('textbox', { name: 'New tag name' }).fill('phone');
+  await tap(page.getByRole('button', { name: 'Add tag' }));
+  await expect.poll(async () => (await api.tags()).map((t) => t.name)).toEqual(['phone']);
+  await tap(page.getByRole('button', { name: 'phone', exact: true }));
+  await page.getByRole('textbox', { name: 'New name for phone' }).fill('handset');
+  await tap(page.getByRole('heading', { name: 'Tags', level: 1 }));
+  await expect(page.getByText('Renamed to handset')).toBeVisible();
+  expect((await api.tags()).map((t) => t.name)).toEqual(['handset']);
+  await tap(page.getByRole('button', { name: 'Delete handset' }));
+  const deleteTag = page.getByRole('dialog', { name: 'Delete handset?' });
+  await expectFits(deleteTag);
+  await tap(deleteTag.getByRole('button', { name: 'Delete tag' }));
+  await expect(deleteTag).toBeHidden();
+  expect(await api.tags()).toEqual([]);
+  await expectNoPageOverflow(page);
+});
+
+// The visually hidden "Actions" header is absolutely positioned with no positioned ancestor, so it
+// escapes .table-wrap's horizontal scroll. The page grows to 551 px, and the fixed navigation
+// stretches with it: Trash and Settings end up off screen and the bar sits below the viewport.
+test.fixme('TT-0064: the Projects page fits a phone, and its editor and row menu finish by touch', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  const project = await api.createProject({ name: 'Website' });
+  for (let i = 1; i <= 24; i++) await api.createProject({ name: `Project ${String(i).padStart(2, '0')}` });
+
+  // tapNav checks that the page does not scroll sideways.
+  await tapNav(page, 'Projects');
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const box = (await nav.boundingBox())!;
+  expect([Math.round(box.x), Math.round(box.width)]).toEqual([0, 390]);
+  for (const name of ['Timer', 'Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings']) {
+    await expectFits(nav.getByRole('link', { name, exact: true }));
+  }
+
+  // The last row of a long list is reachable above the navigation.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await tap(page.getByRole('button', { name: 'Edit Project 24' }));
+  await tap(page.getByRole('dialog', { name: 'Edit project' }).getByRole('button', { name: 'Cancel' }));
+
+  await tap(page.getByRole('button', { name: 'Edit Website' }));
+  const editor = page.getByRole('dialog', { name: 'Edit project' });
+  await expectFits(editor);
+  await editor.getByLabel('Hourly rate').fill('95');
+  await editor.getByLabel('Estimated hours').fill('10');
+  await tap(editor.getByLabel('Billable by default'));
+  await tap(editor.getByRole('button', { name: 'Save' }));
+  await expect(editor).toBeHidden();
+  expect(await api.project(project.id)).toMatchObject({ rate: 95, estimated_hours: 10, billable: true, active: true });
+  await tap(page.getByRole('button', { name: 'More actions for Website', exact: true }));
+  const menu = page.getByRole('menu');
+  await expectFits(menu);
+  await tap(menu.getByRole('menuitem', { name: 'Archive' }));
+  await expect.poll(async () => (await api.project(project.id)).active).toBe(false);
+  await expectNoPageOverflow(page);
+});
