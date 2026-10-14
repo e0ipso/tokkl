@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.ts';
+import { MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
+import { FailureLimiter } from '../src/auth/rateLimit.ts';
 import { openDatabase } from '../src/db/index.ts';
+import { createOwner } from '../src/models/users.ts';
 import { PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
 test('API token Basic auth works and wrong credentials get 403', async () => {
@@ -140,4 +143,148 @@ test('bad since and bad report dates are 400, not 500', async () => {
     start_date: '2026-10-01', end_date: '2026-10-02', project_ids: Array.from({ length: 1001 }, (_, i) => i + 1),
   });
   assert.equal(many.status, 400);
+});
+
+const basic = (username: string, password: string) => `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
+
+test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => {
+  const db = openDatabase(':memory:');
+  const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const post = (password: string) => app.request('/api/app/setup', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'owner@example.com', password, fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' }),
+  });
+
+  const tooLong = await post('x'.repeat(MAX_PASSWORD_LENGTH + 1));
+  assert.equal(tooLong.status, 400);
+  assert.equal(await tooLong.json(), `Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true });
+
+  const longest = 'y'.repeat(MAX_PASSWORD_LENGTH);
+  assert.equal((await post(longest)).status, 200);
+  const login = await app.request('/api/app/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com', password: longest }),
+  });
+  assert.equal(login.status, 200);
+});
+
+test('an owner with a password over the cap can still log in and rotate it', async () => {
+  const db = openDatabase(':memory:');
+  const legacy = 'L'.repeat(MAX_PASSWORD_LENGTH * 2);
+  const user = await createOwner(db, { email: 'me@example.com', password: legacy, fullname: '', timezone: 'UTC' });
+  const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
+  const put = (body: unknown) => app.request('/api/v9/me', {
+    method: 'PUT',
+    headers: { authorization: basic(user.api_token, 'api_token'), 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const login = await app.request('/api/app/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'me@example.com', password: legacy }),
+  });
+  assert.equal(login.status, 200);
+  assert.equal((await app.request('/api/v9/me', { headers: { authorization: basic('me@example.com', legacy) } })).status, 200);
+
+  const newTooLong = await put({ current_password: legacy, password: 'n'.repeat(MAX_PASSWORD_LENGTH + 1) });
+  assert.equal(newTooLong.status, 400);
+  assert.equal(await newTooLong.json(), `password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+
+  assert.equal((await put({ current_password: legacy, password: 'new password 1' })).status, 200);
+  assert.equal((await app.request('/api/v9/me', { headers: { authorization: basic('me@example.com', legacy) } })).status, 403);
+  assert.equal((await app.request('/api/v9/me', { headers: { authorization: basic('me@example.com', 'new password 1') } })).status, 200);
+});
+
+test('twelve parallel wrong passwords across login, Basic auth and password change run at most ten checks', async () => {
+  const ctx = await setup();
+  const kinds = ['login', 'basic', 'change'] as const;
+  const wrong = (kind: (typeof kinds)[number]) => {
+    if (kind === 'login') {
+      return ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: 'wrong' }, { authorization: '' });
+    }
+    if (kind === 'basic') return ctx.request('GET', '/api/v9/me', undefined, { authorization: basic('me@example.com', 'wrong') });
+    // Token-authenticated, so only the current_password check counts.
+    return ctx.request('PUT', '/api/v9/me', { current_password: 'wrong', password: 'new password 1' });
+  };
+  const requests = Array.from({ length: 12 }, (_, i) => kinds[i % kinds.length]!);
+  const statuses = (await Promise.all(requests.map(async (kind) => ({ kind, status: (await wrong(kind)).status }))));
+
+  const limited = statuses.filter(({ status }) => status === 429);
+  assert.equal(limited.length, 2, JSON.stringify(statuses));
+  const expected = { login: 403, basic: 403, change: 400 };
+  for (const { kind, status } of statuses.filter(({ status }) => status !== 429)) assert.equal(status, expected[kind], kind);
+
+  // Blocked for passwords, even the right one, but API tokens are exempt.
+  const right = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  assert.equal(right.status, 429);
+  assert.equal((await ctx.request('GET', '/api/v9/me')).status, 200);
+});
+
+test('a successful login resets the failure count', async () => {
+  const ctx = await setup();
+  const login = (password: string) => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password }, { authorization: '' });
+  for (let i = 0; i < 9; i++) assert.equal((await login('wrong')).status, 403);
+  assert.equal((await login(PASSWORD)).status, 200);
+
+  const afterReset = await Promise.all(Array.from({ length: 10 }, () => login('wrong')));
+  assert.deepEqual(afterReset.map((response) => response.status), Array(10).fill(403));
+  assert.equal((await login('wrong')).status, 429);
+});
+
+test('wrong API tokens are not counted as password failures', async () => {
+  const ctx = await setup();
+  for (let i = 0; i < 12; i++) {
+    const response = await ctx.request('GET', '/api/v9/me', undefined, { authorization: basic('deadbeef', 'api_token') });
+    assert.equal(response.status, 403);
+  }
+  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  assert.equal(login.status, 200);
+});
+
+test('FailureLimiter runs no checks past the limit and unblocks when the window expires', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const windowMs = 15 * 60 * 1000;
+  const limiter = new FailureLimiter(10, windowMs);
+  let checks = 0;
+  const failingCheck = async () => {
+    checks++;
+    await new Promise((resolve) => setImmediate(resolve));
+    return false;
+  };
+
+  const results = await Promise.all(Array.from({ length: 12 }, () => limiter.attempt('1.2.3.4', failingCheck)));
+  assert.equal(checks, 10);
+  assert.equal(results.filter((result) => result === false).length, 10);
+  assert.equal(results.filter((result) => result === null).length, 2);
+  assert.equal(await limiter.attempt('5.6.7.8', async () => true), true, 'other addresses are unaffected');
+
+  t.mock.timers.tick(windowMs - 1);
+  assert.equal(await limiter.attempt('1.2.3.4', async () => true), null);
+  assert.equal(checks, 10);
+  t.mock.timers.tick(1);
+  assert.equal(await limiter.attempt('1.2.3.4', async () => true), true);
+});
+
+test('logout with a wrong CSRF value keeps the session; no or stale session logout is 200', async () => {
+  const ctx = await setup();
+  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  const session = login.headers.get('set-cookie')!.split(';')[0]!;
+  const logout = (headers: Record<string, string>) => ctx.request('POST', '/api/app/logout', undefined, { authorization: '', ...headers });
+  const me = () => ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: session });
+
+  for (const value of ['0', 'true', '']) {
+    const refused = await logout({ cookie: session, 'x-timetrack-csrf': value });
+    assert.equal(refused.status, 403, `CSRF value ${JSON.stringify(value)}`);
+    assert.equal(refused.headers.get('set-cookie'), null);
+    assert.equal((await me()).status, 200);
+  }
+
+  const ok = await logout({ cookie: session, 'x-timetrack-csrf': '1' });
+  assert.equal(ok.status, 200);
+  assert.match(ok.headers.get('set-cookie') ?? '', /tt_session=;/);
+  assert.equal((await me()).status, 403);
+
+  assert.equal((await logout({ cookie: session })).status, 200, 'stale session');
+  assert.equal((await logout({ cookie: 'tt_session=not-a-session' })).status, 200, 'unknown session');
+  assert.equal((await logout({})).status, 200, 'no cookie');
 });

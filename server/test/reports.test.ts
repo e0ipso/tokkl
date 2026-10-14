@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, type TestContext } from './helpers.ts';
+import { formatDuration } from '../../shared/duration.ts';
+import { transaction } from '../src/db/index.ts';
+import { parseCsv } from '../src/lib/csv.ts';
+import { CSV_COLUMNS } from '../src/services/export.ts';
 
 async function seed(ctx: TestContext) {
   const base = `/api/v9/workspaces/${ctx.wid}`;
@@ -139,4 +143,259 @@ test('negated filters keep entries whose field is empty', async () => {
   assert.deepEqual(await titles({ exclude_tag_ids: [1] }), ['Research', 'Email']);
   assert.deepEqual(await titles({ exclude_tag_ids: [null] }), ['Build', 'Build']);
   assert.deepEqual(await titles({ exclude_client_ids: [null] }), ['Build', 'Build']);
+});
+
+interface BulkEntry {
+  start: string;
+  seconds: number;
+  projectId?: number | null;
+  description?: string;
+}
+
+/** Inserts stopped entries straight into the database; thousands of HTTP calls would be too slow. */
+function insertEntries(ctx: TestContext, entries: BulkEntry[]): number[] {
+  const insert = ctx.db.prepare(`
+    INSERT INTO time_entries (workspace_id, user_id, project_id, description, start, stop, created_with, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'test', ?, ?)
+  `);
+  return transaction(ctx.db, () => entries.map((entry) => {
+    const stop = new Date(Date.parse(entry.start) + entry.seconds * 1000).toISOString();
+    const result = insert.run(ctx.wid, ctx.user.id, entry.projectId ?? null, entry.description ?? '', entry.start, stop, entry.start, entry.start);
+    return Number(result.lastInsertRowid);
+  }));
+}
+
+test('app CSV exports cover multi-year ranges and match the app report; v3 CSVs keep the 366-day cap', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  await ctx.json('PUT', base, { rounding: 1, rounding_minutes: 15 });
+  const client = await ctx.json('POST', `${base}/clients`, { name: 'ACME' });
+  const alpha = (await ctx.json('POST', `${base}/projects`, { name: 'Alpha', client_id: client.body.id })).body;
+  const beta = (await ctx.json('POST', `${base}/projects`, { name: 'Beta' })).body;
+  insertEntries(ctx, [
+    { start: '2023-03-01T08:00:00.000Z', seconds: 3600, projectId: alpha.id, description: 'Y2023' },
+    { start: '2024-06-01T08:00:00.000Z', seconds: 1800, projectId: beta.id, description: 'Y2024' },
+    { start: '2025-09-01T08:00:00.000Z', seconds: 7200, projectId: alpha.id, description: 'Y2025' },
+    // The workspace rounds this up to 15 minutes in the app report, so the CSV must too.
+    { start: '2026-01-15T08:00:00.000Z', seconds: 610, description: 'Y2026' },
+  ]);
+  const range = { start_date: '2023-01-01', end_date: '2026-06-30' };
+  const csv = async (path: string, body: Record<string, unknown>) => {
+    const res = await ctx.request('POST', path, { ...range, ...body });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type') ?? '', /^text\/csv/);
+    return parseCsv(await res.text());
+  };
+  const jsonEntries = async (body: Record<string, unknown>) =>
+    (await ctx.json('POST', '/api/app/report/entries', { ...range, ...body })).body.entries as any[];
+  // Description, start date and duration columns of the detailed CSV.
+  const detailedColumns = (rows: string[][]) => rows.slice(1).map((row) => [row[5], row[7], row[11]]);
+  const expectedColumns = (entries: any[]) =>
+    entries.map((entry) => [entry.description, entry.start.slice(0, 10), formatDuration(entry.seconds)]);
+
+  const all = await csv('/api/app/report/detailed.csv', {});
+  assert.deepEqual(all[0], [...CSV_COLUMNS]);
+  assert.deepEqual(detailedColumns(all), [
+    ['Y2026', '2026-01-15', '0:15:00'],
+    ['Y2025', '2025-09-01', '2:00:00'],
+    ['Y2024', '2024-06-01', '0:30:00'],
+    ['Y2023', '2023-03-01', '1:00:00'],
+  ]);
+  assert.deepEqual(detailedColumns(all), expectedColumns(await jsonEntries({})));
+
+  const filter = { project_ids: [alpha.id], sort: 'duration', dir: 'asc' };
+  const filtered = await csv('/api/app/report/detailed.csv', filter);
+  assert.deepEqual(detailedColumns(filtered).map((row) => row[0]), ['Y2023', 'Y2025']);
+  assert.deepEqual(detailedColumns(filtered), expectedColumns(await jsonEntries(filter)));
+
+  const grouping = { grouping: 'projects', sub_grouping: 'time_entries' };
+  const summary = await csv('/api/app/report/summary.csv', { ...grouping, project_ids: [alpha.id] });
+  assert.deepEqual(summary, [['Group', 'Sub group', 'Duration'], ['Alpha', 'Y2025', '2:00:00'], ['Alpha', 'Y2023', '1:00:00']]);
+  const allSummary = await csv('/api/app/report/summary.csv', grouping);
+  const report = await ctx.json('POST', '/api/app/report', { ...range, ...grouping });
+  assert.deepEqual(allSummary.slice(1), report.body.groups.flatMap((group: any) => group.sub_groups.map((sub: any) =>
+    [group.title || '(none)', sub.title || '(none)', formatDuration(sub.seconds)])));
+  assert.deepEqual(allSummary.slice(1).map((row) => row[1]).sort(), ['Y2023', 'Y2024', 'Y2025', 'Y2026']);
+
+  for (const path of ['/api/app/report/detailed.csv', '/api/app/report/summary.csv']) {
+    const anonymous = await ctx.request('POST', path, range, { authorization: '' });
+    assert.equal(anonymous.status, 403, path);
+  }
+
+  for (const path of ['search/time_entries.csv', 'summary/time_entries.csv']) {
+    const url = `/reports/api/v3/workspace/${ctx.wid}/${path}`;
+    const year = await ctx.request('POST', url, { start_date: '2024-01-01', end_date: '2024-12-31' });
+    assert.equal(year.status, 200, `${path} with 366 days`);
+    const tooLong = await ctx.json('POST', url, { start_date: '2024-01-01', end_date: '2025-01-01' });
+    assert.equal(tooLong.status, 400, `${path} with 367 days`);
+    assert.equal(tooLong.body, 'Maximum allowed date range is 366 days');
+  }
+});
+
+test('app weekly report totals every entry in long ranges, by project or client', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  const acme = (await ctx.json('POST', `${base}/clients`, { name: 'ACME' })).body;
+  const other = (await ctx.json('POST', `${base}/clients`, { name: 'Other' })).body;
+  const alpha = (await ctx.json('POST', `${base}/projects`, { name: 'Alpha', client_id: acme.id })).body;
+  const beta = (await ctx.json('POST', `${base}/projects`, { name: 'Beta' })).body;
+  const gamma = (await ctx.json('POST', `${base}/projects`, { name: 'Gamma', client_id: other.id })).body;
+  const clientOf = new Map<number | null, number | null>([[alpha.id, acme.id], [beta.id, null], [gamma.id, other.id], [null, null]]);
+
+  // 6000 entries over 181 days, more than the 5000 the old client-side weekly tab could sum.
+  const days = 181;
+  const seeded = Array.from({ length: 6000 }, (_, i) => {
+    const start = Date.UTC(2026, 0, 1) + (i % days) * 86_400_000 + (Math.floor(i / days) % 20) * 3_600_000;
+    const projectId = [alpha.id, beta.id, gamma.id, null][i % 4] as number | null;
+    return { start: new Date(start).toISOString(), seconds: 60 + ((i * 97) % 3000), projectId };
+  });
+  insertEntries(ctx, seeded);
+  const sum = (keep: (entry: (typeof seeded)[number]) => boolean, round = (seconds: number) => seconds) =>
+    seeded.filter(keep).reduce((total, entry) => total + round(entry.seconds), 0);
+
+  const range = { start_date: '2026-01-01', end_date: '2026-06-30' };
+  const weekly = async (body: Record<string, unknown> = {}) => {
+    const res = await ctx.json('POST', '/api/app/report/weekly', { ...range, ...body });
+    assert.equal(res.status, 200);
+    return res.body;
+  };
+  const summaryTotal = async (body: Record<string, unknown> = {}) =>
+    (await ctx.json('POST', '/api/app/report', { ...range, ...body })).body.totals.seconds as number;
+  /** Each column total equals the entries dated inside that column, and everything adds up to the total. */
+  const assertColumns = (grid: any) => {
+    grid.columns.forEach((column: { start: string; end: string }, i: number) => {
+      const expected = sum((entry) => entry.start.slice(0, 10) >= column.start && entry.start.slice(0, 10) <= column.end);
+      assert.equal(grid.column_totals[i], expected, `column ${column.start}`);
+    });
+    assert.equal(grid.column_totals.reduce((a: number, b: number) => a + b, 0), grid.total);
+    assert.equal(grid.rows.reduce((total: number, row: any) => total + row.total, 0), grid.total);
+  };
+
+  const all = await weekly();
+  assert.equal(all.mode, 'weeks');
+  assert.equal(all.total, sum(() => true));
+  assert.equal(all.total, await summaryTotal());
+  // Weeks start on Monday by default; the first and last columns are clipped to the range.
+  assert.deepEqual(all.columns[0], { start: '2026-01-01', end: '2026-01-04' });
+  assert.deepEqual(all.columns.at(-1), { start: '2026-06-29', end: '2026-06-30' });
+  assertColumns(all);
+  for (const row of all.rows) assert.equal(row.total, sum((entry) => entry.projectId === row.id), `project ${row.id}`);
+  assert.equal(all.rows.at(-1).id, null);
+
+  const onlyAlpha = await weekly({ project_ids: [alpha.id] });
+  assert.deepEqual(onlyAlpha.rows.map((row: any) => row.id), [alpha.id]);
+  assert.equal(onlyAlpha.total, sum((entry) => entry.projectId === alpha.id));
+  assert.equal(onlyAlpha.total, await summaryTotal({ project_ids: [alpha.id] }));
+
+  const rounding = { rounding: 1, rounding_minutes: 15 };
+  const rounded = await weekly(rounding);
+  assert.equal(rounded.total, sum(() => true, (seconds) => Math.ceil(seconds / 900) * 900));
+  assert.equal(rounded.total, await summaryTotal(rounding));
+
+  const byClient = await weekly({ rows: 'clients' });
+  assert.deepEqual(byClient.rows.map((row: any) => row.id).sort(), [acme.id, other.id, null].sort());
+  assert.equal(byClient.rows.at(-1).id, null);
+  for (const row of byClient.rows) assert.equal(row.total, sum((entry) => clientOf.get(entry.projectId) === row.id), `client ${row.id}`);
+  const clientGroups = (await ctx.json('POST', '/api/app/report', { ...range, grouping: 'clients' })).body.groups;
+  assert.deepEqual(
+    new Map(byClient.rows.map((row: any) => [row.id, row.total])),
+    new Map(clientGroups.map((group: any) => [group.id, group.seconds])),
+  );
+  assert.equal(byClient.total, all.total);
+
+  // The first weekday comes from the account preference.
+  assert.equal((await ctx.json('PUT', '/api/v9/me', { beginning_of_week: 0 })).status, 200);
+  const sundayWeeks = await weekly();
+  assert.deepEqual(sundayWeeks.columns[0], { start: '2026-01-01', end: '2026-01-03' });
+  assert.deepEqual(sundayWeeks.columns[1], { start: '2026-01-04', end: '2026-01-10' });
+  assertColumns(sundayWeeks);
+  assert.equal(sundayWeeks.total, all.total);
+
+  const oneWeek = await weekly({ start_date: '2026-01-05', end_date: '2026-01-11' });
+  assert.equal(oneWeek.mode, 'days');
+  assert.equal(oneWeek.columns.length, 7);
+  assert.equal(oneWeek.total, sum((entry) => entry.start >= '2026-01-05' && entry.start < '2026-01-12'));
+
+  const invalid = await ctx.json('POST', '/api/app/report/weekly', { ...range, rows: 'tags' });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body, "Invalid 'rows' value, allowed values are: 'projects, clients'");
+});
+
+test('app detailed entries page through every match in a stable global order', async () => {
+  const ctx = await setup();
+  const total = 600;
+  const descriptions = ['alpha', 'bravo', 'charlie', 'delta'];
+  // Insert in a scrambled order so ids do not follow start times. Pairs share a start, and
+  // durations and descriptions repeat, so every sort has ties for the id to break.
+  const ids = insertEntries(ctx, Array.from({ length: total }, (_, i) => {
+    const n = (i * 7919) % total;
+    return {
+      start: new Date(Date.UTC(2026, 2, 1) + Math.floor(n / 2) * 3_600_000).toISOString(),
+      seconds: 300 * (1 + (n % 7)),
+      description: descriptions[n % descriptions.length]!,
+    };
+  }));
+  const range = { start_date: '2026-03-01', end_date: '2026-03-31' };
+  const page = async (body: Record<string, unknown>) => ctx.json('POST', '/api/app/report/entries', { ...range, ...body });
+
+  // Walking every page reaches each entry exactly once.
+  const walked: number[] = [];
+  for (let n = 1; n <= 12; n++) {
+    const res = await page({ page: n, page_size: 50 });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.total, total);
+    assert.equal(res.body.pages, 12);
+    assert.equal(res.body.page, n);
+    walked.push(...res.body.entries.map((entry: any) => entry.id));
+  }
+  assert.equal(walked.length, total);
+  assert.deepEqual([...walked].sort((a, b) => a - b), [...ids].sort((a, b) => a - b));
+
+  const fields: Record<string, (entry: any) => string | number> = {
+    date: (entry) => entry.start, duration: (entry) => entry.seconds, description: (entry) => entry.description,
+  };
+  const everything = async (sort: string, dir: string) => {
+    const first = await page({ sort, dir, page_size: 500, page: 1 });
+    const second = await page({ sort, dir, page_size: 500, page: 2 });
+    return [...first.body.entries, ...second.body.entries];
+  };
+  for (const [sort, key] of Object.entries(fields)) {
+    const ascending = await everything(sort, 'asc');
+    assert.equal(ascending.length, total);
+    let ties = 0;
+    for (let i = 1; i < ascending.length; i++) {
+      const [a, b] = [key(ascending[i - 1]), key(ascending[i])];
+      assert.ok(a <= b, `${sort} asc out of order at ${i}`);
+      if (a === b) {
+        ties++;
+        assert.ok(ascending[i - 1].id < ascending[i].id, `${sort} asc tie not broken by id at ${i}`);
+      }
+    }
+    assert.ok(ties > 0, `${sort} has no ties to break`);
+    const descending = await everything(sort, 'desc');
+    assert.deepEqual(descending.map((entry) => entry.id), ascending.map((entry) => entry.id).reverse());
+  }
+
+  const byDefault = await page({});
+  assert.equal(byDefault.body.page_size, 100);
+  assert.equal(byDefault.body.entries.length, 100);
+  assert.equal(byDefault.body.pages, 6);
+  const largest = await page({ page_size: 500 });
+  assert.equal(largest.body.entries.length, 500);
+  assert.equal(largest.body.pages, 2);
+  const tooLarge = await page({ page_size: 501 });
+  assert.equal(tooLarge.status, 400);
+  assert.equal(tooLarge.body, "'page_size' must be at most 500");
+  assert.equal((await page({ page_size: 0 })).status, 400);
+
+  // A page past the end returns the last page and says so.
+  const last = await page({ page: 3, page_size: 250 });
+  const beyond = await page({ page: 99, page_size: 250 });
+  assert.equal(beyond.status, 200);
+  assert.equal(beyond.body.page, 3);
+  assert.equal(beyond.body.entries.length, 100);
+  assert.deepEqual(beyond.body.entries, last.body.entries);
+  assert.equal((await page({ page: 0 })).status, 400);
+  const empty = await page({ start_date: '2025-01-01', end_date: '2025-01-31', page: 4 });
+  assert.deepEqual([empty.body.total, empty.body.page, empty.body.pages, empty.body.entries], [0, 1, 1, []]);
 });

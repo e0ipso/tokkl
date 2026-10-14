@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { setup } from './helpers.ts';
+import { openDatabase } from '../src/db/index.ts';
+import { MIGRATIONS } from '../src/db/migrations.ts';
 
 test('clients CRUD, archive cascades to projects, restore', async () => {
   const ctx = await setup();
@@ -161,4 +167,195 @@ test('client_id null clears a project client; legacy cid still works', async () 
   assert.equal(cleared.body.client_id, null);
   const renamed = await ctx.json('PUT', `${base}/projects/${project.body.id}`, { name: 'Site 2' });
   assert.equal(renamed.body.client_id, null);
+});
+
+// TT-0008 / TT-0054: hourly rates must be finite, non-negative and at most 1e9.
+const BAD_RATES: Array<[string, string]> = [
+  ['1e400', 'expected a non-negative number'],
+  ['-1', 'expected a non-negative number'],
+  ['"abc"', 'expected a non-negative number'],
+  ['true', 'expected a non-negative number'],
+  ['1000000000.5', 'expected at most 1000000000'],
+  ['1e10', 'expected at most 1000000000'],
+];
+
+test('workspace default_hourly_rate rejects overflow, negatives, non-numbers and values above the cap', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}`;
+  await ctx.json('PUT', url, { name: 'Home', default_hourly_rate: 50 });
+
+  for (const [raw, reason] of BAD_RATES) {
+    // Sent as raw JSON text so 1e400 reaches the server and parses to Infinity there.
+    const res = await ctx.json('PUT', url, `{"name": "Changed", "default_hourly_rate": ${raw}}`);
+    assert.deepEqual([res.status, res.body], [400, `Invalid default_hourly_rate: ${reason}`], raw);
+    const ws = await ctx.json('GET', url);
+    assert.equal(ws.body.default_hourly_rate, 50, raw);
+    assert.equal(ws.body.name, 'Home', raw);
+  }
+
+  for (const rate of [0, 42.5, 1e9, null]) {
+    const res = await ctx.json('PUT', url, { default_hourly_rate: rate });
+    assert.equal(res.status, 200, String(rate));
+    assert.equal(res.body.default_hourly_rate, rate);
+    assert.equal((await ctx.json('GET', url)).body.default_hourly_rate, rate);
+  }
+});
+
+test('project rate rejects bad values on create and update and keeps the stored rate', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  const project = await ctx.json('POST', `${base}/projects`, { name: 'Alpha', rate: 80 });
+
+  for (const [raw, reason] of BAD_RATES) {
+    const created = await ctx.json('POST', `${base}/projects`, `{"name": "Bad", "rate": ${raw}}`);
+    assert.deepEqual([created.status, created.body], [400, `Invalid rate: ${reason}`], raw);
+    const updated = await ctx.json('PUT', `${base}/projects/${project.body.id}`, `{"name": "Renamed", "rate": ${raw}}`);
+    assert.deepEqual([updated.status, updated.body], [400, `Invalid rate: ${reason}`], raw);
+    const stored = await ctx.json('GET', `${base}/projects/${project.body.id}`);
+    assert.equal(stored.body.rate, 80, raw);
+    assert.equal(stored.body.name, 'Alpha', raw);
+  }
+  assert.deepEqual((await ctx.json('GET', `${base}/projects`)).body.map((p: any) => p.name), ['Alpha']);
+
+  for (const [i, rate] of [0, 42.5, 1e9, null].entries()) {
+    const created = await ctx.json('POST', `${base}/projects`, { name: `Rate ${i}`, rate });
+    assert.equal(created.status, 200, String(rate));
+    assert.equal(created.body.rate, rate);
+    const updated = await ctx.json('PUT', `${base}/projects/${project.body.id}`, { rate });
+    assert.equal(updated.status, 200, String(rate));
+    assert.equal((await ctx.json('GET', `${base}/projects/${project.body.id}`)).body.rate, rate);
+  }
+});
+
+test('the largest accepted rates keep report amounts finite', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  await ctx.json('PUT', base, { default_hourly_rate: 1e9 });
+  const capped = await ctx.json('POST', `${base}/projects`, { name: 'Capped', billable: true, rate: 1e9 });
+  const inherits = await ctx.json('POST', `${base}/projects`, { name: 'Default rate', billable: true });
+  // The longest entry allowed (999 h) on each project.
+  for (const project of [capped.body, inherits.body]) {
+    await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T00:00:00Z', duration: 999 * 3600, project_id: project.id });
+  }
+  const totals = await ctx.json('POST', `/reports/api/v3/workspace/${ctx.wid}/search/time_entries/totals`, {
+    start_date: '2026-10-01', end_date: '2026-10-01',
+  });
+  assert.equal(totals.status, 200);
+  assert.equal(totals.body.billable_amount_in_cents, 2 * 999 * 1e9 * 100);
+  assert.ok(Number.isSafeInteger(totals.body.billable_amount_in_cents));
+});
+
+// TT-0015: project and task totals read the partial live-entry indexes.
+test('project and task totals use the live-entry indexes and count running, not deleted, entries', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  const project = await ctx.json('POST', `${base}/projects`, { name: 'Alpha' });
+  const task = await ctx.json('POST', `${base}/projects/${project.body.id}/tasks`, { name: 'Design' });
+  const entries = `${base}/time_entries`;
+  await ctx.json('POST', entries, { start: '2026-10-01T08:00:00Z', duration: 3600, task_id: task.body.id });
+  const deleted = await ctx.json('POST', entries, { start: '2026-10-01T10:00:00Z', duration: 1800, task_id: task.body.id });
+  await ctx.request('DELETE', `${entries}/${deleted.body.id}`);
+  const runningSince = Math.floor(Date.now() / 1000) - 120;
+  await ctx.json('POST', entries, { start: new Date(runningSince * 1000).toISOString(), duration: -1, task_id: task.body.id });
+
+  // Record the SQL the models run, so the plans below are for the real totals queries.
+  const statements: string[] = [];
+  const prepare = ctx.db.prepare.bind(ctx.db);
+  ctx.db.prepare = (sql: string) => {
+    statements.push(sql);
+    return prepare(sql);
+  };
+  const before = Math.floor(Date.now() / 1000);
+  const projectRes = await ctx.json('GET', `${base}/projects/${project.body.id}`);
+  const taskRes = await ctx.json('GET', `${base}/projects/${project.body.id}/tasks/${task.body.id}`);
+  const after = Math.floor(Date.now() / 1000);
+  ctx.db.prepare = prepare;
+
+  for (const [actual, scale] of [[projectRes.body.actual_seconds, 1], [taskRes.body.tracked_seconds, 1000]] as const) {
+    assert.ok(actual >= (3600 + before - runningSince) * scale && actual <= (3600 + after - runningSince) * scale, String(actual));
+  }
+
+  const plan = (fragment: string, params: number[]) => {
+    const sql = statements.find((s) => s.includes(fragment));
+    assert.ok(sql, `no statement containing ${fragment}`);
+    return (prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params) as Array<{ detail: string }>).map((row) => row.detail).join('\n');
+  };
+  assert.match(plan('AS actual_seconds', [ctx.wid, project.body.id]), /time_entries_project_live/);
+  assert.match(plan('AS tracked_seconds', [ctx.wid, task.body.id]), /time_entries_task_live/);
+});
+
+test('a version 1 database gains the live-entry indexes when opened', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'timetrack-v1-'));
+  try {
+    const path = join(dir, 'v1.sqlite');
+    const v1 = new DatabaseSync(path);
+    v1.exec(MIGRATIONS[0]!);
+    v1.exec('PRAGMA user_version = 1');
+    v1.close();
+
+    const db = openDatabase(path);
+    const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
+    assert.equal(user_version, MIGRATIONS.length);
+    assert.equal(user_version, 2);
+    const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'time_entries'").all() as Array<{ name: string }>)
+      .map((row) => row.name);
+    assert.ok(indexes.includes('time_entries_project_live'), indexes.join());
+    assert.ok(indexes.includes('time_entries_task_live'), indexes.join());
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// TT-0020: deleting a client renames colliding projects instead of failing or merging them.
+test('deleting a client renames projects whose names collide with unassigned ones', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  const project = (body: Record<string, unknown>) => ctx.json('POST', `${base}/projects`, body).then((r) => r.body);
+  const client = (name: string) => ctx.json('POST', `${base}/clients`, { name }).then((r) => r.body);
+  const nameOf = async (id: number) => (await ctx.json('GET', `${base}/projects/${id}`)).body.name;
+  const deleteClient = async (id: number) => assert.equal((await ctx.request('DELETE', `${base}/clients/${id}`)).status, 200);
+
+  const unassigned = await project({ name: 'Website' });
+  const acme = await client('ACME');
+  const acmeSite = await project({ name: 'website', client_id: acme.id, rate: 120 });
+  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600, project_id: acmeSite.id });
+  await deleteClient(acme.id);
+  const renamed = await ctx.json('GET', `${base}/projects/${acmeSite.id}`);
+  assert.equal(renamed.body.name, 'website (ACME)');
+  assert.equal(renamed.body.client_id, null);
+  assert.equal(renamed.body.rate, 120);
+  assert.equal(renamed.body.actual_seconds, 600);
+  assert.equal((await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body.project_id, acmeSite.id);
+  assert.equal(await nameOf(unassigned.id), 'Website');
+
+  // The same client name again: "Website (ACME)" is taken now, so a number is appended.
+  const acmeAgain = await client('ACME');
+  const second = await project({ name: 'Website', client_id: acmeAgain.id });
+  await deleteClient(acmeAgain.id);
+  assert.equal(await nameOf(second.id), 'Website (ACME) 2');
+
+  // Two clients with the same project name: the first freed name wins, the second gets a suffix.
+  const one = await client('One');
+  const two = await client('Two');
+  const oneSite = await project({ name: 'Shop', client_id: one.id });
+  const twoSite = await project({ name: 'Shop', client_id: two.id });
+  await deleteClient(one.id);
+  assert.equal(await nameOf(oneSite.id), 'Shop');
+  await deleteClient(two.id);
+  assert.equal(await nameOf(twoSite.id), 'Shop (Two)');
+
+  // Generated names stay within the 255 character limit.
+  const long = 'x'.repeat(255);
+  await project({ name: long });
+  const big = await client('Big');
+  const longSite = await project({ name: long, client_id: big.id });
+  await deleteClient(big.id);
+  const clipped = await nameOf(longSite.id);
+  assert.equal(clipped, `${'x'.repeat(249)} (Big)`);
+  assert.equal(clipped.length, 255);
+
+  const all = (await ctx.json('GET', `${base}/projects`)).body;
+  assert.equal(all.length, 7);
+  assert.ok(all.every((p: any) => p.client_id === null));
 });
