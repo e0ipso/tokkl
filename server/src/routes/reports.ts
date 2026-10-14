@@ -246,6 +246,24 @@ export function reportsV3Routes(deps: Deps): Router {
   return api;
 }
 
+/** The largest page the web app's detailed report may request. */
+const APP_MAX_PAGE_SIZE = 500;
+
+function positiveInt(value: unknown, fallback: number, field: string): number {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) throw badRequest(`Invalid '${field}' value`);
+  return value;
+}
+
+function appEntry(entry: ReportEntry) {
+  return {
+    id: entry.id, description: entry.description, start: entry.start, stop: entry.stop, seconds: entry.seconds,
+    billable: entry.billable, project_id: entry.projectId, project_name: entry.projectName, project_color: entry.projectColor,
+    client_name: entry.clientName, task_name: entry.taskName, tags: entry.tags.map((tag) => tag.name),
+    amount_cents: entry.amountCents, currency: entry.currency,
+  };
+}
+
 /** Report endpoint for the web app: totals, a time series and groupings in one response. */
 export function appReportRoutes(deps: Deps): Router {
   const { db } = deps;
@@ -304,12 +322,30 @@ export function appReportRoutes(deps: Deps): Router {
           sub_groups: group.subGroups.map(toJson),
         };
       }),
-      entries: body.include_entries === false ? [] : entries.slice().reverse().slice(0, 5000).map((entry) => ({
-        id: entry.id, description: entry.description, start: entry.start, stop: entry.stop, seconds: entry.seconds,
-        billable: entry.billable, project_id: entry.projectId, project_name: entry.projectName, project_color: entry.projectColor,
-        client_name: entry.clientName, task_name: entry.taskName, tags: entry.tags.map((tag) => tag.name),
-        amount_cents: entry.amountCents, currency: entry.currency,
-      })),
+    });
+  });
+
+  api.post('/report/entries', requireAuth(deps), (req, res) => {
+    const { user, ws, body, filter } = appFilter(req, res);
+    const sort = body.sort ?? 'date';
+    if (sort !== 'date' && sort !== 'duration' && sort !== 'description') {
+      throw badRequest("Invalid 'sort' value, allowed values are: 'date, duration, description'");
+    }
+    const dir = body.dir ?? 'desc';
+    if (dir !== 'asc' && dir !== 'desc') throw badRequest("Invalid 'dir' value, allowed values are: 'asc, desc'");
+    const pageSize = positiveInt(body.page_size, 100, 'page_size');
+    if (pageSize > APP_MAX_PAGE_SIZE) throw badRequest(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
+    const entries = sortDetailed(collectEntries(db, user, ws, filter), sort, dir);
+    const pages = Math.max(1, Math.ceil(entries.length / pageSize));
+    // A bookmarked page past the end shows the last page; the response says which page it is.
+    const page = Math.min(positiveInt(body.page, 1, 'page'), pages);
+    return res.json({
+      total: entries.length,
+      page,
+      page_size: pageSize,
+      pages,
+      has_amounts: entries.some((entry) => entry.amountCents !== null),
+      entries: entries.slice((page - 1) * pageSize, page * pageSize).map(appEntry),
     });
   });
 

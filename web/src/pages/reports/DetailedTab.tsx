@@ -1,27 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api/client.ts';
-import type { Report, ReportEntry, TimeEntry } from '../../api/types.ts';
+import type { TimeEntry } from '../../api/types.ts';
 import { EntryEditor } from '../../components/EntryEditor.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { localDay } from '../../lib/entryTime.ts';
 import { duration, formatDate, formatTime, type Settings } from '../../lib/settings.ts';
+import { useDetailedEntries } from './api.ts';
 import { money } from './format.ts';
+import type { ReportFilterBody } from './query.ts';
 import type { ReportPatch, SortDir, SortKey } from './urlState.ts';
-
-export const PAGE_SIZE = 100;
-
-function compare(a: ReportEntry, b: ReportEntry, key: SortKey): number {
-  switch (key) {
-    case 'date':
-      return a.start.localeCompare(b.start) || a.id - b.id;
-    case 'duration':
-      return a.seconds - b.seconds || a.id - b.id;
-    case 'description':
-      return a.description.localeCompare(b.description, undefined, { sensitivity: 'base' }) || a.id - b.id;
-  }
-}
 
 function SortHeader({ label, name, sort, dir, update, numeric = false }: {
   label: string;
@@ -43,8 +32,8 @@ function SortHeader({ label, name, sort, dir, update, numeric = false }: {
   );
 }
 
-export function DetailedTab({ report, sort, dir, page, settings, dimmed, update }: {
-  report: Report;
+export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update }: {
+  filters: ReportFilterBody;
   sort: SortKey;
   dir: SortDir;
   page: number;
@@ -56,15 +45,8 @@ export function DetailedTab({ report, sort, dir, page, settings, dimmed, update 
   const [opening, setOpening] = useState<number | null>(null);
   const toast = useToast();
 
-  const sorted = useMemo(() => {
-    const factor = dir === 'asc' ? 1 : -1;
-    return [...report.entries].sort((a, b) => factor * compare(a, b, sort));
-  }, [report.entries, sort, dir]);
-  const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const current = Math.min(page, pages);
-  const rows = sorted.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
-  const showAmount = report.entries.some((entry) => entry.amount_cents !== null);
-  const truncated = report.totals.entry_count > report.entries.length;
+  const detailed = useDetailedEntries(filters, sort, dir, page);
+  const data = detailed.data;
 
   const open = async (id: number) => {
     if (opening !== null) return;
@@ -78,15 +60,21 @@ export function DetailedTab({ report, sort, dir, page, settings, dimmed, update 
     }
   };
 
+  if (detailed.isPending) return <div className="empty-state" role="status">Loading report…</div>;
+  if (!data) {
+    return (
+      <div className="empty-state report-error" role="alert">
+        <p>Couldn't load the detailed report: {detailed.error?.message}</p>
+        <button type="button" className="button button-ghost" onClick={() => void detailed.refetch()}>Try again</button>
+      </div>
+    );
+  }
+  const current = data.page;
+  const first = (current - 1) * data.page_size;
+
   return (
     <div className="report-detailed">
-      {truncated ? (
-        <p className="hint">
-          Showing the latest {report.entries.length.toLocaleString()} of {report.totals.entry_count.toLocaleString()} entries.
-          Narrow the range or export the CSV to see all of them.
-        </p>
-      ) : null}
-      <div className={`table-wrap${dimmed ? ' is-dimmed' : ''}`}>
+      <div className={`table-wrap${dimmed || (detailed.isPlaceholderData && detailed.isFetching) ? ' is-dimmed' : ''}`}>
         <table className="table detailed-table">
           <thead>
             <tr>
@@ -97,11 +85,11 @@ export function DetailedTab({ report, sort, dir, page, settings, dimmed, update 
               <th scope="col">Tags</th>
               <th scope="col">Time</th>
               <SortHeader label="Duration" name="duration" sort={sort} dir={dir} update={update} numeric />
-              {showAmount ? <th scope="col" className="num">Amount</th> : null}
+              {data.has_amounts ? <th scope="col" className="num">Amount</th> : null}
             </tr>
           </thead>
           <tbody>
-            {rows.map((entry) => (
+            {data.entries.map((entry) => (
               <tr
                 key={entry.id}
                 className={`entry-row${opening === entry.id ? ' is-loading' : ''}`}
@@ -135,21 +123,21 @@ export function DetailedTab({ report, sort, dir, page, settings, dimmed, update 
                 </td>
                 <td className="nowrap muted">{formatTime(entry.start, settings)} – {formatTime(entry.stop, settings)}</td>
                 <td className="num">{duration(entry.seconds, settings)}</td>
-                {showAmount ? <td className="num">{money(entry.amount_cents, entry.currency)}</td> : null}
+                {data.has_amounts ? <td className="num">{money(entry.amount_cents, entry.currency)}</td> : null}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {pages > 1 ? (
+      {data.pages > 1 ? (
         <nav className="pager" aria-label="Pages">
           <button type="button" className="button button-ghost" disabled={current <= 1} onClick={() => update({ page: current - 1 })}>
             <Icon name="chevronLeft" size={16} /> Previous
           </button>
           <span className="muted">
-            {((current - 1) * PAGE_SIZE + 1).toLocaleString()} to {Math.min(current * PAGE_SIZE, sorted.length).toLocaleString()} of {sorted.length.toLocaleString()}
+            {(first + 1).toLocaleString()} to {(first + data.entries.length).toLocaleString()} of {data.total.toLocaleString()}
           </span>
-          <button type="button" className="button button-ghost" disabled={current >= pages} onClick={() => update({ page: current + 1 })}>
+          <button type="button" className="button button-ghost" disabled={current >= data.pages} onClick={() => update({ page: current + 1 })}>
             Next <Icon name="chevronRight" size={16} />
           </button>
         </nav>

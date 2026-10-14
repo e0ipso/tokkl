@@ -96,7 +96,11 @@ test('app report endpoint returns totals, series and nested groups', async () =>
   assert.equal(res.body.series[0].seconds, 5400);
   const acme = res.body.groups.find((g: any) => g.title === 'ACME');
   assert.equal(acme.sub_groups[0].title, 'Alpha');
-  assert.equal(res.body.entries.length, 4);
+  // Entries are paged by /api/app/report/entries rather than embedded in the report.
+  assert.equal(res.body.entries, undefined);
+  const page = await ctx.json('POST', '/api/app/report/entries', { start_date: '2026-10-05', end_date: '2026-10-11' });
+  assert.equal(page.body.total, 4);
+  assert.equal(page.body.entries.length, 4);
 });
 
 test('bounds returns the first and last entry day in the account timezone', async () => {

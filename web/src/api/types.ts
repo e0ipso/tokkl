@@ -152,7 +152,6 @@ export interface Report {
   };
   series: Array<{ start: string; seconds: number; billable_seconds: number }>;
   groups: ReportGroup[];
-  entries: ReportEntry[];
 }
 
 export type Grouping = 'projects' | 'clients' | 'tags' | 'time_entries' | 'tasks';
@@ -170,7 +169,6 @@ export interface ReportQuery {
   exclude_tag_ids?: Array<number | null>;
   billable?: boolean;
   description?: string;
-  include_entries?: boolean;
 }
 
 export interface ImportResult {

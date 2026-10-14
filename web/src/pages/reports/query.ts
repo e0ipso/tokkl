@@ -1,7 +1,7 @@
 import type { ReportQuery } from '../../api/types.ts';
 import type { ReportState } from './urlState.ts';
 
-/** Filter fields shared by the app report endpoint and the Toggl-compatible CSV exports. */
+/** Filter fields shared by the app report endpoints and the CSV exports. */
 export type ReportFilterBody = Pick<
   ReportQuery, 'start_date' | 'end_date' | 'project_ids' | 'client_ids' | 'tag_ids' | 'billable' | 'description'
   | 'exclude_project_ids' | 'exclude_client_ids' | 'exclude_tag_ids'
@@ -25,14 +25,13 @@ export function filterBody(state: ReportState): ReportFilterBody {
 }
 
 /**
- * The query for POST /api/app/report. Entries are always included so switching tabs needs no
- * refetch. The server reads a sub-grouping equal to the grouping as "no sub-grouping".
+ * The query for POST /api/app/report. The server reads a sub-grouping equal to the grouping as
+ * "no sub-grouping".
  */
 export function reportQuery(state: ReportState): ReportQuery {
   return {
     ...filterBody(state),
     grouping: state.grouping,
     sub_grouping: state.subGrouping === 'none' ? state.grouping : state.subGrouping,
-    include_entries: true,
   };
 }
