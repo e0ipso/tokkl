@@ -1,10 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
-import { mkdtempSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const port = Number(process.env.E2E_PORT ?? 8095);
-const dataDir = mkdtempSync(join(tmpdir(), 'timetrack-e2e-'));
+
+// Every Playwright process loads this file, and workers inherit the runner's environment. The
+// first load picks a fresh path for the run; the server creates the directory when it starts, so
+// `--list` creates nothing. The process that picked the path deletes it when it exits, whether
+// the run passed or failed.
+let dataDir = process.env.TIMETRACK_E2E_DATA_DIR;
+if (!dataDir) {
+  const runDir = join(tmpdir(), `timetrack-e2e-${randomUUID()}`);
+  dataDir = process.env.TIMETRACK_E2E_DATA_DIR = runDir;
+  process.on('exit', () => rmSync(runDir, { recursive: true, force: true }));
+}
 
 export default defineConfig({
   testDir: 'e2e',
