@@ -2,7 +2,6 @@ import { after } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Worker } from 'node:worker_threads';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
@@ -87,14 +86,7 @@ export function fileBackedCopy(ctx: TestContext): TestContext & { path: string }
   const path = join(dir, 'timetrack.db');
   ctx.db.exec(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
   const db = openDatabase(path);
-  // The report worker's message port keeps the test process alive once the worker has started, so
-  // stop every worker started from here on along with the database.
-  const workers: Worker[] = [];
-  const track = (worker: Worker) => workers.push(worker);
-  process.on('worker', track);
-  after(async () => {
-    process.off('worker', track);
-    await Promise.all(workers.map((worker) => worker.terminate()));
+  after(() => {
     db.close();
     rmSync(dir, { recursive: true, force: true });
   });

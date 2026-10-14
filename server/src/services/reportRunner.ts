@@ -55,8 +55,6 @@ export class ReportRunner {
 
   private startWorker(path: string): Worker {
     const worker = new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: { path } });
-    // An idle worker must not keep the process alive after the HTTP server closes.
-    worker.unref();
     worker.on('message', (message: { id: number; result?: JobResult; error?: WorkerError }) => {
       const pending = this.pending.get(message.id);
       if (!pending) return;
@@ -75,6 +73,9 @@ export class ReportRunner {
     };
     worker.on('error', fail);
     worker.on('exit', (code) => fail(new Error(`The report worker stopped with exit code ${code}`)));
+    // An idle worker must not keep the process alive after the HTTP server closes. Unref last:
+    // adding a 'message' listener refs the worker's port again, undoing an earlier unref().
+    worker.unref();
     this.worker = worker;
     return worker;
   }

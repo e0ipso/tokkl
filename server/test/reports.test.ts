@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { execFile } from 'node:child_process';
 import { renameSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { Worker } from 'node:worker_threads';
 import { fileBackedCopy, setup, type TestContext } from './helpers.ts';
 import { formatDuration, parseDuration } from '../../shared/duration.ts';
@@ -544,6 +546,19 @@ test('reports on a file-backed database are built in the worker and match the in
   // One worker took every job and is still running.
   assert.equal(workers.started.length, 1);
   assert.equal(workers.started[0]!.exitCode, null);
+});
+
+test('an idle report worker lets the process exit once the server closes', async () => {
+  // The child serves a file-backed app, runs one report, closes the server and returns without
+  // process.exit. Before the fix the worker's message port held the process open indefinitely.
+  const script = fileURLToPath(new URL('./fixtures/serveOneReport.ts', import.meta.url));
+  const { code, signal, stdout } = await new Promise<{ code: number | null; signal: string | null; stdout: string }>((resolve) => {
+    const child = execFile(process.execPath, [script], { timeout: 20_000 }, (_error, out) => {
+      resolve({ code: child.exitCode, signal: child.signalCode, stdout: out });
+    });
+  });
+  assert.equal(stdout, 'report 200\nclosed\n');
+  assert.deepEqual({ code, signal }, { code: 0, signal: null });
 });
 
 test('a crashed report worker fails its pending jobs with 500 and the next report starts a new worker', async (t) => {
