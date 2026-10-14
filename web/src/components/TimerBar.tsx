@@ -184,6 +184,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       await create.mutateAsync({ ...draft, start: range.start.toISOString(), stop: range.stop.toISOString() });
       toast.show(`Added ${formatDuration((range.stop.getTime() - range.start.getTime()) / 1000)}`);
       setDraft(EMPTY);
+      // The next entry starts where this one stopped, which is the next day after midnight.
+      setManualDay(localDay(range.stop, settings.timeZone));
       setManualStart(formatTime(range.stop, settings));
       setManualEnd('');
       descriptionRef.current?.focus();
