@@ -1,6 +1,7 @@
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 import { badRequest } from '../lib/errors.ts';
+import { parseInstant } from '../lib/values.ts';
 import { createClient, setClientArchived } from '../models/clients.ts';
 import { createProject } from '../models/projects.ts';
 import { resolveTagNames } from '../models/tags.ts';
@@ -149,9 +150,8 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
           db.exec('RELEASE import_entry');
           continue;
         }
-        const start = new Date(String(entry.start));
-        const stop = entry.stop ? new Date(String(entry.stop)) : null;
-        if (Number.isNaN(start.getTime()) || (stop && Number.isNaN(stop.getTime()))) throw new Error('Invalid start or stop');
+        const start = parseInstant(entry.start, 'start');
+        const stop = entry.stop === undefined || entry.stop === null ? null : parseInstant(entry.stop, 'stop');
         const projectId = mapped(projectIds, entry.project_id, 'project');
         const taskId = mapped(taskIds, entry.task_id, 'task');
         const entryTagIds = Array.isArray(entry.tag_ids)
