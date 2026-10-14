@@ -1,3 +1,9 @@
+const TIME_OF_DAY = /^(\d{1,2})(?:[:.]?(\d{2}))?(?::\d{2})?(a|am|p|pm)?$/;
+
+function matchTimeOfDay(raw: string): RegExpExecArray | null {
+  return TIME_OF_DAY.exec(raw.trim().toLowerCase().replace(/\s+/g, ''));
+}
+
 /**
  * Parses a typed clock time into minutes after midnight.
  *
@@ -6,8 +12,7 @@
  * midnight) picks AM or PM for 1-11 like Toggl does: whichever is closer to the reference.
  */
 export function parseTimeOfDay(raw: string, options: { twelveHour?: boolean; reference?: number } = {}): number | null {
-  const input = raw.trim().toLowerCase().replace(/\s+/g, '');
-  const match = /^(\d{1,2})(?:[:.]?(\d{2}))?(?::\d{2})?(a|am|p|pm)?$/.exec(input);
+  const match = matchTimeOfDay(raw);
   if (!match) return null;
   let hour = Number(match[1]);
   const minute = Number(match[2] ?? 0);
@@ -27,4 +32,9 @@ export function parseTimeOfDay(raw: string, options: { twelveHour?: boolean; ref
     return Math.abs(pm - options.reference) < Math.abs(am - options.reference) ? pm : am;
   }
   return hour * 60 + minute;
+}
+
+/** Whether a typed clock time carries an explicit AM/PM suffix, which callers must not second-guess. */
+export function hasMeridiem(raw: string): boolean {
+  return Boolean(matchTimeOfDay(raw)?.[3]);
 }
