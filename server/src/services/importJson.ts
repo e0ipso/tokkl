@@ -111,10 +111,13 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
         let id = findId('SELECT id FROM tasks WHERE project_id = ? AND name = ? COLLATE NOCASE', projectId, name);
         if (id === undefined) {
           // Tasks of archived projects cannot be created, so create them first and archive afterwards.
-          const archived = db.prepare('SELECT active FROM projects WHERE id = ?').get(projectId) as { active: number };
-          if (!archived.active) db.prepare('UPDATE projects SET active = 1 WHERE id = ?').run(projectId);
-          id = createTask(db, wid, projectId, { name, active: task.active, estimated_seconds: task.estimated_seconds }).id;
-          if (!archived.active) db.prepare('UPDATE projects SET active = 0 WHERE id = ?').run(projectId);
+          const archived = !(db.prepare('SELECT active FROM projects WHERE id = ?').get(projectId) as { active: number }).active;
+          if (archived) db.prepare('UPDATE projects SET active = 1 WHERE id = ?').run(projectId);
+          try {
+            id = createTask(db, wid, projectId, { name, active: task.active, estimated_seconds: task.estimated_seconds }).id;
+          } finally {
+            if (archived) db.prepare('UPDATE projects SET active = 0 WHERE id = ?').run(projectId);
+          }
           result.tasks++;
         }
         taskIds.set(Number(task.id), id);
