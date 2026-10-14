@@ -86,7 +86,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
 
   // While a timer runs, the bar mirrors that entry. When it stops (here or on another device),
   // the bar goes back to an empty draft. Only this effect resets the draft after start/stop, so a
-  // refetch that lands before the mutation settles cannot wipe what the user typed.
+  // refetch that lands before the mutation settles cannot wipe what the user typed. It keys on the
+  // mirrored fields, not only `at`: `at` has whole seconds, so a write in the same second as the
+  // previous one leaves it unchanged.
   const shownEntryId = useRef<number | null>(null);
   useEffect(() => {
     if (current) {
@@ -101,7 +103,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       shownEntryId.current = null;
       setDraft(EMPTY);
     }
-  }, [current?.id, current?.at]);
+  }, [current?.id, current?.at, current?.description, current?.project_id, current?.task_id, current?.billable, current?.tags.join('\u0000')]);
 
   const suggestions = useMemo(
     () => (showSuggestions ? suggestionsFrom(recentEntries, draft.description) : []),
