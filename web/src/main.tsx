@@ -1,3 +1,5 @@
+// Puts the cached theme on <html> before anything renders; keep this import first.
+import './lib/theme.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';

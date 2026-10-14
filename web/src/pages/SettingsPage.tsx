@@ -3,6 +3,7 @@ import { api } from '../api/client.ts';
 import { useMe, usePreferences, useWorkspace } from '../api/hooks.ts';
 import { Icon } from '../components/Icon.tsx';
 import { useToast } from '../components/Toast.tsx';
+import { clearCachedTheme } from '../lib/theme.ts';
 import { ApiTokenSection } from './manage/settings/ApiTokenSection.tsx';
 import { DataSection } from './manage/settings/DataSection.tsx';
 import { PasswordSection } from './manage/settings/PasswordSection.tsx';
@@ -29,6 +30,7 @@ function SessionSection() {
     setBusy(true);
     try {
       await api.post('/api/app/logout');
+      clearCachedTheme();
       window.location.reload();
     } catch (error) {
       toast.error(error);

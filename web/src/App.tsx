@@ -7,6 +7,7 @@ import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { formatDuration } from '../../shared/duration.ts';
 import { entrySeconds, useNow } from './lib/settings.ts';
+import { applyTheme, clearCachedTheme } from './lib/theme.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { ClientsPage } from './pages/ClientsPage.tsx';
 import { ProjectsPage } from './pages/ProjectsPage.tsx';
@@ -26,12 +27,12 @@ const NAV: Array<{ href: string; label: string; icon: IconName }> = [
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
+/** Applies the saved theme once preferences load. Until then the cached theme from lib/theme.ts stays. */
 function useTheme() {
   const { data: prefs } = usePreferences();
-  const theme = prefs?.theme ?? 'system';
+  const theme = prefs ? (prefs.theme ?? 'system') : undefined;
   useEffect(() => {
-    if (theme === 'system') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.setAttribute('data-theme', theme);
+    if (theme) applyTheme(theme);
   }, [theme]);
 }
 
@@ -55,6 +56,7 @@ function Shell() {
 
   const logout = async () => {
     await api.post('/api/app/logout');
+    clearCachedTheme();
     qc.clear();
     window.location.href = '/';
   };
