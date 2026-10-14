@@ -1,0 +1,6 @@
+User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags
+Sam Synthetic,sam@example.com,Acme,Website,Design,Homepage wireframes,Yes,2026-01-15,09:00:00,2026-01-15,10:30:00,01:30:00,"ux, client-work"
+Sam Synthetic,sam@example.com,Acme,Website,,Launch review,No,2026-07-15,09:00:00,2026-07-15,10:00:00,01:00:00,ux
+Sam Synthetic,sam@example.com,,Internal,Ops,Night deploy,No,2026-03-28,23:30:00,2026-03-29,03:30:00,03:00:00,ops
+Sam Synthetic,sam@example.com,,,,No project,No,2026-02-02,14:00:00,2026-02-02,14:45:00,00:45:00,
+Sam Synthetic,sam@example.com,Acme,Website,Design,Recent import,Yes,{{RECENT_DATE}},10:00:00,{{RECENT_DATE}},11:15:00,01:15:00,ops

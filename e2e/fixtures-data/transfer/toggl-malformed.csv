@@ -1,0 +1,7 @@
+User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags
+Sam Synthetic,sam@example.com,,Internal,,Valid first,No,2026-05-04,09:00:00,2026-05-04,10:00:00,01:00:00,
+Sam Synthetic,sam@example.com,,Internal,,No such day,No,2026-02-30,09:00:00,2026-02-30,10:00:00,01:00:00,
+Sam Synthetic,sam@example.com,,Internal,,No such hour,No,2026-05-05,25:00:00,2026-05-05,26:00:00,01:00:00,
+Sam Synthetic,sam@example.com,,Internal,,No end,No,2026-05-05,09:00:00,,,,
+Sam Synthetic,sam@example.com,,Internal,,Ends before it starts,No,2026-05-05,10:00:00,2026-05-05,09:00:00,,
+Sam Synthetic,sam@example.com,,Internal,,Valid last,No,2026-05-06,09:00:00,2026-05-06,10:00:00,01:00:00,
