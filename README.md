@@ -91,7 +91,7 @@ npm run dev:web    # Vite dev server on :5173, proxies /api and /reports to :808
 npm test           # server and shared unit/API tests (node --test)
 npm run typecheck
 npm run build      # builds the web app into dist/web
-npm run test:e2e   # Playwright browser tests; builds must exist (set CHROMIUM_PATH to use a local Chromium)
+npm run test:e2e   # builds the web app, then runs the Playwright browser tests
 ```
 
 The server runs TypeScript directly through Node's type stripping, so there is no server build step. Layout:
@@ -103,3 +103,21 @@ web/src      React app
 e2e/         Playwright tests
 docs/PRD.md  product requirements
 ```
+
+### End-to-end tests
+
+`npm run test:e2e` runs `npm run build` first, so the browser tests always see the current UI. Then Playwright starts the server on a throwaway SQLite database in a temporary directory. Extra arguments go to Playwright, for example `npm run test:e2e -- --grep "keyboard shortcuts"`.
+
+Test runs never download a browser. Install the Chromium headless shell that matches the pinned Playwright version once, after `npm install` and again after upgrading Playwright:
+
+```sh
+npm run test:e2e:install
+```
+
+To use a Chromium you already have instead, point `CHROMIUM_PATH` at its binary:
+
+```sh
+CHROMIUM_PATH=/path/to/chrome-headless-shell npm run test:e2e
+```
+
+If neither is available, the run stops before any test with a message that says which binary is missing and how to fix it. `E2E_PORT` changes the server port (default 8095).
