@@ -11,6 +11,9 @@ const P = 1;
 const KEY_LENGTH = 64;
 const MAXMEM = 64 * 1024 * 1024;
 
+/** Longest password accepted when one is set. Existing longer passwords still verify. */
+export const MAX_PASSWORD_LENGTH = 1024;
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const key = await scryptAsync(password, salt, KEY_LENGTH, { N, r: R, p: P, maxmem: MAXMEM });

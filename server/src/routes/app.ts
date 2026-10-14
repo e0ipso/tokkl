@@ -1,5 +1,5 @@
 import express, { type Request, type Response, type Router } from 'express';
-import { safeEqual, verifyAgainstDummy, verifyPassword } from '../auth/crypto.ts';
+import { MAX_PASSWORD_LENGTH, safeEqual, verifyAgainstDummy, verifyPassword } from '../auth/crypto.ts';
 import { requireAuth } from '../auth/middleware.ts';
 import { createSession, deleteSession, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
@@ -54,6 +54,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const timezone = typeof body.timezone === 'string' && isValidTimeZone(body.timezone) ? body.timezone : 'UTC';
     if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
     if (password.length < 8) throw badRequest('Password must be at least 8 characters');
+    if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
     const user = await createOwner(db, { email, password, fullname, timezone });
     setup.code = null;
     startSession(deps, req, res, user.id);
