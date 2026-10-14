@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
-import { keys, useMe, useReport } from '../api/hooks.ts';
+import { keys, useReport } from '../api/hooks.ts';
 import { today, useSettings } from '../lib/settings.ts';
 import { DetailedTab } from './reports/DetailedTab.tsx';
 import { ExportButtons } from './reports/ExportButtons.tsx';
@@ -17,7 +17,6 @@ const TAB_LABELS: Record<Tab, string> = { summary: 'Summary', detailed: 'Detaile
 
 export function ReportsPage() {
   const settings = useSettings();
-  const { data: me } = useMe();
   const todayKey = today(settings.timeZone);
   const bounds = useQuery({
     queryKey: [...keys.report, 'bounds'],
@@ -73,11 +72,12 @@ export function ReportsPage() {
         />
         <span className="spacer" />
         <ExportButtons
-          workspaceId={me?.default_workspace_id ?? 0}
           range={state.range}
           filters={filters}
           grouping={state.grouping}
           subGrouping={state.subGrouping}
+          sort={state.sort}
+          dir={state.dir}
           durationFormat={settings.durationFormat}
         />
       </header>

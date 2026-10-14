@@ -8,6 +8,7 @@ import { badRequest, forbidden } from '../lib/errors.ts';
 import { parseId, togglTime } from '../lib/values.ts';
 import { formatDuration, type DurationFormat } from '../../../shared/duration.ts';
 import { addDays, daysBetween, startOfWeek } from '../../../shared/time.ts';
+import type { UserRow } from '../models/users.ts';
 import { getWorkspace, type WorkspaceRow } from '../models/workspaces.ts';
 import {
   collectEntries, filterFromBody, groupEntries, resolutionFor, timeSeries, totalsOf, weeklyGrid,
@@ -110,6 +111,32 @@ function summaryGroup(group: Group, groupingDimension: Dimension, includeIds: bo
   };
 }
 
+/** Toggl's detailed CSV layout. */
+function detailedCsv(entries: ReportEntry[], user: UserRow, durationFormat: unknown): string {
+  return toTogglCsv(entries.map((entry) => ({
+    ...entry, tags: entry.tags.map((tag) => tag.name),
+  })), user, durationFormatOf(durationFormat));
+}
+
+/** One row per group, or per sub-group when the groups have them. */
+function summaryCsv(groups: Group[], durationFormat: unknown): string {
+  const format = durationFormatOf(durationFormat);
+  const rows: Array<Array<string | number | null>> = [['Group', 'Sub group', 'Duration']];
+  for (const group of groups) {
+    if (group.subGroups.length === 0) rows.push([group.title || '(none)', '', formatDuration(group.seconds, format)]);
+    for (const subGroup of group.subGroups) {
+      rows.push([group.title || '(none)', subGroup.title || '(none)', formatDuration(subGroup.seconds, format)]);
+    }
+  }
+  return toCsv(rows);
+}
+
+function sendCsv(res: Response, filename: string, csv: string) {
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.send(csv);
+}
+
 function rangeHeaders(res: Response, startDate: string, endDate: string): void {
   res.set('X-Range-Start', startDate);
   res.set('X-Range-End', endDate);
@@ -169,12 +196,7 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/search/time_entries.csv', async (req, res) => {
     const { body, entries } = detailed(req, res);
-    const csv = toTogglCsv(entries.map((entry) => ({
-      ...entry, tags: entry.tags.map((tag) => tag.name),
-    })), res.locals.user, durationFormatOf(body.duration_format));
-    res.set('Content-Type', 'text/csv; charset=utf-8');
-    res.set('Content-Disposition', 'attachment; filename="Toggl_time_entries.csv"');
-    return res.send(csv);
+    return sendCsv(res, 'Toggl_time_entries.csv', detailedCsv(entries, res.locals.user, body.duration_format));
   });
 
   const summary = (req: Request, res: Response) => {
@@ -198,17 +220,7 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/summary/time_entries.csv', async (req, res) => {
     const { body, groups } = summary(req, res);
-    const durationFormat = durationFormatOf(body.duration_format);
-    const rows: Array<Array<string | number | null>> = [['Group', 'Sub group', 'Duration']];
-    for (const group of groups) {
-      if (group.subGroups.length === 0) rows.push([group.title || '(none)', '', formatDuration(group.seconds, durationFormat)]);
-      for (const subGroup of group.subGroups) {
-        rows.push([group.title || '(none)', subGroup.title || '(none)', formatDuration(subGroup.seconds, durationFormat)]);
-      }
-    }
-    res.set('Content-Type', 'text/csv; charset=utf-8');
-    res.set('Content-Disposition', 'attachment; filename="Toggl_summary.csv"');
-    return res.send(toCsv(rows));
+    return sendCsv(res, 'Toggl_summary.csv', summaryCsv(groups, body.duration_format));
   });
 
   api.post('/workspace/:wid/weekly/time_entries', async (req, res) => {
@@ -325,7 +337,8 @@ export function appReportRoutes(deps: Deps): Router {
     });
   });
 
-  api.post('/report/entries', requireAuth(deps), (req, res) => {
+  /** Every matching entry in the detailed report's order. */
+  const sortedEntries = (req: Request, res: Response) => {
     const { user, ws, body, filter } = appFilter(req, res);
     const sort = body.sort ?? 'date';
     if (sort !== 'date' && sort !== 'duration' && sort !== 'description') {
@@ -333,9 +346,13 @@ export function appReportRoutes(deps: Deps): Router {
     }
     const dir = body.dir ?? 'desc';
     if (dir !== 'asc' && dir !== 'desc') throw badRequest("Invalid 'dir' value, allowed values are: 'asc, desc'");
+    return { user, body, entries: sortDetailed(collectEntries(db, user, ws, filter), sort, dir) };
+  };
+
+  api.post('/report/entries', requireAuth(deps), (req, res) => {
+    const { body, entries } = sortedEntries(req, res);
     const pageSize = positiveInt(body.page_size, 100, 'page_size');
     if (pageSize > APP_MAX_PAGE_SIZE) throw badRequest(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
-    const entries = sortDetailed(collectEntries(db, user, ws, filter), sort, dir);
     const pages = Math.max(1, Math.ceil(entries.length / pageSize));
     // A bookmarked page past the end shows the last page; the response says which page it is.
     const page = Math.min(positiveInt(body.page, 1, 'page'), pages);
@@ -347,6 +364,20 @@ export function appReportRoutes(deps: Deps): Router {
       has_amounts: entries.some((entry) => entry.amountCents !== null),
       entries: entries.slice((page - 1) * pageSize, page * pageSize).map(appEntry),
     });
+  });
+
+  // CSV exports of the report the web app shows: its range allowance, filters and rounding.
+  api.post('/report/detailed.csv', requireAuth(deps), (req, res) => {
+    const { user, body, entries } = sortedEntries(req, res);
+    return sendCsv(res, 'timetrack_detailed.csv', detailedCsv(entries, user, body.duration_format));
+  });
+
+  api.post('/report/summary.csv', requireAuth(deps), (req, res) => {
+    const { user, ws, body, filter } = appFilter(req, res);
+    const [, grouping] = dimension(body.grouping, 'projects', 'grouping');
+    const [, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
+    const groups = groupEntries(collectEntries(db, user, ws, filter), grouping, grouping === sub ? 'none' : sub);
+    return sendCsv(res, 'timetrack_summary.csv', summaryCsv(groups, body.duration_format));
   });
 
   return api;
