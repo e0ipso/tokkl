@@ -118,11 +118,20 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     if (current && key !== 'description') patchRunning({ [key]: value } as TimeEntryInput);
   };
 
-  const start = async (from: Draft = draft) => {
+  // Set synchronously, so a second click in the same frame sees it before `create.isPending` does.
+  const starting = useRef(false);
+
+  /**
+   * Starts `from`. Continue and favorites pass `replace`: the server then stops the running entry
+   * at the new entry's start, keeping exactly one running entry.
+   */
+  const start = async (from: Draft = draft, { replace = false } = {}) => {
     // A double click or key repeat must not start two entries before the first one shows up.
-    if (create.isPending || current) return;
+    if (starting.current || create.isPending) return;
+    if (current && (!replace || stopEntry.isPending || remove.isPending)) return;
+    starting.current = true;
     try {
-      const seconds = timerDuration ? parseDuration(timerDuration) : null;
+      const seconds = !current && timerDuration ? parseDuration(timerDuration) : null;
       setShowSuggestions(false);
       if (seconds !== null && seconds > 0) {
         // A duration typed into the idle timer saves a finished entry that ends now.
@@ -136,6 +145,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       setTimerDuration('');
     } catch (error) {
       toast.error(error);
+    } finally {
+      starting.current = false;
     }
   };
 
@@ -211,7 +222,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         setDraft(from);
         descriptionRef.current?.focus();
       } else {
-        void start(from);
+        void start(from, { replace: true });
       }
     },
   }));
