@@ -125,3 +125,24 @@ If neither is available, the run stops before any test with a message that says 
 Every scenario starts from an empty account. An automatic fixture in `e2e/fixtures.ts` deletes all entries, the trash, projects, clients and tags, and resets the preferences the scenarios change, before and after each test. A scenario that needs existing data seeds it through the fixture's `data` helper, so any test can run alone or in any order.
 
 The same fixtures fail a scenario on any uncaught page error, console error (React logs errors that the page-level ErrorBoundary catches this way), failed request or error response. The failure lists what happened and keeps the trace. Requests sent without a session cookie may get 403, because that is how the app finds out it is logged out. A scenario that provokes a failed response on purpose declares it with `runtimeErrors.allowResponse({ status, method, path, reason })`. The rules live in `e2e/runtime-errors.ts`, and `e2e/guard.spec.ts` checks that the guard still catches each kind of error.
+
+### History-scale measurements
+
+`npm run bench:history` builds the web app, then times the server against generated histories. Use it to compare commits on the same machine. It is not a pass/fail speed test.
+
+```sh
+npm run bench:history                                  # year and decade fixtures, 7 runs per heavy request
+npm run bench:history -- --fixtures year --no-browser   # quicker
+npm run bench:history -- --out results.json --end-date 2026-10-13
+```
+
+For each fixture it starts `node server/src/index.ts` on its own port (`--port`, default 8190) with a new temporary data directory, which it deletes on exit. It ignores any `TIMETRACK_*` variables in your environment, so it never opens `./data` or another real database, and it makes no outside requests. The fixtures are generated from a fixed seed and loaded through the JSON restore:
+
+- `year`: 3,000 entries over 365 days.
+- `decade`: 30,000 entries over 3,650 days, the 30k-entry comparison fixture from the 2026-10-14 audit.
+
+Both have 30 projects with one task each, 5 clients, 5 tags and 40 descriptions, about 8 entries a day ending yesterday (UTC) unless you pass `--end-date`.
+
+It times the JSON restore, entry and project lists, the summary, totals-only, weekly and paged detailed reports, both CSV exports, a 1,000-row Toggl CSV import preview, entry create/update/delete, and timer start/stop on an idle server and while a whole-history CSV export runs. Unless you pass `--no-browser`, it also times the timer page and the summary report page in Chromium (`CHROMIUM_PATH` works as for the e2e tests). The output records Node, OS, CPU, memory, load average and commit, plus the fixture dates and sizes.
+
+Every response is checked as well as timed: totals and billable totals against the generated data, per-project tracked time, group sums, page counts and the last page, the 500-row page limit, CSV row counts, that a CSV preview stores nothing, and that report payloads grow with groups and buckets rather than entries. A wrong answer makes the command exit 1. Timings never fail it. They measure the machine you run on, while the latency targets in [docs/PRD.md section 9](docs/PRD.md#9-non-functional-requirements) are for a low-power CPU.
