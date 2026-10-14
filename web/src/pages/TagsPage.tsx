@@ -41,7 +41,7 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
           </button>
         ) : (
           <input
-            className="manage-inline-input"
+            className="inline-input"
             value={draft}
             aria-label={`New name for ${tag.name}`}
             maxLength={255}

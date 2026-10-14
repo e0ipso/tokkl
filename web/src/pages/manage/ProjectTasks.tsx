@@ -50,7 +50,7 @@ function TaskRow({ project, task }: { project: Project; task: Task }) {
         }}
       />
       <input
-        className="task-name"
+        className="inline-input"
         value={name}
         aria-label="Task name"
         maxLength={255}

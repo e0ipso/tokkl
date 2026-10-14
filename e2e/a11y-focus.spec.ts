@@ -87,7 +87,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.goto('/reports');
       const search = page.getByLabel('Filter by description');
       await tabTo(page, search);
-      await expectRing(page.locator('.filter-search'));
+      await expectRing(page.locator('.search-box', { has: search }));
     });
   });
 }

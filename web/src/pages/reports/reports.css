@@ -7,11 +7,8 @@
 /* Header: range control and exports */
 .reports-header { row-gap: 10px; }
 .range-control { display: inline-flex; align-items: center; gap: 2px; }
-.range-button {
-  display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 36px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; white-space: nowrap;
-}
-.range-button:hover { background: var(--surface-2); }
+/* .range-button is a .select-button; the e2e suite selects it by this class. */
+.range-button { white-space: nowrap; }
 .range-presets { display: flex; flex-direction: column; padding: 4px; }
 .range-preset {
   display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: none; background: none;
@@ -42,14 +39,9 @@
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--primary); font-weight: 600;
 }
 .filter-select { padding-right: 8px; }
-.filter-search {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; color: var(--muted);
-  border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
-}
-/* The ring sits on the pill, as on the manage SearchBox, so the input drops its own. */
-.filter-search:focus-within { border-color: var(--primary); outline: 2px solid var(--primary); outline-offset: 1px; }
-.filter-search input { border: none; background: transparent; padding: 4px 0; width: 160px; color: var(--text); }
-.filter-search input:focus-visible { outline: none; }
+/* The description SearchBox takes the pill shape of the filter chips beside it. */
+.report-filters .search-box { min-height: 34px; border-radius: 999px; }
+.report-filters .search-box input { padding: 4px 0; width: 160px; }
 .filter-option-hint { margin-left: auto; font-size: 0.82rem; }
 .filter-popover-footer { display: flex; justify-content: flex-end; padding: 6px 12px 10px; border-top: 1px solid var(--border); }
 
@@ -69,7 +61,8 @@
 .report-totals {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 0 0 16px;
 }
-.report-totals > div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 16px; }
+/* Each total is a .card; grid items sit side by side, so drop the stacking margin. */
+.report-totals > .card + .card { margin-top: 0; }
 .report-totals dt { font-size: 0.82rem; color: var(--muted); }
 .report-totals dd { margin: 4px 0 0; font-family: var(--font-display); font-stretch: 85%; font-size: 1.4rem; font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
 .report-totals-share { font-size: 0.9rem; font-weight: 500; }
@@ -159,8 +152,8 @@
   .reports-header .spacer { display: none; }
   .range-control { width: 100%; }
   .range-button { flex: 1; justify-content: center; }
-  .filter-search { flex: 1 1 160px; }
-  .filter-search input { width: 100%; }
+  .report-filters .search-box { flex: 1 1 160px; }
+  .report-filters .search-box input { width: 100%; }
   .report-totals dd { font-size: 1.2rem; }
   .breakdown-table td:first-child { width: auto; }
   .share { min-width: 110px; gap: 6px; }

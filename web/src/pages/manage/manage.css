@@ -11,14 +11,6 @@
 .manage-confirm p { margin: 0 0 10px; }
 .manage-confirm p:last-child { margin-bottom: 0; }
 
-.manage-search {
-  display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--muted);
-  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-}
-.manage-search:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
-.manage-search input { border: none; padding: 7px 0; width: 200px; background: transparent; }
-.manage-search input:focus-visible { outline: none; }
-
 .manage-name-button {
   display: inline-flex; align-items: center; gap: 8px; padding: 2px 0; border: none; background: none;
   cursor: pointer; font-weight: 500; text-align: left;
@@ -29,7 +21,9 @@
 .manage-actions > * { vertical-align: middle; }
 .manage-actions .button { padding: 4px 10px; }
 .manage-notes { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-.manage-inline-input { width: min(320px, 100%); }
+/* Rename fields for tags and tasks: borderless until hovered or focused. */
+.inline-input { flex: 1; min-width: 0; width: min(320px, 100%); border-color: transparent; background: transparent; }
+.inline-input:hover, .inline-input:focus { border-color: var(--border); }
 .manage-inline-create { margin-top: 8px; }
 .manage-inline-create input { flex: 1; }
 .manage-menu-gap { display: inline-block; width: 16px; }
@@ -72,9 +66,7 @@
 .task-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
 .task-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; min-height: 42px; }
 .task-row + .task-row { border-top: 1px solid var(--border); }
-.task-name { flex: 1; min-width: 0; border-color: transparent; background: transparent; }
-.task-name:hover, .task-name:focus { border-color: var(--border); }
-.task-row.is-done .task-name { text-decoration: line-through; color: var(--muted); }
+.task-row.is-done .inline-input { text-decoration: line-through; color: var(--muted); }
 .task-tracked { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
 
 /* Settings */
@@ -119,7 +111,3 @@
 .import-errors summary { cursor: pointer; color: var(--danger); }
 .import-errors ul { margin: 6px 0 0; padding-left: 18px; max-height: 200px; overflow: auto; }
 
-@media (max-width: 560px) {
-  .manage-search { flex: 1; }
-  .manage-search input { width: 100%; }
-}

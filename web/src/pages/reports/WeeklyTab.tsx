@@ -1,8 +1,14 @@
 import { ProjectDot } from '../../components/Pickers.tsx';
 import { duration, shortDate, weekdayName, type Settings } from '../../lib/settings.ts';
+import { Segmented } from '../manage/ui.tsx';
 import { useWeeklyReport, type WeeklyReport } from './api.ts';
 import type { ReportFilterBody } from './query.ts';
 import type { ReportPatch, WeeklyRows } from './urlState.ts';
+
+const ROW_OPTIONS: ReadonlyArray<{ value: WeeklyRows; label: string }> = [
+  { value: 'projects', label: 'Projects' },
+  { value: 'clients', label: 'Clients' },
+];
 
 /** Day columns show the weekday; week columns show the part of the week inside the range. */
 function columnLabel(column: WeeklyReport['columns'][number], mode: WeeklyReport['mode']) {
@@ -26,14 +32,7 @@ export function WeeklyTab({ filters, by, settings, dimmed, update }: {
   return (
     <div className="report-weekly">
       <div className="toolbar">
-        <div className="segmented" role="group" aria-label="Rows">
-          <button type="button" className={by === 'projects' ? 'active' : ''} aria-pressed={by === 'projects'} onClick={() => update({ weeklyRows: 'projects' })}>
-            Projects
-          </button>
-          <button type="button" className={by === 'clients' ? 'active' : ''} aria-pressed={by === 'clients'} onClick={() => update({ weeklyRows: 'clients' })}>
-            Clients
-          </button>
-        </div>
+        <Segmented label="Rows" options={ROW_OPTIONS} value={by} onChange={(weeklyRows) => update({ weeklyRows })} />
         {grid ? <span className="hint">{grid.mode === 'days' ? 'One column per day.' : 'Ranges longer than a week get one column per week.'}</span> : null}
       </div>
       {weekly.isPending ? (

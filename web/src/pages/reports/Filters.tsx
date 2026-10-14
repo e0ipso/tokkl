@@ -3,6 +3,7 @@ import { useClients, useProjects, useTags } from '../../api/hooks.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
+import { SearchBox, Segmented } from '../manage/ui.tsx';
 import type { BillableFilter, IdFilter, ReportPatch, ReportState } from './urlState.ts';
 
 interface Option {
@@ -11,6 +12,11 @@ interface Option {
   readonly color?: string | null;
   readonly hint?: string | null;
 }
+
+const FILTER_MODES = [
+  { value: 'is', label: 'Is' },
+  { value: 'not', label: 'Is not' },
+] as const;
 
 /** A filter chip that opens a searchable checkbox list. */
 function MultiSelect({ label, options, value, onChange, negated, onNegatedChange, showDots = false }: {
@@ -60,10 +66,13 @@ function MultiSelect({ label, options, value, onChange, negated, onNegatedChange
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <div className="segmented filter-mode" role="group" aria-label={`${label} filter mode`}>
-            <button type="button" className={negated ? '' : 'active'} aria-pressed={!negated} onClick={() => onNegatedChange(false)}>Is</button>
-            <button type="button" className={negated ? 'active' : ''} aria-pressed={negated} onClick={() => onNegatedChange(true)}>Is not</button>
-          </div>
+          <Segmented
+            className="filter-mode"
+            label={`${label} filter mode`}
+            options={FILTER_MODES}
+            value={negated ? 'not' : 'is'}
+            onChange={(mode) => onNegatedChange(mode === 'not')}
+          />
           <div className="picker-list">
             {visible.map((option) => (
               <label key={option.id ?? 'none'} className="picker-item picker-check">
@@ -104,18 +113,7 @@ function DescriptionSearch({ value, onChange }: { value: string; onChange: (next
     }, 300);
     return () => clearTimeout(id);
   }, [text, onChange]);
-  return (
-    <label className="filter-search">
-      <Icon name="search" size={15} />
-      <input
-        type="search"
-        placeholder="Description"
-        aria-label="Filter by description"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-      />
-    </label>
-  );
+  return <SearchBox value={text} onChange={setText} placeholder="Description" label="Filter by description" />;
 }
 
 export function Filters({ state, update }: { state: ReportState; update: (patch: ReportPatch) => void }) {

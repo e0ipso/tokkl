@@ -39,14 +39,15 @@ export function ConfirmModal({ title, children, confirmLabel, danger = true, bus
   );
 }
 
-export function Segmented<T extends string>({ value, options, onChange, label }: {
+export function Segmented<T extends string>({ value, options, onChange, label, className }: {
   value: T;
   options: ReadonlyArray<{ value: T; label: string }>;
   onChange: (value: T) => void;
   label: string;
+  className?: string;
 }) {
   return (
-    <div className="segmented" role="group" aria-label={label}>
+    <div className={className ? `segmented ${className}` : 'segmented'} role="group" aria-label={label}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -62,11 +63,17 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
   );
 }
 
-export function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+/** Search field with a leading icon. The accessible name defaults to the placeholder. */
+export function SearchBox({ value, onChange, placeholder, label = placeholder }: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  label?: string;
+}) {
   return (
-    <label className="manage-search">
+    <label className="search-box">
       <Icon name="search" size={16} />
-      <input type="search" value={value} placeholder={placeholder} aria-label={placeholder} onChange={(event) => onChange(event.target.value)} />
+      <input type="search" value={value} placeholder={placeholder} aria-label={label} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }

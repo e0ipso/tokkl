@@ -11,23 +11,23 @@ function Totals({ report, settings }: { report: Report; settings: Settings }) {
   const { totals } = report;
   return (
     <dl className="report-totals">
-      <div>
+      <div className="card">
         <dt>Total time</dt>
         <dd>{duration(totals.seconds, settings)}</dd>
       </div>
-      <div>
+      <div className="card">
         <dt>Billable time</dt>
         <dd>
           {duration(totals.billable_seconds, settings)}
           {totals.seconds > 0 ? <span className="muted report-totals-share"> {formatPercent(percent(totals.billable_seconds, totals.seconds))}</span> : null}
         </dd>
       </div>
-      <div>
+      <div className="card">
         <dt>Entries</dt>
         <dd>{totals.entry_count.toLocaleString()}</dd>
       </div>
       {totals.amounts.length ? (
-        <div>
+        <div className="card">
           <dt>Amount</dt>
           <dd>
             {totals.amounts.map((amount) => (

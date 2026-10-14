@@ -62,7 +62,7 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
       <button
         ref={button}
         type="button"
-        className="range-button"
+        className="select-button range-button"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {

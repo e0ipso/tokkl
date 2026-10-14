@@ -457,6 +457,19 @@ input.entry-duration:hover { border-color: var(--border); }
   display: flex; align-items: center; gap: 6px; text-align: left; min-height: 37px;
   border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-md); padding: 7px 10px; cursor: pointer;
 }
+.select-button:hover { background: var(--surface-2); }
+/* SearchBox in pages/manage/ui.tsx. The ring sits on the wrapper, so the input drops its own. */
+.search-box {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+}
+.search-box:focus-within { border-color: var(--primary); outline: 2px solid var(--primary); outline-offset: 1px; }
+.search-box input { border: none; padding: 7px 0; width: 200px; background: transparent; color: var(--text); }
+.search-box input:focus-visible { outline: none; }
+@media (max-width: 560px) {
+  .search-box { flex: 1; }
+  .search-box input { width: 100%; }
+}
 .inline-controls { display: flex; gap: 8px; }
 .form-error { color: var(--danger); margin: 0; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
