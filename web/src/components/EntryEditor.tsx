@@ -3,6 +3,7 @@ import { useCreateEntry, useDeleteEntry, useProjects, useRestoreEntry, useUpdate
 import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '../../../shared/duration.ts';
 import { parseTimeOfDay } from '../../../shared/timeOfDay.ts';
+import { addDays } from '../../../shared/time.ts';
 import { instantAt, localDay, resolveRange } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, useNow, useSettings } from '../lib/settings.ts';
 import { Icon } from './Icon.tsx';
@@ -117,8 +118,11 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     if (!entry.stop) return;
     const minutes = parseTimeOfDay(splitText, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
     if (minutes === null) return toast.show('Enter a split time like 10:30', { kind: 'error' });
-    let at = instantAt(localDay(entry.start, settings.timeZone), minutes, settings.timeZone);
-    if (at <= new Date(entry.start)) at = new Date(at.getTime() + 86_400_000);
+    const startDay = localDay(entry.start, settings.timeZone);
+    let at = instantAt(startDay, minutes, settings.timeZone);
+    // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
+    // DST shift when the clocks change that night.
+    if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
     if (at <= new Date(entry.start) || at >= new Date(entry.stop)) {
       return toast.show('The split time must fall inside the entry', { kind: 'error' });
     }
