@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useCurrentEntry, useEntries, usePreferences, useSavePreferences, useProjects } from '../api/hooks.ts';
+import { useEntries, usePreferences, useSavePreferences, useProjects } from '../api/hooks.ts';
 import type { Favorite, TimeEntry } from '../api/types.ts';
 import { addDays, startOfWeek } from '../../../shared/time.ts';
 import { EntryList } from '../components/EntryList.tsx';
@@ -24,7 +24,6 @@ export function TimerPage() {
   const setView = (next: 'list' | 'calendar') => savePrefs.mutate({ timerView: next });
   const todayKey = today(settings.timeZone);
   const { data: entries = [], isLoading, isFetching } = useEntries(addDays(todayKey, -days + 1), addDays(todayKey, 2));
-  const { data: current } = useCurrentEntry();
   const { data: projects = [] } = useProjects();
   const timer = useRef<TimerBarHandle>(null);
   const favorites = prefs?.favorites ?? [];
@@ -52,9 +51,10 @@ export function TimerPage() {
       n: () => timer.current?.startNew(),
       s: () => timer.current?.stop(),
       m: () => timer.current?.toggleManual(),
+      // Like the Continue button: a running timer is stopped at the new entry's start.
       c: () => {
         const last = entries.find((entry) => entry.stop);
-        if (last && !current) continueEntry(last);
+        if (last) continueEntry(last);
       },
       '?': () => setHelp(true),
     };
@@ -62,7 +62,7 @@ export function TimerPage() {
       map[String(index + 1)] = () => startFavorite(favorite);
     });
     return map;
-  }, [entries, current, favorites]);
+  }, [entries, favorites]);
   useShortcuts(settings.shortcuts, handlers);
 
   const removeFavorite = (index: number) => savePrefs.mutate({ favorites: favorites.filter((_, i) => i !== index) });
