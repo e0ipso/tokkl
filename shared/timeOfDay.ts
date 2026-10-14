@@ -8,10 +8,14 @@ function matchTimeOfDay(raw: string): RegExpExecArray | null {
  * Parses a typed clock time into minutes after midnight.
  *
  * Accepted: "9", "930", "0930", "9:30", "9.30", "9:30:15" (seconds dropped), "9a", "9pm", "12am".
- * Without a suffix, 24-hour input is taken literally. For 12-hour users, `reference` (minutes after
- * midnight) picks AM or PM for 1-11 like Toggl does: whichever is closer to the reference.
+ * Without a suffix, 24-hour input is taken literally. For 12-hour users, AM or PM for 1-11 is guessed
+ * like Toggl does: with `after` (an end time), the first of the two that follows `after`, wrapping past
+ * midnight; otherwise whichever is closer to `reference` (a start time, guessed against now).
+ * Times are minutes after midnight. An explicit suffix is never second-guessed.
  */
-export function parseTimeOfDay(raw: string, options: { twelveHour?: boolean; reference?: number } = {}): number | null {
+export function parseTimeOfDay(
+  raw: string, options: { twelveHour?: boolean; reference?: number; after?: number } = {},
+): number | null {
   const match = matchTimeOfDay(raw);
   if (!match) return null;
   let hour = Number(match[1]);
@@ -26,15 +30,17 @@ export function parseTimeOfDay(raw: string, options: { twelveHour?: boolean; ref
     return hour * 60 + minute;
   }
   if (hour > 23) return null;
-  if (options.twelveHour && hour >= 1 && hour <= 11 && options.reference !== undefined) {
+  if (options.twelveHour && hour >= 1 && hour <= 11) {
     const am = hour * 60 + minute;
     const pm = am + 12 * 60;
-    return Math.abs(pm - options.reference) < Math.abs(am - options.reference) ? pm : am;
+    const { after } = options;
+    if (after !== undefined) {
+      const wait = (candidate: number) => (candidate - after + 24 * 60) % (24 * 60);
+      return wait(pm) < wait(am) ? pm : am;
+    }
+    if (options.reference !== undefined) {
+      return Math.abs(pm - options.reference) < Math.abs(am - options.reference) ? pm : am;
+    }
   }
   return hour * 60 + minute;
-}
-
-/** Whether a typed clock time carries an explicit AM/PM suffix, which callers must not second-guess. */
-export function hasMeridiem(raw: string): boolean {
-  return Boolean(matchTimeOfDay(raw)?.[3]);
 }
