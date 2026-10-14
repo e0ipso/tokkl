@@ -115,6 +115,9 @@ export function useReport(query: ReportQuery | null) {
     queryFn: () => api.post<Report>('/api/app/report', query),
     enabled: query !== null,
     placeholderData: (previous) => previous,
+    // The summary and the other tabs ask for different groupings; going back to the summary
+    // reuses its result instead of refetching it. Edits invalidate keys.report anyway.
+    staleTime: 60_000,
   });
 }
 

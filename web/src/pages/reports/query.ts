@@ -26,9 +26,12 @@ export function filterBody(state: ReportState): ReportFilterBody {
 
 /**
  * The query for POST /api/app/report. The server reads a sub-grouping equal to the grouping as
- * "no sub-grouping".
+ * "no sub-grouping". Only the summary tab shows groups; the detailed and weekly tabs fetch their
+ * own data and need just the totals, so they ask for the smallest grouping instead of one that
+ * can list every description.
  */
 export function reportQuery(state: ReportState): ReportQuery {
+  if (state.tab !== 'summary') return { ...filterBody(state), grouping: 'projects', sub_grouping: 'projects' };
   return {
     ...filterBody(state),
     grouping: state.grouping,
