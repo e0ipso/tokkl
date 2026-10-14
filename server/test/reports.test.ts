@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, type TestContext } from './helpers.ts';
-import { formatDuration } from '../../shared/duration.ts';
+import { formatDuration, parseDuration } from '../../shared/duration.ts';
 import { transaction } from '../src/db/index.ts';
 import { parseCsv } from '../src/lib/csv.ts';
 import { CSV_COLUMNS } from '../src/services/export.ts';
@@ -230,6 +230,92 @@ test('app CSV exports cover multi-year ranges and match the app report; v3 CSVs 
     assert.equal(tooLong.status, 400, `${path} with 367 days`);
     assert.equal(tooLong.body, 'Maximum allowed date range is 366 days');
   }
+});
+
+test('app CSV totals equal the displayed report for each workspace rounding mode; stored and v3 durations stay raw', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  const alpha = (await ctx.json('POST', `${base}/projects`, { name: 'Alpha' })).body;
+  const beta = (await ctx.json('POST', `${base}/projects`, { name: 'Beta' })).body;
+  // Chosen so that up, nearest, down and no rounding give four different totals at 15 minutes.
+  const raw = [
+    { start: '2026-03-02T08:00:00.000Z', seconds: 610, projectId: alpha.id, description: 'A' },
+    { start: '2026-03-02T10:00:00.000Z', seconds: 1000, projectId: alpha.id, description: 'B' },
+    { start: '2026-03-03T08:00:00.000Z', seconds: 2000, projectId: beta.id, description: 'C' },
+    { start: '2026-03-04T08:00:00.000Z', seconds: 400, description: 'D' },
+  ];
+  insertEntries(ctx, raw);
+  const range = { start_date: '2026-03-01', end_date: '2026-03-07' };
+  const grouping = { grouping: 'projects', sub_grouping: 'time_entries' };
+  const csv = async (path: string, body: Record<string, unknown> = {}) => {
+    const res = await ctx.request('POST', path, { ...range, ...body });
+    assert.equal(res.status, 200, path);
+    return parseCsv(await res.text());
+  };
+  const secondsOf = (cell: string | undefined) => {
+    const seconds = parseDuration(cell ?? '');
+    assert.notEqual(seconds, null, `unparsable duration ${cell}`);
+    return seconds!;
+  };
+  const sumColumn = (rows: string[][], column: number) => rows.slice(1).reduce((total, row) => total + secondsOf(row[column]), 0);
+  const storedDurations = async () =>
+    (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-03-01&end_date=2026-03-08')).body
+      .map((entry: any) => entry.duration).sort((a: number, b: number) => a - b);
+
+  const modes = [
+    { name: 'up', rounding: 1, rounding_minutes: 15, total: 900 + 1800 + 2700 + 900 },
+    { name: 'nearest', rounding: 0, rounding_minutes: 15, total: 900 + 900 + 1800 + 0 },
+    { name: 'down', rounding: -1, rounding_minutes: 15, total: 0 + 900 + 1800 + 0 },
+    { name: 'disabled', rounding: 1, rounding_minutes: 0, total: 610 + 1000 + 2000 + 400 },
+  ];
+  for (const mode of modes) {
+    const put = await ctx.json('PUT', base, { rounding: mode.rounding, rounding_minutes: mode.rounding_minutes });
+    assert.equal(put.status, 200, mode.name);
+    const report = (await ctx.json('POST', '/api/app/report', { ...range, ...grouping })).body;
+    assert.equal(report.totals.seconds, mode.total, `${mode.name}: displayed total`);
+    const entries = (await ctx.json('POST', '/api/app/report/entries', range)).body.entries as any[];
+
+    const detailed = await csv('/api/app/report/detailed.csv');
+    assert.equal(detailed.length - 1, raw.length, `${mode.name}: detailed rows`);
+    assert.deepEqual(detailed.slice(1).map((row) => [row[5], secondsOf(row[11])]),
+      entries.map((entry) => [entry.description, entry.seconds]), `${mode.name}: detailed rows match the entries`);
+    assert.equal(sumColumn(detailed, 11), report.totals.seconds, `${mode.name}: detailed.csv total`);
+
+    const summary = await csv('/api/app/report/summary.csv', grouping);
+    assert.deepEqual(summary.slice(1).map((row) => [row[0], row[1], secondsOf(row[2])]),
+      report.groups.flatMap((group: any) => group.sub_groups.map((sub: any) => [group.title || '(none)', sub.title || '(none)', sub.seconds])),
+      `${mode.name}: summary rows match the groups`);
+    assert.equal(sumColumn(summary, 2), report.totals.seconds, `${mode.name}: summary.csv total`);
+
+    assert.deepEqual(await storedDurations(), [400, 610, 1000, 2000], `${mode.name}: stored durations`);
+  }
+
+  // Toggl v3 CSVs stay raw unless the request asks for rounding, even with workspace rounding on.
+  await ctx.json('PUT', base, { rounding: 1, rounding_minutes: 15 });
+  const v3 = `/reports/api/v3/workspace/${ctx.wid}`;
+  const rawTotal = 610 + 1000 + 2000 + 400;
+  const upTotal = modes[0]!.total;
+  assert.equal(sumColumn(await csv(`${v3}/search/time_entries.csv`), 11), rawTotal);
+  assert.equal(sumColumn(await csv(`${v3}/summary/time_entries.csv`, grouping), 2), rawTotal);
+  assert.equal(sumColumn(await csv(`${v3}/search/time_entries.csv`, { rounding: 1 }), 11), upTotal);
+  assert.equal(sumColumn(await csv(`${v3}/summary/time_entries.csv`, { ...grouping, rounding: 1 }), 2), upTotal);
+  assert.deepEqual(await storedDurations(), [400, 610, 1000, 2000]);
+});
+
+test('app report for the detailed and weekly tabs carries totals without sub-groups or entries', async () => {
+  const ctx = await setup();
+  const { alpha, beta } = await seed(ctx);
+  const range = { start_date: '2026-10-05', end_date: '2026-10-11' };
+  // The query web/src/pages/reports/query.ts sends from the detailed and weekly tabs.
+  const res = await ctx.json('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'projects' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.entries, undefined);
+  assert.equal(res.body.totals.seconds, 3600 + 1800 + 7200 + 900);
+  assert.equal(res.body.totals.entry_count, 4);
+  assert.deepEqual(new Set(res.body.groups.map((group: any) => group.id)), new Set([alpha.id, beta.id, null]));
+  for (const group of res.body.groups) assert.deepEqual(group.sub_groups, [], `group ${group.id}`);
+  const summary = await ctx.json('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'time_entries' });
+  assert.deepEqual(res.body.totals, summary.body.totals);
 });
 
 test('app weekly report totals every entry in long ranges, by project or client', async () => {
