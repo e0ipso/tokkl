@@ -10,7 +10,7 @@ import { formatDuration, type DurationFormat } from '../../../shared/duration.ts
 import { addDays, daysBetween, startOfWeek } from '../../../shared/time.ts';
 import { getWorkspace, type WorkspaceRow } from '../models/workspaces.ts';
 import {
-  collectEntries, filterFromBody, groupEntries, resolutionFor, timeSeries, totalsOf,
+  collectEntries, filterFromBody, groupEntries, resolutionFor, timeSeries, totalsOf, weeklyGrid,
   type Dimension, type Group, type ReportEntry,
 } from '../services/reports.ts';
 import { toTogglCsv } from '../services/export.ts';
@@ -251,12 +251,34 @@ export function appReportRoutes(deps: Deps): Router {
   const { db } = deps;
   const api = express.Router();
 
-  api.post('/report', requireAuth(deps), (req, res) => {
+  /** The account's workspace, the request body and its filter, with the app's range allowance. */
+  const appFilter = (req: Request, res: Response) => {
     const user = res.locals.user;
     const ws = getWorkspace(db, user.default_workspace_id)!;
     const body = readJson(req);
     // The web app always applies the workspace rounding setting; the request can still override it.
     const filter = filterFromBody({ rounding: ws.rounding, rounding_minutes: ws.rounding_minutes, ...body }, ws);
+    return { user, ws, body, filter };
+  };
+
+  api.post('/report/weekly', requireAuth(deps), (req, res) => {
+    const { user, ws, body, filter } = appFilter(req, res);
+    const by = body.rows ?? 'projects';
+    if (by !== 'projects' && by !== 'clients') throw badRequest("Invalid 'rows' value, allowed values are: 'projects, clients'");
+    const grid = weeklyGrid(collectEntries(db, user, ws, filter), filter.startDate, filter.endDate, by, user.beginning_of_week);
+    return res.json({
+      start_date: filter.startDate,
+      end_date: filter.endDate,
+      mode: grid.mode,
+      columns: grid.columns,
+      rows: grid.rows,
+      column_totals: grid.columnTotals,
+      total: grid.total,
+    });
+  });
+
+  api.post('/report', requireAuth(deps), (req, res) => {
+    const { user, ws, body, filter } = appFilter(req, res);
     const [, grouping] = dimension(body.grouping, 'projects', 'grouping');
     const [, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
     const entries = collectEntries(db, user, ws, filter);

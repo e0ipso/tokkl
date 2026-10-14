@@ -55,7 +55,7 @@ export function ReportsPage() {
     ) : state.tab === 'detailed' ? (
       <DetailedTab report={data} sort={state.sort} dir={state.dir} page={state.page} settings={settings} dimmed={dimmed} update={update} />
     ) : (
-      <WeeklyTab report={data} range={state.range} by={state.weeklyRows} settings={settings} dimmed={dimmed} update={update} />
+      <WeeklyTab filters={filters} by={state.weeklyRows} settings={settings} dimmed={dimmed} update={update} />
     );
   }
 

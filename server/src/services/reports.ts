@@ -258,6 +258,59 @@ export function timeSeries(
   return [...buckets].map(([start, value]) => ({ start, ...value }));
 }
 
+export type WeeklyRows = 'projects' | 'clients';
+
+export interface WeeklyGrid {
+  /** One column per day for ranges up to a week, one per week for anything longer. */
+  mode: 'days' | 'weeks';
+  /** Each column's first and last day inside the range. */
+  columns: Array<{ start: string; end: string }>;
+  rows: Array<{ id: number | null; title: string; color: string | null; cells: number[]; total: number }>;
+  columnTotals: number[];
+  total: number;
+}
+
+/**
+ * Totals per project or client and per day or week over every entry passed in. Week columns
+ * start on `beginningOfWeek`; the first and last are clipped to the range.
+ */
+export function weeklyGrid(
+  entries: ReportEntry[], startDate: string, endDate: string, by: WeeklyRows, beginningOfWeek: number,
+): WeeklyGrid {
+  const mode = daysBetween(startDate, endDate) + 1 <= 7 ? 'days' : 'weeks';
+  const columnOf = (key: string): string => (mode === 'days' ? key : startOfWeek(key, beginningOfWeek));
+  const columns: WeeklyGrid['columns'] = [];
+  const index = new Map<string, number>();
+  for (let key = columnOf(startDate); key <= endDate; key = addDays(key, mode === 'days' ? 1 : 7)) {
+    const last = mode === 'days' ? key : addDays(key, 6);
+    index.set(key, columns.length);
+    columns.push({ start: key < startDate ? startDate : key, end: last > endDate ? endDate : last });
+  }
+  const rows = new Map<string, WeeklyGrid['rows'][number]>();
+  const columnTotals = columns.map(() => 0);
+  let total = 0;
+  for (const entry of entries) {
+    const column = index.get(columnOf(entry.date));
+    if (column === undefined) continue;
+    const id = by === 'projects' ? entry.projectId : entry.clientId;
+    let row = rows.get(String(id));
+    if (!row) {
+      row = by === 'projects'
+        ? { id, title: entry.projectName ?? '', color: entry.projectColor, cells: columns.map(() => 0), total: 0 }
+        : { id, title: entry.clientName ?? '', color: null, cells: columns.map(() => 0), total: 0 };
+      rows.set(String(id), row);
+    }
+    row.cells[column]! += entry.seconds;
+    row.total += entry.seconds;
+    columnTotals[column]! += entry.seconds;
+    total += entry.seconds;
+  }
+  // The "without project/client" row goes last; the rest by total, then title.
+  const sorted = [...rows.values()].sort((a, b) =>
+    Number(a.id === null) - Number(b.id === null) || b.total - a.total || a.title.localeCompare(b.title));
+  return { mode, columns, rows: sorted, columnTotals, total };
+}
+
 export type Dimension = 'project' | 'client' | 'tag' | 'description' | 'task' | 'none';
 
 export interface GroupKey {
