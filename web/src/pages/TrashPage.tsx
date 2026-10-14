@@ -29,7 +29,7 @@ function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings })
       <td>{entry.description || <span className="muted">No description</span>}</td>
       <td>
         {entry.project_id !== null || entry.project_name ? (
-          <span className="project-label" style={{ color: entry.project_color ?? undefined }}>
+          <span className="project-label">
             <ProjectDot color={entry.project_color} />
             <span className="project-label-name">{entry.project_name ?? 'Unknown project'}</span>
           </span>

@@ -336,7 +336,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
                 >
                   <span className="suggestion-description">{s.description || <em className="muted">(no description)</em>}</span>
                   {s.project_id ? (
-                    <span className="suggestion-project" style={{ color: s.project_color ?? undefined }}>
+                    <span className="suggestion-project">
                       <ProjectDot color={s.project_color} /> {s.project_name}
                     </span>
                   ) : null}
@@ -355,7 +355,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
           title="Project (@)"
           aria-label="Project"
           onClick={() => setPicker('project')}
-          style={project ? { color: project.color } : undefined}
         >
           {project ? <ProjectLabel projectId={project.id} taskId={draft.task_id} /> : <Icon name="folder" />}
         </button>

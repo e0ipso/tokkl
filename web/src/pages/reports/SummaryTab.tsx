@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Grouping, Report, ReportGroup } from '../../api/types.ts';
 import { Icon } from '../../components/Icon.tsx';
-import { ProjectDot } from '../../components/Pickers.tsx';
+import { ProjectDot, projectColorStyle } from '../../components/Pickers.tsx';
 import { duration, formatMoney, type Settings } from '../../lib/settings.ts';
 import { GROUPING_LABELS, formatPercent, groupTitle, money, percent, reportCurrency } from './format.ts';
 import { SeriesChart } from './SeriesChart.tsx';
@@ -44,7 +44,10 @@ function ShareBar({ value, color }: { value: number; color: string | null }) {
   return (
     <span className="share">
       <span className="share-track" aria-hidden="true">
-        <span className="share-fill" style={{ width: `${Math.min(100, value)}%`, ...(color ? { background: color } : {}) }} />
+        <span
+          className={`share-fill${color ? ' project-fill' : ''}`}
+          style={{ width: `${Math.min(100, value)}%`, ...projectColorStyle(color) }}
+        />
       </span>
       <span className="share-value">{formatPercent(value)}</span>
     </span>

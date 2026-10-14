@@ -6,6 +6,7 @@ import { instantAt, localDay } from '../lib/entryTime.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
+import { projectColorStyle } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
 
 const HOUR_HEIGHT = 48;
@@ -213,7 +214,6 @@ export function WeekCalendar() {
                 } else if (active && drag.kind === 'resize') {
                   bottom = Math.max(top + MIN_BLOCK_MINUTES, bottom + drag.deltaMinutes);
                 }
-                const color = block.entry.project_color ?? 'var(--muted)';
                 const width = 100 / block.lanes;
                 return (
                   <div
@@ -224,8 +224,7 @@ export function WeekCalendar() {
                       height: Math.max(((bottom - top) / 60) * HOUR_HEIGHT, 6),
                       left: `calc(${block.lane * width}% + 2px)`,
                       width: `calc(${width}% - 4px)`,
-                      borderLeftColor: color,
-                      ['--block-color' as string]: color,
+                      ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),
                     }}
                     title={`${block.entry.description || '(no description)'}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
                     onPointerDown={(event) => {

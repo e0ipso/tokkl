@@ -1,12 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { useCreateProject, useCreateTag, useProjects, useTags, useTasks } from '../api/hooks.ts';
 import type { Project } from '../api/types.ts';
 import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
 import { useToast } from './Toast.tsx';
 
+/**
+ * Sets --project-color for the element. CSS derives the dot, border and tint from it (see
+ * .project-dot in styles.css); text never takes the project colour.
+ */
+export function projectColorStyle(color: string | null | undefined): CSSProperties | undefined {
+  return color ? { ['--project-color' as string]: color } : undefined;
+}
+
 export function ProjectDot({ color }: { color: string | null | undefined }) {
-  return <span className="project-dot" style={{ background: color ?? 'var(--muted)' }} />;
+  return <span className="project-dot" style={projectColorStyle(color)} />;
 }
 
 export function ProjectLabel({ projectId, taskId, fallback }: {
@@ -24,7 +32,7 @@ export function ProjectLabel({ projectId, taskId, fallback }: {
   const client = project?.client_name ?? fallback?.client;
   const taskName = task?.name ?? fallback?.task;
   return (
-    <span className="project-label" style={{ color: color ?? undefined }}>
+    <span className="project-label">
       <ProjectDot color={color} />
       <span className="project-label-name">{name}{taskName ? `: ${taskName}` : ''}</span>
       {client ? <span className="project-label-client">{client}</span> : null}
@@ -119,7 +127,7 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
                     onClick={() => pick(project.id, null)}
                   >
                     <ProjectDot color={project.color} />
-                    <span style={{ color: project.color }}>{project.name}</span>
+                    <span>{project.name}</span>
                   </button>
                   {projectTasks.map((task) => (
                     <button

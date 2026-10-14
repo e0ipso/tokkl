@@ -130,7 +130,7 @@ export function ProjectsPage() {
                   <td>
                     <button type="button" className="manage-name-button" onClick={() => setEditing(project)}>
                       <ProjectDot color={project.color} />
-                      <span style={{ color: project.color }}>{project.name}</span>
+                      <span>{project.name}</span>
                     </button>
                   </td>
                   <td>{project.client_name ?? <span className="muted">None</span>}</td>
