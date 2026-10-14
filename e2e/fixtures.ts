@@ -46,7 +46,13 @@ async function json<T>(response: Promise<APIResponse>): Promise<T> {
  * scenario still logs in through the UI. Every scenario starts and ends with an empty account.
  */
 export class TestData {
-  private constructor(private readonly api: APIRequestContext, readonly workspaceId: number) {}
+  private readonly api: APIRequestContext;
+  readonly workspaceId: number;
+
+  private constructor(api: APIRequestContext, workspaceId: number) {
+    this.api = api;
+    this.workspaceId = workspaceId;
+  }
 
   static async open(baseURL: string): Promise<TestData> {
     const api = await request.newContext({ baseURL });

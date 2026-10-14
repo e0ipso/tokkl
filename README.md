@@ -89,7 +89,7 @@ npm install
 npm run dev        # API server on :8080, restarts on change
 npm run dev:web    # Vite dev server on :5173, proxies /api and /reports to :8080
 npm test           # server and shared unit/API tests (node --test)
-npm run typecheck
+npm run typecheck  # tsc over server, shared, bench, web, e2e and playwright.config.ts
 npm run build      # builds the web app into dist/web
 npm run test:e2e   # builds the web app, then runs the Playwright browser tests
 ```
