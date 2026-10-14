@@ -22,6 +22,23 @@ interface Draft {
 
 const EMPTY: Draft = { description: '', project_id: null, task_id: null, tags: [], billable: false };
 
+function draftOf(entry: TimeEntry): Draft {
+  return { description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags, billable: entry.billable };
+}
+
+/** The fields of `draft` that differ from `base`. */
+function editsSince(base: Draft, draft: Draft): Partial<Draft> {
+  const edits: Partial<Draft> = {};
+  if (draft.description !== base.description) edits.description = draft.description;
+  if (draft.project_id !== base.project_id || draft.task_id !== base.task_id) {
+    edits.project_id = draft.project_id;
+    edits.task_id = draft.task_id;
+  }
+  if (draft.tags.join('\u0000') !== base.tags.join('\u0000')) edits.tags = draft.tags;
+  if (draft.billable !== base.billable) edits.billable = draft.billable;
+  return edits;
+}
+
 export interface TimerBarHandle {
   startNew: () => void;
   stop: () => void;
@@ -90,8 +107,24 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   // mirrored fields, not only `at`: `at` has whole seconds, so a write in the same second as the
   // previous one leaves it unchanged.
   const shownEntryId = useRef<number | null>(null);
+  // A timer this bar started that has not loaded as `current` yet, with the draft at Start. It is
+  // matched by its start second: the current-entry refetch can land before the create call
+  // resolves, so the new id may not be known yet.
+  const ownStart = useRef<{ startMs: number; base: Draft } | null>(null);
   useEffect(() => {
     if (current) {
+      const own = ownStart.current;
+      if (own && current.id !== shownEntryId.current) {
+        ownStart.current = null;
+        if (Date.parse(current.start) === own.startMs) {
+          // Edits made between Start and this first load belong to the new entry: keep and save them.
+          shownEntryId.current = current.id;
+          const edits = editsSince(own.base, draft);
+          setDraft({ ...draftOf(current), ...edits });
+          if (Object.keys(edits).length > 0) update.mutate({ id: current.id, ...edits }, { onError: toast.error });
+          return;
+        }
+      }
       // A refetch of the same entry must not wipe a description that is still being typed.
       const typing = shownEntryId.current === current.id && document.activeElement === descriptionRef.current;
       shownEntryId.current = current.id;
@@ -101,6 +134,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       }));
     } else if (shownEntryId.current !== null) {
       shownEntryId.current = null;
+      ownStart.current = null;
       setDraft(EMPTY);
     }
   }, [current?.id, current?.at, current?.description, current?.project_id, current?.task_id, current?.billable, current?.tags.join('\u0000')]);
@@ -111,7 +145,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   );
 
   const patchRunning = (changes: TimeEntryInput) => {
-    if (!current) return;
+    // While a start is loading, `current` is missing or the entry being replaced; the sync effect
+    // saves the edits to the new entry once it loads.
+    if (!current || ownStart.current) return;
     update.mutate({ id: current.id, ...changes }, { onError: toast.error });
   };
 
@@ -142,10 +178,13 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         toast.show(`Added ${formatDuration(seconds)}`);
         setDraft(EMPTY);
       } else {
-        await create.mutateAsync({ ...from, start: new Date().toISOString(), duration: -1 });
+        const startAt = new Date();
+        ownStart.current = { startMs: Math.floor(startAt.getTime() / 1000) * 1000, base: draft };
+        await create.mutateAsync({ ...from, start: startAt.toISOString(), duration: -1 });
       }
       setTimerDuration('');
     } catch (error) {
+      ownStart.current = null;
       toast.error(error);
     } finally {
       starting.current = false;

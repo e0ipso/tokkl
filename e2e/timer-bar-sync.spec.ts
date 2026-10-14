@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-import { nextRunning, TimerApi } from './timer-tests-helpers.ts';
+import { metadataOf, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
 // The timer bar mirrors the running entry. These scenarios pin the races behind TT-0061 and
 // TT-0062 so they fail every time instead of only under load.
@@ -53,4 +53,55 @@ test('a remote edit shows in the timer bar even when the entry keeps the same "a
   await expect(timer.getByRole('button', { name: 'Tags' })).toHaveAttribute('title', 'remote, second');
   await expect(description).toBeFocused();
   await expect(description).toHaveValue('Typed here');
+});
+
+test('edits made right after Start, before the running entry loads, are saved to it', async ({ page }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await timer.getByLabel('Description').fill('Draft');
+
+  // Hold every current-entry response until the edits are done, like a slow server.
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(CURRENT, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  const created = page.waitForResponse((response) => response.request().method() === 'POST' && /\/time_entries\?/.test(response.url()));
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  const entry = await (await created).json() as { id: number };
+
+  await timer.getByLabel('Description').fill('Draft the spec');
+  await timer.getByLabel('Description').blur();
+  await timer.getByRole('button', { name: 'Billable' }).click();
+  // Later current-entry requests pass straight through the open gate.
+  release();
+
+  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+  await expect.poll(async () => metadataOf((await api.current())!)).toEqual({
+    description: 'Draft the spec', project_id: null, task_id: null, tags: [], billable: true,
+  });
+  expect((await api.entries()).map((saved) => saved.id)).toEqual([entry.id]);
+  await expect(timer.getByLabel('Description')).toHaveValue('Draft the spec');
+  await expect(timer.getByRole('button', { name: 'Billable' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a timer started on another device replaces the idle bar draft', async ({ page }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  const description = timer.getByLabel('Description');
+  await description.fill('Idle draft');
+
+  const response = await page.request.post(`/api/v9/workspaces/${api.workspaceId}/time_entries`, {
+    headers: CSRF, data: { description: 'Remote timer', tags: ['remote'], start: new Date().toISOString(), duration: -1, created_with: 'e2e' },
+  });
+  expect(response.ok()).toBe(true);
+  await refetchOnFocus(page);
+  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+  await expect(description).toHaveValue('Remote timer');
+  await expect(timer.getByRole('button', { name: 'Tags' })).toHaveAttribute('title', 'remote');
+  const running = await api.current();
+  expect(running?.description).toBe('Remote timer');
 });
