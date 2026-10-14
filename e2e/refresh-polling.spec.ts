@@ -71,10 +71,9 @@ test('making the window visible again refreshes another device\'s changes at onc
   await expect.poll(() => ({ ...polls })).toEqual({ current: 1, history: 1 });
 });
 
-// The app refetches on visibilitychange only (TanStack Query v5 dropped the window focus
-// listener). Clicking back into a window that stayed visible, such as one beside another app,
-// fires focus but no visibilitychange, so nothing refreshes.
-test.fixme('TT-0059: focusing a window that stayed visible refreshes another device\'s changes at once', async ({ page }) => {
+// Clicking back into a window that stayed visible, such as one beside another app, fires focus
+// but no visibilitychange.
+test('focusing a window that stayed visible refreshes another device\'s changes at once', async ({ page }) => {
   const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
