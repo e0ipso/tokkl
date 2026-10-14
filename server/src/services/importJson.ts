@@ -56,6 +56,13 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
   const tagIds = new Map<number, number>();
   const findId = (sql: string, ...params: Array<string | number>) =>
     (db.prepare(sql).get(...params) as { id: number } | undefined)?.id;
+  /** The id a file reference was imported as. null stays null; a reference that did not import fails its record. */
+  const mapped = (ids: Map<number, number>, value: unknown, entity: string): number | null => {
+    if (value === undefined || value === null) return null;
+    const id = ids.get(Number(value));
+    if (id === undefined) throw new Error(`Its ${entity} ${String(value)} was not imported`);
+    return id;
+  };
 
   const run = () => {
     for (const client of list(file.clients, 'clients')) {
@@ -76,7 +83,7 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
     for (const project of list(file.projects, 'projects')) {
       try {
         const name = String(project.name ?? '');
-        const clientId = project.client_id == null ? null : clientIds.get(Number(project.client_id)) ?? null;
+        const clientId = mapped(clientIds, project.client_id, 'client');
         let id = findId(
           'SELECT id FROM projects WHERE workspace_id = ? AND IFNULL(client_id, 0) = ? AND name = ? COLLATE NOCASE',
           wid, clientId ?? 0, name,
@@ -98,8 +105,8 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
 
     for (const task of list(file.tasks, 'tasks')) {
       try {
-        const projectId = projectIds.get(Number(task.project_id));
-        if (projectId === undefined) throw new Error('Its project was not imported');
+        const projectId = mapped(projectIds, task.project_id, 'project');
+        if (projectId === null) throw new Error('It has no project');
         const name = String(task.name ?? '');
         let id = findId('SELECT id FROM tasks WHERE project_id = ? AND name = ? COLLATE NOCASE', projectId, name);
         if (id === undefined) {
@@ -142,7 +149,11 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
         const start = new Date(String(entry.start));
         const stop = entry.stop ? new Date(String(entry.stop)) : null;
         if (Number.isNaN(start.getTime()) || (stop && Number.isNaN(stop.getTime()))) throw new Error('Invalid start or stop');
-        const projectId = entry.project_id == null ? null : projectIds.get(Number(entry.project_id)) ?? null;
+        const projectId = mapped(projectIds, entry.project_id, 'project');
+        const taskId = mapped(taskIds, entry.task_id, 'task');
+        const entryTagIds = Array.isArray(entry.tag_ids)
+          ? entry.tag_ids.map((id) => mapped(tagIds, id, 'tag')).filter((id): id is number => id !== null)
+          : [];
         const description = typeof entry.description === 'string' ? entry.description : '';
         if (duplicate.get(user.id, start.toISOString(), stop?.toISOString() ?? '', description, projectId ?? 0)) {
           result.skipped_duplicates++;
@@ -158,11 +169,9 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
           start: start.toISOString(),
           ...(stop ? { stop: stop.toISOString() } : { duration: -1 }),
           project_id: projectId,
-          task_id: entry.task_id == null ? null : taskIds.get(Number(entry.task_id)) ?? null,
+          task_id: taskId,
           billable: entry.billable === true,
-          tag_ids: Array.isArray(entry.tag_ids)
-            ? entry.tag_ids.map((id) => tagIds.get(Number(id))).filter((id): id is number => id !== undefined)
-            : [],
+          tag_ids: entryTagIds,
           created_with: typeof entry.created_with === 'string' ? entry.created_with : 'timetrack-json-import',
         });
         result.time_entries++;
