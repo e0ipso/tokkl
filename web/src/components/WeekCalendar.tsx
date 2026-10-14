@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
-import { addDays, clockSpanOnDay, startOfWeek } from '../../../shared/time.ts';
+import { addClockMinutes, addDays, clockSpanOnDay, startOfWeek } from '../../../shared/time.ts';
 import { instantAt, localDay } from '../lib/entryTime.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
 import { EntryEditor } from './EntryEditor.tsx';
@@ -121,16 +121,20 @@ export function WeekCalendar() {
         setEditing(current.entry);
         return;
       }
+      // Blocks are drawn on the local clock, so drops move endpoints by clock minutes, not elapsed time.
       const start = new Date(current.entry.start);
       if (current.kind === 'move') {
-        const shift = current.deltaMinutes * 60_000;
+        // The start lands on the dropped slot; the entry keeps its elapsed duration.
+        const movedStart = addClockMinutes(start, current.deltaMinutes, settings.timeZone);
+        const duration = current.entry.stop ? Date.parse(current.entry.stop) - start.getTime() : null;
         await update.mutateAsync({
           id: current.entry.id,
-          start: new Date(start.getTime() + shift).toISOString(),
-          ...(current.entry.stop ? { stop: new Date(Date.parse(current.entry.stop) + shift).toISOString() } : {}),
+          start: movedStart.toISOString(),
+          ...(duration !== null ? { stop: new Date(movedStart.getTime() + duration).toISOString() } : {}),
         });
       } else if (current.entry.stop) {
-        const stop = Math.max(start.getTime() + MIN_BLOCK_MINUTES * 60_000, Date.parse(current.entry.stop) + current.deltaMinutes * 60_000);
+        const dropped = addClockMinutes(new Date(current.entry.stop), current.deltaMinutes, settings.timeZone).getTime();
+        const stop = Math.max(start.getTime() + MIN_BLOCK_MINUTES * 60_000, dropped);
         await update.mutateAsync({ id: current.entry.id, stop: new Date(stop).toISOString() });
       }
     } catch (error) {

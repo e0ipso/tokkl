@@ -126,6 +126,17 @@ export function clockMinutes(date: Date, timeZone: string): number {
 }
 
 /**
+ * Moves `date` by `minutes` on the local clock of `timeZone`, so 01:00 plus 120 is 03:00 even
+ * when the clocks change in between. A result inside a spring gap lands after the gap; one inside
+ * the repeated autumn hour resolves as zonedToUtc does.
+ */
+export function addClockMinutes(date: Date, minutes: number, timeZone: string): Date {
+  const p = zonedParts(date, timeZone);
+  const shifted = zonedToUtc(p.year, p.month, p.day, p.hour, p.minute + minutes, p.second, timeZone);
+  return new Date(shifted.getTime() + date.getUTCMilliseconds());
+}
+
+/**
  * Wall-clock position, in minutes after midnight, of the part of [start, stop) that falls on day
  * `key` in `timeZone`; null when the range misses the day. Positions follow the local clock, so a
  * 10:00 entry sits at 600 even on DST days. A start clipped to the day begins at 0 and a stop
