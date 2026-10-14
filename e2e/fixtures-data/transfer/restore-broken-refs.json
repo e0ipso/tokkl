@@ -1,0 +1,27 @@
+{
+  "format": "timetrack-export",
+  "version": 1,
+  "clients": [{ "id": 11, "name": "Acme", "notes": null, "archived": false }],
+  "projects": [
+    { "id": 21, "name": "Orphaned client", "client_id": 96, "color": "#d92b2b", "active": true },
+    { "id": 22, "name": "Kept", "client_id": 11, "color": "#0b83d9", "active": true },
+    { "id": 23, "name": "Bad colour", "client_id": null, "color": "red", "active": true },
+    { "id": 24, "name": "Shelved", "client_id": null, "color": "#2da608", "active": false }
+  ],
+  "tasks": [
+    { "id": 31, "name": "Build", "project_id": 22, "active": true },
+    { "id": 32, "name": "Lost", "project_id": 99, "active": true },
+    { "id": 33, "name": "   ", "project_id": 24, "active": true },
+    { "id": 34, "name": "Sweep", "project_id": 24, "active": true }
+  ],
+  "tags": [{ "id": 41, "name": "ux" }],
+  "time_entries": [
+    { "id": 61, "description": "Unknown project", "start": "2026-04-01T08:00:00+00:00", "stop": "2026-04-01T09:00:00+00:00", "project_id": 98 },
+    { "id": 62, "description": "Unknown task", "start": "2026-04-02T08:00:00+00:00", "stop": "2026-04-02T09:00:00+00:00", "project_id": 22, "task_id": 97 },
+    { "id": 63, "description": "Unknown tag", "start": "2026-04-03T08:00:00+00:00", "stop": "2026-04-03T09:00:00+00:00", "tag_ids": [41, 95] },
+    { "id": 64, "description": "Skipped project", "start": "2026-04-04T08:00:00+00:00", "stop": "2026-04-04T09:00:00+00:00", "project_id": 21 },
+    { "id": 65, "description": "Linked", "start": "2026-04-05T08:00:00+00:00", "stop": "2026-04-05T09:00:00+00:00", "project_id": 22, "task_id": 31, "tag_ids": [41] },
+    { "id": 66, "description": "Explicit nulls", "start": "2026-04-06T08:00:00+00:00", "stop": "2026-04-06T09:00:00+00:00", "project_id": null, "task_id": null, "tag_ids": [] },
+    { "id": 67, "description": "Shelved work", "start": "2026-04-07T08:00:00+00:00", "stop": "2026-04-07T09:00:00+00:00", "project_id": 24, "task_id": 34 }
+  ]
+}

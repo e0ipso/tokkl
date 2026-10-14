@@ -1,0 +1,51 @@
+{
+  "format": "timetrack-export",
+  "version": 1,
+  "clients": [
+    { "id": 11, "name": "Acme", "notes": "Main client", "archived": false },
+    { "id": 12, "name": "Dormant", "notes": null, "archived": true }
+  ],
+  "projects": [
+    {
+      "id": 21, "name": "Website", "client_id": 11, "color": "#d92b2b", "active": true, "is_private": false,
+      "billable": true, "estimated_hours": 40, "rate": 85, "currency": "EUR", "fixed_fee": null,
+      "start_date": "2020-01-02", "end_date": null, "template": false
+    },
+    {
+      "id": 22, "name": "Roadmap", "client_id": null, "color": "#0b83d9", "active": true, "is_private": true,
+      "billable": false, "estimated_hours": null, "rate": null, "currency": null, "fixed_fee": null,
+      "start_date": "2030-05-01", "end_date": null, "template": false
+    },
+    {
+      "id": 23, "name": "Legacy", "client_id": 12, "color": "#2da608", "active": false, "is_private": true,
+      "billable": false, "estimated_hours": null, "rate": null, "currency": null, "fixed_fee": null,
+      "start_date": "2019-03-04", "end_date": "2019-12-31", "template": false
+    }
+  ],
+  "tasks": [
+    { "id": 31, "name": "Design", "project_id": 21, "active": true, "estimated_seconds": 7200 },
+    { "id": 32, "name": "Cleanup", "project_id": 23, "active": true, "estimated_seconds": null }
+  ],
+  "tags": [
+    { "id": 41, "name": "ux" },
+    { "id": 42, "name": "ops" }
+  ],
+  "time_entries": [
+    {
+      "id": 51, "description": "Wireframes", "start": "2026-01-15T08:00:00+00:00", "stop": "2026-01-15T09:30:00+00:00",
+      "project_id": 21, "task_id": 31, "billable": true, "tag_ids": [41], "created_with": "e2e-fixture"
+    },
+    {
+      "id": 52, "description": "Planning", "start": "2026-07-15T09:00:00+02:00", "stop": "2026-07-15T10:00:00+02:00",
+      "project_id": 22, "task_id": null, "billable": false, "tag_ids": [41, 42], "created_with": "e2e-fixture"
+    },
+    {
+      "id": 53, "description": "Legacy cleanup", "start": "2019-06-03T07:00:00+00:00", "stop": "2019-06-03T09:00:00+00:00",
+      "project_id": 23, "task_id": 32, "billable": false, "tag_ids": [42], "created_with": "e2e-fixture"
+    },
+    {
+      "id": 54, "description": "Deleted upstream", "start": "2026-02-02T08:00:00+00:00", "stop": "2026-02-02T09:00:00+00:00",
+      "project_id": null, "task_id": null, "billable": false, "tag_ids": [], "server_deleted_at": "2026-02-03T00:00:00+00:00"
+    }
+  ]
+}
