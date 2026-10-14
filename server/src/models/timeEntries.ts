@@ -4,9 +4,9 @@ import { badRequest, conflict, notFound } from '../lib/errors.ts';
 import {
   asBool, isoSeconds, optionalBool, optionalId, optionalString, parseInstant, togglTime,
 } from '../lib/values.ts';
-import { getProject } from './projects.ts';
+import { getProjectRef, type ProjectRef } from './projects.ts';
 import { getTag, resolveTagNames } from './tags.ts';
-import { getTask } from './tasks.ts';
+import { getTaskRef } from './tasks.ts';
 import type { UserRow } from './users.ts';
 
 export const MAX_DESCRIPTION_LENGTH = 3000;
@@ -157,7 +157,7 @@ function readDuration(value: unknown): number | undefined {
 
 function resolveProjectAndTask(
   db: Db, wid: number, body: Record<string, unknown>, current: { projectId: number | null; taskId: number | null },
-): { projectId: number | null; taskId: number | null; projectChanged: boolean } {
+): { projectId: number | null; taskId: number | null; project: ProjectRef | null; projectChanged: boolean } {
   const projectInput = optionalId(body.project_id !== undefined ? body.project_id : body.pid, 'project_id');
   const taskInput = optionalId(body.task_id !== undefined ? body.task_id : body.tid, 'task_id');
   let projectId = projectInput === undefined ? current.projectId : projectInput;
@@ -165,12 +165,12 @@ function resolveProjectAndTask(
   if (projectInput !== undefined && taskInput === undefined && projectInput !== current.projectId) taskId = null;
 
   if (taskId !== null) {
-    const task = getTask(db, wid, taskId);
+    const task = getTaskRef(db, wid, taskId);
     if (projectId === null) projectId = task.project_id;
     else if (task.project_id !== projectId) throw badRequest('Task does not belong to the project');
   }
-  if (projectId !== null) getProject(db, wid, projectId);
-  return { projectId, taskId, projectChanged: projectInput !== undefined && projectInput !== current.projectId };
+  const project = projectId === null ? null : getProjectRef(db, wid, projectId);
+  return { projectId, taskId, project, projectChanged: projectInput !== undefined && projectInput !== current.projectId };
 }
 
 function assertWorkspace(body: Record<string, unknown>, wid: number): void {
@@ -215,9 +215,9 @@ export function createTimeEntry(db: Db, user: UserRow, wid: number, body: Record
     if (typeof body.stop === 'string') stop = parseInstant(body.stop, 'stop');
     else if (duration !== undefined && duration >= 0) stop = new Date(start.getTime() + duration * 1000);
 
-    const { projectId, taskId } = resolveProjectAndTask(db, wid, body, { projectId: null, taskId: null });
+    const { projectId, taskId, project } = resolveProjectAndTask(db, wid, body, { projectId: null, taskId: null });
     const billableInput = optionalBool(body.billable, 'billable');
-    const projectBillable = projectId !== null && asBool(getProject(db, wid, projectId).billable);
+    const projectBillable = project !== null && asBool(project.billable);
     const draft: Draft = {
       projectId,
       taskId,
@@ -264,13 +264,13 @@ export function updateTimeEntry(
     }
     // Editing only the start of a stopped entry keeps its stop time, as the Toggl web app does.
 
-    const { projectId, taskId, projectChanged } = resolveProjectAndTask(db, wid, body, {
+    const { projectId, taskId, project, projectChanged } = resolveProjectAndTask(db, wid, body, {
       projectId: current.project_id, taskId: current.task_id,
     });
     const billableInput = optionalBool(body.billable, 'billable');
     let billable = billableInput ?? asBool(current.billable);
-    if (billableInput === undefined && projectChanged && projectId !== null) {
-      billable = asBool(getProject(db, wid, projectId).billable);
+    if (billableInput === undefined && projectChanged && project !== null) {
+      billable = asBool(project.billable);
     }
     const draft: Draft = {
       projectId,

@@ -2,7 +2,7 @@ import type { Db } from '../db/index.ts';
 import { nowIso } from '../db/index.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import { asBool, optionalBool, optionalNumber, requireName, togglTime } from '../lib/values.ts';
-import { getProject } from './projects.ts';
+import { getProjectRef } from './projects.ts';
 
 export interface TaskRow {
   id: number;
@@ -56,6 +56,17 @@ export function getTask(db: Db, wid: number, id: number, projectId?: number): Ta
   return row;
 }
 
+/** The columns write validation needs, without the tracked-time aggregate. */
+export type TaskRef = Pick<TaskRow, 'id' | 'workspace_id' | 'project_id' | 'active'>;
+
+/** Checks that a task exists in the workspace. Use getTask when the response needs totals. */
+export function getTaskRef(db: Db, wid: number, id: number): TaskRef {
+  const row = db.prepare('SELECT id, workspace_id, project_id, active FROM tasks WHERE workspace_id = ? AND id = ?')
+    .get(wid, id) as TaskRef | undefined;
+  if (!row) throw notFound('Task not found');
+  return row;
+}
+
 function assertUniqueName(db: Db, projectId: number, name: string, exceptId?: number): void {
   const existing = db.prepare('SELECT id FROM tasks WHERE project_id = ? AND name = ? COLLATE NOCASE')
     .get(projectId, name) as { id: number } | undefined;
@@ -63,7 +74,7 @@ function assertUniqueName(db: Db, projectId: number, name: string, exceptId?: nu
 }
 
 export function createTask(db: Db, wid: number, projectId: number, body: Record<string, unknown>): TaskWithMeta {
-  const project = getProject(db, wid, projectId);
+  const project = getProjectRef(db, wid, projectId);
   if (!asBool(project.active)) throw badRequest('Can not change tasks of archived project');
   const name = requireName(body.name, 'Task name', 255);
   assertUniqueName(db, projectId, name);

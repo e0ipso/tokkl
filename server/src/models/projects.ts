@@ -82,6 +82,17 @@ export function getProject(db: Db, wid: number, id: number): ProjectWithStats {
   return row;
 }
 
+/** The columns write validation needs, without the tracked-time aggregate. */
+export type ProjectRef = Pick<ProjectRow, 'id' | 'workspace_id' | 'active' | 'billable'>;
+
+/** Checks that a project exists in the workspace. Use getProject when the response needs totals. */
+export function getProjectRef(db: Db, wid: number, id: number): ProjectRef {
+  const row = db.prepare('SELECT id, workspace_id, active, billable FROM projects WHERE workspace_id = ? AND id = ?')
+    .get(wid, id) as ProjectRef | undefined;
+  if (!row) throw notFound('Project not found');
+  return row;
+}
+
 function assertUniqueName(db: Db, wid: number, clientId: number | null, name: string, exceptId?: number): void {
   const existing = db.prepare(`
     SELECT id FROM projects WHERE workspace_id = ? AND IFNULL(client_id, 0) = ? AND name = ? COLLATE NOCASE
