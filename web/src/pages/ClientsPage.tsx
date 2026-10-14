@@ -204,6 +204,8 @@ export function ClientsPage() {
             {count(pending.client) === 0 ? 'It has no projects.' : count(pending.client) === 1
               ? 'Its project stays, without a client.'
               : `Its ${count(pending.client)} projects stay, without a client.`}
+            {count(pending.client) === 0 ? null
+              : ` If a project without a client already has the same name, "(${pending.client.name})" is added to the moved one.`}
             {' '}Time entries don't change. You can't undo this.
           </p>
         </ConfirmModal>
