@@ -139,13 +139,9 @@ export function togglV9Routes(deps: Deps): Router {
     if (body.password !== undefined) {
       const password = optionalString(body.password, 'password', 1024) ?? '';
       const current = optionalString(body.current_password, 'current_password', 1024) ?? '';
-      const limiter = loginLimiter;
-      const address = clientAddress(req);
-      if (limiter.isBlocked(address)) throw new HttpError(429, 'Too many failed attempts, try again later');
-      if (!(await verifyPassword(current, user.password_hash))) {
-        limiter.recordFailure(address);
-        throw badRequest('Current password is not valid');
-      }
+      const valid = await loginLimiter.attempt(clientAddress(req), () => verifyPassword(current, user.password_hash));
+      if (valid === null) throw new HttpError(429, 'Too many failed attempts, try again later');
+      if (!valid) throw badRequest('Current password is not valid');
       if (password.length < 8) throw badRequest('Password must be at least 8 characters');
       passwordHash = await hashPassword(password);
     }

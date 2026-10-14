@@ -62,16 +62,15 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
 
   app.post('/login', async (req, res) => {
     const address = clientAddress(req);
-    if (loginLimiter.isBlocked(address)) throw new HttpError(429, 'Too many failed login attempts, try again later');
     const body = readJson(req);
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const user = findUserByEmail(db, email);
-    const valid = user ? await verifyPassword(password, user.password_hash) : await verifyAgainstDummy(password);
-    if (!user || !valid) {
-      loginLimiter.recordFailure(address);
-      throw forbidden('Incorrect email or password');
-    }
+    const valid = await loginLimiter.attempt(address, () => (
+      user ? verifyPassword(password, user.password_hash) : verifyAgainstDummy(password)
+    ));
+    if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');
+    if (!user || !valid) throw forbidden('Incorrect email or password');
     loginLimiter.reset(address);
     startSession(deps, req, res, user.id);
     return res.json({ ok: true });

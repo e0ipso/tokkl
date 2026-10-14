@@ -28,14 +28,12 @@ async function userFromBasic(deps: Deps, req: Request, header: string): Promise<
     throw forbidden('Incorrect username and/or password');
   }
 
-  const address = clientAddress(req);
-  if (deps.loginLimiter.isBlocked(address)) throw new HttpError(429, 'Too many failed login attempts, try again later');
   const candidate = findUserByEmail(deps.db, credentials.username);
-  const valid = candidate
-    ? await verifyPassword(credentials.password, candidate.password_hash)
-    : await verifyAgainstDummy(credentials.password);
+  const valid = await deps.loginLimiter.attempt(clientAddress(req), () => (candidate
+    ? verifyPassword(credentials.password, candidate.password_hash)
+    : verifyAgainstDummy(credentials.password)));
+  if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');
   if (candidate && valid) return candidate;
-  deps.loginLimiter.recordFailure(address);
   throw forbidden('Incorrect username and/or password');
 }
 
