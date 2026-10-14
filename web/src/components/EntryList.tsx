@@ -37,6 +37,35 @@ function overlappingIds(entries: TimeEntry[]): Set<number> {
   return ids;
 }
 
+const entryCount = (count: number) => (count === 1 ? '1 entry' : `${count} entries`);
+
+/**
+ * Deletes each entry on its own, so one failure (say, an entry another device already deleted)
+ * does not stop the rest. The toast counts what was deleted and what failed, and Undo restores
+ * only the entries this call deleted.
+ */
+function useDeleteEntries() {
+  const remove = useDeleteEntry();
+  const restore = useRestoreEntry();
+  const toast = useToast();
+  return async (ids: number[]) => {
+    const results = await Promise.allSettled(ids.map((id) => remove.mutateAsync(id)));
+    const deleted = ids.filter((_, index) => results[index]!.status === 'fulfilled');
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    const undo = deleted.length ? { label: 'Undo', run: () => deleted.forEach((id) => restore.mutate(id)) } : undefined;
+    if (!failure) {
+      toast.show(ids.length > 1 ? `${ids.length} entries deleted` : 'Entry deleted', { action: undo });
+      return;
+    }
+    const reason = failure.reason instanceof Error ? failure.reason.message : String(failure.reason);
+    const failed = ids.length - deleted.length;
+    const message = deleted.length
+      ? `${entryCount(deleted.length)} deleted, ${entryCount(failed)} failed: ${reason}`
+      : failed > 1 ? `${failed} entries failed: ${reason}` : reason;
+    toast.show(message, { kind: 'error', action: undo });
+  };
+}
+
 function rowsForDay(entries: TimeEntry[], collapse: boolean): Row[] {
   if (!collapse) return entries.map((entry) => ({ key: String(entry.id), entries: [entry] }));
   const rows = new Map<string, Row>();
@@ -184,8 +213,7 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
   const bulk = useBulkPatch();
   const update = useUpdateEntry();
   const create = useCreateEntry();
-  const remove = useDeleteEntry();
-  const restore = useRestoreEntry();
+  const deleteEntries = useDeleteEntries();
   const { data: prefs } = usePreferences();
   const savePrefs = useSavePreferences();
   const toast = useToast();
@@ -204,16 +232,7 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
     if (description !== entry.description) patch([{ op: 'replace', path: '/description', value: description }]);
   };
 
-  const deleteAll = async () => {
-    try {
-      for (const e of entries) await remove.mutateAsync(e.id);
-      toast.show(entries.length > 1 ? `${entries.length} entries deleted` : 'Entry deleted', {
-        action: { label: 'Undo', run: () => entries.forEach((e) => restore.mutate(e.id)) },
-      });
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const deleteAll = () => deleteEntries(entries.map((e) => e.id));
 
   const duplicate = async () => {
     try {
@@ -329,8 +348,7 @@ function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
   const projectRef = useRef<HTMLButtonElement>(null);
   const tagRef = useRef<HTMLButtonElement>(null);
   const bulk = useBulkPatch();
-  const remove = useDeleteEntry();
-  const restore = useRestoreEntry();
+  const deleteEntries = useDeleteEntries();
   const toast = useToast();
 
   const patch = (operations: PatchOperation[], message: string) => {
@@ -345,13 +363,8 @@ function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
   };
 
   const deleteAll = async () => {
-    try {
-      for (const id of ids) await remove.mutateAsync(id);
-      toast.show(`${ids.length} entries deleted`, { action: { label: 'Undo', run: () => ids.forEach((id) => restore.mutate(id)) } });
-      onDone();
-    } catch (error) {
-      toast.error(error);
-    }
+    await deleteEntries(ids);
+    onDone();
   };
 
   return (

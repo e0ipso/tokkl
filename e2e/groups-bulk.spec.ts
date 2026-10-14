@@ -174,9 +174,7 @@ test('a bulk edit that fails for one entry reports it and keeps the other change
   expect(await device.trashIds()).toEqual([gamma.id]);
 });
 
-// Today the page shows only the server's error: no count of what was deleted and no undo for it,
-// and the loop stops at the failure, so selected entries after it stay.
-test.fixme('TT-0058: a bulk delete that fails for one entry reports what was deleted and can undo it', async ({ page, runtimeErrors }) => {
+test('a bulk delete that fails for one entry reports what was deleted and can undo it', async ({ page, runtimeErrors }) => {
   runtimeErrors.allowResponse({
     status: 404, method: 'DELETE', path: /^\/api\/v9\/workspaces\/\d+\/time_entries\/\d+$/,
     reason: 'another device deleted the entry first',
