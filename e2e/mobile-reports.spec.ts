@@ -17,7 +17,7 @@ async function exclude(page: Page, label: string, options: string[]): Promise<vo
     await tap(popover.locator('label.picker-check', { hasText: option }));
     await expect(popover.getByRole('checkbox', { name: option })).toBeChecked();
   }
-  // Pick first: "Is not" on an empty selection is dropped (see the fixme scenario below).
+  // Options first, then "Is not"; the scenario below covers the reverse order.
   const isNot = popover.getByRole('group', { name: `${label} filter mode` }).getByRole('button', { name: 'Is not' });
   await tap(isNot);
   await expect(isNot).toHaveAttribute('aria-pressed', 'true');
@@ -80,9 +80,7 @@ test('report filters, tabs and CSV downloads work by touch on a phone and match 
   await expectNoPageOverflow(page);
 });
 
-// "Is not" on an empty selection is not kept: the URL stores negation only next to ids
-// (web/src/pages/reports/urlState.ts), so the toggle springs back and the next pick includes.
-test.fixme('TT-0065: choosing "Is not" before picking a project excludes the project picked next', async ({ page, api }) => {
+test('choosing "Is not" before picking a project excludes the project picked next', async ({ page, api }) => {
   const alpha = await api.project({ name: 'Alpha' });
   const beta = await api.project({ name: 'Beta' });
   await api.entry({ description: 'Kickoff', project_id: alpha, start: '2026-01-05T09:00:00Z', stop: '2026-01-05T10:00:00Z' });

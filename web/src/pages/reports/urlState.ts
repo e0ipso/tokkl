@@ -50,7 +50,7 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[], fa
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
-/** A leading "not." in an id list marks the filter as negated, e.g. "not.none.4". */
+/** A leading "not." in an id list marks the filter as negated, e.g. "not.none.4", or just "not.". */
 function isNegated(value: string | null): boolean {
   return value?.startsWith('not.') ?? false;
 }
@@ -119,9 +119,10 @@ export function serializeState(state: ReportState): URLSearchParams {
   if (state.tab !== 'summary') params.set('tab', state.tab);
   if (state.grouping !== 'projects') params.set('group', state.grouping);
   if (state.subGrouping !== 'time_entries') params.set('sub', state.subGrouping);
-  if (state.projects.length) params.set('projects', formatIds(state.projects, state.projectsNot));
-  if (state.clients.length) params.set('clients', formatIds(state.clients, state.clientsNot));
-  if (state.tags.length) params.set('tags', formatIds(state.tags, state.tagsNot));
+  // "not." with no ids keeps an "Is not" chosen before any option; it filters nothing yet.
+  if (state.projects.length || state.projectsNot) params.set('projects', formatIds(state.projects, state.projectsNot));
+  if (state.clients.length || state.clientsNot) params.set('clients', formatIds(state.clients, state.clientsNot));
+  if (state.tags.length || state.tagsNot) params.set('tags', formatIds(state.tags, state.tagsNot));
   if (state.billable !== 'all') params.set('billable', state.billable);
   if (state.description) params.set('q', state.description);
   if (state.sort !== 'date') params.set('sort', state.sort);
