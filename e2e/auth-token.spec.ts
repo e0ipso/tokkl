@@ -51,9 +51,10 @@ test('without the Clipboard API, a failed copy says how to copy by hand', async 
   await expect(page.getByRole('status')).toContainText('Could not copy. Show the token and copy it by hand.');
 });
 
-test.fixme('TT-0057: a refused Clipboard API write shows the raw browser error instead of the copy-by-hand hint', async ({ page, servers }) => {
+test('TT-0057: a refused Clipboard API write falls back to the textarea, then to the copy-by-hand hint', async ({ page, servers }) => {
   const server = await servers.start({ slot: 4 });
-  await createAccount(server.baseURL);
+  const { apiToken } = await createAccount(server.baseURL);
+  await page.context().grantPermissions(['clipboard-read'], { origin: server.baseURL });
   // A secure page can still be refused, for example when the user blocked clipboard access.
   await page.addInitScript(() => {
     navigator.clipboard.writeText = () => Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError'));
@@ -62,7 +63,14 @@ test.fixme('TT-0057: a refused Clipboard API write shows the raw browser error i
   const card = await openTokenCard(page);
 
   await card.getByRole('button', { name: 'Copy' }).click();
-  await expect(page.getByRole('status')).toContainText('copy it by hand');
+  await expect(page.getByRole('status')).toContainText('API token copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(apiToken);
+
+  // When the textarea copy fails too, the toast says what to do instead of showing the browser error.
+  await page.evaluate(() => { document.execCommand = () => false; });
+  await card.getByRole('button', { name: 'Copy' }).click();
+  await expect(page.getByRole('status')).toContainText('Could not copy. Show the token and copy it by hand.');
+  await expect(page.getByRole('status')).not.toContainText('Write permission denied.');
 });
 
 test('resetting the token asks first; confirming swaps tokens and keeps the browser logged in', async ({ page, runtimeErrors, servers }) => {

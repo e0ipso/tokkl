@@ -8,15 +8,8 @@ import { ConfirmModal } from '../ui.tsx';
 import { useAction, V9 } from '../queries.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
-/**
- * Copies text to the clipboard. `navigator.clipboard` only exists on HTTPS or localhost, and a
- * self-hosted server is often reached over plain HTTP on the LAN, so fall back to a hidden textarea.
- */
-async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
+/** Copies through a hidden textarea; returns whether the browser reports success. */
+function copyWithTextarea(text: string): boolean {
   const area = document.createElement('textarea');
   area.value = text;
   area.setAttribute('readonly', '');
@@ -24,9 +17,31 @@ async function copyText(text: string): Promise<void> {
   area.style.opacity = '0';
   document.body.append(area);
   area.select();
-  const copied = document.execCommand('copy');
-  area.remove();
-  if (!copied) throw new Error('Could not copy. Show the token and copy it by hand.');
+  try {
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+  }
+}
+
+/**
+ * Copies text to the clipboard. `navigator.clipboard` only exists on HTTPS or localhost, and a
+ * self-hosted server is often reached over plain HTTP on the LAN. The browser can also refuse the
+ * Clipboard API, for example when the user blocked clipboard access. Both cases fall back to a
+ * hidden textarea, and a failure there tells the user to copy by hand.
+ */
+async function copyText(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Refused; try the textarea below.
+    }
+  }
+  if (!copyWithTextarea(text)) throw new Error('Could not copy. Show the token and copy it by hand.');
 }
 
 export function ApiTokenSection({ me }: { me: Me }) {
