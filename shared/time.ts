@@ -119,6 +119,31 @@ export function startOfDay(key: string, timeZone: string): Date {
   return new Date(high);
 }
 
+/** Wall-clock minutes after local midnight in `timeZone`, with seconds as a fraction. */
+export function clockMinutes(date: Date, timeZone: string): number {
+  const p = zonedParts(date, timeZone);
+  return p.hour * 60 + p.minute + p.second / 60;
+}
+
+/**
+ * Wall-clock position, in minutes after midnight, of the part of [start, stop) that falls on day
+ * `key` in `timeZone`; null when the range misses the day. Positions follow the local clock, so a
+ * 10:00 entry sits at 600 even on DST days. A start clipped to the day begins at 0 and a stop
+ * clipped at the next midnight ends at 1440. Inside the repeated autumn hour, bottom can be lower
+ * than top.
+ */
+export function clockSpanOnDay(
+  start: Date, stop: Date, key: string, timeZone: string,
+): { top: number; bottom: number } | null {
+  const dayStart = startOfDay(key, timeZone).getTime();
+  const dayEnd = startOfDay(addDays(key, 1), timeZone).getTime();
+  if (stop.getTime() <= dayStart || start.getTime() >= dayEnd) return null;
+  return {
+    top: start.getTime() < dayStart ? 0 : clockMinutes(start, timeZone),
+    bottom: stop.getTime() >= dayEnd ? 24 * 60 : clockMinutes(stop, timeZone),
+  };
+}
+
 export function addDays(key: string, days: number): string {
   const parsed = parseDateKey(key);
   if (!parsed) throw new RangeError(`Invalid date: ${key}`);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
-import { addDays, startOfWeek } from '../../../shared/time.ts';
+import { addDays, clockSpanOnDay, startOfWeek } from '../../../shared/time.ts';
 import { instantAt, localDay } from '../lib/entryTime.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
 import { EntryEditor } from './EntryEditor.tsx';
@@ -33,16 +33,11 @@ interface Block {
 function layout(entries: TimeEntry[], days: string[], timeZone: string, now: Date): Block[] {
   const blocks: Block[] = [];
   for (const day of days) {
-    const dayStart = instantAt(day, 0, timeZone).getTime();
-    const dayEnd = instantAt(addDays(day, 1), 0, timeZone).getTime();
     const onDay = entries
       .map((entry) => {
-        const start = Date.parse(entry.start);
-        const stop = entry.stop ? Date.parse(entry.stop) : now.getTime();
-        if (stop <= dayStart || start >= dayEnd) return null;
-        const top = (Math.max(start, dayStart) - dayStart) / 60_000;
-        const bottom = (Math.min(stop, dayEnd) - dayStart) / 60_000;
-        return { entry, day, top, bottom: Math.max(bottom, top + 5), lane: 0, lanes: 1 };
+        const span = clockSpanOnDay(new Date(entry.start), entry.stop ? new Date(entry.stop) : now, day, timeZone);
+        if (!span) return null;
+        return { entry, day, top: span.top, bottom: Math.max(span.bottom, span.top + 5), lane: 0, lanes: 1 };
       })
       .filter((block): block is Block => block !== null)
       .sort((a, b) => a.top - b.top);
