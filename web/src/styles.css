@@ -294,8 +294,14 @@ code, kbd {
 .timer-summary strong { color: var(--text); font-variant-numeric: tabular-nums; margin-left: 4px; }
 
 .favorites { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.favorite { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-pill); padding-right: 4px; }
-.favorite-start { display: inline-flex; align-items: center; gap: 6px; border: none; background: none; cursor: pointer; padding: 5px 4px 5px 8px; }
+.favorite {
+  display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-pill); padding-right: 4px;
+}
+.favorite-start { display: inline-flex; align-items: center; gap: 6px; min-width: 0; border: none; background: none; cursor: pointer; padding: 5px 4px 5px 8px; }
+.favorite-name, .favorite-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.favorite-project { color: var(--muted); }
+.favorite-project::before { content: '• '; }
 .favorite-start kbd { font-size: var(--text-xs); }
 
 /* Projects & tags */
@@ -525,14 +531,22 @@ table.table { width: 100%; border-collapse: collapse; }
   background: color-mix(in srgb, var(--project-color, var(--primary)) 18%, var(--surface));
   border-left: 3px solid color-mix(in srgb, var(--project-color, var(--primary)) 60%, light-dark(#000, #fff));
   cursor: grab; z-index: 2;
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; min-width: 0;
 }
 .calendar-block strong { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .calendar-block span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Blocks under 45 minutes have one line: the description, then the project, cut off together. */
+.calendar-block-line { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .calendar-block.running { border-style: dashed; border-left-style: solid; }
 .calendar-block.dragging { opacity: 0.8; box-shadow: var(--shadow); cursor: grabbing; z-index: 4; }
 .calendar-ghost { background: var(--state-selected); border-left-color: var(--primary); opacity: 0.8; pointer-events: none; }
 .calendar-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
+@media (max-width: 760px) {
+  /* The seven days share the phone width; with 90px columns the header widened the page. */
+  .calendar-head, .calendar-grid { grid-template-columns: 40px repeat(7, minmax(0, 1fr)); }
+  .calendar-day-head { min-width: 0; padding: 4px; }
+  .calendar-day-head span, .calendar-day-head small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 
 .overlap-mark {
   display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--radius-pill);

@@ -89,12 +89,21 @@ export function TimerPage() {
         <div className="favorites" aria-label="Favorites">
           {favorites.map((favorite, index) => {
             const project = projects.find((p) => p.id === favorite.project_id);
+            const name = favorite.description || project?.name || 'Untitled';
+            const projectName = favorite.description ? project?.name : undefined;
             return (
               <div key={index} className="favorite">
-                <button type="button" className="favorite-start" onClick={() => startFavorite(favorite)} title={`Start (${index + 1})`}>
+                <button
+                  type="button"
+                  className="favorite-start"
+                  onClick={() => startFavorite(favorite)}
+                  title={`Start (${index + 1})`}
+                  aria-label={projectName ? `${name}, ${projectName}` : name}
+                >
                   <kbd>{index + 1}</kbd>
                   {project ? <ProjectDot color={project.color} /> : null}
-                  <span>{favorite.description || project?.name || 'Untitled'}</span>
+                  <span className="favorite-name">{name}</span>
+                  {projectName ? <span className="favorite-project">{projectName}</span> : null}
                 </button>
                 <button type="button" className="icon-button" aria-label="Remove favorite" onClick={() => removeFavorite(index)}>
                   <Icon name="x" size={12} />

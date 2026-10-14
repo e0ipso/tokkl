@@ -38,10 +38,10 @@ test('moving keeps the duration and resizing stops at the minimum, saved and rel
   await page.reload();
   await expect(move).toHaveCSS('top', px(11 * 60));
   await expect(move).toHaveCSS('height', px(80));
-  await expect(move).toHaveAttribute('title', 'Move me\n11:00 – 12:20');
+  await expect(move).toHaveAttribute('title', 'Move me, 1:20:00\n11:00 – 12:20');
   await expect(resize).toHaveCSS('top', px(14 * 60));
   await expect(resize).toHaveCSS('height', px(15));
-  await expect(resize).toHaveAttribute('title', 'Resize me\n14:00 – 14:15');
+  await expect(resize).toHaveAttribute('title', 'Resize me, 0:15:00\n14:00 – 14:15');
 });
 
 test('a move on the Madrid spring clock change lands on the dropped clock slot after reload', async ({ page, data }) => {
@@ -64,7 +64,7 @@ test('a move on the Madrid spring clock change lands on the dropped clock slot a
   await page.reload();
   await expect(block).toHaveCSS('top', px(3 * 60));
   await expect(block).toHaveCSS('height', px(30));
-  await expect(block).toHaveAttribute('title', 'Spring move\n03:00 – 03:30');
+  await expect(block).toHaveAttribute('title', 'Spring move, 0:30:00\n03:00 – 03:30');
 });
 
 test('a move and a resize on the Madrid autumn clock change follow the clock after reload', async ({ page, data }) => {
@@ -95,8 +95,8 @@ test('a move and a resize on the Madrid autumn clock change follow the clock aft
   await page.reload();
   await expect(move).toHaveCSS('top', px(4 * 60));
   await expect(move).toHaveCSS('height', px(60));
-  await expect(move).toHaveAttribute('title', 'Autumn move\n04:00 – 05:00');
+  await expect(move).toHaveAttribute('title', 'Autumn move, 1:00:00\n04:00 – 05:00');
   await expect(resize).toHaveCSS('top', px(30));
   await expect(resize).toHaveCSS('height', px(150));
-  await expect(resize).toHaveAttribute('title', 'Autumn resize\n00:30 – 03:00');
+  await expect(resize).toHaveAttribute('title', 'Autumn resize, 3:30:00\n00:30 – 03:00');
 });

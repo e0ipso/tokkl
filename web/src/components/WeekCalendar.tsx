@@ -215,6 +215,10 @@ export function WeekCalendar() {
                   bottom = Math.max(top + MIN_BLOCK_MINUTES, bottom + drag.deltaMinutes);
                 }
                 const width = 100 / block.lanes;
+                const { description, project_name: projectName } = block.entry;
+                const elapsed = duration(entrySeconds(block.entry, now), settings);
+                const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
+                const heading = description || projectName || '(no description)';
                 return (
                   <div
                     key={`${block.entry.id}-${day}`}
@@ -226,7 +230,9 @@ export function WeekCalendar() {
                       width: `calc(${width}% - 4px)`,
                       ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),
                     }}
-                    title={`${block.entry.description || '(no description)'}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
+                    role="group"
+                    aria-label={label}
+                    title={`${label}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
                     onPointerDown={(event) => {
                       if (event.button !== 0) return;
                       event.stopPropagation();
@@ -237,10 +243,17 @@ export function WeekCalendar() {
                       });
                     }}
                   >
-                    <strong>{block.entry.description || block.entry.project_name || '(no description)'}</strong>
                     {bottom - top >= 45 ? (
-                      <span>{[block.entry.project_name, duration(entrySeconds(block.entry, now), settings)].filter(Boolean).join(' · ')}</span>
-                    ) : null}
+                      <>
+                        <strong>{heading}</strong>
+                        <span>{[projectName, elapsed].filter(Boolean).join(' · ')}</span>
+                      </>
+                    ) : (
+                      <div className="calendar-block-line">
+                        <strong>{heading}</strong>
+                        {description && projectName ? <span> · {projectName}</span> : null}
+                      </div>
+                    )}
                     {block.entry.stop ? <span className="calendar-resize" aria-hidden /> : null}
                   </div>
                 );
