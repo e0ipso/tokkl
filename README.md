@@ -16,6 +16,40 @@ The product requirements, the Toggl research behind them, and the status of each
 - Import of Toggl Track's detailed CSV export (safe to repeat), CSV and JSON export, and restore from the JSON export.
 - Works on phones; installable as a PWA.
 
+## Screenshots
+
+The data is synthetic: two clients, five projects and five weeks of entries, with one timer running.
+
+**Timer.** The running entry is at the top and history is grouped by day. Favorites appear as numbered chips.
+
+![Timer with a running entry and day-grouped history](docs/screenshots/desktop-timer.png)
+
+**Calendar.** A week view in the account's timezone. Drag on an empty slot to add an entry, drag a block to move it, or drag its bottom edge to change the end.
+
+![Week calendar](docs/screenshots/desktop-calendar.png)
+
+**Summary report.** Totals, billable share, amounts, a daily chart and a project breakdown, for any range with filters.
+
+![Summary report](docs/screenshots/desktop-reports-summary.png)
+
+**Detailed and weekly reports.** Every matching entry, sorted and paged on the server, and a project-by-week grid.
+
+![Detailed report](docs/screenshots/desktop-reports-detailed.png)
+
+![Weekly report](docs/screenshots/desktop-reports-weekly.png)
+
+**Projects.** Clients, rates, tracked time and estimate progress.
+
+![Projects](docs/screenshots/desktop-projects.png)
+
+**On a phone.** The same timer, calendar and reports with a bottom navigation bar.
+
+<p>
+  <img src="docs/screenshots/mobile-timer.png" alt="Timer on a phone" width="260">
+  <img src="docs/screenshots/mobile-calendar.png" alt="Calendar on a phone" width="260">
+  <img src="docs/screenshots/mobile-reports.png" alt="Summary report on a phone" width="260">
+</p>
+
 ## Running
 
 Requires Node.js 24 or newer. The server is one process that serves the API and the web app and keeps its data in one SQLite file.
