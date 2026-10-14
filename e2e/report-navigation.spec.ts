@@ -183,3 +183,44 @@ test('a saved report URL restores every control and the matching results', async
   await tabs.getByRole('tab', { name: 'Detailed' }).click();
   await expect(pager).toContainText('101 to 103 of 103');
 });
+
+test('"Is not" chosen before any client or tag option stays negated and excludes the option picked next', async ({ page, api }) => {
+  const alpha = await api.project({ name: 'Alpha', client_id: await api.client('ACME') });
+  const globex = await api.client('Globex');
+  const beta = await api.project({ name: 'Beta', client_id: globex });
+  await api.entry({ description: 'Kickoff', project_id: alpha, tags: ['scope'], start: '2026-01-05T09:00:00Z', stop: '2026-01-05T10:00:00Z' });
+  await api.entry({ description: 'Research', project_id: beta, tags: ['invoiced'], start: '2026-01-06T09:00:00Z', stop: '2026-01-06T11:00:00Z' });
+  const invoiced = await api.tagId('invoiced');
+  await login(page);
+
+  // The project case runs on the phone in e2e/mobile-reports.spec.ts.
+  for (const { label, param, option, id } of [
+    { label: 'Client', param: 'clients', option: 'Globex', id: globex },
+    { label: 'Tag', param: 'tags', option: 'invoiced', id: invoiced },
+  ]) {
+    await page.goto('/reports?from=2026-01-05&to=2026-01-11');
+    await expect(totalTime(page)).toHaveText('3:00:00');
+    await page.getByRole('group', { name: 'Filters' }).getByRole('button', { name: label }).click();
+    const popover = page.getByRole('dialog').filter({ has: page.getByLabel(`Find ${label.toLowerCase()}`) });
+    const mode = popover.getByRole('group', { name: `${label} filter mode` });
+    const isNot = mode.getByRole('button', { name: 'Is not' });
+    const filter = () => new URL(page.url()).searchParams.get(param);
+
+    // An empty "Is not" survives in the URL and filters nothing; "Is" drops it again.
+    await isNot.click();
+    await expect(isNot).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(filter).toBe('not.');
+    await expect(totalTime(page)).toHaveText('3:00:00');
+    await mode.getByRole('button', { name: 'Is', exact: true }).click();
+    await expect.poll(filter).toBeNull();
+    await isNot.click();
+    await expect.poll(filter).toBe('not.');
+
+    await popover.getByRole('checkbox', { name: option }).check();
+    await expect(isNot).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(filter).toBe(`not.${id}`);
+    await page.keyboard.press('Escape');
+    await expect(popover).toBeHidden();
+    await expect(totalTime(page)).toHaveText('1:00:00');
+  }
+});
