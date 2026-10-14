@@ -6,7 +6,7 @@ import { deleteOtherSessions, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
 import { HttpError, badRequest, forbidden } from '../lib/errors.ts';
-import { optionalId, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
+import { optionalId, optionalNumber, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
 import { isValidTimeZone, startOfDay } from '../../../shared/time.ts';
 import {
   createClient, deleteClient, getClient, listClients, serializeClient, setClientArchived, updateClient,
@@ -26,6 +26,8 @@ import { getWorkspace, listWorkspaces, serializeWorkspace, type WorkspaceRow } f
 
 /** Without filters Toggl returns entries that started in the last 9 days. */
 const DEFAULT_LIST_DAYS = 9;
+/** Keeps rate × 100 and billed amounts finite; larger finite rates overflow to Infinity in reports. */
+const MAX_HOURLY_RATE = 1_000_000_000;
 
 function workspaceFor(db: Db, req: Request): WorkspaceRow {
   const wid = parseId(req.params.wid);
@@ -253,13 +255,12 @@ export function togglV9Routes(deps: Deps): Router {
     const name = optionalString(body.name, 'name', 140)?.trim() || ws.name;
     const currency = optionalString(body.default_currency, 'default_currency', 3);
     if (currency !== undefined && !/^[A-Za-z]{3}$/.test(currency)) throw badRequest('Invalid default_currency');
-    let rate = ws.default_hourly_rate;
-    if (body.default_hourly_rate !== undefined) {
-      if (body.default_hourly_rate !== null && (typeof body.default_hourly_rate !== 'number' || body.default_hourly_rate < 0)) {
-        throw badRequest('Invalid default_hourly_rate');
-      }
-      rate = body.default_hourly_rate as number | null;
+    // optionalNumber refuses JSON overflow such as 1e400, which parses to Infinity.
+    const newRate = optionalNumber(body.default_hourly_rate, 'default_hourly_rate');
+    if (newRate != null && newRate > MAX_HOURLY_RATE) {
+      throw badRequest(`Invalid default_hourly_rate: expected at most ${MAX_HOURLY_RATE}`);
     }
+    const rate = newRate === undefined ? ws.default_hourly_rate : newRate;
     let rounding = ws.rounding;
     if (body.rounding !== undefined) {
       if (![-1, 0, 1].includes(body.rounding as number)) throw badRequest('Invalid rounding');
