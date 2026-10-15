@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { arrowTarget } from '../../components/arrowKeys.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
 import {
@@ -25,7 +26,12 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState(range);
   const button = useRef<HTMLButtonElement>(null);
+  const presets = useRef<(HTMLButtonElement | null)[]>([]);
   const active = preset ?? matchingPreset(range, todayKey, beginningOfWeek, firstDay);
+  const activeIndex = active ? PRESETS.indexOf(active) : -1;
+  // The preset that last had focus, so the list stays one Tab stop; it starts on the active preset.
+  const [focused, setFocused] = useState(-1);
+  const tabStop = focused >= 0 ? focused : Math.max(activeIndex, 0);
 
   const shift = (direction: 1 | -1) => update({ range: shiftRange(range, direction) });
   const shiftRef = useRef(shift);
@@ -43,15 +49,29 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
+  // Opening moves focus to the active preset, as a listbox popup does.
+  useEffect(() => {
+    if (open) presets.current[Math.max(activeIndex, 0)]?.focus();
+    // Only on opening; a later change of the active preset must not pull focus back.
+  }, [open]);
+
+  /** Closes the popover and gives focus back to the range button if it was inside the popover. */
+  const close = () => {
+    const popover = presets.current[0]?.closest('.popover');
+    const inside = popover?.contains(document.activeElement) ?? false;
+    setOpen(false);
+    setFocused(-1);
+    if (inside) button.current?.focus();
+  };
   const choose = (next: Preset) => {
     update({ preset: next, range: presetRange(next, todayKey, beginningOfWeek, firstDay) });
-    setOpen(false);
+    close();
   };
   const applyCustom = () => {
     if (!isDateKey(custom.from) || !isDateKey(custom.to)) return;
     const ordered = custom.from <= custom.to ? custom : { from: custom.to, to: custom.from };
     update({ range: ordered, preset: null });
-    setOpen(false);
+    close();
   };
 
   return (
@@ -78,16 +98,25 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
         <Icon name="chevronRight" />
       </button>
       {open ? (
-        <Popover anchor={button.current} onClose={() => setOpen(false)} width={300}>
+        <Popover anchor={button.current} onClose={close} width={300}>
           <div className="range-presets" role="listbox" aria-label="Date range">
-            {PRESETS.map((name) => (
+            {PRESETS.map((name, index) => (
               <button
                 key={name}
+                ref={(element) => { presets.current[index] = element; }}
                 type="button"
                 role="option"
+                tabIndex={index === tabStop ? 0 : -1}
                 aria-selected={active === name}
                 className={`range-preset${active === name ? ' selected' : ''}`}
                 onClick={() => choose(name)}
+                onFocus={() => setFocused(index)}
+                onKeyDown={(event) => {
+                  const next = arrowTarget(event.key, index, PRESETS.length, true);
+                  if (next === null) return;
+                  event.preventDefault();
+                  presets.current[next]?.focus();
+                }}
               >
                 <span className="range-check" aria-hidden="true">{active === name ? <Icon name="check" size={16} /> : null}</span>
                 {PRESET_LABELS[name]}

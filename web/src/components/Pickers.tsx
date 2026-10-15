@@ -1,6 +1,7 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
 import { useCreateProject, useCreateTag, useProjects, useTags, useTasks } from '../api/hooks.ts';
 import type { Project } from '../api/types.ts';
+import { arrowTarget } from './arrowKeys.ts';
 import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
 import { useToast } from './Toast.tsx';
@@ -45,7 +46,17 @@ function matches(project: Project, query: string): boolean {
   return project.name.toLowerCase().includes(q) || (project.client_name ?? '').toLowerCase().includes(q);
 }
 
-/** Project and task chooser with inline project creation (Ctrl/Cmd+Enter or the create row). */
+/** One row of the project picker's listbox. */
+interface PickerOption { projectId: number | null; taskId: number | null }
+
+/**
+ * Project and task chooser with inline project creation (Ctrl/Cmd+Enter or the create row).
+ *
+ * The search field is a combobox and keeps focus. ArrowDown, ArrowUp, Home and End move the active
+ * option, exposed through aria-activedescendant; Enter picks it. With no active option, Enter picks
+ * the first project that matches, or creates one. Home and End move the caret until an option is
+ * active.
+ */
 export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: {
   anchor: HTMLElement | null;
   projectId: number | null;
@@ -54,6 +65,8 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
+  const [active, setActive] = useState(-1);
+  const listId = useId();
   const { data: projects = [] } = useProjects();
   const { data: tasks = [] } = useTasks();
   const createProject = useCreateProject();
@@ -67,8 +80,34 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
       const key = project.client_name ?? '';
       groups.set(key, [...(groups.get(key) ?? []), project]);
     }
-    return [...groups].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)));
+    return [...groups].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)))
+      .map(([client, list]) => [client, list.map((project) => ({
+        project,
+        tasks: tasks.filter((t) => t.project_id === project.id && t.active
+          && (query === '' || matches(project, query) || t.name.toLowerCase().includes(query.toLowerCase()))),
+      }))] as const);
   }, [projects, tasks, query]);
+
+  // Every option in display order; an option's id is its index here.
+  const options = useMemo(() => {
+    const list: PickerOption[] = query === '' ? [{ projectId: null, taskId: null }] : [];
+    for (const [, rows] of grouped) {
+      for (const { project, tasks: projectTasks } of rows) {
+        list.push({ projectId: project.id, taskId: null });
+        for (const task of projectTasks) list.push({ projectId: project.id, taskId: task.id });
+      }
+    }
+    return list;
+  }, [grouped, query]);
+  const indexes = useMemo(() => new Map(options.map((option, index) => [`${option.projectId}:${option.taskId}`, index])), [options]);
+  const optionId = (index: number) => `${listId}-${index}`;
+  const indexOf = (pid: number | null, tid: number | null) => indexes.get(`${pid}:${tid}`) ?? -1;
+  const activeOption = options[active];
+  const highlight = (pid: number | null, tid: number | null) => (activeOption?.projectId === pid && activeOption.taskId === tid ? ' highlighted' : '');
+
+  useEffect(() => {
+    if (active >= 0) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }, [active, listId]);
 
   const exact = projects.some((p) => p.name.toLowerCase() === query.trim().toLowerCase());
   const create = async () => {
@@ -94,26 +133,44 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
         autoFocus
         placeholder="Find or create project…"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        role="combobox"
+        aria-expanded="true"
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={activeOption ? optionId(active) : undefined}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setActive(-1);
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
             event.preventDefault();
             void create();
           } else if (event.key === 'Enter') {
             event.preventDefault();
-            const first = grouped[0]?.[1][0];
-            if (first) pick(first.id, null);
-            else void create();
+            if (activeOption) pick(activeOption.projectId, activeOption.taskId);
+            else {
+              const first = grouped[0]?.[1][0];
+              if (first) pick(first.project.id, null);
+              else void create();
+            }
+          } else if (active >= 0 || event.key.startsWith('Arrow')) {
+            const next = arrowTarget(event.key, active, options.length, true);
+            if (next === null) return;
+            event.preventDefault();
+            setActive(next);
           }
         }}
       />
-      <div className="picker-list" role="listbox" aria-label="Projects">
+      <div className="picker-list" role="listbox" aria-label="Projects" id={listId}>
         {query === '' ? (
           <button
             type="button"
             role="option"
+            id={optionId(0)}
+            tabIndex={-1}
             aria-selected={projectId === null}
-            className={`picker-item${projectId === null ? ' selected' : ''}`}
+            className={`picker-item${projectId === null ? ' selected' : ''}${highlight(null, null)}`}
             onClick={() => pick(null, null)}
           >
             <ProjectDot color={null} /> No project
@@ -122,17 +179,17 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
         {grouped.map(([client, list]) => (
           <div key={client || 'none'} role={client ? 'group' : 'none'} aria-label={client || undefined}>
             {client ? <div className="picker-group" aria-hidden="true">{client}</div> : null}
-            {list.map((project) => {
-              const projectTasks = tasks.filter((t) => t.project_id === project.id && t.active
-                && (query === '' || matches(project, query) || t.name.toLowerCase().includes(query.toLowerCase())));
+            {list.map(({ project, tasks: projectTasks }) => {
               const projectSelected = projectId === project.id && !taskId;
               return (
                 <div key={project.id} role="none">
                   <button
                     type="button"
                     role="option"
+                    id={optionId(indexOf(project.id, null))}
+                    tabIndex={-1}
                     aria-selected={projectSelected}
-                    className={`picker-item${projectSelected ? ' selected' : ''}`}
+                    className={`picker-item${projectSelected ? ' selected' : ''}${highlight(project.id, null)}`}
                     onClick={() => pick(project.id, null)}
                   >
                     <ProjectDot color={project.color} />
@@ -143,8 +200,10 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
                       key={task.id}
                       type="button"
                       role="option"
+                      id={optionId(indexOf(project.id, task.id))}
+                      tabIndex={-1}
                       aria-selected={taskId === task.id}
-                      className={`picker-item picker-subitem${taskId === task.id ? ' selected' : ''}`}
+                      className={`picker-item picker-subitem${taskId === task.id ? ' selected' : ''}${highlight(project.id, task.id)}`}
                       onClick={() => pick(project.id, task.id)}
                     >
                       {task.name}
