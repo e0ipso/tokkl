@@ -174,6 +174,12 @@ Every scenario starts from an empty account. An automatic fixture in `e2e/fixtur
 
 The same fixtures fail a scenario on any uncaught page error, console error (React logs errors that the page-level ErrorBoundary catches this way), failed request or error response. The failure lists what happened and keeps the trace. Requests sent without a session cookie may get 403, because that is how the app finds out it is logged out. A scenario that provokes a failed response on purpose declares it with `runtimeErrors.allowResponse({ status, method, path, reason })`. The rules live in `e2e/runtime-errors.ts`, and `e2e/guard.spec.ts` checks that the guard still catches each kind of error.
 
+`e2e/visual.spec.ts` compares screenshots of the Timer list and calendar, the Reports summary, Projects and Settings, in light and dark, at desktop and phone sizes, against the PNGs in `e2e/visual.spec.ts-snapshots/`. It restores `e2e/fixtures-data/transfer/restore-full.json` and fixes the browser clock at 16 July 2026, so the pages look the same on every run. The baselines come from the headless Chromium that matches the pinned Playwright version, and a different Chromium build or a Playwright upgrade can shift the rendering. After a change that is meant to alter how a page looks, rebuild and regenerate the baselines, check the new images, and commit them:
+
+```sh
+npm run build && npx playwright test visual --update-snapshots
+```
+
 ### README screenshots
 
 `npm run screenshots` builds the web app, then rewrites the nine images in `docs/screenshots`. Run it after a visible UI change and commit the images with the change.
