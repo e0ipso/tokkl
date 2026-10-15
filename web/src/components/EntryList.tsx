@@ -6,6 +6,7 @@ import {
 import type { Favorite, TimeEntry } from '../api/types.ts';
 import { localDay } from '../lib/entryTime.ts';
 import { dayLabel, duration, entrySeconds, formatTime, today, useNow, useSettings } from '../lib/settings.ts';
+import { EmptyState } from './EmptyState.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
@@ -81,7 +82,13 @@ function rowsForDay(entries: TimeEntry[], collapse: boolean): Row[] {
   return [...groups.values()].map((members) => ({ key: String(Math.min(...members.map((e) => e.id))), entries: members }));
 }
 
-export function EntryList({ entries, onContinue }: { entries: TimeEntry[]; onContinue: (entry: TimeEntry) => void }) {
+export function EntryList({ entries, onContinue, onStartTimer, onManualMode }: {
+  entries: TimeEntry[];
+  onContinue: (entry: TimeEntry) => void;
+  /** Actions for the empty list. Manual mode is left out when it is already on. */
+  onStartTimer: () => void;
+  onManualMode?: () => void;
+}) {
   const settings = useSettings();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const todayKey = today(settings.timeZone);
@@ -109,7 +116,28 @@ export function EntryList({ entries, onContinue }: { entries: TimeEntry[]; onCon
   };
 
   if (days.length === 0) {
-    return <p className="empty-state">No time entries in this period. Start the timer or switch to manual mode to add one.</p>;
+    return (
+      <EmptyState
+        icon={<Icon name="timer" size={32} />}
+        title="No time entries in this period"
+        actions={(
+          <>
+            <button type="button" className="button button-primary" onClick={onStartTimer}>
+              <Icon name="play" size={14} /> Start timer
+            </button>
+            {onManualMode ? (
+              <button type="button" className="button button-ghost" onClick={onManualMode}>
+                <Icon name="list" size={14} /> Manual mode
+              </button>
+            ) : null}
+          </>
+        )}
+      >
+        {onManualMode
+          ? 'Start the timer when you paddle out, or switch to manual mode to log time you already worked.'
+          : 'Start the timer when you paddle out, or fill in the times above to log time you already worked.'}
+      </EmptyState>
+    );
   }
 
   return (

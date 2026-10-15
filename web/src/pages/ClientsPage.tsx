@@ -2,6 +2,7 @@ import { useId, useMemo, useState, type FormEvent } from 'react';
 import { api } from '../api/client.ts';
 import { keys, useClients, useProjects, useWid } from '../api/hooks.ts';
 import type { Client } from '../api/types.ts';
+import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Modal } from '../components/Overlay.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
@@ -124,9 +125,15 @@ export function ClientsPage() {
       {error ? <LoadError message={`Could not load clients: ${error.message}`} onRetry={() => void refetch()} /> : null}
       {isLoading ? <Loading label="Loading clients…" /> : null}
       {clients && visible.length === 0 ? (
-        <p className="empty-state">
-          {clients.length === 0 ? 'No clients yet. Add one to group projects by who you work for.' : 'No clients match these filters.'}
-        </p>
+        clients.length === 0 ? (
+          <EmptyState icon={<Icon name="users" size={32} />} title="No clients yet">
+            Add one to group projects by who you work for.
+          </EmptyState>
+        ) : (
+          <EmptyState icon={<Icon name="search" size={32} />} title="No clients match these filters">
+            Try another status, or clear the search.
+          </EmptyState>
+        )
       ) : null}
 
       {visible.length > 0 ? (

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { keys, useReport } from '../api/hooks.ts';
+import { EmptyState } from '../components/EmptyState.tsx';
+import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { today, useSettings } from '../lib/settings.ts';
 import { DetailedTab } from './reports/DetailedTab.tsx';
@@ -38,11 +40,15 @@ export function ReportsPage() {
   } else if (report.isError && !data) {
     body = <LoadError className="report-error" message={`Couldn't load the report: ${report.error.message}`} onRetry={() => void report.refetch()} />;
   } else if (data && data.totals.entry_count === 0) {
+    const filtered = Boolean(filters.project_ids || filters.client_ids || filters.tag_ids || filters.billable !== undefined || filters.description);
     body = (
-      <div className={`empty-state${dimmed ? ' is-dimmed' : ''}`}>
-        <p>No time tracked in this range{filters.project_ids || filters.client_ids || filters.tag_ids || filters.billable !== undefined || filters.description ? ' with these filters' : ''}.</p>
-        <p className="hint">Pick another range with the arrows or the date menu.</p>
-      </div>
+      <EmptyState
+        className={dimmed ? 'is-dimmed' : undefined}
+        icon={<Icon name="chart" size={32} />}
+        title={`No time tracked in this range${filtered ? ' with these filters' : ''}`}
+      >
+        {filtered ? 'Loosen a filter, or pick another range with the arrows or the date menu.' : 'Pick another range with the arrows or the date menu.'}
+      </EmptyState>
     );
   } else if (data) {
     body = state.tab === 'summary' ? (

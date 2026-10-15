@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../api/client.ts';
 import { keys, useClients, useProjects, useWid, useWorkspace } from '../api/hooks.ts';
 import type { Project } from '../api/types.ts';
+import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { ProjectDot } from '../components/Pickers.tsx';
@@ -105,9 +106,15 @@ export function ProjectsPage() {
       {error ? <LoadError message={`Could not load projects: ${error.message}`} onRetry={() => void refetch()} /> : null}
       {isLoading ? <Loading label="Loading projects…" /> : null}
       {projects && visible.length === 0 ? (
-        <p className="empty-state">
-          {projects.length === 0 ? 'No projects yet. Create one to group your time entries.' : 'No projects match these filters.'}
-        </p>
+        projects.length === 0 ? (
+          <EmptyState icon={<Icon name="folder" size={32} />} title="No projects yet">
+            Create one with New project to group your time entries.
+          </EmptyState>
+        ) : (
+          <EmptyState icon={<Icon name="search" size={32} />} title="No projects match these filters">
+            Try another status or client, or clear the search.
+          </EmptyState>
+        )
       ) : null}
 
       {visible.length > 0 ? (

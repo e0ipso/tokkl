@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useClients, useProjects, useTags } from '../../api/hooks.ts';
+import { EmptyState } from '../../components/EmptyState.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
@@ -82,7 +83,9 @@ function MultiSelect({ label, options, value, onChange, negated, onNegatedChange
                 {option.hint ? <span className="muted filter-option-hint">{option.hint}</span> : null}
               </label>
             ))}
-            {visible.length === 0 ? <div className="picker-empty">Nothing matches.</div> : null}
+            {visible.length === 0 ? (
+              <EmptyState compact title="Nothing matches.">{query.trim() ? 'Try a shorter search.' : null}</EmptyState>
+            ) : null}
           </div>
           {value.length ? (
             <div className="filter-popover-footer">

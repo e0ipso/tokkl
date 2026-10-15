@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '../api/client.ts';
 import { keys, useRestoreEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
+import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { ProjectDot } from '../components/Pickers.tsx';
@@ -98,7 +99,11 @@ export function TrashPage() {
 
       {error ? <LoadError message={`Could not load the trash: ${error.message}`} onRetry={() => void refetch()} /> : null}
       {isLoading ? <Loading label="Loading the trash…" /> : null}
-      {entries && entries.length === 0 ? <p className="empty-state">The trash is empty.</p> : null}
+      {entries && entries.length === 0 ? (
+        <EmptyState icon={<Icon name="trash" size={32} />} title="The trash is empty">
+          Deleted entries wash up here until you restore them or delete them for good.
+        </EmptyState>
+      ) : null}
 
       {entries && entries.length > 0 ? (
         <div className="table-wrap">

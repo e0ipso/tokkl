@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEntries, usePreferences, useSavePreferences, useProjects } from '../api/hooks.ts';
 import type { Favorite, TimeEntry } from '../api/types.ts';
 import { addDays, startOfWeek } from '../../../shared/time.ts';
@@ -66,6 +66,19 @@ export function TimerPage() {
   }, [entries, favorites]);
   useShortcuts(settings.shortcuts, handlers);
 
+  // The empty list's "Manual mode" button goes away once manual mode is on, so focus moves to the
+  // description field instead of dropping to the page. The handle has no focus method for this.
+  const focusAfterManual = useRef(false);
+  const switchToManual = () => {
+    focusAfterManual.current = true;
+    timer.current?.toggleManual();
+  };
+  useEffect(() => {
+    if (!prefs?.manualMode || !focusAfterManual.current) return;
+    focusAfterManual.current = false;
+    document.querySelector<HTMLInputElement>('.timer-bar input[aria-label="Description"]')?.focus();
+  }, [prefs?.manualMode]);
+
   const removeFavorite = (index: number) => savePrefs.mutate({ favorites: favorites.filter((_, i) => i !== index) });
 
   return (
@@ -120,7 +133,12 @@ export function TimerPage() {
             <LoadError message={`Could not load time entries: ${error.message}`} onRetry={() => void refetch()} />
           ) : (
             <BusyRegion busy={isFetching}>
-              <EntryList entries={entries} onContinue={continueEntry} />
+              <EntryList
+                entries={entries}
+                onContinue={continueEntry}
+                onStartTimer={() => timer.current?.startNew()}
+                onManualMode={prefs?.manualMode ? undefined : switchToManual}
+              />
             </BusyRegion>
           )}
           <div className="load-more">

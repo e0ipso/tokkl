@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { api } from '../api/client.ts';
 import { keys, useTags, useWid } from '../api/hooks.ts';
 import type { Tag } from '../api/types.ts';
+import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { useToast } from '../components/Toast.tsx';
@@ -122,7 +123,15 @@ export function TagsPage() {
       {error ? <LoadError message={`Could not load tags: ${error.message}`} onRetry={() => void refetch()} /> : null}
       {isLoading ? <Loading label="Loading tags…" /> : null}
       {tags && visible.length === 0 ? (
-        <p className="empty-state">{tags.length === 0 ? 'No tags yet. Tags label entries across projects, like "meeting" or "review".' : 'No tags match your search.'}</p>
+        tags.length === 0 ? (
+          <EmptyState icon={<Icon name="tag" size={32} />} title="No tags yet">
+            Tags label entries across projects, like "meeting" or "review". Add one above.
+          </EmptyState>
+        ) : (
+          <EmptyState icon={<Icon name="search" size={32} />} title="No tags match your search">
+            Check the spelling, or clear the search.
+          </EmptyState>
+        )
       ) : null}
 
       {visible.length > 0 ? (

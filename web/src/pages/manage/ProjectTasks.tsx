@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api/client.ts';
 import { keys, useWid } from '../../api/hooks.ts';
 import type { Project, Task } from '../../api/types.ts';
+import { EmptyState } from '../../components/EmptyState.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { duration, useSettings } from '../../lib/settings.ts';
@@ -127,7 +128,9 @@ export function ProjectTasks({ project }: { project: Project }) {
         <p className="hint">Restore the project to add tasks.</p>
       )}
       {isLoading ? <p className="hint">Loading tasks…</p> : null}
-      {tasks && tasks.length === 0 ? <p className="hint">No tasks yet.</p> : null}
+      {tasks && tasks.length === 0 ? (
+        <EmptyState compact title="No tasks yet.">{project.active ? "Add one above to split this project's time." : null}</EmptyState>
+      ) : null}
       {tasks && tasks.length > 0 ? (
         <ul className="task-list">
           {[...open, ...done].map((task) => <TaskRow key={task.id} project={project} task={task} />)}
