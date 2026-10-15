@@ -2,8 +2,8 @@ import { useId, useState, type FormEvent } from 'react';
 import { api } from '../../api/client.ts';
 import { keys, useClients, useProjects, useWid, useWorkspace } from '../../api/hooks.ts';
 import type { Client, Project } from '../../api/types.ts';
+import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Modal } from '../../components/Overlay.tsx';
-import { useToast } from '../../components/Toast.tsx';
 import { PROJECT_COLORS } from '../../../../shared/colors.ts';
 import { ColorField } from './ColorField.tsx';
 import { ProjectTasks } from './ProjectTasks.tsx';
@@ -29,8 +29,8 @@ function amountText(value: number | null): string {
 /** Create or edit a project. Editing an existing project also shows its tasks. */
 export function ProjectEditor({ project, onClose }: { project: Project | null; onClose: () => void }) {
   const wid = useWid();
-  const toast = useToast();
   const formId = useId();
+  const fields = useFieldErrors<'name' | 'client' | 'rate' | 'currency' | 'estimate'>();
   const { data: clients = [] } = useClients();
   const { data: projects = [] } = useProjects();
   const { data: workspace } = useWorkspace();
@@ -70,13 +70,17 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim()) return toast.show('Enter a project name', { kind: 'error' });
     const parsedRate = parseOptionalAmount(rate);
-    if (parsedRate === undefined) return toast.show('Hourly rate must be a number of 0 or more', { kind: 'error' });
     const parsedEstimate = parseOptionalAmount(estimate);
-    if (parsedEstimate === undefined) return toast.show('Estimated hours must be a number of 0 or more', { kind: 'error' });
     const code = currency.trim().toUpperCase();
-    if (code && !/^[A-Z]{3}$/.test(code)) return toast.show('Currency must be a 3-letter code, like EUR', { kind: 'error' });
+    // Checked in the order the fields appear, so focus goes to the first one to fix.
+    const valid = fields.validate([
+      ['name', !name.trim() && 'Enter a project name'],
+      ['rate', parsedRate === undefined && 'Hourly rate must be a number of 0 or more'],
+      ['currency', code !== '' && !/^[A-Z]{3}$/.test(code) && 'Currency must be a 3-letter code, like EUR'],
+      ['estimate', parsedEstimate === undefined && 'Estimated hours must be a number of 0 or more'],
+    ]);
+    if (!valid || parsedRate === undefined || parsedEstimate === undefined) return;
     save.mutate({
       name: name.trim(),
       color,
@@ -90,7 +94,7 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
 
   const submitNewClient = () => {
     const trimmed = newClientName.trim();
-    if (!trimmed) return toast.show('Enter a client name', { kind: 'error' });
+    if (!fields.validate([['client', !trimmed && 'Enter a client name']])) return;
     createClient.mutate(trimmed);
   };
 
@@ -109,11 +113,12 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
         </>
       )}
     >
-      <form id={formId} className="form-grid" onSubmit={submit}>
-        <label className="field field-full">
-          <span>Name</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={255} required />
-        </label>
+      <form id={formId} className="form-grid" noValidate onSubmit={submit}>
+        <div className="field field-full">
+          <label htmlFor={fields.id('name')}>Name</label>
+          <input {...fields.field('name')} value={name} onChange={(event) => setName(event.target.value)} maxLength={255} required />
+          {fields.message('name')}
+        </div>
 
         <div className="field field-full">
           <span>Color</span>
@@ -141,6 +146,7 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
           {creatingClient ? (
             <div className="inline-controls manage-inline-create">
               <input
+                {...fields.field('client')}
                 value={newClientName}
                 placeholder="New client name"
                 aria-label="New client name"
@@ -155,34 +161,49 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
                 }}
               />
               <button type="button" className="button" disabled={createClient.isPending} onClick={submitNewClient}>Add client</button>
-              <button type="button" className="button button-ghost" onClick={() => setCreatingClient(false)}>Cancel</button>
+              <button
+                type="button"
+                className="button button-ghost"
+                onClick={() => {
+                  setCreatingClient(false);
+                  fields.clear('client');
+                }}
+              >
+                Cancel
+              </button>
             </div>
           ) : null}
+          {creatingClient ? fields.message('client') : null}
         </div>
 
-        <label className="field">
-          <span>Hourly rate</span>
+        <div className="field">
+          <label htmlFor={fields.id('rate')}>Hourly rate</label>
           <input
+            {...fields.field('rate')}
             inputMode="decimal"
             value={rate}
             placeholder={workspace?.default_hourly_rate != null ? `Workspace rate: ${workspace.default_hourly_rate}` : 'No rate'}
             onChange={(event) => setRate(event.target.value)}
           />
-        </label>
-        <label className="field">
-          <span>Currency</span>
+          {fields.message('rate')}
+        </div>
+        <div className="field">
+          <label htmlFor={fields.id('currency')}>Currency</label>
           <input
+            {...fields.field('currency')}
             value={currency}
             maxLength={3}
             placeholder={workspace?.default_currency ?? 'EUR'}
             autoCapitalize="characters"
             onChange={(event) => setCurrency(event.target.value.toUpperCase())}
           />
-        </label>
-        <label className="field">
-          <span>Estimated hours</span>
-          <input inputMode="decimal" value={estimate} placeholder="No estimate" onChange={(event) => setEstimate(event.target.value)} />
-        </label>
+          {fields.message('currency')}
+        </div>
+        <div className="field">
+          <label htmlFor={fields.id('estimate')}>Estimated hours</label>
+          <input {...fields.field('estimate')} inputMode="decimal" value={estimate} placeholder="No estimate" onChange={(event) => setEstimate(event.target.value)} />
+          {fields.message('estimate')}
+        </div>
         <label className="field checkbox-field">
           <input type="checkbox" checked={billable} onChange={(event) => setBillable(event.target.checked)} />
           <span>Billable by default</span>

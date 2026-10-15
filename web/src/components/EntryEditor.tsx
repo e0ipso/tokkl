@@ -4,8 +4,9 @@ import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '../../../shared/duration.ts';
 import { parseTimeOfDay } from '../../../shared/timeOfDay.ts';
 import { addDays } from '../../../shared/time.ts';
-import { instantAt, localDay, resolveRange } from '../lib/entryTime.ts';
+import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, useNow, useSettings } from '../lib/settings.ts';
+import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { Modal } from './Overlay.tsx';
 import { ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
@@ -44,6 +45,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const remove = useDeleteEntry();
   const restore = useRestoreEntry();
   const toast = useToast();
+  const fields = useFieldErrors<'start' | 'end' | 'duration' | 'split'>();
 
   const timeOptions = { timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(now, settings.timeZone) };
   const range = useMemo(() => {
@@ -74,19 +76,19 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   };
 
   const save = async () => {
-    if (!range) {
-      toast.show('Check the start and end times', { kind: 'error' });
-      return;
-    }
+    const unreadable = !range && (running ? 'start' : unreadableTime(startText, timeOptions));
+    const seconds = !running && durationChanged ? parseDuration(durationText) : null;
+    const timesMessage = 'Check the start and end times';
+    const valid = fields.validate([
+      ['start', unreadable === 'start' && timesMessage],
+      ['end', unreadable === 'end' && timesMessage],
+      ['duration', !running && durationChanged && seconds === null && 'Check the duration'],
+    ]);
+    if (!valid || !range) return;
     const times: { start?: string; stop?: string } = {};
     const start = startChanged ? range.start : new Date(entry.start);
     if (startChanged) times.start = start.toISOString();
     if (!running) {
-      const seconds = durationChanged ? parseDuration(durationText) : null;
-      if (durationChanged && seconds === null) {
-        toast.show('Check the duration', { kind: 'error' });
-        return;
-      }
       if (seconds !== null) times.stop = new Date(start.getTime() + seconds * 1000).toISOString();
       else if (endChanged && range.stop) times.stop = range.stop.toISOString();
     }
@@ -117,15 +119,14 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const split = async () => {
     if (!entry.stop) return;
     const minutes = parseTimeOfDay(splitText, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
-    if (minutes === null) return toast.show('Enter a split time like 10:30', { kind: 'error' });
+    if (minutes === null) return void fields.validate([['split', 'Enter a split time like 10:30']]);
     const startDay = localDay(entry.start, settings.timeZone);
     let at = instantAt(startDay, minutes, settings.timeZone);
     // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
     // DST shift when the clocks change that night.
     if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
-    if (at <= new Date(entry.start) || at >= new Date(entry.stop)) {
-      return toast.show('The split time must fall inside the entry', { kind: 'error' });
-    }
+    const outside = at <= new Date(entry.start) || at >= new Date(entry.stop);
+    if (!fields.validate([['split', outside && 'The split time must fall inside the entry']])) return;
     try {
       // Create the second half first: if that fails, the original entry is untouched.
       const second = await create.mutateAsync({
@@ -202,20 +203,23 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           <span>Date</span>
           <input type="date" value={day} onChange={(event) => event.target.value && setDay(event.target.value)} />
         </label>
-        <label className="field">
-          <span>Start</span>
-          <input value={startText} onChange={(event) => setStartText(event.target.value)} onBlur={() => syncDuration(range)} />
-        </label>
+        <div className="field">
+          <label htmlFor={fields.id('start')}>Start</label>
+          <input {...fields.field('start')} value={startText} onChange={(event) => setStartText(event.target.value)} onBlur={() => syncDuration(range)} />
+          {fields.message('start')}
+        </div>
         {!running ? (
           <>
-            <label className="field">
-              <span>End</span>
-              <input value={endText} onChange={(event) => setEndText(event.target.value)} onBlur={() => syncDuration(range)} />
-            </label>
-            <label className="field">
-              <span>Duration</span>
-              <input value={durationText} onChange={(event) => setDurationText(event.target.value)} onBlur={applyDuration} />
-            </label>
+            <div className="field">
+              <label htmlFor={fields.id('end')}>End</label>
+              <input {...fields.field('end')} value={endText} onChange={(event) => setEndText(event.target.value)} onBlur={() => syncDuration(range)} />
+              {fields.message('end')}
+            </div>
+            <div className="field">
+              <label htmlFor={fields.id('duration')}>Duration</label>
+              <input {...fields.field('duration')} value={durationText} onChange={(event) => setDurationText(event.target.value)} onBlur={applyDuration} />
+              {fields.message('duration')}
+            </div>
           </>
         ) : null}
         {range?.stop && localDay(range.stop, settings.timeZone) !== day ? (
@@ -223,13 +227,14 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
         ) : null}
         {!running ? (
           <div className="field field-full">
-            <span>Split at</span>
+            <label htmlFor={fields.id('split')}>Split at</label>
             <div className="inline-controls">
-              <input value={splitText} placeholder="e.g. 10:30" onChange={(event) => setSplitText(event.target.value)} />
+              <input {...fields.field('split')} value={splitText} placeholder="e.g. 10:30" onChange={(event) => setSplitText(event.target.value)} />
               <button type="button" className="button button-ghost" onClick={() => void split()}>
                 <Icon name="split" size={16} /> Split
               </button>
             </div>
+            {fields.message('split')}
           </div>
         ) : null}
         <button type="submit" hidden />

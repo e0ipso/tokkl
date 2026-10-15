@@ -25,6 +25,11 @@ export function resolveRange(
   return { start, stop: instantAt(endDay, endMinutes, options.timeZone) };
 }
 
+/** The field to fix when resolveRange returns null: the start if it cannot be read, otherwise the end. */
+export function unreadableTime(startText: string, options: { twelveHour: boolean; nowMinutes: number }): 'start' | 'end' {
+  return parseTimeOfDay(startText, { twelveHour: options.twelveHour, reference: options.nowMinutes }) === null ? 'start' : 'end';
+}
+
 export function localDay(iso: string | Date, timeZone: string): string {
   return dateKey(typeof iso === 'string' ? new Date(iso) : iso, timeZone);
 }

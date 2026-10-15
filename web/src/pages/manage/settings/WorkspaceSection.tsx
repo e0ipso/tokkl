@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../../../api/client.ts';
 import { keys, useWid } from '../../../api/hooks.ts';
 import type { Workspace } from '../../../api/types.ts';
-import { useToast } from '../../../components/Toast.tsx';
+import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { parseOptionalAmount, useAction, wsPath } from '../queries.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
@@ -26,7 +26,7 @@ function stepLabel(minutes: number): string {
 
 export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
   const wid = useWid();
-  const toast = useToast();
+  const fields = useFieldErrors<'name' | 'currency' | 'rate'>();
   const [name, setName] = useState(workspace.name);
   const [currency, setCurrency] = useState(workspace.default_currency);
   const [rate, setRate] = useState(workspace.default_hourly_rate === null ? '' : String(workspace.default_hourly_rate));
@@ -40,11 +40,14 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
   });
 
   const submit = () => {
-    if (!name.trim()) return toast.show('Enter a workspace name', { kind: 'error' });
     const code = currency.trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(code)) return toast.show('Currency must be a 3-letter code, like EUR', { kind: 'error' });
     const parsedRate = parseOptionalAmount(rate);
-    if (parsedRate === undefined) return toast.show('Hourly rate must be a number of 0 or more', { kind: 'error' });
+    const valid = fields.validate([
+      ['name', !name.trim() && 'Enter a workspace name'],
+      ['currency', !/^[A-Z]{3}$/.test(code) && 'Currency must be a 3-letter code, like EUR'],
+      ['rate', parsedRate === undefined && 'Hourly rate must be a number of 0 or more'],
+    ]);
+    if (!valid || parsedRate === undefined) return;
     save.mutate({
       name: name.trim(),
       default_currency: code,
@@ -61,23 +64,27 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
   return (
     <SettingsCard id="workspace" title="Workspace" onSubmit={submit} saving={save.isPending}>
       <div className="form-grid">
-        <label className="field field-full">
-          <span>Name</span>
-          <input value={name} maxLength={140} onChange={(event) => setName(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Default currency</span>
+        <div className="field field-full">
+          <label htmlFor={fields.id('name')}>Name</label>
+          <input {...fields.field('name')} value={name} maxLength={140} onChange={(event) => setName(event.target.value)} />
+          {fields.message('name')}
+        </div>
+        <div className="field">
+          <label htmlFor={fields.id('currency')}>Default currency</label>
           <input
+            {...fields.field('currency')}
             value={currency}
             maxLength={3}
             autoCapitalize="characters"
             onChange={(event) => setCurrency(event.target.value.toUpperCase())}
           />
-        </label>
-        <label className="field">
-          <span>Default hourly rate</span>
-          <input inputMode="decimal" value={rate} placeholder="No rate" onChange={(event) => setRate(event.target.value)} />
-        </label>
+          {fields.message('currency')}
+        </div>
+        <div className="field">
+          <label htmlFor={fields.id('rate')}>Default hourly rate</label>
+          <input {...fields.field('rate')} inputMode="decimal" value={rate} placeholder="No rate" onChange={(event) => setRate(event.target.value)} />
+          {fields.message('rate')}
+        </div>
         <p className="hint field-full">Billable entries on projects without their own rate use this rate.</p>
         <label className="field">
           <span>Round durations in reports</span>

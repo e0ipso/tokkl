@@ -5,8 +5,9 @@ import {
 } from '../api/hooks.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { formatDuration, parseDuration } from '../../../shared/duration.ts';
-import { localDay, resolveRange } from '../lib/entryTime.ts';
+import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
+import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
@@ -96,6 +97,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const [manualDay, setManualDay] = useState(() => today(settings.timeZone));
   const [manualStart, setManualStart] = useState('');
   const [manualEnd, setManualEnd] = useState('');
+  const manualErrors = useFieldErrors<'start' | 'end'>();
   const [timerDuration, setTimerDuration] = useState('');
   const descriptionRef = useRef<HTMLInputElement>(null);
   const projectButton = useRef<HTMLButtonElement>(null);
@@ -214,13 +216,12 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   };
 
   const addManual = async () => {
-    const range = resolveRange(manualDay, manualStart, manualEnd, {
-      timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(new Date(), settings.timeZone),
-    });
-    if (!range) {
-      toast.show('Enter a start and end time, like 9:00 and 10:30', { kind: 'error' });
-      return;
-    }
+    const options = { timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(new Date(), settings.timeZone) };
+    const range = resolveRange(manualDay, manualStart, manualEnd, options);
+    const unreadable = !range && unreadableTime(manualStart, options);
+    const message = 'Enter a start and end time, like 9:00 and 10:30';
+    manualErrors.validate([['start', unreadable === 'start' && message], ['end', unreadable === 'end' && message]]);
+    if (!range) return;
     try {
       await create.mutateAsync({ ...draft, start: range.start.toISOString(), stop: range.stop.toISOString() });
       toast.show(`Added ${formatDuration((range.stop.getTime() - range.start.getTime()) / 1000)}`);
@@ -384,6 +385,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
           <div className="manual-fields">
             <input type="date" aria-label="Date" value={manualDay} onChange={(event) => event.target.value && setManualDay(event.target.value)} />
             <input
+              {...manualErrors.field('start')}
               className="time-field"
               aria-label="Start time"
               placeholder="Start"
@@ -393,6 +395,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             />
             <span className="muted">–</span>
             <input
+              {...manualErrors.field('end')}
               className="time-field"
               aria-label="End time"
               placeholder="End"
@@ -404,6 +407,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
               {manualRange ? formatDuration((manualRange.stop.getTime() - manualRange.start.getTime()) / 1000) : '0:00:00'}
             </span>
             {manualRange && localDay(manualRange.stop, settings.timeZone) !== manualDay ? <span className="hint">+1 day</span> : null}
+            {manualErrors.message('start')}
+            {manualErrors.message('end')}
           </div>
         ) : current ? (
           <>

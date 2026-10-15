@@ -3,10 +3,10 @@ import { api } from '../api/client.ts';
 import { keys, useClients, useProjects, useWid } from '../api/hooks.ts';
 import type { Client } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
+import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Modal } from '../components/Overlay.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { useToast } from '../components/Toast.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
 import {
   ConfirmModal, RowMenu, STATUS_OPTIONS, SearchBox, Segmented, StatusBadge, matchesStatus, plural, type StatusFilter,
@@ -17,8 +17,8 @@ const CLIENT_KEYS = [keys.clients, keys.projects, keys.entries, keys.current, ke
 
 function ClientEditor({ client, onClose }: { client: Client | null; onClose: () => void }) {
   const wid = useWid();
-  const toast = useToast();
   const formId = useId();
+  const fields = useFieldErrors<'name'>();
   const [name, setName] = useState(client?.name ?? '');
   const [notes, setNotes] = useState(client?.notes ?? '');
 
@@ -33,7 +33,7 @@ function ClientEditor({ client, onClose }: { client: Client | null; onClose: () 
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim()) return toast.show('Enter a client name', { kind: 'error' });
+    if (!fields.validate([['name', !name.trim() && 'Enter a client name']])) return;
     save.mutate({ name: name.trim(), notes: notes.trim() || null });
   };
 
@@ -51,11 +51,12 @@ function ClientEditor({ client, onClose }: { client: Client | null; onClose: () 
         </>
       )}
     >
-      <form id={formId} className="form-grid" onSubmit={submit}>
-        <label className="field field-full">
-          <span>Name</span>
-          <input value={name} maxLength={255} required onChange={(event) => setName(event.target.value)} />
-        </label>
+      <form id={formId} className="form-grid" noValidate onSubmit={submit}>
+        <div className="field field-full">
+          <label htmlFor={fields.id('name')}>Name</label>
+          <input {...fields.field('name')} value={name} maxLength={255} required onChange={(event) => setName(event.target.value)} />
+          {fields.message('name')}
+        </div>
         <label className="field field-full">
           <span>Notes</span>
           <textarea rows={4} value={notes} maxLength={10_000} onChange={(event) => setNotes(event.target.value)} />

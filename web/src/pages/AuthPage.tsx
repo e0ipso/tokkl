@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
+import { FieldError } from '../components/FieldError.tsx';
 
 export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
   const qc = useQueryClient();
@@ -70,7 +71,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
             autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
           />
         </label>
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        <FieldError message={error} />
         <button type="submit" className="button button-primary button-block" disabled={busy}>
           {mode === 'setup' ? 'Create account' : 'Log in'}
         </button>

@@ -28,7 +28,8 @@ export function SettingsCard({ id, title, intro, children, onSubmit, saveLabel =
     onSubmit();
   };
   return (
-    <form className="card settings-card" id={id} aria-labelledby={headingId} onSubmit={submit}>
+    // noValidate: sections check their own fields and show the errors inline (components/FieldError.tsx).
+    <form className="card settings-card" id={id} aria-labelledby={headingId} noValidate onSubmit={submit}>
       {body}
       <div className="settings-actions">
         <button type="submit" className="button button-primary" disabled={saving || saveDisabled}>

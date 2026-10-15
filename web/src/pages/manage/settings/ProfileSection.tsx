@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../../../api/client.ts';
 import { keys } from '../../../api/hooks.ts';
 import type { Me } from '../../../api/types.ts';
-import { useToast } from '../../../components/Toast.tsx';
+import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useAction, V9 } from '../queries.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
@@ -19,7 +19,7 @@ function timeZones(current: string): string[] {
 }
 
 export function ProfileSection({ me }: { me: Me }) {
-  const toast = useToast();
+  const fields = useFieldErrors<'email'>();
   const [fullname, setFullname] = useState(me.fullname);
   const [email, setEmail] = useState(me.email);
   const [timezone, setTimezone] = useState(me.timezone);
@@ -35,7 +35,7 @@ export function ProfileSection({ me }: { me: Me }) {
   });
 
   const submit = () => {
-    if (!/^[^@\s]+@[^@\s]+$/.test(email.trim())) return toast.show('Enter a valid email address', { kind: 'error' });
+    if (!fields.validate([['email', !/^[^@\s]+@[^@\s]+$/.test(email.trim()) && 'Enter a valid email address']])) return;
     save.mutate({ fullname: fullname.trim(), email: email.trim(), timezone, beginning_of_week: weekStart });
   };
 
@@ -46,10 +46,11 @@ export function ProfileSection({ me }: { me: Me }) {
           <span>Full name</span>
           <input value={fullname} maxLength={255} autoComplete="name" onChange={(event) => setFullname(event.target.value)} />
         </label>
-        <label className="field">
-          <span>Email</span>
-          <input type="email" value={email} maxLength={255} autoComplete="email" required onChange={(event) => setEmail(event.target.value)} />
-        </label>
+        <div className="field">
+          <label htmlFor={fields.id('email')}>Email</label>
+          <input {...fields.field('email')} type="email" value={email} maxLength={255} autoComplete="email" required onChange={(event) => setEmail(event.target.value)} />
+          {fields.message('email')}
+        </div>
         <label className="field">
           <span>Timezone</span>
           <select value={timezone} onChange={(event) => setTimezone(event.target.value)}>

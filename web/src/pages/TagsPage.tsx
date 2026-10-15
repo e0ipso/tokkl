@@ -3,9 +3,9 @@ import { api } from '../api/client.ts';
 import { keys, useTags, useWid } from '../api/hooks.ts';
 import type { Tag } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
+import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { useToast } from '../components/Toast.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
 import { ConfirmModal, SearchBox } from './manage/ui.tsx';
 import './manage/manage.css';
@@ -75,7 +75,7 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
 
 export function TagsPage() {
   const wid = useWid();
-  const toast = useToast();
+  const fields = useFieldErrors<'name'>();
   const { data: tags, isLoading, error, refetch } = useTags();
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
@@ -97,7 +97,7 @@ export function TagsPage() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = newName.trim();
-    if (!trimmed) return toast.show('Enter a tag name', { kind: 'error' });
+    if (!fields.validate([['name', !trimmed && 'Enter a tag name']])) return;
     create.mutate(trimmed);
   };
 
@@ -110,11 +110,14 @@ export function TagsPage() {
       </header>
 
       <div className="toolbar">
-        <form className="inline-controls" onSubmit={submit}>
-          <input value={newName} placeholder="New tag" aria-label="New tag name" maxLength={255} onChange={(event) => setNewName(event.target.value)} />
-          <button type="submit" className="button button-primary" disabled={create.isPending}>
-            <Icon name="plus" size={16} /> Add tag
-          </button>
+        <form className="field" onSubmit={submit}>
+          <div className="inline-controls">
+            <input {...fields.field('name')} value={newName} placeholder="New tag" aria-label="New tag name" maxLength={255} onChange={(event) => setNewName(event.target.value)} />
+            <button type="submit" className="button button-primary" disabled={create.isPending}>
+              <Icon name="plus" size={16} /> Add tag
+            </button>
+          </div>
+          {fields.message('name')}
         </form>
         <span className="spacer" />
         <SearchBox value={search} onChange={setSearch} placeholder="Search tags" />

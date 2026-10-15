@@ -72,7 +72,11 @@
    on state-selected. The selection bar on selected rows and picker items is primary on
    state-selected; a highlighted suggestion is state-selected too. The outline on the project picker
    option the arrow keys made active is primary on surface-2, or primary on state-selected when that
-   option is also the selected one; the primary text rows above give both ratios. */
+   option is also the selected one; the primary text rows above give both ratios.
+   An inline field error (.field-error) is danger text on surface in cards, modals and the timer bar,
+   and danger on bg beside the tag form in the page toolbar. An invalid field's border is danger
+   against the surface inside the input and against bg, surface or surface-2 around it. The danger
+   rows above cover each pair. */
 :root {
   color-scheme: light dark;
 
@@ -548,7 +552,7 @@ input.entry-duration:is(:hover, :focus) {
 /* Forms */
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
 .field { display: flex; flex-direction: column; gap: 4px; }
-.field > span:first-child { font-size: var(--text-sm); color: var(--muted); font-weight: 500; }
+.field > span:first-child, .field > label:first-child { font-size: var(--text-sm); color: var(--muted); font-weight: 500; }
 .field-full { grid-column: 1 / -1; }
 .checkbox-field { flex-direction: row; align-items: center; gap: 8px; align-self: end; padding-bottom: 8px; }
 .checkbox-field > span:first-child { font-size: inherit; color: inherit; }
@@ -564,7 +568,13 @@ input.entry-duration:is(:hover, :focus) {
   .search-box input { width: 100%; }
 }
 .inline-controls { display: flex; gap: 8px; }
-.form-error { color: var(--danger); margin: 0; }
+/* Inline validation (components/FieldError.tsx): an invalid field gets a danger border and its
+   message sits under it. */
+input[aria-invalid='true'], select[aria-invalid='true'], textarea[aria-invalid='true'] { border-color: var(--danger); }
+.field-error { color: var(--danger); font-size: var(--text-sm); margin: 0; }
+.manual-fields .field-error { flex-basis: 100%; }
+/* The tag form sits in a toolbar; keep the toolbar's other controls level with the field, not centred on the taller form. */
+.toolbar:has(> form .field-error) { align-items: flex-start; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
 
 /* Cards and tables shared by management pages */

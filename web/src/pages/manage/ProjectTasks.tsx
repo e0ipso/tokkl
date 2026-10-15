@@ -3,9 +3,9 @@ import { api } from '../../api/client.ts';
 import { keys, useWid } from '../../api/hooks.ts';
 import type { Project, Task } from '../../api/types.ts';
 import { EmptyState } from '../../components/EmptyState.tsx';
+import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';
-import { useToast } from '../../components/Toast.tsx';
 import { duration, useSettings } from '../../lib/settings.ts';
 import { taskTrackedSeconds, useAction, useProjectTasks, wsPath } from './queries.ts';
 
@@ -84,7 +84,7 @@ function TaskRow({ project, task }: { project: Project; task: Task }) {
 /** Task list for one project: add, rename, mark done and delete. */
 export function ProjectTasks({ project }: { project: Project }) {
   const wid = useWid();
-  const toast = useToast();
+  const fields = useFieldErrors<'name'>();
   const { data: tasks, isLoading, error, refetch } = useProjectTasks(project.id);
   const [newName, setNewName] = useState('');
 
@@ -96,7 +96,7 @@ export function ProjectTasks({ project }: { project: Project }) {
 
   const add = () => {
     const trimmed = newName.trim();
-    if (!trimmed) return toast.show('Enter a task name', { kind: 'error' });
+    if (!fields.validate([['name', !trimmed && 'Enter a task name']])) return;
     create.mutate(trimmed);
   };
 
@@ -109,6 +109,7 @@ export function ProjectTasks({ project }: { project: Project }) {
       {project.active ? (
         <div className="inline-controls">
           <input
+            {...fields.field('name')}
             value={newName}
             placeholder="Add a task"
             aria-label="New task name"
@@ -128,6 +129,7 @@ export function ProjectTasks({ project }: { project: Project }) {
       ) : (
         <p className="hint">Restore the project to add tasks.</p>
       )}
+      {project.active ? fields.message('name') : null}
       {isLoading ? <Loading label="Loading tasks…" className="is-compact" /> : null}
       {error && !tasks ? <LoadError message={`Could not load tasks: ${error.message}`} onRetry={() => void refetch()} className="is-compact" /> : null}
       {tasks && tasks.length === 0 ? (
