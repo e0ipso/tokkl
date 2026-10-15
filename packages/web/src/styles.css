@@ -41,6 +41,9 @@
    border on surface-2                   other   3.01 AA     3.38 AA
    state-running on surface              text    4.67 AA     5.63 AA
    state-running on bg                   other   3.97 AA     6.21 AA
+   state-running on calendar-today       other   4.40 AA     5.01 AA
+   state-running on block tint (worst)   other   3.33 AA     3.95 AA
+   border on calendar-today              other   3.68 AA     3.45 AA
    state-billable on surface             other   4.83 AA    14.10 AA
    state-billable on surface-2           other   3.72 AA    12.32 AA
    state-billable on state-selected      other   4.07 AA     9.64 AA
@@ -83,6 +86,13 @@
    at 4.66 (#c7af14) in light and 4.52 (#990099) in dark, above the 3:1 the table at .project-dot
    asks for. The active report filter chip is on-primary on primary, and the share bars and the
    tab marker are primary on surface-2 and on bg.
+   On the week calendar the day heads are text and muted on a surface-2 band, and today's label is
+   an on-primary on primary badge (primary on surface-2 for the badge's edge). The hour lines are
+   border on surface, or on calendar-today in today's column. The now line and its dot are
+   state-running on calendar-today. A running block has a state-running bar and dashed outline,
+   which sit on its own tint inside ("block tint (worst)", over the 14 palette colours and muted)
+   and on surface or calendar-today outside. The ghost block drawn while dragging to create is a
+   primary bar on state-selected. Block text and bars are in the table at .project-dot.
    The entry-row Project placeholder (.add-project, text) and the empty-tags icon (.entry-tags,
    other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
    above are their pairs. Fading them with opacity breaks those ratios.
@@ -152,6 +162,8 @@
   --state-running: var(--accent-pink);
   --state-selected: light-dark(#cdeeea, #1d3b52);
   --state-billable: light-dark(#4a7c00, #b6ff3b);
+  /* Today's column on the week calendar: state-selected at 35% over surface. */
+  --calendar-today: color-mix(in srgb, var(--state-selected) 35%, var(--surface));
 
   /* Chart */
   --chart-billable: light-dark(#0091a8, #0f9bb3);
@@ -265,7 +277,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 input[type='checkbox'] { accent-color: var(--primary); width: 16px; height: 16px; padding: 0; }
 a { color: var(--primary); }
 /* Display face: wordmark, headings (including empty-state headlines), the running clock and totals. */
-h1, h2, h3, .brand, .timer-clock, .timer-summary strong, .day-total, .manual-duration, .empty-state-title {
+h1, h2, h3, .brand, .timer-clock, .timer-summary strong, .day-total, .manual-duration, .empty-state-title,
+.calendar-range, .calendar-day-head, .calendar-block-duration {
   font-family: var(--font-display); font-stretch: 85%;
 }
 h1, h2, h3 { font-weight: 800; }
@@ -586,7 +599,8 @@ input.entry-duration:is(:hover, :focus) {
    --muted (no project)   12.26  9.44 10.33  9.33    11.11  9.71  7.60  7.80
 
    Text on the 18% tint, worst of the 14 colours: text 11.69 light, 11.10 dark; muted 5.19 light,
-   5.81 dark (AA). A stronger tint lowers the muted and border rows, so 18% stays.
+   5.81 dark (AA). A block with no project is --muted at 18%: text 12.48 light, 10.74 dark; muted
+   5.54 light, 5.62 dark. A stronger tint lowers the muted and border rows, so 18% stays.
    Recompute this table whenever the palette, the mix or a surface colour changes. */
 .project-dot {
   display: inline-block; width: 9px; height: 9px; border-radius: var(--radius-pill); flex-shrink: 0;
@@ -799,16 +813,27 @@ table.table { width: 100%; border-collapse: collapse; }
 .shortcut-list div { display: grid; grid-template-columns: 110px 1fr; align-items: center; }
 .shortcut-list dd { margin: 0; }
 
-/* Week calendar */
+/* Week calendar. The grid is a data surface, so nothing textured sits behind it. HOUR_HEIGHT in
+   WeekCalendar.tsx and HOUR in e2e/history-calendar-tests-helpers.ts must match the 48px rows. */
 .view-switch { margin-left: auto; }
-.calendar { display: flex; flex-direction: column; gap: 8px; }
-.calendar-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.calendar-range { font-weight: 600; margin-left: 6px; }
+.calendar { display: flex; flex-direction: column; gap: var(--space-2); }
+.calendar-toolbar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.calendar-toolbar .icon-button {
+  width: 40px; height: 40px; border: 2px solid var(--border); border-radius: var(--radius-pill); color: var(--text);
+}
+.calendar-toolbar .button { min-height: 40px; padding: 6px 16px; border-width: 2px; border-radius: var(--radius-pill); font-weight: 700; }
+.calendar-range { font-size: var(--text-lg); font-weight: 800; margin-left: var(--space-1); }
 .calendar-head, .calendar-grid { display: grid; grid-template-columns: 56px repeat(7, minmax(90px, 1fr)); }
-.calendar-head { border-bottom: none; border-radius: var(--radius-md) var(--radius-md) 0 0; }
-.calendar-day-head { display: flex; flex-direction: column; padding: 6px 8px; border-left: 1px solid var(--border); font-size: var(--text-sm); }
-.calendar-day-head small { color: var(--muted); font-variant-numeric: tabular-nums; }
-.calendar-day-head.today span { color: var(--primary); font-weight: 600; }
+.calendar-head { background: var(--surface-2); border-bottom: none; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.calendar-day-head {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0;
+  padding: 6px 8px; border-left: 1px solid var(--border);
+}
+.calendar-day-head span, .calendar-day-head small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-day-head span { font-size: var(--text-sm); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+.calendar-day-head small { color: var(--muted); font-weight: 700; }
+/* Today's label is a filled badge, so the day is marked by its shape as well as its colour. */
+.calendar-day-head.today span { padding: 0 6px; border-radius: var(--radius-pill); background: var(--primary); color: var(--on-primary); }
 .calendar-body { height: min(70vh, 720px); overflow: auto; border-radius: 0 0 var(--radius-md) var(--radius-md); }
 /* The loading or error state covers the whole grid, so an unloaded week never looks empty. */
 .calendar-frame { position: relative; }
@@ -818,35 +843,54 @@ table.table { width: 100%; border-collapse: collapse; }
 }
 .calendar-grid { position: relative; }
 .calendar-gutter { position: relative; }
-.calendar-gutter span { position: absolute; right: 6px; transform: translateY(-50%); font-size: var(--text-xs); color: var(--muted); }
+.calendar-gutter span {
+  position: absolute; right: 6px; transform: translateY(-50%);
+  font-size: var(--text-xs); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted);
+}
 .calendar-gutter span:first-child { transform: none; }
 .calendar-column {
   position: relative; border-left: 1px solid var(--border); touch-action: none; user-select: none;
   background-image: linear-gradient(var(--border) 1px, transparent 1px);
   background-size: 100% 48px;
 }
-.calendar-column.today { background-color: color-mix(in srgb, var(--state-selected) 35%, transparent); }
-.calendar-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); z-index: 3; pointer-events: none; }
+.calendar-column.today { background-color: var(--calendar-today); }
+/* The now line: a running-state rule with a dot where it meets the gutter side of the column. */
+.calendar-now {
+  position: absolute; left: 0; right: 0; height: 3px; margin-top: -1px;
+  background: var(--state-running); z-index: 3; pointer-events: none;
+}
+.calendar-now::before {
+  content: ''; position: absolute; left: -5px; top: -3px; width: 9px; height: 9px;
+  border-radius: var(--radius-pill); background: var(--state-running);
+}
+/* A block is the project colour at 18% over surface with a 5px bar in the project mix; the table
+   at .project-dot gives both ratios. The duration is in the display face. */
 .calendar-block {
-  position: absolute; overflow: hidden; border-radius: var(--radius-sm); padding: 2px 6px; font-size: var(--text-xs); line-height: 1.25;
-  background: color-mix(in srgb, var(--project-color, var(--primary)) 18%, var(--surface));
-  border-left: 3px solid color-mix(in srgb, var(--project-color, var(--primary)) 60%, var(--project-mix));
+  --block-tint: color-mix(in srgb, var(--project-color, var(--primary)) 18%, var(--surface));
+  --block-bar: color-mix(in srgb, var(--project-color, var(--primary)) 60%, var(--project-mix));
+  position: absolute; overflow: hidden; border-radius: var(--radius-sm); padding: 3px 6px; font-size: var(--text-xs); line-height: 1.25;
+  background: var(--block-tint); border-left: 5px solid var(--block-bar);
   cursor: grab; z-index: 2;
   display: flex; flex-direction: column; min-width: 0;
 }
-.calendar-block strong { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-block strong { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .calendar-block span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-block .calendar-block-duration { font-stretch: 100%; font-weight: 700; color: var(--text); }
 /* Blocks under 45 minutes have one line: the description, then the project, cut off together. */
 .calendar-block-line { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calendar-block.running { border-style: dashed; border-left-style: solid; }
+/* The running block keeps its project tint and gets a dashed running-state outline, so it differs
+   from the others by the dashes as well as the colour. */
+.calendar-block.running { border: 2px dashed var(--state-running); border-left: 5px solid var(--state-running); }
 .calendar-block.dragging { opacity: 0.8; box-shadow: var(--shadow); cursor: grabbing; z-index: 4; }
-.calendar-ghost { background: var(--state-selected); border-left-color: var(--primary); opacity: 0.8; pointer-events: none; }
+.calendar-ghost { background: var(--state-selected); border-left-color: var(--primary); pointer-events: none; }
 .calendar-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
 @media (max-width: 760px) {
   /* The seven days share the phone width; with 90px columns the header widened the page. */
   .calendar-head, .calendar-grid { grid-template-columns: 40px repeat(7, minmax(0, 1fr)); }
-  .calendar-day-head { min-width: 0; padding: 4px; }
-  .calendar-day-head span, .calendar-day-head small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* A narrower width of the display face keeps "Today" and the day totals whole in a 45px column. */
+  .calendar-day-head { padding: 4px; font-stretch: 70%; }
+  .calendar-day-head span { letter-spacing: 0; }
+  .calendar-day-head.today span { padding: 0 4px; }
 }
 
 .overlap-mark {

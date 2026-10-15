@@ -250,7 +250,10 @@ export function WeekCalendar() {
                       {bottom - top >= 45 ? (
                         <>
                           <strong>{heading}</strong>
-                          <span>{[projectName, elapsed].filter(Boolean).join(' · ')}</span>
+                          <span>
+                            {projectName ? `${projectName} · ` : null}
+                            <span className="calendar-block-duration">{elapsed}</span>
+                          </span>
                         </>
                       ) : (
                         <div className="calendar-block-line">
