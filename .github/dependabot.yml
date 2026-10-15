@@ -5,6 +5,12 @@ updates:
     directory: /
     schedule: { interval: weekly }
     commit-message: { prefix: build }
+    ignore:
+      # The lockfile lists the workspaces as packages/*; they are not on the registry.
+      - dependency-name: "packages/*"
+      # Majors (TypeScript, @types/node past the Node 24 runtime) are deliberate upgrades.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
