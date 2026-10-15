@@ -4,6 +4,9 @@
   "private": true,
   "description": "The timetrack React web app, built by vite into dist/web at the repo root",
   "type": "module",
+  "scripts": {
+    "test": "node --test --test-reporter=spec 'src/**/*.test.ts'"
+  },
   "dependencies": {
     "@tanstack/react-query": "^5.104.2",
     "@timetrack/common": "0.1.0",

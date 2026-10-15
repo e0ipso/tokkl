@@ -7,8 +7,7 @@
   "exports": {
     "./colors": "./colors.ts",
     "./duration": "./duration.ts",
-    "./time": "./time.ts",
-    "./timeOfDay": "./timeOfDay.ts"
+    "./time": "./time.ts"
   },
   "scripts": {
     "test": "node --test --test-reporter=spec '*.test.ts'"

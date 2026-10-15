@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatDuration, parseDuration } from '@timetrack/common/duration';
-import { parseTimeOfDay } from '@timetrack/common/timeOfDay';
 import type { DurationFormat } from '../api/types.ts';
+import { parseTimeOfDay } from '../lib/timeOfDay.ts';
 
 /** Text field that accepts any duration grammar from @timetrack/common/duration and commits on blur or Enter. */
 export function DurationField({ seconds, onCommit, format = 'improved', disabled, className, ariaLabel }: {
