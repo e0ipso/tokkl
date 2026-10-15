@@ -69,36 +69,55 @@
 
 /* Chart */
 .report-chart-card { margin-bottom: 16px; }
-.series-chart { transition: opacity 0.15s; }
+/* SeriesChart.tsx reads the geometry properties once when the chart mounts. Each takes a
+   unitless or px number; a missing or invalid value falls back to the same default in the
+   component. --chart-other-wash is the tint behind the non-billable stripes and should move to
+   the token block in styles.css. */
+.series-chart {
+  --chart-height: 220px;
+  --chart-margin-top: 12px;
+  --chart-margin-right: 8px;
+  --chart-margin-bottom: 28px;
+  --chart-margin-left: 48px;
+  --chart-max-bar: 24px;
+  --chart-gap: 2px;
+  --chart-radius: 4px;
+  --chart-other-wash: color-mix(in srgb, var(--chart-other) 30%, var(--surface));
+  transition: opacity 0.15s;
+}
 .series-chart.is-dimmed { opacity: 0.55; }
-.chart-legend { display: flex; gap: 16px; font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
+.chart-defs { position: absolute; }
+.chart-legend {
+  display: flex; gap: var(--space-4); font-size: var(--text-sm); color: var(--muted); margin-bottom: var(--space-2);
+}
 .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.chart-frame { position: relative; width: 100%; min-height: 220px; }
+.chart-frame { position: relative; width: 100%; min-height: var(--chart-height); }
 .chart-frame svg { display: block; overflow: visible; }
-.chart-frame svg:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.chart-frame svg:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+/* Billable is solid; non-billable takes the stripe pattern through its fill attribute. */
 .mark-billable { fill: var(--chart-billable); }
-.mark-other { fill: var(--chart-other); }
-.chart-grid { stroke: var(--border); stroke-width: 1; shape-rendering: crispEdges; }
-.chart-baseline { stroke: var(--muted); stroke-opacity: 0.5; stroke-width: 1; shape-rendering: crispEdges; }
-.chart-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-stripes-wash { fill: var(--chart-other-wash); }
+.chart-stripes-line { stroke: var(--chart-other); stroke-width: 3px; }
+.chart-grid { stroke: var(--surface-2); stroke-width: 1; shape-rendering: crispEdges; }
+.chart-baseline { stroke: var(--border); stroke-width: 1; shape-rendering: crispEdges; }
+.chart-tick { fill: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .chart-hit { fill: transparent; }
 .chart-band { fill: var(--surface-2); }
 .chart-tooltip {
   position: absolute; pointer-events: none; z-index: 2;
-  display: flex; flex-direction: column; gap: 2px; min-width: 170px; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 170px; padding: var(--space-2) var(--space-3);
   background: var(--chart-tooltip-bg); color: var(--chart-tooltip-text);
-  border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); font-size: 0.85rem;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow); font-size: var(--text-sm);
 }
-.chart-tooltip strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
-.chart-tooltip-label { color: var(--muted); margin-bottom: 4px; }
+.chart-tooltip strong { font-size: var(--text-base); font-variant-numeric: tabular-nums; }
+.chart-tooltip-label { color: var(--muted); margin-bottom: var(--space-1); }
 .chart-tooltip-row { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .chart-tooltip-row b { margin-left: auto; color: var(--chart-tooltip-text); font-weight: 600; font-variant-numeric: tabular-nums; }
-.chart-tooltip .key { display: inline-block; width: 10px; height: 2px; border-radius: 1px; }
-.chart-tooltip .key-billable { background: var(--chart-billable); }
-.chart-tooltip .key-other { background: var(--chart-other); }
-.chart-data { margin-top: 10px; font-size: 0.9rem; }
+.chart-tooltip .key { flex-shrink: 0; }
+.chart-data { margin-top: var(--space-3); font-size: var(--text-md); }
 .chart-data summary { cursor: pointer; color: var(--muted); }
-.chart-data .table-wrap { margin-top: 8px; max-height: 320px; overflow: auto; }
+.chart-data summary:hover { color: var(--text); }
+.chart-data .table-wrap { margin-top: var(--space-2); max-height: 320px; overflow: auto; }
 
 /* Breakdown */
 .breakdown-toolbar { gap: 12px; }

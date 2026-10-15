@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Report } from '../../api/types.ts';
 import { parseDateKey } from '../../../../shared/time.ts';
 import { duration, shortDate, weekdayName, type Settings } from '../../lib/settings.ts';
@@ -6,11 +6,19 @@ import { duration, shortDate, weekdayName, type Settings } from '../../lib/setti
 type Point = Report['series'][number];
 type Resolution = Report['resolution'];
 
-const HEIGHT = 220;
-const MARGIN = { top: 12, right: 8, bottom: 28, left: 48 } as const;
-const MAX_BAR = 24;
-const GAP = 2;
-const RADIUS = 4;
+type Margin = { top: number; right: number; bottom: number; left: number };
+
+/** Chart size in pixels. reports.css sets each value as a custom property on .series-chart. */
+type Geometry = { height: number; margin: Margin; maxBar: number; gap: number; radius: number };
+
+/** Used for any property that is missing or not a plain pixel number. */
+const DEFAULT_GEOMETRY: Geometry = {
+  height: 220,
+  margin: { top: 12, right: 8, bottom: 28, left: 48 },
+  maxBar: 24,
+  gap: 2,
+  radius: 4,
+};
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const hoursFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
@@ -28,6 +36,37 @@ function useWidth(ref: React.RefObject<HTMLElement | null>): number {
     return () => observer.disconnect();
   }, [ref]);
   return width;
+}
+
+/** Reads a length such as `24px` or `24`. Other units, and anything else, give the fallback. */
+function readPixels(style: CSSStyleDeclaration, property: string, fallback: number): number {
+  const value = style.getPropertyValue(property).trim();
+  return /^(\d+(\.\d+)?|\.\d+)(px)?$/.test(value) ? Number.parseFloat(value) : fallback;
+}
+
+function readGeometry(style: CSSStyleDeclaration): Geometry {
+  const d = DEFAULT_GEOMETRY;
+  return {
+    height: readPixels(style, '--chart-height', d.height),
+    margin: {
+      top: readPixels(style, '--chart-margin-top', d.margin.top),
+      right: readPixels(style, '--chart-margin-right', d.margin.right),
+      bottom: readPixels(style, '--chart-margin-bottom', d.margin.bottom),
+      left: readPixels(style, '--chart-margin-left', d.margin.left),
+    },
+    maxBar: readPixels(style, '--chart-max-bar', d.maxBar),
+    gap: readPixels(style, '--chart-gap', d.gap),
+    radius: readPixels(style, '--chart-radius', d.radius),
+  };
+}
+
+/** Reads the geometry from the element's custom properties once, before the first paint. */
+function useGeometry(ref: React.RefObject<HTMLElement | null>): Geometry {
+  const [geometry, setGeometry] = useState(DEFAULT_GEOMETRY);
+  useLayoutEffect(() => {
+    if (ref.current) setGeometry(readGeometry(getComputedStyle(ref.current)));
+  }, [ref]);
+  return geometry;
 }
 
 /** A clean tick step in hours that gives about four gridlines. */
@@ -62,8 +101,7 @@ function roundedTop(x: number, y: number, w: number, h: number, r: number): stri
 }
 
 /** Puts the tooltip beside the hovered column, on the side with more room, so it never hides it. */
-function tooltipPosition(bandLeft: number, band: number, width: number): React.CSSProperties {
-  const top = MARGIN.top;
+function tooltipPosition(bandLeft: number, band: number, width: number, top: number): React.CSSProperties {
   return bandLeft + band / 2 < width / 2
     ? { left: bandLeft + band + 4, top }
     : { right: width - bandLeft + 4, top };
@@ -72,8 +110,41 @@ function tooltipPosition(bandLeft: number, band: number, width: number): React.C
 const UNIT: Record<Resolution, string> = { day: 'day', week: 'week', month: 'month' };
 
 /**
- * Stacked columns of tracked hours per day, week or month. Billable time sits on the baseline and
- * the rest stacks above it, split by a surface-colored gap.
+ * Diagonal stripes for non-billable time, so the two series differ by texture as well as hue.
+ * reports.css paints the wash and the stripes.
+ */
+function StripePattern({ id }: { id: string }) {
+  return (
+    <pattern id={id} className="chart-stripes" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect className="chart-stripes-wash" width="6" height="6" />
+      <line className="chart-stripes-line" x1="1.5" y1="0" x2="1.5" y2="6" />
+    </pattern>
+  );
+}
+
+/** A legend or tooltip key: solid for billable, striped for non-billable. */
+function Swatch({ series, patternId, size, className }: {
+  series: 'billable' | 'other';
+  patternId: string;
+  size: number;
+  className?: string;
+}) {
+  return (
+    <svg className={className} width={size} height={size} aria-hidden="true" focusable="false">
+      <rect
+        width={size}
+        height={size}
+        rx="2"
+        className={`mark-${series}`}
+        fill={series === 'other' ? `url(#${patternId})` : undefined}
+      />
+    </svg>
+  );
+}
+
+/**
+ * Stacked columns of tracked hours per day, week or month. Billable time sits on the baseline as a
+ * solid column and the rest stacks above it in stripes, split by a surface-colored gap.
  */
 export function SeriesChart({ series, resolution, settings, dimmed }: {
   series: Report['series'];
@@ -81,20 +152,25 @@ export function SeriesChart({ series, resolution, settings, dimmed }: {
   settings: Pick<Settings, 'durationFormat'>;
   dimmed: boolean;
 }) {
+  const root = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const width = useWidth(container);
+  const { height, margin, maxBar, gap: segmentGap, radius } = useGeometry(root);
   const [active, setActive] = useState<number | null>(null);
+  const id = useId();
+  const chartPattern = `${id}-stripes`;
+  const keyPattern = `${id}-key-stripes`;
 
   const count = series.length;
-  const plotWidth = Math.max(0, width - MARGIN.left - MARGIN.right);
-  const plotHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
+  const plotWidth = Math.max(0, width - margin.left - margin.right);
+  const plotHeight = height - margin.top - margin.bottom;
   const maxHours = Math.max(...series.map((p) => p.seconds / 3600), 0);
   const step = niceStep(maxHours || 1);
   const top = Math.max(step, Math.ceil(maxHours / step) * step);
   const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
-  const y = (hours: number) => MARGIN.top + plotHeight - (hours / top) * plotHeight;
+  const y = (hours: number) => margin.top + plotHeight - (hours / top) * plotHeight;
   const band = count ? plotWidth / count : 0;
-  const barWidth = Math.max(1, Math.min(MAX_BAR, band * 0.7));
+  const barWidth = Math.max(1, Math.min(maxBar, band * 0.7));
   const labelEvery = Math.max(1, Math.ceil((count * 64) / Math.max(plotWidth, 1)));
   const activePoint = active !== null ? series[active] : undefined;
 
@@ -114,16 +190,19 @@ export function SeriesChart({ series, resolution, settings, dimmed }: {
     + `${duration(total, settings)} in total. Use the arrow keys to read each ${UNIT[resolution]}.`;
 
   return (
-    <div className={`series-chart${dimmed ? ' is-dimmed' : ''}`}>
-      <div className="chart-legend" aria-hidden="true">
-        <span><svg width="12" height="12"><rect width="12" height="12" rx="2" className="mark-billable" /></svg>Billable</span>
-        <span><svg width="12" height="12"><rect width="12" height="12" rx="2" className="mark-other" /></svg>Non-billable</span>
+    <div ref={root} className={`series-chart${dimmed ? ' is-dimmed' : ''}`}>
+      <svg className="chart-defs" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs><StripePattern id={keyPattern} /></defs>
+      </svg>
+      <div className="chart-legend">
+        <span><Swatch series="billable" patternId={keyPattern} size={12} />Billable</span>
+        <span><Swatch series="other" patternId={keyPattern} size={12} />Non-billable</span>
       </div>
       <div ref={container} className="chart-frame">
         {width > 0 ? (
           <svg
             width={width}
-            height={HEIGHT}
+            height={height}
             role="img"
             aria-label={description}
             tabIndex={0}
@@ -133,43 +212,44 @@ export function SeriesChart({ series, resolution, settings, dimmed }: {
             onPointerLeave={() => setActive(null)}
           >
             <title>{description}</title>
+            <defs><StripePattern id={chartPattern} /></defs>
             {ticks.map((tick) => (
               <g key={tick}>
-                <line className="chart-grid" x1={MARGIN.left} x2={width - MARGIN.right} y1={y(tick)} y2={y(tick)} />
-                <text className="chart-tick" x={MARGIN.left - 8} y={y(tick)} dy="0.32em" textAnchor="end">
+                <line className="chart-grid" x1={margin.left} x2={width - margin.right} y1={y(tick)} y2={y(tick)} />
+                <text className="chart-tick" x={margin.left - 8} y={y(tick)} dy="0.32em" textAnchor="end">
                   {hoursFormat.format(tick)} h
                 </text>
               </g>
             ))}
             {series.map((point, index) => {
-              const x = MARGIN.left + index * band + (band - barWidth) / 2;
+              const x = margin.left + index * band + (band - barWidth) / 2;
               const totalY = y(point.seconds / 3600);
               const billableY = y(point.billable_seconds / 3600);
               const base = y(0);
               const billableHeight = base - billableY;
               const otherSeconds = point.seconds - point.billable_seconds;
-              const gap = billableHeight > 0 && otherSeconds > 0 ? GAP : 0;
+              const gap = billableHeight > 0 && otherSeconds > 0 ? segmentGap : 0;
               const otherHeight = Math.max(0, billableY - totalY - gap);
               return (
                 <g key={point.start} className={active === index ? 'is-active' : undefined}>
                   {active === index ? (
-                    <rect className="chart-band" x={MARGIN.left + index * band} y={MARGIN.top} width={band} height={plotHeight} />
+                    <rect className="chart-band" x={margin.left + index * band} y={margin.top} width={band} height={plotHeight} />
                   ) : null}
                   {billableHeight > 0 ? (
-                    <path className="mark-billable" d={roundedTop(x, billableY, barWidth, billableHeight, otherHeight > 0 ? 0 : RADIUS)} />
+                    <path className="mark-billable" d={roundedTop(x, billableY, barWidth, billableHeight, otherHeight > 0 ? 0 : radius)} />
                   ) : null}
                   {otherHeight > 0 ? (
-                    <path className="mark-other" d={roundedTop(x, totalY, barWidth, otherHeight, RADIUS)} />
+                    <path className="mark-other" fill={`url(#${chartPattern})`} d={roundedTop(x, totalY, barWidth, otherHeight, radius)} />
                   ) : null}
                   {index % labelEvery === 0 ? (
-                    <text className="chart-tick" x={MARGIN.left + index * band + band / 2} y={HEIGHT - 8} textAnchor="middle">
+                    <text className="chart-tick" x={margin.left + index * band + band / 2} y={height - 8} textAnchor="middle">
                       {axisLabel(point, resolution, count, index)}
                     </text>
                   ) : null}
                   <rect
                     className="chart-hit"
-                    x={MARGIN.left + index * band}
-                    y={MARGIN.top}
+                    x={margin.left + index * band}
+                    y={margin.top}
                     width={band}
                     height={plotHeight}
                     onPointerEnter={() => setActive(index)}
@@ -177,22 +257,22 @@ export function SeriesChart({ series, resolution, settings, dimmed }: {
                 </g>
               );
             })}
-            <line className="chart-baseline" x1={MARGIN.left} x2={width - MARGIN.right} y1={y(0)} y2={y(0)} />
+            <line className="chart-baseline" x1={margin.left} x2={width - margin.right} y1={y(0)} y2={y(0)} />
           </svg>
         ) : null}
         {activePoint && active !== null ? (
           <div
             className="chart-tooltip"
             role="status"
-            style={tooltipPosition(MARGIN.left + active * band, band, width)}
+            style={tooltipPosition(margin.left + active * band, band, width, margin.top)}
           >
             <strong>{duration(activePoint.seconds, settings)}</strong>
             <span className="chart-tooltip-label">{fullLabel(activePoint, resolution)}</span>
             <span className="chart-tooltip-row">
-              <i className="key key-billable" />Billable <b>{duration(activePoint.billable_seconds, settings)}</b>
+              <Swatch className="key" series="billable" patternId={keyPattern} size={10} />Billable <b>{duration(activePoint.billable_seconds, settings)}</b>
             </span>
             <span className="chart-tooltip-row">
-              <i className="key key-other" />Non-billable <b>{duration(activePoint.seconds - activePoint.billable_seconds, settings)}</b>
+              <Swatch className="key" series="other" patternId={keyPattern} size={10} />Non-billable <b>{duration(activePoint.seconds - activePoint.billable_seconds, settings)}</b>
             </span>
           </div>
         ) : null}
