@@ -1,0 +1,124 @@
+name: Pull Request Validation
+
+# pull_request (not pull_request_target): the jobs run with the fork's
+# read-only token and never see repository secrets.
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  commitlint:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # commitlint walks base..head, so both ends must be in the clone.
+          fetch-depth: 0
+          # Nothing here pushes; keep the token out of .git/config so no
+          # dependency install or lint step can reach it.
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint the PR's commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npx --no -- commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+
+      # A squash merge uses the PR title as the commit subject. Title and body
+      # come in through env, never ${{ }} inside the script, so their text
+      # cannot run as shell.
+      - name: Lint the PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | npx --no -- commitlint --verbose
+
+      # The body can become the squash commit's body. It is free text, so only
+      # the AI attribution patterns from commitlint.config.js apply to it.
+      - name: Check the PR body for AI attribution
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # shellcheck disable=SC2016 # the quoted script is JavaScript
+          node --input-type=module -e '
+            const { findAiAttribution } = await import("./commitlint.config.js");
+            const match = findAiAttribution(process.env.PR_BODY ?? "");
+            if (match) {
+              console.error(`The PR description contains forbidden AI-generated content: "${match}"`);
+              process.exit(1);
+            }
+          '
+
+  test:
+    name: Typecheck, tests and e2e
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      # Lifecycle scripts are skipped. On Linux the only one in the tree is
+      # the root `prepare` (husky), which CI does not need.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # The visual baselines are tied to the headless shell this Playwright
+      # version installs, so install exactly that, plus its system libraries.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps --only-shell chromium
+
+      # The body font is system-ui, and the baselines were drawn with Noto
+      # Sans. Without it, a bare Ubuntu 24.04 picks WenQuanYi Zen Hei and all
+      # 20 baselines fail.
+      - name: Install Noto fonts
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-core
+
+      # Builds the web app, then runs the browser tests against it.
+      - name: E2E
+        run: npm run test:e2e
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build
+        run: docker build -t tokkl:ci .
+
+      - name: Smoke test
+        run: scripts/docker-smoke.sh tokkl:ci

@@ -1,0 +1,42 @@
+version: 2
+updates:
+  # The prefixes are commitlint types. build and ci cut no release.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      # Ignore major version updates for stable dependencies
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Bumps the node:24 base image tag and digest in the Dockerfile.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    ignore:
+      # Node majors are a deliberate upgrade, not a weekly bump.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
