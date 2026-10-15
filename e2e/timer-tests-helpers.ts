@@ -1,6 +1,6 @@
 import { expect, type APIResponse, type Page } from '@playwright/test';
 
-// Cookie-authenticated writes must carry this header (server/src/auth/middleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Timetrack-CSRF': '1' };
 
 export interface EntryView {

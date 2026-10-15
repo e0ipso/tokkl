@@ -33,7 +33,7 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    command: 'node server/src/index.ts',
+    command: 'node packages/api/src/index.ts',
     url: `http://127.0.0.1:${port}/healthz`,
     reuseExistingServer: false,
     env: {

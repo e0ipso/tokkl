@@ -5,7 +5,7 @@ export const EMAIL = 'e2e@example.com';
 export const PASSWORD = 'e2e password';
 export const SETUP_CODE = 'E2E-SETUP-CODE';
 
-// Cookie-authenticated writes must carry this header (server/src/auth/middleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Timetrack-CSRF': '1' };
 
 // Preferences that scenarios change, set back to the defaults a new account gets.

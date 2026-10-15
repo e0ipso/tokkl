@@ -174,13 +174,13 @@ class Server {
     this.dataDir = dataDir;
   }
 
-  /** Starts node server/src/index.ts on a fresh temp directory. Inherited TIMETRACK_* settings are dropped. */
+  /** Starts node packages/api/src/index.ts on a fresh temp directory. Inherited TIMETRACK_* settings are dropped. */
   static async start(): Promise<Server> {
     const dataDir = mkdtempSync(join(tmpdir(), 'timetrack-bench-'));
     const env: NodeJS.ProcessEnv = {};
     for (const [key, value] of Object.entries(process.env)) if (!key.startsWith('TIMETRACK_')) env[key] = value;
     Object.assign(env, { PORT: String(port), HOST: '127.0.0.1', TIMETRACK_DATA_DIR: dataDir, TIMETRACK_SETUP_CODE: SETUP_CODE });
-    const child = spawn(process.execPath, ['server/src/index.ts'], { env, stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(process.execPath, ['packages/api/src/index.ts'], { env, stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     child.stderr!.on('data', (chunk) => { stderr += chunk; });
     const server = new Server(`http://127.0.0.1:${port}`, child, dataDir);

@@ -46,7 +46,7 @@ export default defineConfig({
     launchOptions: process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
   },
   webServer: {
-    command: `node --import "${frozenClockImport(NOW)}" server/src/index.ts`,
+    command: `node --import "${frozenClockImport(NOW)}" packages/api/src/index.ts`,
     cwd: '..',
     url: `http://127.0.0.1:${port}/healthz`,
     reuseExistingServer: false,

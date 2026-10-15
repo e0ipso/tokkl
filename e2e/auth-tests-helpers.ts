@@ -60,7 +60,7 @@ async function startServer(options: ServerOptions): Promise<DisposableServer> {
   const baseURL = `http://127.0.0.1:${port}`;
   const dataDir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'timetrack-e2e-auth-'));
   const args = options.clockShiftMs ? ['--import', clockShiftImport(options.clockShiftMs)] : [];
-  const child = spawn(process.execPath, [...args, 'server/src/index.ts'], {
+  const child = spawn(process.execPath, [...args, 'packages/api/src/index.ts'], {
     cwd: ROOT,
     env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', TIMETRACK_DATA_DIR: dataDir, TIMETRACK_SETUP_CODE: SETUP_CODE },
     stdio: ['ignore', 'pipe', 'pipe'],

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD, expect, test as base } from './fixtures.ts';
 
-// Cookie-authenticated writes must carry this header (server/src/auth/middleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Timetrack-CSRF': '1' };
 
 /** Account and workspace settings the report specs change. The shared reset fixture leaves them alone. */
