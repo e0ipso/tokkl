@@ -93,6 +93,10 @@
   --backdrop: light-dark(rgb(28 26 43 / 0.45), rgb(3 5 18 / 0.6));
   /* What a project colour is mixed with for its dot and border; see the table at .project-dot. */
   --project-mix: light-dark(#000000, #ffffff);
+  /* The check on a chosen colour swatch, the same in both themes. ColorField.tsx picks the one with
+     more contrast against the swatch; the worst case is recorded in manage.css. */
+  --swatch-check-light: #ffffff;
+  --swatch-check-dark: #0b1026;
 
   /* State: running and selected have their own colours instead of borrowing danger and accent. */
   --state-running: var(--accent-pink);

@@ -37,16 +37,17 @@
 .estimate-label.is-over { color: var(--danger); }
 
 /* Color picker */
-/* The check on the chosen swatch is --on-primary over the raw palette hex (other, needs 3:1;
-   WCAG 2 ratio, rounded down). It passes on most colours but not all of them:
-   light (#ffffff): #c7af14 2.19, #06a893 2.98; dark (#0b1026): #525266 2.47, #990099 2.52,
-   #566614 2.96. The --text border on .selected also marks the chosen swatch.
+/* The check on the chosen swatch is --swatch-check-light (#ffffff) or --swatch-check-dark
+   (#0b1026), whichever contrasts more with the swatch's hex; ColorField.tsx sets --swatch-check per
+   swatch. The swatch is the raw hex in both themes, so the check is too. Worst case over the 14
+   palette colours (other, needs 3:1; WCAG 2 ratio, rounded down): 4.43, the dark check on #9e5bd9.
+   The --text border on .selected also marks the chosen swatch.
    The Custom radio is a pill on the modal surface: its check and the --text border show when it is
    chosen. The color input after the group shows the current color. */
 .color-field, .color-options { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .color-swatch {
   width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer;
-  display: inline-grid; place-items: center; color: var(--on-primary); padding: 0;
+  display: inline-grid; place-items: center; color: var(--swatch-check); padding: 0;
 }
 .color-swatch.selected { border-color: var(--text); }
 .color-custom {
