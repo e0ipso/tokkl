@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:14e6429dcc4224e6303506a6d82890f17e87cf38e66a8f206eefc538d5701301'
-node_count: 17
+nodes_hash: 'sha256:3b59196c349d55b2708ae9a629e7f6464f93e280e0c22e78591c613856610e89'
+node_count: 22
 ---
 # kenkeep Graph
 
-Total nodes: 17
+Total nodes: 22
 
 ## map-app-report-endpoints
 
@@ -21,6 +21,22 @@ Total nodes: 17
 - **path:** map-history-scale-bench.md
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
+
+## map-readme-screenshots-script
+
+- **kind:** map
+- **title:** README screenshots: npm run screenshots
+- **path:** map-readme-screenshots-script.md
+- **tags:** tooling, docs, screenshots, playwright
+- **relates_to:** practice-e2e-test-workflow, map-test-and-static-analysis-layout
+
+## map-shared-list-controls-in-manage-ui
+
+- **kind:** map
+- **title:** Shared list controls live in web/src/pages/manage/ui.tsx
+- **path:** map-shared-list-controls-in-manage-ui.md
+- **tags:** web, components, css, reuse
+- **relates_to:** practice-phone-layout-css-gotchas
 
 ## map-test-and-static-analysis-layout
 
@@ -43,6 +59,22 @@ Total nodes: 17
 - **title:** Clipboard copy needs a fallback on plain HTTP
 - **path:** practice-clipboard-copy-needs-http-fallback.md
 - **tags:** web, clipboard, self-hosting
+
+## practice-contrast-tables-and-project-colours
+
+- **kind:** practice
+- **title:** Contrast tables in styles.css; project colours never paint text
+- **path:** practice-contrast-tables-and-project-colours.md
+- **tags:** web, css, accessibility, contrast, projects
+- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme
+
+## practice-display-font-and-reduced-motion
+
+- **kind:** practice
+- **title:** Display font is the bundled Anybody; one reduced-motion block ends styles.css
+- **path:** practice-display-font-and-reduced-motion.md
+- **tags:** web, css, fonts, motion, accessibility
+- **relates_to:** practice-contrast-tables-and-project-colours
 
 ## practice-e2e-test-workflow
 
@@ -101,6 +133,14 @@ Total nodes: 17
 - **title:** Preferences: known keys validated, unknown keys stored verbatim
 - **path:** practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
+
+## practice-theme-tokens-data-theme-and-cached-theme
+
+- **kind:** practice
+- **title:** Theme: light-dark() tokens, data-theme and the cached theme
+- **path:** practice-theme-tokens-data-theme-and-cached-theme.md
+- **tags:** web, css, theme, dark-mode, e2e
+- **relates_to:** practice-contrast-tables-and-project-colours, practice-e2e-test-workflow
 
 ## practice-twelve-hour-time-entry-parsing-rules
 
