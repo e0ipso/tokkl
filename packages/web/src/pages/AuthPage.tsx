@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
+import { Brand } from '../components/Brand.tsx';
 import { FieldError } from '../components/FieldError.tsx';
+import { Icon } from '../components/Icon.tsx';
 
 export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
   const qc = useQueryClient();
@@ -35,11 +37,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
 
   return (
     <div className="auth-page">
+      <Brand size="lg" />
       <form className="auth-card" onSubmit={submit}>
-        <div className="brand">
-          <img src="/icon.svg" alt="" width={36} height={36} />
-          <span>Timetrack</span>
-        </div>
         {mode === 'setup' ? (
           <>
             <h1>Create your account</h1>
@@ -71,7 +70,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
             autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
           />
         </label>
-        <FieldError message={error} />
+        {error ? (
+          <div className="auth-error">
+            <Icon name="alert" className="error-icon" />
+            <FieldError message={error} />
+          </div>
+        ) : null}
         <button type="submit" className="button button-primary button-block" disabled={busy}>
           {mode === 'setup' ? 'Create account' : 'Log in'}
         </button>

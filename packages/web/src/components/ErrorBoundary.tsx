@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { LoadError } from './PageState.tsx';
 
 /** Keeps a crash in one page from blanking the whole app, and offers a way back. */
 export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: Error | null }> {
@@ -15,10 +16,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="page">
-        <h1>Something broke on this page</h1>
-        <p className="muted">{this.state.error.message}</p>
-        <button type="button" className="button button-primary" onClick={() => this.setState({ error: null })}>Try again</button>
+      <div className="page error-page">
+        <LoadError
+          title="Something broke on this page"
+          message={this.state.error.message}
+          onRetry={() => this.setState({ error: null })}
+        />
       </div>
     );
   }

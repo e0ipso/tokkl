@@ -28,6 +28,7 @@ const PATHS: Record<string, string> = {
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   split: 'M12 3v18M5 8l-3 4 3 4M19 8l3 4-3 4',
   edit: 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4',
+  alert: 'M12 3l10 18H2zM12 10v4M12 17.5h.01',
 };
 
 export type IconName = keyof typeof PATHS;

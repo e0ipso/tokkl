@@ -3,7 +3,7 @@
  * strip and the auth page all render this one component, so the drawn wordmark (TT-0114) and the
  * rename (TT-0113) change it in one place.
  */
-const ICON_SIZE = { sm: 24, md: 30 } as const;
+const ICON_SIZE = { sm: 24, md: 30, lg: 48 } as const;
 
 export function Brand({ size = 'md' }: { size?: keyof typeof ICON_SIZE }) {
   const icon = ICON_SIZE[size];

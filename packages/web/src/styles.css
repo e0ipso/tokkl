@@ -58,6 +58,10 @@
    muted on texture-swell                text    6.14 AA     6.18 AA
    text on texture-stripe                text   11.88 AA     8.95 AA
    muted on texture-stripe               text    5.28 AA     4.69 AA
+   text on scene-glow                    text    9.15 AA    10.20 AA
+   text on scene-swell                   text   10.00 AA     9.61 AA
+   text on scene-stripe                  text   11.31 AA    13.82 AA
+   text on scene overlap (worst case)    text    8.28 AA     8.32 AA
    The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
    separation) on the surface colour in each theme.
    A non-billable chart segment is 3px chart-other stripes over chart-other-wash. The stripes draw
@@ -89,7 +93,13 @@
    token, and the texture rows above give the worst case for the nav labels (muted) and the
    wordmark (text). The sidebar's edge line is border on bg on the page side. The active nav link
    is a primary block with on-primary text and icon, and its running dot turns on-primary too:
-   the pink dot on primary is only 1.33:1. */
+   the pink dot on primary is only 1.33:1.
+   The auth page and the splash use the scene tokens over bg, full-bleed. Only the wordmark (text)
+   sits on that texture; the form, the loading label and the errors sit on surface cards, so the
+   surface rows apply to them. Where the scene gradients overlap, every channel stays between the
+   lowest (light) or highest (dark) channel of the three scene tokens, and text against that
+   extreme is the "overlap (worst case)" row. Error messages carry a warning icon in danger next
+   to the danger text (danger on surface, bg), so the colour is not the only sign. */
 :root {
   color-scheme: light dark;
 
@@ -140,6 +150,11 @@
   --texture-glow: light-dark(#f3dfd1, #352a38);
   --texture-swell: light-dark(#e0eae3, #17324b);
   --texture-stripe: light-dark(#c7dcd7, #1a475d);
+  /* Texture behind the auth page and the splash: primary at 28% (glow) and 14% (stripe) and
+     secondary at 24% (swell) over bg, mixed in srgb. Recompute them if a colour changes. */
+  --scene-glow: light-dark(#dfb698, #4f332e);
+  --scene-swell: light-dark(#b9cbbb, #134354);
+  --scene-stripe: light-dark(#e9ceb3, #2d212a);
   --chart-tooltip-text: var(--text);
 
   /* Type. The root size is relative, so the browser's font size setting scales the whole app. */
@@ -249,7 +264,6 @@ code, kbd {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.splash { display: grid; place-items: center; min-height: 100vh; color: var(--muted); }
 /* Empty states (components/EmptyState.tsx), on bg, surface (popovers, modals) or surface-2. The
    headline is text and the body muted (text rows above); the icon is secondary and the wave
    primary, decoration covered by the secondary and primary rows. Compact ones are all muted. */
@@ -276,6 +290,9 @@ code, kbd {
 .page-state p { margin: 0; }
 .page-loading { flex-direction: row; gap: var(--space-2); }
 .page-error p { color: var(--danger); }
+.page-error-message { display: inline-flex; align-items: flex-start; gap: 6px; text-align: left; }
+.error-icon { flex: none; color: var(--danger); margin-top: 1px; }
+.page-error-title { margin: 0; color: var(--text); }
 .page-error .button { color: var(--text); }
 .page-state.is-compact { padding: var(--space-2) 0; align-items: flex-start; justify-content: flex-start; text-align: left; }
 .page-loading.is-compact { align-items: center; }
@@ -290,7 +307,7 @@ code, kbd {
    class in markup. Its own rule further down sets only what differs, such as a larger radius. */
 /* Surface: a panel on --surface with the standard border and radius. */
 .surface, .timer-bar, .suggestions, .favorite, .day-group, .bulk-bar, .popover, .modal, .auth-card,
-.calendar-head, .calendar-body, .card, .table-wrap, .search-box, .select-button {
+.calendar-head, .calendar-body, .card, .table-wrap, .search-box, .select-button, .splash .page-state, .error-page .page-state {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
 }
 /* Row button: a borderless, full-width row in a list or menu, --surface-2 on hover. */
@@ -667,11 +684,26 @@ table.table { width: 100%; border-collapse: collapse; }
 .toast-icon { flex-shrink: 0; }
 @media (max-width: 760px) { .toasts { bottom: 76px; left: 10px; right: 10px; } }
 
-/* Auth */
-.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
-.auth-card { width: min(400px, 100%); display: flex; flex-direction: column; gap: 14px; border-radius: var(--radius-lg); padding: 28px; box-shadow: var(--shadow); }
-.auth-card .brand { padding: 0; }
-.auth-card h1 { margin: 0; }
+/* Auth page and splash: the large wordmark over a full-bleed sunset texture drawn with gradients,
+   and the form or the page state in a surface card under it. See the scene note in the table. */
+.auth-page, .splash {
+  min-height: 100vh; display: grid; place-items: center; align-content: center; gap: var(--space-6);
+  padding: var(--space-6) var(--space-4);
+  background:
+    radial-gradient(ellipse 70% 45% at 0% 0%, var(--scene-glow), transparent),
+    radial-gradient(ellipse 70% 45% at 100% 100%, var(--scene-swell), transparent),
+    repeating-linear-gradient(-45deg, transparent 0 22px, var(--scene-stripe) 22px 26px),
+    var(--bg);
+}
+.brand-lg { gap: 14px; font-size: var(--text-3xl); }
+.auth-card { width: min(400px, 100%); min-width: 0; display: flex; flex-direction: column; gap: 14px; border-radius: var(--radius-lg); padding: 28px; box-shadow: var(--shadow); }
+.auth-card h1 { margin: 0; font-size: var(--text-2xl); }
+.auth-card p { margin: 0; }
+.auth-error { display: flex; align-items: flex-start; gap: 6px; }
+/* Full-page states: the splash's loading label or server error, and the error boundary. */
+.splash .page-state, .error-page .page-state { border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: var(--space-6); }
+.splash .page-state { min-width: 0; max-width: 100%; }
+.error-page .page-state { max-width: 560px; margin: var(--space-8) auto 0; }
 
 .shortcut-list { display: grid; gap: 8px; margin: 0; }
 .shortcut-list div { display: grid; grid-template-columns: 110px 1fr; align-items: center; }

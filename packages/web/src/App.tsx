@@ -227,7 +227,7 @@ export function App() {
   const me = useMe();
 
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
-    return <div className="splash"><Loading /></div>;
+    return <div className="splash"><Brand size="lg" /><Loading /></div>;
   }
   if (status.data?.setup_required) return <AuthPage mode="setup" />;
   if (me.error instanceof ApiError && me.error.status === 403) return <AuthPage mode="login" />;
@@ -236,7 +236,12 @@ export function App() {
       if (status.error) void status.refetch();
       void me.refetch();
     };
-    return <div className="splash"><LoadError message={`Can't reach the server: ${me.error.message}`} onRetry={retry} /></div>;
+    return (
+      <div className="splash">
+        <Brand size="lg" />
+        <LoadError message={`Can't reach the server: ${me.error.message}`} onRetry={retry} />
+      </div>
+    );
   }
   return <Shell />;
 }
