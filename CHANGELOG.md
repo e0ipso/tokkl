@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/e0ipso/tokkl/compare/v1.0.0...v1.0.1) (2026-10-15)
+
+### Bug Fixes
+
+* hide load more when no older entries exist ([f08006b](https://github.com/e0ipso/tokkl/commit/f08006b23b1db7efb6daee2e75d2135470282f94))
+
 ## 1.0.0 (2026-10-15)
 
 ### Features
