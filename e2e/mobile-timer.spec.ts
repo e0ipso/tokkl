@@ -76,3 +76,26 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   expect(started!.stop).not.toBeNull();
   await expectNoPageOverflow(page);
 });
+
+// TT-0076: the seven day columns share the phone width, so long names truncate inside them.
+test('the week calendar fits a phone screen with long block and favourite names', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  await login(page);
+  const api = await TimerApi.open(page);
+  const project = await api.createProject('Customer onboarding programme');
+  const description = 'Quarterly planning workshop with the whole team';
+  // Madrid, Wednesday 2026-06-17: 09:00-10:00 and 12:00-12:30 CEST.
+  await api.createEntry({ description, project_id: project, start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
+  await api.createEntry({ description, project_id: project, start: '2026-06-17T10:00:00Z', stop: '2026-06-17T10:30:00Z' });
+  await api.savePreferences({ favorites: [{ description, project_id: project, task_id: null, tags: [], billable: false }] });
+  await page.reload();
+
+  await expectFits(page.locator('.favorite').first());
+  await tap(page.getByRole('button', { name: 'Calendar' }));
+  await expect(page.locator('.calendar-column.today')).toBeVisible();
+  await expectNoPageOverflow(page);
+  await expectFits(page.locator('.calendar-day-head').last());
+  const blocks = page.locator('.calendar-column.today').getByRole('group', { name: `${description}, Customer onboarding programme` });
+  await expect(blocks).toHaveCount(2);
+  for (const block of await blocks.all()) await expectFits(block);
+});

@@ -1,7 +1,8 @@
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  EntityApi, expectSameDocument, markDocument, rowAction, timerPickerProjects, yesterday, type Entry,
+  EntityApi, entryRow, expectSameDocument, markDocument, rowAction, timerPickerProjects, yesterday, type Entry,
 } from './entity-tests-helpers.ts';
 
 /** The fields an entry must keep when its project goes away. */
@@ -144,4 +145,48 @@ test('deleting a project with its entries moves them to the trash and refreshes 
   await expect(page.getByRole('row').filter({ hasText: 'Dropped one' })).toBeVisible();
   await expect(page.getByRole('row').filter({ hasText: 'Dropped two' })).toBeVisible();
   await expect(page.getByRole('row').filter({ hasText: 'Survivor' })).toHaveCount(0);
+});
+
+/** The colour --text resolves to on this page. */
+function textToken(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const probe = document.createElement('div');
+    probe.style.color = 'var(--text)';
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+}
+
+/** The project's colour reaches the dot through --project-color; the name stays in --text. */
+async function expectColourOnDotOnly(name: Locator, dot: Locator, hex: string, text: string) {
+  await expect(name).toHaveCSS('color', text);
+  expect(await dot.evaluate((el) => getComputedStyle(el).getPropertyValue('--project-color').trim())).toBe(hex);
+  expect(await dot.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(text);
+}
+
+// TT-0069: no text is painted in a project colour; the colour only marks the dot.
+test('a project colour marks its dot while the entry row, picker and Projects table names stay in the text colour', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  const day = yesterday();
+  const project = await api.createProject({ name: 'Website' });
+  await api.createEntry({ description: 'Homepage copy', start: `${day}T10:00:00Z`, stop: `${day}T11:00:00Z`, project_id: project.id });
+  await page.reload();
+  const text = await textToken(page);
+
+  const label = entryRow(page, 'Homepage copy').locator('.project-label');
+  await expectColourOnDotOnly(label.locator('.project-label-name'), label.locator('.project-dot'), project.color, text);
+
+  await page.getByRole('region', { name: 'Timer' }).getByRole('button', { name: 'Project' }).click();
+  const picker = page.getByRole('dialog').filter({ has: page.getByPlaceholder('Find or create project…') });
+  const item = picker.locator('.picker-item', { hasText: 'Website' });
+  await expectColourOnDotOnly(item, item.locator('.project-dot'), project.color, text);
+  await page.keyboard.press('Escape');
+  await expect(picker).toBeHidden();
+
+  await page.getByRole('link', { name: 'Projects' }).click();
+  const name = page.locator('.manage-name-button', { hasText: 'Website' });
+  await expectColourOnDotOnly(name.locator('span:not(.project-dot)'), name.locator('.project-dot'), project.color, text);
 });

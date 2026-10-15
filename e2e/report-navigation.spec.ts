@@ -224,3 +224,22 @@ test('"Is not" chosen before any client or tag option stays negated and excludes
     await expect(totalTime(page)).toHaveText('1:00:00');
   }
 });
+
+// TT-0070: the reports description search is the shared SearchBox; typing still filters the
+// report through the URL, and clearing it brings every entry back.
+test('typing in the description search filters the report and the URL, and clearing it restores both', async ({ page, api }) => {
+  await api.entry({ description: 'Design review', start: '2025-12-29T10:00:00Z', stop: '2025-12-29T11:00:00Z' });
+  await api.entry({ description: 'Standup', start: '2025-12-30T10:00:00Z', stop: '2025-12-30T12:00:00Z' });
+  await login(page);
+  await page.goto('/reports?from=2025-12-29&to=2026-01-04');
+  await expect(totalTime(page)).toHaveText('3:00:00');
+
+  const search = page.getByRole('group', { name: 'Filters' }).getByLabel('Filter by description');
+  await search.fill('review');
+  await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('review');
+  await expect(totalTime(page)).toHaveText('1:00:00');
+
+  await search.fill('');
+  await expect.poll(() => new URL(page.url()).searchParams.has('q')).toBe(false);
+  await expect(totalTime(page)).toHaveText('3:00:00');
+});

@@ -64,7 +64,10 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   expect(metadataOf(continued)).toEqual(metadataOf(review));
   await expect(timer.getByLabel('Description')).toHaveValue('Design review');
 
-  await page.locator('.favorites').getByRole('button', { name: 'Standup' }).click();
+  // TT-0076: the chip shows the project after the description and is named by both.
+  const chip = page.locator('.favorites').getByRole('button', { name: 'Standup, Operations', exact: true });
+  await expect(chip.locator('.favorite-project')).toHaveText('Operations');
+  await chip.click();
   const favorite = await nextRunning(api, continued.id);
   expect(metadataOf(favorite)).toEqual(metadataOf(standup));
   await expect(timer.getByRole('button', { name: 'Billable' })).toHaveAttribute('aria-pressed', 'false');
@@ -94,7 +97,7 @@ test('a favorite pinned from an entry keeps its metadata after reload and starts
   await expect.poll(async () => (await api.preferences()).favorites).toHaveLength(1);
 
   await page.reload();
-  const pinned = page.locator('.favorites').getByRole('button', { name: 'Design review' });
+  const pinned = page.locator('.favorites').getByRole('button', { name: 'Design review, Design', exact: true });
   await expect(pinned).toBeVisible();
   const [saved] = (await api.preferences()).favorites as Metadata[];
   expect(metadataOf(saved!)).toEqual(metadataOf(review));

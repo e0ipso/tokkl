@@ -1,5 +1,7 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
+import { EntityApi } from './entity-tests-helpers.ts';
+import { openCalendar } from './history-calendar-tests-helpers.ts';
 
 test('calendar view shows entries and creates one by dragging', async ({ page }) => {
   await login(page);
@@ -75,3 +77,30 @@ for (const change of CLOCK_CHANGES) {
     }).toEqual(change.dropped);
   });
 }
+
+// TT-0076: every block is a group named "description, project, duration", and a block under 45
+// minutes shows the project after the description on its one line.
+test('calendar blocks are named by description, project and duration, and short blocks show the project', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  await login(page);
+  const api = await EntityApi.open(page);
+  const project = await api.createProject({ name: 'Website' });
+  // Madrid, Wednesday 2026-06-17: 09:00-10:00, 12:00-12:30 and 14:00-14:15 CEST.
+  await api.createEntry({ description: 'Homepage copy', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z', project_id: project.id });
+  await api.createEntry({ description: 'Quick call', start: '2026-06-17T10:00:00Z', stop: '2026-06-17T10:30:00Z', project_id: project.id });
+  await api.createEntry({ description: 'Inbox', start: '2026-06-17T12:00:00Z', stop: '2026-06-17T12:15:00Z' });
+  await page.reload();
+  await openCalendar(page);
+  const today = page.locator('.calendar-column.today');
+
+  const long = today.getByRole('group', { name: 'Homepage copy, Website, 1:00:00', exact: true });
+  await expect(long).toHaveAttribute('title', 'Homepage copy, Website, 1:00:00\n09:00 – 10:00');
+  await expect(long.locator('strong')).toHaveText('Homepage copy');
+  await expect(long).toContainText('Website · 1:00:00');
+
+  const short = today.getByRole('group', { name: 'Quick call, Website, 0:30:00', exact: true });
+  await expect(short.locator('.calendar-block-line')).toHaveText('Quick call · Website');
+
+  const plain = today.getByRole('group', { name: 'Inbox, 0:15:00', exact: true });
+  await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
+});
