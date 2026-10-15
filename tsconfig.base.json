@@ -1,10 +1,5 @@
 {
   "compilerOptions": {
-    "target": "es2024",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "lib": ["es2024"],
-    "types": ["node"],
     "strict": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
@@ -13,7 +8,5 @@
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true
-  },
-  "include": ["packages/**/*.ts", "bench/**/*.ts"],
-  "exclude": ["packages/web/**", "**/node_modules"]
+  }
 }
