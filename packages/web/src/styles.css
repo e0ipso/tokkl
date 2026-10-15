@@ -83,6 +83,9 @@
    danger, label and icon alike, and the favourite number disc is on-primary on primary. The timer
    bar's chips are outlined in border, primary or the project mix on surface (the border and
    primary rows, and the table at .project-dot); the idle clock's placeholder is muted on surface.
+   In the entry list the day band is text on surface-2. A row's tag pill is text on surface-2 with
+   a border outline, a set project is outlined in the project mix (the table at .project-dot), and
+   the group count is primary on surface, or on-primary on primary while the group is open.
    The selection bar on selected rows and picker items is primary on
    state-selected; a highlighted suggestion is state-selected too. The outline on the project picker
    option the arrow keys made active is primary on surface-2, or primary on state-selected when that
@@ -579,27 +582,44 @@ input.entry-duration:is(:hover, :focus) {
 .project-label-client::before { content: '• '; }
 .tag-chip { display: inline-block; font-size: var(--text-sm); padding: 1px 8px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); }
 
-/* Entry list */
-.entry-list { display: flex; flex-direction: column; gap: 14px; }
-.day-group { overflow: visible; }
-.day-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-.day-header h3 { flex: 1; }
+/* Entry list. Each day is a surface panel under a surface-2 band with the day and its total in
+   display type. Rows are data, so nothing textured sits behind them. */
+.entry-list { display: flex; flex-direction: column; gap: var(--space-5); }
+.day-group { overflow: visible; border-width: 2px; border-radius: var(--radius-lg); }
+.day-header {
+  display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4);
+  background: var(--surface-2); border-bottom: 2px solid var(--border);
+  border-radius: calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px) 0 0;
+}
+.day-header h3 { flex: 1; min-width: 0; font-size: var(--text-lg); font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
+.day-total { font-size: var(--text-xl); font-weight: 800; line-height: 1; }
 .day-select { display: inline-flex; }
 .entries { list-style: none; margin: 0; padding: 0; }
 .entries.nested { background: var(--surface-2); }
-.entries.nested .entry-line { padding-left: 38px; }
+.entries.nested .entry-line { padding-left: 40px; }
 .entry-row-wrap + .entry-row-wrap { border-top: 1px solid var(--border); }
 /* An expanded group: a line between the summary row and the entries it stands for. */
 .entry-row-wrap.grouped > .entries.nested { border-top: 1px solid var(--border); }
+/* The last row follows the panel's rounded corners, so a selected or nested row does not poke out. */
+.day-group > .entries > li:last-child > :last-child { border-radius: 0 0 calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px); }
 .entry-line {
-  display: grid; align-items: center; gap: 6px; padding: 6px 10px 6px 14px;
+  display: grid; align-items: center; gap: var(--space-2); min-height: 52px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   grid-template-columns: auto auto minmax(120px, 1fr) minmax(0, auto) auto auto auto auto auto auto;
 }
 .entry-line:not(:has(.count-badge)) { grid-template-columns: auto minmax(120px, 1fr) minmax(0, auto) auto auto auto auto auto auto; }
-.entry-description { padding: 6px; }
+/* Long descriptions, project names and tag lists shrink inside their track instead of widening the row. */
+.entry-line > * { min-width: 0; }
+.entry-description { padding: 6px; font-weight: 500; }
 .entry-project, .entry-tags, .entry-times {
   border: none; background: none; cursor: pointer; color: inherit; padding: 4px 6px; border-radius: var(--radius-sm);
   display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 260px;
+}
+/* A set project is a pill outlined in the project colour mix; see the table at .project-dot. It
+   hugs its text, and the 100% cap keeps a long name inside its grid area. */
+.entry-project.has-project {
+  justify-self: start; max-width: min(260px, 100%); padding: 2px var(--space-3) 2px var(--space-2); border-radius: var(--radius-pill);
+  border: 2px solid color-mix(in srgb, var(--project-color, var(--muted)) 60%, var(--project-mix));
 }
 .entry-project:hover, .entry-tags:hover, .entry-times:hover:not(:disabled) { background: var(--surface-2); }
 .entry-times:disabled { cursor: default; }
@@ -608,21 +628,27 @@ input.entry-duration:is(:hover, :focus) {
    faded to 0.6 it fell to 2.52:1 on surface-2. */
 .entry-line:hover .add-project, .entry-project:focus-visible .add-project { opacity: 1; }
 .entry-tags { color: var(--muted); flex-wrap: wrap; }
+/* Tags in a row: outlined pills in text colour, bolder than the plain chip used elsewhere. */
+.entry-tags .tag-chip { border: 1px solid var(--border); color: var(--text); font-weight: 600; padding: 0 var(--space-2); }
 .entry-times { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: var(--text-md); }
-.entry-duration { width: 84px; text-align: right; padding: 4px 6px; }
+.entry-duration { width: 84px; text-align: right; padding: 4px 6px; font-size: var(--text-base); font-weight: 700; }
 .entry-continue { opacity: 0; }
 .entry-line:hover .entry-continue, .entry-continue:focus-visible { opacity: 1; }
+/* The number of entries a grouped row stands for: a primary pill, filled while the group is open. */
 .count-badge {
-  min-width: 26px; height: 24px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2);
-  font-size: var(--text-sm); cursor: pointer; color: var(--muted);
+  min-width: 30px; height: 28px; padding: 0 var(--space-2); border-radius: var(--radius-pill);
+  border: 2px solid var(--primary); background: var(--surface); color: var(--primary); cursor: pointer;
+  font-family: var(--font-display); font-stretch: 85%; font-size: var(--text-base); font-weight: 900;
 }
+.count-badge[aria-expanded='true'] { background: var(--primary); color: var(--on-primary); }
 .load-more { display: flex; justify-content: center; padding: 18px; }
 /* TimerBar writes its own height to --timer-bar-height on <html>, so the bulk bar sticks flush
    under the timer bar however tall it wraps. */
 .bulk-bar {
-  position: sticky; top: var(--timer-bar-height, 0px); z-index: 9; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  border-color: var(--primary); padding: 8px 12px; box-shadow: var(--shadow);
+  position: sticky; top: var(--timer-bar-height, 0px); z-index: 9; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2);
+  border-width: 2px; border-color: var(--primary); border-radius: var(--radius-lg); padding: var(--space-2) var(--space-3); box-shadow: var(--shadow);
 }
+.bulk-bar > strong { font-family: var(--font-display); font-stretch: 85%; font-size: var(--text-lg); font-weight: 900; margin-right: var(--space-2); }
 
 @media (max-width: 760px) {
   .timer-bar { padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); }

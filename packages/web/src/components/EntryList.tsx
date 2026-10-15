@@ -10,7 +10,7 @@ import { EmptyState } from './EmptyState.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
-import { ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
+import { ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
 import { DurationField } from './TimeFields.tsx';
 import { useToast } from './Toast.tsx';
 
@@ -309,7 +309,13 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
         onBlur={commitDescription}
         onKeyDown={(event) => { if (event.key === 'Enter') (event.target as HTMLInputElement).blur(); }}
       />
-      <button ref={projectRef} type="button" className="entry-project" onClick={() => setPicker('project')}>
+      <button
+        ref={projectRef}
+        type="button"
+        className={`entry-project${entry.project_id ? ' has-project' : ''}`}
+        style={projectColorStyle(entry.project_id ? entry.project_color : null)}
+        onClick={() => setPicker('project')}
+      >
         {entry.project_id ? (
           <ProjectLabel projectId={entry.project_id} taskId={entry.task_id} fallback={{ name: entry.project_name, color: entry.project_color, client: entry.client_name, task: entry.task_name }} />
         ) : <span className="add-project"><Icon name="folder" size={14} /> Project</span>}
