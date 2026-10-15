@@ -1,4 +1,4 @@
-<h1><img src="docs/brand/tokkl-wordmark.svg" alt="Tokkl" width="320"></h1>
+<h1><img src="docs/brand/tokkl-wordmark.png" alt="Tokkl" width="320"></h1>
 
 A self-hosted, single-user time tracker modeled on Toggl Track. It runs on a server you own, keeps every entry in one SQLite file, and answers on a subset of the Toggl Track API v9 and Reports API v3. Scripts and libraries written for Toggl can switch to it by changing the base URL.
 
@@ -136,7 +136,7 @@ npm run typecheck  # tsc over the four packages, e2e (with the Playwright config
 npm run build      # builds the web app (packages/web) into dist/web
 npm run test:e2e   # builds the web app, then runs the Playwright browser tests
 npm run screenshots  # builds the web app, then rewrites docs/screenshots/*.png
-npm run icons      # renders packages/web/public/icon-192.png and icon-512.png from icon.svg
+npm run icons      # derives the served icons and wordmark images from docs/brand (needs ImageMagick 7)
 ```
 
 The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
@@ -188,11 +188,20 @@ It uses its own Playwright config, `scripts/screenshots.config.ts`, so `npm run 
 
 `CHROMIUM_PATH` works as for the e2e tests. `SCREENSHOTS_PORT` changes the server port (default 8096).
 
-### App icon
+### Brand artwork and icons
 
-`packages/web/public/icon.svg` is the source of the app icon. `npm run icons` renders `packages/web/public/icon-192.png` and `packages/web/public/icon-512.png` from it in Playwright's Chromium, so no other image tool is needed. Run it after changing the SVG and commit the PNGs with it. The same Chromium build writes identical files on every run. `CHROMIUM_PATH` works as for the e2e tests.
+The wordmark and the stopwatch icon are the owner's artwork. The full-size files live in `docs/brand/` and are not served: `tokkl-wordmark-v3.png`, `tokkl-logo-v4.png`, `tokkl-icon-v4-1024.png`, and the smaller sizes the owner supplied, `tokkl-icon-v4-512.png`, `tokkl-icon-v4-192.png` and `tokkl-favicon-v4-32.png`.
 
-The icon uses only colours from the dark theme tokens in `packages/web/src/styles.css`. Apart from the background, keep shapes inside the circle of radius 25.6 around the centre of the 64x64 viewBox, so a launcher that crops the icon to a circle or squircle does not cut them off.
+`npm run icons` (`scripts/icons.ts`) derives the files the app serves from them:
+
+- `packages/web/public/favicon-32.png` and `icon-192.png`, copied as supplied.
+- `packages/web/public/icon-512.png`, reduced to 256 colours.
+- `packages/web/public/apple-touch-icon.png`, 180x180 on the light theme's `--bg`, because iOS paints transparent corners black.
+- `packages/web/public/brand/icon-96.png` and `wordmark-260.png` / `wordmark-520.png` for `Brand.tsx`, and `docs/brand/tokkl-wordmark.png` for the header of this README.
+
+It uses ImageMagick 7 (`magick`), because the larger images only stay under 100 KB each as 256-colour PNGs, which Chromium cannot write. Run it after replacing a file in `docs/brand/` and commit the outputs with it. The same ImageMagick build writes identical files on every run.
+
+The manifest lists only the 192 and 512 PNGs. None is marked `maskable`, because the artwork does not fit the maskable safe zone.
 
 ### History-scale measurements
 

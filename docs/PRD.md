@@ -62,7 +62,7 @@ Where Toggl's own sources disagree, this document says so and picks a behavior. 
 This is the brief every restyle ticket is checked against.
 
 - **Palette roles.** Light theme: sand background, ink text, sunset orange primary, aqua secondary, hot pink and lime for states. Dark theme: deep navy background with a neon counterpart for each role. The design tokens ticket (TT-0067) picks the exact values.
-- **Typeface.** One display face for headings, the running clock and totals. The wordmark is drawn as SVG paths and uses no font. Body text, controls and tables use the system font stack.
+- **Typeface.** One display face for headings, the running clock and totals. The wordmark is the owner-supplied graffiti artwork, shipped as an image named "Tokkl", so it uses no font. Body text, controls and tables use the system font stack.
 - **Texture.** CSS gradients or inline SVG only, never raster images. Texture never sits behind data tables or inputs.
 - **Type effects.** Rotated or skewed type is decoration only. It never appears on controls, numbers or labels.
 - **Motion.** All motion sits behind `prefers-reduced-motion`. With reduced motion set, nothing animates.
@@ -185,7 +185,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: *
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | C1 | Responsive web app usable on a phone: bottom navigation, timer and list on small screens. | MUST | Done |
-| C2 | Installable PWA (manifest, icons). | SHOULD | Partial: the manifest ships the redrawn clock icon as an SVG plus 192 and 512 pixel PNGs; installing on a phone is untested. |
+| C2 | Installable PWA (manifest, icons). | SHOULD | Partial: the manifest ships the owner-supplied stopwatch icon as 192 and 512 pixel PNGs, with a 32 pixel PNG favicon and an opaque 180 pixel apple-touch-icon; installing on a phone is untested. |
 | C3 | Cross-device freshness: the running timer refreshes every 30 s and on window focus, entries every 60 s. | MUST | Done |
 | C4 | Offline outbox for timer start/stop/edit in the PWA, with an unsynced marker. Matters more here than for Toggl because a phone off the home network loses the server. | SHOULD | Planned |
 | C5 | Browser extension, desktop tray app. | WON'T (v1) | n/a |
@@ -324,7 +324,7 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 | Privacy | Zero outbound requests from server and UI. | Done (verify with the CSP and a network log) |
 | Portability | Any Linux host with Node 24 (amd64 or arm64). No native modules. | Tested on amd64 only |
 | Accessibility | Keyboard reachable controls, labeled inputs, visible focus, color never the only signal. | Partial: labels, focus rings, non-colour cues (hatched non-billable bars, check marks on colour swatches, a labelled running dot), reduced motion, inline field errors, loading and error states and keyboard navigation are covered by Playwright specs; no screen reader audit |
-| Tests | 117 `node --test` tests (85 api, 13 common, 19 web) and 143 Playwright browser tests in 40 files, counted on 2026-10-15. | Done |
+| Tests | 117 `node --test` tests (85 api, 13 common, 19 web) and 163 Playwright browser tests in 41 files, counted on 2026-10-15. | Done |
 
 ## 10. Release plan
 

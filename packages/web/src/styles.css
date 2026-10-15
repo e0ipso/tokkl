@@ -72,15 +72,11 @@
    text on scene-swell                   text   10.00 AA     9.61 AA
    text on scene-stripe                  text   11.31 AA    13.82 AA
    text on scene overlap (worst case)    text    8.28 AA     8.32 AA
-   wordmark-outline on wordmark-halo     other  16.39 AA     8.83 AA
-   wordmark-outline on bg, surface,      other   8.28 AA     1.00 --
+   wordmark outline (#00011e, art)       other   9.97 AA     1.09 --
+     on bg, surface, texture and scene (worst)
+   wordmark-halo on bg, surface,         other     --        4.36 AA
      texture and scene (worst)
-   wordmark-halo on bg, surface,         other   1.00 --     4.36 AA
-     texture and scene (worst)
-   wordmark-orange on wordmark-outline   other   7.37 AA     8.13 AA
-   wordmark-aqua on wordmark-outline     other  11.02 AA    12.16 AA
-   wordmark-pink on wordmark-outline     other   5.62 AA     6.21 AA
-   wordmark-lime on wordmark-outline     other  14.08 AA    15.54 AA
+   wordmark outline on wordmark-halo     other     --        9.64 AA
    The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
    separation) on the surface colour in each theme.
    A non-billable chart segment is 3px chart-other stripes over chart-other-wash. The stripes draw
@@ -140,11 +136,11 @@
    carry a warning icon in danger next to the danger text (danger on surface, bg), so the colour is
    not the only sign.
    The wordmark sits on bg (phone header strip), surface and the sidebar texture, and the scene.
-   Each letter is a neon fill inside a wordmark-outline line and shadow, wrapped in a
-   wordmark-halo. In light the outline draws the letter edge (worst on the darkest scene overlap)
-   and the cream halo is a sticker border that needs no ratio (--). In dark the navy outline
-   matches bg, so the lavender halo draws the edge (worst on the lightest scene overlap) and the
-   outline separates it from the fills. The white shines sit inside the fills and need no ratio.
+   It is the owner's raster artwork (public/brand, from docs/brand): neon letters inside a
+   near-black navy outline (#00011e), which is not a token because it is part of the image. In
+   light the outline draws the letter edge (worst on the darkest scene overlap) and no halo is
+   drawn. In dark the outline matches bg, so a wordmark-halo drop-shadow traces the edge (worst
+   on the lightest scene overlap) and the outline separates it from the fills.
    The manage pages (Projects, Clients, Tags, Trash, Settings). A table's header band is text on
    surface-2, and a hovered row is row-hover, which is chart-band like report-zebra, so the zebra
    rows above give its text, muted, primary and border pairs; an over-estimate label on a hovered
@@ -222,16 +218,9 @@
   --scene-swell: light-dark(#b9cbbb, #134354);
   --scene-stripe: light-dark(#e9ceb3, #2d212a);
   --chart-tooltip-text: var(--text);
-  /* The drawn wordmark (Wordmark.tsx). The neon fills stay the same in both themes and sit on the
-     outline; the halo around the letters is cream in light and lavender in dark, where it draws the
-     edge against the navy. See the wordmark note in the table. */
-  --wordmark-outline: light-dark(#1c1a2b, #0b1026);
-  --wordmark-halo: light-dark(#fffaf1, #a9b0d6);
-  --wordmark-orange: #ff8c42;
-  --wordmark-aqua: #2ee6e6;
-  --wordmark-pink: #ff4fa8;
-  --wordmark-lime: #b6ff3b;
-  --wordmark-shine: #ffffff;
+  /* The halo traced around the wordmark image (Brand.tsx). Only dark needs it, where the art's navy
+     outline matches bg. See the wordmark note in the table. */
+  --wordmark-halo: light-dark(transparent, #a9b0d6);
 
   /* Type. The root size is relative, so the browser's font size setting scales the whole app. */
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -461,19 +450,16 @@ input.entry-duration:is(:hover, :focus) {
     linear-gradient(to top, var(--texture-swell) 60%, transparent) bottom / 100% 30% no-repeat,
     var(--surface);
 }
-/* The brand: the icon beside the drawn wordmark (Wordmark.tsx). Stroke widths are in viewBox units,
-   so they scale with the drawing. */
+/* The brand: the icon beside the wordmark image (Brand.tsx). Four 1px drop-shadows build a solid
+   halo around the letters' silhouette; it is transparent in light. */
 .brand { display: inline-flex; align-items: center; gap: 10px; line-height: 1; }
-.brand img, .brand .wordmark { flex: none; }
+.brand img { flex: none; }
 .brand-sm { gap: 8px; }
-.wordmark-halo { fill: var(--wordmark-halo); stroke: var(--wordmark-halo); stroke-width: 22; stroke-linejoin: round; }
-.wordmark-shadow { fill: var(--wordmark-outline); stroke: var(--wordmark-outline); stroke-width: 10; stroke-linejoin: round; }
-.wordmark-letter { stroke: var(--wordmark-outline); stroke-width: 10; stroke-linejoin: round; paint-order: stroke; }
-.wordmark-orange { fill: var(--wordmark-orange); }
-.wordmark-aqua { fill: var(--wordmark-aqua); }
-.wordmark-pink { fill: var(--wordmark-pink); }
-.wordmark-lime { fill: var(--wordmark-lime); }
-.wordmark-letter .wordmark-shine { fill: none; stroke: var(--wordmark-shine); stroke-width: 5; stroke-linecap: round; }
+.brand .wordmark {
+  filter:
+    drop-shadow(1px 0 0 var(--wordmark-halo)) drop-shadow(-1px 0 0 var(--wordmark-halo))
+    drop-shadow(0 1px 0 var(--wordmark-halo)) drop-shadow(0 -1px 0 var(--wordmark-halo));
+}
 .sidebar .brand { padding: 6px 10px 20px; }
 .nav-link { gap: 10px; padding: 9px 10px; border-radius: var(--radius-md); color: var(--muted); text-decoration: none; }
 .nav-link:hover:not(.active) { color: var(--text); }

@@ -4,7 +4,7 @@ import { login } from './helpers.ts';
 
 // TT-0068: the Anybody variable font ships with the app, is preloaded once, loads under the CSP
 // (font-src 'self') and sets headings, the running clock and totals.
-// TT-0114: the wordmark is drawn as SVG paths, not set in a font, and is named "Tokkl".
+// TT-0122: the wordmark is the owner's artwork as an image named "Tokkl", not text set in a font.
 // TT-0067: the root font size is 93.75%, so 1rem is 15px.
 
 const FONT = '/fonts/anybody-wdth-wght.woff2';
@@ -69,6 +69,11 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
 
   const wordmark = page.locator('.brand').first().getByRole('img', { name: 'Tokkl' });
   await expect(wordmark).toBeVisible();
-  expect(await wordmark.locator('path').count()).toBeGreaterThan(0);
-  await expect(wordmark.locator('text, image, use, foreignObject')).toHaveCount(0);
+  await expect(wordmark).toHaveJSProperty('tagName', 'IMG');
+  await expect(wordmark).toHaveAttribute('src', /^\/brand\/wordmark-\d+\.png$/);
+  // Loaded and decoded, not a broken image with only its alt text showing.
+  expect(await wordmark.evaluate(async (img: HTMLImageElement) => {
+    await img.decode();
+    return img.naturalWidth;
+  })).toBeGreaterThan(0);
 });

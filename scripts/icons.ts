@@ -1,35 +1,73 @@
-import { chromium } from '@playwright/test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// Renders packages/web/public/icon-192.png and icon-512.png from packages/web/public/icon.svg.
-// Run it with `npm run icons` after changing the SVG and commit the PNGs with it.
+// Derives the served brand images in packages/web/public from the owner's artwork in docs/brand.
+// Run it with `npm run icons` after replacing a file in docs/brand and commit the outputs with it.
 //
-// It draws the SVG as an <img> in Playwright's Chromium and screenshots it with an opaque
-// background, so no extra image tool is needed. CHROMIUM_PATH picks another Chromium binary, as
-// for the e2e tests. The same Chromium build writes byte-identical files on every run.
+// Resizing and palette reduction use ImageMagick 7 (`magick`). Chromium can resize but cannot
+// write a palette PNG, and the 512px icon and the 2x wordmark only fit the 100 KB budget for served
+// images as 256-colour PNGs with alpha. Outputs carry no metadata or timestamps, so the same
+// ImageMagick build writes identical files on every run.
 
-const PUBLIC_DIR = new URL('../packages/web/public/', import.meta.url);
-const SIZES = [192, 512];
+const BRAND = fileURLToPath(new URL('../docs/brand/', import.meta.url));
+const PUBLIC = fileURLToPath(new URL('../packages/web/public/', import.meta.url));
 
-const svg = readFileSync(new URL('icon.svg', PUBLIC_DIR));
-const src = `data:image/svg+xml;base64,${svg.toString('base64')}`;
+/** The light theme's --bg from packages/web/src/styles.css, behind the opaque apple-touch-icon. */
+const APPLE_TOUCH_BACKGROUND = '#f4e7cf';
+/** The wordmark's letters and paint spots inside the transparent margin of the source, plus 4px. */
+const WORDMARK_CROP = '1645x709+80+91';
 
-const executablePath = process.env.CHROMIUM_PATH;
-const browser = await chromium.launch(executablePath ? { executablePath } : {});
+const STRIP = ['-strip', '-define', 'png:exclude-chunks=date,time'];
+const PALETTE = ['-colors', '256'];
+
+function magick(args: string[], out: string) {
+  execFileSync('magick', [...args, ...STRIP, `png:${out}`], { stdio: 'inherit' });
+  console.log(`wrote ${out}`);
+}
+
+function copy(source: string, out: string) {
+  copyFileSync(`${BRAND}${source}`, out);
+  console.log(`wrote ${out}`);
+}
+
 try {
-  for (const size of SIZES) {
-    const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 });
-    await page.setContent(
-      `<body style="margin:0"><img src="${src}" width="${size}" height="${size}" style="display:block"></body>`,
-    );
-    await page.locator('img').evaluate((img: HTMLImageElement) => img.decode());
-    const png = await page.screenshot({ clip: { x: 0, y: 0, width: size, height: size }, omitBackground: false });
-    const out = new URL(`icon-${size}.png`, PUBLIC_DIR);
-    writeFileSync(out, png);
-    console.log(`wrote ${fileURLToPath(out)}`);
-    await page.close();
-  }
-} finally {
-  await browser.close();
+  execFileSync('magick', ['-version'], { stdio: 'ignore' });
+} catch {
+  console.error('npm run icons needs ImageMagick 7: the `magick` command was not found on PATH.');
+  process.exit(1);
+}
+
+mkdirSync(`${PUBLIC}brand`, { recursive: true });
+
+// The owner supplied the 32 and 192 sizes, and both are already small, so they ship as is.
+copy('tokkl-favicon-v4-32.png', `${PUBLIC}favicon-32.png`);
+copy('tokkl-icon-v4-192.png', `${PUBLIC}icon-192.png`);
+magick([`${BRAND}tokkl-icon-v4-512.png`, ...PALETTE], `${PUBLIC}icon-512.png`);
+
+// iOS shows the touch icon on an opaque square and paints transparent corners black.
+magick(
+  [
+    '-size', '180x180', `xc:${APPLE_TOUCH_BACKGROUND}`,
+    '(', `${BRAND}tokkl-icon-v4-1024.png`, '-resize', '156x156', ')',
+    '-gravity', 'center', '-composite', ...PALETTE,
+  ],
+  `${PUBLIC}apple-touch-icon.png`,
+);
+
+// Brand.tsx shows the icon at up to 48 CSS pixels, so 96 covers a 2x screen.
+magick([`${BRAND}tokkl-icon-v4-1024.png`, '-resize', '96x96', ...PALETTE], `${PUBLIC}brand/icon-96.png`);
+
+// Brand.tsx shows the wordmark at up to 260 CSS pixels wide; the 520 file is for 2x screens. The
+// 640 copy in docs/brand is the README header, shown 320 wide.
+const wordmarks: [number, string][] = [
+  [260, `${PUBLIC}brand/wordmark-260.png`],
+  [520, `${PUBLIC}brand/wordmark-520.png`],
+  [640, `${BRAND}tokkl-wordmark.png`],
+];
+for (const [width, out] of wordmarks) {
+  magick(
+    [`${BRAND}tokkl-wordmark-v3.png`, '-crop', WORDMARK_CROP, '+repage', '-resize', `${width}x`, ...PALETTE],
+    out,
+  );
 }
