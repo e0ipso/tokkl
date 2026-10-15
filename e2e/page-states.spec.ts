@@ -162,7 +162,7 @@ test('the entry list stays on screen and is marked busy while it refetches', asy
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await refetched;
   await expect(busy).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Loading…' })).toBeDisabled();
+  await expect(page.locator('.load-more')).toHaveCount(0);
   release();
   await expect(busy).toHaveCount(0);
   await expect(row).toBeVisible();

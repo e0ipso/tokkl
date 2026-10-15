@@ -1,7 +1,5 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../api/client.ts';
-import { keys, useReport } from '../api/hooks.ts';
+import { useEntryBounds, useReport } from '../api/hooks.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
@@ -21,11 +19,7 @@ const TAB_LABELS: Record<Tab, string> = { summary: 'Summary', detailed: 'Detaile
 export function ReportsPage() {
   const settings = useSettings();
   const todayKey = today(settings.timeZone);
-  const bounds = useQuery({
-    queryKey: [...keys.report, 'bounds'],
-    queryFn: () => api.get<{ first_date: string | null; last_date: string | null }>('/api/app/bounds'),
-    staleTime: 5 * 60_000,
-  });
+  const bounds = useEntryBounds();
   const firstDay = bounds.data?.first_date ?? null;
   const [state, update] = useReportState(todayKey, settings.beginningOfWeek, firstDay);
   const query = useMemo(() => reportQuery(state), [state]);

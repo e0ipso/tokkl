@@ -118,6 +118,14 @@ export function useCurrentEntry() {
   });
 }
 
+export function useEntryBounds() {
+  return useQuery({
+    queryKey: [...keys.report, 'bounds'],
+    queryFn: () => api.get<{ first_date: string | null; last_date: string | null }>('/api/app/bounds'),
+    refetchInterval: 60_000,
+  });
+}
+
 export function useReport(query: ReportQuery | null) {
   return useQuery({
     queryKey: [...keys.report, query],

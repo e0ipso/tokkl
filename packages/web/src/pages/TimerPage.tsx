@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useEntries, usePreferences, useSavePreferences, useProjects } from '../api/hooks.ts';
+import { useEntries, useEntryBounds, usePreferences, useSavePreferences, useProjects } from '../api/hooks.ts';
 import type { Favorite, TimeEntry } from '../api/types.ts';
 import { addDays, startOfWeek } from '@tokkl/common/time';
 import { EntryList } from '../components/EntryList.tsx';
@@ -24,7 +24,10 @@ export function TimerPage() {
   const view = prefs?.timerView === 'calendar' ? 'calendar' : 'list';
   const setView = (next: 'list' | 'calendar') => savePrefs.mutate({ timerView: next });
   const todayKey = today(settings.timeZone);
-  const { data: entries = [], isLoading, isFetching, error, refetch } = useEntries(addDays(todayKey, -days + 1), addDays(todayKey, 2));
+  const startDate = addDays(todayKey, -days + 1);
+  const { data: entries = [], isLoading, isFetching, isPlaceholderData, error, refetch } = useEntries(startDate, addDays(todayKey, 2));
+  const { data: bounds } = useEntryBounds();
+  const hasOlderEntries = Boolean(bounds?.first_date && bounds.first_date < startDate);
   const { data: projects = [] } = useProjects();
   const timer = useRef<TimerBarHandle>(null);
   const favorites = prefs?.favorites ?? [];
@@ -141,11 +144,13 @@ export function TimerPage() {
               />
             </BusyRegion>
           )}
-          <div className="load-more">
-            <button type="button" className="button button-ghost" disabled={isFetching} onClick={() => setDays(days + PAGE_DAYS)}>
-              {isFetching ? 'Loading…' : `Show ${PAGE_DAYS} more days`}
-            </button>
-          </div>
+          {hasOlderEntries || isPlaceholderData ? (
+            <div className="load-more">
+              <button type="button" className="button button-ghost" disabled={isFetching} onClick={() => setDays(days + PAGE_DAYS)}>
+                {isFetching ? 'Loading…' : `Show ${PAGE_DAYS} more days`}
+              </button>
+            </div>
+          ) : null}
         </>
       )}
       {help ? <ShortcutHelp onClose={() => setHelp(false)} /> : null}

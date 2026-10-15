@@ -12,6 +12,26 @@ test.afterEach(async () => { await device.close(); });
 
 const at = (day: string, hour: number) => `${day}T${String(hour).padStart(2, '0')}:00:00Z`;
 
+test('Show more days follows older entries added and deleted on another device', async ({ page }) => {
+  await page.clock.install();
+  const bounds = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/app/bounds');
+  await login(page);
+  await bounds;
+  await expect(page.getByText('No time entries in this period')).toBeVisible();
+  const more = page.getByRole('button', { name: 'Show 14 more days' });
+  await expect(more).toHaveCount(0);
+
+  const old = await device.createEntry({ description: 'Older history', start: at(daysAgo(20), 9), stop: at(daysAgo(20), 10) });
+  await page.clock.fastForward(60_000);
+  await expect(more).toBeVisible();
+  await expect(entryRow(page, 'Older history')).toHaveCount(0);
+
+  // Deleted entries stay in the trash, but must no longer make older history available.
+  await device.deleteEntry(old.id);
+  await page.clock.fastForward(60_000);
+  await expect(more).toHaveCount(0);
+});
+
 test('another device\'s timer and history changes arrive through the 30- and 60-second polls', async ({ page }) => {
   const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
   // The fake clock runs at normal speed; fastForward jumps it and fires each due interval once.

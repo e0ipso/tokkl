@@ -92,6 +92,20 @@ test('day, today and week totals and attribution follow the account time zone in
   ]);
 });
 
+for (const first of [null, '2026-06-15T07:00:00Z', '2026-06-01T22:00:00Z']) {
+  test(`Show more days is absent when the earliest entry is ${first ?? 'missing'}`, async ({ page, data }) => {
+    // June 1 at 22:00 UTC is June 2 in Madrid, the inclusive start of the first 14 days.
+    if (first) await data.createEntry({ description: 'Only entry', start: first, stop: first.replace(':00:00Z', ':30:00Z') });
+    await page.clock.setFixedTime(new Date('2026-06-15T10:00:00Z'));
+    const bounds = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/app/bounds');
+    await login(page);
+    expect((await bounds).status()).toBe(200);
+    if (first) await expect(page.locator('input[value="Only entry"]')).toBeVisible();
+    else await expect(page.getByText('No time entries in this period')).toBeVisible();
+    await expect(page.locator('.load-more')).toHaveCount(0);
+  });
+}
+
 test('Show more days reaches an entry older than 90 days', async ({ page, data }) => {
   // Today is Monday 2026-06-15 in Madrid; the old entry is 100 days earlier.
   await data.createEntry({ description: 'Recent entry', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
@@ -114,11 +128,12 @@ test('Show more days reaches an entry older than 90 days', async ({ page, data }
     });
     await more.click();
     expect((await loaded).status()).toBe(200);
-    await expect(more).toBeEnabled();
+    if (days < 112) await expect(more).toBeEnabled();
     requested.push(from);
     if (days === 98) await expect(old).toHaveCount(0);
   }
   expect(requested.slice(-2)).toEqual(['2026-03-10', '2026-02-24']);
   await expect(old).toBeVisible();
+  await expect(more).toHaveCount(0);
   await expect(dayGroup(page, 'Sat, 7 Mar').locator('.day-total')).toHaveText('1:30:00');
 });
