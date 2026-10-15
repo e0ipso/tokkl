@@ -93,11 +93,23 @@ export function useTasks() {
 }
 
 /** Entries that started in [startDate, endDate), both "YYYY-MM-DD" in the account timezone. */
+/**
+ * Entries from startDate to endDate. When the range grows to cover the one shown before ("Show more
+ * days"), the previous rows stay as placeholder data until the wider range arrives, so the list keeps
+ * its place. Any other range change starts empty: rows from a range the new one does not cover are
+ * never shown in its place.
+ */
 export function useEntries(startDate: string, endDate: string) {
   return useQuery({
     queryKey: [...keys.entries, startDate, endDate],
     queryFn: () => api.get<TimeEntry[]>(`${v9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`),
     refetchInterval: 60_000,
+    placeholderData: (previous, previousQuery) => {
+      const [, previousStart, previousEnd] = previousQuery?.queryKey ?? [];
+      const covers = typeof previousStart === 'string' && typeof previousEnd === 'string'
+        && startDate <= previousStart && endDate >= previousEnd;
+      return covers ? previous : undefined;
+    },
   });
 }
 

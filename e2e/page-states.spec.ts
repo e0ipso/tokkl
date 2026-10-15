@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
-import { accountTime, recentDate } from './transfer-tests-helpers.ts';
+import { ACCOUNT_TIME_ZONE, accountTime, recentDate } from './transfer-tests-helpers.ts';
 
 // TT-0085: content that has not arrived is an aria-busy region with a status label, and a failed
 // load is an alert that says what failed and offers "Try again". TT-0112: report tabs and project
@@ -165,6 +165,43 @@ test('the entry list stays on screen and is marked busy while it refetches', asy
   release();
   await expect(busy).toHaveCount(0);
   await expect(row).toBeVisible();
+});
+
+test('the entry list keeps its rows and is marked busy while Show more days loads', async ({ page }) => {
+  // TT-0116: the wider range used to replace the whole list with "Loading entries…".
+  const day = recentDate();
+  // 20 days ago in the account timezone: outside the first 14 days, inside the next 14.
+  const older = new Intl.DateTimeFormat('en-CA', { timeZone: ACCOUNT_TIME_ZONE }).format(new Date(Date.now() - 20 * 24 * 3600 * 1000));
+  await login(page);
+  const entities = await EntityApi.open(page);
+  await entities.createEntry({ description: 'Kept on screen', start: accountTime(day, '09:00:00'), stop: accountTime(day, '10:00:00') });
+  await entities.createEntry({ description: 'Older day', start: accountTime(older, '09:00:00'), stop: accountTime(older, '10:00:00') });
+  await page.reload();
+  const row = page.locator('.entry-line', { has: page.locator('input[value="Kept on screen"]') });
+  const olderRow = page.locator('.entry-line', { has: page.locator('input[value="Older day"]') });
+  await expect(row).toBeVisible();
+  await expect(olderRow).toHaveCount(0);
+  const busy = page.locator('[aria-busy="true"]', { has: row });
+
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let requested = () => {};
+  const widened = new Promise<void>((resolve) => { requested = resolve; });
+  await page.route((url) => url.pathname === '/api/v9/me/time_entries', async (route) => {
+    requested();
+    await held;
+    await route.fallback();
+  }, { times: 1 });
+  await page.getByRole('button', { name: 'Show 14 more days' }).click();
+  await widened;
+  await expect(busy).toHaveCount(1);
+  await expect(row).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Loading entries…' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Loading…' })).toBeDisabled();
+  release();
+  await expect(olderRow).toBeVisible();
+  await expect(row).toBeVisible();
+  await expect(busy).toHaveCount(0);
 });
 
 test('the empty entry list offers Manual mode and Start timer', async ({ page }) => {
