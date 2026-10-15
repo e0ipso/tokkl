@@ -4,7 +4,7 @@ A self-hosted, single-user time tracker modeled on Toggl Track. It runs on a ser
 
 The server makes no outbound requests. No telemetry, CDN fonts or AI features.
 
-The product requirements, the Toggl research behind them, and the status of each feature are in [docs/PRD.md](docs/PRD.md).
+Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 
 ## What it does
 
@@ -83,15 +83,6 @@ All data is in `tokkl.sqlite` (plus its `-wal` and `-shm` files) inside the data
 | `TOKKL_SETUP_CODE` | random | Fixed first-run setup code, for scripted installs |
 | `TOKKL_WEB_ROOT` | `dist/web` | Folder with the built web app |
 
-### Upgrading from Timetrack
-
-Tokkl used to be called Timetrack. An existing install keeps working after the upgrade:
-
-- Each `TOKKL_*` variable falls back to its old `TIMETRACK_*` name, for example `TIMETRACK_DATA_DIR`. The server logs one deprecation line at startup listing the old names it used. Rename them when convenient, since a later release may drop the fallback.
-- When `TOKKL_DATABASE` is not set, `tokkl.sqlite` does not exist and the data folder has a `timetrack.sqlite`, the server keeps using `timetrack.sqlite` and logs that. It never moves or renames the file. To switch to the new name, stop the server and rename the file, plus any `-wal` and `-shm` files, to `tokkl.sqlite`.
-- Browsers stay signed in: the old `tt_session` cookie and `X-Timetrack-CSRF` header are still accepted, and the next login issues `tokkl_session`.
-- JSON exports made by Timetrack still restore.
-
 ## Moving from Toggl Track
 
 1. In Toggl Track open Reports → Detailed, pick a date range (a year at a time works well), and export CSV. Set your Toggl duration format to "Improved" first.
@@ -131,12 +122,12 @@ Requires Node.js 24 or newer.
 npm install
 npm run dev        # API server on :8080, restarts on change
 npm run dev:web    # Vite dev server on :5173, proxies /api and /reports to :8080
-npm test           # unit and API tests in packages/api, packages/common and packages/web (node --test)
-npm run typecheck  # tsc over the four packages, e2e (with the Playwright config), scripts and bench
-npm run build      # builds the web app (packages/web) into dist/web
-npm run test:e2e   # builds the web app, then runs the Playwright browser tests
-npm run screenshots  # builds the web app, then rewrites docs/screenshots/*.png
-npm run icons      # derives the served icons and wordmark images from docs/brand (needs ImageMagick 7)
+npm test           # unit and API tests (node --test)
+npm run typecheck  # tsc over every package, e2e, scripts and bench
+npm run build      # builds the web app into dist/web
+npm run test:e2e   # builds, then runs the Playwright browser tests
+npm run screenshots  # builds, then rewrites docs/screenshots/*.png
+npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
 
 The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
@@ -152,78 +143,3 @@ bench/           history-scale measurements
 docs/            PRD.md (product requirements), brand/ and screenshots/
 ```
 
-### End-to-end tests
-
-`npm run test:e2e` runs `npm run build` first, so the browser tests always see the current UI. Then Playwright starts the server on a throwaway SQLite database in a temporary directory. Extra arguments go to Playwright, for example `npm run test:e2e -- --grep "keyboard shortcuts"`.
-
-Test runs never download a browser. Install the Chromium headless shell that matches the pinned Playwright version once, after `npm install` and again after upgrading Playwright:
-
-```sh
-npm run test:e2e:install
-```
-
-To use a Chromium you already have instead, point `CHROMIUM_PATH` at its binary:
-
-```sh
-CHROMIUM_PATH=/path/to/chrome-headless-shell npm run test:e2e
-```
-
-If neither is available, the run stops before any test with a message that says which binary is missing and how to fix it. `E2E_PORT` changes the server port (default 8095).
-
-Every scenario starts from an empty account. An automatic fixture in `e2e/fixtures.ts` deletes all entries, the trash, projects, clients and tags, and resets the preferences the scenarios change, before and after each test. A scenario that needs existing data seeds it through the fixture's `data` helper, so any test can run alone or in any order.
-
-The same fixtures fail a scenario on any uncaught page error, console error (React logs errors that the page-level ErrorBoundary catches this way), failed request or error response. The failure lists what happened and keeps the trace. Requests sent without a session cookie may get 403, because that is how the app finds out it is logged out. A scenario that provokes a failed response on purpose declares it with `runtimeErrors.allowResponse({ status, method, path, reason })`. The rules live in `e2e/runtime-errors.ts`, and `e2e/guard.spec.ts` checks that the guard still catches each kind of error.
-
-`e2e/visual.spec.ts` compares screenshots of the Timer list and calendar, the Reports summary, Projects and Settings, in light and dark, at desktop and phone sizes, against the PNGs in `e2e/visual.spec.ts-snapshots/`. It restores `e2e/fixtures-data/transfer/restore-full.json` and fixes the browser clock at 16 July 2026, so the pages look the same on every run. The baselines come from the headless Chromium that matches the pinned Playwright version, and a different Chromium build or a Playwright upgrade can shift the rendering. After a change that is meant to alter how a page looks, rebuild and regenerate the baselines, check the new images, and commit them:
-
-```sh
-npm run build && npx playwright test visual --update-snapshots
-```
-
-### README screenshots
-
-`npm run screenshots` builds the web app, then rewrites the nine images in `docs/screenshots`. Run it after a visible UI change and commit the images with the change.
-
-It uses its own Playwright config, `scripts/screenshots.config.ts`, so `npm run test:e2e` never runs it. The server starts on a throwaway database in a temporary directory. The script loads `e2e/fixtures-data/transfer/restore-full.json` through the JSON restore, together with the extra client, projects and five weeks of entries defined in `scripts/screenshots-data.ts`. The server and browser clocks are fixed at Thursday 16 July 2026, 15:20 in Europe/Madrid, so repeated runs on the same machine write identical files. Desktop images are 1440x900 and phone images 390x844, both at device scale factor 2, in the light theme.
-
-`CHROMIUM_PATH` works as for the e2e tests. `SCREENSHOTS_PORT` changes the server port (default 8096).
-
-### Brand artwork and icons
-
-The wordmark and the stopwatch icon are the owner's artwork. The full-size files live in `docs/brand/` and are not served: `tokkl-wordmark-v3.png`, `tokkl-logo-v4.png`, `tokkl-icon-v4-1024.png`, and the smaller sizes the owner supplied, `tokkl-icon-v4-512.png`, `tokkl-icon-v4-192.png` and `tokkl-favicon-v4-32.png`. The owner's mobile exports on a navy background (`#01013A`) are there too: `icon-maskable-192.png`, `icon-maskable-512.png` and `apple-touch-icon.png`.
-
-`npm run icons` (`scripts/icons.ts`) derives the files the app serves from them:
-
-- `packages/web/public/favicon-32.png` and `icon-192.png`, copied as supplied.
-- `packages/web/public/icon-512.png`, reduced to 256 colours.
-- `packages/web/public/icon-maskable-192.png`, `icon-maskable-512.png` and `apple-touch-icon.png`, copied byte for byte. The apple-touch icon is the owner's opaque 180x180 navy icon, because iOS paints transparent corners black.
-- `packages/web/public/brand/icon-96.png` and `wordmark-260.png` / `wordmark-520.png` for `Brand.tsx`, and `docs/brand/tokkl-wordmark.png` for the header of this README.
-
-It uses ImageMagick 7 (`magick`), because the larger images only stay under 100 KB each as 256-colour PNGs, which Chromium cannot write. Run it after replacing a file in `docs/brand/` and commit the outputs with it. The same ImageMagick build writes identical files on every run.
-
-The manifest lists the 192 and 512 PNGs as general-purpose icons, followed by the two maskable PNGs (`"purpose": "maskable"`). The maskable artwork sits inside a centred circle of 38% of the icon width, within Android's safe zone. `e2e/pwa.spec.ts` keeps every served icon under 100 KB, except the maskable ones, which may use 128 KB because the 512 is about 115 KB and loads only at install.
-
-### History-scale measurements
-
-`npm run bench:history` builds the web app, then times the server against generated histories. Use it to compare commits on the same machine. It is not a pass/fail speed test.
-
-```sh
-npm run bench:history                                  # year and decade fixtures, 7 runs per heavy request
-npm run bench:history -- --fixtures year --no-browser   # quicker
-npm run bench:history -- --out results.json --end-date 2026-10-13
-```
-
-For each fixture it starts `node packages/api/src/index.ts` on its own port (`--port`, default 8190) with a new temporary data directory, which it deletes on exit. It ignores any `TOKKL_*` or `TIMETRACK_*` variables in your environment, so it never opens `./data` or another real database, and it makes no outside requests. The fixtures are generated from a fixed seed and loaded through the JSON restore:
-
-- `year`: 3,000 entries over 365 days.
-- `decade`: 30,000 entries over 3,650 days, the 30k-entry comparison fixture from the 2026-10-14 audit.
-
-Both have 30 projects with one task each, 5 clients, 5 tags and 40 descriptions, about 8 entries a day ending yesterday (UTC) unless you pass `--end-date`.
-
-It times the JSON restore, entry and project lists, the summary, totals-only, weekly and paged detailed reports, both CSV exports, a 1,000-row Toggl CSV import preview, entry create/update/delete, and timer start/stop on an idle server and while a whole-history CSV export runs. Unless you pass `--no-browser`, it also times the timer page and the summary report page in Chromium (`CHROMIUM_PATH` works as for the e2e tests). The output records Node, OS, CPU, memory, load average and commit, plus the fixture dates and sizes.
-
-Every response is checked as well as timed: totals and billable totals against the generated data, per-project tracked time, group sums, page counts and the last page, the 500-row page limit, CSV row counts, that a CSV preview stores nothing, and that report payloads grow with groups and buckets rather than entries. A wrong answer makes the command exit 1. Timings never fail it. They measure the machine you run on, while the latency targets in [docs/PRD.md section 9](docs/PRD.md#9-non-functional-requirements) are for a low-power CPU.
-
-## Font
-
-Headings, the running clock and report totals use [Anybody](https://github.com/Etcetera-Type-Co/Anybody) by Etcetera Type Co., under the SIL Open Font License 1.1. The variable woff2 and its licence are in `packages/web/public/fonts/` and the server ships them itself. Source: https://github.com/Etcetera-Type-Co/Anybody/blob/fe7b55cf9d1563348ad95ac8e05f43b81a420c31/fonts/variable/Anybody%5Bwdth,wght%5D.woff2, renamed to `anybody-wdth-wght.woff2` and otherwise unchanged. Body text, controls and tables use the system font stack.
