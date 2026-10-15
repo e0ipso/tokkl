@@ -61,6 +61,7 @@
    primary on report-zebra               text    5.50 AA     6.88 AA
    state-billable on report-zebra        other   4.26 AA    13.15 AA
    border on report-zebra                other   3.44 AA     3.61 AA
+   danger on row-hover                   text    5.53 AA     5.73 AA
    text on texture-glow                  text   13.21 AA    12.23 AA
    muted on texture-glow                 text    5.87 AA     6.40 AA
    text on texture-swell                 text   13.83 AA    11.81 AA
@@ -128,7 +129,19 @@
    surface rows apply to them. Where the scene gradients overlap, every channel stays between the
    lowest (light) or highest (dark) channel of the three scene tokens, and text against that
    extreme is the "overlap (worst case)" row. Error messages carry a warning icon in danger next
-   to the danger text (danger on surface, bg), so the colour is not the only sign. */
+   to the danger text (danger on surface, bg), so the colour is not the only sign.
+   The manage pages (Projects, Clients, Tags, Trash, Settings). A table's header band is text on
+   surface-2, and a hovered row is row-hover, which is chart-band like report-zebra, so the zebra
+   rows above give its text, muted, primary and border pairs; an over-estimate label on a hovered
+   row is the "danger on row-hover" row. Archived rows are muted text, not faded. The Active status
+   chip is primary text and a primary border on state-selected; the Archived chip is muted text with
+   a dashed muted border on the row (surface or row-hover) and a hollow square instead of a dot, so
+   the shape tells them apart as well as the colour. The active segmented button is primary on
+   state-selected with a primary ring. A modal's header band is text on surface-2, with the muted
+   close button. A settings card's header strip uses the sidebar texture tokens over surface: the
+   glow fades out by 60% and the stripes fill only the right 30%, so they never overlap. The title
+   (text) sits on the glow, or on a stripe if a narrow card wraps it that far; the texture-glow and
+   texture-stripe rows cover both. Inputs and the token value sit below the strip on plain surface. The chosen colour swatch has a text ring outside a surface gap (text on surface). */
 :root {
   color-scheme: light dark;
 
@@ -178,6 +191,8 @@
 
   /* Report tables: zebra rows and the header band. */
   --report-zebra: var(--chart-band);
+  /* The hovered row of a manage table (Projects, Clients, Tags, Trash). */
+  --row-hover: var(--chart-band);
   --report-head-bg: var(--secondary);
   --report-head-text: var(--on-primary);
 
@@ -230,12 +245,6 @@
   /* Layout */
   --sidebar: 210px;
 
-  /* Old names, still read by manage.css until TT-0094 moves it to the names above. */
-  --accent: var(--primary);
-  --accent-contrast: var(--on-primary);
-  --accent-soft: var(--state-selected);
-  --billable: var(--state-billable);
-  --radius: var(--radius-md);
 }
 :root[data-theme='light'] { color-scheme: light; }
 :root[data-theme='dark'] { color-scheme: dark; }
@@ -367,7 +376,7 @@ code, kbd {
    the only visible sign of what Enter will pick. A selected row that is also active keeps its tint
    and bar under the outline. */
 .picker-item.highlighted { outline: 2px solid var(--primary); outline-offset: -2px; }
-.segmented button.active { color: var(--primary); font-weight: 600; }
+.segmented button.active { color: var(--primary); font-weight: 800; box-shadow: inset 0 0 0 2px var(--primary); }
 /* Figures: the running clock, durations and day totals. Table cells use .num, which only aligns. */
 .timer-clock, .manual-duration, .day-total, .entry-duration { font-variant-numeric: tabular-nums; font-weight: 600; }
 /* Inline edit: a field that reads as plain text until hovered or focused. A running entry's
@@ -378,19 +387,26 @@ input.entry-duration:is(:hover, :focus) {
   border-color: var(--border);
 }
 
-/* Buttons */
+/* Buttons: pills with a 2px frame. Primary and danger are solid fills that lift on hover; ghost
+   variants are outlines. Phones raise every button to 44px (see the max-width: 760px block). */
 .button {
-  display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid transparent; border-radius: var(--radius-md); padding: 7px 14px;
-  cursor: pointer; background: var(--surface-2); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px;
+  border: 2px solid transparent; border-radius: var(--radius-pill); padding: 5px 16px;
+  cursor: pointer; background: var(--surface-2); font-weight: 600; white-space: nowrap;
+  transition: transform var(--duration-fast) var(--ease), background-color var(--duration-fast) var(--ease);
 }
+.button:hover:not(:disabled) { border-color: var(--border); }
+.button:active:not(:disabled) { transform: scale(0.97); }
 .button:disabled { opacity: 0.6; cursor: default; }
-.button-primary { background: var(--primary); color: var(--on-primary); font-weight: 600; }
+.button-primary { background: var(--primary); color: var(--on-primary); font-weight: 800; }
+.button-danger { background: var(--danger); color: var(--on-danger); font-weight: 800; }
+.button-primary:hover:not(:disabled), .button-danger:hover:not(:disabled) {
+  border-color: transparent; transform: translateY(-1px); box-shadow: var(--shadow);
+}
 .button-ghost { background: transparent; border-color: var(--border); }
-.button-ghost:hover { background: var(--surface-2); }
-.button-danger { background: var(--danger); color: var(--on-danger); }
+.button-ghost:hover:not(:disabled) { background: var(--surface-2); }
 .button-danger-ghost { background: transparent; color: var(--danger); border-color: var(--border); }
-.button-danger-ghost:hover { background: var(--danger-soft); }
+.button-danger-ghost:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); }
 .button-block { width: 100%; justify-content: center; }
 .icon-button {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
@@ -437,8 +453,12 @@ input.entry-duration:is(:hover, :focus) {
 @keyframes pulse { 50% { opacity: 0.35; } }
 .content { flex: 1; min-width: 0; padding: 24px clamp(12px, 3vw, 40px) 80px; }
 .page { max-width: 1100px; margin: 0 auto; }
-.page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.page-header h1 { margin: 0; }
+.page-header { display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-5); flex-wrap: wrap; }
+/* Page titles: the display face, black weight and capitals. */
+.page-header h1 {
+  margin: 0; font-size: var(--text-3xl); font-weight: 900; line-height: 1;
+  text-transform: uppercase; letter-spacing: 0.02em;
+}
 
 /* Phone: a header strip with the wordmark, a five-item bottom bar and the More sheet (App.tsx renders
    these only under the same max-width). */
@@ -474,6 +494,11 @@ input.entry-duration:is(:hover, :focus) {
   .more-sheet-head .icon-button { width: 44px; height: 44px; }
   .more-sheet .nav-link { min-height: 48px; padding: 0 12px; font-size: var(--text-base); }
   .content { padding: 12px 10px 90px; }
+  .page-header h1 { font-size: var(--text-2xl); }
+  /* Touch targets: buttons, menu rows and the modal close button are at least 44px. */
+  .button { min-height: 44px; }
+  .menu button { min-height: 44px; }
+  .modal-close { min-width: 44px; height: 44px; }
 }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes sheet-up { from { transform: translateY(100%); } }
@@ -701,20 +726,27 @@ input.entry-duration:is(:hover, :focus) {
   .add-project { opacity: 1; }
 }
 
-/* Pickers, popovers, menus */
-.popover { position: fixed; z-index: 1000; overflow: auto; display: flex; flex-direction: column; box-shadow: var(--shadow); }
-.picker-search { margin: 8px; }
-.picker-list { overflow: auto; padding: 0 4px 6px; max-height: 340px; }
+/* Pickers, popovers, menus: a 2px frame on the large radius, rows on the medium one. */
+.popover {
+  position: fixed; z-index: 1000; overflow: auto; display: flex; flex-direction: column;
+  border-width: 2px; border-radius: var(--radius-lg); box-shadow: var(--shadow);
+}
+.picker-search { margin: 8px; border-radius: var(--radius-pill); }
+.picker-list { overflow: auto; padding: 0 6px 6px; max-height: 340px; }
 .picker-list:empty { display: none; }
-.picker-actions { padding: 0 4px 6px; }
-.picker-item { padding: 7px 10px; }
+.picker-actions { padding: 0 6px 6px; }
+.picker-item { padding: 7px 10px; border-radius: var(--radius-md); }
 .picker-subitem { padding-left: 28px; color: var(--muted); font-size: var(--text-md); }
-.picker-group { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 8px 10px 2px; }
-.picker-create { color: var(--primary); }
+/* Group headers (a client's projects) in bold display capitals. */
+.picker-group {
+  font-family: var(--font-display); font-stretch: 85%; font-size: var(--text-sm); font-weight: 900;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text); padding: 10px 10px 2px;
+}
+.picker-create { color: var(--primary); font-weight: 700; }
 .picker-empty { color: var(--muted); padding: 8px 10px; font-size: var(--text-md); }
 .picker-check input { margin: 0; }
-.menu { display: flex; flex-direction: column; padding: 4px; }
-.menu button { padding: 8px 10px; }
+.menu { display: flex; flex-direction: column; padding: 6px; }
+.menu button { padding: 8px 12px; border-radius: var(--radius-md); font-weight: 600; }
 .menu .danger { color: var(--danger); }
 
 /* Modal */
@@ -722,30 +754,44 @@ input.entry-duration:is(:hover, :focus) {
 /* min-width: 0 stops wide content from stretching the backdrop's grid track past a phone screen. */
 .modal {
   width: min(560px, 100%); min-width: 0; max-height: calc(100vh - 32px); display: flex; flex-direction: column;
-  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  border-width: 2px; border-radius: var(--radius-lg); box-shadow: var(--shadow);
 }
 .modal-wide { width: min(820px, 100%); }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-.modal-close { font-size: var(--text-xl); }
+/* The header is a surface-2 band with the title in the display face, like the entry list's day band. */
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: 10px 10px 10px 18px; background: var(--surface-2); border-bottom: 2px solid var(--border);
+  border-radius: calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px) 0 0;
+}
+.modal-header h2 { min-width: 0; overflow-wrap: anywhere; font-size: var(--text-xl); font-weight: 900; line-height: 1.15; }
+.modal-close { flex: none; font-size: var(--text-xl); border-radius: var(--radius-pill); }
+.modal-close:hover { background: var(--surface); }
 .modal-body { padding: 18px; overflow: auto; }
-.modal-footer { display: flex; gap: 8px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.modal-footer { display: flex; gap: 8px; align-items: center; padding: 12px 18px; border-top: 2px solid var(--border); flex-wrap: wrap; }
 
 /* Forms */
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field > span:first-child, .field > label:first-child { font-size: var(--text-sm); color: var(--muted); font-weight: 500; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+/* Grid and flex children shrink to the track, so long values and wide inputs fit a phone. */
+.form-grid > *, .field > * { min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* A label that wraps its own .field (the Client select in the project editor) is not a caption. */
+.field > span:first-child, .field > label:first-child:not(.field) { font-size: var(--text-sm); color: var(--muted); font-weight: 700; }
 .field-full { grid-column: 1 / -1; }
 .checkbox-field { flex-direction: row; align-items: center; gap: 8px; align-self: end; padding-bottom: 8px; }
 .checkbox-field > span:first-child { font-size: inherit; color: inherit; }
 .select-button { display: flex; align-items: center; gap: 6px; text-align: left; min-height: 37px; padding: 7px 10px; cursor: pointer; }
 .select-button:hover { background: var(--surface-2); }
-/* SearchBox in pages/manage/ui.tsx. The ring sits on the wrapper, so the input drops its own. */
-.search-box { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--muted); }
+/* SearchBox in pages/manage/ui.tsx: a pill. The ring sits on the wrapper, so the input drops its own. */
+.search-box {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px;
+  border-width: 2px; border-radius: var(--radius-pill); color: var(--muted);
+}
 .search-box:focus-within { border-color: var(--primary); outline: 2px solid var(--primary); outline-offset: 1px; }
 .search-box input { border: none; padding: 7px 0; width: 200px; background: transparent; color: var(--text); }
 .search-box input:focus-visible { outline: none; }
 @media (max-width: 560px) {
-  .search-box { flex: 1; }
+  /* Below 160px the field moves to its own line rather than cutting off its placeholder. */
+  .search-box { flex: 1 1 160px; }
   .search-box input { width: 100%; }
 }
 .inline-controls { display: flex; gap: 8px; }
@@ -758,23 +804,47 @@ input[aria-invalid='true'], select[aria-invalid='true'], textarea[aria-invalid='
 .toolbar:has(> form .field-error) { align-items: flex-start; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
 
-/* Cards and tables shared by management pages */
-.card { padding: 16px; }
-.card + .card { margin-top: 16px; }
+/* Cards and tables shared by management pages. Tables and cards are data surfaces: no texture. */
+.card { padding: var(--space-5); border-width: 2px; border-radius: var(--radius-lg); }
+.card + .card { margin-top: var(--space-4); }
 .card h2 { margin-bottom: 12px; }
 /* Positioned so absolutely positioned content, like .visually-hidden headers, scrolls with the table
-   instead of widening the page. */
-.table-wrap { position: relative; overflow-x: auto; }
+   instead of widening the page. The overflow also clips the rows to the rounded corners. */
+.table-wrap { position: relative; overflow-x: auto; border-width: 2px; border-radius: var(--radius-lg); }
 table.table { width: 100%; border-collapse: collapse; }
-.table th, .table td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.table th { font-size: var(--text-sm); color: var(--muted); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+.table th, .table td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table th { font-size: var(--text-sm); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+.table tbody th, .table tfoot th { color: var(--muted); }
+/* The header band: display capitals in text colour on surface-2 over a 2px rule. The colour is
+   inherited from thead, so a report table's own band colour on its th still wins. Row headers (the
+   weekly report's project column) keep plain type, since their text is data. */
+.table thead { color: var(--text); }
+.table thead th {
+  font-family: var(--font-display); font-stretch: 85%; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.04em; border-bottom-width: 2px;
+}
+.table tbody tr { transition: background-color var(--duration-fast) var(--ease); }
+.table tbody tr:hover { background: var(--row-hover); }
 .table tr:last-child td { border-bottom: none; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.table tr.archived td { opacity: 0.6; }
-.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
-.segmented button { border: none; background: var(--surface); padding: 6px 12px; cursor: pointer; color: var(--muted); }
-.segmented button + button { border-left: 1px solid var(--border); }
+/* Archived rows read in muted text at full opacity; the status chip says the same by its shape. */
+.table tr.archived td { color: var(--muted); }
+.toolbar { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; margin-bottom: var(--space-4); }
+/* Toolbar fields are pills like the search box. The search input sits inside .search-box. */
+.toolbar select, .toolbar input:not([type='search'], [type='checkbox']) {
+  min-height: 40px; padding: 6px 14px; border-width: 2px; border-radius: var(--radius-pill);
+}
+/* Segmented control: a pill frame around pill buttons. The active one is in the shared rules. */
+.segmented { display: inline-flex; gap: 2px; padding: 2px; border: 2px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); }
+.segmented button {
+  min-height: 32px; padding: 4px 14px; border: none; border-radius: var(--radius-pill);
+  background: none; cursor: pointer; color: var(--muted); font-weight: 600;
+}
+.segmented button:hover:not(.active) { background: var(--surface-2); color: var(--text); }
+@media (max-width: 760px) {
+  .segmented button { min-height: 36px; }
+  .search-box, .toolbar select, .toolbar input:not([type='search'], [type='checkbox']) { min-height: 44px; }
+}
 
 /* Toasts */
 .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }

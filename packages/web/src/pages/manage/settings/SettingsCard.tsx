@@ -15,7 +15,7 @@ export function SettingsCard({ id, title, intro, children, onSubmit, saveLabel =
   const headingId = `${id}-title`;
   const body = (
     <>
-      <h2 id={headingId}>{title}</h2>
+      <div className="settings-card-head"><h2 id={headingId}>{title}</h2></div>
       {intro ? <p className="hint settings-intro">{intro}</p> : null}
       {children}
     </>

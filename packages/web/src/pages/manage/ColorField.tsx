@@ -83,7 +83,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
             onFocus={() => setFocused(index)}
             onKeyDown={(event) => onKeyDown(event, index)}
           >
-            {color === current ? <Icon name="check" size={16} /> : null}
+            {color === current ? <Icon name="check" size={20} /> : null}
           </button>
         ))}
         <button
@@ -97,7 +97,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
           onFocus={() => setFocused(customIndex)}
           onKeyDown={(event) => onKeyDown(event, customIndex)}
         >
-          <span className="color-custom-check" aria-hidden="true">{custom ? <Icon name="check" size={14} /> : null}</span>
+          <span className="color-custom-check" aria-hidden="true">{custom ? <Icon name="check" size={16} /> : null}</span>
           Custom
         </button>
       </div>
