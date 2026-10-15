@@ -233,7 +233,10 @@ export function SeriesChart({ series, resolution, settings, dimmed }: {
               return (
                 <g key={point.start} className={active === index ? 'is-active' : undefined}>
                   {active === index ? (
-                    <rect className="chart-band" x={margin.left + index * band} y={margin.top} width={band} height={plotHeight} />
+                    <>
+                      <rect className="chart-band" x={margin.left + index * band} y={margin.top} width={band} height={plotHeight} />
+                      <rect className="chart-band-strip" x={x} y={base + 3} width={barWidth} height={3} rx={1.5} />
+                    </>
                   ) : null}
                   {billableHeight > 0 ? (
                     <path className="mark-billable" d={roundedTop(x, billableY, barWidth, billableHeight, otherHeight > 0 ? 0 : radius)} />

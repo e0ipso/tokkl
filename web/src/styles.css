@@ -50,15 +50,17 @@
    chart-billable on surface             other   3.59 AA     5.16 AA
    chart-other on surface                other   3.44 AA     5.19 AA
    chart-other on chart-other-wash       other   2.42 --     3.43 --
-   chart-other on surface-2              other   2.65 low    4.54 AA
-   chart-billable on surface-2           other   2.77 low    4.51 AA
+   chart-other on chart-band             other   3.03 AA     4.84 AA
+   chart-billable on chart-band          other   3.16 AA     4.81 AA
    The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
    separation) on the surface colour in each theme.
    A non-billable chart segment is 3px chart-other stripes over chart-other-wash. The stripes draw
    the segment's edge, so chart-other on surface is its required pair. Stripe on wash is texture
    inside one segment and needs no ratio (--): in light the wash would have to drop from 30% to
-   12% or less to reach 3:1, and then it barely reads as a tint. surface-2 is the band behind the
-   hovered or focused column; in light both series fall under 3:1 against it (low).
+   12% or less to reach 3:1, and then it barely reads as a tint. chart-band is the band behind the
+   hovered or focused column. On surface-2 the light series fell to 2.65 and 2.77, and any mix past
+   50% surface-2 drops chart-other under 3:1 in light, so the band stays faint (1.13:1 on surface in
+   light) and a primary strip under the axis (primary on surface) marks the column as well.
    The entry-row Project placeholder (.add-project, text) and the empty-tags icon (.entry-tags,
    other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
    above are their pairs. Fading them with opacity breaks those ratios.
@@ -109,6 +111,9 @@
   /* The wash behind the non-billable stripes: chart-other at 30% over surface, mixed in srgb.
      Recompute both values if either colour changes. */
   --chart-other-wash: light-dark(#f6ccb1, #523232);
+  /* The band behind the hovered or focused column: surface-2 at 50% over surface, mixed in srgb.
+     Recompute both values if either colour changes. */
+  --chart-band: light-dark(#f6ebd8, #19203f);
   --chart-tooltip-bg: var(--surface);
   --chart-tooltip-text: var(--text);
 

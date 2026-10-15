@@ -100,7 +100,8 @@
 .chart-baseline { stroke: var(--border); stroke-width: 1; shape-rendering: crispEdges; }
 .chart-tick { fill: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .chart-hit { fill: transparent; }
-.chart-band { fill: var(--surface-2); }
+.chart-band { fill: var(--chart-band); }
+.chart-band-strip { fill: var(--primary); }
 .chart-tooltip {
   position: absolute; pointer-events: none; z-index: 2;
   display: flex; flex-direction: column; gap: 2px; min-width: 170px; padding: var(--space-2) var(--space-3);
