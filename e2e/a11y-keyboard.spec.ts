@@ -45,6 +45,12 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   expect(await tabStops(group)).toBe(1);
   const startIndex = await radios.evaluateAll((nodes) => nodes.findIndex((node) => node.getAttribute('aria-checked') === 'true'));
   expect(startIndex).toBeGreaterThanOrEqual(0);
+  // TT-0082: every swatch has its own colour name, and only the checked one draws a check mark.
+  const names = await radios.evaluateAll((nodes) => nodes.map((node) => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim()));
+  expect(new Set(names).size).toBe(count);
+  for (const name of names) expect(name).not.toMatch(/^(Color \d+)?$/);
+  expect(await radios.evaluateAll((nodes) => nodes.map((node) => node.querySelector('svg') !== null)))
+    .toEqual(names.map((_, index) => index === startIndex));
 
   // Tab lands on the checked radio.
   await tabInto(page, group);
@@ -98,6 +104,32 @@ test('the colour field is one Tab stop and arrows check swatches without opening
     probe.style.background = color;
     return probe.style.background;
   }, saved.color)).toBe(chosen);
+});
+
+// TT-0100: each swatch picks the check colour that reads best on it, at 3:1 or more.
+test('every colour swatch draws its check mark at 3:1 or more against the swatch', async ({ page }) => {
+  await login(page);
+  await (await EntityApi.open(page)).createProject({ name: 'Palette' });
+  await page.getByRole('link', { name: 'Projects' }).click();
+  await page.getByRole('button', { name: 'Edit Palette' }).click();
+  const group = page.getByRole('dialog', { name: 'Edit project' }).getByRole('radiogroup', { name: 'Color' });
+  const swatches = group.getByRole('radio').filter({ hasNot: page.getByText('Custom', { exact: true }) });
+  const count = await swatches.count();
+  expect(count).toBeGreaterThan(2);
+
+  await tabInto(page, group.getByRole('radio', { checked: true }));
+  await page.keyboard.press('Home');
+  for (let index = 0; index < count; index++) {
+    if (index > 0) await page.keyboard.press('ArrowRight');
+    const swatch = swatches.nth(index);
+    await expect(swatch).toHaveAttribute('aria-checked', 'true');
+    const { name, check, fill } = await swatch.evaluate((element) => ({
+      name: element.getAttribute('aria-label'),
+      check: getComputedStyle(element.querySelector('svg')!).color,
+      fill: getComputedStyle(element).backgroundColor,
+    }));
+    expect(contrast(check, fill), `check mark on ${name}`).toBeGreaterThanOrEqual(3);
+  }
 });
 
 test('the date range presets are one Tab stop that arrows walk without choosing', async ({ page }) => {

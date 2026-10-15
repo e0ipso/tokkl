@@ -11,6 +11,8 @@ interface Manifest {
   start_url?: unknown;
   display?: unknown;
   scope?: unknown;
+  theme_color?: unknown;
+  background_color?: unknown;
   icons?: ManifestIcon[];
 }
 
@@ -39,6 +41,11 @@ test('the built app links a local manifest whose icons are real images of the de
   const scope = typeof manifest.scope === 'string' ? new URL(manifest.scope, manifestUrl) : new URL('.', startUrl);
   expect(scope.origin).toBe(origin);
   expect(startUrl.href.startsWith(scope.href)).toBe(true);
+
+  // TT-0080: an installed app opens in the light theme's --bg, the colour the light theme-color meta holds.
+  const lightThemeColor = await page.locator('meta[name="theme-color"][media="(prefers-color-scheme: light)"]').getAttribute('content');
+  expect(lightThemeColor).toMatch(/^#[0-9a-f]{6}$/i);
+  expect([manifest.theme_color, manifest.background_color]).toEqual([lightThemeColor, lightThemeColor]);
 
   expect(manifest.icons?.length).toBeGreaterThan(0);
   for (const icon of manifest.icons!) {

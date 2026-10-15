@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { cellTexts, expect, hms, iso, test, type ReportApi } from './report-tests-helpers.ts';
 import { login } from './helpers.ts';
 
@@ -94,6 +94,60 @@ test('summary totals, groups, chart and weekly grid reconcile with known data an
   await expect(total(page, 'Amount')).toHaveText(euros);
   await expect(breakdown.getByRole('columnheader', { name: 'Amount' })).toBeVisible();
   expect(await cellTexts(breakdown.locator('tbody tr'))).toEqual([['Beta', '1:30:00', '100.0%', euros]]);
+});
+
+// TT-0093: non-billable bars are striped as well as coloured, the legend is read out, and the
+// chart takes its size from the --chart-* properties. TT-0101: the column the arrows reach gets a
+// band and an axis strip.
+test('the summary chart stripes non-billable bars, reads out its legend and sizes itself from CSS', async ({ page, api }) => {
+  await seedMixedWeek(api);
+  await login(page);
+  // Two --chart-* overrides in place before the chart mounts, as an edit to reports.css would be.
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const style = document.createElement('style');
+      style.textContent = 'html .series-chart { --chart-height: 300px; --chart-max-bar: 10px; }';
+      document.head.append(style);
+    });
+  });
+  await page.goto(WEEK);
+
+  const chart = page.getByRole('img', { name: /7 days, 5:45:00 in total/ });
+  await expect(chart).toHaveAttribute('height', '300');
+  const billable = chart.locator('path.mark-billable');
+  const other = chart.locator('path.mark-other');
+  // Monday to Wednesday are billable; Thursday and Friday are not.
+  await expect(billable).toHaveCount(3);
+  await expect(other).toHaveCount(2);
+  expect((await billable.first().boundingBox())?.width).toBeCloseTo(10, 1);
+
+  const paint = (path: Locator) => path.evaluate((element) => {
+    const fill = getComputedStyle(element).fill;
+    const id = /^url\("?#(.+?)"?\)$/.exec(fill)?.[1];
+    const target = id ? document.getElementById(id) : null;
+    return {
+      pattern: target?.tagName ?? null,
+      stripes: target?.querySelectorAll('.chart-stripes-line').length ?? 0,
+      solid: fill.startsWith('rgb'),
+    };
+  });
+  for (const index of [0, 1]) expect(await paint(other.nth(index))).toEqual({ pattern: 'pattern', stripes: 1, solid: false });
+  expect(await paint(billable.first())).toEqual({ pattern: null, stripes: 0, solid: true });
+
+  const legend = page.locator('.chart-legend');
+  await expect(legend).toHaveText('BillableNon-billable');
+  expect(await legend.evaluate((element) => element.closest('[aria-hidden="true"]') === null)).toBe(true);
+  expect(await paint(legend.locator('.mark-other'))).toEqual({ pattern: 'pattern', stripes: 1, solid: false });
+
+  // Home makes Monday, which has only billable time, the active column.
+  await chart.focus();
+  await page.keyboard.press('Home');
+  const active = chart.locator('g.is-active');
+  await expect(active.locator('rect.chart-band')).toHaveCount(1);
+  await expect(active.locator('rect.chart-band-strip')).toHaveAttribute('width', '10');
+  await expect(active.locator('path.mark-billable')).toHaveCount(1);
+  await expect(active.locator('path.mark-other')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Mon, 5 Jan 2026' })).toContainText('Billable 2:00:00');
 });
 
 test('detailed rows sort globally and page across a range longer than a year', async ({ page, api }) => {

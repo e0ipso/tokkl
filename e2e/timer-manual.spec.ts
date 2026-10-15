@@ -59,7 +59,9 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
 
   await page.reload();
   await expect(timer.getByLabel('Date')).toBeVisible();
-  await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveClass(/active/);
+  // TT-0081: the mode buttons expose which mode is on, not only through the fill.
+  await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(timer.getByRole('button', { name: 'Timer mode' })).toHaveAttribute('aria-pressed', 'false');
   await expect(timer.getByRole('button', { name: 'Start timer' })).toHaveCount(0);
 
   // November is CET (UTC+1).
@@ -69,7 +71,7 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
     { end: '2', duration: '0:45:00', next: { date: '2025-11-13', start: '02:00' }, saved: ['2025-11-13T00:15:00Z', '2025-11-13T01:00:00Z'] },
   ]);
   await expectChained(page, api, '2025-11-12 22:00', 3);
-  await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveClass(/active/);
+  await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('a 24-hour sequence across the spring clock change keeps local times and real durations', async ({ page, data }) => {

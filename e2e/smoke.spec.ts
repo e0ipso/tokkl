@@ -19,10 +19,16 @@ test('start and stop a timer with a new project and tag', async ({ page }) => {
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Write the PRD');
   await expect(page).toHaveTitle(/0:00:0\d · Write the PRD/);
+  // TT-0081: a running timer shows a "Running" label, and the nav dot has text, not just colour.
+  const timerLink = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Timer running' });
+  await expect(timer.getByText('Running', { exact: true })).toBeVisible();
+  await expect(timerLink).toHaveCount(1);
   await page.screenshot({ path: 'test-results/timer-running.png' });
 
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  await expect(timer.getByText('Running', { exact: true })).toHaveCount(0);
+  await expect(timerLink).toHaveCount(0);
   const row = page.locator('.entry-line').first();
   await expect(row.getByLabel('Description')).toHaveValue('Write the PRD');
   await expect(row.locator('.project-label')).toContainText('Timetrack');

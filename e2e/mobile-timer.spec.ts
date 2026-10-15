@@ -99,3 +99,31 @@ test('the week calendar fits a phone screen with long block and favourite names'
   await expect(blocks).toHaveCount(2);
   for (const block of await blocks.all()) await expectFits(block);
 });
+
+// TT-0082: on a phone the bulk bar sticks to the top of the screen, with its count, while the
+// selected list scrolls under it; the timer bar scrolls away instead of covering it.
+test('the bulk bar and its count stay on screen while a long selection scrolls', async ({ page }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const day = recentDate();
+  for (let hour = 8; hour < 20; hour++) {
+    const time = `${String(hour).padStart(2, '0')}:00:00`;
+    const end = `${String(hour).padStart(2, '0')}:45:00`;
+    await api.createEntry({ description: `Phone entry ${hour}`, start: accountTime(day, time), stop: accountTime(day, end) });
+  }
+  await page.reload();
+
+  const group = page.locator('.day-group', { has: page.locator('input[value="Phone entry 8"]') });
+  await tap(group.locator('.day-select input'));
+  const bar = page.getByRole('toolbar', { name: 'Bulk actions' });
+  const count = bar.getByText('12 selected');
+  await expect(count).toBeVisible();
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+  await expect.poll(async () => (await bar.boundingBox())?.y).toBeCloseTo(0, 0);
+  await expectFits(count);
+  const timer = await page.getByRole('region', { name: 'Timer' }).boundingBox();
+  expect(timer!.y + timer!.height, 'the timer bar scrolled away').toBeLessThanOrEqual(0);
+  await expectNoPageOverflow(page);
+});

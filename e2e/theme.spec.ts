@@ -6,6 +6,7 @@ import { login } from './helpers.ts';
 // mounts, so a dark choice on a light system never flashes the light UI on reload.
 // TT-0098: a blocking script in the head applies that cache, so it holds even when the bundle is slow.
 // TT-0075: the theme picked in Settings decides the page and chart colours.
+// TT-0080: the two media-scoped theme-color metas follow that choice, and "Match the system" restores them.
 
 const CSRF = { 'X-Timetrack-CSRF': '1' };
 const CACHE_KEY = 'timetrack.theme';
@@ -213,6 +214,26 @@ async function expectPageColours(page: Page, colours: TokenColours, scheme: Sche
     .toBe(colours[scheme]['--bg']);
 }
 
+/**
+ * The light and dark theme-color metas' colours, in that order, resolved to rgb() through a probe so
+ * they compare with the --bg token values.
+ */
+const themeColors = (page: Page) => page.evaluate(() => (['light', 'dark'] as const).map((scheme) => {
+  const meta = document.querySelector<HTMLMetaElement>(`meta[name="theme-color"][media="(prefers-color-scheme: ${scheme})"]`);
+  const probe = document.createElement('div');
+  probe.style.backgroundColor = meta?.content ?? '';
+  document.body.append(probe);
+  const colour = getComputedStyle(probe).backgroundColor;
+  probe.remove();
+  return colour;
+}));
+
+/** An explicit theme puts its own --bg in both metas; with none, each meta keeps its scheme's --bg. */
+async function expectThemeColors(page: Page, colours: TokenColours, theme: Scheme | null) {
+  const expected = theme ? [colours[theme]['--bg'], colours[theme]['--bg']] : [colours.light['--bg'], colours.dark['--bg']];
+  await expect.poll(() => themeColors(page), { message: 'theme-color metas, light then dark' }).toEqual(expected);
+}
+
 async function expectChartColours(page: Page, colours: TokenColours, scheme: Scheme) {
   await page.goto(REPORT_WEEK);
   await expect(page.getByRole('tablist', { name: 'Report type' }).getByRole('tab', { name: 'Summary' }))
@@ -227,9 +248,11 @@ test('choosing Dark on a light system darkens the page and the report chart', as
   const colours = await systemTokenColours(browser, baseURL!);
   await login(page);
   await seedBillableEntry(page);
+  await expectThemeColors(page, colours, null);
   await chooseTheme(page, 'Dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expectPageColours(page, colours, 'dark');
+  await expectThemeColors(page, colours, 'dark');
   await expectChartColours(page, colours, 'dark');
 });
 
@@ -242,6 +265,7 @@ test('choosing Light wins over a dark system preference', async ({ page, browser
   await chooseTheme(page, 'Light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expectPageColours(page, colours, 'light');
+  await expectThemeColors(page, colours, 'light');
   await expectChartColours(page, colours, 'light');
 });
 
@@ -253,9 +277,12 @@ test('Match the system follows the emulated color scheme', async ({ page, browse
   await saveTheme(page, 'dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  // The cached dark theme fills both metas on load, before Settings changes anything.
+  await expectThemeColors(page, colours, 'dark');
   await chooseTheme(page, 'Match the system');
   await expect(page.locator('html')).not.toHaveAttribute('data-theme');
   await expectPageColours(page, colours, 'light');
+  await expectThemeColors(page, colours, null);
   await expectChartColours(page, colours, 'light');
 
   await page.emulateMedia({ colorScheme: 'dark' });

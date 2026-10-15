@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { contrast, login } from './helpers.ts';
 import { OtherDevice, daysAgo, entryRow, type EntryState } from './groups-refresh-tests-helpers.ts';
 
 // Grouped rows edit every member through the bulk API (docs/PRD.md L3), and the bulk bar acts on
@@ -105,6 +105,10 @@ test('bulk project, tags, billable and delete act on the entries selected across
   };
 
   await select();
+  // TT-0082: a selected row has a 3px bar on its left edge as well as the tint.
+  const edge = (description: string) => entryRow(page, description).evaluate((element) => getComputedStyle(element).boxShadow);
+  expect(await edge('Alpha')).toMatch(/ 3px 0px 0px 0px inset$/);
+  expect(await edge('Beta')).toBe('none');
   await bar.getByRole('button', { name: 'Project' }).click();
   await page.locator('.picker-item', { hasText: 'Acme' }).click();
   await expect(page.getByText('Project updated')).toBeVisible();
@@ -168,7 +172,12 @@ test('a bulk edit that fails for one entry reports it and keeps the other change
   expect([...result.success].sort((a, b) => a - b)).toEqual([alpha.id, delta.id].sort((a, b) => a - b));
   expect(result.failure).toEqual([{ id: gamma.id, message: 'Time entry not found' }]);
 
-  await expect(page.locator('.toast-error')).toHaveText(/1 entries failed: Time entry not found/);
+  // TT-0083: an error toast is an alert with an icon and a spoken "Error:" prefix.
+  const failure = page.getByRole('alert');
+  await expect(failure).toHaveText(/^Error: 1 entries failed: Time entry not found/);
+  await expect(failure.locator('svg.toast-icon')).toBeVisible();
+  const [ink, paper] = await failure.evaluate((element) => [getComputedStyle(element).color, getComputedStyle(element).backgroundColor]);
+  expect(contrast(ink!, paper!), 'error toast text on its --danger background').toBeGreaterThanOrEqual(4.5);
   for (const id of result.success) expected[id] = { ...expected[id]!, billable: true };
   await expectStored(expected);
   expect(await device.trashIds()).toEqual([gamma.id]);
