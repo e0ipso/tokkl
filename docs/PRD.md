@@ -185,7 +185,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: *
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | C1 | Responsive web app usable on a phone: bottom navigation, timer and list on small screens. | MUST | Done |
-| C2 | Installable PWA (manifest, icons). | SHOULD | Partial: manifest and icons ship; installing on a phone is untested. |
+| C2 | Installable PWA (manifest, icons). | SHOULD | Partial: the manifest ships the redrawn clock icon as an SVG plus 192 and 512 pixel PNGs; installing on a phone is untested. |
 | C3 | Cross-device freshness: the running timer refreshes every 30 s and on window focus, entries every 60 s. | MUST | Done |
 | C4 | Offline outbox for timer start/stop/edit in the PWA, with an unsynced marker. Matters more here than for Toggl because a phone off the home network loses the server. | SHOULD | Planned |
 | C5 | Browser extension, desktop tray app. | WON'T (v1) | n/a |
@@ -323,8 +323,8 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 | Reliability | Writes are transactional; one running entry guaranteed by the database. Graceful shutdown on SIGTERM. | Done |
 | Privacy | Zero outbound requests from server and UI. | Done (verify with the CSP and a network log) |
 | Portability | Any Linux host with Node 24 (amd64 or arm64). No native modules. | Tested on amd64 only |
-| Accessibility | Keyboard reachable controls, labeled inputs, visible focus, color never the only signal. | Partial: labels and focus done, no screen reader audit |
-| Tests | 50 server and shared tests (`node --test`) and 9 Playwright browser tests, all passing on 2026-10-14. | Done |
+| Accessibility | Keyboard reachable controls, labeled inputs, visible focus, color never the only signal. | Partial: labels, focus rings, non-colour cues (hatched non-billable bars, check marks on colour swatches, a labelled running dot), reduced motion, inline field errors, loading and error states and keyboard navigation are covered by Playwright specs; no screen reader audit |
+| Tests | 117 `node --test` tests (85 api, 13 common, 19 web) and 143 Playwright browser tests in 40 files, counted on 2026-10-15. | Done |
 
 ## 10. Release plan
 

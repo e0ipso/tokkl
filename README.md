@@ -20,7 +20,7 @@ The product requirements, the Toggl research behind them, and the status of each
 
 The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as [README screenshots](#readme-screenshots) explains.
 
-**Timer.** The running entry is at the top and history is grouped by day. Favorites appear as numbered chips.
+**Timer.** The running entry is at the top and history is grouped by day. Favorites are bold numbered pills under the timer, and the sidebar lists Timer, Reports, Projects, Clients, Tags, Trash and Settings.
 
 ![Timer with a running entry and day-grouped history](docs/screenshots/desktop-timer.png)
 
@@ -42,7 +42,7 @@ The data is synthetic: three clients, five projects and five weeks of weekday en
 
 ![Projects](docs/screenshots/desktop-projects.png)
 
-**On a phone.** The same timer, calendar and reports with a bottom navigation bar.
+**On a phone.** The same timer, calendar and reports, with a bottom bar for Timer, Reports, Projects, Settings and More.
 
 <p>
   <img src="docs/screenshots/mobile-timer.png" alt="Timer on a phone" width="260">
