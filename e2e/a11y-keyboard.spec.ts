@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { contrast, login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 
 // TT-0110: the colour radiogroup, the date range presets and the project picker each take one Tab
@@ -204,3 +204,50 @@ test('the project picker search is a combobox whose arrows move aria-activedesce
   await expect(combobox).toBeHidden();
   await expect(timer.getByRole('button', { name: 'Project' })).toContainText('Alpha: Planning');
 });
+
+/** The outline, bar and background a picker option renders with. */
+function optionLook(option: Locator) {
+  return option.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      outline: `${style.outlineWidth} ${style.outlineStyle}`,
+      outlineColor: style.outlineColor,
+      background: style.backgroundColor,
+      boxShadow: style.boxShadow,
+    };
+  });
+}
+
+// TT-0111: the option the arrows make active shows a 2px primary outline on the row, at 3:1 against
+// the row in both themes, and looks different from the selected option's tint and left bar.
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the arrowed-to project picker option shows a visible indicator in the ${scheme} theme`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await login(page);
+    const api = await EntityApi.open(page);
+    await api.createProject({ name: 'Alpha' });
+    await page.reload();
+
+    const description = page.getByRole('region', { name: 'Timer' }).getByLabel('Description');
+    await tabInto(page, description);
+    await page.keyboard.press('@');
+    const list = page.getByRole('listbox', { name: 'Projects' });
+    const none = list.getByRole('option', { name: 'No project' });
+    const alpha = list.getByRole('option', { name: 'Alpha' });
+    await expect(none).toHaveAttribute('aria-selected', 'true');
+    expect((await optionLook(none)).outline).not.toBe('2px solid');
+
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await expect(alpha).toHaveClass(/\bhighlighted\b/);
+    const active = await optionLook(alpha);
+    const selected = await optionLook(none);
+    expect(active.outline).toBe('2px solid');
+    expect(contrast(active.outlineColor, active.background)).toBeGreaterThanOrEqual(3);
+    // The selected row keeps its tint and bar and has no outline; the active row has no bar.
+    expect(selected.outline).not.toBe('2px solid');
+    expect(selected.background).not.toBe(active.background);
+    expect(selected.boxShadow).not.toBe('none');
+    expect(active.boxShadow).toBe('none');
+  });
+}

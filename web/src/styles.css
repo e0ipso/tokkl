@@ -70,7 +70,9 @@
    muted outline when off (the muted rows) and a state-billable circle with a surface icon when on;
    rows can be surface, surface-2 or state-selected. The active mode button's underline is primary
    on state-selected. The selection bar on selected rows and picker items is primary on
-   state-selected; a highlighted suggestion is state-selected too. */
+   state-selected; a highlighted suggestion is state-selected too. The outline on the project picker
+   option the arrow keys made active is primary on surface-2, or primary on state-selected when that
+   option is also the selected one; the primary text rows above give both ratios. */
 :root {
   color-scheme: light dark;
 
@@ -273,7 +275,7 @@ code, kbd {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
   border: none; background: none; border-radius: var(--radius-sm); cursor: pointer;
 }
-.row-button:hover, .nav-link:hover, .suggestion:hover, .picker-item:hover, .menu button:hover {
+.row-button:hover, .nav-link:hover, .suggestion:hover, .picker-item:hover, .picker-item.highlighted, .menu button:hover {
   background: var(--surface-2);
 }
 /* Selected and active: the --state-selected tint. After the hover rule, so it stays on hover. */
@@ -283,6 +285,11 @@ code, kbd {
 /* Selected rows, picker items and the keyboard-highlighted suggestion also get a primary bar on the
    left edge, so the tint is not the only sign. */
 .entry-line.selected, .picker-item.selected, .suggestion.highlighted { box-shadow: inset 3px 0 0 var(--primary); }
+/* The project picker option the arrow keys made active: the hover background plus a 2px primary
+   outline drawn inside the row, like the focus ring. Focus stays in the search field, so this is
+   the only visible sign of what Enter will pick. A selected row that is also active keeps its tint
+   and bar under the outline. */
+.picker-item.highlighted { outline: 2px solid var(--primary); outline-offset: -2px; }
 .nav-link.active, .segmented button.active { color: var(--primary); font-weight: 600; }
 /* Figures: the running clock, durations and day totals. Table cells use .num, which only aligns. */
 .timer-clock, .manual-duration, .day-total, .entry-duration { font-variant-numeric: tabular-nums; font-weight: 600; }

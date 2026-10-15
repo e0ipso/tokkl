@@ -19,3 +19,20 @@ export async function login(page: Page) {
   }
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
 }
+
+function luminance(color: string): number {
+  const channels = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+  if (channels.length < 3) throw new Error(`Cannot parse colour ${color}`);
+  const weights = [0.2126, 0.7152, 0.0722];
+  return channels.reduce((sum, value, i) => {
+    const c = value / 255;
+    return sum + (weights[i] ?? 0) * (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  }, 0);
+}
+
+/** WCAG 2 contrast ratio between two computed rgb() or rgba() colours. */
+export function contrast(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}

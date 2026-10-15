@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { contrast, login } from './helpers.ts';
 
 // TT-0071: keyboard focus shows a 2px ring on the timer description, the "Project" button of an
 // entry without a project, and the reports description search, with 3:1 contrast in both themes.
@@ -27,22 +27,6 @@ function ringOf(target: Locator): Promise<Ring> {
     }
     return { width: style.outlineWidth, style: style.outlineStyle, color: style.outlineColor, behind };
   });
-}
-
-function luminance(color: string): number {
-  const channels = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-  if (channels.length < 3) throw new Error(`Cannot parse colour ${color}`);
-  const weights = [0.2126, 0.7152, 0.0722];
-  return channels.reduce((sum, value, i) => {
-    const c = value / 255;
-    return sum + (weights[i] ?? 0) * (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  }, 0);
-}
-
-function contrast(a: string, b: string): number {
-  const la = luminance(a);
-  const lb = luminance(b);
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
 async function expectRing(target: Locator) {
