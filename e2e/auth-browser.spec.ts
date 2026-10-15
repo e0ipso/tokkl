@@ -1,6 +1,8 @@
+import type { Page } from '@playwright/test';
 import { EMAIL, PASSWORD } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { ACCOUNT, SETUP_CODE, expect, meWithSession, sessionCookie, test } from './auth-tests-helpers.ts';
+import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
 // TT-0028: failed setup and login in the browser, and what logout leaves behind.
 
@@ -96,4 +98,39 @@ test('after logout the old session is refused, and reload or back shows no priva
   await page.goBack();
   await expect(page).toHaveURL(`${baseURL}/`);
   await expectNoPrivateData();
+});
+
+// TT-0088: on a phone the setup and login cards, their fields, buttons and error fit the screen
+// without sideways scrolling, in light and dark.
+test.describe('on a phone', () => {
+  test.use(PHONE);
+
+  const expectCardFits = async (page: Page, labels: string[], button: string) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(scheme === 'dark');
+      await expectFits(page.locator('.auth-card'));
+      for (const label of labels) await expectFits(page.getByLabel(label));
+      await expectFits(page.getByRole('button', { name: button }));
+      await expectNoPageOverflow(page);
+    }
+  };
+
+  test('the setup and login cards fit a phone in light and dark', async ({ page, runtimeErrors, servers }) => {
+    const server = await servers.start({ slot: 0 });
+    await page.goto(server.baseURL);
+    await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+    await expectCardFits(page, ['Setup code', 'Name', 'Email', 'Password'], 'Create account');
+
+    runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/login$/, reason: 'a wrong password shows the login error' });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+    await page.getByLabel('Email').fill(EMAIL);
+    await page.getByLabel('Password').fill('not the password');
+    await page.getByRole('button', { name: 'Log in' }).click();
+    const alert = page.locator('.auth-error').getByRole('alert');
+    await expect(alert).toHaveText('Incorrect email or password');
+    await expectCardFits(page, ['Email', 'Password'], 'Log in');
+    await expectFits(page.locator('.auth-error'));
+  });
 });

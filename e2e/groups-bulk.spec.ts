@@ -215,3 +215,30 @@ test('a bulk delete that fails for one entry reports what was deleted and can un
   await expect.poll(() => device.states()).toEqual(before);
   expect(await device.trashIds()).toEqual([gamma.id]);
 });
+
+// TT-0089: the timer bar writes its height to --timer-bar-height on <html>, and the bulk bar
+// reads it to stick flush under the timer bar while a long selection scrolls on a desktop.
+test('the bulk bar sticks flush under the timer bar while a long selection scrolls', async ({ page }) => {
+  const day = daysAgo(2);
+  for (let hour = 2; hour < 20; hour++) await device.createEntry({ description: `Long day ${hour}`, start: at(day, hour), stop: at(day, hour + 1) });
+
+  await login(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await page.locator('.day-group', { has: entryRow(page, 'Long day 2') }).locator('.day-select input').check();
+  const bar = page.getByRole('toolbar', { name: 'Bulk actions' });
+  await expect(bar.getByText('18 selected')).toBeVisible();
+
+  const height = await timer.evaluate((element) => (element as HTMLElement).offsetHeight);
+  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--timer-bar-height'))).toBe(`${height}px`);
+  expect(await bar.evaluate((element) => getComputedStyle(element).top)).toBe(`${height}px`);
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+  await expect.poll(async () => (await timer.boundingBox())?.y).toBeCloseTo(0, 0);
+  // offsetHeight rounds to whole pixels, so the bar may sit up to a pixel off the fractional edge.
+  const gap = async () => {
+    const [above, below] = [(await timer.boundingBox())!, (await bar.boundingBox())!];
+    return Math.abs(below.y - (above.y + above.height));
+  };
+  await expect.poll(gap).toBeLessThanOrEqual(1);
+});

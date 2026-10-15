@@ -104,3 +104,35 @@ test('calendar blocks are named by description, project and duration, and short 
   const plain = today.getByRole('group', { name: 'Inbox, 0:15:00', exact: true });
   await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
 });
+
+// TT-0091: the running block and the now line use --state-running, the running block is dashed so
+// colour is not its only mark, and only today's day head is a filled badge.
+test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {
+  await login(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await timer.getByLabel('Description').fill('Live work');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+  await openCalendar(page);
+
+  /** The computed colour of a token, read through a throwaway element. */
+  const token = (property: string) => page.evaluate((name) => {
+    const probe = document.createElement('div');
+    probe.style.color = `var(${name})`;
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
+  }, property);
+  const running = await token('--state-running');
+  const block = page.locator('.calendar-column.today .calendar-block.running');
+  await expect(block).toHaveCount(1);
+  await expect(block).toHaveCSS('border-top-style', 'dashed');
+  await expect(block).toHaveCSS('border-top-color', running);
+  await expect(page.locator('.calendar-column.today .calendar-now')).toHaveCSS('background-color', running);
+
+  const badge = page.locator('.calendar-day-head.today span');
+  await expect(badge).toHaveCSS('background-color', await token('--primary'));
+  await expect(badge).toHaveCSS('color', await token('--on-primary'));
+  await expect(page.locator('.calendar-day-head:not(.today) span').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+});

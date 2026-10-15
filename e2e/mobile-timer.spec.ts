@@ -18,6 +18,12 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   const row = page.locator('.entry-line', { has: page.locator('input[value="Phone edit"]') });
   await expect(row).toBeVisible();
   await expectNoPageOverflow(page);
+  // TT-0089: the idle timer bar and each of its controls fit the phone screen.
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await expectFits(timer);
+  const controls = timer.locator('input, button').filter({ visible: true });
+  expect(await controls.count()).toBeGreaterThanOrEqual(7);
+  for (const control of await controls.all()) await expectFits(control);
 
   // Project and task from the row's picker.
   await tap(row.locator('.entry-project'));
@@ -61,7 +67,6 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await expect(savedRow.locator('.entry-duration')).toHaveValue('1:45:00');
 
   // The timer bar's picker, then start and stop.
-  const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Phone timer');
   await tap(timer.getByRole('button', { name: 'Project' }));
   await expectFits(projectPicker);
@@ -94,6 +99,12 @@ test('the week calendar fits a phone screen with long block and favourite names'
   await tap(page.getByRole('button', { name: 'Calendar' }));
   await expect(page.locator('.calendar-column.today')).toBeVisible();
   await expectNoPageOverflow(page);
+  // TT-0091: the toolbar and the scrolling calendar body fit the screen. scrollIntoViewIfNeeded
+  // stops about a pixel short of the body's bottom edge, so centre the body first.
+  await expectFits(page.locator('.calendar-toolbar'));
+  const body = page.locator('.calendar-body');
+  await body.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  await expectFits(body);
   await expectFits(page.locator('.calendar-day-head').last());
   const blocks = page.locator('.calendar-column.today').getByRole('group', { name: `${description}, Customer onboarding programme` });
   await expect(blocks).toHaveCount(2);

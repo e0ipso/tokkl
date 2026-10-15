@@ -63,6 +63,14 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
   await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
   await expect(timer.getByRole('button', { name: 'Timer mode' })).toHaveAttribute('aria-pressed', 'false');
   await expect(timer.getByRole('button', { name: 'Start timer' })).toHaveCount(0);
+  // TT-0089: the two mode buttons form a labelled group, each at least 24px each way.
+  const modes = timer.getByRole('group', { name: 'Entry mode' }).getByRole('button');
+  await expect(modes).toHaveCount(2);
+  expect(await modes.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Timer mode', 'Manual mode']);
+  for (const button of await modes.all()) {
+    const box = (await button.boundingBox())!;
+    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(24);
+  }
 
   // November is CET (UTC+1).
   await addSequence(page, api, { date: '2025-11-12', start: '22:00' }, [

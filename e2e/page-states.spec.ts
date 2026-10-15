@@ -40,6 +40,7 @@ test('the app shows a busy splash while it starts and a Try again alert when the
 
   const splash = page.locator('.splash');
   await expect(splash.locator('[aria-busy="true"]').getByRole('status')).toHaveText('Loading…');
+  await expect(splash.getByRole('img', { name: 'Tokkl' })).toBeVisible();
   release();
   const alert = splash.getByRole('alert');
   await expect(alert).toContainText("Can't reach the server: Server unavailable", AFTER_RETRIES);

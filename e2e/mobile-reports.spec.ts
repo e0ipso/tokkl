@@ -40,6 +40,14 @@ test('report filters, tabs and CSV downloads work by touch on a phone and match 
   await page.goto('/reports?from=2026-01-05&to=2026-01-11');
   await expect(totalTime(page)).toHaveText('4:15:00');
   await expectNoPageOverflow(page);
+  // TT-0092: the filters, range control, tabs, totals and the summary table fit the screen.
+  const tabs = page.getByRole('tablist', { name: 'Report type' });
+  await expectFits(page.getByRole('group', { name: 'Filters' }));
+  await expectFits(page.locator('.range-control'));
+  await expectFits(tabs);
+  await expectFits(page.locator('.report-totals'));
+  await expect(page.locator('.breakdown-table tbody tr').first()).toBeVisible();
+  await expectFits(page.getByRole('region', { name: 'Breakdown' }).locator('.table-wrap'));
 
   await exclude(page, 'Project', ['Beta']);
   await exclude(page, 'Tag', ['invoiced']);
@@ -60,7 +68,7 @@ test('report filters, tabs and CSV downloads work by touch on a phone and match 
     ['Alpha', 'Review', '0:30:00'],
   ]);
 
-  await tap(page.getByRole('tablist', { name: 'Report type' }).getByRole('tab', { name: 'Detailed' }));
+  await tap(tabs.getByRole('tab', { name: 'Detailed' }));
   const rows = page.locator('tr.entry-row');
   await expect(rows).toHaveCount(2);
   await expectNoPageOverflow(page);
@@ -77,6 +85,12 @@ test('report filters, tabs and CSV downloads work by touch on a phone and match 
   // A wide table scrolls inside its wrapper, so its last column is reachable by touch.
   const lastCell = rows.first().locator('td').last();
   await expectFits(lastCell);
+  await expectFits(page.locator('.table-wrap', { has: page.locator('.detailed-table') }));
+  await expectNoPageOverflow(page);
+
+  await tap(tabs.getByRole('tab', { name: 'Weekly' }));
+  await expect(page.locator('.weekly-table tbody tr').first()).toBeVisible();
+  await expectFits(page.locator('.table-wrap', { has: page.locator('.weekly-table') }));
   await expectNoPageOverflow(page);
 });
 

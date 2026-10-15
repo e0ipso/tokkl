@@ -128,3 +128,46 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   await expect.poll(async () => (await api.project(project.id)).active).toBe(false);
   await expectNoPageOverflow(page);
 });
+
+// TT-0087: the phone header carries the wordmark; bar items are at least 44px each way with
+// labels of 11px or more; the More sheet opens by keyboard and Tab stays inside it.
+test('the bottom bar items are large enough to tap, and the More sheet works by keyboard', async ({ page }) => {
+  await login(page);
+  await expect(page.locator('.phone-header').getByRole('img', { name: 'Tokkl' })).toBeVisible();
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const items = nav.locator(':scope > a, :scope > button');
+  await expect(items).toHaveCount(5);
+  for (const item of await items.all()) {
+    const box = (await item.boundingBox())!;
+    expect(Math.min(box.width, box.height), `${await item.innerText()} is at least 44px each way`).toBeGreaterThanOrEqual(44);
+    const label = await item.locator('span').first().evaluate((span) => parseFloat(getComputedStyle(span).fontSize));
+    expect(label, `${await item.innerText()} label size`).toBeGreaterThanOrEqual(11);
+  }
+
+  const more = nav.getByRole('button', { name: 'More', exact: true });
+  await more.focus();
+  await page.keyboard.press('Enter');
+  const sheet = nav.getByRole('dialog', { name: 'More' });
+  await expect(sheet).toBeVisible();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await expect(sheet.getByRole('link', { name: 'Clients', exact: true })).toBeFocused();
+  for (const name of ['Tags', 'Trash']) {
+    await page.keyboard.press('Tab');
+    await expect(sheet.getByRole('link', { name, exact: true })).toBeFocused();
+  }
+  await page.keyboard.press('Tab');
+  const logout = sheet.getByRole('button', { name: 'Log out' });
+  await expect(logout).toBeFocused();
+  // Tab past the last control wraps to the first, the close button; Shift+Tab wraps back.
+  const close = sheet.getByRole('button', { name: 'Close' });
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(logout).toBeFocused();
+
+  await close.focus();
+  await page.keyboard.press('Enter');
+  await expect(sheet).toBeHidden();
+  await expect(more).toBeFocused();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+});

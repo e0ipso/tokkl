@@ -12,7 +12,10 @@ test('an error hidden by ErrorBoundary fails the scenario', async ({ page, runti
     ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ favorites: 5 }) })
     : route.continue()));
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Something broke on this page' })).toBeVisible();
+  // TT-0088: the error page is an alert with the page's h1 and a way back.
+  const alert = page.getByRole('alert').filter({ has: page.getByRole('heading', { level: 1, name: 'Something broke on this page' }) });
+  await expect(alert).toBeVisible();
+  await expect(alert.getByRole('button', { name: 'Try again' })).toBeVisible();
   await expect(runtimeErrors.verify(testInfo)).rejects.toThrow(/console: TypeError: .* is not a function/);
   runtimeErrors.issues.splice(0);
 });
