@@ -34,7 +34,7 @@ test('behind a trusted HTTPS proxy the session cookie is Secure and HSTS is sent
   assert.match(proxied.headers.get('set-cookie') ?? '', /;\s*Secure/i);
   assert.match(proxied.headers.get('strict-transport-security') ?? '', /max-age=/);
 
-  // Without TIMETRACK_TRUST_PROXY the forwarded headers are ignored.
+  // Without TOKKL_TRUST_PROXY the forwarded headers are ignored.
   const direct = await login(testServer(createApp({ db, config: testConfig(), setup: { code: null } })));
   assert.doesNotMatch(direct.headers.get('set-cookie') ?? '', /;\s*Secure/i);
   assert.equal(direct.headers.get('strict-transport-security'), null);

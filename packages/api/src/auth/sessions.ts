@@ -2,7 +2,9 @@ import type { Db } from '../db/index.ts';
 import { getUser, type UserRow } from '../models/users.ts';
 import { generateSessionToken, sha256 } from './crypto.ts';
 
-export const SESSION_COOKIE = 'tt_session';
+export const SESSION_COOKIE = 'tokkl_session';
+/** Session cookie name from before the rename to Tokkl. Still read, so an upgrade does not log anyone out. */
+export const LEGACY_SESSION_COOKIE = 'tt_session';
 
 export function createSession(db: Db, userId: number, days: number, userAgent: string): { token: string; expires: Date } {
   const token = generateSessionToken();

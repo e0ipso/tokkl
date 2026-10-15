@@ -4,13 +4,29 @@ import { clientAddress, getCookie } from '../http/context.ts';
 import { HttpError, forbidden } from '../lib/errors.ts';
 import { findUserByApiToken, findUserByEmail, type UserRow } from '../models/users.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from './crypto.ts';
-import { findSessionUser, SESSION_COOKIE } from './sessions.ts';
+import { findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from './sessions.ts';
 
-export const CSRF_HEADER = 'x-timetrack-csrf';
+export const CSRF_HEADER = 'x-tokkl-csrf';
+/** CSRF header name from before the rename to Tokkl. Still accepted, so an open tab keeps saving after an upgrade. */
+export const LEGACY_CSRF_HEADER = 'x-timetrack-csrf';
 
 /** A cross-site form cannot set this header, and the server never grants the CORS preflight it needs. */
 export function hasCsrfHeader(req: Request): boolean {
-  return req.headers[CSRF_HEADER] === '1';
+  return req.headers[CSRF_HEADER] === '1' || req.headers[LEGACY_CSRF_HEADER] === '1';
+}
+
+/** Session tokens sent in the current cookie and in the cookie from before the rename, current first. */
+export function sessionTokens(req: Request): string[] {
+  return [getCookie(req, SESSION_COOKIE), getCookie(req, LEGACY_SESSION_COOKIE)].filter((token) => token !== undefined);
+}
+
+/** The first session token that belongs to a live session, with its user. */
+export function findSession(db: Deps['db'], req: Request): { token: string; user: UserRow } | undefined {
+  for (const token of sessionTokens(req)) {
+    const user = findSessionUser(db, token);
+    if (user) return { token, user };
+  }
+  return undefined;
 }
 
 function decodeBasic(header: string): { username: string; password: string } | null {
@@ -55,14 +71,14 @@ export function requireAuth(deps: Deps): RequestHandler {
       res.locals.authMethod = 'basic';
       return next();
     }
-    const token = getCookie(req, SESSION_COOKIE);
-    const user = token ? findSessionUser(deps.db, token) : undefined;
-    if (!user) throw forbidden('Incorrect username and/or password');
+    const session = findSession(deps.db, req);
+    if (!session) throw forbidden('Incorrect username and/or password');
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !hasCsrfHeader(req)) {
       throw forbidden('Missing CSRF header');
     }
-    res.locals.user = user;
+    res.locals.user = session.user;
     res.locals.authMethod = 'session';
+    res.locals.sessionToken = session.token;
     return next();
   };
 }

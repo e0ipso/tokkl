@@ -1,4 +1,4 @@
-# Timetrack
+# Tokkl
 
 A self-hosted, single-user time tracker modeled on Toggl Track. It runs on a server you own, keeps every entry in one SQLite file, and answers on a subset of the Toggl Track API v9 and Reports API v3. Scripts and libraries written for Toggl can switch to it by changing the base URL.
 
@@ -68,7 +68,7 @@ No account yet. Open the web UI and use this setup code to create it: ABCD-EFGH-
 
 Open the web app, enter the code, and create your account. Only someone who can read the server log can create the account.
 
-All data is in `timetrack.sqlite` (plus its `-wal` and `-shm` files) inside the data folder. Settings → Data also exports everything as JSON and all entries as CSV, and restores the JSON export.
+All data is in `tokkl.sqlite` (plus its `-wal` and `-shm` files) inside the data folder. Settings → Data also exports everything as JSON and all entries as CSV, and restores the JSON export.
 
 ## Configuration
 
@@ -76,38 +76,47 @@ All data is in `timetrack.sqlite` (plus its `-wal` and `-shm` files) inside the 
 |---|---|---|
 | `PORT` | `8080` | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address |
-| `TIMETRACK_DATA_DIR` | `./data` | Folder for the database |
-| `TIMETRACK_DATABASE` | `<data dir>/timetrack.sqlite` | Database file path |
-| `TIMETRACK_TRUST_PROXY` | `false` | Trust one reverse proxy hop. The client address for login rate limiting then comes from the last `X-Forwarded-For` entry, and `X-Forwarded-Proto: https` makes the session cookie `Secure` and turns on HSTS. Set it only when the app is reachable through the proxy alone. |
-| `TIMETRACK_SESSION_DAYS` | `30` | Login session lifetime |
-| `TIMETRACK_SETUP_CODE` | random | Fixed first-run setup code, for scripted installs |
-| `TIMETRACK_WEB_ROOT` | `dist/web` | Folder with the built web app |
+| `TOKKL_DATA_DIR` | `./data` | Folder for the database |
+| `TOKKL_DATABASE` | `<data dir>/tokkl.sqlite` | Database file path |
+| `TOKKL_TRUST_PROXY` | `false` | Trust one reverse proxy hop. The client address for login rate limiting then comes from the last `X-Forwarded-For` entry, and `X-Forwarded-Proto: https` makes the session cookie `Secure` and turns on HSTS. Set it only when the app is reachable through the proxy alone. |
+| `TOKKL_SESSION_DAYS` | `30` | Login session lifetime |
+| `TOKKL_SETUP_CODE` | random | Fixed first-run setup code, for scripted installs |
+| `TOKKL_WEB_ROOT` | `dist/web` | Folder with the built web app |
+
+### Upgrading from Timetrack
+
+Tokkl used to be called Timetrack. An existing install keeps working after the upgrade:
+
+- Each `TOKKL_*` variable falls back to its old `TIMETRACK_*` name, for example `TIMETRACK_DATA_DIR`. The server logs one deprecation line at startup listing the old names it used. Rename them when convenient, since a later release may drop the fallback.
+- When `TOKKL_DATABASE` is not set, `tokkl.sqlite` does not exist and the data folder has a `timetrack.sqlite`, the server keeps using `timetrack.sqlite` and logs that. It never moves or renames the file. To switch to the new name, stop the server and rename the file, plus any `-wal` and `-shm` files, to `tokkl.sqlite`.
+- Browsers stay signed in: the old `tt_session` cookie and `X-Timetrack-CSRF` header are still accepted, and the next login issues `tokkl_session`.
+- JSON exports made by Timetrack still restore.
 
 ## Moving from Toggl Track
 
 1. In Toggl Track open Reports → Detailed, pick a date range (a year at a time works well), and export CSV. Set your Toggl duration format to "Improved" first.
-2. In Timetrack set your timezone in Settings to the one your Toggl profile uses. Times in the CSV are read in that timezone.
+2. In Tokkl set your timezone in Settings to the one your Toggl profile uses. Times in the CSV are read in that timezone.
 3. Settings → Data → Import from Toggl Track. The preview shows what would be created; then import.
 
 Clients, projects, tasks and tags are created as needed. Rows that match an existing entry are skipped, so overlapping files or a second run do no harm. Project colors and rates are not in Toggl's CSV; set them afterwards on the Projects page.
 
 ## Using the Toggl-compatible API
 
-Find your API token under Settings → API token. Authentication is the same as Toggl's. In these examples `$TIMETRACK_URL` is wherever the server is reachable:
+Find your API token under Settings → API token. Authentication is the same as Toggl's. In these examples `$TOKKL_URL` is wherever the server is reachable:
 
 ```sh
-curl -u "$TOKEN:api_token" $TIMETRACK_URL/api/v9/me
-curl -u "$TOKEN:api_token" $TIMETRACK_URL/api/v9/me/time_entries/current
+curl -u "$TOKEN:api_token" $TOKKL_URL/api/v9/me
+curl -u "$TOKEN:api_token" $TOKKL_URL/api/v9/me/time_entries/current
 
 # Start a timer
 curl -u "$TOKEN:api_token" -H 'Content-Type: application/json' \
   -d '{"description":"Deep work","start":"'"$(date -u +%FT%TZ)"'","duration":-1,"created_with":"curl","workspace_id":1}' \
-  $TIMETRACK_URL/api/v9/workspaces/1/time_entries
+  $TOKKL_URL/api/v9/workspaces/1/time_entries
 
 # Summary report
 curl -u "$TOKEN:api_token" -H 'Content-Type: application/json' \
   -d '{"start_date":"2026-10-01","end_date":"2026-10-31","grouping":"projects","sub_grouping":"time_entries"}' \
-  $TIMETRACK_URL/reports/api/v3/workspace/1/summary/time_entries
+  $TOKKL_URL/reports/api/v3/workspace/1/summary/time_entries
 ```
 
 Your workspace id is `default_workspace_id` in `GET /api/v9/me`.
@@ -187,7 +196,7 @@ npm run bench:history -- --fixtures year --no-browser   # quicker
 npm run bench:history -- --out results.json --end-date 2026-10-13
 ```
 
-For each fixture it starts `node server/src/index.ts` on its own port (`--port`, default 8190) with a new temporary data directory, which it deletes on exit. It ignores any `TIMETRACK_*` variables in your environment, so it never opens `./data` or another real database, and it makes no outside requests. The fixtures are generated from a fixed seed and loaded through the JSON restore:
+For each fixture it starts `node server/src/index.ts` on its own port (`--port`, default 8190) with a new temporary data directory, which it deletes on exit. It ignores any `TOKKL_*` or `TIMETRACK_*` variables in your environment, so it never opens `./data` or another real database, and it makes no outside requests. The fixtures are generated from a fixed seed and loaded through the JSON restore:
 
 - `year`: 3,000 entries over 365 days.
 - `decade`: 30,000 entries over 3,650 days, the 30k-entry comparison fixture from the 2026-10-14 audit.

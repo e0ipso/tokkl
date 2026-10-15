@@ -3,7 +3,7 @@ import { request, type APIRequestContext, type APIResponse, type Page } from '@p
 import { EMAIL, PASSWORD, expect, test as base } from './fixtures.ts';
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
-const CSRF = { 'X-Timetrack-CSRF': '1' };
+const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 /** Account and workspace settings the report specs change. The shared reset fixture leaves them alone. */
 interface ReportSettings {

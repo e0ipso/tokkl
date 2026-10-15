@@ -58,11 +58,11 @@ async function waitForHealth(baseURL: string, child: ChildProcess, log: () => st
 async function startServer(options: ServerOptions): Promise<DisposableServer> {
   const port = FIRST_PORT + options.slot;
   const baseURL = `http://127.0.0.1:${port}`;
-  const dataDir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'timetrack-e2e-auth-'));
+  const dataDir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'tokkl-e2e-auth-'));
   const args = options.clockShiftMs ? ['--import', clockShiftImport(options.clockShiftMs)] : [];
   const child = spawn(process.execPath, [...args, 'packages/api/src/index.ts'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', TIMETRACK_DATA_DIR: dataDir, TIMETRACK_SETUP_CODE: SETUP_CODE },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: dataDir, TOKKL_SETUP_CODE: SETUP_CODE },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -149,7 +149,7 @@ export async function logInThroughForm(page: Page, baseURL: string, password = A
 
 /** Status of GET /api/v9/me sent with only the given session cookie, from outside any browser. */
 export async function meWithSession(baseURL: string, session: string): Promise<number> {
-  const api = await request.newContext({ baseURL, extraHTTPHeaders: { cookie: `tt_session=${session}` } });
+  const api = await request.newContext({ baseURL, extraHTTPHeaders: { cookie: `tokkl_session=${session}` } });
   try {
     return (await api.get('/api/v9/me')).status();
   } finally {
@@ -168,7 +168,7 @@ export async function meWithBasic(baseURL: string, authorization: string): Promi
 }
 
 export async function sessionCookie(page: Page, baseURL: string): Promise<string> {
-  const cookie = (await page.context().cookies(baseURL)).find((c) => c.name === 'tt_session');
+  const cookie = (await page.context().cookies(baseURL)).find((c) => c.name === 'tokkl_session');
   expect(cookie, 'the browser holds a session cookie').toBeDefined();
   return cookie!.value;
 }

@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { useCreateEntry, useDeleteEntry, useProjects, useRestoreEntry, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
-import { formatDuration, parseDuration } from '@timetrack/common/duration';
-import { addDays } from '@timetrack/common/time';
+import { formatDuration, parseDuration } from '@tokkl/common/duration';
+import { addDays } from '@tokkl/common/time';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, useNow, useSettings } from '../lib/settings.ts';
 import { parseTimeOfDay } from '../lib/timeOfDay.ts';

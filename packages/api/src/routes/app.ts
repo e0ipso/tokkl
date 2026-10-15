@@ -1,12 +1,12 @@
 import express, { type Request, type Response, type Router } from 'express';
 import { MAX_PASSWORD_LENGTH, safeEqual, verifyAgainstDummy, verifyPassword } from '../auth/crypto.ts';
-import { hasCsrfHeader, requireAuth } from '../auth/middleware.ts';
-import { createSession, deleteSession, findSessionUser, SESSION_COOKIE } from '../auth/sessions.ts';
+import { hasCsrfHeader, requireAuth, sessionTokens } from '../auth/middleware.ts';
+import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
-import { clientAddress, getCookie, query, readJson, readText } from '../http/context.ts';
+import { clientAddress, query, readJson, readText } from '../http/context.ts';
 import { HttpError, badRequest, forbidden, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
-import { dateKey, isValidTimeZone } from '@timetrack/common/time';
+import { dateKey, isValidTimeZone } from '@tokkl/common/time';
 import {
   listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
 } from '../models/timeEntries.ts';
@@ -30,6 +30,7 @@ function startSession(deps: Deps, req: Request, res: Response, userId: number): 
     path: '/',
     expires,
   });
+  res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
 }
 
 export function appRoutes(deps: Deps, setup: SetupState): Router {
@@ -80,12 +81,11 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   // Ending an active session is a cookie-authenticated write, so it needs the CSRF header.
   // Without an active session there is nothing to protect and logout stays idempotent.
   app.post('/logout', (req, res) => {
-    const token = getCookie(req, SESSION_COOKIE);
-    if (token && findSessionUser(db, token)) {
-      if (!hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
-      deleteSession(db, token);
-    }
+    const active = sessionTokens(req).filter((token) => findSessionUser(db, token));
+    if (active.length > 0 && !hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
+    for (const token of active) deleteSession(db, token);
     res.clearCookie(SESSION_COOKIE, { path: '/' });
+    res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
     return res.json({ ok: true });
   });
 
@@ -120,7 +120,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
 
   app.get('/export.json', auth, (req, res) => {
-    res.set('Content-Disposition', `attachment; filename="timetrack-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.set('Content-Disposition', `attachment; filename="tokkl-${new Date().toISOString().slice(0, 10)}.json"`);
     return res.json(buildJsonExport(db, res.locals.user));
   });
 
@@ -128,7 +128,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const from = query(req, 'start_date');
     const to = query(req, 'end_date');
     res.set('Content-Type', 'text/csv; charset=utf-8');
-    res.set('Content-Disposition', `attachment; filename="timetrack-entries-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.set('Content-Disposition', `attachment; filename="tokkl-entries-${new Date().toISOString().slice(0, 10)}.csv"`);
     return res.send(buildCsvExport(db, res.locals.user, { from, to }));
   });
 

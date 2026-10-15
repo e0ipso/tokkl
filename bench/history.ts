@@ -1,4 +1,4 @@
-// History-scale measurements for Timetrack: npm run bench:history -- --help
+// History-scale measurements for Tokkl: npm run bench:history -- --help
 //
 // Starts the real server on a throwaway SQLite database for each fixture, loads a generated
 // history through the JSON import, then times imports, lists, reports, CSV exports, writes and
@@ -11,7 +11,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, freemem, hostname, loadavg, platform, release, arch, tmpdir, totalmem } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { formatDuration } from '@timetrack/common/duration';
+import { formatDuration } from '@tokkl/common/duration';
 
 const HELP = `Usage: npm run bench:history -- [options]
 
@@ -156,7 +156,7 @@ function generate(spec: FixtureSpec): { file: unknown; expected: Expected } {
     if (date >= recentStart) expected.recentEntries++;
   }
   return {
-    file: { format: 'timetrack-export', version: 1, clients, projects, tasks, tags, time_entries: entries },
+    file: { format: 'tokkl-export', version: 1, clients, projects, tasks, tags, time_entries: entries },
     expected,
   };
 }
@@ -174,12 +174,12 @@ class Server {
     this.dataDir = dataDir;
   }
 
-  /** Starts node packages/api/src/index.ts on a fresh temp directory. Inherited TIMETRACK_* settings are dropped. */
+  /** Starts node packages/api/src/index.ts on a fresh temp directory. Inherited TOKKL_* settings, and the TIMETRACK_* names the server still reads, are dropped. */
   static async start(): Promise<Server> {
-    const dataDir = mkdtempSync(join(tmpdir(), 'timetrack-bench-'));
+    const dataDir = mkdtempSync(join(tmpdir(), 'tokkl-bench-'));
     const env: NodeJS.ProcessEnv = {};
-    for (const [key, value] of Object.entries(process.env)) if (!key.startsWith('TIMETRACK_')) env[key] = value;
-    Object.assign(env, { PORT: String(port), HOST: '127.0.0.1', TIMETRACK_DATA_DIR: dataDir, TIMETRACK_SETUP_CODE: SETUP_CODE });
+    for (const [key, value] of Object.entries(process.env)) if (!/^(TOKKL|TIMETRACK)_/.test(key)) env[key] = value;
+    Object.assign(env, { PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: dataDir, TOKKL_SETUP_CODE: SETUP_CODE });
     const child = spawn(process.execPath, ['packages/api/src/index.ts'], { env, stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     child.stderr!.on('data', (chunk) => { stderr += chunk; });
@@ -569,7 +569,7 @@ for (const name of fixtureNames) {
 
 const pad = (text: string, width: number) => text.padEnd(width);
 const lines = [
-  `Timetrack history benchmark, ${run.kind}`,
+  `Tokkl history benchmark, ${run.kind}`,
   `PRD targets: ${run.targets_from_prd}`,
   `Node ${run.runtime.node} on ${run.runtime.platform} ${run.runtime.arch}; ${run.host.cpu}, ${run.host.cores} cores, ${run.host.memory_gb} GB; load ${run.host.load_average.join(' ')}; commit ${run.commit}`,
 ];

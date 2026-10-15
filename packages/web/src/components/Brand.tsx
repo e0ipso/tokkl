@@ -10,7 +10,7 @@ export function Brand({ size = 'md' }: { size?: keyof typeof ICON_SIZE }) {
   return (
     <span className={`brand brand-${size}`}>
       <img src="/icon.svg" alt="" width={icon} height={icon} />
-      <span className="brand-name">Timetrack</span>
+      <span className="brand-name">Tokkl</span>
     </span>
   );
 }

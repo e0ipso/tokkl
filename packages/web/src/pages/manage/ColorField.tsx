@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { PROJECT_COLORS } from '@timetrack/common/colors';
+import { PROJECT_COLORS } from '@tokkl/common/colors';
 import { arrowTarget } from '../../components/arrowKeys.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { checkColor } from './swatchCheck.ts';

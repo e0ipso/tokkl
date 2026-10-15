@@ -32,7 +32,7 @@ export function ExportButtons({ range, filters, grouping, subGrouping, sort, dir
         : { sort, dir }),
     };
     try {
-      await download(`/api/app/report/${kind}.csv`, `timetrack-${kind}-${range.from}-to-${range.to}.csv`, 'POST', body);
+      await download(`/api/app/report/${kind}.csv`, `tokkl-${kind}-${range.from}-to-${range.to}.csv`, 'POST', body);
     } catch (error) {
       toast.error(error);
     } finally {

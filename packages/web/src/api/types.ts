@@ -1,1 +1,1 @@
-export type * from '@timetrack/types';
+export type * from '@tokkl/types';

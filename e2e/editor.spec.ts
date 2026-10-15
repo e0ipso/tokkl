@@ -6,7 +6,7 @@ test('editing only the description keeps start and stop seconds', async ({ page 
   const me = await (await page.request.get('/api/v9/me')).json();
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   const created = await (await page.request.post(`/api/v9/workspaces/${me.default_workspace_id}/time_entries`, {
-    headers: { 'X-Timetrack-CSRF': '1' },
+    headers: { 'X-Tokkl-CSRF': '1' },
     data: { description: 'Seconds matter', start: `${day}T07:00:37Z`, stop: `${day}T08:15:12Z`, created_with: 'e2e' },
   })).json();
   await page.reload();

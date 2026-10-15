@@ -6,14 +6,27 @@ import type { Preferences } from '../api/types.ts';
 // and puts the theme on <html> before the first paint. This module applies it again when it loads,
 // in case that script did not run.
 
-// packages/web/public/theme-boot.js reads the same key; change both together.
-const STORAGE_KEY = 'timetrack.theme';
+// packages/web/public/theme-boot.js reads the same keys and migrates the old one the same way;
+// change both together.
+const STORAGE_KEY = 'tokkl.theme';
+/** The key used before the rename to Tokkl. Read once, copied to STORAGE_KEY, then removed. */
+const LEGACY_STORAGE_KEY = 'timetrack.theme';
 
 type Theme = Preferences['theme'];
 
 function readCache(): string | null {
   try {
-    return window.localStorage.getItem(STORAGE_KEY);
+    const storage = window.localStorage;
+    let theme = storage.getItem(STORAGE_KEY);
+    const legacy = storage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy !== null) {
+      if (theme === null && (legacy === 'light' || legacy === 'dark')) {
+        theme = legacy;
+        storage.setItem(STORAGE_KEY, legacy);
+      }
+      storage.removeItem(LEGACY_STORAGE_KEY);
+    }
+    return theme;
   } catch {
     return null;
   }
@@ -21,6 +34,7 @@ function readCache(): string | null {
 
 function writeCache(theme: Theme | null): void {
   try {
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
     if (theme === null || theme === 'system') window.localStorage.removeItem(STORAGE_KEY);
     else window.localStorage.setItem(STORAGE_KEY, theme);
   } catch {

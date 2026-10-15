@@ -84,7 +84,7 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
 
   // Another device tags the entry. A focus refetch brings that in without wiping the typing.
   const remote = await page.request.put(`/api/v9/workspaces/${api.workspaceId}/time_entries/${running.id}`, {
-    headers: { 'X-Timetrack-CSRF': '1' }, data: { tags: ['remote'] },
+    headers: { 'X-Tokkl-CSRF': '1' }, data: { tags: ['remote'] },
   });
   expect(remote.ok()).toBe(true);
   const refetched = page.waitForResponse((response) => response.url().includes('/time_entries/current') && response.ok());

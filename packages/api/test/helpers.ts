@@ -82,8 +82,8 @@ function serve(db: Db, user: UserRow): TestContext {
  * jobs on an in-memory database run inline. The directory is removed when the test file ends.
  */
 export function fileBackedCopy(ctx: TestContext): TestContext & { path: string } {
-  const dir = mkdtempSync(join(tmpdir(), 'timetrack-test-'));
-  const path = join(dir, 'timetrack.db');
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-test-'));
+  const path = join(dir, 'tokkl.db');
   ctx.db.exec(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
   const db = openDatabase(path);
   after(() => {

@@ -1,14 +1,14 @@
 import type { Db } from '../db/index.ts';
 import { parseCsv } from '../lib/csv.ts';
 import { badRequest } from '../lib/errors.ts';
-import { parseDuration } from '@timetrack/common/duration';
-import { zonedToUtc } from '@timetrack/common/time';
+import { parseDuration } from '@tokkl/common/duration';
+import { zonedToUtc } from '@tokkl/common/time';
 import { createClient } from '../models/clients.ts';
 import { createProject } from '../models/projects.ts';
 import { createTask } from '../models/tasks.ts';
 import { createTimeEntry } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
-import type { ImportResult } from '@timetrack/types';
+import type { ImportResult } from '@tokkl/types';
 
 const HEADER_ALIASES: Record<string, string[]> = {
   client: ['client'],
@@ -201,7 +201,7 @@ export function importTogglCsv(db: Db, user: UserRow, text: string, options: { d
           task_id: taskId(cell(row, 'task'), pid),
           billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
           tags,
-          created_with: 'timetrack-csv-import',
+          created_with: 'tokkl-csv-import',
         });
         result.created++;
         db.exec('RELEASE import_row');

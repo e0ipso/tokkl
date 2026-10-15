@@ -65,7 +65,7 @@ test('JSON export contains every entity and never the password hash or token', a
   const res = await ctx.request('GET', '/api/app/export.json');
   const text = await res.text();
   const body = JSON.parse(text);
-  assert.equal(body.format, 'timetrack-export');
+  assert.equal(body.format, 'tokkl-export');
   assert.equal(body.time_entries.length, 1);
   assert.equal(body.tags.length, 1);
   assert.ok(!text.includes(ctx.user.api_token));
@@ -210,7 +210,7 @@ test('JSON restore of a running entry waits until the timer running here is stop
 test('JSON restore reports references to records that were not imported and skips their dependents', async () => {
   const at = (hour: number) => ({ start: `2026-10-01T${hour}:00:00Z`, stop: `2026-10-01T${hour}:30:00Z` });
   const file = {
-    format: 'timetrack-export',
+    format: 'tokkl-export',
     clients: [{ id: 1, name: 'Known' }],
     projects: [
       { id: 10, name: 'Orphan', client_id: 99 },
@@ -259,7 +259,7 @@ test('a failed task import leaves archived projects archived', async () => {
   const legacy = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Legacy' });
   await ctx.json('PUT', `/api/v9/workspaces/${ctx.wid}/projects/${legacy.body.id}`, { active: false });
   const file = {
-    format: 'timetrack-export',
+    format: 'tokkl-export',
     projects: [
       { id: 1, name: 'Old', active: false },
       { id: 2, name: 'Legacy', active: false },
@@ -286,7 +286,7 @@ test('JSON restore rejects zone-free, impossible and non-string entry times per 
   const startError = 'Invalid start: expected an RFC 3339 timestamp';
   const stopError = 'Invalid stop: expected an RFC 3339 timestamp';
   const file = {
-    format: 'timetrack-export',
+    format: 'tokkl-export',
     time_entries: [
       { id: 1, start: '2026-10-01T08:00:00', stop: '2026-10-01T09:00:00Z' },
       { id: 2, start: '2026-10-01T08:00:00Z', stop: '2026-10-01T09:00:00' },
@@ -317,7 +317,7 @@ test('JSON restore rejects zone-free, impossible and non-string entry times per 
   // A null or missing stop is a running entry, not an error.
   for (const running of [{ stop: null }, {}]) {
     const other = await setup();
-    const result = await restoreJson(other, { format: 'timetrack-export', time_entries: [{ id: 1, start: hoursAgo(1), description: 'Open', ...running }] });
+    const result = await restoreJson(other, { format: 'tokkl-export', time_entries: [{ id: 1, start: hoursAgo(1), description: 'Open', ...running }] });
     assert.equal(result.time_entries, 1);
     assert.deepEqual(result.errors, []);
     const current = (await other.json('GET', '/api/v9/me/time_entries/current')).body;
@@ -340,7 +340,7 @@ test('JSON restore rejects zone-free, impossible and non-string entry times per 
 test('JSON restore refuses a project rate above the cap and still imports the rest', async () => {
   const ctx = await setup();
   const result = await restoreJson(ctx, {
-    format: 'timetrack-export',
+    format: 'tokkl-export',
     projects: [
       { id: 1, name: 'Overpriced', rate: 1_000_000_001 },
       { id: 2, name: 'At the cap', rate: 1_000_000_000 },
@@ -358,4 +358,22 @@ test('JSON restore refuses a project rate above the cap and still imports the re
   assert.equal(result.time_entries, 1);
   const projects = (await ctx.json('GET', '/api/v9/me/projects')).body;
   assert.deepEqual(projects.map((p: any) => [p.name, p.rate]), [['At the cap', 1_000_000_000]]);
+});
+
+test('JSON restore accepts an export written before the rename to Tokkl', async () => {
+  const ctx = await setup();
+  const file = {
+    format: 'timetrack-export',
+    version: 1,
+    projects: [{ id: 1, name: 'Old export', color: '#0b83d9' }],
+    time_entries: [{ id: 2, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', description: 'Before', project_id: 1 }],
+  };
+  const result = await restoreJson(ctx, file);
+  assert.equal(result.projects, 1);
+  assert.equal(result.time_entries, 1);
+  assert.deepEqual(result.errors, []);
+
+  const unknown = await ctx.request('POST', '/api/app/import/json', { ...file, format: 'something-else' });
+  assert.equal(unknown.status, 400);
+  assert.equal(await unknown.json(), 'This is not a Tokkl JSON export');
 });

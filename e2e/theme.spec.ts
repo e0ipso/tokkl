@@ -8,8 +8,10 @@ import { login } from './helpers.ts';
 // TT-0075: the theme picked in Settings decides the page and chart colours.
 // TT-0080: the two media-scoped theme-color metas follow that choice, and "Match the system" restores them.
 
-const CSRF = { 'X-Timetrack-CSRF': '1' };
-const CACHE_KEY = 'timetrack.theme';
+const CSRF = { 'X-Tokkl-CSRF': '1' };
+const CACHE_KEY = 'tokkl.theme';
+// The cache key before the rename to Tokkl (TT-0113).
+const LEGACY_CACHE_KEY = 'timetrack.theme';
 
 type Theme = 'system' | 'light' | 'dark';
 
@@ -101,6 +103,30 @@ test('a cached dark theme is on the first frame while the bundle is still downlo
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
   const first = await page.evaluate(() => (window as unknown as { firstFrame?: FirstFrame }).firstFrame);
   expect(first).toEqual({ theme: 'dark', background: colours.dark['--bg'], rendered: false });
+});
+
+test('a theme cached under the old timetrack.theme key applies before first paint and moves to the new key', async ({ page }) => {
+  await login(page);
+  await saveTheme(page, 'dark');
+  await page.evaluate(({ key, legacy }) => {
+    window.localStorage.removeItem(key);
+    window.localStorage.setItem(legacy, 'dark');
+  }, { key: CACHE_KEY, legacy: LEGACY_CACHE_KEY });
+
+  // Hold the preferences response so only the old cache entry can have set the attribute.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/api/v9/me/preferences', async (route) => {
+    await held;
+    await route.continue();
+  });
+  expect(await themeAtFirstParse(page)).toBe('dark');
+  expect(await cachedTheme(page)).toBe('dark');
+  expect(await page.evaluate((legacy) => window.localStorage.getItem(legacy), LEGACY_CACHE_KEY)).toBeNull();
+  const answered = page.waitForResponse('**/api/v9/me/preferences');
+  release();
+  await answered;
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
 test('the server preference replaces a stale cache, and with nothing cached the system decides', async ({ page }) => {

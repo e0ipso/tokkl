@@ -1,16 +1,16 @@
 {
-  "name": "@timetrack/api",
+  "name": "@tokkl/api",
   "version": "0.1.0",
   "private": true,
-  "description": "The timetrack HTTP server: Toggl Track compatible API, web app API and static web root, shipped as raw TypeScript",
+  "description": "The Tokkl HTTP server: Toggl Track compatible API, web app API and static web root, shipped as raw TypeScript",
   "type": "module",
   "scripts": {
     "test": "node --test --test-reporter=spec 'test/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@timetrack/common": "0.1.0",
-    "@timetrack/types": "0.1.0",
+    "@tokkl/common": "0.1.0",
+    "@tokkl/types": "0.1.0",
     "express": "^5.3.0"
   },
   "devDependencies": {

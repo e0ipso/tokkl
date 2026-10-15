@@ -9,7 +9,7 @@ import { NOW, TIME_ZONE, screenshotExport } from './screenshots-data.ts';
 // the web app first and uses scripts/screenshots.config.ts.
 
 const OUT_DIR = fileURLToPath(new URL('../docs/screenshots/', import.meta.url));
-const CSRF = { 'X-Timetrack-CSRF': '1' };
+const CSRF = { 'X-Tokkl-CSRF': '1' };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 };
 const MOBILE: BrowserContextOptions = { ...PHONE, deviceScaleFactor: 2 };
 

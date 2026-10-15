@@ -2,9 +2,9 @@ import type { Db } from '../db/index.ts';
 import { toCsv } from '../lib/csv.ts';
 import { badRequest } from '../lib/errors.ts';
 import { togglTime } from '../lib/values.ts';
-import { formatDuration } from '@timetrack/common/duration';
-import type { DurationFormat } from '@timetrack/types';
-import { addDays, daysBetween, startOfWeek } from '@timetrack/common/time';
+import { formatDuration } from '@tokkl/common/duration';
+import type { DurationFormat } from '@tokkl/types';
+import { addDays, daysBetween, startOfWeek } from '@tokkl/common/time';
 import type { UserRow } from '../models/users.ts';
 import type { WorkspaceRow } from '../models/workspaces.ts';
 import { toTogglCsv } from './export.ts';
@@ -269,10 +269,10 @@ export function runJob(db: Db, user: UserRow, ws: WorkspaceRow, job: ReportJob):
       });
     }
     case 'app-detailed-csv':
-      return csv(detailedCsv(sortDetailed(entries(), job.sort, job.dir), user, job.durationFormat), 'timetrack_detailed.csv');
+      return csv(detailedCsv(sortDetailed(entries(), job.sort, job.dir), user, job.durationFormat), 'tokkl_detailed.csv');
     case 'app-summary-csv': {
       const groups = groupEntries(entries(), job.grouping, job.grouping === job.sub ? 'none' : job.sub);
-      return csv(summaryCsv(groups, job.durationFormat), 'timetrack_summary.csv');
+      return csv(summaryCsv(groups, job.durationFormat), 'tokkl_summary.csv');
     }
   }
 }

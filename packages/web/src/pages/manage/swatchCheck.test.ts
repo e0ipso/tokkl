@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PROJECT_COLORS } from '@timetrack/common/colors';
+import { PROJECT_COLORS } from '@tokkl/common/colors';
 import { checkColor } from './swatchCheck.ts';
 
 const LIGHT = 'var(--swatch-check-light)';

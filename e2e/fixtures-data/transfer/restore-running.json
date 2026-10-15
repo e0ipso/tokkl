@@ -1,5 +1,5 @@
 {
-  "format": "timetrack-export",
+  "format": "tokkl-export",
   "version": 1,
   "time_entries": [
     { "id": 71, "description": "Running there", "start": "2025-05-05T09:00:00+00:00", "stop": null, "project_id": null, "task_id": null, "tag_ids": [] },

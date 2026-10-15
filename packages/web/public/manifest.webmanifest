@@ -1,6 +1,6 @@
 {
-  "name": "Timetrack",
-  "short_name": "Timetrack",
+  "name": "Tokkl",
+  "short_name": "Tokkl",
   "description": "Self-hosted time tracker",
   "start_url": "/",
   "display": "standalone",

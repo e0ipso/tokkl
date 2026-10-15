@@ -6,7 +6,7 @@ import { metadataOf, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 // The timer bar mirrors the running entry. These scenarios pin the races behind TT-0061 and
 // TT-0062 so they fail every time instead of only under load.
 
-const CSRF = { 'X-Timetrack-CSRF': '1' };
+const CSRF = { 'X-Tokkl-CSRF': '1' };
 const CURRENT = /\/api\/v9\/me\/time_entries\/current/;
 
 /** Another device writes through the same account; the page only learns of it on a refetch. */

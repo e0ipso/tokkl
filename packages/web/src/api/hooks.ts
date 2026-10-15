@@ -147,7 +147,7 @@ export function useCreateEntry() {
   const invalidate = useInvalidateEntries();
   return useMutation({
     mutationFn: (input: TimeEntryInput) =>
-      api.post<TimeEntry>(`${v9}/workspaces/${wid}/time_entries?meta=true`, { created_with: 'timetrack-web', ...input }),
+      api.post<TimeEntry>(`${v9}/workspaces/${wid}/time_entries?meta=true`, { created_with: 'tokkl-web', ...input }),
     onSuccess: invalidate,
   });
 }

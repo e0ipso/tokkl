@@ -11,10 +11,10 @@ import { NOW, TIME_ZONE } from './screenshots-data.ts';
 
 const port = Number(process.env.SCREENSHOTS_PORT ?? 8096);
 
-let dataDir = process.env.TIMETRACK_SCREENSHOTS_DATA_DIR;
+let dataDir = process.env.TOKKL_SCREENSHOTS_DATA_DIR;
 if (!dataDir) {
-  const runDir = join(tmpdir(), `timetrack-screenshots-${randomUUID()}`);
-  dataDir = process.env.TIMETRACK_SCREENSHOTS_DATA_DIR = runDir;
+  const runDir = join(tmpdir(), `tokkl-screenshots-${randomUUID()}`);
+  dataDir = process.env.TOKKL_SCREENSHOTS_DATA_DIR = runDir;
   process.on('exit', () => rmSync(runDir, { recursive: true, force: true }));
 }
 
@@ -53,11 +53,11 @@ export default defineConfig({
     env: {
       PORT: String(port),
       HOST: '127.0.0.1',
-      TIMETRACK_DATA_DIR: dataDir,
-      TIMETRACK_SETUP_CODE: 'SCREENSHOTS-SETUP-CODE',
+      TOKKL_DATA_DIR: dataDir,
+      TOKKL_SETUP_CODE: 'SCREENSHOTS-SETUP-CODE',
       // The session cookie expires sessionDays after NOW. With the default 30 days the browser
       // would drop it as already expired once the real date is past NOW + 30 days.
-      TIMETRACK_SESSION_DAYS: '36500',
+      TOKKL_SESSION_DAYS: '36500',
     },
   },
 });

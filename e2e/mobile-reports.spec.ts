@@ -53,7 +53,7 @@ test('report filters, tabs and CSV downloads work by touch on a phone and match 
 
   // Summary CSV, with the same request filters the desktop sends.
   const summary = await tapDownload(page, page.getByRole('group', { name: 'Export' }).getByRole('button', { name: 'CSV (summary)' }));
-  expect(summary.filename).toBe('timetrack-summary-2026-01-05-to-2026-01-11.csv');
+  expect(summary.filename).toBe('tokkl-summary-2026-01-05-to-2026-01-11.csv');
   expect(parseCsv(summary.text)).toEqual([
     ['Group', 'Sub group', 'Duration'],
     ['Alpha', 'Kickoff', '1:00:00'],
@@ -70,7 +70,7 @@ test('report filters, tabs and CSV downloads work by touch on a phone and match 
     ['Kickoff', 'Alpha', 'ACME', 'scope', '1:00:00'],
   ]);
   const detailed = await tapDownload(page, page.getByRole('group', { name: 'Export' }).getByRole('button', { name: 'CSV (detailed)' }));
-  expect(detailed.filename).toBe('timetrack-detailed-2026-01-05-to-2026-01-11.csv');
+  expect(detailed.filename).toBe('tokkl-detailed-2026-01-05-to-2026-01-11.csv');
   // Description, Project, Client, Tags, Duration: the same rows the screen shows.
   expect(parseCsv(detailed.text).slice(1).map((row) => [row[5], row[3], row[2], row[12], row[11]])).toEqual(shown);
 

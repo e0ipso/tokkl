@@ -7,8 +7,8 @@ test('start and stop a timer with a new project and tag', async ({ page }) => {
   await timer.getByLabel('Description').fill('Write the PRD');
 
   await timer.getByRole('button', { name: 'Project' }).click();
-  await page.getByPlaceholder('Find or create project…').fill('Timetrack');
-  await page.getByRole('button', { name: 'Create project "Timetrack"' }).click();
+  await page.getByPlaceholder('Find or create project…').fill('Tokkl');
+  await page.getByRole('button', { name: 'Create project "Tokkl"' }).click();
 
   await timer.getByRole('button', { name: 'Tags' }).click();
   await page.getByPlaceholder('Find or create tags…').fill('writing');
@@ -31,7 +31,7 @@ test('start and stop a timer with a new project and tag', async ({ page }) => {
   await expect(timerLink).toHaveCount(0);
   const row = page.locator('.entry-line').first();
   await expect(row.getByLabel('Description')).toHaveValue('Write the PRD');
-  await expect(row.locator('.project-label')).toContainText('Timetrack');
+  await expect(row.locator('.project-label')).toContainText('Tokkl');
   await expect(row.locator('.tag-chip')).toHaveText('writing');
 });
 

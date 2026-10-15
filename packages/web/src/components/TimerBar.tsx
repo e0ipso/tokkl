@@ -4,7 +4,7 @@ import {
   useStopEntry, useUpdateEntry,
 } from '../api/hooks.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
-import { formatDuration, parseDuration } from '@timetrack/common/duration';
+import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
 import { useFieldErrors } from './FieldError.tsx';

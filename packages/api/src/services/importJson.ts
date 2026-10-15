@@ -8,6 +8,7 @@ import { resolveTagNames } from '../models/tags.ts';
 import { createTask } from '../models/tasks.ts';
 import { createTimeEntry } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
+import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './export.ts';
 
 export interface JsonImportResult {
   dry_run: boolean;
@@ -38,8 +39,9 @@ class Rollback extends Error {}
  * A running entry in the file is reported and skipped while another timer runs here.
  */
 export function importJsonExport(db: Db, user: UserRow, data: unknown, options: { dryRun: boolean }): JsonImportResult {
-  if (typeof data !== 'object' || data === null || (data as Item).format !== 'timetrack-export') {
-    throw badRequest('This is not a Timetrack JSON export');
+  const format = typeof data === 'object' && data !== null ? (data as Item).format : undefined;
+  if (format !== EXPORT_FORMAT && format !== LEGACY_EXPORT_FORMAT) {
+    throw badRequest('This is not a Tokkl JSON export');
   }
   const file = data as Item;
   const wid = user.default_workspace_id;
@@ -175,7 +177,7 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
           task_id: taskId,
           billable: entry.billable === true,
           tag_ids: entryTagIds,
-          created_with: typeof entry.created_with === 'string' ? entry.created_with : 'timetrack-json-import',
+          created_with: typeof entry.created_with === 'string' ? entry.created_with : 'tokkl-json-import',
         });
         result.time_entries++;
         db.exec('RELEASE import_entry');

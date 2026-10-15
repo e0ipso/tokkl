@@ -8,7 +8,7 @@ import { openDatabase } from '../src/db/index.ts';
 import { testConfig, testServer } from './helpers.ts';
 
 test('page routes serve the app shell while API paths keep JSON 404s', async () => {
-  const webRoot = mkdtempSync(join(tmpdir(), 'timetrack-web-'));
+  const webRoot = mkdtempSync(join(tmpdir(), 'tokkl-web-'));
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>app</title>');
   const app = testServer(createApp({ db: openDatabase(':memory:'), config: { ...testConfig(), webRoot }, setup: { code: null } }));
 
@@ -26,7 +26,7 @@ test('page routes serve the app shell while API paths keep JSON 404s', async () 
 });
 
 test('assets are cached immutably, and a missing asset is a 404', async () => {
-  const webRoot = mkdtempSync(join(tmpdir(), 'timetrack-web-'));
+  const webRoot = mkdtempSync(join(tmpdir(), 'tokkl-web-'));
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html>');
   const { mkdirSync } = await import('node:fs');
   mkdirSync(join(webRoot, 'assets'));

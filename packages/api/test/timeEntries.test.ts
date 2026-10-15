@@ -265,7 +265,7 @@ test('tags by name are created, tag_action adds and deletes', async () => {
 
 test('updating start keeps stop; updating duration moves stop; meta fields', async () => {
   const ctx = await setup();
-  const project = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Timetrack', billable: true, color: '#0b83d9' });
+  const project = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Tokkl', billable: true, color: '#0b83d9' });
   const entry = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
     start: '2026-10-01T08:00:00Z', stop: '2026-10-01T10:00:00Z', project_id: project.body.id, created_with: 'test',
   });
@@ -278,7 +278,7 @@ test('updating start keeps stop; updating duration moves stop; meta fields', asy
 
   const longer = await ctx.json('PUT', `${url}?meta=true`, { duration: 7200 });
   assert.equal(longer.body.stop, '2026-10-01T11:00:00+00:00');
-  assert.equal(longer.body.project_name, 'Timetrack');
+  assert.equal(longer.body.project_name, 'Tokkl');
   assert.equal(longer.body.project_color, '#0b83d9');
 });
 

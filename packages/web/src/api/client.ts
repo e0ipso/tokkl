@@ -23,7 +23,7 @@ async function errorMessage(response: Response): Promise<string> {
 }
 
 export async function request<T>(method: Method, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = { 'X-Timetrack-CSRF': '1' };
+  const headers: Record<string, string> = { 'X-Tokkl-CSRF': '1' };
   let payload: BodyInit | undefined;
   if (typeof body === 'string') {
     payload = body;
@@ -42,7 +42,7 @@ export async function request<T>(method: Method, path: string, body?: unknown, i
 export async function download(path: string, filename: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<void> {
   const response = await fetch(path, {
     method,
-    headers: { 'X-Timetrack-CSRF': '1', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { 'X-Tokkl-CSRF': '1', ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
   });

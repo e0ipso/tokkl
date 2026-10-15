@@ -61,7 +61,7 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
     start_date: '2024-06-01', end_date: '2026-01-31', exclude_project_ids: [beta], exclude_tag_ids: [invoiced],
     grouping: 'clients', sub_grouping: 'projects',
   });
-  expect(summary.filename).toBe('timetrack-summary-2024-06-01-to-2026-01-31.csv');
+  expect(summary.filename).toBe('tokkl-summary-2024-06-01-to-2026-01-31.csv');
   expect(summary.rows).toEqual([['Group', 'Sub group', 'Duration'], ...shownRows]);
   expect(hms(summary.rows.slice(1).reduce((sum, row) => sum + toSeconds(row[2]!), 0))).toBe('3:45:00');
 
@@ -83,7 +83,7 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
   expect(await detailedBody).toMatchObject({
     start_date: '2024-06-01', end_date: '2026-01-31', exclude_project_ids: [beta], exclude_tag_ids: [invoiced], sort: 'date', dir: 'desc',
   });
-  expect(detailed.filename).toBe('timetrack-detailed-2024-06-01-to-2026-01-31.csv');
+  expect(detailed.filename).toBe('tokkl-detailed-2024-06-01-to-2026-01-31.csv');
   expect(detailed.rows[0]).toEqual(DETAILED_HEADER);
   expect(exported(detailed.rows)).toEqual(byDate);
   expect(detailed.rows.slice(1).map((row) => [row[0], row[1], row[8], row[10]])).toEqual([

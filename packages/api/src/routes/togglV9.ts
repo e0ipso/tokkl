@@ -2,12 +2,12 @@ import express, { type Request, type Router } from 'express';
 import { nowIso, transaction, type Db } from '../db/index.ts';
 import { generateApiToken, hashPassword, MAX_PASSWORD_LENGTH, verifyPassword } from '../auth/crypto.ts';
 import { requireAuth } from '../auth/middleware.ts';
-import { deleteOtherSessions, SESSION_COOKIE } from '../auth/sessions.ts';
+import { deleteOtherSessions } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
-import { clientAddress, getCookie, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
+import { clientAddress, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
 import { HttpError, badRequest, forbidden } from '../lib/errors.ts';
 import { optionalId, optionalRate, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
-import { isValidTimeZone, startOfDay } from '@timetrack/common/time';
+import { isValidTimeZone, startOfDay } from '@tokkl/common/time';
 import {
   createClient, deleteClient, getClient, listClients, serializeClient, setClientArchived, updateClient,
 } from '../models/clients.ts';
@@ -156,7 +156,7 @@ export function togglV9Routes(deps: Deps): Router {
       defaultWorkspaceId ?? user.default_workspace_id, passwordHash, nowIso(), user.id);
     // A new password signs out every other browser; the one making the change stays signed in.
     if (passwordHash !== user.password_hash) {
-      deleteOtherSessions(db, user.id, res.locals.authMethod === 'session' ? getCookie(req, SESSION_COOKIE) : undefined);
+      deleteOtherSessions(db, user.id, res.locals.authMethod === 'session' ? res.locals.sessionToken : undefined);
     }
     return res.json(serializeUser(getUser(db, user.id)!, { includeToken: true }));
   });

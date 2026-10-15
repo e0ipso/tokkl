@@ -10,10 +10,10 @@ const port = Number(process.env.E2E_PORT ?? 8095);
 // first load picks a fresh path for the run; the server creates the directory when it starts, so
 // `--list` creates nothing. The process that picked the path deletes it when it exits, whether
 // the run passed or failed.
-let dataDir = process.env.TIMETRACK_E2E_DATA_DIR;
+let dataDir = process.env.TOKKL_E2E_DATA_DIR;
 if (!dataDir) {
-  const runDir = join(tmpdir(), `timetrack-e2e-${randomUUID()}`);
-  dataDir = process.env.TIMETRACK_E2E_DATA_DIR = runDir;
+  const runDir = join(tmpdir(), `tokkl-e2e-${randomUUID()}`);
+  dataDir = process.env.TOKKL_E2E_DATA_DIR = runDir;
   process.on('exit', () => rmSync(runDir, { recursive: true, force: true }));
 }
 
@@ -39,8 +39,8 @@ export default defineConfig({
     env: {
       PORT: String(port),
       HOST: '127.0.0.1',
-      TIMETRACK_DATA_DIR: dataDir,
-      TIMETRACK_SETUP_CODE: 'E2E-SETUP-CODE',
+      TOKKL_DATA_DIR: dataDir,
+      TOKKL_SETUP_CODE: 'E2E-SETUP-CODE',
     },
   },
 });

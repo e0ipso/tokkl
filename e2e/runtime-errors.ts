@@ -16,7 +16,7 @@ export interface AllowedResponse {
 // The app asks /api/v9/me on load to find out whether it is logged in. Without a session cookie
 // the API answers 403 and the app shows the login page, so a 403 is expected for any API request
 // sent without the cookie. A 403 that carries the cookie still fails the scenario.
-const SESSION_COOKIE = /(?:^|;\s*)tt_session=/;
+const SESSION_COOKIE = /(?:^|;\s*)tokkl_session=/;
 
 async function isLoggedOutProbe(response: Response): Promise<boolean> {
   if (response.status() !== 403 || !new URL(response.url()).pathname.startsWith('/api/')) return false;

@@ -1,5 +1,5 @@
 /**
- * Type-only declarations shared by the timetrack packages: the JSON shapes the
+ * Type-only declarations shared by the Tokkl packages: the JSON shapes the
  * web app reads from and sends to the API, and value shapes used by common.
  * This file must stay free of runtime code (no enums, no values), so every
  * import of it is `import type` and erases when Node strips types.

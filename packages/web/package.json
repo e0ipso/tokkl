@@ -1,8 +1,8 @@
 {
-  "name": "@timetrack/web",
+  "name": "@tokkl/web",
   "version": "0.1.0",
   "private": true,
-  "description": "The timetrack React web app, built by vite into dist/web at the repo root",
+  "description": "The Tokkl React web app, built by vite into dist/web at the repo root",
   "type": "module",
   "scripts": {
     "build": "vite build",
@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.2",
-    "@timetrack/common": "0.1.0",
-    "@timetrack/types": "0.1.0",
+    "@tokkl/common": "0.1.0",
+    "@tokkl/types": "0.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "wouter": "^3.13.0"

@@ -7,7 +7,7 @@ import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
-import { formatDuration } from '@timetrack/common/duration';
+import { formatDuration } from '@tokkl/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
 import { applyTheme, clearCachedTheme } from './lib/theme.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
@@ -66,7 +66,7 @@ function useRunningTitle() {
   useEffect(() => {
     document.title = current
       ? `${formatDuration(entrySeconds(current, now))} · ${current.description || 'Running'}`
-      : 'Timetrack';
+      : 'Tokkl';
   }, [current, now]);
 }
 

@@ -285,7 +285,7 @@ test('project and task totals use the live-entry indexes and count running, not 
 });
 
 test('a version 1 database gains the live-entry indexes when opened', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'timetrack-v1-'));
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-v1-'));
   try {
     const path = join(dir, 'v1.sqlite');
     const v1 = new DatabaseSync(path);

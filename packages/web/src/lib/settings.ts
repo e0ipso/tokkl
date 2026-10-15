@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMe, usePreferences } from '../api/hooks.ts';
 import type { DurationFormat } from '../api/types.ts';
-import { formatDuration } from '@timetrack/common/duration';
-import { addDays, dateKey, parseDateKey, zonedParts } from '@timetrack/common/time';
+import { formatDuration } from '@tokkl/common/duration';
+import { addDays, dateKey, parseDateKey, zonedParts } from '@tokkl/common/time';
 
 export interface Settings {
   timeZone: string;

@@ -6,7 +6,7 @@ export const PASSWORD = 'e2e password';
 export const SETUP_CODE = 'E2E-SETUP-CODE';
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
-const CSRF = { 'X-Timetrack-CSRF': '1' };
+const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 // Preferences that scenarios change, set back to the defaults a new account gets.
 const BASELINE_PREFERENCES = {

@@ -19,7 +19,7 @@ test('a wrong setup code shows an error, and a retry with the right code creates
   await expect(page.getByRole('alert')).toHaveText('Invalid setup code. It is printed in the server log on startup.');
   await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
   expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual({ setup_required: true });
-  expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tt_session')).toBe(false);
+  expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tokkl_session')).toBe(false);
 
   // The form keeps what was typed, so only the code needs fixing.
   await page.getByLabel('Setup code').fill(SETUP_CODE);
@@ -49,7 +49,7 @@ test('wrong credentials show an error and keep the browser logged out until a va
   await expect(alert).toHaveText('Incorrect email or password');
 
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
-  expect((await page.context().cookies()).some((c) => c.name === 'tt_session')).toBe(false);
+  expect((await page.context().cookies()).some((c) => c.name === 'tokkl_session')).toBe(false);
   expect((await page.request.get('/api/v9/me')).status()).toBe(403);
 
   await page.getByLabel('Email').fill(EMAIL);
@@ -77,7 +77,7 @@ test('after logout the old session is refused, and reload or back shows no priva
 
   // The server dropped the session itself, not only the browser's cookie.
   expect(await meWithSession(baseURL!, session)).toBe(403);
-  expect((await page.context().cookies()).some((c) => c.name === 'tt_session')).toBe(false);
+  expect((await page.context().cookies()).some((c) => c.name === 'tokkl_session')).toBe(false);
 
   const expectNoPrivateData = async () => {
     await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();

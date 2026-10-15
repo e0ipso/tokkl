@@ -1,4 +1,4 @@
-import { addDays, dateKey, parseDateKey, zonedToUtc } from '@timetrack/common/time';
+import { addDays, dateKey, parseDateKey, zonedToUtc } from '@tokkl/common/time';
 import { parseTimeOfDay } from './timeOfDay.ts';
 
 /** Combines a date key and minutes after midnight in `timeZone` into an instant. */

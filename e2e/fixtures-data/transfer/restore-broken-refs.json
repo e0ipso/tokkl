@@ -1,5 +1,5 @@
 {
-  "format": "timetrack-export",
+  "format": "tokkl-export",
   "version": 1,
   "clients": [{ "id": 11, "name": "Acme", "notes": null, "archived": false }],
   "projects": [

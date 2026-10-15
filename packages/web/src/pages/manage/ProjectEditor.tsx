@@ -4,7 +4,7 @@ import { keys, useClients, useProjects, useWid, useWorkspace } from '../../api/h
 import type { Client, Project } from '../../api/types.ts';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Modal } from '../../components/Overlay.tsx';
-import { PROJECT_COLORS } from '@timetrack/common/colors';
+import { PROJECT_COLORS } from '@tokkl/common/colors';
 import { ColorField } from './ColorField.tsx';
 import { ProjectTasks } from './ProjectTasks.tsx';
 import { parseOptionalAmount, useAction, wsPath } from './queries.ts';

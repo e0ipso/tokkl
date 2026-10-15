@@ -1,5 +1,5 @@
 {
-  "name": "timetrack",
+  "name": "tokkl",
   "version": "0.1.0",
   "private": true,
   "description": "Self-hosted, single-user time tracker with a Toggl Track compatible API",

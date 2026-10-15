@@ -1,4 +1,4 @@
-import { addDays, daysBetween, parseDateKey, startOfWeek } from '@timetrack/common/time';
+import { addDays, daysBetween, parseDateKey, startOfWeek } from '@tokkl/common/time';
 import { shortDate } from '../../lib/settings.ts';
 
 export const PRESETS = [

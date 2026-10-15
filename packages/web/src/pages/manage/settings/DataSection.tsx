@@ -63,7 +63,7 @@ interface RestoreResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 
-/** Restores a Timetrack JSON export: preview first, then import. */
+/** Restores a Tokkl JSON export: preview first, then import. */
 function RestoreJson() {
   const toast = useToast();
   const invalidate = useInvalidate();
@@ -93,9 +93,9 @@ function RestoreJson() {
   const verb = result?.dry_run ? 'to add' : 'added';
   return (
     <>
-      <h3 className="settings-subheading">Restore a Timetrack export</h3>
+      <h3 className="settings-subheading">Restore a Tokkl export</h3>
       <p className="hint">
-        Upload a JSON file from Export JSON, from this or another Timetrack server. Clients, projects, tasks and tags are
+        Upload a JSON file from Export JSON, from this or another Tokkl server. Clients, projects, tasks and tags are
         matched by name and created when missing. Entries that are already here get skipped.
       </p>
       <div className="inline-controls settings-row">
@@ -161,7 +161,7 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   const exportFile = async (kind: 'json' | 'csv') => {
     setExporting(kind);
     try {
-      await download(`/api/app/export.${kind}`, kind === 'json' ? `timetrack-${stamp()}.json` : `timetrack-entries-${stamp()}.csv`);
+      await download(`/api/app/export.${kind}`, kind === 'json' ? `tokkl-${stamp()}.json` : `tokkl-entries-${stamp()}.csv`);
     } catch (error) {
       toast.error(error);
     } finally {

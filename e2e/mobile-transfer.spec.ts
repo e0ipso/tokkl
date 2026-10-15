@@ -50,7 +50,7 @@ test('Toggl CSV import, JSON export and JSON restore finish by touch on a phone 
 
   await tapNav(page, 'Settings');
   const exported = await tapDownload(page, page.getByRole('button', { name: 'Export JSON' }));
-  expect(exported.filename).toMatch(/^timetrack-\d{4}-\d{2}-\d{2}\.json$/);
+  expect(exported.filename).toMatch(/^tokkl-\d{4}-\d{2}-\d{2}\.json$/);
   expect((JSON.parse(exported.text) as { time_entries: unknown[] }).time_entries).toHaveLength(5);
 
   // Empty the account, then restore the exported file through the phone controls.

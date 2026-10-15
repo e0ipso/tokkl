@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Report } from '../../api/types.ts';
-import { parseDateKey } from '@timetrack/common/time';
+import { parseDateKey } from '@tokkl/common/time';
 import { duration, shortDate, weekdayName, type Settings } from '../../lib/settings.ts';
 
 type Point = Report['series'][number];

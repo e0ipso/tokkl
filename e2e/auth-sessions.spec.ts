@@ -8,7 +8,7 @@ import {
 // its own disposable server, so the shared e2e account keeps its password.
 
 const NEW_PASSWORD = 'second password 2';
-const CSRF = { 'X-Timetrack-CSRF': '1' };
+const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 async function loginStatus(baseURL: string, password: string): Promise<number> {
   const api = await request.newContext({ baseURL });
@@ -111,7 +111,7 @@ test('a session cookie stops working after the 30-day lifetime', async ({ server
   try {
     const login = await api.post('/api/app/login', { data: { email: ACCOUNT.email, password: ACCOUNT.password } });
     expect(login.status()).toBe(200);
-    const cookie = (await api.storageState()).cookies.find((c) => c.name === 'tt_session')!;
+    const cookie = (await api.storageState()).cookies.find((c) => c.name === 'tokkl_session')!;
     session = cookie.value;
     // The cookie carries the same 30-day lifetime the server enforces.
     expect(cookie.expires * 1000 - Date.now()).toBeGreaterThan(days(30) - 60_000);

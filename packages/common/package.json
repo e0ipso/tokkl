@@ -1,8 +1,8 @@
 {
-  "name": "@timetrack/common",
+  "name": "@tokkl/common",
   "version": "0.1.0",
   "private": true,
-  "description": "Runtime helpers shared by the timetrack server and web app, shipped as raw TypeScript",
+  "description": "Runtime helpers shared by the Tokkl server and web app, shipped as raw TypeScript",
   "type": "module",
   "exports": {
     "./colors": "./colors.ts",
@@ -10,7 +10,7 @@
     "./time": "./time.ts"
   },
   "dependencies": {
-    "@timetrack/types": "0.1.0"
+    "@tokkl/types": "0.1.0"
   },
   "scripts": {
     "test": "node --test --test-reporter=spec '*.test.ts'",

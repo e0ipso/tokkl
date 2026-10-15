@@ -41,7 +41,7 @@ test('session cookie login requires the CSRF header for writes', async () => {
   const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie')!;
-  assert.match(cookie, /tt_session=/);
+  assert.match(cookie, /tokkl_session=/);
   assert.match(cookie, /HttpOnly/);
   const session = cookie.split(';')[0]!;
 
@@ -52,7 +52,7 @@ test('session cookie login requires the CSRF header for writes', async () => {
   const noCsrf = await ctx.request('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, body, { authorization: '', cookie: session });
   assert.equal(noCsrf.status, 403);
   const withCsrf = await ctx.request('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, body, {
-    authorization: '', cookie: session, 'x-timetrack-csrf': '1',
+    authorization: '', cookie: session, 'x-tokkl-csrf': '1',
   });
   assert.equal(withCsrf.status, 200);
 
@@ -60,7 +60,7 @@ test('session cookie login requires the CSRF header for writes', async () => {
   assert.equal(logoutNoCsrf.status, 403);
   const stillIn = await ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: session });
   assert.equal(stillIn.status, 200);
-  const logout = await ctx.request('POST', '/api/app/logout', undefined, { authorization: '', cookie: session, 'x-timetrack-csrf': '1' });
+  const logout = await ctx.request('POST', '/api/app/logout', undefined, { authorization: '', cookie: session, 'x-tokkl-csrf': '1' });
   assert.equal(logout.status, 200);
   const after = await ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: session });
   assert.equal(after.status, 403);
@@ -89,7 +89,7 @@ test('first-run setup needs the setup code and only works once', async () => {
   assert.equal((await post({ ...account, setup_code: 'WRONG' })).status, 403);
   const ok = await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' });
   assert.equal(ok.status, 200);
-  assert.match(ok.headers.get('set-cookie') ?? '', /tt_session=/);
+  assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/);
   assert.equal((await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' })).status, 403);
   assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false });
 });
@@ -273,18 +273,58 @@ test('logout with a wrong CSRF value keeps the session; no or stale session logo
   const me = () => ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: session });
 
   for (const value of ['0', 'true', '']) {
-    const refused = await logout({ cookie: session, 'x-timetrack-csrf': value });
+    const refused = await logout({ cookie: session, 'x-tokkl-csrf': value });
     assert.equal(refused.status, 403, `CSRF value ${JSON.stringify(value)}`);
     assert.equal(refused.headers.get('set-cookie'), null);
     assert.equal((await me()).status, 200);
   }
 
-  const ok = await logout({ cookie: session, 'x-timetrack-csrf': '1' });
+  const ok = await logout({ cookie: session, 'x-tokkl-csrf': '1' });
   assert.equal(ok.status, 200);
-  assert.match(ok.headers.get('set-cookie') ?? '', /tt_session=;/);
+  assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=;/);
   assert.equal((await me()).status, 403);
 
   assert.equal((await logout({ cookie: session })).status, 200, 'stale session');
-  assert.equal((await logout({ cookie: 'tt_session=not-a-session' })).status, 200, 'unknown session');
+  assert.equal((await logout({ cookie: 'tokkl_session=not-a-session' })).status, 200, 'unknown session');
   assert.equal((await logout({})).status, 200, 'no cookie');
+});
+
+test('the tt_session cookie and X-Timetrack-CSRF header from before the rename still work', async () => {
+  const ctx = await setup();
+  const signIn = () => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  const login = await signIn();
+  const issued = login.headers.getSetCookie();
+  assert.ok(issued.some((cookie) => /^tokkl_session=[^;]+;/.test(cookie)), 'login issues the new cookie');
+  assert.ok(issued.some((cookie) => /^tt_session=;/.test(cookie)), 'login clears the old cookie');
+  const token = issued.find((cookie) => cookie.startsWith('tokkl_session='))!.split(';')[0]!.split('=')[1]!;
+  const legacy = `tt_session=${token}`;
+  const call = (method: string, path: string, headers: Record<string, string>, body?: unknown) =>
+    ctx.request(method, path, body, { authorization: '', ...headers });
+  const entry = { start: new Date().toISOString(), duration: 60, created_with: 'test' };
+  const entries = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+
+  assert.equal((await call('GET', '/api/v9/me', { cookie: legacy })).status, 200, 'old cookie reads');
+  assert.equal((await call('POST', entries, { cookie: legacy }, entry)).status, 403, 'old cookie still needs a CSRF header');
+  assert.equal((await call('POST', entries, { cookie: legacy, 'x-timetrack-csrf': '1' }, entry)).status, 200, 'old cookie and old header');
+  assert.equal((await call('POST', entries, { cookie: `tokkl_session=${token}`, 'x-timetrack-csrf': '1' }, entry)).status, 200, 'old header');
+  assert.equal((await call('POST', entries, { cookie: legacy, 'x-tokkl-csrf': '1' }, entry)).status, 200, 'old cookie and new header');
+
+  // A stale old cookie next to a live new one does not block the request.
+  const both = `tt_session=not-a-session; tokkl_session=${token}`;
+  assert.equal((await call('GET', '/api/v9/me', { cookie: both })).status, 200);
+
+  // Changing the password through the old cookie keeps that session and ends the others.
+  const other = (await signIn()).headers.getSetCookie().find((cookie) => cookie.startsWith('tokkl_session='))!.split(';')[0]!;
+  const change = await call('PUT', '/api/v9/me', { cookie: legacy, 'x-timetrack-csrf': '1' }, { current_password: PASSWORD, password: 'new password 1' });
+  assert.equal(change.status, 200);
+  assert.equal((await call('GET', '/api/v9/me', { cookie: legacy })).status, 200, 'the changing session stays');
+  assert.equal((await call('GET', '/api/v9/me', { cookie: other })).status, 403, 'other sessions end');
+
+  assert.equal((await call('POST', '/api/app/logout', { cookie: legacy })).status, 403, 'logout of an old-cookie session needs the header');
+  const logout = await call('POST', '/api/app/logout', { cookie: legacy, 'x-timetrack-csrf': '1' });
+  assert.equal(logout.status, 200);
+  const cleared = logout.headers.getSetCookie();
+  assert.ok(cleared.some((cookie) => cookie.startsWith('tokkl_session=;')));
+  assert.ok(cleared.some((cookie) => cookie.startsWith('tt_session=;')));
+  assert.equal((await call('GET', '/api/v9/me', { cookie: legacy })).status, 403, 'logout ended the session');
 });

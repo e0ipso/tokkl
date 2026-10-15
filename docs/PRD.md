@@ -1,4 +1,4 @@
-# Timetrack PRD
+# Tokkl PRD
 
 A self-hosted, single-user time tracker that copies the parts of Toggl Track one person uses, runs on a server you own, and speaks enough of the Toggl API that scripts written for Toggl keep working.
 
@@ -267,14 +267,14 @@ The Raycast extension, the Obsidian plugin, both `toggl-cli` projects, the Alfre
  browser / phone (PWA)          scripts, Toggl-API libraries
           |  session cookie                  |  HTTP Basic (token or password)
           v                                  v
- +----------------------- timetrack (Node 24) ---------------------------+
+ +------------------------- tokkl (Node 24) -----------------------------+
  |  Express 5 HTTP server                                                |
  |   /api/v9/*            Toggl Track API v9 subset                      |
  |   /reports/api/v3/*    Toggl Reports API v3 subset                    |
  |   /api/app/*           setup, login, trash, report, import, export    |
  |   /*                   built React app (static files)                 |
  |  services: time entries, reports engine, CSV import/export            |
- |  node:sqlite  -->  <data dir>/timetrack.sqlite (WAL)                   |
+ |  node:sqlite  -->  <data dir>/tokkl.sqlite (WAL)                      |
  +-----------------------------------------------------------------------+
 ```
 
@@ -308,7 +308,7 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 - Passwords: scrypt (N=2^15, r=8, p=1), constant-time comparison.
 - API token: 128 random bits, shown in settings, resettable.
 - Sessions: 256-bit random token, only its hash stored, 30-day expiry, HttpOnly and SameSite=Lax cookie, `Secure` when served over HTTPS.
-- CSRF: cookie-authenticated writes must send `X-Timetrack-CSRF: 1`, which a cross-site form cannot set and which needs a CORS preflight this server never grants.
+- CSRF: cookie-authenticated writes must send `X-Tokkl-CSRF: 1` (the pre-rename `X-Timetrack-CSRF: 1` is still accepted), which a cross-site form cannot set and which needs a CORS preflight this server never grants.
 - Brute force: 10 failed password attempts per client address per 15 minutes, across the login form, Basic auth, setup code and password change. Behind a trusted proxy the address is the last `X-Forwarded-For` hop, which the client cannot forge. Unknown emails still run a scrypt check, so response time does not reveal whether an account exists.
 - Headers: strict Content Security Policy (`default-src 'self'`), `frame-ancestors 'none'`, `nosniff`, no-store on API responses. Hashed assets are cached for a year; a missing asset is a 404, never the HTML page.
 - Input: request bodies capped at 1 MB (50 MB for imports), id lists in report filters capped at 1000; every field validated with Toggl-style error messages.

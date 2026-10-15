@@ -1,8 +1,8 @@
 {
-  "name": "@timetrack/types",
+  "name": "@tokkl/types",
   "version": "0.1.0",
   "private": true,
-  "description": "Type-only declarations for the timetrack API contract and shared value shapes, shipped as raw TypeScript with no runtime code",
+  "description": "Type-only declarations for the Tokkl API contract and shared value shapes, shipped as raw TypeScript with no runtime code",
   "type": "module",
   "exports": {
     ".": "./index.ts"

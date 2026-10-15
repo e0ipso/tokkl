@@ -3,7 +3,7 @@ import { useSavePreferences } from '../../../api/hooks.ts';
 import type { DurationFormat, Preferences } from '../../../api/types.ts';
 import { useToast } from '../../../components/Toast.tsx';
 import { formatDate, formatTime, today, useSettings } from '../../../lib/settings.ts';
-import { formatDuration } from '@timetrack/common/duration';
+import { formatDuration } from '@tokkl/common/duration';
 import { SettingsCard } from './SettingsCard.tsx';
 
 const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD.MM.YYYY', 'DD-MM-YYYY', 'MM-DD-YYYY'] as const;

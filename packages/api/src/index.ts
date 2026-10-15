@@ -11,13 +11,14 @@ function setupCode(): string {
   return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`;
 }
 
-const config = loadConfig();
+const { config, notices } = loadConfig();
+for (const notice of notices) console.warn(notice);
 const db = openDatabase(config.databasePath);
 const setup = { code: countUsers(db) === 0 ? (config.setupCode ?? setupCode()) : null };
 const app = createApp({ db, config, setup });
 
 const server = app.listen(config.port, config.host, () => {
-  console.log(`timetrack listening on http://${config.host}:${config.port} (database: ${config.databasePath})`);
+  console.log(`tokkl listening on http://${config.host}:${config.port} (database: ${config.databasePath})`);
   if (setup.code) {
     console.log(`No account yet. Open the web UI and use this setup code to create it: ${setup.code}`);
   }

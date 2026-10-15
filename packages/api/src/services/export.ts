@@ -1,9 +1,9 @@
 import type { Db } from '../db/index.ts';
 import { toCsv } from '../lib/csv.ts';
 import { badRequest } from '../lib/errors.ts';
-import { formatDuration } from '@timetrack/common/duration';
-import type { DurationFormat } from '@timetrack/types';
-import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '@timetrack/common/time';
+import { formatDuration } from '@tokkl/common/duration';
+import type { DurationFormat } from '@tokkl/types';
+import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '@tokkl/common/time';
 import { listClients, serializeClient } from '../models/clients.ts';
 import { listProjects, serializeProject } from '../models/projects.ts';
 import { listTags, serializeTag } from '../models/tags.ts';
@@ -12,13 +12,16 @@ import { listTimeEntries, serializeTimeEntry, type TimeEntryWithMeta } from '../
 import { getPreferences, serializeUser, type UserRow } from '../models/users.ts';
 import { listWorkspaces, serializeWorkspace } from '../models/workspaces.ts';
 
+export const EXPORT_FORMAT = 'tokkl-export';
+/** Format name written before the rename to Tokkl. Restore still accepts it. */
+export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
 export const EXPORT_FORMAT_VERSION = 1;
 
 /** Everything the account owns, in Toggl v9 shapes, so other tools can read it. */
 export function buildJsonExport(db: Db, user: UserRow) {
   const workspaces = listWorkspaces(db);
   return {
-    format: 'timetrack-export',
+    format: EXPORT_FORMAT,
     version: EXPORT_FORMAT_VERSION,
     exported_at: new Date().toISOString(),
     user: serializeUser(user, { includeToken: false }),
