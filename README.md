@@ -70,6 +70,35 @@ Open the web app, enter the code, and create your account. Only someone who can 
 
 All data is in `tokkl.sqlite` (plus its `-wal` and `-shm` files) inside the data folder. Settings → Data also exports everything as JSON and all entries as CSV, and restores the JSON export.
 
+## Running with Docker
+
+Each release publishes `ghcr.io/e0ipso/tokkl` for amd64 and arm64, tagged with the full version (`1.2.3`), `1.2`, `1` and `latest`. The database lives in `/data`; mount a volume there.
+
+```sh
+docker run -d --name tokkl -p 8080:8080 -v tokkl-data:/data ghcr.io/e0ipso/tokkl:1
+docker logs tokkl    # prints the setup code on first start
+```
+
+The container runs as the image's `node` user (UID 1000). To run it as another UID, pass `--user` and mount a directory that UID owns; the app files are read-only, and `/data` is the only place it writes. Pass settings from [Configuration](#configuration) with `-e`. The image sets `TOKKL_DATA_DIR` to `/data`.
+
+### TrueNAS Scale
+
+Create a dataset for the data, for example `tank/apps/tokkl`, and give the `apps` user (UID 568) write access to it. Then go to Apps → Discover Apps → Install via YAML:
+
+```yaml
+services:
+  tokkl:
+    image: ghcr.io/e0ipso/tokkl:1
+    user: "568:568"
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /mnt/tank/apps/tokkl:/data
+```
+
+The setup code is in the app's logs. If a reverse proxy is the only way to reach the app, add `TOKKL_TRUST_PROXY: "true"` under `environment:`. Leave it off while port 8080 is open on the LAN, or a client there can forge `X-Forwarded-For` and get around the login rate limit.
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -129,6 +158,8 @@ npm run test:e2e   # builds, then runs the Playwright browser tests
 npm run screenshots  # builds, then rewrites docs/screenshots/*.png
 npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and title. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
 
 The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
 
