@@ -16,9 +16,8 @@
 .manage-actions > * { vertical-align: middle; }
 .manage-actions .button { padding: 4px 10px; }
 .manage-notes { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-/* Rename fields for tags and tasks: borderless until hovered or focused. */
-.inline-input { flex: 1; min-width: 0; width: min(320px, 100%); border-color: transparent; background: transparent; }
-.inline-input:hover, .inline-input:focus { border-color: var(--border); }
+/* Rename fields for tags and tasks. The look comes from .inline-input in styles.css. */
+.inline-input { flex: 1; min-width: 0; width: min(320px, 100%); }
 .manage-inline-create { margin-top: 8px; }
 .manage-inline-create input { flex: 1; }
 .manage-menu-gap { display: inline-block; width: 16px; }

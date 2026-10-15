@@ -68,7 +68,7 @@ export function TimerPage() {
   const removeFavorite = (index: number) => savePrefs.mutate({ favorites: favorites.filter((_, i) => i !== index) });
 
   return (
-    <div className="page timer-page">
+    <div className="page">
       <TimerBar ref={timer} recentEntries={entries} />
       <div className="timer-summary">
         <span>Today <strong>{duration(totals.todaySeconds, settings)}</strong></span>

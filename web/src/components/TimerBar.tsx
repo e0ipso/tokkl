@@ -334,7 +334,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
                   className={`suggestion${i === highlight ? ' highlighted' : ''}`}
                   onMouseDown={(event) => { event.preventDefault(); pickSuggestion(s); }}
                 >
-                  <span className="suggestion-description">{s.description || <em className="muted">(no description)</em>}</span>
+                  <span>{s.description || <em className="muted">(no description)</em>}</span>
                   {s.project_id ? (
                     <span className="suggestion-project">
                       <ProjectDot color={s.project_color} /> {s.project_name}

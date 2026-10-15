@@ -26,7 +26,7 @@ export function DurationField({ seconds, onCommit, format = 'improved', disabled
   };
   return (
     <input
-      className={className ?? 'duration-field'}
+      className={className}
       value={text}
       disabled={disabled}
       aria-label={ariaLabel ?? 'Duration'}

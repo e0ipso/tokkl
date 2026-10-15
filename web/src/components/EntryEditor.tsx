@@ -222,7 +222,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           <p className="field-full hint">Ends the next day, {localDay(range.stop, settings.timeZone)}.</p>
         ) : null}
         {!running ? (
-          <div className="field field-full split-row">
+          <div className="field field-full">
             <span>Split at</span>
             <div className="inline-controls">
               <input value={splitText} placeholder="e.g. 10:30" onChange={(event) => setSplitText(event.target.value)} />
