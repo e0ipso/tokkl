@@ -54,7 +54,7 @@ test('summary totals, groups, chart and weekly grid reconcile with known data an
   const breakdown = page.getByRole('region', { name: 'Breakdown' });
   await expect(breakdown.getByText('Amounts per row are hidden because this report mixes currencies.')).toBeVisible();
   await expect(breakdown.getByRole('columnheader', { name: 'Amount' })).toHaveCount(0);
-  expect(await cellTexts(breakdown.locator('tbody tr'))).toEqual([
+  await expect.poll(() => cellTexts(breakdown.locator('tbody tr'))).toEqual([
     ['Alpha', '3:30:00', '60.9%'],
     ['Beta', '1:30:00', '26.1%'],
     ['Without project', '0:45:00', '13.0%'],
@@ -93,7 +93,7 @@ test('summary totals, groups, chart and weekly grid reconcile with known data an
   const euros = await money(page, 5_000, 'EUR');
   await expect(total(page, 'Amount')).toHaveText(euros);
   await expect(breakdown.getByRole('columnheader', { name: 'Amount' })).toBeVisible();
-  expect(await cellTexts(breakdown.locator('tbody tr'))).toEqual([['Beta', '1:30:00', '100.0%', euros]]);
+  await expect.poll(() => cellTexts(breakdown.locator('tbody tr'))).toEqual([['Beta', '1:30:00', '100.0%', euros]]);
 });
 
 // TT-0093: non-billable bars are striped as well as coloured, the legend is read out, and the

@@ -189,8 +189,13 @@ export async function downloadCsv(page: Page, button: string): Promise<{ filenam
   return { filename: file.suggestedFilename(), rows: parseCsv(await readFile(await file.path(), 'utf8')) };
 }
 
-/** Rendered, trimmed text of every cell in each row (innerText skips icon titles). */
+/**
+ * Rendered, trimmed text of every cell in each row (innerText skips icon titles). It waits for
+ * the first row, so a table that is still loading is not read as empty. The read itself is one
+ * shot: when more rows may still arrive, poll it with `expect.poll(() => cellTexts(rows))`.
+ */
 export async function cellTexts(rows: ReturnType<Page['locator']>): Promise<string[][]> {
+  await expect(rows.first()).toBeAttached();
   return rows.evaluateAll((elements) => elements.map((row) =>
     [...row.querySelectorAll<HTMLElement>('th, td')].map((cell) => cell.innerText.trim())));
 }

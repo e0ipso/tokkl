@@ -138,7 +138,7 @@ test('a saved report URL restores every control and the matching results', async
   const pager = page.getByRole('navigation', { name: 'Pages' });
   await expect(pager).toContainText('101 to 103 of 103');
   const rows = page.locator('tr.entry-row');
-  expect((await cellTexts(rows)).map((cells) => [cells[1], cells[6]])).toEqual([
+  await expect.poll(async () => (await cellTexts(rows)).map((cells) => [cells[1], cells[6]])).toEqual([
     ['match 101', '1:41:00'], ['match 102', '1:42:00'], ['match 103', '1:43:00'],
   ]);
   expect(new URL(page.url()).search).toBe(search);
@@ -164,8 +164,8 @@ test('a saved report URL restores every control and the matching results', async
   const all = hms(103 * 104 / 2 * 60);
   await tabs.getByRole('tab', { name: 'Weekly' }).click();
   await expect(page.getByRole('group', { name: 'Rows' }).getByRole('button', { name: 'Clients' })).toHaveAttribute('aria-pressed', 'true');
-  const weeklyRows = await cellTexts(page.locator('.weekly-table tbody tr'));
-  expect(weeklyRows.map((cells) => [cells[0], cells.at(-1)])).toEqual([['ACME', all]]);
+  await expect.poll(async () => (await cellTexts(page.locator('.weekly-table tbody tr')))
+    .map((cells) => [cells[0], cells.at(-1)])).toEqual([['ACME', all]]);
 
   await tabs.getByRole('tab', { name: 'Summary' }).click();
   const breakdown = page.getByRole('region', { name: 'Breakdown' });
@@ -174,7 +174,7 @@ test('a saved report URL restores every control and the matching results', async
   await expect(page.locator('.report-totals div', { hasText: 'Entries' }).locator('dd')).toHaveText('103');
   await expect(totalTime(page)).toHaveText(all);
   await breakdown.getByRole('button', { name: 'Show tag breakdown for ACME' }).click();
-  expect((await cellTexts(breakdown.locator('tbody tr'))).map((cells) => [cells[0], cells[1]])).toEqual([
+  await expect.poll(async () => (await cellTexts(breakdown.locator('tbody tr'))).map((cells) => [cells[0], cells[1]])).toEqual([
     ['ACME', all],
     ['draft', hms(52 * 52 * 60)],
     ['Without tags', hms(51 * 52 * 60)],

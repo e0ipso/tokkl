@@ -45,15 +45,19 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
     await breakdown.getByRole('button', { name: `Show project breakdown for ${title}` }).click();
   }
   // Group rows, each followed by its sub-group rows: [title, duration, share].
-  const shown = await cellTexts(breakdown.locator('tbody tr'));
-  const shownRows: string[][] = [];
-  let group = '';
-  for (const [index, cells] of shown.entries()) {
-    const isGroup = await breakdown.locator('tbody tr').nth(index).evaluate((row) => row.classList.contains('group-row'));
-    if (isGroup) group = cells[0]!;
-    else shownRows.push([csvTitle(group), csvTitle(cells[0]!), cells[1]!]);
-  }
-  expect(shownRows).toEqual([['ACME', 'Alpha', '3:30:00'], ['(none)', '(none)', '0:15:00']]);
+  const readShownRows = async () => {
+    const shown = await cellTexts(breakdown.locator('tbody tr'));
+    const rowsOnScreen: string[][] = [];
+    let group = '';
+    for (const [index, cells] of shown.entries()) {
+      const isGroup = await breakdown.locator('tbody tr').nth(index).evaluate((row) => row.classList.contains('group-row'));
+      if (isGroup) group = cells[0]!;
+      else rowsOnScreen.push([csvTitle(group), csvTitle(cells[0]!), cells[1]!]);
+    }
+    return rowsOnScreen;
+  };
+  const shownRows = [['ACME', 'Alpha', '3:30:00'], ['(none)', '(none)', '0:15:00']];
+  await expect.poll(readShownRows).toEqual(shownRows);
 
   const summaryBody = csvRequest(page, 'summary');
   const summary = await downloadCsv(page, 'CSV (summary)');
