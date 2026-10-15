@@ -1,4 +1,4 @@
-import { request, type Browser, type Locator, type Page } from '@playwright/test';
+import { request, type Browser, type Locator, type Page, type Route } from '@playwright/test';
 import { EMAIL, PASSWORD, expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
@@ -23,10 +23,26 @@ async function saveTheme(page: Page, theme: Theme) {
 const dataTheme = (page: Page) => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
 const cachedTheme = (page: Page) => page.evaluate((key) => window.localStorage.getItem(key), CACHE_KEY);
 
-/** Reloads and reads data-theme at DOMContentLoaded, before any API response can arrive. */
+/**
+ * Reloads and reads data-theme at DOMContentLoaded. The preferences response is held until the
+ * read, since on a fast server it can arrive first and apply the server's theme. A test that holds
+ * it longer keeps its own route; this one falls back to it.
+ */
 async function themeAtFirstParse(page: Page) {
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  return dataTheme(page);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const hold = async (route: Route) => {
+    await held;
+    await route.fallback();
+  };
+  await page.route('**/api/v9/me/preferences', hold);
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    return await dataTheme(page);
+  } finally {
+    release();
+    await page.unroute('**/api/v9/me/preferences', hold);
+  }
 }
 
 test.use({ colorScheme: 'light' });
