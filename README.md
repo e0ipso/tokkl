@@ -127,6 +127,7 @@ npm run typecheck  # tsc over server, shared, bench, web, e2e, scripts and the P
 npm run build      # builds the web app into dist/web
 npm run test:e2e   # builds the web app, then runs the Playwright browser tests
 npm run screenshots  # builds the web app, then rewrites docs/screenshots/*.png
+npm run icons      # renders web/public/icon-192.png and icon-512.png from icon.svg
 ```
 
 The server runs TypeScript directly through Node's type stripping, so there is no server build step. Layout:
@@ -136,7 +137,7 @@ server/src   Express app, Toggl v9 and Reports v3 routes, SQLite models, import/
 shared/      duration, time-of-day and timezone helpers used by server and web
 web/src      React app
 e2e/         Playwright tests
-scripts/     README screenshot generator
+scripts/     README screenshot and app icon generators
 docs/PRD.md  product requirements
 ```
 
@@ -169,6 +170,12 @@ The same fixtures fail a scenario on any uncaught page error, console error (Rea
 It uses its own Playwright config, `scripts/screenshots.config.ts`, so `npm run test:e2e` never runs it. The server starts on a throwaway database in a temporary directory. The script loads `e2e/fixtures-data/transfer/restore-full.json` through the JSON restore, together with the extra client, projects and five weeks of entries defined in `scripts/screenshots-data.ts`. The server and browser clocks are fixed at Thursday 16 July 2026, 15:20 in Europe/Madrid, so repeated runs on the same machine write identical files. Desktop images are 1440x900 and phone images 390x844, both at device scale factor 2, in the light theme.
 
 `CHROMIUM_PATH` works as for the e2e tests. `SCREENSHOTS_PORT` changes the server port (default 8096).
+
+### App icon
+
+`web/public/icon.svg` is the source of the app icon. `npm run icons` renders `web/public/icon-192.png` and `web/public/icon-512.png` from it in Playwright's Chromium, so no other image tool is needed. Run it after changing the SVG and commit the PNGs with it. The same Chromium build writes identical files on every run. `CHROMIUM_PATH` works as for the e2e tests.
+
+The icon uses only colours from the dark theme tokens in `web/src/styles.css`. Apart from the background, keep shapes inside the circle of radius 25.6 around the centre of the 64x64 viewBox, so a launcher that crops the icon to a circle or squircle does not cut them off.
 
 ### History-scale measurements
 
