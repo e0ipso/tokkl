@@ -76,4 +76,11 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
     await img.decode();
     return img.naturalWidth;
   })).toBeGreaterThan(0);
+  // The decorative icon beside it is too small for the visual baselines to notice if it broke.
+  const icon = page.locator('.brand').first().locator('img[alt=""]');
+  await expect(icon).toHaveAttribute('src', '/brand/icon-96.png');
+  expect(await icon.evaluate(async (img: HTMLImageElement) => {
+    await img.decode();
+    return img.naturalWidth;
+  })).toBe(96);
 });

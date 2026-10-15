@@ -114,3 +114,48 @@ test('choosing "Is not" before picking a project excludes the project picked nex
   expect(new URL(page.url()).searchParams.get('projects')).toBe(`not.${beta}`);
   await expect(totalTime(page)).toHaveText('1:00:00');
 });
+
+// TT-0118: on a phone the browser squeezed every wrappable column of the wide detailed table, so the
+// client wrapped one word per line and the tags one chip per line, and short rows grew to about 80px.
+// Client and tags now stay on one line (about 40px rows); a long client is cut off with an ellipsis
+// and keeps its full name in the title, as does the project name.
+test('detailed rows stay one line tall on a phone, with long names cut off and kept in the title', async ({ page, api }) => {
+  const shortClient = await api.client('Acme Widget Co');
+  const longClient = await api.client('Northwind Traders International Holdings Group');
+  const website = await api.project({ name: 'Website Redesign Phase Two', client_id: longClient });
+  const intranet = await api.project({ name: 'Intranet', client_id: shortClient });
+  await api.entry({ description: 'Wireframes', project_id: website, tags: ['design review', 'scope', 'urgent'], start: '2026-01-05T09:00:00Z', stop: '2026-01-05T10:00:00Z' });
+  await api.entry({ description: 'Wiki', project_id: intranet, tags: ['docs'], start: '2026-01-06T09:00:00Z', stop: '2026-01-06T09:30:00Z' });
+
+  await login(page);
+  await page.goto('/reports?from=2026-01-05&to=2026-01-11&tab=detailed');
+  const rows = page.locator('tr.entry-row');
+  await expect(rows).toHaveCount(2);
+  await expectNoPageOverflow(page);
+  const wireframes = rows.filter({ hasText: 'Wireframes' });
+
+  const client = wireframes.locator('td.detailed-client');
+  await expect(client).toHaveText('Northwind Traders International Holdings Group');
+  await expect(client).toHaveAttribute('title', 'Northwind Traders International Holdings Group');
+  await expect(client).toHaveCSS('white-space', 'nowrap');
+  await expect(client).toHaveCSS('text-overflow', 'ellipsis');
+  const clientBox = await client.evaluate((cell) => ({
+    width: cell.getBoundingClientRect().width,
+    clipped: cell.scrollWidth > cell.clientWidth,
+  }));
+  expect(clientBox.width).toBeLessThanOrEqual(180.5);
+  expect(clientBox.clipped, 'the long client is cut off').toBe(true);
+  await expect(wireframes.locator('.project-label-name')).toHaveAttribute('title', 'Website Redesign Phase Two');
+
+  // The chips sit side by side on one line.
+  const chipTops = await wireframes.locator('td.detailed-tags .tag-chip').evaluateAll((chips) =>
+    chips.map((chip) => chip.getBoundingClientRect().top));
+  expect(chipTops).toHaveLength(3);
+  expect(new Set(chipTops).size, 'the tags wrap onto a second line').toBe(1);
+
+  // A short multi-word client stays whole on one line too.
+  await expect(rows.filter({ hasText: 'Wiki' }).locator('td.detailed-client')).toHaveText('Acme Widget Co');
+  for (const height of await rows.evaluateAll((elements) => elements.map((row) => row.getBoundingClientRect().height))) {
+    expect(height, 'a detailed row wraps onto a second line').toBeLessThan(56);
+  }
+});
