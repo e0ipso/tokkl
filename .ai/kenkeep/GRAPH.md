@@ -1,18 +1,18 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:af7d0fc4241d8869a66af4d597f815ce1b7167c1749aa9aba620484ecda98b8d'
-node_count: 31
+nodes_hash: 'sha256:91b3ad9a4bdf91f7963ba1c00c212bee23b47c2591f75e936198072a53dd9f34'
+node_count: 32
 ---
 # kenkeep Graph
 
-Total nodes: 31
+Total nodes: 32
 
 ## map-app-icons-script
 
 - **kind:** map
-- **title:** App icons: npm run icons renders the PNGs from icon.svg
+- **title:** Brand images: npm run icons derives every served file from docs/brand
 - **path:** tooling-and-project/map-app-icons-script.md
-- **tags:** tooling, pwa, icons, playwright, web
+- **tags:** tooling, pwa, icons, imagemagick, web
 - **relates_to:** map-readme-screenshots-script, practice-e2e-test-workflow
 
 ## map-app-report-endpoints
@@ -25,7 +25,7 @@ Total nodes: 31
 ## map-app-shell-brand-and-navigation
 
 - **kind:** map
-- **title:** App shell: Brand.tsx, the SVG wordmark and the NAV list
+- **title:** App shell: Brand.tsx, the wordmark image and the NAV list
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile
 - **relates_to:** practice-e2e-test-workflow, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
@@ -122,6 +122,7 @@ Total nodes: 31
 - **title:** Running the Playwright e2e suite
 - **path:** tooling-and-project/practice-e2e-test-workflow.md
 - **tags:** testing, e2e, playwright, workflow
+- **relates_to:** practice-visual-screenshot-baselines
 
 ## practice-hourly-rates-go-through-optionalrate
 
@@ -170,7 +171,7 @@ Total nodes: 31
 ## practice-phone-layout-css-gotchas
 
 - **kind:** practice
-- **title:** Phone layout CSS: position scroll wrappers, min-width: 0 on grid/flex items
+- **title:** Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells
 - **path:** web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md
 - **tags:** web, css, mobile, layout
 - **relates_to:** practice-e2e-test-workflow
@@ -220,6 +221,14 @@ Total nodes: 31
 - **title:** UI time math uses account-local wall-clock helpers
 - **path:** web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md
 - **tags:** web, time, dst, calendar, common
+
+## practice-visual-screenshot-baselines
+
+- **kind:** practice
+- **title:** Visual baselines: e2e/visual.spec.ts and how to refresh them
+- **path:** tooling-and-project/practice-visual-screenshot-baselines.md
+- **tags:** testing, e2e, playwright, visual
+- **relates_to:** practice-e2e-test-workflow, map-app-icons-script, map-readme-screenshots-script
 
 ## practice-web-ui-survives-background-refetches
 

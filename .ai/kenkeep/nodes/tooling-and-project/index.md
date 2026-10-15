@@ -11,32 +11,38 @@ _None._
 
 ## Conventions (how we build)
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) to learn about: test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them. #testing #e2e #playwright #workflow
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) to learn about: 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check. #testing #e2e #playwright #visual
 
 ## Components (what exists)
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) to learn about: Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree. #monorepo #workspaces #layout #tooling #common #api #web #types
-- Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) to learn about: Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint. #testing #typecheck #tooling #workflow
 - Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) to learn about: scripts/screenshots.ts rebuilds the nine docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops. #tooling #docs #screenshots #playwright
-- Open [**App icons: npm run icons renders the PNGs from icon.svg**](map-app-icons-script.md) to learn about: scripts/icons.ts renders icon-192/512.png from public/icon.svg in Playwright Chromium; shapes stay in the maskable safe zone, background full-bleed. #tooling #pwa #icons #playwright #web
+- Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) to learn about: Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint. #testing #typecheck #tooling #workflow
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) to learn about: scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons, apple-touch icon and wordmark. #tooling #pwa #icons #imagemagick #web
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) to learn about: bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it. #performance #bench #tooling #reports
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) to learn about: Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work. #server #web #config #rename
 
 ## By topic
 
 ### #tooling
-- Open [**App icons: npm run icons renders the PNGs from icon.svg**](map-app-icons-script.md) — scripts/icons.ts renders icon-192/512.png from public/icon.svg in Playwright Chromium; shapes stay in the maskable safe zone, background full-bleed.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons, apple-touch icon and wordmark.
 - Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) — scripts/screenshots.ts rebuilds the nine docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
 ### #playwright
-- Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) — scripts/screenshots.ts rebuilds the nine docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops.
-- Open [**App icons: npm run icons renders the PNGs from icon.svg**](map-app-icons-script.md) — scripts/icons.ts renders icon-192/512.png from public/icon.svg in Playwright Chromium; shapes stay in the maskable safe zone, background full-bleed.
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
-### #web
-- Open [**Bulk bar sticks under the timer bar through --timer-bar-height**](../web-ui-styling-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md) — TimerBar writes --timer-bar-height on <html>; .bulk-bar sticks at it; phones zero it while entries are selected.
-- Open [**Phone layout CSS: position scroll wrappers, min-width: 0 on grid/flex items**](../web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md) — Absolute children escape unpositioned scroll wrappers, and grid or flex items without min-width: 0 stretch past a phone screen.
-- Open [**Week calendar hour height lives in three places**](../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
+- Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) — scripts/screenshots.ts rebuilds the nine docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops.
 ### #testing
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
+### #web
+- Open [**Bulk bar sticks under the timer bar through --timer-bar-height**](../web-ui-styling-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md) — TimerBar writes --timer-bar-height on <html>; .bulk-bar sticks at it; phones zero it while entries are selected.
+- Open [**Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells**](../web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md) — Absolute children escape unpositioned scroll wrappers, grid or flex items without min-width: 0 stretch past a phone screen, and wide auto tables wrap every cell.
+- Open [**Week calendar hour height lives in three places**](../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
+### #e2e
+- Open [**Week calendar hour height lives in three places**](../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
+- Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 ### #workflow
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
@@ -53,14 +59,12 @@ _None._
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) — Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work.
 ### #docs
 - Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) — scripts/screenshots.ts rebuilds the nine docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops.
-### #e2e
-- Open [**Week calendar hour height lives in three places**](../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
-- Open [**Theme: light-dark() tokens, data-theme and the cached theme**](../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md) — Tokens are light-dark() on :root; \[data-theme\] sets only color-scheme; theme-boot.js applies the cached theme before first paint.
-- Open [**Loading, error, empty and field-error states use the shared components**](../web-ui-behaviour/map-web-page-state-and-field-error-components.md) — PageState.tsx (Loading, LoadError, BusyRegion), EmptyState.tsx and FieldError.tsx with useFieldErrors; error toasts are role=alert too.
 ### #icons
-- Open [**App icons: npm run icons renders the PNGs from icon.svg**](map-app-icons-script.md) — scripts/icons.ts renders icon-192/512.png from public/icon.svg in Playwright Chromium; shapes stay in the maskable safe zone, background full-bleed.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons, apple-touch icon and wordmark.
+### #imagemagick
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons, apple-touch icon and wordmark.
 ### #layout
-- Open [**Phone layout CSS: position scroll wrappers, min-width: 0 on grid/flex items**](../web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md) — Absolute children escape unpositioned scroll wrappers, and grid or flex items without min-width: 0 stretch past a phone screen.
+- Open [**Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells**](../web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md) — Absolute children escape unpositioned scroll wrappers, grid or flex items without min-width: 0 stretch past a phone screen, and wide auto tables wrap every cell.
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
 ### #monorepo
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
@@ -69,7 +73,7 @@ _None._
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](../api-and-data/practice-write-paths-validate-refs-not-totals.md) — Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals.
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) — bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it.
 ### #pwa
-- Open [**App icons: npm run icons renders the PNGs from icon.svg**](map-app-icons-script.md) — scripts/icons.ts renders icon-192/512.png from public/icon.svg in Playwright Chromium; shapes stay in the maskable safe zone, background full-bleed.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons, apple-touch icon and wordmark.
 ### #rename
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) — Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work.
 ### #reports
@@ -86,5 +90,7 @@ _None._
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
 ### #types
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
+### #visual
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 ### #workspaces
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.

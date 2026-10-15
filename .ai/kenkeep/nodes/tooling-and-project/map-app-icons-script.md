@@ -1,14 +1,14 @@
 ---
 type: map
-title: 'App icons: npm run icons renders the PNGs from icon.svg'
+title: 'Brand images: npm run icons derives every served file from docs/brand'
 description: >-
-  scripts/icons.ts renders icon-192/512.png from public/icon.svg in Playwright
-  Chromium; shapes stay in the maskable safe zone, background full-bleed.
+  scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7
+  into the served icons, apple-touch icon and wordmark.
 tags:
   - tooling
   - pwa
   - icons
-  - playwright
+  - imagemagick
   - web
 kk_schema_version: 3
 kk_id: map-app-icons-script
@@ -19,9 +19,11 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`packages/web/public/icon.svg` is the source of the app icon. `packages/web/public/icon-192.png` and `icon-512.png` are generated from it by `npm run icons` (`scripts/icons.ts`), which draws the SVG as an `<img>` in Playwright's Chromium and screenshots it on an opaque background. No other image tool is needed, `CHROMIUM_PATH` picks another Chromium binary as for the e2e tests, and the same Chromium build writes byte-identical files. After editing the SVG, run it and commit the PNGs with the SVG.
+The owner's raster artwork sits in `docs/brand` (`tokkl-wordmark-v3.png`, `tokkl-icon-v4-1024.png`, `-512.png`, `-192.png` and `tokkl-favicon-v4-32.png`). Those files are sources only; the server does not ship them. `npm run icons` (`scripts/icons.ts`) derives every served image from them with ImageMagick 7 (`magick`, which must be on `PATH`; the script exits with a message when it is missing). Outputs carry no metadata or timestamps, so the same ImageMagick build writes identical files on every run. After replacing a file in `docs/brand`, run the script and commit the outputs with it.
 
-The manifest lists the SVG and both PNGs, and `index.html` uses `icon-192.png` as the `apple-touch-icon`. When editing the SVG, keep every shape inside the maskable safe zone, a circle of radius 25.6 around the centre of the 64x64 viewBox, and keep the background a full-bleed opaque rect, so the icon has no transparent edges and launchers that crop to a circle or squircle do not cut the artwork. Colours come from the dark-theme tokens in `styles.css`.
+Outputs in `packages/web/public`: `favicon-32.png` and `icon-192.png` are copies of the owner's files; `icon-512.png` is the 512 source quantised to 256 colours; `apple-touch-icon.png` is the 1024 icon at 156px centred on a 180px square filled with `#f4e7cf` (the light `--bg`), because iOS paints transparent corners black; `brand/icon-96.png` is the 96px icon `Brand.tsx` shows; `brand/wordmark-260.png` and `brand/wordmark-520.png` are the wordmark cropped to `1645x709+80+91` (the lettering without the transparent margin) and resized for the `srcset`. The same crop also writes the 640px `docs/brand/tokkl-wordmark.png` used as the README header. Served files are 2.5 to 64 KB, and `e2e/pwa.spec.ts` fails any manifest icon over 100 KB.
+
+The manifest lists only `icon-192.png` and `icon-512.png`, with no `maskable` purpose, because the artwork does not fit the safe zone. There is no `icon.svg`. `index.html` links `favicon-32.png` and `apple-touch-icon.png`. If you change `WORDMARK_CROP`, change `WORDMARK_RATIO` in `Brand.tsx` with it.
 
 <!-- kk:related:start -->
 # Related
