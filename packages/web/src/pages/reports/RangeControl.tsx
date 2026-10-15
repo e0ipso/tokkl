@@ -7,11 +7,15 @@ import {
 } from './range.ts';
 import type { ReportPatch } from './urlState.ts';
 
-function isTyping(target: EventTarget | null): boolean {
-  const element = target instanceof HTMLElement ? target : null;
-  if (!element) return false;
-  return element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)
-    || element.closest('[data-own-arrows]') !== null;
+/**
+ * True when the arrow key belongs to the target: a text field, or any element (SVG included)
+ * inside a widget marked data-own-arrows.
+ */
+function ownsArrows(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest('[data-own-arrows]') !== null) return true;
+  return target instanceof HTMLElement
+    && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 }
 
 /** Preset list plus a custom range, with arrows that move the range by its own length. */
@@ -40,7 +44,9 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || isTyping(event.target)) return;
+      // A widget that already handled the key (and called preventDefault) wins.
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (ownsArrows(event.target)) return;
       if (document.querySelector('.modal, .popover')) return;
       event.preventDefault();
       shiftRef.current(event.key === 'ArrowLeft' ? -1 : 1);

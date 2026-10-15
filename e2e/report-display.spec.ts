@@ -150,6 +150,32 @@ test('the summary chart stripes non-billable bars, reads out its legend and size
   await expect(page.getByRole('status').filter({ hasText: 'Mon, 5 Jan 2026' })).toContainText('Billable 2:00:00');
 });
 
+// TT-0115: the chart is an SVG element marked data-own-arrows, so its arrow keys move the active
+// column and never reach the page's range shortcut. Once focus leaves the chart, the shortcut
+// moves the range again.
+test('arrow keys on the summary chart move its column and leave the report range alone', async ({ page, api }) => {
+  await seedMixedWeek(api);
+  await login(page);
+  await page.goto(WEEK);
+
+  const chart = page.getByRole('img', { name: /7 days, 5:45:00 in total/ });
+  const status = page.getByRole('status').filter({ has: page.locator('.chart-tooltip-label') });
+  await chart.focus();
+  // With no active column, ArrowLeft starts from the last one: Sunday, Saturday, then Friday.
+  for (let press = 0; press < 3; press += 1) await page.keyboard.press('ArrowLeft');
+  await expect(status).toContainText('Fri, 9 Jan 2026');
+  await expect(status).toContainText('Non-billable 0:45:00');
+  await page.keyboard.press('ArrowRight');
+  await expect(status).toContainText('Sat, 10 Jan 2026');
+  await expect(chart).toBeFocused();
+  await expect(chart.locator('g.is-active')).toHaveCount(1);
+  expect(new URL(page.url()).search).toBe('?from=2026-01-05&to=2026-01-11');
+
+  await chart.blur();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page).toHaveURL(/\?from=2025-12-29&to=2026-01-04$/);
+});
+
 test('detailed rows sort globally and page across a range longer than a year', async ({ page, api }) => {
   // 105 entries four days apart from 1 January 2025. Durations and descriptions are permutations
   // unrelated to the dates, so a sort that only covered one page would show.
