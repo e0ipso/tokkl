@@ -371,7 +371,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         </button>
         <button
           type="button"
-          className={`icon-button timer-attr${draft.billable ? ' active billable' : ''}`}
+          className={`icon-button timer-attr billable-toggle${draft.billable ? ' active billable' : ''}`}
           title="Billable"
           aria-label="Billable"
           aria-pressed={draft.billable}
@@ -406,9 +406,12 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             {manualRange && localDay(manualRange.stop, settings.timeZone) !== manualDay ? <span className="hint">+1 day</span> : null}
           </div>
         ) : current ? (
-          <button type="button" className="timer-clock" onClick={() => setEditing(true)} title="Edit start time">
-            {formatDuration(elapsed)}
-          </button>
+          <>
+            <span className="timer-running"><span className="timer-running-dot" aria-hidden="true" />Running</span>
+            <button type="button" className="timer-clock" onClick={() => setEditing(true)} title="Edit start time">
+              {formatDuration(elapsed)}
+            </button>
+          </>
         ) : (
           <input
             className="timer-clock timer-clock-input"
@@ -447,10 +450,24 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             </button>
           ) : (
             <>
-              <button type="button" className={`icon-button${!manual ? ' active' : ''}`} title="Timer mode" aria-label="Timer mode" onClick={() => manual && toggleManual()}>
+              <button
+                type="button"
+                className={`icon-button${!manual ? ' active' : ''}`}
+                title="Timer mode"
+                aria-label="Timer mode"
+                aria-pressed={!manual}
+                onClick={() => manual && toggleManual()}
+              >
                 <Icon name="timer" size={16} />
               </button>
-              <button type="button" className={`icon-button${manual ? ' active' : ''}`} title="Manual mode (M)" aria-label="Manual mode" onClick={() => !manual && toggleManual()}>
+              <button
+                type="button"
+                className={`icon-button${manual ? ' active' : ''}`}
+                title="Manual mode (M)"
+                aria-label="Manual mode"
+                aria-pressed={manual}
+                onClick={() => !manual && toggleManual()}
+              >
                 <Icon name="list" size={16} />
               </button>
             </>

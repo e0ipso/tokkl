@@ -27,7 +27,10 @@ const NAV: Array<{ href: string; label: string; icon: IconName }> = [
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-/** Applies the saved theme once preferences load. Until then the cached theme from lib/theme.ts stays. */
+/**
+ * Applies the saved theme once preferences load. Until then the cached theme stays: web/public/theme-boot.js
+ * puts it on <html> before the first paint, and lib/theme.ts applies it again when it loads.
+ */
 function useTheme() {
   const { data: prefs } = usePreferences();
   const theme = prefs ? (prefs.theme ?? 'system') : undefined;
@@ -74,7 +77,9 @@ function Shell() {
             <Link key={item.href} href={item.href} className={`nav-link${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              {item.href === '/' && current ? <span className="running-dot" title="Timer running" /> : null}
+              {item.href === '/' && current ? (
+                <span className="running-dot" title="Timer running"><span className="visually-hidden">Timer running</span></span>
+              ) : null}
             </Link>
           );
         })}

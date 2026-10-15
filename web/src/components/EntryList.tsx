@@ -291,7 +291,7 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
       </button>
       <button
         type="button"
-        className={`icon-button entry-billable${entry.billable ? ' active billable' : ''}`}
+        className={`icon-button entry-billable billable-toggle${entry.billable ? ' active billable' : ''}`}
         aria-pressed={entry.billable}
         aria-label="Billable"
         title="Billable"

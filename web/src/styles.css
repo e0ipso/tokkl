@@ -39,10 +39,12 @@
    border on bg                          other   3.32 AA     4.27 AA
    border on surface                     other   3.90 AA     3.87 AA
    border on surface-2                   other   3.01 AA     3.38 AA
-   state-running on surface              other   4.67 AA     5.63 AA
+   state-running on surface              text    4.67 AA     5.63 AA
    state-running on bg                   other   3.97 AA     6.21 AA
    state-billable on surface             other   4.83 AA    14.10 AA
    state-billable on surface-2           other   3.72 AA    12.32 AA
+   state-billable on state-selected      other   4.07 AA     9.64 AA
+   surface on state-billable             other   4.83 AA    14.10 AA
    accent-pink on surface                other   4.67 AA     5.63 AA
    accent-lime on surface                other   4.90 AA    14.10 AA
    chart-billable on surface             other   3.59 AA     5.16 AA
@@ -61,7 +63,11 @@
    other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
    above are their pairs. Fading them with opacity breaks those ratios.
    The error toast's text and icon are on-danger on danger; its dismiss button is faded to 70%,
-   which is the "on-danger at 70%" row. */
+   which is the "on-danger at 70%" row.
+   The "Running" label in the timer bar is state-running text on surface. The billable toggle is a
+   muted outline when off (the muted rows) and a state-billable circle with a surface icon when on;
+   rows can be surface, surface-2 or state-selected. The active mode button's underline is primary
+   on state-selected. */
 :root {
   color-scheme: light dark;
 
@@ -261,6 +267,10 @@ input.entry-duration:is(:hover, :focus) {
 .icon-button:hover { background: var(--surface-2); color: var(--text); }
 .icon-button.active { color: var(--primary); }
 .icon-button.billable { color: var(--state-billable); }
+/* Billable toggle in the timer bar and entry rows: an outline when off and a filled circle when on,
+   so the state shows in the shape and not only the colour. aria-pressed tells screen readers. */
+.billable-toggle { width: 32px; min-width: 32px; padding: 0; border: 1px solid currentColor; border-radius: var(--radius-pill); }
+.billable-toggle.billable, .billable-toggle.billable:hover { background: var(--state-billable); border-color: var(--state-billable); color: var(--surface); }
 .link-button { background: none; border: none; color: var(--primary); cursor: pointer; padding: 0; display: inline-flex; gap: 6px; align-items: center; }
 .badge { font-size: var(--text-xs); background: var(--primary); color: var(--on-primary); border-radius: var(--radius-pill); padding: 0 5px; }
 
@@ -301,6 +311,9 @@ input.entry-duration:is(:hover, :focus) {
   padding: 8px 8px 8px 14px; box-shadow: var(--shadow);
 }
 .timer-bar.is-running { border-color: var(--state-running); }
+/* The visible sign that the timer runs, beside the clock, so the border colour is not the only one. */
+.timer-running { display: inline-flex; align-items: center; gap: 6px; color: var(--state-running); font-size: var(--text-sm); font-weight: 600; }
+.timer-running-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: currentColor; animation: pulse 1.6s infinite; }
 .timer-description { position: relative; flex: 1 1 260px; min-width: 0; }
 .timer-description input { width: 100%; border: none; background: transparent; font-size: var(--text-base); padding: 8px 4px; }
 .timer-controls { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
@@ -318,7 +331,9 @@ input.entry-duration:is(:hover, :focus) {
 .timer-button.start, .timer-button.add { background: var(--primary); color: var(--on-primary); }
 .timer-button.stop { background: var(--danger); color: var(--on-danger); }
 .mode-switch { display: flex; flex-direction: column; }
-.mode-switch .icon-button { height: 22px; min-width: 26px; }
+.mode-switch .icon-button { height: 24px; min-width: 28px; border-radius: var(--radius-sm); }
+/* The active mode gets a fill and an underline as well as the primary colour. */
+.mode-switch .icon-button.active { background: var(--state-selected); box-shadow: inset 0 -2px 0 var(--primary); }
 .manual-fields { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .manual-fields input[type='date'] { width: 140px; }
 .time-field { width: 76px; text-align: center; }
@@ -592,5 +607,5 @@ table.table { width: 100%; border-collapse: collapse; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .running-dot { opacity: 1; }
+  .running-dot, .timer-running-dot { opacity: 1; }
 }
