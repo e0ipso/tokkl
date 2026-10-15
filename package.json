@@ -4,6 +4,9 @@
   "private": true,
   "description": "Self-hosted, single-user time tracker with a Toggl Track compatible API",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "engines": {
     "node": ">=24"
   },
@@ -13,7 +16,7 @@
     "build": "vite build --config web/vite.config.ts",
     "start": "node server/src/index.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p e2e/tsconfig.json && tsc -p scripts/tsconfig.json",
-    "test": "node --test --test-reporter=spec 'server/test/**/*.test.ts' 'shared/**/*.test.ts'",
+    "test": "node --test --test-reporter=spec 'server/test/**/*.test.ts' 'packages/*/**/*.test.ts'",
     "test:e2e": "npm run build && playwright test",
     "test:e2e:install": "playwright install --only-shell chromium",
     "bench:history": "npm run build && node bench/history.ts",

@@ -6,7 +6,7 @@ import { useCurrentEntry, useMe, usePreferences } from './api/hooks.ts';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
-import { formatDuration } from '../../shared/duration.ts';
+import { formatDuration } from '@timetrack/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
 import { applyTheme, clearCachedTheme } from './lib/theme.ts';
 import { AuthPage } from './pages/AuthPage.tsx';

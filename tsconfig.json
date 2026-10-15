@@ -14,5 +14,5 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true
   },
-  "include": ["server/**/*.ts", "shared/**/*.ts", "bench/**/*.ts"]
+  "include": ["server/**/*.ts", "packages/**/*.ts", "bench/**/*.ts"]
 }

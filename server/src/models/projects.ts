@@ -1,6 +1,6 @@
 import type { Db } from '../db/index.ts';
 import { nowIso } from '../db/index.ts';
-import { PROJECT_COLORS, isHexColor } from '../../../shared/colors.ts';
+import { PROJECT_COLORS, isHexColor } from '@timetrack/common/colors';
 import { badRequest, notFound } from '../lib/errors.ts';
 import {
   asBool, optionalBool, optionalId, optionalNumber, optionalRate, optionalString, requireName, togglTime,

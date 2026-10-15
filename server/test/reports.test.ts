@@ -6,7 +6,7 @@ import { renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Worker } from 'node:worker_threads';
 import { fileBackedCopy, setup, type TestContext } from './helpers.ts';
-import { formatDuration, parseDuration } from '../../shared/duration.ts';
+import { formatDuration, parseDuration } from '@timetrack/common/duration';
 import { transaction } from '../src/db/index.ts';
 import { parseCsv } from '../src/lib/csv.ts';
 import { CSV_COLUMNS } from '../src/services/export.ts';

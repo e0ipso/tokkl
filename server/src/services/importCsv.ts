@@ -1,8 +1,8 @@
 import type { Db } from '../db/index.ts';
 import { parseCsv } from '../lib/csv.ts';
 import { badRequest } from '../lib/errors.ts';
-import { parseDuration } from '../../../shared/duration.ts';
-import { zonedToUtc } from '../../../shared/time.ts';
+import { parseDuration } from '@timetrack/common/duration';
+import { zonedToUtc } from '@timetrack/common/time';
 import { createClient } from '../models/clients.ts';
 import { createProject } from '../models/projects.ts';
 import { createTask } from '../models/tasks.ts';

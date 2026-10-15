@@ -7,7 +7,7 @@ import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
 import { HttpError, badRequest, forbidden } from '../lib/errors.ts';
 import { optionalId, optionalRate, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
-import { isValidTimeZone, startOfDay } from '../../../shared/time.ts';
+import { isValidTimeZone, startOfDay } from '@timetrack/common/time';
 import {
   createClient, deleteClient, getClient, listClients, serializeClient, setClientArchived, updateClient,
 } from '../models/clients.ts';

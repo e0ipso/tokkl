@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { useCreateEntry, useDeleteEntry, useProjects, useRestoreEntry, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
-import { formatDuration, parseDuration } from '../../../shared/duration.ts';
-import { parseTimeOfDay } from '../../../shared/timeOfDay.ts';
-import { addDays } from '../../../shared/time.ts';
+import { formatDuration, parseDuration } from '@timetrack/common/duration';
+import { parseTimeOfDay } from '@timetrack/common/timeOfDay';
+import { addDays } from '@timetrack/common/time';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, useNow, useSettings } from '../lib/settings.ts';
 import { useFieldErrors } from './FieldError.tsx';

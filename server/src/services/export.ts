@@ -1,8 +1,8 @@
 import type { Db } from '../db/index.ts';
 import { toCsv } from '../lib/csv.ts';
 import { badRequest } from '../lib/errors.ts';
-import { formatDuration, type DurationFormat } from '../../../shared/duration.ts';
-import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '../../../shared/time.ts';
+import { formatDuration, type DurationFormat } from '@timetrack/common/duration';
+import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '@timetrack/common/time';
 import { listClients, serializeClient } from '../models/clients.ts';
 import { listProjects, serializeProject } from '../models/projects.ts';
 import { listTags, serializeTag } from '../models/tags.ts';

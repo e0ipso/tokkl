@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
-import { addClockMinutes, addDays, clockSpanOnDay, startOfWeek } from '../../../shared/time.ts';
+import { addClockMinutes, addDays, clockSpanOnDay, startOfWeek } from '@timetrack/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
 import { EntryEditor } from './EntryEditor.tsx';

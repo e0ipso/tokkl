@@ -6,7 +6,7 @@ import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie, query, readJson, readText } from '../http/context.ts';
 import { HttpError, badRequest, forbidden, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
-import { dateKey, isValidTimeZone } from '../../../shared/time.ts';
+import { dateKey, isValidTimeZone } from '@timetrack/common/time';
 import {
   listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
 } from '../models/timeEntries.ts';

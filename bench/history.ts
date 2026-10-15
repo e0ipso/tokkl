@@ -11,7 +11,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, freemem, hostname, loadavg, platform, release, arch, tmpdir, totalmem } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { formatDuration } from '../shared/duration.ts';
+import { formatDuration } from '@timetrack/common/duration';
 
 const HELP = `Usage: npm run bench:history -- [options]
 

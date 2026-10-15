@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEntries, usePreferences, useSavePreferences, useProjects } from '../api/hooks.ts';
 import type { Favorite, TimeEntry } from '../api/types.ts';
-import { addDays, startOfWeek } from '../../../shared/time.ts';
+import { addDays, startOfWeek } from '@timetrack/common/time';
 import { EntryList } from '../components/EntryList.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { BusyRegion, LoadError, Loading } from '../components/PageState.tsx';

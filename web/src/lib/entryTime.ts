@@ -1,5 +1,5 @@
-import { parseTimeOfDay } from '../../../shared/timeOfDay.ts';
-import { addDays, dateKey, parseDateKey, zonedToUtc } from '../../../shared/time.ts';
+import { parseTimeOfDay } from '@timetrack/common/timeOfDay';
+import { addDays, dateKey, parseDateKey, zonedToUtc } from '@timetrack/common/time';
 
 /** Combines a date key and minutes after midnight in `timeZone` into an instant. */
 export function instantAt(key: string, minutes: number, timeZone: string): Date {

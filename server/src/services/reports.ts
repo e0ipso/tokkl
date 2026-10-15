@@ -1,7 +1,7 @@
 import type { Db } from '../db/index.ts';
 import { badRequest } from '../lib/errors.ts';
 import { asBool } from '../lib/values.ts';
-import { addDays, dateKey, daysBetween, parseDateKey, startOfDay, startOfWeek } from '../../../shared/time.ts';
+import { addDays, dateKey, daysBetween, parseDateKey, startOfDay, startOfWeek } from '@timetrack/common/time';
 import type { UserRow } from '../models/users.ts';
 import type { WorkspaceRow } from '../models/workspaces.ts';
 

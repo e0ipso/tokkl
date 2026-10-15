@@ -1,4 +1,4 @@
-import { addDays, daysBetween, parseDateKey, startOfWeek } from '../../../../shared/time.ts';
+import { addDays, daysBetween, parseDateKey, startOfWeek } from '@timetrack/common/time';
 import { shortDate } from '../../lib/settings.ts';
 
 export const PRESETS = [
