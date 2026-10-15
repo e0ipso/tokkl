@@ -36,14 +36,14 @@ test('editing a running entry keeps its ID, leaves it running and survives reloa
   // Move the start two hours back through the editor; typed times are whole minutes.
   const start = new Date(Math.floor((Date.now() - 2 * 3_600_000) / 60_000) * 60_000);
   const wall = madridWallClock(start);
-  await timer.getByRole('button', { name: /^\d+:\d\d:\d\d$/ }).click();
+  await timer.getByRole('button', { name: /^\d+:\d\d:\d\d elapsed, edit start time$/ }).click();
   const editor = page.getByRole('dialog', { name: 'Edit running entry' });
   await editor.getByLabel('Date').fill(wall.day);
   await editor.getByLabel('Start').fill(wall.time);
   await editor.getByRole('button', { name: 'Save' }).click();
   await expect(editor).toBeHidden();
   await expect.poll(async () => instant((await api.current())?.start ?? null)).toBe(start.getTime());
-  await expect(timer.getByRole('button', { name: /^2:0\d:\d\d$/ })).toBeVisible();
+  await expect(timer.getByRole('button', { name: /^2:0\d:\d\d elapsed, edit start time$/ })).toBeVisible();
 
   const expected = { description: 'Draft the spec', project_id: design, task_id: wireframes, tags: ['focus'], billable: true };
   const check = async () => {
@@ -74,7 +74,7 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
   const running = await nextRunning(api, null);
 
   const description = timer.getByLabel('Description');
-  const clock = timer.getByRole('button', { name: /^\d+:\d\d:\d\d$/ });
+  const clock = timer.getByRole('button', { name: /^\d+:\d\d:\d\d elapsed, edit start time$/ });
   await description.click();
   await description.press('End');
   await description.pressSequentially(' block');

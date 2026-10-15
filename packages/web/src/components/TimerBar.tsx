@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   useCreateEntry, useCurrentEntry, useDeleteEntry, usePreferences, useProjects, useRestoreEntry, useSavePreferences,
   useStopEntry, useUpdateEntry,
@@ -9,7 +9,7 @@ import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
-import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
+import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 
@@ -22,6 +22,24 @@ interface Draft {
 }
 
 const EMPTY: Draft = { description: '', project_id: null, task_id: null, tags: [], billable: false };
+
+/**
+ * Writes the bar's height to --timer-bar-height on <html> while the bar is mounted. The bulk bar
+ * is not inside the timer bar, so it reads the height from there to stick right under it.
+ */
+function useHeightProperty(ref: RefObject<HTMLElement | null>, property: string) {
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => root.style.setProperty(property, `${element.offsetHeight}px`));
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty(property);
+    };
+  }, [ref, property]);
+}
 
 function draftOf(entry: TimeEntry): Draft {
   return { description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags, billable: entry.billable };
@@ -102,6 +120,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const descriptionRef = useRef<HTMLInputElement>(null);
   const projectButton = useRef<HTMLButtonElement>(null);
   const tagButton = useRef<HTMLButtonElement>(null);
+  const barRef = useRef<HTMLElement>(null);
+  useHeightProperty(barRef, '--timer-bar-height');
 
   // While a timer runs, the bar mirrors that entry. When it stops (here or on another device),
   // the bar goes back to an empty draft. Only this effect resets the draft after start/stop, so a
@@ -278,7 +298,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   }) : null;
 
   return (
-    <section className={`timer-bar${current ? ' is-running' : ''}`} aria-label="Timer">
+    <section ref={barRef} className={`timer-bar${current ? ' is-running' : ''}`} aria-label="Timer">
       <div className="timer-description">
         <input
           ref={descriptionRef}
@@ -352,7 +372,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         <button
           ref={projectButton}
           type="button"
-          className={`icon-button timer-attr${project ? ' active' : ''}`}
+          className={`icon-button timer-attr timer-project${project ? ' active' : ''}`}
+          style={projectColorStyle(project?.color)}
           title="Project (@)"
           aria-label="Project"
           onClick={() => setPicker('project')}
@@ -413,7 +434,13 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         ) : current ? (
           <>
             <span className="timer-running"><span className="timer-running-dot" aria-hidden="true" />Running</span>
-            <button type="button" className="timer-clock" onClick={() => setEditing(true)} title="Edit start time">
+            <button
+              type="button"
+              className="timer-clock"
+              onClick={() => setEditing(true)}
+              title="Edit start time"
+              aria-label={`${formatDuration(elapsed)} elapsed, edit start time`}
+            >
               {formatDuration(elapsed)}
             </button>
           </>
@@ -431,10 +458,12 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         {manual ? (
           <button type="button" className="timer-button add" onClick={() => void addManual()} aria-label="Add entry" title="Add entry">
             <Icon name="plus" size={22} />
+            <span className="timer-button-label">Add</span>
           </button>
         ) : current ? (
           <button type="button" className="timer-button stop" onClick={() => void stop()} aria-label="Stop timer" title="Stop (S)">
             <Icon name="stop" size={22} />
+            <span className="timer-button-label">Stop</span>
           </button>
         ) : (
           <button
@@ -445,10 +474,11 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             title="Start (N)"
           >
             <Icon name={timerDuration && parseDuration(timerDuration) ? 'check' : 'play'} size={22} />
+            <span className="timer-button-label">{timerDuration && parseDuration(timerDuration) ? 'Save' : 'Start'}</span>
           </button>
         )}
 
-        <div className="mode-switch">
+        <div className="mode-switch" role={current ? undefined : 'group'} aria-label={current ? undefined : 'Entry mode'}>
           {current ? (
             <button type="button" className="icon-button" title="Discard running entry" aria-label="Discard running entry" onClick={() => void discard()}>
               <Icon name="trash" size={16} />
