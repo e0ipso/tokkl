@@ -1,0 +1,97 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+
+      # The PR's commits, or the pushed ones. After a force push the old tip is
+      # gone, so only the last commit is linted.
+      - name: Lint commit messages
+        env:
+          FROM: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TO: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if git cat-file -e "$FROM^{commit}" 2>/dev/null; then
+            npx --no -- commitlint --from "$FROM" --to "$TO" --verbose
+          else
+            npx --no -- commitlint --last --verbose
+          fi
+
+      - run: npm run typecheck
+      - run: npm test
+      # The visual baselines were drawn with Noto Sans as system-ui. Without
+      # it Ubuntu picks WenQuanYi Zen Hei and every baseline fails.
+      - run: |
+          npx playwright install --with-deps --only-shell chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-core
+      - run: npm run test:e2e
+
+  release:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+
+      # Bumps the version, commits CHANGELOG.md and package.json, tags
+      # v<version> and creates the GitHub release, or does nothing when the
+      # pushed commits warrant no release.
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx --no -- semantic-release
+
+      # A new release leaves its tag on HEAD.
+      - id: tag
+        run: echo "tag=$(git tag --points-at HEAD 'v*')" >> "$GITHUB_OUTPUT"
+
+      # No QEMU: npm and Vite run on the build platform and the runtime stage
+      # only copies files.
+      - if: steps.tag.outputs.tag
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - if: steps.tag.outputs.tag
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish ghcr.io/e0ipso/tokkl
+        if: steps.tag.outputs.tag
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          version=${TAG#v}
+          image=ghcr.io/${GITHUB_REPOSITORY,,}
+          docker buildx build --push --platform linux/amd64,linux/arm64 \
+            -t "$image:$version" -t "$image:${version%.*}" -t "$image:${version%%.*}" -t "$image:latest" .

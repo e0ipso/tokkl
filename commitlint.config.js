@@ -19,7 +19,7 @@ const aiTools = [
 // Unicode-aware word boundaries, so "Ampère" or "OpenCoder" don't match.
 const tool = `(?<![\\p{L}\\p{N}])(?:${aiTools})(?![\\p{L}\\p{N}])`;
 
-export const forbiddenPatterns = [
+const forbiddenPatterns = [
   // Any co-author, human or not.
   /^Co-authored-by:.*/im,
   // Made-with: Cursor, Assisted-by: Claude:claude-opus-5-5, ...
@@ -30,24 +30,17 @@ export const forbiddenPatterns = [
   new RegExp(`(?:Generated|Made) (?:with|by|using)\\b.*${tool}`, 'iu'),
 ];
 
-/** Returns the first forbidden AI attribution in `text`, or null. The PR workflow also checks PR bodies with it. */
-export function findAiAttribution(text) {
-  for (const pattern of forbiddenPatterns) {
-    const match = text.match(pattern);
-    if (match) return match[0];
-  }
-  return null;
-}
-
 export default {
   extends: ['@commitlint/config-conventional'],
   plugins: [
     {
       rules: {
         'no-ai-generated': parsed => {
-          const match = findAiAttribution(parsed.raw);
-          if (match) {
-            return [false, `Commit message contains forbidden AI-generated content: "${match}"`];
+          for (const pattern of forbiddenPatterns) {
+            const match = parsed.raw.match(pattern);
+            if (match) {
+              return [false, `Commit message contains forbidden AI-generated content: "${match[0]}"`];
+            }
           }
 
           return [true, ''];
