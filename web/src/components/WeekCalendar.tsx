@@ -6,6 +6,7 @@ import { instantAt, localDay } from '../lib/entryTime.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
+import { LoadError, Loading } from './PageState.tsx';
 import { projectColorStyle } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
 
@@ -73,7 +74,9 @@ export function WeekCalendar() {
   const todayKey = today(settings.timeZone);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(todayKey, settings.beginningOfWeek));
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
-  const { data: entries = [] } = useEntries(addDays(weekStart, -1), addDays(weekStart, 7));
+  // A week that has not loaded shows the Loading state over the grid, not an empty week.
+  const { data, isLoading, error, refetch } = useEntries(addDays(weekStart, -1), addDays(weekStart, 7));
+  const entries = useMemo(() => data ?? [], [data]);
   const create = useCreateEntry();
   const update = useUpdateEntry();
   const toast = useToast();
@@ -175,103 +178,108 @@ export function WeekCalendar() {
           );
         })}
       </div>
-      <div className="calendar-body" ref={scroller}>
-        <div className="calendar-grid" style={{ height: 24 * HOUR_HEIGHT }}>
-          <div className="calendar-gutter">
-            {Array.from({ length: 24 }, (_, hour) => (
-              <span key={hour} style={{ top: hour * HOUR_HEIGHT }}>
-                {formatTime(instantAt(todayKey, hour * 60, settings.timeZone), settings)}
-              </span>
+      <div className="calendar-frame">
+        <div className="calendar-body" ref={scroller}>
+          <div className="calendar-grid" style={{ height: 24 * HOUR_HEIGHT }}>
+            <div className="calendar-gutter">
+              {Array.from({ length: 24 }, (_, hour) => (
+                <span key={hour} style={{ top: hour * HOUR_HEIGHT }}>
+                  {formatTime(instantAt(todayKey, hour * 60, settings.timeZone), settings)}
+                </span>
+              ))}
+            </div>
+            {days.map((day) => (
+              <div
+                key={day}
+                className={`calendar-column${day === todayKey ? ' today' : ''}`}
+                onPointerDown={(event) => {
+                  if (event.button !== 0 || (event.target as HTMLElement).closest('.calendar-block')) return;
+                  const minute = snap(minuteAt(event.clientY, event.currentTarget));
+                  setDrag({ kind: 'create', day, fromMinute: minute, toMinute: minute });
+                }}
+                onPointerMove={(event) => {
+                  if (!drag) return;
+                  if (drag.kind === 'create' && drag.day === day) {
+                    setDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget)) });
+                  } else if (drag.kind !== 'create') {
+                    const delta = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+                    if (delta !== drag.deltaMinutes) setDrag({ ...drag, deltaMinutes: delta });
+                  }
+                }}
+              >
+                {day === todayKey ? <div className="calendar-now" style={{ top: (nowMinute / 60) * HOUR_HEIGHT }} /> : null}
+                {blocks.filter((block) => block.day === day).map((block) => {
+                  const active = drag && drag.kind !== 'create' && drag.entry.id === block.entry.id;
+                  let top = block.top;
+                  let bottom = block.bottom;
+                  if (active && drag.kind === 'move') {
+                    top += drag.deltaMinutes;
+                    bottom += drag.deltaMinutes;
+                  } else if (active && drag.kind === 'resize') {
+                    bottom = Math.max(top + MIN_BLOCK_MINUTES, bottom + drag.deltaMinutes);
+                  }
+                  const width = 100 / block.lanes;
+                  const { description, project_name: projectName } = block.entry;
+                  const elapsed = duration(entrySeconds(block.entry, now), settings);
+                  const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
+                  const heading = description || projectName || '(no description)';
+                  return (
+                    <div
+                      key={`${block.entry.id}-${day}`}
+                      className={`calendar-block${block.entry.stop ? '' : ' running'}${active ? ' dragging' : ''}`}
+                      style={{
+                        top: (top / 60) * HOUR_HEIGHT,
+                        height: Math.max(((bottom - top) / 60) * HOUR_HEIGHT, 6),
+                        left: `calc(${block.lane * width}% + 2px)`,
+                        width: `calc(${width}% - 4px)`,
+                        ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),
+                      }}
+                      role="group"
+                      aria-label={label}
+                      title={`${label}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
+                      onPointerDown={(event) => {
+                        if (event.button !== 0) return;
+                        event.stopPropagation();
+                        const resize = (event.target as HTMLElement).classList.contains('calendar-resize');
+                        setDrag({
+                          kind: resize ? 'resize' : 'move', entry: block.entry, day, originY: event.clientY,
+                          startMinute: block.top, endMinute: block.bottom, deltaMinutes: 0,
+                        });
+                      }}
+                    >
+                      {bottom - top >= 45 ? (
+                        <>
+                          <strong>{heading}</strong>
+                          <span>{[projectName, elapsed].filter(Boolean).join(' · ')}</span>
+                        </>
+                      ) : (
+                        <div className="calendar-block-line">
+                          <strong>{heading}</strong>
+                          {description && projectName ? <span> · {projectName}</span> : null}
+                        </div>
+                      )}
+                      {block.entry.stop ? <span className="calendar-resize" aria-hidden /> : null}
+                    </div>
+                  );
+                })}
+                {drag?.kind === 'create' && drag.day === day ? (
+                  <div
+                    className="calendar-block calendar-ghost"
+                    style={{
+                      top: (Math.min(drag.fromMinute, drag.toMinute) / 60) * HOUR_HEIGHT,
+                      height: (Math.abs(drag.toMinute - drag.fromMinute) / 60) * HOUR_HEIGHT,
+                      left: 2,
+                      width: 'calc(100% - 4px)',
+                    }}
+                  />
+                ) : null}
+              </div>
             ))}
           </div>
-          {days.map((day) => (
-            <div
-              key={day}
-              className={`calendar-column${day === todayKey ? ' today' : ''}`}
-              onPointerDown={(event) => {
-                if (event.button !== 0 || (event.target as HTMLElement).closest('.calendar-block')) return;
-                const minute = snap(minuteAt(event.clientY, event.currentTarget));
-                setDrag({ kind: 'create', day, fromMinute: minute, toMinute: minute });
-              }}
-              onPointerMove={(event) => {
-                if (!drag) return;
-                if (drag.kind === 'create' && drag.day === day) {
-                  setDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget)) });
-                } else if (drag.kind !== 'create') {
-                  const delta = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
-                  if (delta !== drag.deltaMinutes) setDrag({ ...drag, deltaMinutes: delta });
-                }
-              }}
-            >
-              {day === todayKey ? <div className="calendar-now" style={{ top: (nowMinute / 60) * HOUR_HEIGHT }} /> : null}
-              {blocks.filter((block) => block.day === day).map((block) => {
-                const active = drag && drag.kind !== 'create' && drag.entry.id === block.entry.id;
-                let top = block.top;
-                let bottom = block.bottom;
-                if (active && drag.kind === 'move') {
-                  top += drag.deltaMinutes;
-                  bottom += drag.deltaMinutes;
-                } else if (active && drag.kind === 'resize') {
-                  bottom = Math.max(top + MIN_BLOCK_MINUTES, bottom + drag.deltaMinutes);
-                }
-                const width = 100 / block.lanes;
-                const { description, project_name: projectName } = block.entry;
-                const elapsed = duration(entrySeconds(block.entry, now), settings);
-                const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
-                const heading = description || projectName || '(no description)';
-                return (
-                  <div
-                    key={`${block.entry.id}-${day}`}
-                    className={`calendar-block${block.entry.stop ? '' : ' running'}${active ? ' dragging' : ''}`}
-                    style={{
-                      top: (top / 60) * HOUR_HEIGHT,
-                      height: Math.max(((bottom - top) / 60) * HOUR_HEIGHT, 6),
-                      left: `calc(${block.lane * width}% + 2px)`,
-                      width: `calc(${width}% - 4px)`,
-                      ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),
-                    }}
-                    role="group"
-                    aria-label={label}
-                    title={`${label}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
-                    onPointerDown={(event) => {
-                      if (event.button !== 0) return;
-                      event.stopPropagation();
-                      const resize = (event.target as HTMLElement).classList.contains('calendar-resize');
-                      setDrag({
-                        kind: resize ? 'resize' : 'move', entry: block.entry, day, originY: event.clientY,
-                        startMinute: block.top, endMinute: block.bottom, deltaMinutes: 0,
-                      });
-                    }}
-                  >
-                    {bottom - top >= 45 ? (
-                      <>
-                        <strong>{heading}</strong>
-                        <span>{[projectName, elapsed].filter(Boolean).join(' · ')}</span>
-                      </>
-                    ) : (
-                      <div className="calendar-block-line">
-                        <strong>{heading}</strong>
-                        {description && projectName ? <span> · {projectName}</span> : null}
-                      </div>
-                    )}
-                    {block.entry.stop ? <span className="calendar-resize" aria-hidden /> : null}
-                  </div>
-                );
-              })}
-              {drag?.kind === 'create' && drag.day === day ? (
-                <div
-                  className="calendar-block calendar-ghost"
-                  style={{
-                    top: (Math.min(drag.fromMinute, drag.toMinute) / 60) * HOUR_HEIGHT,
-                    height: (Math.abs(drag.toMinute - drag.fromMinute) / 60) * HOUR_HEIGHT,
-                    left: 2,
-                    width: 'calc(100% - 4px)',
-                  }}
-                />
-              ) : null}
-            </div>
-          ))}
         </div>
+        {isLoading ? <Loading label="Loading week…" className="calendar-state" /> : error && !data ? (
+          <LoadError className="calendar-state" message={`Could not load this week: ${error.message}`} onRetry={() => void refetch()} />
+        ) : null}
       </div>
       <p className="hint">Drag on an empty slot to add an entry. Drag a block to move it, or its bottom edge to change the end. Click a block to edit it.</p>
       {editing ? <EntryEditor entry={editing} onClose={() => setEditing(null)} /> : null}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '../api/client.ts';
 import { useMe, usePreferences, useWorkspace } from '../api/hooks.ts';
 import { Icon } from '../components/Icon.tsx';
+import { LoadError, Loading } from '../components/PageState.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { clearCachedTheme } from '../lib/theme.ts';
 import { ApiTokenSection } from './manage/settings/ApiTokenSection.tsx';
@@ -48,8 +49,8 @@ function SessionSection() {
 
 export function SettingsPage() {
   const { data: me } = useMe();
-  const { data: prefs, error: prefsError } = usePreferences();
-  const { data: workspace, error: workspaceError } = useWorkspace();
+  const { data: prefs, error: prefsError, refetch: refetchPrefs } = usePreferences();
+  const { data: workspace, error: workspaceError, refetch: refetchWorkspace } = useWorkspace();
 
   return (
     <div className="page manage-page settings-page">
@@ -64,12 +65,16 @@ export function SettingsPage() {
       <PasswordSection />
       {prefs ? <PreferencesSection prefs={prefs} /> : (
         <SettingsCard id="preferences" title="Preferences">
-          <p className="hint">{prefsError ? `Could not load preferences: ${prefsError.message}` : 'Loading…'}</p>
+          {prefsError ? (
+            <LoadError message={`Could not load preferences: ${prefsError.message}`} onRetry={() => void refetchPrefs()} className="is-compact" />
+          ) : <Loading label="Loading preferences…" className="is-compact" />}
         </SettingsCard>
       )}
       {workspace ? <WorkspaceSection workspace={workspace} /> : (
         <SettingsCard id="workspace" title="Workspace">
-          <p className="hint">{workspaceError ? `Could not load the workspace: ${workspaceError.message}` : 'Loading…'}</p>
+          {workspaceError ? (
+            <LoadError message={`Could not load the workspace: ${workspaceError.message}`} onRetry={() => void refetchWorkspace()} className="is-compact" />
+          ) : <Loading label="Loading the workspace…" className="is-compact" />}
         </SettingsCard>
       )}
       {me ? <ApiTokenSection me={me} /> : null}

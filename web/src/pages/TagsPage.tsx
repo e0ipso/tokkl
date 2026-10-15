@@ -3,6 +3,7 @@ import { api } from '../api/client.ts';
 import { keys, useTags, useWid } from '../api/hooks.ts';
 import type { Tag } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
+import { LoadError, Loading } from '../components/PageState.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
 import { ConfirmModal, SearchBox } from './manage/ui.tsx';
@@ -74,7 +75,7 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
 export function TagsPage() {
   const wid = useWid();
   const toast = useToast();
-  const { data: tags, isLoading, error } = useTags();
+  const { data: tags, isLoading, error, refetch } = useTags();
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
   const [deleting, setDeleting] = useState<Tag | null>(null);
@@ -118,8 +119,8 @@ export function TagsPage() {
         <SearchBox value={search} onChange={setSearch} placeholder="Search tags" />
       </div>
 
-      {error ? <p className="form-error">Could not load tags: {error.message}</p> : null}
-      {isLoading ? <p className="empty-state">Loading tags…</p> : null}
+      {error ? <LoadError message={`Could not load tags: ${error.message}`} onRetry={() => void refetch()} /> : null}
+      {isLoading ? <Loading label="Loading tags…" /> : null}
       {tags && visible.length === 0 ? (
         <p className="empty-state">{tags.length === 0 ? 'No tags yet. Tags label entries across projects, like "meeting" or "review".' : 'No tags match your search.'}</p>
       ) : null}

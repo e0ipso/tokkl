@@ -4,6 +4,7 @@ import type { Favorite, TimeEntry } from '../api/types.ts';
 import { addDays, startOfWeek } from '../../../shared/time.ts';
 import { EntryList } from '../components/EntryList.tsx';
 import { Icon } from '../components/Icon.tsx';
+import { BusyRegion, LoadError, Loading } from '../components/PageState.tsx';
 import { ProjectDot } from '../components/Pickers.tsx';
 import { ShortcutHelp, useShortcuts } from '../components/Shortcuts.tsx';
 import { TimerBar, type TimerBarHandle } from '../components/TimerBar.tsx';
@@ -23,7 +24,7 @@ export function TimerPage() {
   const view = prefs?.timerView === 'calendar' ? 'calendar' : 'list';
   const setView = (next: 'list' | 'calendar') => savePrefs.mutate({ timerView: next });
   const todayKey = today(settings.timeZone);
-  const { data: entries = [], isLoading, isFetching } = useEntries(addDays(todayKey, -days + 1), addDays(todayKey, 2));
+  const { data: entries = [], isLoading, isFetching, error, refetch } = useEntries(addDays(todayKey, -days + 1), addDays(todayKey, 2));
   const { data: projects = [] } = useProjects();
   const timer = useRef<TimerBarHandle>(null);
   const favorites = prefs?.favorites ?? [];
@@ -115,7 +116,13 @@ export function TimerPage() {
       ) : null}
       {view === 'calendar' ? <WeekCalendar /> : (
         <>
-          {isLoading ? <p className="muted">Loading…</p> : <EntryList entries={entries} onContinue={continueEntry} />}
+          {isLoading ? <Loading label="Loading entries…" /> : error && !entries.length ? (
+            <LoadError message={`Could not load time entries: ${error.message}`} onRetry={() => void refetch()} />
+          ) : (
+            <BusyRegion busy={isFetching}>
+              <EntryList entries={entries} onContinue={continueEntry} />
+            </BusyRegion>
+          )}
           <div className="load-more">
             <button type="button" className="button button-ghost" disabled={isFetching} onClick={() => setDays(days + PAGE_DAYS)}>
               {isFetching ? 'Loading…' : `Show ${PAGE_DAYS} more days`}

@@ -4,6 +4,7 @@ import { keys, useClients, useProjects, useWid } from '../api/hooks.ts';
 import type { Client } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
 import { Modal } from '../components/Overlay.tsx';
+import { LoadError, Loading } from '../components/PageState.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
 import {
@@ -67,7 +68,7 @@ type Pending = { kind: 'archive' | 'delete'; client: Client };
 
 export function ClientsPage() {
   const wid = useWid();
-  const { data: clients, isLoading, error } = useClients();
+  const { data: clients, isLoading, error, refetch } = useClients();
   const { data: projects = [] } = useProjects();
   const [status, setStatus] = useState<StatusFilter>('active');
   const [search, setSearch] = useState('');
@@ -120,8 +121,8 @@ export function ClientsPage() {
         <SearchBox value={search} onChange={setSearch} placeholder="Search clients" />
       </div>
 
-      {error ? <p className="form-error">Could not load clients: {error.message}</p> : null}
-      {isLoading ? <p className="empty-state">Loading clients…</p> : null}
+      {error ? <LoadError message={`Could not load clients: ${error.message}`} onRetry={() => void refetch()} /> : null}
+      {isLoading ? <Loading label="Loading clients…" /> : null}
       {clients && visible.length === 0 ? (
         <p className="empty-state">
           {clients.length === 0 ? 'No clients yet. Add one to group projects by who you work for.' : 'No clients match these filters.'}

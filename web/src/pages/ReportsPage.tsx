@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { keys, useReport } from '../api/hooks.ts';
+import { LoadError, Loading } from '../components/PageState.tsx';
 import { today, useSettings } from '../lib/settings.ts';
 import { DetailedTab } from './reports/DetailedTab.tsx';
 import { ExportButtons } from './reports/ExportButtons.tsx';
@@ -33,14 +34,9 @@ export function ReportsPage() {
 
   let body: React.ReactNode;
   if (report.isPending) {
-    body = <div className="empty-state" role="status">Loading report…</div>;
+    body = <Loading label="Loading report…" />;
   } else if (report.isError && !data) {
-    body = (
-      <div className="empty-state report-error" role="alert">
-        <p>Couldn't load the report: {report.error.message}</p>
-        <button type="button" className="button button-ghost" onClick={() => void report.refetch()}>Try again</button>
-      </div>
-    );
+    body = <LoadError className="report-error" message={`Couldn't load the report: ${report.error.message}`} onRetry={() => void report.refetch()} />;
   } else if (data && data.totals.entry_count === 0) {
     body = (
       <div className={`empty-state${dimmed ? ' is-dimmed' : ''}`}>

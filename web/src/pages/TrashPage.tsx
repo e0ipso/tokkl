@@ -3,6 +3,7 @@ import { api } from '../api/client.ts';
 import { keys, useRestoreEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
+import { LoadError, Loading } from '../components/PageState.tsx';
 import { ProjectDot } from '../components/Pickers.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { localDay } from '../lib/entryTime.ts';
@@ -67,7 +68,7 @@ function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings })
 
 export function TrashPage() {
   const settings = useSettings();
-  const { data: entries, isLoading, error } = useTrash();
+  const { data: entries, isLoading, error, refetch } = useTrash();
   const [confirmEmpty, setConfirmEmpty] = useState(false);
 
   const empty = useAction<void, { deleted: number }>({
@@ -95,8 +96,8 @@ export function TrashPage() {
         Toggl Track has no trash. Here, deleted time entries stay until you restore them or delete them for good.
       </p>
 
-      {error ? <p className="form-error">Could not load the trash: {error.message}</p> : null}
-      {isLoading ? <p className="empty-state">Loading…</p> : null}
+      {error ? <LoadError message={`Could not load the trash: ${error.message}`} onRetry={() => void refetch()} /> : null}
+      {isLoading ? <Loading label="Loading the trash…" /> : null}
       {entries && entries.length === 0 ? <p className="empty-state">The trash is empty.</p> : null}
 
       {entries && entries.length > 0 ? (

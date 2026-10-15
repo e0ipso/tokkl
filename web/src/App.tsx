@@ -5,6 +5,7 @@ import { ApiError, api } from './api/client.ts';
 import { useCurrentEntry, useMe, usePreferences } from './api/hooks.ts';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
+import { LoadError, Loading } from './components/PageState.tsx';
 import { formatDuration } from '../../shared/duration.ts';
 import { entrySeconds, useNow } from './lib/settings.ts';
 import { applyTheme, clearCachedTheme } from './lib/theme.ts';
@@ -116,10 +117,16 @@ export function App() {
   const me = useMe();
 
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
-    return <div className="splash">Loading…</div>;
+    return <div className="splash"><Loading /></div>;
   }
   if (status.data?.setup_required) return <AuthPage mode="setup" />;
   if (me.error instanceof ApiError && me.error.status === 403) return <AuthPage mode="login" />;
-  if (me.error) return <div className="splash">Can't reach the server: {me.error.message}</div>;
+  if (me.error) {
+    const retry = () => {
+      if (status.error) void status.refetch();
+      void me.refetch();
+    };
+    return <div className="splash"><LoadError message={`Can't reach the server: ${me.error.message}`} onRetry={retry} /></div>;
+  }
   return <Shell />;
 }

@@ -3,6 +3,7 @@ import { api } from '../api/client.ts';
 import { keys, useClients, useProjects, useWid, useWorkspace } from '../api/hooks.ts';
 import type { Project } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
+import { LoadError, Loading } from '../components/PageState.tsx';
 import { ProjectDot } from '../components/Pickers.tsx';
 import { duration, formatMoney, useSettings, type Settings } from '../lib/settings.ts';
 import { ProjectEditor } from './manage/ProjectEditor.tsx';
@@ -40,7 +41,7 @@ function rateText(project: Project, defaultCurrency: string): string | null {
 export function ProjectsPage() {
   const wid = useWid();
   const settings = useSettings();
-  const { data: projects, isLoading, error } = useProjects();
+  const { data: projects, isLoading, error, refetch } = useProjects();
   const { data: clients = [] } = useClients();
   const { data: workspace } = useWorkspace();
   const [status, setStatus] = useState<StatusFilter>('active');
@@ -101,8 +102,8 @@ export function ProjectsPage() {
         </select>
       </div>
 
-      {error ? <p className="form-error">Could not load projects: {error.message}</p> : null}
-      {isLoading ? <p className="empty-state">Loading projects…</p> : null}
+      {error ? <LoadError message={`Could not load projects: ${error.message}`} onRetry={() => void refetch()} /> : null}
+      {isLoading ? <Loading label="Loading projects…" /> : null}
       {projects && visible.length === 0 ? (
         <p className="empty-state">
           {projects.length === 0 ? 'No projects yet. Create one to group your time entries.' : 'No projects match these filters.'}
