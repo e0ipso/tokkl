@@ -190,18 +190,18 @@ It uses its own Playwright config, `scripts/screenshots.config.ts`, so `npm run 
 
 ### Brand artwork and icons
 
-The wordmark and the stopwatch icon are the owner's artwork. The full-size files live in `docs/brand/` and are not served: `tokkl-wordmark-v3.png`, `tokkl-logo-v4.png`, `tokkl-icon-v4-1024.png`, and the smaller sizes the owner supplied, `tokkl-icon-v4-512.png`, `tokkl-icon-v4-192.png` and `tokkl-favicon-v4-32.png`.
+The wordmark and the stopwatch icon are the owner's artwork. The full-size files live in `docs/brand/` and are not served: `tokkl-wordmark-v3.png`, `tokkl-logo-v4.png`, `tokkl-icon-v4-1024.png`, and the smaller sizes the owner supplied, `tokkl-icon-v4-512.png`, `tokkl-icon-v4-192.png` and `tokkl-favicon-v4-32.png`. The owner's mobile exports on a navy background (`#01013A`) are there too: `icon-maskable-192.png`, `icon-maskable-512.png` and `apple-touch-icon.png`.
 
 `npm run icons` (`scripts/icons.ts`) derives the files the app serves from them:
 
 - `packages/web/public/favicon-32.png` and `icon-192.png`, copied as supplied.
 - `packages/web/public/icon-512.png`, reduced to 256 colours.
-- `packages/web/public/apple-touch-icon.png`, 180x180 on the light theme's `--bg`, because iOS paints transparent corners black.
+- `packages/web/public/icon-maskable-192.png`, `icon-maskable-512.png` and `apple-touch-icon.png`, copied byte for byte. The apple-touch icon is the owner's opaque 180x180 navy icon, because iOS paints transparent corners black.
 - `packages/web/public/brand/icon-96.png` and `wordmark-260.png` / `wordmark-520.png` for `Brand.tsx`, and `docs/brand/tokkl-wordmark.png` for the header of this README.
 
 It uses ImageMagick 7 (`magick`), because the larger images only stay under 100 KB each as 256-colour PNGs, which Chromium cannot write. Run it after replacing a file in `docs/brand/` and commit the outputs with it. The same ImageMagick build writes identical files on every run.
 
-The manifest lists only the 192 and 512 PNGs. None is marked `maskable`, because the artwork does not fit the maskable safe zone.
+The manifest lists the 192 and 512 PNGs as general-purpose icons, followed by the two maskable PNGs (`"purpose": "maskable"`). The maskable artwork sits inside a centred circle of 38% of the icon width, within Android's safe zone. `e2e/pwa.spec.ts` keeps every served icon under 100 KB, except the maskable ones, which may use 128 KB because the 512 is about 115 KB and loads only at install.
 
 ### History-scale measurements
 

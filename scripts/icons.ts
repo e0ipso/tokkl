@@ -13,8 +13,6 @@ import { fileURLToPath } from 'node:url';
 const BRAND = fileURLToPath(new URL('../docs/brand/', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../packages/web/public/', import.meta.url));
 
-/** The light theme's --bg from packages/web/src/styles.css, behind the opaque apple-touch-icon. */
-const APPLE_TOUCH_BACKGROUND = '#f4e7cf';
 /** The wordmark's letters and paint spots inside the transparent margin of the source, plus 4px. */
 const WORDMARK_CROP = '1645x709+80+91';
 
@@ -45,15 +43,11 @@ copy('tokkl-favicon-v4-32.png', `${PUBLIC}favicon-32.png`);
 copy('tokkl-icon-v4-192.png', `${PUBLIC}icon-192.png`);
 magick([`${BRAND}tokkl-icon-v4-512.png`, ...PALETTE], `${PUBLIC}icon-512.png`);
 
-// iOS shows the touch icon on an opaque square and paints transparent corners black.
-magick(
-  [
-    '-size', '180x180', `xc:${APPLE_TOUCH_BACKGROUND}`,
-    '(', `${BRAND}tokkl-icon-v4-1024.png`, '-resize', '156x156', ')',
-    '-gravity', 'center', '-composite', ...PALETTE,
-  ],
-  `${PUBLIC}apple-touch-icon.png`,
-);
+// The owner's mobile exports are final: opaque navy (#01013A) art, so they ship byte for byte. The
+// maskable pair keeps its artwork inside the Android safe zone, and iOS gets the 180px touch icon.
+copy('icon-maskable-192.png', `${PUBLIC}icon-maskable-192.png`);
+copy('icon-maskable-512.png', `${PUBLIC}icon-maskable-512.png`);
+copy('apple-touch-icon.png', `${PUBLIC}apple-touch-icon.png`);
 
 // Brand.tsx shows the icon at up to 48 CSS pixels, so 96 covers a 2x screen.
 magick([`${BRAND}tokkl-icon-v4-1024.png`, '-resize', '96x96', ...PALETTE], `${PUBLIC}brand/icon-96.png`);
