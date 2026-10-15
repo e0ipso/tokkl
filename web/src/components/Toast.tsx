@@ -35,8 +35,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map((toast) => (
-          <div key={toast.id} className={`toast toast-${toast.kind}`}>
-            <span>{toast.message}</span>
+          <div key={toast.id} className={`toast toast-${toast.kind}`} role={toast.kind === 'error' ? 'alert' : undefined}>
+            {toast.kind === 'error' ? <ErrorIcon /> : null}
+            <span>
+              {toast.kind === 'error' ? <span className="visually-hidden">Error: </span> : null}
+              {toast.message}
+            </span>
             {toast.action ? (
               <button type="button" className="link-button" onClick={() => { toast.action!.run(); dismiss(toast.id); }}>
                 {toast.action.label}
@@ -47,6 +51,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         ))}
       </div>
     </ToastContext.Provider>
+  );
+}
+
+/** A circled exclamation mark, so an error toast does not rely on its red background alone. */
+function ErrorIcon() {
+  return (
+    <svg className="toast-icon" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 8v5M12 16h.01M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z" />
+    </svg>
   );
 }
 

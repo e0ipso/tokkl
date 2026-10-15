@@ -25,6 +25,7 @@
    danger on surface-2                   text    4.84 AA     5.37 AA
    danger on danger-soft                 text    5.21 AA     5.64 AA
    on-danger on danger                   text    6.53 AA     6.77 AA
+   on-danger at 70% on danger            other   3.89 AA     4.23 AA
    secondary on surface                  text    5.46 AA    11.03 AA
    secondary on bg                       text    4.64 AA    12.16 AA
    success on surface                    text    5.95 AA    13.72 AA
@@ -50,7 +51,9 @@
    separation) on the surface colour in each theme.
    The entry-row Project placeholder (.add-project, text) and the empty-tags icon (.entry-tags,
    other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
-   above are their pairs. Fading them with opacity breaks those ratios. */
+   above are their pairs. Fading them with opacity breaks those ratios.
+   The error toast's text and icon are on-danger on danger; its dismiss button is faded to 70%,
+   which is the "on-danger at 70%" row. */
 :root {
   color-scheme: light dark;
 
@@ -189,6 +192,11 @@ code, kbd {
 .muted { color: var(--muted); }
 .hint { color: var(--muted); font-size: var(--text-sm); margin: 0; }
 .spacer { flex: 1; }
+/* Read by screen readers, not shown: table action headers, the "Error:" prefix on error toasts. */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .splash { display: grid; place-items: center; min-height: 100vh; color: var(--muted); }
 .empty-state { color: var(--muted); text-align: center; padding: 40px 16px; }
 
@@ -504,6 +512,7 @@ table.table { width: 100%; border-collapse: collapse; }
 .toast .link-button { color: var(--state-selected); font-weight: 600; }
 .toast .icon-button { color: inherit; opacity: 0.7; }
 .toast-error { background: var(--danger); color: var(--on-danger); }
+.toast-icon { flex-shrink: 0; }
 @media (max-width: 760px) { .toasts { bottom: 76px; left: 10px; right: 10px; } }
 
 /* Auth */
