@@ -32,8 +32,8 @@ Dev and test variables have no fallback: `TOKKL_BACKEND` (Vite proxy target in `
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-password-checks-and-csrf-rules](practice-password-checks-and-csrf-rules.md)
-- Related: [practice-theme-tokens-data-theme-and-cached-theme](practice-theme-tokens-data-theme-and-cached-theme.md)
-- Related: [practice-json-restore-rules](practice-json-restore-rules.md)
+- Related: [practice-password-checks-and-csrf-rules](../api-and-data/practice-password-checks-and-csrf-rules.md)
+- Related: [practice-theme-tokens-data-theme-and-cached-theme](../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md)
+- Related: [practice-json-restore-rules](../api-and-data/practice-json-restore-rules.md)
 - Related: [map-npm-workspaces-package-layout](map-npm-workspaces-package-layout.md)
 <!-- kk:related:end -->

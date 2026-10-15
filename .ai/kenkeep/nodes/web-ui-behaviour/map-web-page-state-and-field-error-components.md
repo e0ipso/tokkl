@@ -31,6 +31,6 @@ Error toasts in `Toast.tsx` are `role=alert` as well. In e2e specs, scope `getBy
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-shared-list-controls-in-manage-ui](map-shared-list-controls-in-manage-ui.md)
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
+- Related: [map-shared-list-controls-in-manage-ui](../web-ui-styling-and-layout/map-shared-list-controls-in-manage-ui.md)
+- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
 <!-- kk:related:end -->

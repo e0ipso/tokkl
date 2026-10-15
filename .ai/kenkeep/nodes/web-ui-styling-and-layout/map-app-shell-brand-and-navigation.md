@@ -28,7 +28,7 @@ Phone e2e specs navigate with `tapNav(page, name)` and `openMore(page)` from `e2
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
+- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
 - Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
 <!-- kk:related:end -->

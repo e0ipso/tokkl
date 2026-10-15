@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:a7ed1e512b5499457ed8c0769eb1634a7394f3a5324add2f4a1b90f28a7071f2'
+nodes_hash: 'sha256:af7d0fc4241d8869a66af4d597f815ce1b7167c1749aa9aba620484ecda98b8d'
 node_count: 31
 ---
 # kenkeep Graph
@@ -11,7 +11,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** App icons: npm run icons renders the PNGs from icon.svg
-- **path:** map-app-icons-script.md
+- **path:** tooling-and-project/map-app-icons-script.md
 - **tags:** tooling, pwa, icons, playwright, web
 - **relates_to:** map-readme-screenshots-script, practice-e2e-test-workflow
 
@@ -19,14 +19,14 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** Web app report endpoints under /api/app/report
-- **path:** map-app-report-endpoints.md
+- **path:** api-and-data/map-app-report-endpoints.md
 - **tags:** server, reports, api, web
 
 ## map-app-shell-brand-and-navigation
 
 - **kind:** map
 - **title:** App shell: Brand.tsx, the SVG wordmark and the NAV list
-- **path:** map-app-shell-brand-and-navigation.md
+- **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile
 - **relates_to:** practice-e2e-test-workflow, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
 
@@ -34,7 +34,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** History-scale bench: npm run bench:history
-- **path:** map-history-scale-bench.md
+- **path:** tooling-and-project/map-history-scale-bench.md
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
 
@@ -42,7 +42,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** npm workspaces: packages/common, packages/api, packages/web, packages/types
-- **path:** map-npm-workspaces-package-layout.md
+- **path:** tooling-and-project/map-npm-workspaces-package-layout.md
 - **tags:** monorepo, workspaces, layout, tooling, common, api, web, types
 - **relates_to:** map-test-and-static-analysis-layout
 
@@ -50,7 +50,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** README screenshots: npm run screenshots
-- **path:** map-readme-screenshots-script.md
+- **path:** tooling-and-project/map-readme-screenshots-script.md
 - **tags:** tooling, docs, screenshots, playwright
 - **relates_to:** practice-e2e-test-workflow, map-test-and-static-analysis-layout
 
@@ -58,7 +58,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** Shared list controls live in packages/web/src/pages/manage/ui.tsx
-- **path:** map-shared-list-controls-in-manage-ui.md
+- **path:** web-ui-styling-and-layout/map-shared-list-controls-in-manage-ui.md
 - **tags:** web, components, css, reuse
 - **relates_to:** practice-phone-layout-css-gotchas
 
@@ -66,7 +66,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** What npm test and npm run typecheck cover
-- **path:** map-test-and-static-analysis-layout.md
+- **path:** tooling-and-project/map-test-and-static-analysis-layout.md
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-e2e-test-workflow, map-npm-workspaces-package-layout
 
@@ -74,7 +74,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** Old Timetrack names still accepted after the Tokkl rename
-- **path:** map-tokkl-rename-legacy-name-fallbacks.md
+- **path:** tooling-and-project/map-tokkl-rename-legacy-name-fallbacks.md
 - **tags:** server, web, config, rename
 - **relates_to:** practice-password-checks-and-csrf-rules, practice-theme-tokens-data-theme-and-cached-theme, practice-json-restore-rules, map-npm-workspaces-package-layout
 
@@ -82,7 +82,7 @@ Total nodes: 31
 
 - **kind:** map
 - **title:** Loading, error, empty and field-error states use the shared components
-- **path:** map-web-page-state-and-field-error-components.md
+- **path:** web-ui-behaviour/map-web-page-state-and-field-error-components.md
 - **tags:** web, a11y, react, components, forms, e2e
 - **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-test-workflow
 
@@ -90,21 +90,21 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Deleting a client detaches its projects and never merges them
-- **path:** practice-client-deletion-keeps-projects.md
+- **path:** api-and-data/practice-client-deletion-keeps-projects.md
 - **tags:** server, clients, projects
 
 ## practice-clipboard-copy-needs-http-fallback
 
 - **kind:** practice
 - **title:** Clipboard copy needs a fallback on plain HTTP
-- **path:** practice-clipboard-copy-needs-http-fallback.md
+- **path:** web-ui-behaviour/practice-clipboard-copy-needs-http-fallback.md
 - **tags:** web, clipboard, self-hosting
 
 ## practice-contrast-tables-and-project-colours
 
 - **kind:** practice
 - **title:** Contrast tables in styles.css; project colours never paint text
-- **path:** practice-contrast-tables-and-project-colours.md
+- **path:** web-ui-styling-and-layout/practice-contrast-tables-and-project-colours.md
 - **tags:** web, css, accessibility, contrast, projects
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme
 
@@ -112,7 +112,7 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Display font is the bundled Anybody; one reduced-motion block ends styles.css
-- **path:** practice-display-font-and-reduced-motion.md
+- **path:** web-ui-styling-and-layout/practice-display-font-and-reduced-motion.md
 - **tags:** web, css, fonts, motion, accessibility
 - **relates_to:** practice-contrast-tables-and-project-colours
 
@@ -120,21 +120,21 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Running the Playwright e2e suite
-- **path:** practice-e2e-test-workflow.md
+- **path:** tooling-and-project/practice-e2e-test-workflow.md
 - **tags:** testing, e2e, playwright, workflow
 
 ## practice-hourly-rates-go-through-optionalrate
 
 - **kind:** practice
 - **title:** Validate hourly rates with optionalRate and MAX_HOURLY_RATE
-- **path:** practice-hourly-rates-go-through-optionalrate.md
+- **path:** api-and-data/practice-hourly-rates-go-through-optionalrate.md
 - **tags:** server, validation, reports, money
 
 ## practice-json-restore-rules
 
 - **kind:** practice
 - **title:** JSON restore: idempotent, skips with reasons, keeps archive state
-- **path:** practice-json-restore-rules.md
+- **path:** api-and-data/practice-json-restore-rules.md
 - **tags:** server, import, restore, backup
 - **relates_to:** practice-write-paths-validate-refs-not-totals, practice-parse-api-timestamps-with-parseinstant
 
@@ -142,7 +142,7 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Arrow keys: arrowTarget for roving tabindex; global shortcuts yield
-- **path:** practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md
+- **path:** web-ui-behaviour/practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md
 - **tags:** web, a11y, keyboard, react, reports
 - **relates_to:** map-shared-list-controls-in-manage-ui
 
@@ -150,28 +150,28 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Project and task totals rely on the live-entry partial indexes
-- **path:** practice-live-entry-indexes-back-project-and-task-totals.md
+- **path:** api-and-data/practice-live-entry-indexes-back-project-and-task-totals.md
 - **tags:** server, database, migrations, performance
 
 ## practice-parse-api-timestamps-with-parseinstant
 
 - **kind:** practice
 - **title:** Parse incoming timestamps with parseInstant
-- **path:** practice-parse-api-timestamps-with-parseinstant.md
+- **path:** api-and-data/practice-parse-api-timestamps-with-parseinstant.md
 - **tags:** server, validation, time, api
 
 ## practice-password-checks-and-csrf-rules
 
 - **kind:** practice
 - **title:** Password checks go through FailureLimiter.attempt; writes need the CSRF header
-- **path:** practice-password-checks-and-csrf-rules.md
+- **path:** api-and-data/practice-password-checks-and-csrf-rules.md
 - **tags:** server, auth, security, rate-limit, csrf
 
 ## practice-phone-layout-css-gotchas
 
 - **kind:** practice
 - **title:** Phone layout CSS: position scroll wrappers, min-width: 0 on grid/flex items
-- **path:** practice-phone-layout-css-gotchas.md
+- **path:** web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md
 - **tags:** web, css, mobile, layout
 - **relates_to:** practice-e2e-test-workflow
 
@@ -179,14 +179,14 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Preferences: known keys validated, unknown keys stored verbatim
-- **path:** practice-preferences-validated-by-known-key.md
+- **path:** api-and-data/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
 
 ## practice-styles-css-loads-last-and-owns-colour-tokens
 
 - **kind:** practice
 - **title:** styles.css loads last and owns the colour tokens
-- **path:** practice-styles-css-loads-last-and-owns-colour-tokens.md
+- **path:** web-ui-styling-and-layout/practice-styles-css-loads-last-and-owns-colour-tokens.md
 - **tags:** web, css, cascade, tokens, reports
 - **relates_to:** practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-theme-tokens-data-theme-and-cached-theme
 
@@ -194,7 +194,7 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Theme: light-dark() tokens, data-theme and the cached theme
-- **path:** practice-theme-tokens-data-theme-and-cached-theme.md
+- **path:** web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md
 - **tags:** web, css, theme, dark-mode, e2e
 - **relates_to:** practice-contrast-tables-and-project-colours, practice-e2e-test-workflow
 
@@ -202,7 +202,7 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Bulk bar sticks under the timer bar through --timer-bar-height
-- **path:** practice-timer-bar-height-drives-sticky-bulk-bar.md
+- **path:** web-ui-styling-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md
 - **tags:** web, css, timer, mobile
 - **relates_to:** practice-phone-layout-css-gotchas, practice-web-ui-survives-background-refetches
 
@@ -210,7 +210,7 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** 12-hour time entry: explicit AM/PM wins, ends follow the start
-- **path:** practice-twelve-hour-time-entry-parsing-rules.md
+- **path:** web-ui-behaviour/practice-twelve-hour-time-entry-parsing-rules.md
 - **tags:** web, time, parsing
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers
 
@@ -218,21 +218,21 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** UI time math uses account-local wall-clock helpers
-- **path:** practice-ui-time-math-uses-wall-clock-helpers.md
+- **path:** web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md
 - **tags:** web, time, dst, calendar, common
 
 ## practice-web-ui-survives-background-refetches
 
 - **kind:** practice
 - **title:** Web UI state must survive background refetches
-- **path:** practice-web-ui-survives-background-refetches.md
+- **path:** web-ui-behaviour/practice-web-ui-survives-background-refetches.md
 - **tags:** web, react-query, timer, entry-list
 
 ## practice-week-calendar-hour-height-agrees-in-three-places
 
 - **kind:** practice
 - **title:** Week calendar hour height lives in three places
-- **path:** practice-week-calendar-hour-height-agrees-in-three-places.md
+- **path:** web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md
 - **tags:** web, calendar, css, e2e
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-contrast-tables-and-project-colours
 
@@ -240,5 +240,5 @@ Total nodes: 31
 
 - **kind:** practice
 - **title:** Validate write-path references with getProjectRef and getTaskRef
-- **path:** practice-write-paths-validate-refs-not-totals.md
+- **path:** api-and-data/practice-write-paths-validate-refs-not-totals.md
 - **tags:** server, models, performance, validation

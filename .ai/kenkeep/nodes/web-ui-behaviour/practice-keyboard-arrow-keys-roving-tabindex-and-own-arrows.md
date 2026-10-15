@@ -28,5 +28,5 @@ Page-level arrow shortcuts, such as Left/Right shifting the report range in `Ran
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-shared-list-controls-in-manage-ui](map-shared-list-controls-in-manage-ui.md)
+- Related: [map-shared-list-controls-in-manage-ui](../web-ui-styling-and-layout/map-shared-list-controls-in-manage-ui.md)
 <!-- kk:related:end -->

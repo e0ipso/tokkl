@@ -25,5 +25,5 @@ Two CSS rules keep pages within a 390 px phone screen. The phone e2e specs catch
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
+- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
 <!-- kk:related:end -->

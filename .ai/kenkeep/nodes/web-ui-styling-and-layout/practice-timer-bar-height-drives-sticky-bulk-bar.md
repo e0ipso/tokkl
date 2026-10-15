@@ -24,5 +24,5 @@ On phones (the `max-width: 760px` block) both bars stuck together take too much 
 # Related
 
 - Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
-- Related: [practice-web-ui-survives-background-refetches](practice-web-ui-survives-background-refetches.md)
+- Related: [practice-web-ui-survives-background-refetches](../web-ui-behaviour/practice-web-ui-survives-background-refetches.md)
 <!-- kk:related:end -->

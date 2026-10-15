@@ -30,5 +30,5 @@ The cached theme lives in localStorage under `tokkl.theme`. A value left under t
 # Related
 
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
+- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
 <!-- kk:related:end -->
