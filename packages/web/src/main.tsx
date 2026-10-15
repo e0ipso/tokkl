@@ -1,4 +1,4 @@
-// Reapplies the cached theme that web/public/theme-boot.js set before the first paint.
+// Reapplies the cached theme that packages/web/public/theme-boot.js set before the first paint.
 import './lib/theme.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

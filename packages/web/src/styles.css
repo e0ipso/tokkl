@@ -170,8 +170,8 @@
 :root[data-theme='light'] { color-scheme: light; }
 :root[data-theme='dark'] { color-scheme: dark; }
 
-/* Anybody by Etcetera Type Co., SIL Open Font License 1.1 (web/public/fonts/OFL.txt). One variable file
-   covers width 50-150% and weight 100-900. index.html preloads it. */
+/* Anybody by Etcetera Type Co., SIL Open Font License 1.1 (packages/web/public/fonts/OFL.txt). One
+   variable file covers width 50-150% and weight 100-900. index.html preloads it. */
 @font-face {
   font-family: 'Anybody';
   src: url('/fonts/anybody-wdth-wght.woff2') format('woff2');
@@ -672,7 +672,7 @@ table.table { width: 100%; border-collapse: collapse; }
   background: var(--danger-soft); color: var(--danger); font-size: var(--text-xs); font-weight: 700;
 }
 
-/* Reduced motion. This is the only reduced-motion query in web/src: it cuts every
+/* Reduced motion. This is the only reduced-motion query in packages/web/src: it cuts every
    stylesheet's animations and transitions to one near-instant step, so new rules need no
    query of their own. !important is needed to beat class selectors such as .running-dot. */
 @media (prefers-reduced-motion: reduce) {

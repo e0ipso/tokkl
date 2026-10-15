@@ -311,7 +311,7 @@ test('app report for the detailed and weekly tabs carries totals without sub-gro
   const ctx = await setup();
   const { alpha, beta } = await seed(ctx);
   const range = { start_date: '2026-10-05', end_date: '2026-10-11' };
-  // The query web/src/pages/reports/query.ts sends from the detailed and weekly tabs.
+  // The query packages/web/src/pages/reports/query.ts sends from the detailed and weekly tabs.
   const res = await ctx.json('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'projects' });
   assert.equal(res.status, 200);
   assert.equal(res.body.entries, undefined);

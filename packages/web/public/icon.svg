@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Colours come from the dark tokens in web/src/styles.css. Everything except the background
-       stays inside the maskable safe zone, a circle of radius 25.6 around the centre. -->
+  <!-- Colours come from the dark tokens in packages/web/src/styles.css. Everything except the
+       background stays inside the maskable safe zone, a circle of radius 25.6 around the centre. -->
   <defs>
     <clipPath id="face">
       <circle cx="31" cy="31" r="20"/>

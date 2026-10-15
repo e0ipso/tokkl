@@ -29,8 +29,9 @@ const NAV: Array<{ href: string; label: string; icon: IconName }> = [
 ];
 
 /**
- * Applies the saved theme once preferences load. Until then the cached theme stays: web/public/theme-boot.js
- * puts it on <html> before the first paint, and lib/theme.ts applies it again when it loads.
+ * Applies the saved theme once preferences load. Until then the cached theme stays:
+ * packages/web/public/theme-boot.js puts it on <html> before the first paint, and lib/theme.ts
+ * applies it again when it loads.
  */
 function useTheme() {
   const { data: prefs } = usePreferences();

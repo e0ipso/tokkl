@@ -9,7 +9,7 @@ export default defineConfig({
   root,
   plugins: [react()],
   build: {
-    outDir: fileURLToPath(new URL('../dist/web', import.meta.url)),
+    outDir: fileURLToPath(new URL('../../dist/web', import.meta.url)),
     emptyOutDir: true,
   },
   server: {

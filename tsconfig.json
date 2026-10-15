@@ -14,5 +14,6 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true
   },
-  "include": ["packages/**/*.ts", "bench/**/*.ts"]
+  "include": ["packages/**/*.ts", "bench/**/*.ts"],
+  "exclude": ["packages/web/**", "**/node_modules"]
 }

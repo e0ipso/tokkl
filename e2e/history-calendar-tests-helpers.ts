@@ -1,7 +1,10 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from './fixtures.ts';
 
-/** Pixel height of one hour on the week calendar (HOUR_HEIGHT in web/src/components/WeekCalendar.tsx). */
+/**
+ * Pixel height of one hour on the week calendar (HOUR_HEIGHT in
+ * packages/web/src/components/WeekCalendar.tsx).
+ */
 export const HOUR = 48;
 
 /** Pixels for a number of minutes on the week calendar. */

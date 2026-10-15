@@ -12,10 +12,10 @@
   },
   "scripts": {
     "dev": "node --watch packages/api/src/index.ts",
-    "dev:web": "vite --config web/vite.config.ts",
-    "build": "vite build --config web/vite.config.ts",
+    "dev:web": "vite --config packages/web/vite.config.ts",
+    "build": "vite build --config packages/web/vite.config.ts",
     "start": "node packages/api/src/index.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p e2e/tsconfig.json && tsc -p scripts/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json && tsc -p e2e/tsconfig.json && tsc -p scripts/tsconfig.json",
     "test": "node --test --test-reporter=spec 'packages/*/**/*.test.ts'",
     "test:e2e": "npm run build && playwright test",
     "test:e2e:install": "playwright install --only-shell chromium",
@@ -25,15 +25,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
-    "@tanstack/react-query": "^5.104.2",
     "@types/node": "^24.0.0",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "typescript": "^5.9.3",
-    "vite": "^8.3.4",
-    "wouter": "^3.13.0"
+    "typescript": "^5.9.3"
   }
 }
