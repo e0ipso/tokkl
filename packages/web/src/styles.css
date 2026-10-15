@@ -52,6 +52,12 @@
    chart-other on chart-other-wash       other   2.42 --     3.43 --
    chart-other on chart-band             other   3.03 AA     4.84 AA
    chart-billable on chart-band          other   3.16 AA     4.81 AA
+   report-head-text on report-head-bg    text    5.67 AA    12.16 AA
+   text on report-zebra                  text   14.44 AA    14.27 AA
+   muted on report-zebra                 text    6.41 AA     7.47 AA
+   primary on report-zebra               text    5.50 AA     6.88 AA
+   state-billable on report-zebra        other   4.26 AA    13.15 AA
+   border on report-zebra                other   3.44 AA     3.61 AA
    text on texture-glow                  text   13.21 AA    12.23 AA
    muted on texture-glow                 text    5.87 AA     6.40 AA
    text on texture-swell                 text   13.83 AA    11.81 AA
@@ -71,6 +77,12 @@
    hovered or focused column. On surface-2 the light series fell to 2.65 and 2.77, and any mix past
    50% surface-2 drops chart-other under 3:1 in light, so the band stays faint (1.13:1 on surface in
    light) and a primary strip under the axis (primary on surface) marks the column as well.
+   The report tables (reports.css) have a header band of report-head-text on report-head-bg; the
+   focus ring on a header control is report-head-text too, so the same row covers it as a non-text
+   part. Even rows sit on report-zebra, which is chart-band. A project dot on a zebra row is worst
+   at 4.66 (#c7af14) in light and 4.52 (#990099) in dark, above the 3:1 the table at .project-dot
+   asks for. The active report filter chip is on-primary on primary, and the share bars and the
+   tab marker are primary on surface-2 and on bg.
    The entry-row Project placeholder (.add-project, text) and the empty-tags icon (.entry-tags,
    other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
    above are their pairs. Fading them with opacity breaks those ratios.
@@ -151,6 +163,11 @@
      Recompute both values if either colour changes. */
   --chart-band: light-dark(#f6ebd8, #19203f);
   --chart-tooltip-bg: var(--surface);
+
+  /* Report tables: zebra rows and the header band. */
+  --report-zebra: var(--chart-band);
+  --report-head-bg: var(--secondary);
+  --report-head-text: var(--on-primary);
 
   /* Texture behind the sidebar and the phone header strip: primary at 14% (glow) and secondary at
      12% (swell) and 22% (stripe) over surface, mixed in srgb. Recompute them if a colour changes. */

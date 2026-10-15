@@ -1,28 +1,5 @@
-/* Reports page. Colours, including the chart and tooltip tokens, come from the token block in styles.css,
-   apart from the table tokens below.
-
-   Table tokens. They live here until they move to the token block in styles.css.
-   --report-zebra is surface-2 at 50% over surface, mixed in srgb (the same values as --chart-band);
-   recompute it if either colour changes. The header band reuses secondary and on-primary.
-
-   Contrast (WCAG 2 ratio, rounded down; 4.5:1 for text, 3:1 for other parts):
-   pair                                  kind   light   dark
-   on-primary on secondary (head band)   text    5.67   12.16
-   on-primary on secondary (focus ring)  other   5.67   12.16
-   text on report-zebra                  text   14.44   14.27
-   muted on report-zebra                 text    6.41    7.47
-   primary on report-zebra               text    5.50    6.88
-   state-billable on report-zebra        other   4.26   13.15
-   border on report-zebra                other   3.44    3.61
-   project dot on report-zebra (worst)   other   4.66    4.52   (#c7af14 light, #990099 dark)
-   The active filter chip is on-primary on primary (6.49 light, 8.13 dark in the styles.css table),
-   and the share bars and the tab marker are primary on surface-2 and on bg (4.80 / 6.45 and
-   5.31 / 8.13). */
-.reports {
-  --report-zebra: light-dark(#f6ebd8, #19203f);
-  --report-head-bg: var(--secondary);
-  --report-head-text: var(--on-primary);
-}
+/* Reports page. Colours, including the chart, tooltip and report table tokens, come from the token
+   block in styles.css, and their contrast is in the table there. */
 
 .reports .is-dimmed { opacity: 0.55; transition: opacity 0.15s; }
 .reports .nowrap { white-space: nowrap; }
