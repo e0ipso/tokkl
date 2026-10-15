@@ -72,3 +72,20 @@ test('the built app links a local manifest whose icons are real images of the de
     }
   }
 });
+
+// TT-0079: the favicon and the apple-touch-icon in index.html point at real images, not the app shell.
+test('the favicon and apple-touch-icon links resolve to images', async ({ page }) => {
+  await page.goto('/');
+  const origin = new URL(page.url()).origin;
+  for (const rel of ['icon', 'apple-touch-icon']) {
+    const link = page.locator(`link[rel="${rel}"]`);
+    await expect(link, rel).toHaveCount(1);
+    const href = await link.getAttribute('href');
+    expect(href, rel).toBeTruthy();
+    const url = new URL(href!, page.url());
+    expect(url.origin, rel).toBe(origin);
+    const response = await page.request.get(url.href);
+    expect(response.status(), rel).toBe(200);
+    expect(response.headers()['content-type'], rel).toMatch(/^image\//);
+  }
+});

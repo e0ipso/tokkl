@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
+import { coversPreviousRange } from './entriesPlaceholder.ts';
 import type {
   Client, Me, Preferences, Project, Report, ReportQuery, Tag, Task, TimeEntry, TimeEntryInput, Workspace,
 } from './types.ts';
@@ -104,12 +105,8 @@ export function useEntries(startDate: string, endDate: string) {
     queryKey: [...keys.entries, startDate, endDate],
     queryFn: () => api.get<TimeEntry[]>(`${v9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`),
     refetchInterval: 60_000,
-    placeholderData: (previous, previousQuery) => {
-      const [, previousStart, previousEnd] = previousQuery?.queryKey ?? [];
-      const covers = typeof previousStart === 'string' && typeof previousEnd === 'string'
-        && startDate <= previousStart && endDate >= previousEnd;
-      return covers ? previous : undefined;
-    },
+    placeholderData: (previous, previousQuery) =>
+      coversPreviousRange(previousQuery?.queryKey, startDate, endDate) ? previous : undefined,
   });
 }
 
