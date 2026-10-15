@@ -15,4 +15,4 @@ kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
 ---
-Timetrack is self-hosted and often reached over plain HTTP on the LAN, where `navigator.clipboard` does not exist. The browser can also refuse the Clipboard API when the user blocked clipboard access. The copy helper in `packages/web/src/pages/manage/settings/ApiTokenSection.tsx` uses `navigator.clipboard.writeText` only in a secure context, falls back to a hidden textarea with `document.execCommand('copy')` when it is missing or refused, and tells the user to copy by hand if both fail. Any new copy-to-clipboard feature needs the same fallback.
+Tokkl is self-hosted and often reached over plain HTTP on the LAN, where `navigator.clipboard` does not exist. The browser can also refuse the Clipboard API when the user blocked clipboard access. The copy helper in `packages/web/src/pages/manage/settings/ApiTokenSection.tsx` uses `navigator.clipboard.writeText` only in a secure context, falls back to a hidden textarea with `document.execCommand('copy')` when it is missing or refused, and tells the user to copy by hand if both fail. Any new copy-to-clipboard feature needs the same fallback.

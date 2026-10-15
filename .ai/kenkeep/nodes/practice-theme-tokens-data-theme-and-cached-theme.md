@@ -18,7 +18,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-Each colour in `packages/web/src/styles.css` is written once on `:root` as `light-dark(light, dark)`; alias tokens such as `--accent-soft` point at another token. The scheme is the `color-scheme` on `<html>`: `:root[data-theme='light']` and `:root[data-theme='dark']` set only `color-scheme`, and with no attribute the system preference decides. Per-theme values belong in the `light-dark()` pair, not in token overrides under `[data-theme]`.
+Each colour in `packages/web/src/styles.css` is written once on `:root` as `light-dark(light, dark)`; alias tokens such as `--state-running` point at another token (`--accent-pink`). The scheme is the `color-scheme` on `<html>`: `:root[data-theme='light']` and `:root[data-theme='dark']` set only `color-scheme`, and with no attribute the system preference decides. Per-theme values belong in the `light-dark()` pair, not in token overrides under `[data-theme]`.
 
 The production build (Vite 8, lightningcss) rewrites `light-dark()` into `--lightningcss-light` / `--lightningcss-dark` fallback variables that `:root` and the two `[data-theme]` rules switch. The tokens resolve on `:root` and children inherit the resolved value, so `color-scheme` on a nested element does not flip them in the build. `npm run test:e2e` builds first, so specs see the lowered CSS. A spec that needs a token's value in the other scheme opens a fresh browser context with that `colorScheme` emulated, as `e2e/theme.spec.ts` does, instead of reading a probe element that has its own `color-scheme`.
 
