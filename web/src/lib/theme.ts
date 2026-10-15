@@ -1,10 +1,12 @@
 import type { Preferences } from '../api/types.ts';
 
 // The theme lives in the server preferences, which load only after React mounts. To avoid a
-// light frame for someone who chose dark, the last applied theme is cached here and put on
-// <html> when this module loads. main.tsx imports it first. The CSP allows no inline script
-// (server/src/app.ts), so this cannot move into index.html.
+// light frame for someone who chose dark, the last applied theme is cached here.
+// web/public/theme-boot.js, a blocking script in the head of index.html, reads the cache and puts
+// the theme on <html> before the first paint. This module applies it again when it loads, in case
+// that script did not run.
 
+// web/public/theme-boot.js reads the same key; change both together.
 const STORAGE_KEY = 'timetrack.theme';
 
 type Theme = Preferences['theme'];

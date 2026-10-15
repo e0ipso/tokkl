@@ -1,4 +1,4 @@
-// Puts the cached theme on <html> before anything renders; keep this import first.
+// Reapplies the cached theme that web/public/theme-boot.js set before the first paint.
 import './lib/theme.ts';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

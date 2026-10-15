@@ -4,6 +4,7 @@ import { login } from './helpers.ts';
 
 // TT-0073: the theme saved on the server is cached in the browser and applied before React
 // mounts, so a dark choice on a light system never flashes the light UI on reload.
+// TT-0098: a blocking script in the head applies that cache, so it holds even when the bundle is slow.
 // TT-0075: the theme picked in Settings decides the page and chart colours.
 
 const CSRF = { 'X-Timetrack-CSRF': '1' };
@@ -61,6 +62,44 @@ test('a cached dark theme is on <html> when the document is parsed, on a light s
   release();
   await answered;
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
+interface FirstFrame {
+  theme: string | null;
+  background: string;
+  rendered: boolean;
+}
+
+test('a cached dark theme is on the first frame while the bundle is still downloading', async ({ page, browser, baseURL }) => {
+  const colours = await systemTokenColours(browser, baseURL!);
+  await login(page);
+  await saveTheme(page, 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await cachedTheme(page)).toBe('dark');
+
+  // Records <html> on the first animation frame of the next load. `rendered` tells whether React
+  // had already put anything in #root, which would mean the bundle beat the frame.
+  await page.addInitScript(() => {
+    requestAnimationFrame(() => {
+      const html = document.documentElement;
+      const frame: FirstFrame = {
+        theme: html.getAttribute('data-theme'),
+        background: getComputedStyle(html).backgroundColor,
+        rendered: Boolean(document.getElementById('root')?.hasChildNodes()),
+      };
+      (window as unknown as { firstFrame: FirstFrame }).firstFrame = frame;
+    });
+  });
+  // A cold cache or a fresh deploy: the module bundle arrives well after the HTML and CSS.
+  await page.route(/\/assets\/index-[^/]+\.js$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await route.continue();
+  });
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
+  const first = await page.evaluate(() => (window as unknown as { firstFrame?: FirstFrame }).firstFrame);
+  expect(first).toEqual({ theme: 'dark', background: colours.dark['--bg'], rendered: false });
 });
 
 test('the server preference replaces a stale cache, and with nothing cached the system decides', async ({ page }) => {
