@@ -5,6 +5,13 @@ import { PHONE, expectFits, expectNoPageOverflow, openMore, tap, tapNav } from '
 
 test.use(PHONE);
 
+test('More navigation waits for the opening animation before measuring and tapping its links', async ({ page }) => {
+  await login(page);
+  // Hold the opening frame to reproduce a busy runner measuring links before the sheet slides in.
+  await page.addStyleTag({ content: '.more-sheet { animation-delay: 500ms; animation-fill-mode: backwards; }' });
+  await tapNav(page, 'Clients');
+});
+
 test('the bottom navigation reaches every page and stays usable after scrolling a long list', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);

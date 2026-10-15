@@ -44,6 +44,11 @@ export async function openMore(page: Page): Promise<Locator> {
   await tap(nav.getByRole('button', { name: 'More', exact: true }));
   const sheet = nav.getByRole('dialog', { name: 'More' });
   await expect(sheet).toBeVisible();
+  // Visible can mean the sheet is still sliding up from below the viewport. Wait for its
+  // opening animation before checking link bounds, including frames delayed by a busy runner.
+  await sheet.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   return sheet;
 }
 
