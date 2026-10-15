@@ -22,7 +22,7 @@ kk_confidence: high
 
 Fixtures: `year` (3,000 entries over 365 days) and `decade` (30,000 entries over 3,650 days, 30 projects with a task each, the comparison fixture from the 2026-10-14 audit). Every measured response is also checked for correctness (totals, paging, counts, payload growth), and a wrong answer exits 1. Timings are recorded, never asserted, together with the host, CPU and load average, because they describe this machine rather than the low-power targets in `docs/PRD.md`. `--out <file>` writes the full results as JSON; `CHROMIUM_PATH` applies to the browser timings as in the e2e suite.
 
-The root `tsconfig.json` includes `bench/**/*.ts`, so `npm run typecheck` checks it.
+`bench/tsconfig.json` covers `bench/**/*.ts`, and `npm run typecheck` runs it.
 
 <!-- kk:related:start -->
 # Related

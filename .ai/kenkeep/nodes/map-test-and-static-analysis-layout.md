@@ -1,8 +1,7 @@
 ---
 type: map
 title: What npm test and npm run typecheck cover
-description: >-
-  npm test runs every packages/*/**/*.test.ts; packages/web unit tests cover pure .ts modules only; no lint script; typecheck runs four tsconfigs.
+description: "Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint."
 tags:
   - testing
   - typecheck
@@ -17,18 +16,15 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`npm test` runs `node --test` from the repo root over `packages/*/**/*.test.ts`, which picks up `packages/api/test`, the tests next to `packages/common/*.ts` and `packages/web/src/**/*.test.ts`. Each package also has its own `test` script over its own files.
+`npm test` runs `npm run test --workspaces --if-present`. `packages/api` (`test/**/*.test.ts`), `packages/common` (`*.test.ts`) and `packages/web` (`src/**/*.test.ts`) each run `node --test` over their own files; `packages/types` has no tests. `npm run build` works the same way, and only `packages/web` has a build.
 
 Unit tests in `packages/web` can only import plain `.ts` modules, because Node strips types from `.ts` but cannot load `.tsx`. Logic worth unit testing is pulled out of components into a `.ts` file next to them, as with `pages/manage/swatchCheck.ts`, `api/entriesPlaceholder.ts` and `components/arrowKeys.ts`. Anything that needs a DOM or React goes through the Playwright e2e suite.
 
-There is no lint script. `npm run typecheck` is the static analysis gate. It runs `tsc` four times:
+There is no lint script. `npm run typecheck` is the static analysis gate. It runs each workspace's `typecheck` script (`tsc -p tsconfig.json` in `packages/api`, `packages/common`, `packages/types` and `packages/web`), then `tsc -p` on `e2e/tsconfig.json` (`e2e/**/*.ts` and `playwright.config.ts`), `scripts/tsconfig.json` and `bench/tsconfig.json`. Playwright strips types without checking them, so this is the only place e2e type errors are caught.
 
-- `tsconfig.json`: `packages/**/*.ts` and `bench/**/*.ts`, excluding `packages/web/**`, so web code is checked once, with its own JSX and DOM settings.
-- `packages/web/tsconfig.json`: `packages/web/src` and `packages/web/vite.config.ts`.
-- `e2e/tsconfig.json`: extends the root settings (`strict`, `erasableSyntaxOnly`), adds the DOM libs, and covers `e2e/**/*.ts` and `playwright.config.ts`.
-- `scripts/tsconfig.json`: extends the root settings, adds the DOM libs, and covers `scripts/**/*.ts` (the screenshot and icon scripts).
+All seven configs extend `tsconfig.base.json`, which holds the shared compiler options (`strict`, `noEmit`, `erasableSyntaxOnly`, `verbatimModuleSyntax`, `noUncheckedIndexedAccess` and others). Each config adds only its `lib`, module settings and `include`; web adds the DOM libs and JSX. There is no root `tsconfig.json`, so a bare `tsc` at the repo root prints its help and exits 1; use `npm run typecheck` or `tsc -p <config>`.
 
-Playwright strips types without checking them, so this is the only place e2e type errors are caught. The root config sets `erasableSyntaxOnly`, and the e2e and scripts configs inherit it, because Node runs `.ts` files by stripping types: enums and constructor parameter properties fail with TS1294 in `packages/api`, `packages/common`, `bench`, `e2e` and `scripts`. Declare class fields and assign them in the constructor instead. `packages/web/tsconfig.json` does not set the flag.
+Every config inherits `erasableSyntaxOnly` because Node runs `.ts` files by stripping types: enums and constructor parameter properties fail with TS1294. Declare class fields and assign them in the constructor instead.
 
 <!-- kk:related:start -->
 # Related

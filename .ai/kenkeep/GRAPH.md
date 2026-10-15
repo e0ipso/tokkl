@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:d08235feffd4c2bfc0f2607e870fb610c3edc313ba62be0d70a76a02d3bbb3e3'
-node_count: 26
+nodes_hash: 'sha256:2f903c13be24eafb5f084846e2b31562cf45f38cc4534e45783c94be55a062b5'
+node_count: 31
 ---
 # kenkeep Graph
 
-Total nodes: 26
+Total nodes: 31
 
 ## map-app-icons-script
 
@@ -22,6 +22,14 @@ Total nodes: 26
 - **path:** map-app-report-endpoints.md
 - **tags:** server, reports, api, web
 
+## map-app-shell-brand-and-navigation
+
+- **kind:** map
+- **title:** App shell: Brand.tsx, the SVG wordmark and the NAV list
+- **path:** map-app-shell-brand-and-navigation.md
+- **tags:** web, navigation, brand, mobile
+- **relates_to:** practice-e2e-test-workflow, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
+
 ## map-history-scale-bench
 
 - **kind:** map
@@ -33,9 +41,9 @@ Total nodes: 26
 ## map-npm-workspaces-package-layout
 
 - **kind:** map
-- **title:** npm workspaces: packages/common, packages/api, packages/web
+- **title:** npm workspaces: packages/common, packages/api, packages/web, packages/types
 - **path:** map-npm-workspaces-package-layout.md
-- **tags:** monorepo, workspaces, layout, tooling, common, api, web
+- **tags:** monorepo, workspaces, layout, tooling, common, api, web, types
 - **relates_to:** map-test-and-static-analysis-layout
 
 ## map-readme-screenshots-script
@@ -61,6 +69,14 @@ Total nodes: 26
 - **path:** map-test-and-static-analysis-layout.md
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-e2e-test-workflow, map-npm-workspaces-package-layout
+
+## map-tokkl-rename-legacy-name-fallbacks
+
+- **kind:** map
+- **title:** Old Timetrack names still accepted after the Tokkl rename
+- **path:** map-tokkl-rename-legacy-name-fallbacks.md
+- **tags:** server, web, config, rename
+- **relates_to:** practice-password-checks-and-csrf-rules, practice-theme-tokens-data-theme-and-cached-theme, practice-json-restore-rules, map-npm-workspaces-package-layout
 
 ## map-web-page-state-and-field-error-components
 
@@ -166,6 +182,14 @@ Total nodes: 26
 - **path:** practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
 
+## practice-styles-css-loads-last-and-owns-colour-tokens
+
+- **kind:** practice
+- **title:** styles.css loads last and owns the colour tokens
+- **path:** practice-styles-css-loads-last-and-owns-colour-tokens.md
+- **tags:** web, css, cascade, tokens, reports
+- **relates_to:** practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-theme-tokens-data-theme-and-cached-theme
+
 ## practice-theme-tokens-data-theme-and-cached-theme
 
 - **kind:** practice
@@ -173,6 +197,14 @@ Total nodes: 26
 - **path:** practice-theme-tokens-data-theme-and-cached-theme.md
 - **tags:** web, css, theme, dark-mode, e2e
 - **relates_to:** practice-contrast-tables-and-project-colours, practice-e2e-test-workflow
+
+## practice-timer-bar-height-drives-sticky-bulk-bar
+
+- **kind:** practice
+- **title:** Bulk bar sticks under the timer bar through --timer-bar-height
+- **path:** practice-timer-bar-height-drives-sticky-bulk-bar.md
+- **tags:** web, css, timer, mobile
+- **relates_to:** practice-phone-layout-css-gotchas, practice-web-ui-survives-background-refetches
 
 ## practice-twelve-hour-time-entry-parsing-rules
 
@@ -195,6 +227,14 @@ Total nodes: 26
 - **title:** Web UI state must survive background refetches
 - **path:** practice-web-ui-survives-background-refetches.md
 - **tags:** web, react-query, timer, entry-list
+
+## practice-week-calendar-hour-height-agrees-in-three-places
+
+- **kind:** practice
+- **title:** Week calendar hour height lives in three places
+- **path:** practice-week-calendar-hour-height-agrees-in-three-places.md
+- **tags:** web, calendar, css, e2e
+- **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-contrast-tables-and-project-colours
 
 ## practice-write-paths-validate-refs-not-totals
 
