@@ -52,6 +52,12 @@
    chart-other on chart-other-wash       other   2.42 --     3.43 --
    chart-other on chart-band             other   3.03 AA     4.84 AA
    chart-billable on chart-band          other   3.16 AA     4.81 AA
+   text on texture-glow                  text   13.21 AA    12.23 AA
+   muted on texture-glow                 text    5.87 AA     6.40 AA
+   text on texture-swell                 text   13.83 AA    11.81 AA
+   muted on texture-swell                text    6.14 AA     6.18 AA
+   text on texture-stripe                text   11.88 AA     8.95 AA
+   muted on texture-stripe               text    5.28 AA     4.69 AA
    The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
    separation) on the surface colour in each theme.
    A non-billable chart segment is 3px chart-other stripes over chart-other-wash. The stripes draw
@@ -76,7 +82,14 @@
    An inline field error (.field-error) is danger text on surface in cards, modals and the timer bar,
    and danger on bg beside the tag form in the page toolbar. An invalid field's border is danger
    against the surface inside the input and against bg, surface or surface-2 around it. The danger
-   rows above cover each pair. */
+   rows above cover each pair.
+   The sidebar and the phone header strip are drawn with gradients of the texture tokens over
+   surface. The glow fills the top 40% of the sidebar and the swell with its stripes the bottom 30%,
+   so the two never overlap; within each band every pixel lies between surface and the strongest
+   token, and the texture rows above give the worst case for the nav labels (muted) and the
+   wordmark (text). The sidebar's edge line is border on bg on the page side. The active nav link
+   is a primary block with on-primary text and icon, and its running dot turns on-primary too:
+   the pink dot on primary is only 1.33:1. */
 :root {
   color-scheme: light dark;
 
@@ -121,6 +134,12 @@
      Recompute both values if either colour changes. */
   --chart-band: light-dark(#f6ebd8, #19203f);
   --chart-tooltip-bg: var(--surface);
+
+  /* Texture behind the sidebar and the phone header strip: primary at 14% (glow) and secondary at
+     12% (swell) and 22% (stripe) over surface, mixed in srgb. Recompute them if a colour changes. */
+  --texture-glow: light-dark(#f3dfd1, #352a38);
+  --texture-swell: light-dark(#e0eae3, #17324b);
+  --texture-stripe: light-dark(#c7dcd7, #1a475d);
   --chart-tooltip-text: var(--text);
 
   /* Type. The root size is relative, so the browser's font size setting scales the whole app. */
@@ -283,7 +302,7 @@ code, kbd {
   background: var(--surface-2);
 }
 /* Selected and active: the --state-selected tint. After the hover rule, so it stays on hover. */
-.nav-link.active, .entry-line.selected, .picker-item.selected, .suggestion.highlighted, .segmented button.active {
+.entry-line.selected, .picker-item.selected, .suggestion.highlighted, .segmented button.active {
   background: var(--state-selected);
 }
 /* Selected rows, picker items and the keyboard-highlighted suggestion also get a primary bar on the
@@ -294,7 +313,7 @@ code, kbd {
    the only visible sign of what Enter will pick. A selected row that is also active keeps its tint
    and bar under the outline. */
 .picker-item.highlighted { outline: 2px solid var(--primary); outline-offset: -2px; }
-.nav-link.active, .segmented button.active { color: var(--primary); font-weight: 600; }
+.segmented button.active { color: var(--primary); font-weight: 600; }
 /* Figures: the running clock, durations and day totals. Table cells use .num, which only aligns. */
 .timer-clock, .manual-duration, .day-total, .entry-duration { font-variant-numeric: tabular-nums; font-weight: 600; }
 /* Inline edit: a field that reads as plain text until hovered or focused. A running entry's
@@ -339,30 +358,71 @@ input.entry-duration:is(:hover, :focus) {
 .sidebar {
   position: sticky; top: 0; height: 100vh; width: var(--sidebar); flex-shrink: 0;
   display: flex; flex-direction: column; gap: 2px; padding: 16px 10px;
-  background: var(--surface); border-right: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  /* A sunset glow at the top and a striped swell at the bottom; see the texture note in the table. */
+  background:
+    linear-gradient(to bottom, var(--texture-glow), transparent 40%),
+    repeating-linear-gradient(135deg, transparent 0 10px, var(--texture-stripe) 10px 13px) bottom / 100% 30% no-repeat,
+    linear-gradient(to top, var(--texture-swell) 60%, transparent) bottom / 100% 30% no-repeat,
+    var(--surface);
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: var(--text-lg); padding: 4px 10px 16px; }
-.nav-link { gap: 10px; padding: 8px 10px; border-radius: var(--radius-md); color: var(--muted); text-decoration: none; }
+/* The wordmark: the icon and the name in the display face. */
+.brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-size: var(--text-lg); font-weight: 900; line-height: 1; }
+.brand img { flex: none; }
+.brand-md { font-size: var(--text-xl); }
+.brand-sm { gap: 8px; font-size: var(--text-lg); }
+.sidebar .brand { padding: 6px 10px 20px; }
+.nav-link { gap: 10px; padding: 9px 10px; border-radius: var(--radius-md); color: var(--muted); text-decoration: none; }
 .nav-link:hover:not(.active) { color: var(--text); }
+/* The active link is a filled primary block in bold with a heavier icon, so the fill colour is not
+   the only sign; aria-current="page" says the same to screen readers. */
+.nav-link.active, .nav-link.active:hover { background: var(--primary); color: var(--on-primary); font-weight: 800; }
+.nav-link.active .nav-icon { stroke-width: 2.6; }
 .running-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--state-running); margin-left: auto; animation: pulse 1.6s infinite; }
+.nav-link.active .running-dot { background: var(--on-primary); }
 @keyframes pulse { 50% { opacity: 0.35; } }
 .content { flex: 1; min-width: 0; padding: 24px clamp(12px, 3vw, 40px) 80px; }
 .page { max-width: 1100px; margin: 0 auto; }
 .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .page-header h1 { margin: 0; }
 
+/* Phone: a header strip with the wordmark, a five-item bottom bar and the More sheet (App.tsx renders
+   these only under the same max-width). */
+.phone-header {
+  display: flex; align-items: center; min-height: 44px; padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(to right, var(--texture-glow), transparent 70%), var(--surface);
+}
+.more-backdrop, .more-sheet { display: none; }
 @media (max-width: 760px) {
   .shell { flex-direction: column; }
   .sidebar {
     position: fixed; bottom: 0; top: auto; left: 0; right: 0; height: auto; width: 100%; z-index: 20;
-    flex-direction: row; justify-content: space-around; padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
-    border-right: none; border-top: 1px solid var(--border);
+    flex-direction: row; gap: 4px; padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-right: none; border-top: 1px solid var(--border); background: var(--surface);
   }
-  .sidebar .brand, .sidebar .spacer, .sidebar > button.nav-link { display: none; }
-  .nav-link { flex-direction: column; gap: 2px; font-size: var(--text-xs); padding: 6px 4px; align-items: center; position: relative; }
-  .running-dot { position: absolute; top: 4px; right: 10px; }
+  /* Labels at 0.75rem are 11.25px on the 15px root; every item is at least 44px each way. */
+  .sidebar > .nav-link {
+    flex: 1 1 0; min-width: 44px; min-height: 52px; flex-direction: column; justify-content: center; align-items: center;
+    gap: 2px; padding: 4px 2px; font-size: 0.75rem; text-align: center; position: relative;
+  }
+  .sidebar > .nav-link .running-dot { position: absolute; top: 6px; left: calc(50% + 9px); margin: 0; }
+  .more-backdrop { display: block; position: fixed; inset: 0; z-index: 1; background: var(--backdrop); animation: fade-in var(--duration-base) var(--ease); }
+  .more-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+    background: var(--surface); border-top: 1px solid var(--border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0; box-shadow: var(--shadow);
+    animation: sheet-up var(--duration-base) var(--ease);
+  }
+  .more-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 8px 10px; }
+  .more-sheet-head .icon-button { width: 44px; height: 44px; }
+  .more-sheet .nav-link { min-height: 48px; padding: 0 12px; font-size: var(--text-base); }
   .content { padding: 12px 10px 90px; }
 }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes sheet-up { from { transform: translateY(100%); } }
 
 /* Timer bar */
 .timer-bar {

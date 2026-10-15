@@ -35,12 +35,37 @@ export async function tap(locator: Locator): Promise<void> {
   await locator.tap();
 }
 
-/** Taps a link in the bottom navigation and waits for its page. */
+/** The pages the phone keeps in the More sheet instead of the bottom bar. */
+const MORE_PAGES = new Set(['Clients', 'Tags', 'Trash']);
+
+/** Taps More in the bottom navigation and returns the sheet it opens, which sits inside the navigation. */
+export async function openMore(page: Page): Promise<Locator> {
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await tap(nav.getByRole('button', { name: 'More', exact: true }));
+  const sheet = nav.getByRole('dialog', { name: 'More' });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+/**
+ * Taps a link in the bottom navigation, or in the More sheet for Clients, Tags and Trash, and waits
+ * for its page. The sheet closes on navigation, so for those pages the More button carries the
+ * active state.
+ */
 export async function tapNav(page: Page, name: string): Promise<void> {
-  const link = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name, exact: true });
-  await tap(link);
-  await expect(link).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { level: 1 }).or(page.getByRole('region', { name: 'Timer' })).first()).toBeVisible();
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  if (MORE_PAGES.has(name)) {
+    const sheet = await openMore(page);
+    await tap(sheet.getByRole('link', { name, exact: true }));
+    await expect(sheet).toBeHidden();
+    await expect(nav.getByRole('button', { name: 'More', exact: true })).toHaveClass(/\bactive\b/);
+    await expect(page.getByRole('heading', { level: 1, name, exact: true })).toBeVisible();
+  } else {
+    const link = nav.getByRole('link', { name, exact: true });
+    await tap(link);
+    await expect(link).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('heading', { level: 1 }).or(page.getByRole('region', { name: 'Timer' })).first()).toBeVisible();
+  }
   await expectNoPageOverflow(page);
 }
 

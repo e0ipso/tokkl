@@ -32,10 +32,11 @@ const PATHS: Record<string, string> = {
 
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, size = 18, title }: { name: IconName; size?: number; title?: string }) {
+export function Icon({ name, size = 18, title, className }: { name: IconName; size?: number; title?: string; className?: string }) {
   const filled = name === 'play' || name === 'stop';
   return (
     <svg
+      className={className}
       width={size}
       height={size}
       viewBox="0 0 24 24"

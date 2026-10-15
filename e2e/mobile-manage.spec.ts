@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
-import { PHONE, expectFits, expectNoPageOverflow, tap, tapNav } from './mobile-tests-helpers.ts';
+import { PHONE, expectFits, expectNoPageOverflow, openMore, tap, tapNav } from './mobile-tests-helpers.ts';
 
 test.use(PHONE);
 
@@ -93,9 +93,19 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   const nav = page.getByRole('navigation', { name: 'Main' });
   const box = (await nav.boundingBox())!;
   expect([Math.round(box.x), Math.round(box.width)]).toEqual([0, 390]);
-  for (const name of ['Timer', 'Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings']) {
+  // Four pages and More fit the bar; the other pages and Log out fit the More sheet.
+  await expect(nav.locator(':scope > a, :scope > button')).toHaveCount(5);
+  for (const name of ['Timer', 'Reports', 'Projects', 'Settings']) {
     await expectFits(nav.getByRole('link', { name, exact: true }));
   }
+  const more = nav.getByRole('button', { name: 'More', exact: true });
+  const sheet = await openMore(page);
+  for (const name of ['Clients', 'Tags', 'Trash']) await expectFits(sheet.getByRole('link', { name, exact: true }));
+  await expectFits(sheet.getByRole('button', { name: 'Log out' }));
+  await expectNoPageOverflow(page);
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+  await expect(more).toBeFocused();
 
   // The last row of a long list is reachable above the navigation.
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
