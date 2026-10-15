@@ -3,7 +3,8 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
 // TT-0068: the Anybody variable font ships with the app, is preloaded once, loads under the CSP
-// (font-src 'self') and sets the wordmark, headings, the running clock and totals.
+// (font-src 'self') and sets headings, the running clock and totals.
+// TT-0114: the wordmark is drawn as SVG paths, not set in a font, and is named "Tokkl".
 // TT-0067: the root font size is 93.75%, so 1rem is 15px.
 
 const FONT = '/fonts/anybody-wdth-wght.woff2';
@@ -56,7 +57,6 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
   expect(fetches).toHaveLength(1);
 
   for (const target of [
-    page.locator('.brand').first(),
     page.locator('.day-header h3').first(),
     page.locator('.day-total').first(),
     timer.locator('.timer-clock'),
@@ -66,4 +66,9 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
   await expect(timer.locator('.timer-clock')).toHaveCSS('font-variant-numeric', 'tabular-nums');
   expect(await fontFamily(timer.getByLabel('Description'))).not.toMatch(/Anybody/);
   await expect(page.locator('html')).toHaveCSS('font-size', '15px');
+
+  const wordmark = page.locator('.brand').first().getByRole('img', { name: 'Tokkl' });
+  await expect(wordmark).toBeVisible();
+  expect(await wordmark.locator('path').count()).toBeGreaterThan(0);
+  await expect(wordmark.locator('text, image, use, foreignObject')).toHaveCount(0);
 });

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-12 -13 363 158" width="363" height="158" fill-rule="evenodd" role="img" aria-label="Tokkl">
+  <!-- The Tokkl wordmark with the light-theme colours written in, for the README. The app draws the
+       same paths in packages/web/src/components/Wordmark.tsx with theme tokens; change both together. -->
+  <title>Tokkl</title>
+  <defs>
+    <g id="t" transform="rotate(-5 44 55)">
+      <path d="M4 16 L82 6 L84 34 L58 37 L58 98 L30 102 L30 40 L6 42 Z"/>
+    </g>
+    <g id="o" transform="rotate(4 112 74)">
+      <path d="M100 96 L100 116 C100 122 108 122 108 116 L108 96 Z"/>
+      <path d="M112 42 C134 42 145 56 145 72 C145 90 131 103 112 103 C92 103 81 90 81 72 C81 54 93 42 112 42 Z M113 61 C107 61 104 66 104 72 C104 79 107 84 113 84 C119 84 122 79 122 72 C122 66 119 61 113 61 Z"/>
+    </g>
+    <g id="k1" transform="rotate(-3 178 55)">
+      <path d="M146 10 L171 4 L171 58 L191 36 L216 40 L188 68 L214 98 L185 102 L171 84 L171 100 L146 102 Z"/>
+    </g>
+    <g id="k2" transform="rotate(5 240 58)">
+      <path d="M210 12 L235 6 L235 60 L255 38 L280 42 L252 70 L278 100 L249 104 L235 86 L235 102 L210 104 Z"/>
+    </g>
+    <g id="l" transform="rotate(-3 296 54)">
+      <path d="M290 98 L290 122 C290 128 298 128 298 122 L298 98 Z"/>
+      <path d="M280 6 L306 0 L306 76 C306 86 313 88 321 81 L330 97 C314 112 282 110 282 92 Z"/>
+    </g>
+    <g id="letters"><use xlink:href="#t"/><use xlink:href="#o"/><use xlink:href="#k1"/><use xlink:href="#k2"/><use xlink:href="#l"/></g>
+  </defs>
+  <g fill="#fffaf1" stroke="#fffaf1" stroke-width="22" stroke-linejoin="round">
+    <use xlink:href="#letters"/>
+    <use xlink:href="#letters" transform="translate(6 6)"/>
+  </g>
+  <use xlink:href="#letters" transform="translate(6 6)" fill="#1c1a2b" stroke="#1c1a2b" stroke-width="10" stroke-linejoin="round"/>
+  <g stroke="#1c1a2b" stroke-width="10" stroke-linejoin="round" paint-order="stroke">
+    <use xlink:href="#t" fill="#ff8c42"/>
+    <use xlink:href="#o" fill="#2ee6e6"/>
+    <use xlink:href="#k1" fill="#ff4fa8"/>
+    <use xlink:href="#k2" fill="#b6ff3b"/>
+    <use xlink:href="#l" fill="#ff8c42"/>
+  </g>
+  <g fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round">
+    <g transform="rotate(-5 44 55)"><path d="M12 22 L34 19"/></g>
+    <g transform="rotate(4 112 74)"><path d="M92 62 C94 55 99 51 105 50"/></g>
+    <g transform="rotate(-3 178 55)"><path d="M153 16 L153 40"/></g>
+    <g transform="rotate(5 240 58)"><path d="M217 18 L217 42"/></g>
+    <g transform="rotate(-3 296 54)"><path d="M287 12 L287 40"/></g>
+  </g>
+</svg>

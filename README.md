@@ -1,4 +1,4 @@
-# Tokkl
+<h1><img src="docs/brand/tokkl-wordmark.svg" alt="Tokkl" width="320"></h1>
 
 A self-hosted, single-user time tracker modeled on Toggl Track. It runs on a server you own, keeps every entry in one SQLite file, and answers on a subset of the Toggl Track API v9 and Reports API v3. Scripts and libraries written for Toggl can switch to it by changing the base URL.
 
@@ -209,4 +209,4 @@ Every response is checked as well as timed: totals and billable totals against t
 
 ## Font
 
-Headings, the wordmark, the running clock and report totals use [Anybody](https://github.com/Etcetera-Type-Co/Anybody) by Etcetera Type Co., under the SIL Open Font License 1.1. The variable woff2 and its licence are in `web/public/fonts/` and the server ships them itself. Source: https://github.com/Etcetera-Type-Co/Anybody/blob/fe7b55cf9d1563348ad95ac8e05f43b81a420c31/fonts/variable/Anybody%5Bwdth,wght%5D.woff2, renamed to `anybody-wdth-wght.woff2` and otherwise unchanged. Body text, controls and tables use the system font stack.
+Headings, the running clock and report totals use [Anybody](https://github.com/Etcetera-Type-Co/Anybody) by Etcetera Type Co., under the SIL Open Font License 1.1. The variable woff2 and its licence are in `web/public/fonts/` and the server ships them itself. Source: https://github.com/Etcetera-Type-Co/Anybody/blob/fe7b55cf9d1563348ad95ac8e05f43b81a420c31/fonts/variable/Anybody%5Bwdth,wght%5D.woff2, renamed to `anybody-wdth-wght.woff2` and otherwise unchanged. Body text, controls and tables use the system font stack.
