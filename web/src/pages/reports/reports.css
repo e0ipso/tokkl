@@ -71,8 +71,7 @@
 .report-chart-card { margin-bottom: 16px; }
 /* SeriesChart.tsx reads the geometry properties once when the chart mounts. Each takes a
    unitless or px number; a missing or invalid value falls back to the same default in the
-   component. --chart-other-wash is the tint behind the non-billable stripes and should move to
-   the token block in styles.css. */
+   component. */
 .series-chart {
   --chart-height: 220px;
   --chart-margin-top: 12px;
@@ -82,7 +81,6 @@
   --chart-max-bar: 24px;
   --chart-gap: 2px;
   --chart-radius: 4px;
-  --chart-other-wash: color-mix(in srgb, var(--chart-other) 30%, var(--surface));
   transition: opacity 0.15s;
 }
 .series-chart.is-dimmed { opacity: 0.55; }

@@ -47,8 +47,16 @@
    accent-lime on surface                other   4.90 AA    14.10 AA
    chart-billable on surface             other   3.59 AA     5.16 AA
    chart-other on surface                other   3.44 AA     5.19 AA
+   chart-other on chart-other-wash       other   2.42 --     3.43 --
+   chart-other on surface-2              other   2.65 low    4.54 AA
+   chart-billable on surface-2           other   2.77 low    4.51 AA
    The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
    separation) on the surface colour in each theme.
+   A non-billable chart segment is 3px chart-other stripes over chart-other-wash. The stripes draw
+   the segment's edge, so chart-other on surface is its required pair. Stripe on wash is texture
+   inside one segment and needs no ratio (--): in light the wash would have to drop from 30% to
+   12% or less to reach 3:1, and then it barely reads as a tint. surface-2 is the band behind the
+   hovered or focused column; in light both series fall under 3:1 against it (low).
    The entry-row Project placeholder (.add-project, text) and the empty-tags icon (.entry-tags,
    other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
    above are their pairs. Fading them with opacity breaks those ratios.
@@ -87,6 +95,9 @@
   /* Chart */
   --chart-billable: light-dark(#0091a8, #0f9bb3);
   --chart-other: light-dark(#e0601d, #e46a2a);
+  /* The wash behind the non-billable stripes: chart-other at 30% over surface, mixed in srgb.
+     Recompute both values if either colour changes. */
+  --chart-other-wash: light-dark(#f6ccb1, #523232);
   --chart-tooltip-bg: var(--surface);
   --chart-tooltip-text: var(--text);
 
