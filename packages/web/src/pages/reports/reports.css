@@ -205,6 +205,13 @@
 .billable-mark { display: inline-flex; vertical-align: middle; margin-left: 6px; color: var(--state-billable); }
 .tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .detailed-table .project-label { max-width: 220px; }
+/* The table is wider than a phone screen, so the browser shrinks every column that can wrap to
+   its narrowest width: one word of the client per line and one tag per line, which made short
+   rows about 80px tall. Client and tags stay on one line and the table scrolls sideways instead.
+   A long client name is cut off with an ellipsis; the cell's title holds the full name. */
+.detailed-table .detailed-client { white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.detailed-table .detailed-tags .tag-list { flex-wrap: nowrap; }
+.detailed-table .detailed-tags .tag-chip { white-space: nowrap; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 0; flex-wrap: wrap; }
 .pager .button { display: inline-flex; align-items: center; gap: 4px; }
 

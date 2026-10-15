@@ -107,12 +107,12 @@ export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update
                   {entry.project_name ? (
                     <span className="project-label">
                       <ProjectDot color={entry.project_color} />
-                      <span className="project-label-name">{entry.project_name}{entry.task_name ? `: ${entry.task_name}` : ''}</span>
+                      <span className="project-label-name" title={entry.task_name ? `${entry.project_name}: ${entry.task_name}` : entry.project_name}>{entry.project_name}{entry.task_name ? `: ${entry.task_name}` : ''}</span>
                     </span>
                   ) : <span className="muted">Without project</span>}
                 </td>
-                <td>{entry.client_name ?? ''}</td>
-                <td>
+                <td className="detailed-client" title={entry.client_name ?? undefined}>{entry.client_name ?? ''}</td>
+                <td className="detailed-tags">
                   <span className="tag-list">
                     {entry.tags.map((tag) => <span key={tag} className="tag-chip">{tag}</span>)}
                   </span>
