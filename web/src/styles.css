@@ -73,6 +73,8 @@
   --warning: light-dark(#8a5a00, #ffc24d);
   --shadow: 0 8px 24px light-dark(rgb(28 26 43 / 0.14), rgb(0 0 0 / 0.5));
   --backdrop: light-dark(rgb(28 26 43 / 0.45), rgb(3 5 18 / 0.6));
+  /* What a project colour is mixed with for its dot and border; see the table at .project-dot. */
+  --project-mix: light-dark(#000000, #ffffff);
 
   /* State: running and selected have their own colours instead of borrowing danger and accent. */
   --state-running: var(--accent-pink);
@@ -200,7 +202,7 @@ code, kbd {
 .button-primary { background: var(--primary); color: var(--on-primary); font-weight: 600; }
 .button-ghost { background: transparent; border-color: var(--border); }
 .button-ghost:hover { background: var(--surface-2); }
-.button-danger { background: var(--danger); color: #fff; }
+.button-danger { background: var(--danger); color: var(--on-danger); }
 .button-danger-ghost { background: transparent; color: var(--danger); border-color: var(--border); }
 .button-danger-ghost:hover { background: var(--danger-soft); }
 .button-block { width: 100%; justify-content: center; }
@@ -254,7 +256,7 @@ code, kbd {
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
-  padding: 8px 8px 8px 14px; box-shadow: 0 2px 8px rgb(0 0 0 / 0.04);
+  padding: 8px 8px 8px 14px; box-shadow: var(--shadow);
 }
 .timer-bar.is-running { border-color: var(--state-running); }
 .timer-description { position: relative; flex: 1 1 260px; min-width: 0; }
@@ -270,10 +272,10 @@ code, kbd {
 .timer-clock-input:hover, .timer-clock-input:focus { border-color: var(--border); }
 .timer-button {
   width: 44px; height: 44px; border-radius: var(--radius-pill); border: none; cursor: pointer;
-  display: inline-grid; place-items: center; color: #fff;
+  display: inline-grid; place-items: center; color: var(--on-primary);
 }
 .timer-button.start, .timer-button.add { background: var(--primary); color: var(--on-primary); }
-.timer-button.stop { background: var(--danger); }
+.timer-button.stop { background: var(--danger); color: var(--on-danger); }
 .mode-switch { display: flex; flex-direction: column; }
 .mode-switch .icon-button { height: 22px; min-width: 26px; }
 .manual-fields { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -309,7 +311,7 @@ code, kbd {
    the CSS derives every mark from it. Text never takes the project colour; it stays --text.
    - Dot and border (the same colour): the hex mixed 60% with black in light and white in dark,
      in srgb, so every palette entry reaches 3:1 as a non-text mark:
-     color-mix(in srgb, var(--project-color) 60%, light-dark(#000, #fff)).
+     color-mix(in srgb, var(--project-color) 60%, var(--project-mix)).
    - Tint (calendar blocks): the raw hex at 18% over --surface.
 
    Contrast of the dot and border colour (WCAG 2 ratio, rounded down; needs 3:1). "selected" is
@@ -339,9 +341,9 @@ code, kbd {
    Recompute this table whenever the palette, the mix or a surface colour changes. */
 .project-dot {
   display: inline-block; width: 9px; height: 9px; border-radius: var(--radius-pill); flex-shrink: 0;
-  background: color-mix(in srgb, var(--project-color, var(--muted)) 60%, light-dark(#000, #fff));
+  background: color-mix(in srgb, var(--project-color, var(--muted)) 60%, var(--project-mix));
 }
-.share-fill.project-fill { background: color-mix(in srgb, var(--project-color, var(--muted)) 60%, light-dark(#000, #fff)); }
+.share-fill.project-fill { background: color-mix(in srgb, var(--project-color, var(--muted)) 60%, var(--project-mix)); }
 .project-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-weight: 500; color: var(--text); }
 .project-label-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-label-client { color: var(--muted); font-weight: 400; white-space: nowrap; }
@@ -434,7 +436,7 @@ input.entry-duration:hover { border-color: var(--border); }
 .menu .danger { color: var(--danger); }
 
 /* Modal */
-.modal-backdrop { position: fixed; inset: 0; background: rgb(10 8 16 / 0.45); display: grid; place-items: center; z-index: 900; padding: 16px; }
+.modal-backdrop { position: fixed; inset: 0; background: var(--backdrop); display: grid; place-items: center; z-index: 900; padding: 16px; }
 /* min-width: 0 stops wide content from stretching the backdrop's grid track past a phone screen. */
 .modal {
   width: min(560px, 100%); min-width: 0; max-height: calc(100vh - 32px); display: flex; flex-direction: column;
@@ -501,7 +503,7 @@ table.table { width: 100%; border-collapse: collapse; }
 }
 .toast .link-button { color: var(--state-selected); font-weight: 600; }
 .toast .icon-button { color: inherit; opacity: 0.7; }
-.toast-error { background: var(--danger); color: #fff; }
+.toast-error { background: var(--danger); color: var(--on-danger); }
 @media (max-width: 760px) { .toasts { bottom: 76px; left: 10px; right: 10px; } }
 
 /* Auth */
@@ -542,7 +544,7 @@ table.table { width: 100%; border-collapse: collapse; }
 .calendar-block {
   position: absolute; overflow: hidden; border-radius: var(--radius-sm); padding: 2px 6px; font-size: var(--text-xs); line-height: 1.25;
   background: color-mix(in srgb, var(--project-color, var(--primary)) 18%, var(--surface));
-  border-left: 3px solid color-mix(in srgb, var(--project-color, var(--primary)) 60%, light-dark(#000, #fff));
+  border-left: 3px solid color-mix(in srgb, var(--project-color, var(--primary)) 60%, var(--project-mix));
   cursor: grab; z-index: 2;
   display: flex; flex-direction: column; min-width: 0;
 }
