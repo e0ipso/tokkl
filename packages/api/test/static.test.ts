@@ -1,14 +1,26 @@
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../src/app.ts';
 import { openDatabase } from '../src/db/index.ts';
 import { testConfig, testServer } from './helpers.ts';
 
-test('page routes serve the app shell while API paths keep JSON 404s', async () => {
+const webRoots: string[] = [];
+
+after(() => {
+  for (const webRoot of webRoots) rmSync(webRoot, { recursive: true, force: true });
+});
+
+function makeWebRoot(): string {
   const webRoot = mkdtempSync(join(tmpdir(), 'tokkl-web-'));
+  webRoots.push(webRoot);
+  return webRoot;
+}
+
+test('page routes serve the app shell while API paths keep JSON 404s', async () => {
+  const webRoot = makeWebRoot();
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>app</title>');
   const app = testServer(createApp({ db: openDatabase(':memory:'), config: { ...testConfig(), webRoot }, setup: { code: null } }));
 
@@ -26,9 +38,8 @@ test('page routes serve the app shell while API paths keep JSON 404s', async () 
 });
 
 test('assets are cached immutably, and a missing asset is a 404', async () => {
-  const webRoot = mkdtempSync(join(tmpdir(), 'tokkl-web-'));
+  const webRoot = makeWebRoot();
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html>');
-  const { mkdirSync } = await import('node:fs');
   mkdirSync(join(webRoot, 'assets'));
   writeFileSync(join(webRoot, 'assets', 'app-abc.js'), 'console.log(1)');
   const config = { ...testConfig(), webRoot };
