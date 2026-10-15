@@ -1,11 +1,19 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:3b59196c349d55b2708ae9a629e7f6464f93e280e0c22e78591c613856610e89'
-node_count: 22
+nodes_hash: 'sha256:d08235feffd4c2bfc0f2607e870fb610c3edc313ba62be0d70a76a02d3bbb3e3'
+node_count: 26
 ---
 # kenkeep Graph
 
-Total nodes: 22
+Total nodes: 26
+
+## map-app-icons-script
+
+- **kind:** map
+- **title:** App icons: npm run icons renders the PNGs from icon.svg
+- **path:** map-app-icons-script.md
+- **tags:** tooling, pwa, icons, playwright, web
+- **relates_to:** map-readme-screenshots-script, practice-e2e-test-workflow
 
 ## map-app-report-endpoints
 
@@ -22,6 +30,14 @@ Total nodes: 22
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
 
+## map-npm-workspaces-package-layout
+
+- **kind:** map
+- **title:** npm workspaces: packages/common, packages/api, packages/web
+- **path:** map-npm-workspaces-package-layout.md
+- **tags:** monorepo, workspaces, layout, tooling, common, api, web
+- **relates_to:** map-test-and-static-analysis-layout
+
 ## map-readme-screenshots-script
 
 - **kind:** map
@@ -33,7 +49,7 @@ Total nodes: 22
 ## map-shared-list-controls-in-manage-ui
 
 - **kind:** map
-- **title:** Shared list controls live in web/src/pages/manage/ui.tsx
+- **title:** Shared list controls live in packages/web/src/pages/manage/ui.tsx
 - **path:** map-shared-list-controls-in-manage-ui.md
 - **tags:** web, components, css, reuse
 - **relates_to:** practice-phone-layout-css-gotchas
@@ -44,7 +60,15 @@ Total nodes: 22
 - **title:** What npm test and npm run typecheck cover
 - **path:** map-test-and-static-analysis-layout.md
 - **tags:** testing, typecheck, tooling, workflow
-- **relates_to:** practice-e2e-test-workflow
+- **relates_to:** practice-e2e-test-workflow, map-npm-workspaces-package-layout
+
+## map-web-page-state-and-field-error-components
+
+- **kind:** map
+- **title:** Loading, error, empty and field-error states use the shared components
+- **path:** map-web-page-state-and-field-error-components.md
+- **tags:** web, a11y, react, components, forms, e2e
+- **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-test-workflow
 
 ## practice-client-deletion-keeps-projects
 
@@ -98,6 +122,14 @@ Total nodes: 22
 - **tags:** server, import, restore, backup
 - **relates_to:** practice-write-paths-validate-refs-not-totals, practice-parse-api-timestamps-with-parseinstant
 
+## practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows
+
+- **kind:** practice
+- **title:** Arrow keys: arrowTarget for roving tabindex; global shortcuts yield
+- **path:** practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md
+- **tags:** web, a11y, keyboard, react, reports
+- **relates_to:** map-shared-list-controls-in-manage-ui
+
 ## practice-live-entry-indexes-back-project-and-task-totals
 
 - **kind:** practice
@@ -147,7 +179,7 @@ Total nodes: 22
 - **kind:** practice
 - **title:** 12-hour time entry: explicit AM/PM wins, ends follow the start
 - **path:** practice-twelve-hour-time-entry-parsing-rules.md
-- **tags:** web, shared, time, parsing
+- **tags:** web, time, parsing
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers
 
 ## practice-ui-time-math-uses-wall-clock-helpers
@@ -155,7 +187,7 @@ Total nodes: 22
 - **kind:** practice
 - **title:** UI time math uses account-local wall-clock helpers
 - **path:** practice-ui-time-math-uses-wall-clock-helpers.md
-- **tags:** web, time, dst, calendar, shared
+- **tags:** web, time, dst, calendar, common
 
 ## practice-web-ui-survives-background-refetches
 

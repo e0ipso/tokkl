@@ -22,7 +22,7 @@ kk_confidence: high
 
 The data is `e2e/fixtures-data/transfer/restore-full.json` plus the extra records in `scripts/screenshots-data.ts`, which also exports `NOW` (`2026-07-16T13:20:00.000Z`, 15:20 in Europe/Madrid) and `TIME_ZONE`. The browser clock is fixed with `page.clock.setFixedTime(NOW)`, and the server starts with a `data:` URL `--import` that replaces `Date` with one that always reads `NOW`.
 
-- That frozen `Date` does not reach SQLite. Project and task totals for a running entry use `unixepoch('now')` (`server/src/models/projects.ts`), while `entryDurationSeconds` (`server/src/models/timeEntries.ts`) uses JS time. The script therefore stops the running timer and takes the Projects capture last.
+- That frozen `Date` does not reach SQLite. Project and task totals for a running entry use `unixepoch('now')` (`packages/api/src/models/projects.ts`), while `entryDurationSeconds` (`packages/api/src/models/timeEntries.ts`) uses JS time. The script therefore stops the running timer and takes the Projects capture last.
 - The session cookie expires `TIMETRACK_SESSION_DAYS` after the frozen `NOW`. The config sets 36500, or the browser would drop the cookie as already expired once the real date passes `NOW` plus 30 days.
 
 <!-- kk:related:start -->

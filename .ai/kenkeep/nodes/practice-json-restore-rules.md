@@ -18,7 +18,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`importJsonExport` in `server/src/services/importJson.ts` restores a Timetrack JSON export. Restoring the same file twice changes nothing: clients, projects, tasks and tags are matched by name, and entries with the same start, stop, description and project are skipped.
+`importJsonExport` in `packages/api/src/services/importJson.ts` restores a Timetrack JSON export. Restoring the same file twice changes nothing: clients, projects, tasks and tags are matched by name, and entries with the same start, stop, description and project are skipped.
 
 - Projects are created through `createProject` with their stored fields, including `start_date` and `is_private`.
 - A record that points at a non-null project, task or other entity that was not imported is skipped with the reason `Its <entity> <id> was not imported`.

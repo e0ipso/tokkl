@@ -19,8 +19,8 @@ kk_confidence: high
 ---
 Two CSS rules keep pages within a 390 px phone screen. The phone e2e specs catch a regression through `expectNoPageOverflow`.
 
-- A horizontally scrolling wrapper must be positioned. An absolutely positioned child, such as a `.visually-hidden` table header (`web/src/pages/manage/manage.css`), is clipped by the nearest positioned ancestor, not by an `overflow` wrapper that is static. Without `position: relative` on the wrapper it widens the whole page. `.table-wrap` in `web/src/styles.css` has `position: relative` for this reason.
-- Grid and flex items default to `min-width: auto`, so wide content or an input's intrinsic width stretches the track past the screen. `.modal` is a grid item of `.modal-backdrop` and sets `min-width: 0`. Flexible inputs inside it need the same, as `.project-tasks .inline-controls input` and `.inline-input` (`web/src/pages/manage/manage.css`) have.
+- A horizontally scrolling wrapper must be positioned. An absolutely positioned child, such as a `.visually-hidden` table header (`packages/web/src/pages/manage/manage.css`), is clipped by the nearest positioned ancestor, not by an `overflow` wrapper that is static. Without `position: relative` on the wrapper it widens the whole page. `.table-wrap` in `packages/web/src/styles.css` has `position: relative` for this reason.
+- Grid and flex items default to `min-width: auto`, so wide content or an input's intrinsic width stretches the track past the screen. `.modal` is a grid item of `.modal-backdrop` and sets `min-width: 0`. Flexible inputs inside it need the same, as `.project-tasks .inline-controls input` and `.inline-input` (`packages/web/src/pages/manage/manage.css`) have.
 
 <!-- kk:related:start -->
 # Related

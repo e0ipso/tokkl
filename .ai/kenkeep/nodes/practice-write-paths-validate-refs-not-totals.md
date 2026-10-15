@@ -16,7 +16,7 @@ kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
 ---
-When a write needs to check that a project or task exists, belongs to the workspace, links to the right project, is active or is billable, use `getProjectRef` (`server/src/models/projects.ts`) and `getTaskRef` (`server/src/models/tasks.ts`). They select only `id`, `workspace_id`, `active`, `billable` (and `project_id` for tasks).
+When a write needs to check that a project or task exists, belongs to the workspace, links to the right project, is active or is billable, use `getProjectRef` (`packages/api/src/models/projects.ts`) and `getTaskRef` (`packages/api/src/models/tasks.ts`). They select only `id`, `workspace_id`, `active`, `billable` (and `project_id` for tasks).
 
 `getProject` and `getTask` run the tracked-time aggregate over the whole entry history. Calling them on write paths made every create and update slower as history grew; on a 30k-entry fixture the median entry create dropped from 5.37 ms to 0.19 ms after switching. Keep the totals getters for responses that need the totals.
 
