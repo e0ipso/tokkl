@@ -4,8 +4,8 @@
   "description": "Self-hosted time tracker",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1f1b2e",
-  "theme_color": "#1f1b2e",
+  "background_color": "#f4e7cf",
+  "theme_color": "#f4e7cf",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },

@@ -33,9 +33,25 @@ function setAttribute(theme: Theme): void {
   else document.documentElement.setAttribute('data-theme', theme);
 }
 
+type Scheme = Exclude<Theme, 'system'>;
+
+// index.html has one theme-color meta per colour scheme, holding that scheme's --bg. The browser
+// picks one by media query, so an explicit theme writes its own colour into both tags, and
+// "Match the system" puts each tag's original colour back.
+const themeColorTags = Array.from(
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][media]'),
+  (meta) => ({ meta, scheme: (meta.media.includes('dark') ? 'dark' : 'light') as Scheme, colour: meta.content }),
+);
+
+function setThemeColor(theme: Theme): void {
+  const target = theme === 'system' ? null : themeColorTags.find((tag) => tag.scheme === theme);
+  for (const tag of themeColorTags) tag.meta.content = (target ?? tag).colour;
+}
+
 /** Applies the theme from the server preferences and remembers it for the next page load. */
 export function applyTheme(theme: Theme): void {
   setAttribute(theme);
+  setThemeColor(theme);
   writeCache(theme);
 }
 
@@ -45,4 +61,7 @@ export function clearCachedTheme(): void {
 }
 
 const cached = readCache();
-if (cached === 'light' || cached === 'dark') setAttribute(cached);
+if (cached === 'light' || cached === 'dark') {
+  setAttribute(cached);
+  setThemeColor(cached);
+}
