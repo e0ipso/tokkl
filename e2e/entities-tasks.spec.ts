@@ -16,7 +16,7 @@ async function pickerTasks(page: Page): Promise<string[]> {
   await page.getByRole('link', { name: 'Timer' }).click();
   await page.getByRole('region', { name: 'Timer' }).getByRole('button', { name: 'Project' }).click();
   const picker = page.getByRole('dialog').filter({ has: page.getByPlaceholder('Find or create project…') });
-  await expect(picker.getByRole('button', { name: 'No project' })).toBeVisible();
+  await expect(picker.getByRole('option', { name: 'No project' })).toBeVisible();
   const names = await picker.locator('.picker-subitem').allTextContents();
   await page.keyboard.press('Escape');
   await expect(picker).toBeHidden();

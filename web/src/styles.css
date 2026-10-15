@@ -67,7 +67,8 @@
    The "Running" label in the timer bar is state-running text on surface. The billable toggle is a
    muted outline when off (the muted rows) and a state-billable circle with a surface icon when on;
    rows can be surface, surface-2 or state-selected. The active mode button's underline is primary
-   on state-selected. */
+   on state-selected. The selection bar on selected rows and picker items is primary on
+   state-selected; a highlighted suggestion is state-selected too. */
 :root {
   color-scheme: light dark;
 
@@ -229,11 +230,16 @@ code, kbd {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
   border: none; background: none; border-radius: var(--radius-sm); cursor: pointer;
 }
-.row-button:hover, .nav-link:hover, .suggestion:hover, .suggestion.highlighted, .picker-item:hover, .menu button:hover {
+.row-button:hover, .nav-link:hover, .suggestion:hover, .picker-item:hover, .menu button:hover {
   background: var(--surface-2);
 }
 /* Selected and active: the --state-selected tint. After the hover rule, so it stays on hover. */
-.nav-link.active, .entry-line.selected, .picker-item.selected, .segmented button.active { background: var(--state-selected); }
+.nav-link.active, .entry-line.selected, .picker-item.selected, .suggestion.highlighted, .segmented button.active {
+  background: var(--state-selected);
+}
+/* Selected rows, picker items and the keyboard-highlighted suggestion also get a primary bar on the
+   left edge, so the tint is not the only sign. */
+.entry-line.selected, .picker-item.selected, .suggestion.highlighted { box-shadow: inset 3px 0 0 var(--primary); }
 .nav-link.active, .segmented button.active { color: var(--primary); font-weight: 600; }
 /* Figures: the running clock, durations and day totals. Table cells use .num, which only aligns. */
 .timer-clock, .manual-duration, .day-total, .entry-duration { font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -449,6 +455,10 @@ input.entry-duration:is(:hover, :focus) {
     grid-template-areas: none;
   }
   .entry-line .entry-select { display: none; }
+  /* The phone timer bar is taller than the 72px the bulk bar sticks at, so it would cover the
+     "n selected" count. While entries are selected the timer bar scrolls away instead. */
+  .page:has(.bulk-bar) .timer-bar { position: relative; }
+  .bulk-bar { top: 0; }
   .entry-line .entry-description { grid-column: 1 / -2; }
   .entry-line .entry-project { grid-column: 1 / 3; }
   .entry-times { display: none; }
@@ -460,6 +470,8 @@ input.entry-duration:is(:hover, :focus) {
 .popover { position: fixed; z-index: 1000; overflow: auto; display: flex; flex-direction: column; box-shadow: var(--shadow); }
 .picker-search { margin: 8px; }
 .picker-list { overflow: auto; padding: 0 4px 6px; max-height: 340px; }
+.picker-list:empty { display: none; }
+.picker-actions { padding: 0 4px 6px; }
 .picker-item { padding: 7px 10px; }
 .picker-subitem { padding-left: 28px; color: var(--muted); font-size: var(--text-md); }
 .picker-group { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 8px 10px 2px; }

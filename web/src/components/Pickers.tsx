@@ -107,23 +107,32 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
           }
         }}
       />
-      <div className="picker-list">
+      <div className="picker-list" role="listbox" aria-label="Projects">
         {query === '' ? (
-          <button type="button" className={`picker-item${projectId === null ? ' selected' : ''}`} onClick={() => pick(null, null)}>
+          <button
+            type="button"
+            role="option"
+            aria-selected={projectId === null}
+            className={`picker-item${projectId === null ? ' selected' : ''}`}
+            onClick={() => pick(null, null)}
+          >
             <ProjectDot color={null} /> No project
           </button>
         ) : null}
         {grouped.map(([client, list]) => (
-          <div key={client || 'none'}>
-            {client ? <div className="picker-group">{client}</div> : null}
+          <div key={client || 'none'} role={client ? 'group' : 'none'} aria-label={client || undefined}>
+            {client ? <div className="picker-group" aria-hidden="true">{client}</div> : null}
             {list.map((project) => {
               const projectTasks = tasks.filter((t) => t.project_id === project.id && t.active
                 && (query === '' || matches(project, query) || t.name.toLowerCase().includes(query.toLowerCase())));
+              const projectSelected = projectId === project.id && !taskId;
               return (
-                <div key={project.id}>
+                <div key={project.id} role="none">
                   <button
                     type="button"
-                    className={`picker-item${projectId === project.id && !taskId ? ' selected' : ''}`}
+                    role="option"
+                    aria-selected={projectSelected}
+                    className={`picker-item${projectSelected ? ' selected' : ''}`}
                     onClick={() => pick(project.id, null)}
                   >
                     <ProjectDot color={project.color} />
@@ -133,6 +142,8 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
                     <button
                       key={task.id}
                       type="button"
+                      role="option"
+                      aria-selected={taskId === task.id}
                       className={`picker-item picker-subitem${taskId === task.id ? ' selected' : ''}`}
                       onClick={() => pick(project.id, task.id)}
                     >
@@ -144,13 +155,17 @@ export function ProjectPicker({ anchor, projectId, taskId, onChange, onClose }: 
             })}
           </div>
         ))}
-        {query.trim() && !exact ? (
-          <button type="button" className="picker-item picker-create" onClick={() => void create()}>
-            <Icon name="plus" size={14} /> Create project "{query.trim()}"
-          </button>
-        ) : null}
-        {grouped.length === 0 && !query ? <div className="picker-empty">No projects yet. Type a name to create one.</div> : null}
       </div>
+      {(query.trim() && !exact) || (grouped.length === 0 && !query) ? (
+        <div className="picker-actions">
+          {query.trim() && !exact ? (
+            <button type="button" className="picker-item picker-create" onClick={() => void create()}>
+              <Icon name="plus" size={14} /> Create project "{query.trim()}"
+            </button>
+          ) : null}
+          {grouped.length === 0 && !query ? <div className="picker-empty">No projects yet. Type a name to create one.</div> : null}
+        </div>
+      ) : null}
     </Popover>
   );
 }

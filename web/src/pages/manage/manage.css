@@ -40,22 +40,25 @@
 /* The check on the chosen swatch is --on-primary over the raw palette hex (other, needs 3:1;
    WCAG 2 ratio, rounded down). It passes on most colours but not all of them:
    light (#ffffff): #c7af14 2.19, #06a893 2.98; dark (#0b1026): #525266 2.47, #990099 2.52,
-   #566614 2.96. The --text border on .selected also marks the chosen swatch. */
-.color-field { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+   #566614 2.96. The --text border on .selected also marks the chosen swatch.
+   The Custom radio is a pill on the modal surface: its check and the --text border show when it is
+   chosen. The color input after the group shows the current color. */
+.color-field, .color-options { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .color-swatch {
   width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer;
   display: inline-grid; place-items: center; color: var(--on-primary); padding: 0;
 }
 .color-swatch.selected { border-color: var(--text); }
 .color-custom {
-  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; border-radius: 999px;
-  border: 2px solid transparent; cursor: pointer; color: var(--muted); font-size: 0.85rem;
+  display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 10px 0 6px; border-radius: 999px;
+  border: 2px solid var(--border); background: none; cursor: pointer; color: var(--muted); font-size: 0.85rem;
 }
 .color-custom.selected { border-color: var(--text); color: var(--text); }
-.color-custom input[type='color'] { width: 26px; height: 26px; padding: 0; border: none; border-radius: 50%; background: none; cursor: pointer; }
-.color-custom input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
-.color-custom input[type='color']::-webkit-color-swatch { border: none; border-radius: 50%; }
-.color-custom input[type='color']::-moz-color-swatch { border: none; border-radius: 50%; }
+.color-custom-check { display: inline-grid; place-items: center; width: 14px; height: 14px; }
+.color-custom-input { width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; background: none; cursor: pointer; }
+.color-custom-input::-webkit-color-swatch-wrapper { padding: 0; }
+.color-custom-input::-webkit-color-swatch { border: 1px solid var(--border); border-radius: 50%; }
+.color-custom-input::-moz-color-swatch { border: 1px solid var(--border); border-radius: 50%; }
 
 /* Tasks inside the project editor */
 .project-tasks { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }

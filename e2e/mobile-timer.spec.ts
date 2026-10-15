@@ -65,7 +65,7 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await timer.getByLabel('Description').fill('Phone timer');
   await tap(timer.getByRole('button', { name: 'Project' }));
   await expectFits(projectPicker);
-  await tap(projectPicker.getByRole('button', { name: 'Website', exact: true }));
+  await tap(projectPicker.getByRole('option', { name: 'Website', exact: true }));
   await tap(timer.getByRole('button', { name: 'Start timer' }));
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect.poll(async () => (await api.current())?.description).toBe('Phone timer');
