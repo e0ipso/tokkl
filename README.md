@@ -81,24 +81,6 @@ docker logs tokkl    # prints the setup code on first start
 
 The container runs as the image's `node` user (UID 1000). To run it as another UID, pass `--user` and mount a directory that UID owns; the app files are read-only, and `/data` is the only place it writes. Pass settings from [Configuration](#configuration) with `-e`. The image sets `TOKKL_DATA_DIR` to `/data`.
 
-### TrueNAS Scale
-
-Create a dataset for the data, for example `tank/apps/tokkl`, and give the `apps` user (UID 568) write access to it. Then go to Apps → Discover Apps → Install via YAML:
-
-```yaml
-services:
-  tokkl:
-    image: ghcr.io/e0ipso/tokkl:1
-    user: "568:568"
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - /mnt/tank/apps/tokkl:/data
-```
-
-The setup code is in the app's logs. If a reverse proxy is the only way to reach the app, add `TOKKL_TRUST_PROXY: "true"` under `environment:`. Leave it off while port 8080 is open on the LAN, or a client there can forge `X-Forwarded-For` and get around the login rate limit.
-
 ## Configuration
 
 | Variable | Default | Meaning |
