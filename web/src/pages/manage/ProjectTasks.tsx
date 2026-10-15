@@ -4,6 +4,7 @@ import { keys, useWid } from '../../api/hooks.ts';
 import type { Project, Task } from '../../api/types.ts';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { Icon } from '../../components/Icon.tsx';
+import { LoadError, Loading } from '../../components/PageState.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { duration, useSettings } from '../../lib/settings.ts';
 import { taskTrackedSeconds, useAction, useProjectTasks, wsPath } from './queries.ts';
@@ -84,7 +85,7 @@ function TaskRow({ project, task }: { project: Project; task: Task }) {
 export function ProjectTasks({ project }: { project: Project }) {
   const wid = useWid();
   const toast = useToast();
-  const { data: tasks, isLoading } = useProjectTasks(project.id);
+  const { data: tasks, isLoading, error, refetch } = useProjectTasks(project.id);
   const [newName, setNewName] = useState('');
 
   const create = useAction<string, Task>({
@@ -127,7 +128,8 @@ export function ProjectTasks({ project }: { project: Project }) {
       ) : (
         <p className="hint">Restore the project to add tasks.</p>
       )}
-      {isLoading ? <p className="hint">Loading tasks…</p> : null}
+      {isLoading ? <Loading label="Loading tasks…" className="is-compact" /> : null}
+      {error && !tasks ? <LoadError message={`Could not load tasks: ${error.message}`} onRetry={() => void refetch()} className="is-compact" /> : null}
       {tasks && tasks.length === 0 ? (
         <EmptyState compact title="No tasks yet.">{project.active ? "Add one above to split this project's time." : null}</EmptyState>
       ) : null}

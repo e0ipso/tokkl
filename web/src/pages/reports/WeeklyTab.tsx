@@ -1,3 +1,4 @@
+import { LoadError, Loading } from '../../components/PageState.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
 import { duration, shortDate, weekdayName, type Settings } from '../../lib/settings.ts';
 import { Segmented } from '../manage/ui.tsx';
@@ -36,12 +37,9 @@ export function WeeklyTab({ filters, by, settings, dimmed, update }: {
         {grid ? <span className="hint">{grid.mode === 'days' ? 'One column per day.' : 'Ranges longer than a week get one column per week.'}</span> : null}
       </div>
       {weekly.isPending ? (
-        <div className="empty-state" role="status">Loading report…</div>
+        <Loading label="Loading report…" />
       ) : weekly.isError && !grid ? (
-        <div className="empty-state report-error" role="alert">
-          <p>Couldn't load the weekly report: {weekly.error.message}</p>
-          <button type="button" className="button button-ghost" onClick={() => void weekly.refetch()}>Try again</button>
-        </div>
+        <LoadError className="report-error" message={`Couldn't load the weekly report: ${weekly.error.message}`} onRetry={() => void weekly.refetch()} />
       ) : grid ? (
         <div className={`table-wrap${dimmed || (weekly.isPlaceholderData && weekly.isFetching) ? ' is-dimmed' : ''}`}>
           <table className="table weekly-table">

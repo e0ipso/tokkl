@@ -3,6 +3,7 @@ import { api } from '../../api/client.ts';
 import type { TimeEntry } from '../../api/types.ts';
 import { EntryEditor } from '../../components/EntryEditor.tsx';
 import { Icon } from '../../components/Icon.tsx';
+import { LoadError, Loading } from '../../components/PageState.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { localDay } from '../../lib/entryTime.ts';
@@ -60,14 +61,9 @@ export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update
     }
   };
 
-  if (detailed.isPending) return <div className="empty-state" role="status">Loading report…</div>;
+  if (detailed.isPending) return <Loading label="Loading report…" />;
   if (!data) {
-    return (
-      <div className="empty-state report-error" role="alert">
-        <p>Couldn't load the detailed report: {detailed.error?.message}</p>
-        <button type="button" className="button button-ghost" onClick={() => void detailed.refetch()}>Try again</button>
-      </div>
-    );
+    return <LoadError className="report-error" message={`Couldn't load the detailed report: ${detailed.error?.message}`} onRetry={() => void detailed.refetch()} />;
   }
   const current = data.page;
   const first = (current - 1) * data.page_size;
