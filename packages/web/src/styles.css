@@ -627,7 +627,7 @@ input.entry-duration:is(:hover, :focus) {
 .favorite .project-dot { width: 12px; height: 12px; }
 
 /* Projects & tags */
-/* Project colour. Each site sets --project-color to the project's hex from shared/colors.ts and
+/* Project colour. Each site sets --project-color to the project's hex from packages/common/colors.ts and
    the CSS derives every mark from it. Text never takes the project colour; it stays --text.
    - Dot and border (the same colour): the hex mixed 60% with black in light and white in dark,
      in srgb, so every palette entry reaches 3:1 as a non-text mark:

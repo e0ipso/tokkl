@@ -62,7 +62,7 @@ Where Toggl's own sources disagree, this document says so and picks a behavior. 
 This is the brief every restyle ticket is checked against.
 
 - **Palette roles.** Light theme: sand background, ink text, sunset orange primary, aqua secondary, hot pink and lime for states. Dark theme: deep navy background with a neon counterpart for each role. The design tokens ticket (TT-0067) picks the exact values.
-- **Typeface.** One display face for the wordmark, headings, the running clock and totals. Body text, controls and tables use the system font stack.
+- **Typeface.** One display face for headings, the running clock and totals. The wordmark is drawn as SVG paths and uses no font. Body text, controls and tables use the system font stack.
 - **Texture.** CSS gradients or inline SVG only, never raster images. Texture never sits behind data tables or inputs.
 - **Type effects.** Rotated or skewed type is decoration only. It never appears on controls, numbers or labels.
 - **Motion.** All motion sits behind `prefers-reduced-motion`. With reduced motion set, nothing animates.
@@ -288,7 +288,7 @@ The web UI is a client of the same Toggl-compatible API it exposes. Every timer 
 | HTTP | Express 5 | The most widely known Node server framework. Version 5 sends rejected promises from async handlers to the error handler, so routes need no wrappers. `trust proxy` handles a reverse proxy's forwarded headers. |
 | Database | SQLite through the built-in `node:sqlite` | No native module to compile, on amd64 or arm64; a single file to back up. WAL mode, foreign keys on. |
 | UI | React 19, Vite, TanStack Query, wouter | Query caching and refetch-on-focus give cross-device freshness for free. |
-| Shared | `shared/` modules for duration parsing, time-of-day parsing, timezone math | Server and UI parse `1h 30m` and midnight the same way. |
+| Shared | `packages/common` (`@tokkl/common`) modules for duration parsing, time-of-day parsing, timezone math, with their types in `packages/types` (`@tokkl/types`) | Server and UI parse `1h 30m` and midnight the same way. |
 
 ### 8.3 Data model
 

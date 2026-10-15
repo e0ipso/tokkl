@@ -131,23 +131,25 @@ Requires Node.js 24 or newer.
 npm install
 npm run dev        # API server on :8080, restarts on change
 npm run dev:web    # Vite dev server on :5173, proxies /api and /reports to :8080
-npm test           # server and shared unit/API tests (node --test)
-npm run typecheck  # tsc over server, shared, bench, web, e2e, scripts and the Playwright configs
-npm run build      # builds the web app into dist/web
+npm test           # unit and API tests in packages/api, packages/common and packages/web (node --test)
+npm run typecheck  # tsc over the four packages, e2e (with the Playwright config), scripts and bench
+npm run build      # builds the web app (packages/web) into dist/web
 npm run test:e2e   # builds the web app, then runs the Playwright browser tests
 npm run screenshots  # builds the web app, then rewrites docs/screenshots/*.png
-npm run icons      # renders web/public/icon-192.png and icon-512.png from icon.svg
+npm run icons      # renders packages/web/public/icon-192.png and icon-512.png from icon.svg
 ```
 
-The server runs TypeScript directly through Node's type stripping, so there is no server build step. Layout:
+The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
 
 ```
-server/src   Express app, Toggl v9 and Reports v3 routes, SQLite models, import/export
-shared/      duration, time-of-day and timezone helpers used by server and web
-web/src      React app
-e2e/         Playwright tests
-scripts/     README screenshot and app icon generators
-docs/PRD.md  product requirements
+packages/api     @tokkl/api: Express app, Toggl v9 and Reports v3 routes, SQLite models, import/export (src/, test/)
+packages/web     @tokkl/web: React app, built by Vite into dist/web
+packages/common  @tokkl/common: duration, time-of-day and timezone helpers used by the API and the web app
+packages/types   @tokkl/types: type declarations for the JSON the API and the web app exchange
+e2e/             Playwright tests
+scripts/         README screenshot and app icon generators
+bench/           history-scale measurements
+docs/            PRD.md (product requirements), brand/ and screenshots/
 ```
 
 ### End-to-end tests
@@ -182,9 +184,9 @@ It uses its own Playwright config, `scripts/screenshots.config.ts`, so `npm run 
 
 ### App icon
 
-`web/public/icon.svg` is the source of the app icon. `npm run icons` renders `web/public/icon-192.png` and `web/public/icon-512.png` from it in Playwright's Chromium, so no other image tool is needed. Run it after changing the SVG and commit the PNGs with it. The same Chromium build writes identical files on every run. `CHROMIUM_PATH` works as for the e2e tests.
+`packages/web/public/icon.svg` is the source of the app icon. `npm run icons` renders `packages/web/public/icon-192.png` and `packages/web/public/icon-512.png` from it in Playwright's Chromium, so no other image tool is needed. Run it after changing the SVG and commit the PNGs with it. The same Chromium build writes identical files on every run. `CHROMIUM_PATH` works as for the e2e tests.
 
-The icon uses only colours from the dark theme tokens in `web/src/styles.css`. Apart from the background, keep shapes inside the circle of radius 25.6 around the centre of the 64x64 viewBox, so a launcher that crops the icon to a circle or squircle does not cut them off.
+The icon uses only colours from the dark theme tokens in `packages/web/src/styles.css`. Apart from the background, keep shapes inside the circle of radius 25.6 around the centre of the 64x64 viewBox, so a launcher that crops the icon to a circle or squircle does not cut them off.
 
 ### History-scale measurements
 
@@ -196,7 +198,7 @@ npm run bench:history -- --fixtures year --no-browser   # quicker
 npm run bench:history -- --out results.json --end-date 2026-10-13
 ```
 
-For each fixture it starts `node server/src/index.ts` on its own port (`--port`, default 8190) with a new temporary data directory, which it deletes on exit. It ignores any `TOKKL_*` or `TIMETRACK_*` variables in your environment, so it never opens `./data` or another real database, and it makes no outside requests. The fixtures are generated from a fixed seed and loaded through the JSON restore:
+For each fixture it starts `node packages/api/src/index.ts` on its own port (`--port`, default 8190) with a new temporary data directory, which it deletes on exit. It ignores any `TOKKL_*` or `TIMETRACK_*` variables in your environment, so it never opens `./data` or another real database, and it makes no outside requests. The fixtures are generated from a fixed seed and loaded through the JSON restore:
 
 - `year`: 3,000 entries over 365 days.
 - `decade`: 30,000 entries over 3,650 days, the 30k-entry comparison fixture from the 2026-10-14 audit.
@@ -209,4 +211,4 @@ Every response is checked as well as timed: totals and billable totals against t
 
 ## Font
 
-Headings, the running clock and report totals use [Anybody](https://github.com/Etcetera-Type-Co/Anybody) by Etcetera Type Co., under the SIL Open Font License 1.1. The variable woff2 and its licence are in `web/public/fonts/` and the server ships them itself. Source: https://github.com/Etcetera-Type-Co/Anybody/blob/fe7b55cf9d1563348ad95ac8e05f43b81a420c31/fonts/variable/Anybody%5Bwdth,wght%5D.woff2, renamed to `anybody-wdth-wght.woff2` and otherwise unchanged. Body text, controls and tables use the system font stack.
+Headings, the running clock and report totals use [Anybody](https://github.com/Etcetera-Type-Co/Anybody) by Etcetera Type Co., under the SIL Open Font License 1.1. The variable woff2 and its licence are in `packages/web/public/fonts/` and the server ships them itself. Source: https://github.com/Etcetera-Type-Co/Anybody/blob/fe7b55cf9d1563348ad95ac8e05f43b81a420c31/fonts/variable/Anybody%5Bwdth,wght%5D.woff2, renamed to `anybody-wdth-wght.woff2` and otherwise unchanged. Body text, controls and tables use the system font stack.
