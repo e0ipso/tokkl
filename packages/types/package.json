@@ -1,0 +1,13 @@
+{
+  "name": "@timetrack/types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Type-only declarations for the timetrack API contract and shared value shapes, shipped as raw TypeScript with no runtime code",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

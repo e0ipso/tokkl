@@ -8,16 +8,7 @@ import { createProject } from '../models/projects.ts';
 import { createTask } from '../models/tasks.ts';
 import { createTimeEntry } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
-
-export interface ImportResult {
-  dry_run: boolean;
-  rows: number;
-  created: number;
-  skipped_duplicates: number;
-  created_projects: string[];
-  created_clients: string[];
-  errors: Array<{ row: number; message: string }>;
-}
+import type { ImportResult } from '@timetrack/types';
 
 const HEADER_ALIASES: Record<string, string[]> = {
   client: ['client'],

@@ -3,16 +3,7 @@
  * ("YYYY-MM-DD" keys) are always interpreted in the user's IANA timezone.
  */
 
-export interface ZonedParts {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-  /** 0 = Sunday ... 6 = Saturday */
-  weekday: number;
-}
+import type { ZonedParts } from '@timetrack/types';
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

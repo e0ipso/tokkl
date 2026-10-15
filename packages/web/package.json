@@ -12,6 +12,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.104.2",
     "@timetrack/common": "0.1.0",
+    "@timetrack/types": "0.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "wouter": "^3.13.0"

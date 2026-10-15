@@ -1,4 +1,4 @@
-export type DurationFormat = 'improved' | 'classic' | 'decimal';
+import type { DurationFormat } from '@timetrack/types';
 
 const UNIT_SECONDS: Record<string, number> = {
   h: 3600, hr: 3600, hrs: 3600, hour: 3600, hours: 3600,
