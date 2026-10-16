@@ -30,9 +30,13 @@ export const ADDRESS_LIMIT = 100;
 /** Wrong setup codes from one address. */
 export const SETUP_CODE_LIMIT = 10;
 
-/** Accounts are counted by trimmed, lowercased email at every password check. */
+/**
+ * Accounts are counted by trimmed email with only ASCII A-Z lowercased at every password check.
+ * That matches users.email COLLATE NOCASE, so two emails share counters exactly when they are the
+ * same account; toLowerCase would also fold letters such as Ä that SQLite keeps apart.
+ */
 export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
+  return email.trim().replace(/[A-Z]/g, (letter) => String.fromCharCode(letter.charCodeAt(0) + 32));
 }
 
 /** The counters a successful login clears: the account from this address, and the account. */

@@ -321,8 +321,10 @@ test('FailureLimiter charges every counter, refuses when any is full and resets 
   assert.equal(checks, 5);
 });
 
-test('normalizeEmail and passwordCounters key accounts by trimmed lowercase email and keep pairs apart', () => {
+test('normalizeEmail and passwordCounters key accounts by trimmed, ASCII-lowercased email and keep pairs apart', () => {
   assert.equal(normalizeEmail('  Me@Example.COM '), 'me@example.com');
+  assert.equal(normalizeEmail('Äß@EXAMPLE.com'), 'Äß@example.com', 'only ASCII is folded, as SQLite NOCASE does');
+  assert.notEqual(passwordCounters('Ä@example.com', 'x')[1]!.key, passwordCounters('ä@example.com', 'x')[1]!.key);
   assert.deepEqual(passwordCounters(' ME@example.com', '1.2.3.4'), passwordCounters('me@example.com', '1.2.3.4'));
   assert.deepEqual(passwordCounters('a@b', '1.2.3.4').map(({ limit }) => limit), [10, 50, 100]);
   assert.deepEqual(accountCounters('a@b', '1.2.3.4'), passwordCounters('a@b', '1.2.3.4').slice(0, 2));
@@ -333,11 +335,11 @@ test('normalizeEmail and passwordCounters key accounts by trimmed lowercase emai
 });
 
 /** An app behind a trusted proxy, so each request can pick its client address. */
-async function multiUserApp(count: number) {
+async function multiUserApp(count: number, names = Array.from({ length: count }, (_, i) => `user${i}@example.com`)) {
   const db = openDatabase(':memory:');
-  const owner = await createOwner(db, { email: 'user0@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
-  const emails = ['user0@example.com'];
-  for (let i = 1; i < count; i++) emails.push(insertSecondUser(db, owner, `user${i}@example.com`).email);
+  const owner = await createOwner(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' });
+  const emails = [owner.email];
+  for (const name of names.slice(1)) emails.push(insertSecondUser(db, owner, name).email);
   const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
@@ -353,6 +355,19 @@ test('one account signing in from an address does not reset failures against ano
   assert.equal(await login('user0@example.com', PASSWORD), 200);
   assert.equal(await login('user1@example.com', 'wrong'), 403, 'the tenth failure');
   assert.equal(await login('user1@example.com', PASSWORD), 429, 'still counted from the earlier nine');
+});
+
+test('accounts share failure counters only when the database matches their emails', async () => {
+  // users.email is COLLATE NOCASE, which folds ASCII only, so these are two accounts.
+  const { login } = await multiUserApp(2, ['Ä@example.com', 'ä@example.com']);
+  for (let i = 0; i < 10; i++) assert.equal(await login('ä@example.com', 'wrong'), 403);
+  assert.equal(await login('ä@example.com', PASSWORD), 429);
+  assert.equal(await login('Ä@example.com', PASSWORD), 200, 'failures against the other account are not counted');
+
+  // ASCII case is folded by both, so these are one account.
+  const ascii = await multiUserApp(1, ['a@example.com']);
+  for (let i = 0; i < 10; i++) assert.equal(await ascii.login(' A@EXAMPLE.COM', 'wrong'), 403);
+  assert.equal(await ascii.login('a@example.com', PASSWORD), 429);
 });
 
 test('failures against one account from many addresses are refused after 50', async () => {
