@@ -7,6 +7,7 @@ import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { focusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, SearchBox } from './manage/ui.tsx';
 import './manage/manage.css';
 
@@ -35,7 +36,7 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
   };
 
   return (
-    <tr>
+    <tr data-id={tag.id}>
       <td>
         {draft === null ? (
           <button type="button" className="manage-name-button" title="Rename" onClick={() => setDraft(tag.name)}>
@@ -65,7 +66,7 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
         <button type="button" className="icon-button" aria-label={`Rename ${tag.name}`} title="Rename" onClick={() => setDraft(tag.name)}>
           <Icon name="edit" size={16} />
         </button>
-        <button type="button" className="icon-button" aria-label={`Delete ${tag.name}`} title="Delete" onClick={onDelete}>
+        <button type="button" className="icon-button" aria-label={`Delete ${tag.name}`} title="Delete" data-row-action="delete" onClick={onDelete}>
           <Icon name="trash" size={16} />
         </button>
       </td>
@@ -80,6 +81,8 @@ export function TagsPage() {
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
   const [deleting, setDeleting] = useState<Tag | null>(null);
+  const tbody = useRef<HTMLTableSectionElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
 
   const create = useAction<string, Tag>({
     mutationFn: (name) => api.post<Tag>(wsPath(wid, 'tags'), { name }),
@@ -91,7 +94,11 @@ export function TagsPage() {
     mutationFn: (tag) => api.delete(wsPath(wid, 'tags', tag.id)),
     invalidate: TAG_KEYS,
     success: (_result, tag) => `Deleted ${tag.name}`,
-    onSuccess: () => setDeleting(null),
+    onSuccess: (_result, tag) => {
+      // The dialog had focus and would give it back to the row's Delete button, which goes away.
+      focusPastRow(tbody.current, tag.id, 'delete', heading.current);
+      setDeleting(null);
+    },
   });
 
   const submit = (event: FormEvent) => {
@@ -106,7 +113,7 @@ export function TagsPage() {
   return (
     <div className="page manage-page manage-narrow">
       <header className="page-header">
-        <h1>Tags</h1>
+        <h1 ref={heading} tabIndex={-1}>Tags</h1>
       </header>
 
       <div className="toolbar">
@@ -146,7 +153,7 @@ export function TagsPage() {
                 <th><span className="visually-hidden">Actions</span></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={tbody}>
               {visible.map((tag) => <TagRow key={tag.id} tag={tag} onDelete={() => setDeleting(tag)} />)}
             </tbody>
           </table>
