@@ -35,4 +35,4 @@ _None yet._
 ### #workflow
 - Open [**What npm test and npm run typecheck cover**](../map-test-and-static-analysis-layout.md) — npm test runs the workspaces then the e2e node tests; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
 - Open [**Running the e2e suite: build, Chromium, ports and the data directory**](practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md) — test:e2e builds first; desktop runs in parallel and instance on one worker; E2E_PORT per run; a preset data dir is locked.
-- Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](../../repo-and-scripts/practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI tool trailers and subjects over 72 chars; worktrees without npm ci skip the hook.
+- Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](../../repo-and-scripts/practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI trailers, ticket IDs in headers and subjects over 72 chars; worktrees without npm ci skip the hook.

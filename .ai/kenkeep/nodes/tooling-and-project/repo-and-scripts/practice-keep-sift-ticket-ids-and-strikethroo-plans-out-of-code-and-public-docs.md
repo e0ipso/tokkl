@@ -24,7 +24,7 @@ Sift tickets and Strikethroo plans are internal. Tickets and plans may cite each
 
 This repo is public and its readers cannot open the tracker, so a bare ID tells them nothing. Write the reason itself: "the bar must mirror edits that land in the same second as the previous write", not "see TT-0061".
 
-A commit names its ticket in a `Refs: TT-NNNN` body trailer, never in the subject. semantic-release copies subjects into `CHANGELOG.md` and the GitHub release notes, so an ID in a subject gets published with every release.
+A commit names its ticket in a `Refs: TT-NNNN` body trailer, never in the subject. semantic-release copies subjects into `CHANGELOG.md` and the GitHub release notes, so an ID in a subject gets published with every release. commitlint's `no-ticket-id-in-header` rule rejects such a header.
 
 <!-- kk:related:start -->
 # Related
