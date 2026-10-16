@@ -128,8 +128,9 @@ sets its `connection` to the widget's `TokklConnection`.
   stop gets no clear answer (no response, timeout, 5xx or an unreadable body)
   the timer stays busy until a read shows what the server did; it never sends
   the request again. A 409 or 404 on stop just reads the entry again.
-- Connection failures keep the last entry, marked stale. Refused credentials
-  clear it. During a 429 cooldown nothing is sent.
+- Connection failures keep the last entry, marked stale. After a failed read
+  of the entry the mark stays until the entry is read again, even if other
+  requests succeed first. Refused credentials clear it. During a 429 cooldown nothing is sent.
 - A 403 from a workspace request clears the entry, projects and choices,
   blocks writes and polling, and asks `GET /api/v9/me` once. If `/me` names
   another default workspace the widget switches to it; otherwise Reconnect

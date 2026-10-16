@@ -72,7 +72,7 @@ Connection::State TimerController::connectionState() const
 
 bool TimerController::isStale() const
 {
-    return m_connection && m_connection->isStale();
+    return m_entryStale || (m_connection && m_connection->isStale());
 }
 
 bool TimerController::workspaceAccessLost() const
@@ -283,6 +283,7 @@ void TimerController::loseWorkspace(const ApiError &error)
 {
     m_workspaceLost = true;
     m_entryKnown = false;
+    m_entryStale = false;
     // A start or stop in flight keeps its lock until it answers, and the
     // server state stays unknown until a read after that answer.
     if (m_mutating) {
@@ -369,9 +370,13 @@ void TimerController::fetchEntry()
             return; // overtaken by a mutation or a newer read
         }
         if (!result.ok()) {
-            // A transient failure leaves the connection Disconnected, so the
-            // entry shown is marked stale. Refused credentials start a new
-            // generation and never reach this point.
+            // After a transient failure the entry shown stays stale until a
+            // current-entry read succeeds, even if other requests recover the
+            // connection first. Refused credentials start a new generation
+            // and never reach this point.
+            if (result.error.isTransient()) {
+                self->m_entryStale = true;
+            }
             if (!result.error.isTransient() && result.error.kind != ApiError::Kind::RateLimited) {
                 self->setError(result.error.message);
             }
@@ -380,6 +385,7 @@ void TimerController::fetchEntry()
         }
         self->m_lastAppliedRead = number;
         self->m_entryKnown = true;
+        self->m_entryStale = false;
         self->m_reconciling = false;
         self->setError(QString());
         self->applyEntry(*result.value);
@@ -478,6 +484,7 @@ void TimerController::reset()
     m_rediscoveryUsed = false;
     m_loaded = false;
     m_entryKnown = false;
+    m_entryStale = false;
     m_firstValidRead = m_readsIssued + 1;
     m_lastAppliedRead = m_readsIssued;
     m_entryReadPending = 0;

@@ -51,7 +51,8 @@ class TimerController : public QObject
     Q_PROPERTY(QVariantMap account READ account NOTIFY contextChanged)
     Q_PROPERTY(qint64 workspaceId READ workspaceId NOTIFY contextChanged)
     Q_PROPERTY(Tokkl::Connection::State connectionState READ connectionState NOTIFY statusChanged)
-    // Shown data is the last known; the latest request failed transiently.
+    // Shown data is the last known: the latest request failed transiently, or
+    // a current-entry read did and none has succeeded since.
     Q_PROPERTY(bool stale READ isStale NOTIFY statusChanged)
     // A workspace operation answered 403; writes stay blocked until a new
     // generation or reconnect().
@@ -160,6 +161,8 @@ private:
     // A current-entry read for this context and workspace was applied, so
     // a start cannot split a timer already running on the server.
     bool m_entryKnown = false;
+    // A current-entry read failed transiently and none has succeeded since.
+    bool m_entryStale = false;
 
     std::optional<TimeEntry> m_entry;
     QList<Project> m_projects;

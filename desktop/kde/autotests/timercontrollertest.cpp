@@ -538,6 +538,31 @@ private Q_SLOTS:
         QVERIFY(!f.unanswered(f.last("GET", currentPath)));
     }
 
+    void timerStaysStaleUntilTheEntryIsReadAgain()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        for (int i = 0; i < 30; ++i) {
+            f.clock.advance(1000);
+        }
+        f.respond(f.last("GET", currentPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        QVERIFY(f.timer.isStale());
+
+        // An unrelated read succeeds and the connection recovers.
+        f.timer.refresh();
+        const qsizetype read = f.last("GET", currentPath);
+        QVERIFY(f.unanswered(read));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        QCOMPARE(f.timer.connectionState(), Connection::Connected);
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(f.timer.isStale());
+
+        // Only an accepted current-entry read clears the mark.
+        f.respond(read, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(!f.timer.isStale());
+        QVERIFY(f.timer.isRunning());
+    }
+
     void reconnectionRefreshes()
     {
         Fixture f;
