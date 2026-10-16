@@ -130,7 +130,9 @@ sets its `connection` to the widget's `TokklConnection`.
 - A 403 from a workspace request clears the entry, projects and choices,
   blocks writes and polling, and asks `GET /api/v9/me` once. If `/me` names
   another default workspace the widget switches to it; otherwise Reconnect
-  lifts the block. The request that got the 403 is not sent again.
+  lifts the block. The request that got the 403 is not sent again. A start or
+  stop still waiting for its answer keeps the timer busy through the block and
+  a reconnect, until it answers and a fresh read of the entry arrives.
 - A running entry from a workspace other than the discovered one is not shown.
 - Changing the instance, account or secret clears the entry, projects and
   choices at once and ignores late answers, even if the new account uses the

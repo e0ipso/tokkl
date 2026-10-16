@@ -32,7 +32,9 @@ namespace Tokkl
 // A 403 from a workspace operation may mean the account lost the workspace:
 // the controller clears the workspace data it exposes, blocks writes and
 // polling, and asks /me once whether the account now has another workspace.
-// Only a new connection generation or reconnect() lifts the block.
+// Only a new connection generation or reconnect() lifts the block. A start or
+// stop still in flight keeps the controller busy through the loss and any
+// reconnect, until its reply arrives and a read reconciles the state.
 //
 // Everything is tied to the connection's generation. A new instance, account
 // or secret clears the entry, projects, busy state and errors at once, and

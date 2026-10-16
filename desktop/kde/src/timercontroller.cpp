@@ -282,8 +282,11 @@ void TimerController::finishMutation(const ApiError &error, bool succeeded)
 void TimerController::loseWorkspace(const ApiError &error)
 {
     m_workspaceLost = true;
-    m_mutating = false;
-    m_reconciling = false;
+    // A start or stop in flight keeps its lock until it answers, and the
+    // server state stays unknown until a read after that answer.
+    if (m_mutating) {
+        m_reconciling = true;
+    }
     m_firstValidRead = m_readsIssued + 1;
     m_entryReadPending = 0;
     m_error = tr("Tokkl cannot use this workspace any more (%1). Check your membership, then reconnect.").arg(error.message);

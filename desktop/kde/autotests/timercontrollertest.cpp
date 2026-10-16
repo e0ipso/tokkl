@@ -688,6 +688,53 @@ private Q_SLOTS:
         QCOMPARE(f.timer.projects().size(), 1);
     }
 
+    void workspaceLossKeepsTheMutationLock()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        // A start goes out while a projects read is pending.
+        f.timer.refresh();
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.timer.start());
+        const qsizetype post = f.last("POST", "/time_entries");
+
+        // The projects read loses the workspace before the start answers.
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(403, "\"User does not have access to this resource.\""));
+        QVERIFY(f.timer.workspaceAccessLost());
+        QVERIFY(f.timer.isBusy());
+        f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
+
+        // Reconnecting to the same account and workspace does not unlock writes.
+        f.timer.reconnect();
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.unanswered(f.last("GET", "/me"));
+        }));
+        f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
+        if (f.unanswered(f.last("GET", "/projects"))) {
+            f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        }
+        QVERIFY(!f.timer.workspaceAccessLost());
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.canWrite());
+        QVERIFY(!f.timer.start());
+        QVERIFY(!f.timer.toggle());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+
+        // The start answers: a current-entry read runs before writes return.
+        const qsizetype readsBefore = f.find("GET", currentPath).size();
+        f.respond(post, FakeTransport::answer(200, entryBody(40, 7, QStringLiteral("2026-10-16T09:00:00Z"))));
+        QCOMPARE(f.find("GET", currentPath).size(), readsBefore + 1);
+        const qsizetype read = f.last("GET", currentPath);
+        QVERIFY(f.unanswered(read));
+        QVERIFY(!f.timer.canWrite());
+        QVERIFY(!f.timer.toggle());
+        f.respond(read, FakeTransport::answer(200, entryBody(40, 7, QStringLiteral("2026-10-16T09:00:00Z"))));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.canWrite());
+        QCOMPARE(f.timer.currentEntry()->id, 40);
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+    }
+
     void workspaceRediscoveryMovesToTheNewWorkspace()
     {
         Fixture f;
