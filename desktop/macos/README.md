@@ -54,4 +54,4 @@ To install it, copy `Tokkl.app` to `/Applications`. The bundle links Qt from Hom
 - `src/keychaincredentialstore.*` stores secrets through QtKeychain. It builds wherever QtKeychain is installed.
 - `src/macstatusitem.mm`, `macloginitem.mm` and `main.mm` are the macOS layer. They hold the NSStatusItem and the drawing of the project indicator, the SMAppService login item and the wiring. The app does not use `QSystemTrayIcon` because it cannot show text. Its API has an icon and a tooltip only, and Qt's Cocoa backend sets only the status button's image.
 
-On a machine without macOS, the same commands build no app but run the tests: `menubarapp`, `infoplist`, the core's tests, and `keychaincredentialstore` when QtKeychain is installed. The `macos` CI job builds and tests the app on `macos-latest`.
+On a machine without macOS, the same commands build no app but run the tests: `menubarapp`, `infoplist`, the core's tests, and `keychaincredentialstore` when QtKeychain is installed. The `macos` CI job builds and tests the app on `macos-latest` with a pinned Qt from the Qt installer and a pinned QtKeychain built from source, and the release waits for it.

@@ -113,28 +113,51 @@ jobs:
           persist-credentials: false
       - run: desktop/gnome/ci/check.sh
 
-  # The macOS menu bar app with Qt and QtKeychain from Homebrew: build
-  # Tokkl.app, run CTest (desktop/core's tests included), check the bundle's
-  # Info.plist, and start the app once to see that it stays up. The release
-  # does not wait for it or ship the app.
+  # The macOS menu bar app on a pinned Qt from the Qt installer and a pinned
+  # QtKeychain built against it: build Tokkl.app, run CTest (desktop/core's
+  # tests included), check the bundle's Info.plist, and start the app once
+  # to see that it stays up. The release waits for it but ships no macOS app.
   macos:
     runs-on: macos-latest
     permissions:
       contents: read
+    env:
+      QT_VERSION: 6.11.3
+      QTKEYCHAIN_VERSION: 0.17.0
+      QTKEYCHAIN_COMMIT: 875f77d9f61bd97fd84cca47ce3bc71186dfbd09
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install Qt and QtKeychain
+      # Sets QT_ROOT_DIR and puts the pinned Qt's tools on PATH.
+      - name: Install Qt
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+      - name: Build QtKeychain
         env:
-          HOMEBREW_NO_AUTO_UPDATE: '1'
-          HOMEBREW_NO_INSTALL_CLEANUP: '1'
-        run: brew install qt qtkeychain
+          SRC: ${{ runner.temp }}/qtkeychain-src
+          PREFIX: ${{ runner.temp }}/qtkeychain
+        run: |
+          git clone --quiet --depth 1 --branch "$QTKEYCHAIN_VERSION" https://github.com/frankosterfeld/qtkeychain.git "$SRC"
+          test "$(git -C "$SRC" rev-parse HEAD)" = "$QTKEYCHAIN_COMMIT"
+          cmake -S "$SRC" -B "$SRC/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DBUILD_TRANSLATIONS=OFF -DBUILD_TESTING=OFF
+          cmake --build "$SRC/build" -j"$(sysctl -n hw.ncpu)"
+          cmake --install "$SRC/build"
       - name: Build
         env:
           BUILD: ${{ runner.temp }}/macos
+          QTKEYCHAIN: ${{ runner.temp }}/qtkeychain
         run: |
-          cmake -S desktop/macos -B "$BUILD" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+          cmake -S desktop/macos -B "$BUILD" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR;$QTKEYCHAIN"
+          # The pinned Qt, not another one on the runner.
+          qt_dir=$(sed -n 's/^Qt6_DIR:[A-Z]*=//p' "$BUILD/CMakeCache.txt")
+          case "$qt_dir" in
+            "$QT_ROOT_DIR"/*) ;;
+            *) echo "Qt6_DIR is '$qt_dir', not under $QT_ROOT_DIR" >&2; exit 1 ;;
+          esac
           cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)"
       - name: Test
         env:
@@ -157,7 +180,7 @@ jobs:
           kill "$pid"
 
   release:
-    needs: [test, kde, core, gnome]
+    needs: [test, kde, core, gnome, macos]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency: release
