@@ -406,6 +406,41 @@ test('an instance setting restored to the server value follows refetches, and sa
   }
 });
 
+// TT-0209: the admin types the old value back while the save is still on its way.
+test('a value typed while a save is pending stays after the response, and Save sends it', async ({ page, data }) => {
+  const before = await data.instanceSettings();
+  const changed = before.session_days === 60 ? 61 : 60;
+  const sent: unknown[] = [];
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/api/app/admin/settings', async (route) => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    sent.push(route.request().postDataJSON());
+    if (sent.length === 1) await held;
+    await route.fallback();
+  });
+  await login(page);
+  await openAdmin(page);
+  const card = page.locator('#instance');
+  const sessionDays = card.getByLabel('Session length (days)');
+  await expect(sessionDays).toHaveValue(String(before.session_days));
+
+  await sessionDays.fill(String(changed));
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => sent.length).toBe(1);
+  await sessionDays.fill(String(before.session_days));
+  release();
+  await expect(page.getByText('Instance settings saved')).toBeVisible();
+  expect((await data.instanceSettings()).session_days).toBe(changed);
+  await expect(sessionDays).toHaveValue(String(before.session_days));
+
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => sent.length).toBe(2);
+  expect(sent[1]).toEqual({ session_days: before.session_days });
+  await expect.poll(async () => (await data.instanceSettings()).session_days).toBe(before.session_days);
+  await expect(sessionDays).toHaveValue(String(before.session_days));
+});
+
 test('every admin control is reachable by keyboard and shows a focus ring',async ({ page, data, users }) => {
   await users.create();
   await data.createInvite({ role: 'user', note: 'Keyboard check' });

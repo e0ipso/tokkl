@@ -464,9 +464,11 @@ type SettingsDraft = Record<keyof InstanceSettings, string>;
 
 /**
  * The form keeps only what the admin typed and has not saved. A field changed back to the server's
- * value is no longer an edit. Every other field shows the server's value, so a background refetch,
- * such as after another admin's change, updates the untouched fields and leaves the edits and focus
- * alone. Saving sends only the edited fields, so it never writes back a value the admin did not change.
+ * value is no longer an edit, except while a save is pending: the server's value may be about to
+ * change, so everything typed then stays an edit until the save settles. Every other field shows the
+ * server's value, so a background refetch, such as after another admin's change, updates the
+ * untouched fields and leaves the edits and focus alone. Saving sends only the edited fields, so it
+ * never writes back a value the admin did not change.
  */
 function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
   const toast = useToast();
@@ -478,17 +480,23 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
     invite_days: edits.invite_days ?? String(server.invite_days),
   };
 
+  // Once a save settles, an edit equal to the server's value is no longer an edit. Anything else
+  // typed while the request ran stays, even a value equal to what the server had before the save.
+  const dropEditsEqualTo = (values: InstanceSettings) => setEdits((current) => Object.fromEntries(
+    Object.entries(current).filter(([key, value]) => Number(value.trim()) !== values[key as keyof InstanceSettings]),
+  ));
+
   const save = useAction<Partial<InstanceSettings>, InstanceSettings>({
     mutationFn: (body) => api.put<InstanceSettings>(`${ADMIN}/settings`, body),
     invalidate: [adminKeys.settings],
     success: 'Instance settings saved',
-    onSuccess: (saved, sent) => {
+    onSuccess: (saved) => {
       queryClient.setQueryData(adminKeys.settings, saved);
-      // Drop the edits that were saved; anything typed while the request ran stays.
-      setEdits((current) => Object.fromEntries(Object.entries(current)
-        .filter(([key, value]) => Number(value.trim()) !== sent[key as keyof InstanceSettings])));
+      dropEditsEqualTo(saved);
     },
     onError: (error) => {
+      const current = queryClient.getQueryData<InstanceSettings>(adminKeys.settings);
+      if (current) dropEditsEqualTo(current);
       // The server names the setting it refused, as in "Invalid invite_days: ...".
       const field = SETTING_FIELDS.find(({ key }) => error.message.includes(key));
       if (field) fields.validate([[field.key, error.message]]);
@@ -513,9 +521,10 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
   };
 
   // A value equal to the server's is not an edit, so later refetches show the server's value again.
+  // While a save is pending the server's value may still change, so every typed value stays.
   const edit = (key: keyof InstanceSettings, value: string) => setEdits((current) => {
     const next = { ...current };
-    if (value === String(server[key])) delete next[key];
+    if (!save.isPending && value === String(server[key])) delete next[key];
     else next[key] = value;
     return next;
   });
