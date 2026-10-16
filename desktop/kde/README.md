@@ -3,7 +3,8 @@
 A Plasma 6 panel widget for Tokkl. It has two parts:
 
 - `package/`: the widget, a QML package with plugin id `com.github.e0ipso.tokkl`.
-  Its entry point is `contents/ui/main.qml`.
+  Its entry point is `contents/ui/main.qml`; the panel item and its menu are
+  `PanelButton.qml` and `PanelMenu.qml`.
 - `src/`: the backend, a Qt/C++ QML module imported as `com.github.e0ipso.tokkl.backend`.
   The API client, credential storage, connection state and timer controller are
   in the `tokklcore` static library, which the module and the tests link.
@@ -13,14 +14,14 @@ server image do not build or ship it.
 
 ## Requirements
 
-| Dependency                                        | Minimum |
-| ------------------------------------------------- | ------- |
-| CMake                                             | 3.27    |
-| Qt 6: Core, Network, Qml, Quick (Test for tests)  | 6.10    |
-| Extra CMake Modules; KF6 Wallet, Package, Config  | 6.24    |
-| KF6 I18n (tests only)                             | 6.24    |
-| QML modules: Kirigami, KCMUtils                   | 6.24    |
-| Plasma: libplasma, PlasmaQuick                    | 6.6     |
+| Dependency                                                  | Minimum |
+| ----------------------------------------------------------- | ------- |
+| CMake                                                       | 3.27    |
+| Qt 6: Core, Network, Qml, Quick (Test, QuickTest for tests) | 6.10    |
+| Extra CMake Modules; KF6 Wallet, Package, Config            | 6.24    |
+| KF6 I18n with I18nQml (tests only)                          | 6.24    |
+| QML modules: Kirigami, KCMUtils                             | 6.24    |
+| Plasma: libplasma, PlasmaQuick                              | 6.6     |
 
 The minimums cover the two supported targets: TUXEDO OS 24.04 (Qt 6.10.2, KDE
 Frameworks 6.24.0, Plasma 6.6.6) and Fedora KDE 44 (Qt 6.11.2, KDE Frameworks
@@ -29,7 +30,8 @@ supported.
 
 Packages on TUXEDO OS 24.04: `cmake extra-cmake-modules qt6-base-dev
 qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
-qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`.
+qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and for the tests
+`qml6-module-qttest` and `plasma-desktoptheme` (Plasma's QML components).
 
 ## Configure, build and test
 
@@ -52,6 +54,13 @@ CTest runs these checks:
 - `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
   and credential store: ticking, sleep gaps, polling, start and stop requests,
   repeated clicks, conflicts, late replies, failures and account switches.
+- `panel`: the panel item and its menu (`PanelButton.qml`, `PanelMenu.qml`)
+  in QtQuickTest, from the QML tests in `autotests/qml/`, offscreen. The
+  backend types come from `tokklcore` wired to the fake clock, transport and
+  credential store; the test never loads `main.qml`, the real connection or a
+  copy of the backend plugin. It covers clicks and keys, the menu and its
+  focus, billable defaults, edits of a running entry, paging, archived
+  projects, every state, disabled controls and account switches.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
 - `version`: version resolution and metadata stamping.
@@ -105,6 +114,42 @@ sends none). Connection failures, timeouts and 5xx answers keep the last account
 data, marked stale. Redirects are not followed, so the credentials never go to
 another address; enter the final address instead.
 
+## Panel
+
+The panel shows the Tokkl icon, a running (playing) or stopped symbol, the
+elapsed time and, unless everything is ready, a symbol for the state. Each
+state also has its own words in the tooltip, the menu and the accessible
+description, so none relies on color: Not configured, Loading, Connected,
+Saving, Offline (the last known state), Sign-in refused and Error.
+
+- Left click, Space or Return starts or stops the timer. Tab focuses the item
+  and a frame shows the focus.
+- Right click, the Menu key or Shift+F10 opens the menu. It is a separate
+  window, so the panel does not clip it. It shows the state, then Project,
+  Billable, Reconnect, Open Tokkl and Configure Tokkl. The arrow keys move,
+  Right opens Project, Return or Space chooses and Escape closes.
+- Project lists No project and every active project of the workspace. The
+  running entry's archived project is shown, checked and disabled, but is
+  never offered for new work.
+- Choosing a project applies its billable default, or nonbillable for No
+  project; changing Billable afterwards overrides it. The choices start as No
+  project and nonbillable, apply to the next start and belong to the
+  validated instance and account: any change of instance, account or secret
+  resets them and closes the menu.
+- While an entry runs, a choice also changes that entry in place with
+  `PUT /api/v9/workspaces/{wid}/time_entries/{id}`. A project change sends
+  exactly `project_id`, `billable` and `task_id: null`; a billable change sends
+  only `billable`. The description, tags, start and the rest stay as they are,
+  and the entry is not split.
+- Project and Billable are disabled whenever the timer cannot write: not
+  configured, loading, busy, offline before the entry is known, refused
+  credentials, a lost workspace or a cooldown.
+- Open Tokkl opens the configured address (`webUrl`) in the browser. It has
+  no user name, password, query or fragment, and no token is added.
+
+The menu's popup window placement on a real Plasma Wayland panel is checked by
+hand; the tests run offscreen.
+
 ## Timer
 
 `TokklTimer` (`src/timercontroller.h`) drives the timer for the widget. QML
@@ -114,7 +159,10 @@ sets its `connection` to the widget's `TokklConnection`.
   the entry's server start time, so time spent asleep is not lost.
 - The current entry is read every 30 seconds, after every start or stop,
   after a resume (a clock tick more than 10 seconds late) and when the
-  connection comes back. Projects are read on connect, resume and reconnection.
+  connection comes back. Projects are read on connect, resume and reconnection,
+  200 a page with `page` and `per_page` until a page comes back short. When the
+  running entry's project is not among the active ones it is read on its own
+  (`GET /api/v9/workspaces/{wid}/projects/{id}`) so the menu can name it.
 - Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
   `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
   an empty description and the selected project and billable choice. Stop

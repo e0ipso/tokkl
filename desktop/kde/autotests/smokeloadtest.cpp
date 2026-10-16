@@ -193,6 +193,18 @@ private Q_SLOTS:
         QCOMPARE(timer->property("connection").value<QObject *>(), item->property("connection").value<QObject *>());
         QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
         QCOMPARE(timer->property("canWrite").toBool(), false);
+        // The panel item compiles in the widget and shows the same timer. A
+        // containment without a view creates no representation, so create
+        // one here.
+        auto *compact = item->property("compactRepresentation").value<QQmlComponent *>();
+        QVERIFY(compact);
+        QVERIFY2(compact->isReady(), qPrintable(compact->errorString()));
+        std::unique_ptr<QObject> panel(compact->create(qmlContext(item)));
+        QVERIFY2(panel, qPrintable(compact->errorString()));
+        QCOMPARE(panel->property("timer").value<QObject *>(), timer);
+        auto *label = panel->findChild<QObject *>(QStringLiteral("elapsedLabel"));
+        QVERIFY(label);
+        QCOMPARE(label->property("text").toString(), QStringLiteral("0:00:00"));
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 

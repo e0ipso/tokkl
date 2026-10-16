@@ -69,11 +69,12 @@ struct StartEntry {
 };
 
 // Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields
-// are left out of the request. A project of std::nullopt inside the outer
-// optional clears the project.
+// are left out of the request, so the server keeps them. A project or task of
+// std::nullopt inside the outer optional is sent as null and clears it.
 struct TimeEntryUpdate {
     std::optional<QString> description;
     std::optional<std::optional<qint64>> projectId;
+    std::optional<std::optional<qint64>> taskId;
     std::optional<bool> billable;
     std::optional<QDateTime> start;
 };

@@ -16,6 +16,8 @@ TimerController::TimerController(Clock *clock, QObject *parent)
     : QObject(parent)
     , m_clock(clock)
 {
+    connect(this, &TimerController::selectionChanged, this, &TimerController::choiceChanged);
+    connect(this, &TimerController::currentEntryChanged, this, &TimerController::choiceChanged);
     if (m_clock) {
         connect(m_clock, &Clock::ticked, this, &TimerController::onTick);
     }
@@ -101,6 +103,46 @@ QString TimerController::errorString() const
     return QString();
 }
 
+TimerController::Status TimerController::status() const
+{
+    if (!m_connection) {
+        return Unconfigured;
+    }
+    switch (m_connection->state()) {
+    case Connection::Unconfigured:
+    case Connection::CredentialsMissing:
+        return Unconfigured;
+    case Connection::LoadingCredentials:
+    case Connection::Connecting:
+        return Loading;
+    case Connection::AuthenticationFailed:
+        return AuthenticationBlocked;
+    case Connection::InvalidSettings:
+    case Connection::WalletError:
+    case Connection::RateLimited:
+    case Connection::Error:
+        return isBusy() ? Busy : Error;
+    case Connection::Disconnected:
+        if (isBusy()) {
+            return Busy;
+        }
+        // A bound account keeps its data through a connectivity failure.
+        return isConnected() ? Stale : Error;
+    case Connection::Connected:
+        break;
+    }
+    if (isBusy()) {
+        return Busy;
+    }
+    if (m_workspaceLost || !m_error.isEmpty()) {
+        return Error;
+    }
+    if (isStale()) {
+        return Stale;
+    }
+    return m_entryKnown ? Ready : Loading;
+}
+
 std::optional<TimeEntry> TimerController::currentEntry() const
 {
     return m_entry;
@@ -157,6 +199,29 @@ void TimerController::setBillable(bool billable)
     if (m_connection) {
         m_connection->setNextBillable(billable);
     }
+}
+
+QVariant TimerController::chosenProjectId() const
+{
+    if (m_entry) {
+        return m_entry->projectId ? QVariant(*m_entry->projectId) : QVariant::fromValue(nullptr);
+    }
+    return selectedProjectId();
+}
+
+bool TimerController::chosenBillable() const
+{
+    return m_entry ? m_entry->billable : billable();
+}
+
+std::optional<Project> TimerController::entryProject() const
+{
+    return m_entryProject;
+}
+
+QVariant TimerController::entryProjectVariant() const
+{
+    return m_entryProject ? QVariant(m_entryProject->toVariantMap()) : QVariant::fromValue(nullptr);
 }
 
 QString TimerController::formatElapsed(qint64 seconds)
@@ -220,6 +285,81 @@ bool TimerController::stop()
 bool TimerController::toggle()
 {
     return m_entry ? stop() : start();
+}
+
+bool TimerController::chooseProject(const QVariant &projectId)
+{
+    if (!canWrite()) {
+        return false;
+    }
+    std::optional<qint64> project;
+    bool billable = false;
+    if (!projectId.isNull() && projectId.isValid()) {
+        bool ok = false;
+        const qint64 id = projectId.toLongLong(&ok);
+        if (!ok || id < 0) {
+            return false;
+        }
+        if (id > 0) {
+            const auto found = std::find_if(m_projects.cbegin(), m_projects.cend(), [id](const Project &candidate) {
+                return candidate.id == id;
+            });
+            // Only an active project of this workspace is a choice; an
+            // archived one stays on its entry until another is chosen.
+            if (found == m_projects.cend() || !found->active) {
+                return false;
+            }
+            project = id;
+            billable = found->billable;
+        }
+    }
+    m_connection->setNextProjectId(project);
+    m_connection->setNextBillable(billable);
+    if (!m_entry || (m_entry->projectId == project && m_entry->billable == billable)) {
+        return true;
+    }
+    // The API clears a task only when told to; the task may belong to the
+    // previous project.
+    TimeEntryUpdate update;
+    update.projectId = project;
+    update.billable = billable;
+    update.taskId = std::optional<qint64>();
+    return updateEntry(update);
+}
+
+bool TimerController::chooseBillable(bool billable)
+{
+    if (!canWrite()) {
+        return false;
+    }
+    m_connection->setNextBillable(billable);
+    if (!m_entry || m_entry->billable == billable) {
+        return true;
+    }
+    TimeEntryUpdate update;
+    update.billable = billable;
+    return updateEntry(update);
+}
+
+bool TimerController::updateEntry(const TimeEntryUpdate &update)
+{
+    // Only the fields in the update travel; the server keeps the entry's
+    // start, description, tags and the rest, and it keeps running.
+    const qint64 entryId = m_entry->id;
+    beginMutation();
+
+    QPointer<TimerController> self(this);
+    const quint64 epoch = m_epoch;
+    m_connection->updateEntry(entryId, update, [self, epoch, entryId](const ApiResult<TimeEntry> &result) {
+        if (!self || epoch != self->m_epoch) {
+            return;
+        }
+        if (result.ok() && !self->m_workspaceLost && self->m_entry && self->m_entry->id == entryId) {
+            self->applyEntry(result.value->isRunning() ? result.value : std::nullopt);
+        }
+        self->finishMutation(result.error, result.ok());
+    });
+    return true;
 }
 
 void TimerController::beginMutation()
@@ -293,6 +433,7 @@ void TimerController::loseWorkspace(const ApiError &error)
     m_entryReadPending = 0;
     m_error = tr("Tokkl cannot use this workspace any more (%1). Check your membership, then reconnect.").arg(error.message);
     applyEntry(std::nullopt);
+    m_projectsKnown = false;
     if (!m_projects.isEmpty()) {
         m_projects.clear();
         Q_EMIT projectsChanged();
@@ -412,7 +553,9 @@ void TimerController::fetchProjects()
         }
         if (result.ok()) {
             self->m_projects = *result.value;
+            self->m_projectsKnown = true;
             Q_EMIT self->projectsChanged();
+            self->resolveEntryProject();
         } else if (result.error.kind == ApiError::Kind::Forbidden) {
             self->loseWorkspace(result.error);
         } else {
@@ -434,6 +577,68 @@ void TimerController::applyEntry(const std::optional<TimeEntry> &entry)
         Q_EMIT currentEntryChanged();
     }
     updateElapsed();
+    resolveEntryProject();
+}
+
+void TimerController::resolveEntryProject()
+{
+    const std::optional<qint64> id = m_entry ? m_entry->projectId : std::nullopt;
+    if (!id) {
+        setEntryProject(std::nullopt);
+        return;
+    }
+    for (const Project &project : std::as_const(m_projects)) {
+        if (project.id == *id) {
+            setEntryProject(project);
+            return;
+        }
+    }
+    if (m_entryProject && m_entryProject->id == *id) {
+        return; // archived, or gone, and already read
+    }
+    setEntryProject(std::nullopt);
+    // Not an active project: read it once the active list is known, so an
+    // archived project can still be named.
+    if (!m_projectsKnown || m_entryProjectPending == *id || !readable()) {
+        return;
+    }
+    m_entryProjectPending = *id;
+
+    QPointer<TimerController> self(this);
+    const quint64 epoch = m_epoch;
+    const qint64 projectId = *id;
+    m_connection->fetchProject(projectId, [self, epoch, projectId](const ApiResult<Project> &result) {
+        if (!self || epoch != self->m_epoch) {
+            return;
+        }
+        if (self->m_entryProjectPending == projectId) {
+            self->m_entryProjectPending = 0;
+        }
+        if (self->m_workspaceLost || !self->m_entry || self->m_entry->projectId != projectId) {
+            return;
+        }
+        if (result.ok()) {
+            self->setEntryProject(*result.value);
+        } else if (result.error.kind == ApiError::Kind::Forbidden) {
+            self->loseWorkspace(result.error);
+        } else if (result.error.status == 404) {
+            // Deleted since the entry was saved: keep the id, without a name.
+            Project gone;
+            gone.id = projectId;
+            gone.workspaceId = self->workspaceId();
+            gone.active = false;
+            self->setEntryProject(gone);
+        }
+    });
+}
+
+void TimerController::setEntryProject(const std::optional<Project> &project)
+{
+    const bool changed = project.has_value() != m_entryProject.has_value() || (project && project->toVariantMap() != m_entryProject->toVariantMap());
+    m_entryProject = project;
+    if (changed) {
+        Q_EMIT entryProjectChanged();
+    }
 }
 
 // ----- clock and connection ------------------------------------------------
@@ -489,6 +694,8 @@ void TimerController::reset()
     m_lastAppliedRead = m_readsIssued;
     m_entryReadPending = 0;
     m_projectsPending = false;
+    m_projectsKnown = false;
+    m_entryProjectPending = 0;
     m_nextPoll = QDateTime();
     m_error.clear();
     m_lastState = connectionState();
@@ -501,6 +708,7 @@ void TimerController::reset()
         m_projects.clear();
         Q_EMIT projectsChanged();
     }
+    setEntryProject(std::nullopt);
     Q_EMIT contextChanged();
     Q_EMIT statusChanged();
 }

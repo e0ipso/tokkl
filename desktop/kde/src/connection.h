@@ -13,6 +13,7 @@
 #include <QVariant>
 
 #include <functional>
+#include <memory>
 
 namespace Tokkl
 {
@@ -35,6 +36,10 @@ class Connection : public QObject
     // "token" (the default) or "password".
     Q_PROPERTY(QString authMode READ authModeString WRITE setAuthModeString NOTIFY authModeChanged)
     Q_PROPERTY(QString email READ email WRITE setEmail NOTIFY emailChanged)
+    // The configured instance's address for a browser: normalized, with its
+    // path prefix and no user info, query or fragment. Empty while the URL is
+    // not usable. It never carries credentials.
+    Q_PROPERTY(QUrl webUrl READ webUrl NOTIFY instanceUrlChanged)
 
     Q_PROPERTY(State state READ state NOTIFY stateChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY stateChanged)
@@ -88,6 +93,7 @@ public:
     void setAuthModeString(const QString &mode);
     QString email() const;
     void setEmail(const QString &email);
+    QUrl webUrl() const;
 
     State state() const;
     QString errorString() const;
@@ -118,7 +124,10 @@ public:
     // generation.
     void fetchMe(Callback<Me> done = {});
     void fetchCurrentEntry(Callback<std::optional<TimeEntry>> done = {});
+    // Every active project of the workspace, following the pages.
     void fetchProjects(Callback<QList<Project>> done = {});
+    // One project of the workspace, archived or not.
+    void fetchProject(qint64 projectId, Callback<Project> done = {});
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
@@ -127,6 +136,9 @@ public:
     // cooldown after a 429 without Retry-After.
     static constexpr int retryDelayMs = 30000;
     static constexpr int defaultCooldownMs = 60000;
+    // Projects per page, the server's maximum, and the most pages read.
+    static constexpr int projectPageSize = 200;
+    static constexpr int maxProjectPages = 100;
 
 public Q_SLOTS:
     // Explicit reconnect: reads the secret again and validates it, also after
@@ -188,6 +200,8 @@ private:
               Callback<T> done);
     template<typename T>
     void failLater(ApiError error, Callback<T> done);
+    struct ProjectPages;
+    void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
 
     QPointer<Transport> m_transport;
     QPointer<CredentialStore> m_store;

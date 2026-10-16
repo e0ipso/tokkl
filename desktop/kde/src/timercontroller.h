@@ -36,6 +36,12 @@ namespace Tokkl
 // stop still in flight keeps the controller busy through the loss and any
 // reconnect, until its reply arrives and a read reconciles the state.
 //
+// The panel menu edits the choices through chooseProject() and
+// chooseBillable(). They set the choices for the next start and, while an
+// entry runs, change that whole entry in place with one PUT, so the entry is
+// never split. Choosing a project applies its billable default (false for no
+// project); a later billable choice overrides it.
+//
 // Everything is tied to the connection's generation. A new instance, account
 // or secret clears the entry, projects, busy state and errors at once, and
 // replies from the earlier generation never reach this object, even when the
@@ -44,6 +50,21 @@ class TimerController : public QObject
 {
     Q_OBJECT
 
+public:
+    // One summary of the context for the panel. Ready is a validated account
+    // whose current entry is known and nothing waits or failed.
+    enum Status {
+        Unconfigured, // no instance URL or no stored secret
+        Loading, // reading the secret, validating, or the first current-entry read
+        Ready,
+        Busy, // a start, stop or edit is in flight or its outcome is unknown
+        Stale, // the data shown is the last known; the instance is unreachable
+        AuthenticationBlocked, // the instance refused the credentials
+        Error, // settings, wallet, workspace, rate limit or another failure; see errorString
+    };
+    Q_ENUM(Status)
+
+private:
     Q_PROPERTY(Tokkl::Connection *connection READ connection WRITE setConnection NOTIFY connectionChanged)
 
     // The validated context.
@@ -62,6 +83,7 @@ class TimerController : public QObject
     // read for the context has succeeded.
     Q_PROPERTY(bool canWrite READ canWrite NOTIFY statusChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY statusChanged)
+    Q_PROPERTY(Status status READ status NOTIFY statusChanged)
 
     Q_PROPERTY(QVariant currentEntry READ currentEntryVariant NOTIFY currentEntryChanged)
     Q_PROPERTY(bool running READ isRunning NOTIFY currentEntryChanged)
@@ -74,6 +96,15 @@ class TimerController : public QObject
     // null or a project id, and the billable flag.
     Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId WRITE setSelectedProjectId NOTIFY selectionChanged)
     Q_PROPERTY(bool billable READ billable WRITE setBillable NOTIFY selectionChanged)
+
+    // What the menu shows: the running entry's project and billable flag, or
+    // the choices for the next start when nothing runs.
+    Q_PROPERTY(QVariant chosenProjectId READ chosenProjectId NOTIFY choiceChanged)
+    Q_PROPERTY(bool chosenBillable READ chosenBillable NOTIFY choiceChanged)
+    // The running entry's project as a project map, also when it is archived
+    // and so missing from projects; null without one or while unresolved. A
+    // project the instance no longer has is a map with an empty name.
+    Q_PROPERTY(QVariant entryProject READ entryProjectVariant NOTIFY entryProjectChanged)
 
 public:
     static constexpr int pollIntervalMs = 30000;
@@ -98,6 +129,7 @@ public:
     bool isBusy() const;
     bool canWrite() const;
     QString errorString() const;
+    Status status() const;
 
     std::optional<TimeEntry> currentEntry() const;
     QVariant currentEntryVariant() const;
@@ -110,6 +142,10 @@ public:
     void setSelectedProjectId(const QVariant &projectId);
     bool billable() const;
     void setBillable(bool billable);
+    QVariant chosenProjectId() const;
+    bool chosenBillable() const;
+    std::optional<Project> entryProject() const;
+    QVariant entryProjectVariant() const;
 
     static QString formatElapsed(qint64 seconds);
 
@@ -118,6 +154,10 @@ public:
     Q_INVOKABLE bool stop();
     // Stops a running entry, otherwise starts one.
     Q_INVOKABLE bool toggle();
+    // Null, 0 or an active project's id. Returns false when refused: no
+    // write possible now, or not an active project.
+    Q_INVOKABLE bool chooseProject(const QVariant &projectId);
+    Q_INVOKABLE bool chooseBillable(bool billable);
 
 public Q_SLOTS:
     // Reads the current entry and the projects again.
@@ -135,6 +175,8 @@ Q_SIGNALS:
     void elapsedChanged();
     void projectsChanged();
     void selectionChanged();
+    void choiceChanged();
+    void entryProjectChanged();
 
 private:
     void onTick();
@@ -144,6 +186,9 @@ private:
     void fetchEntry();
     void fetchProjects();
     void applyEntry(const std::optional<TimeEntry> &entry);
+    bool updateEntry(const TimeEntryUpdate &update);
+    void resolveEntryProject();
+    void setEntryProject(const std::optional<Project> &project);
     void finishMutation(const ApiError &error, bool succeeded);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
@@ -166,6 +211,10 @@ private:
 
     std::optional<TimeEntry> m_entry;
     QList<Project> m_projects;
+    // The project list of this context was read at least once.
+    bool m_projectsKnown = false;
+    std::optional<Project> m_entryProject;
+    qint64 m_entryProjectPending = 0; // id of the project read in flight, or 0
     qint64 m_elapsed = 0;
     QString m_error;
 

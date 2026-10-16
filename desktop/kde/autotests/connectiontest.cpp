@@ -204,6 +204,69 @@ private Q_SLOTS:
         QCOMPARE(f.connection.account()->email, QStringLiteral("bea@example.test"));
     }
 
+    void projectsFollowEveryPage()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, 3, 42));
+        auto page = [](int first, int count, qint64 workspace) {
+            QJsonArray projects;
+            for (int id = first; id < first + count; ++id) {
+                projects.append(QJsonObject{{QStringLiteral("id"), id},
+                                            {QStringLiteral("workspace_id"), workspace},
+                                            {QStringLiteral("name"), QStringLiteral("P%1").arg(id)},
+                                            {QStringLiteral("active"), true}});
+            }
+            return QJsonDocument(projects).toJson(QJsonDocument::Compact);
+        };
+
+        QList<Project> received;
+        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+            QVERIFY(result.ok());
+            received = *result.value;
+        });
+        f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true&page=2&per_page=200"));
+        QVERIFY(received.isEmpty());
+        // Another workspace's project is never offered.
+        f.transport.respondLast(FakeTransport::answer(200, page(1000, 1, 42).chopped(1) + ',' + page(1001, 1, 9).sliced(1)));
+        QCOMPARE(received.size(), Connection::projectPageSize + 1);
+        QCOMPARE(f.connection.projectList().size(), Connection::projectPageSize + 1);
+        QCOMPARE(received.last().id, 1000);
+
+        // A server that ignores the paging parameters sends the same full
+        // page again; reading stops there.
+        const qsizetype before = f.transport.requests.size();
+        f.connection.fetchProjects();
+        f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
+        f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
+        QCOMPARE(f.transport.requests.size(), before + 2);
+        QCOMPARE(f.connection.projectList().size(), Connection::projectPageSize);
+
+        // One project, archived or not, of the bound workspace only.
+        std::optional<Project> archived;
+        f.connection.fetchProject(33, [&archived](const ApiResult<Project> &result) {
+            archived = result.value;
+        });
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects/33"));
+        f.transport.respondLast(FakeTransport::answer(200, R"({"id":33,"workspace_id":42,"name":"Old","active":false})"));
+        QVERIFY(archived);
+        QVERIFY(!archived->active);
+    }
+
+    void webUrlCarriesNoCredentials()
+    {
+        Fixture f;
+        QCOMPARE(f.connection.webUrl(), QUrl());
+        f.connection.setInstanceUrl(QStringLiteral(" HTTPS://Example.test:443/tokkl/ "));
+        QCOMPARE(f.connection.webUrl(), QUrl(QStringLiteral("https://example.test/tokkl/")));
+        f.connection.setInstanceUrl(QStringLiteral("https://example.test"));
+        QCOMPARE(f.connection.webUrl(), QUrl(QStringLiteral("https://example.test/")));
+        f.connection.setInstanceUrl(QStringLiteral("https://user:secret@example.test"));
+        QCOMPARE(f.connection.webUrl(), QUrl());
+        f.connection.setInstanceUrl(QStringLiteral("https://example.test/?token=secret"));
+        QCOMPARE(f.connection.webUrl(), QUrl());
+    }
+
     void discoveredWorkspaceScopesEveryOperation()
     {
         Fixture f;
@@ -212,7 +275,7 @@ private Q_SLOTS:
         QCOMPARE(f.connection.accountMap().value(QStringLiteral("defaultWorkspaceId")).toLongLong(), 42);
 
         f.connection.fetchProjects();
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true"));
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true&page=1&per_page=200"));
         f.transport.respondLast(FakeTransport::answer(200, projectsBody(42)));
         QCOMPARE(f.connection.projectList().size(), 1);
 
