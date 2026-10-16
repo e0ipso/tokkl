@@ -85,7 +85,10 @@ export interface MenuItem {
   danger?: boolean;
 }
 
-/** A "more" button that opens a small action menu for a table row. */
+/**
+ * A "more" button that opens a small action menu for a table row. Its `data-row-action="menu"` lets
+ * `focusPastRow` move focus to the next row's menu when this row goes away.
+ */
 export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   return (
@@ -96,6 +99,7 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={anchor !== null}
+        data-row-action="menu"
         onClick={(event) => setAnchor(anchor ? null : event.currentTarget)}
       >
         <Icon name="more" />

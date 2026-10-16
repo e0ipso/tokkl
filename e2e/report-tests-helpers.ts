@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
-import { EMAIL, PASSWORD, expect, test as base } from './fixtures.ts';
+import { currentAccount, expect, test as base } from './fixtures.ts';
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
@@ -40,7 +40,8 @@ export class ReportApi {
 
   static async open(baseURL: string): Promise<ReportApi> {
     const api = await request.newContext({ baseURL });
-    await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } }));
+    const { email, password } = currentAccount();
+    await ok(await api.post('/api/app/login', { headers: CSRF, data: { email, password } }));
     const me = await (await ok(await api.get('/api/v9/me'))).json() as { default_workspace_id: number };
     return new ReportApi(api, me.default_workspace_id);
   }

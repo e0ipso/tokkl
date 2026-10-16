@@ -12,6 +12,13 @@ test('editing a running entry keeps its ID, leaves it running and survives reloa
   await page.reload();
 
   const timer = page.getByRole('region', { name: 'Timer' });
+  // Closing a picker focuses the description, and its suggestions then cover the buttons beside it
+  // whenever the picker stayed open longer than the description's blur timeout. Close them first.
+  const closeSuggestions = async () => {
+    await expect(timer.getByLabel('Description')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(timer.getByRole('listbox')).toHaveCount(0);
+  };
   await timer.getByLabel('Description').fill('Draft');
   await timer.getByRole('button', { name: 'Start timer' }).click();
   const running = await nextRunning(api, null);
@@ -24,12 +31,14 @@ test('editing a running entry keeps its ID, leaves it running and survives reloa
   await page.locator('.picker-subitem', { hasText: 'Wireframes' }).click();
   await expect.poll(async () => [(await api.current())?.project_id, (await api.current())?.task_id]).toEqual([design, wireframes]);
 
+  await closeSuggestions();
   await timer.getByRole('button', { name: 'Tags' }).click();
   await page.getByPlaceholder('Find or create tags…').fill('focus');
   await page.getByRole('button', { name: 'Create tag "focus"' }).click();
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await api.current())?.tags).toEqual(['focus']);
 
+  await closeSuggestions();
   await timer.getByRole('button', { name: 'Billable' }).click();
   await expect.poll(async () => (await api.current())?.billable).toBe(true);
 

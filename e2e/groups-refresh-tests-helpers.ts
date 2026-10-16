@@ -1,5 +1,5 @@
 import { request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
-import { EMAIL, PASSWORD } from './fixtures.ts';
+import { currentAccount } from './fixtures.ts';
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
@@ -46,7 +46,8 @@ export class OtherDevice {
 
   static async open(baseURL: string): Promise<OtherDevice> {
     const api = await request.newContext({ baseURL });
-    await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } }));
+    const { email, password } = currentAccount();
+    await ok(await api.post('/api/app/login', { headers: CSRF, data: { email, password } }));
     const me = await json<{ default_workspace_id: number }>(api.get('/api/v9/me'));
     return new OtherDevice(api, me.default_workspace_id);
   }

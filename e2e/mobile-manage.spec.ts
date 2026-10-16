@@ -1,4 +1,4 @@
-import { EMAIL, expect, test } from './fixtures.ts';
+import { currentAccount, expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, openMore, tap, tapNav } from './mobile-tests-helpers.ts';
@@ -198,7 +198,7 @@ test('the More sheet names the signed-in user above Log out and cuts long values
     return user;
   };
 
-  await shown(await openMore(page), 'E2E User', EMAIL);
+  await shown(await openMore(page), currentAccount().fullname, currentAccount().email);
 
   // Long values come from /me as served, so the shared test account keeps its own name and email.
   const long = {

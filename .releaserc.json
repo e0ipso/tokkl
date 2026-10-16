@@ -81,6 +81,7 @@
         "npmPublish": false
       }
     ],
+    "./desktop/kde/ci/semantic-release.js",
     [
       "@semantic-release/git",
       {
@@ -95,6 +96,16 @@
     [
       "@semantic-release/github",
       {
+        "assets": [
+          {
+            "path": "dist/kde/tokkl-kde_*_amd64.deb",
+            "label": "tokkl-kde DEB for TUXEDO OS 24.04 (amd64)"
+          },
+          {
+            "path": "dist/kde/tokkl-kde-*.x86_64.rpm",
+            "label": "tokkl-kde RPM for Fedora KDE 44 (x86_64)"
+          }
+        ],
         "successComment": false,
         "failComment": false,
         "releasedLabels": false

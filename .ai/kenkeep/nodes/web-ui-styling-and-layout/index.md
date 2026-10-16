@@ -41,7 +41,7 @@ _None._
 - Open [**Display font is the bundled Anybody; one reduced-motion block ends styles.css**](practice-display-font-and-reduced-motion.md) — Anybody ships from packages/web/public/fonts with declared axis ranges and a crossorigin preload. One reduced-motion block ends styles.css.
 ### #e2e
 - Open [**Week calendar hour height lives in three places**](practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
-- Open [**Running the Playwright e2e suite**](../tooling-and-project/practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
+- Open [**Running the Playwright e2e suite**](../tooling-and-project/practice-e2e-test-workflow.md) — test:e2e builds first and runs a parallel desktop project plus a one-worker instance project; each worker has its own user; auto fixtures wipe that user's data and fail tests on runtime errors unless a spec allows them.
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](../tooling-and-project/practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 ### #brand
 - Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](map-app-shell-brand-and-navigation.md) — One Brand component (icon image plus PNG Tokkl wordmark); one NAV list whose inMore pages move into the phone More dialog.

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { api } from '../api/client.ts';
 import { keys, useClients, useProjects, useWid, useWorkspace } from '../api/hooks.ts';
 import type { Project } from '../api/types.ts';
@@ -9,6 +9,7 @@ import { ProjectDot } from '../components/Pickers.tsx';
 import { duration, formatMoney, useSettings, type Settings } from '../lib/settings.ts';
 import { ProjectEditor } from './manage/ProjectEditor.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import {
   ConfirmModal, RowMenu, STATUS_OPTIONS, SearchBox, Segmented, StatusBadge, matchesStatus, type StatusFilter,
 } from './manage/ui.tsx';
@@ -50,6 +51,8 @@ export function ProjectsPage() {
   const [clientFilter, setClientFilter] = useState<ClientFilter>('any');
   const [editing, setEditing] = useState<Project | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Project | null>(null);
+  const tbody = useRef<HTMLTableSectionElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
 
   const visible = useMemo(() => (projects ?? []).filter((project) =>
     matchesStatus(!project.active, status)
@@ -61,6 +64,11 @@ export function ProjectsPage() {
     mutationFn: ({ project, active }) => api.put<Project>(wsPath(wid, 'projects', project.id), { active }),
     invalidate: PROJECT_KEYS,
     success: (saved) => (saved.active ? `Restored ${saved.name}` : `Archived ${saved.name}`),
+    // The row leaves the list when the status filter no longer matches. The menu button that ran the
+    // action had focus; keep it in the list unless the user has moved on.
+    onSuccess: (saved) => {
+      if (!matchesStatus(!saved.active, status)) keepFocusPastRow(tbody.current, saved.id, 'menu', heading.current);
+    },
   });
 
   const remove = useAction<{ project: Project; mode: DeletionMode }>({
@@ -69,7 +77,11 @@ export function ProjectsPage() {
     success: (_result, { project, mode }) => (mode === 'delete'
       ? `Deleted ${project.name} and moved its entries to the trash`
       : `Deleted ${project.name}. Its entries no longer have a project`),
-    onSuccess: () => setDeleting(null),
+    onSuccess: (_result, { project }) => {
+      // The dialog had focus and would give it back to the row's menu button, which goes away.
+      focusPastRow(tbody.current, project.id, 'menu', heading.current);
+      setDeleting(null);
+    },
   });
 
   // Edit the freshest copy, so the modal reflects changes made since the list loaded.
@@ -79,7 +91,7 @@ export function ProjectsPage() {
   return (
     <div className="page manage-page">
       <header className="page-header">
-        <h1>Projects</h1>
+        <h1 ref={heading} tabIndex={-1}>Projects</h1>
         <span className="spacer" />
         <button type="button" className="button button-primary" onClick={() => setEditing('new')}>
           <Icon name="plus" size={16} /> New project
@@ -132,9 +144,9 @@ export function ProjectsPage() {
                 <th><span className="visually-hidden">Actions</span></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={tbody}>
               {visible.map((project) => (
-                <tr key={project.id} className={project.active ? undefined : 'archived'}>
+                <tr key={project.id} data-id={project.id} className={project.active ? undefined : 'archived'}>
                   <td>
                     <button type="button" className="manage-name-button" onClick={() => setEditing(project)}>
                       <ProjectDot color={project.color} />

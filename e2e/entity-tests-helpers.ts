@@ -75,7 +75,12 @@ export class EntityApi {
     return body(await this.page.request.post(this.ws('/clients'), { headers: CSRF, data: { name } }));
   }
 
-  async createProject(project: { name: string; client_id?: number; billable?: boolean }): Promise<Project> {
+  /** Archives the client and its projects. */
+  async archiveClient(id: number): Promise<void> {
+    await body(await this.page.request.post(this.ws(`/clients/${id}/archive`), { headers: CSRF }));
+  }
+
+  async createProject(project: { name: string; client_id?: number; billable?: boolean; active?: boolean }): Promise<Project> {
     return body(await this.page.request.post(this.ws('/projects'), { headers: CSRF, data: project }));
   }
 
@@ -152,6 +157,19 @@ export function countRequests(page: Page, method: string, path: RegExp): () => n
 export async function rowAction(page: Page, name: string, action: string): Promise<void> {
   await page.getByRole('button', { name: `More actions for ${name}`, exact: true }).click();
   await page.getByRole('menuitem', { name: action }).click();
+}
+
+/** The "More actions" button of the row named `name`. */
+export function rowMenu(page: Page, name: string): Locator {
+  return page.getByRole('button', { name: `More actions for ${name}`, exact: true });
+}
+
+/** Opens the row menu of `name` and picks `action`, by keyboard only. */
+export async function rowActionByKeyboard(page: Page, name: string, action: string): Promise<void> {
+  await rowMenu(page, name).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: action, exact: true }).focus();
+  await page.keyboard.press('Enter');
 }
 
 /** Names of the projects the timer's project picker offers, then closes it. */

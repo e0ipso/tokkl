@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type FormEvent } from 'react';
+import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { api } from '../api/client.ts';
 import { keys, useClients, useProjects, useWid } from '../api/hooks.ts';
 import type { Client } from '../api/types.ts';
@@ -8,6 +8,7 @@ import { Icon } from '../components/Icon.tsx';
 import { Modal } from '../components/Overlay.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import {
   ConfirmModal, RowMenu, STATUS_OPTIONS, SearchBox, Segmented, StatusBadge, matchesStatus, plural, type StatusFilter,
 } from './manage/ui.tsx';
@@ -76,6 +77,8 @@ export function ClientsPage() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Client | 'new' | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const tbody = useRef<HTMLTableSectionElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
 
   const projectCounts = useMemo(() => {
     const counts = new Map<number, number>();
@@ -92,18 +95,30 @@ export function ClientsPage() {
     mutationFn: (client) => api.post(wsPath(wid, 'clients', client.id, 'archive')),
     invalidate: CLIENT_KEYS,
     success: (_result, client) => `Archived ${client.name} and its projects`,
-    onSuccess: () => setPending(null),
+    onSuccess: (_result, client) => {
+      // The dialog had focus and would give it back to the row's menu button. When the row leaves
+      // the list, that button goes with it.
+      if (!matchesStatus(true, status)) focusPastRow(tbody.current, client.id, 'menu', heading.current);
+      setPending(null);
+    },
   });
   const restore = useAction<Client>({
     mutationFn: (client) => api.post(wsPath(wid, 'clients', client.id, 'restore')),
     invalidate: CLIENT_KEYS,
     success: (_result, client) => `Restored ${client.name} and its projects`,
+    // The menu button that ran the action had focus; keep it in the list unless the user has moved on.
+    onSuccess: (_result, client) => {
+      if (!matchesStatus(false, status)) keepFocusPastRow(tbody.current, client.id, 'menu', heading.current);
+    },
   });
   const remove = useAction<Client>({
     mutationFn: (client) => api.delete(wsPath(wid, 'clients', client.id)),
     invalidate: CLIENT_KEYS,
     success: (_result, client) => `Deleted ${client.name}`,
-    onSuccess: () => setPending(null),
+    onSuccess: (_result, client) => {
+      focusPastRow(tbody.current, client.id, 'menu', heading.current);
+      setPending(null);
+    },
   });
 
   const count = (client: Client) => projectCounts.get(client.id) ?? 0;
@@ -111,7 +126,7 @@ export function ClientsPage() {
   return (
     <div className="page manage-page">
       <header className="page-header">
-        <h1>Clients</h1>
+        <h1 ref={heading} tabIndex={-1}>Clients</h1>
         <span className="spacer" />
         <button type="button" className="button button-primary" onClick={() => setEditing('new')}>
           <Icon name="plus" size={16} /> New client
@@ -149,9 +164,9 @@ export function ClientsPage() {
                 <th><span className="visually-hidden">Actions</span></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={tbody}>
               {visible.map((client) => (
-                <tr key={client.id} className={client.archived ? 'archived' : undefined}>
+                <tr key={client.id} data-id={client.id} className={client.archived ? 'archived' : undefined}>
                   <td>
                     <button type="button" className="manage-name-button" onClick={() => setEditing(client)}>{client.name}</button>
                   </td>

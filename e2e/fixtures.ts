@@ -13,8 +13,20 @@ export interface Account {
   fullname: string;
 }
 
-/** The setup account: the only admin of the e2e server, and the account `data` signs in as. */
+/** The setup account: the first admin of each e2e server. Specs in the instance project sign in as it. */
 export const ADMIN_ACCOUNT: Account = { email: EMAIL, password: PASSWORD, fullname: 'E2E User' };
+
+// Each Playwright worker is its own process, and the worker-scoped `account` fixture sets this
+// before any of the worker's tests run.
+let workerAccount: Account = ADMIN_ACCOUNT;
+
+/**
+ * The account this worker's scenarios sign in as: its own invited user in the parallel project, or
+ * the setup admin in the instance project. `login` and the API helpers that log in by password use it.
+ */
+export function currentAccount(): Account {
+  return workerAccount;
+}
 
 export interface InstanceSettings {
   session_days: number;
@@ -67,10 +79,10 @@ async function json<T>(response: Promise<APIResponse>): Promise<T> {
 }
 
 /**
- * Talks to the disposable test server with its own session, separate from the page's, so a
- * scenario still logs in through the UI. Every scenario starts and ends with an empty account and
- * with the setup admin as the only account. The `data` fixture signs in as the setup admin;
- * `users.create()` adds other accounts.
+ * Talks to the test server with its own session, separate from the page's, so a scenario still
+ * logs in through the UI. Every scenario starts and ends with an empty account. The `data` fixture
+ * signs in as the worker's account; `users.create()` adds other accounts. In the instance project
+ * the server also goes back to holding only the setup admin before and after each scenario.
  */
 export class TestData {
   private readonly api: APIRequestContext;
@@ -92,6 +104,10 @@ export class TestData {
     return new TestData(api, baseURL, me, account);
   }
 
+  /**
+   * Signs in as the setup admin, creating it first on a server that has no account yet. Global
+   * setup does that before any worker starts (e2e/global-setup.ts).
+   */
   static async open(baseURL: string): Promise<TestData> {
     const api = await request.newContext({ baseURL });
     const status = await json<{ setup_required: boolean }>(api.get('/api/app/status'));
@@ -104,6 +120,18 @@ export class TestData {
       await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } }));
     }
     return TestData.signedIn(api, baseURL, ADMIN_ACCOUNT);
+  }
+
+  /** Signs in as an account that already exists, such as a worker's own user. */
+  static async login(baseURL: string, account: Account): Promise<TestData> {
+    const api = await request.newContext({ baseURL });
+    try {
+      await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: account.email, password: account.password } }));
+      return await TestData.signedIn(api, baseURL, account);
+    } catch (error) {
+      await api.dispose();
+      throw error;
+    }
   }
 
   /**
@@ -150,6 +178,14 @@ export class TestData {
   /** Deletes another account and its workspace, as an admin. */
   async deleteUser(user: { id: number; email: string }): Promise<void> {
     await ok(await this.api.delete(`/api/app/admin/users/${user.id}`, { headers: CSRF, data: { email: user.email } }));
+  }
+
+  /** Deletes these accounts, as an admin, skipping any a scenario has already deleted. */
+  async deleteUsers(users: ReadonlyArray<{ userId: number; account: Account }>): Promise<void> {
+    const remaining = new Set((await this.listUsers()).map((user) => user.id));
+    for (const user of users) {
+      if (remaining.has(user.userId)) await this.deleteUser({ id: user.userId, email: user.account.email });
+    }
   }
 
   /** Pending invites, as an admin sees them. */
@@ -232,8 +268,9 @@ export class TestData {
 }
 
 /**
- * Extra accounts for one scenario, created through invites by the setup admin. When the scenario
- * ends their sessions are closed; the `data` fixture then deletes the accounts.
+ * Extra accounts for one scenario, invited by the signed-in admin: the worker's user, or the setup
+ * admin in the instance project. When the scenario ends their sessions are closed and the accounts
+ * deleted, so parallel workers never touch each other's accounts.
  */
 export class ExtraUsers {
   private readonly admin: TestData;
@@ -250,23 +287,65 @@ export class ExtraUsers {
   }
 
   async dispose(): Promise<void> {
-    for (const user of this.created.splice(0)) await user.close();
+    const users = this.created.splice(0);
+    try {
+      for (const user of users) await user.close();
+    } finally {
+      await this.admin.deleteUsers(users);
+    }
   }
 }
 
-export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErrors: RuntimeErrors }>({
-  // Automatic, so a scenario that creates accounts or invites without the users fixture, and fails
-  // before cleaning up, still leaves the server with the setup admin alone.
-  data: [async ({ baseURL }, use) => {
-    const data = await TestData.open(baseURL!);
+interface WorkerFixtures {
+  /**
+   * True in the instance project, whose specs need the whole server: they sign in as the setup
+   * admin, see every account, and may change instance settings. Set per project in
+   * playwright.config.ts.
+   */
+  instanceWide: boolean;
+  account: Account;
+}
+
+export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErrors: RuntimeErrors }, WorkerFixtures>({
+  instanceWide: [false, { scope: 'worker', option: true }],
+  // One admin account per worker, invited by the setup admin and deleted when the worker stops.
+  // A worker that restarts after a failure gets a new workerIndex, so a new account.
+  account: [async ({ instanceWide }, use, workerInfo) => {
+    if (instanceWide) {
+      workerAccount = ADMIN_ACCOUNT;
+      await use(ADMIN_ACCOUNT);
+      return;
+    }
+    const baseURL = workerInfo.project.use.baseURL!;
+    const setupAdmin = await TestData.open(baseURL);
     try {
-      await data.resetInstance();
+      const user = await setupAdmin.inviteUser({ role: 'admin', email: `worker-${workerInfo.workerIndex}@e2e.example`, fullname: 'E2E User' });
+      await user.close();
+      workerAccount = user.account;
+      try {
+        await use(user.account);
+      } finally {
+        await setupAdmin.deleteUsers([user]);
+      }
+    } finally {
+      await setupAdmin.close();
+    }
+  }, { scope: 'worker', auto: true }],
+  // Automatic, so every scenario starts and ends with an empty account. In the instance project it
+  // also deletes the other accounts and pending invites, so a scenario that creates them without
+  // the users fixture, and fails before cleaning up, still leaves the setup admin alone.
+  data: [async ({ baseURL, account, instanceWide }, use) => {
+    const data = instanceWide ? await TestData.open(baseURL!) : await TestData.login(baseURL!, account);
+    const resetAll = async () => {
+      if (instanceWide) await data.resetInstance();
       await data.reset();
+    };
+    try {
+      await resetAll();
       await use(data);
     } finally {
       try {
-        await data.resetInstance();
-        await data.reset();
+        await resetAll();
       } finally {
         await data.close();
       }

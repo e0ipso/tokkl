@@ -38,6 +38,19 @@ tuxedo_fingerprint="E5D0C320BBCE8D21CDF60DD5120ED28D54840598"
 
 prepare_deb() {
     export DEBIAN_FRONTEND=noninteractive
+    # A second run, for example to add the build dependencies to a prepared
+    # image, keeps the repositories and package lists it finds.
+    if [ ! -e /etc/apt/sources.list.d/tuxedo-os.sources ]; then
+        add_tuxedo_repositories
+    fi
+
+    if $build_deps; then
+        apt-get install -y -q --no-install-recommends build-essential dpkg-dev
+        apt-get build-dep -y -q "$source_dir"
+    fi
+}
+
+add_tuxedo_repositories() {
     apt-get update -q
     apt-get install -y -q --no-install-recommends ca-certificates curl gpg
 
@@ -65,11 +78,6 @@ Components: main
 Signed-By: /usr/share/keyrings/tuxedo-archive-keyring.gpg
 EOF
     apt-get update -q
-
-    if $build_deps; then
-        apt-get install -y -q --no-install-recommends build-essential dpkg-dev
-        apt-get build-dep -y -q "$source_dir"
-    fi
 }
 
 prepare_rpm() {

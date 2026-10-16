@@ -122,3 +122,34 @@ test('deleting an attached tag takes it off its entries and keeps the entries', 
   expect(await pickerTags(page, 'Design crit')).toEqual([['ops', false]]);
   expect(await reportChips(page, descriptions)).toEqual({ 'Code walkthrough': ['ops'], 'Design crit': [], Untagged: [] });
 });
+
+// TT-0205: the delete dialog gives focus back to the row's Delete button, and that row goes away,
+// so focus moves to the next row's Delete button, else the previous one, else the page heading.
+test('deleting tags by keyboard keeps focus in the tags list', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  for (const name of ['alpha', 'beta', 'gamma']) await api.createTag(name);
+  await page.getByRole('link', { name: 'Tags' }).click();
+  const remove = (name: string) => page.getByRole('button', { name: `Delete ${name}`, exact: true });
+  const deleteByKeyboard = async (name: string) => {
+    await remove(name).focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: `Delete ${name}?` });
+    await dialog.getByRole('button', { name: 'Delete tag', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(remove(name)).toHaveCount(0);
+  };
+
+  await deleteByKeyboard('beta');
+  await expect(remove('gamma')).toBeFocused();
+
+  await deleteByKeyboard('gamma');
+  await expect(remove('alpha')).toBeFocused();
+
+  await deleteByKeyboard('alpha');
+  await expect(page.getByText('No tags yet')).toBeVisible();
+  const heading = page.getByRole('heading', { level: 1, name: 'Tags' });
+  await expect(heading).toBeFocused();
+  await expect(heading).toHaveCSS('outline-width', '2px');
+});

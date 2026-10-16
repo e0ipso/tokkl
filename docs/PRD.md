@@ -339,7 +339,7 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 | Privacy | Zero outbound requests from server and UI. | Done (verify with the CSP and a network log) |
 | Portability | Any Linux host with Node 24 (amd64 or arm64). No native modules. | Tested on amd64 only |
 | Accessibility | Keyboard reachable controls, labeled inputs, visible focus, color never the only signal. | Partial: labels, focus rings, non-colour cues (hatched non-billable bars, check marks on colour swatches, a labelled running dot), reduced motion, inline field errors, loading and error states and keyboard navigation are covered by Playwright specs; no screen reader audit |
-| Tests | 117 `node --test` tests (85 api, 13 common, 19 web) and 163 Playwright browser tests in 41 files, counted on 2026-10-15. | Done |
+| Tests | 213 `node --test` tests (177 api, 13 common, 23 web), 216 Playwright browser tests in 46 files and 12 KDE CTest tests, counted on 2026-10-16. | Done |
 
 ## 10. Release plan
 

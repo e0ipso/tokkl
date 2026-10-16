@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
-# Builds and checks the tokkl-kde packages in throwaway containers, so the
-# host's packages are never touched.
+# Tests, builds and checks the tokkl-kde packages in throwaway containers, so
+# the host's packages are never touched. CI and the release run it.
 #
 #   container-check.sh --version <version> --output <dir>
 #                      [--format deb|rpm|all] [--previous-version <version>]
 #
-# For each format it runs two containers, both removed afterwards:
-#   1. build: scripts/prepare-target.sh --build-deps, then
-#      scripts/package-release.sh for --previous-version (into
+# For each format it builds the images of ci/Dockerfile (deb) or
+# ci/fedora.Dockerfile (rpm), tagged <image>:<format>-target, -build and
+# -test, then runs three containers, all removed afterwards:
+#   1. test: configure and build the project with the version, run CTest
+#      under Xvfb and a DBus session, and copy the smokeload and
+#      realservertest binaries to <dir>/tests/<format>/, with the packages
+#      the load check needs in packages.txt.
+#   2. build: scripts/package-release.sh for --previous-version (into
 #      <dir>/previous/) and for --version (into <dir>).
-#   2. check: a fresh container with only the repositories, running
-#      scripts/check-package.sh on the new package, with the previous one for
-#      the upgrade.
+#   3. check: a fresh target container running scripts/check-package.sh on
+#      the new package, with the previous one for the upgrade and the
+#      smokeload binary for the load check.
 # The previous version defaults to 0.0.0: a build of this same source, which
 # tests the upgrade itself, not changes between real releases. To check an
 # upgrade from a published release, run check-package.sh with that package.
 #
-# Images: TOKKL_DEB_IMAGE (default ubuntu:24.04) and TOKKL_RPM_IMAGE (default
-# fedora:44); set them to digests to pin. CONTAINER_ENGINE defaults to docker.
+# TOKKL_KDE_CI_IMAGE names the images (default tokkl-kde-ci). They stay
+# after the run, for ci/realserver.sh; remove them with docker image rm.
+# CONTAINER_ENGINE defaults to docker.
 
 set -euo pipefail
 
@@ -56,6 +62,7 @@ if [ "$previous_version" = "$version" ]; then
 fi
 
 engine="${CONTAINER_ENGINE:-docker}"
+image="${TOKKL_KDE_CI_IMAGE:-tokkl-kde-ci}"
 mkdir -p "$output/previous"
 output="$(cd "$output" && pwd)"
 build_env=()
@@ -63,35 +70,64 @@ build_env=()
 
 for format in $formats; do
     if [ "$format" = deb ]; then
-        image="${TOKKL_DEB_IMAGE:-ubuntu:24.04}"
+        dockerfile="$source_dir/ci/Dockerfile"
         new="/out/tokkl-kde_${native_version}_amd64.deb"
         old="/out/previous/tokkl-kde_${native_previous}_amd64.deb"
+        # Found by ldd for the loader; these are what it runs under.
+        session_packages="dbus-daemon xauth xvfb"
     else
-        image="${TOKKL_RPM_IMAGE:-fedora:44}"
+        dockerfile="$source_dir/ci/fedora.Dockerfile"
         new="/out/tokkl-kde-${native_version}-1.*.x86_64.rpm"
         old="/out/previous/tokkl-kde-${native_previous}-1.*.x86_64.rpm"
+        session_packages="dbus-daemon xorg-x11-server-Xvfb xorg-x11-xauth"
     fi
 
-    echo "== $format: build $previous_version and $version in $image"
-    # The inner script is single-quoted on purpose: the container's bash
-    # expands its positional arguments.
+    echo "== $format: images from $(basename "$dockerfile")"
+    for stage in target build test; do
+        "$engine" build -q -f "$dockerfile" --target "$stage" -t "$image:$format-$stage" "$source_dir"
+    done
+    "$engine" run --rm "$image:$format-build" cat /opt/tokkl-kde/baseline.txt
+
+    echo "== $format: build and run CTest for $version"
+    rm -rf "$output/tests/$format"
+    mkdir -p "$output/tests/$format"
+    # shellcheck disable=SC2016
+    "$engine" run --rm \
+        -v "$source_dir:/src:ro" -v "$output/tests/$format:/tests" \
+        "$image:$format-test" bash -euc '
+            cmake -S /src -B /tmp/build -DTOKKL_VERSION="$1" -DCMAKE_INSTALL_PREFIX=/usr
+            cmake --build /tmp/build -j"$(nproc)"
+            dbus-run-session -- xvfb-run -a ctest --test-dir /tmp/build --output-on-failure
+            cp /tmp/build/autotests/smokeload /tmp/build/tests/realservertest /tests/
+            # The packages that ship the libraries the loader links, plus Xvfb
+            # and DBus, for the load check on a clean target.
+            for lib in $(ldd /tests/smokeload | awk '"'"'$3 ~ /^\// {print $3}'"'"'); do
+                if [ "$2" = deb ]; then
+                    dpkg -S "$(realpath "$lib")" 2>/dev/null || dpkg -S "$lib"
+                else
+                    rpm -qf --qf "%{NAME}\n" "$(realpath "$lib")"
+                fi
+            done | cut -d: -f1 | sort -u > /tests/packages.txt
+            printf "%s\n" $3 >> /tests/packages.txt
+        ' bash "$version" "$format" "$session_packages"
+
+    echo "== $format: package $previous_version and $version"
     # shellcheck disable=SC2016
     "$engine" run --rm \
         -v "$source_dir:/src:ro" -v "$output:/out" \
         "${build_env[@]}" \
-        "$image" bash -euc '
-            /src/scripts/prepare-target.sh --format "$1" --build-deps
+        "$image:$format-build" bash -euc '
             /src/scripts/package-release.sh --version "$2" --format "$1" --output /out/previous
             /src/scripts/package-release.sh --version "$3" --format "$1" --output /out
         ' bash "$format" "$previous_version" "$version"
 
-    echo "== $format: install, upgrade and remove in a clean $image"
+    echo "== $format: install, load, upgrade and remove in a clean target"
     # The globs only match the release suffix of the RPM file name.
     # shellcheck disable=SC2016
     "$engine" run --rm \
         -v "$source_dir:/src:ro" -v "$output:/out:ro" \
-        "$image" bash -euc '
-            /src/scripts/prepare-target.sh --format "$1"
-            /src/scripts/check-package.sh --version "$2" --package '"$new"' --previous '"$old"'
-        ' bash "$format" "$version"
+        "$image:$format-target" bash -euc '
+            /src/scripts/check-package.sh --version "$1" --package '"$new"' --previous '"$old"' \
+                --load-test "/out/tests/$2"
+        ' bash "$version" "$format"
 done

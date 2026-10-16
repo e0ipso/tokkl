@@ -18,7 +18,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 
 ## Screenshots
 
-The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as [README screenshots](#readme-screenshots) explains.
+The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as the [Development](#development) section explains.
 
 **Timer.** The running entry is at the top and history is grouped by day. Favorites are bold numbered pills under the timer, and the sidebar lists Timer, Reports, Projects, Clients, Tags, Trash and Settings, plus Admin for admins.
 
@@ -49,6 +49,10 @@ The data is synthetic: three clients, five projects and five weeks of weekday en
   <img src="docs/screenshots/mobile-calendar.png" alt="Calendar on a phone" width="260">
   <img src="docs/screenshots/mobile-reports.png" alt="Summary report on a phone" width="260">
 </p>
+
+**Admin.** The demo instance has one admin, `demo@example.com`, who owns the data above, and two accounts created from invite links: another admin and a regular user. Admins manage accounts, invites and instance settings here.
+
+![Admin page listing three accounts](docs/screenshots/desktop-admin.png)
 
 ## Running
 
@@ -145,7 +149,7 @@ npm run screenshots  # builds, then rewrites docs/screenshots/*.png
 npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)) and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
 
 The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
 

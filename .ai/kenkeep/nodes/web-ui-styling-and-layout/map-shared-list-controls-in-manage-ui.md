@@ -18,7 +18,7 @@ kk_confidence: high
 ---
 `packages/web/src/pages/manage/ui.tsx` holds the controls that the Projects, Clients and Tags pages and the reports share: `SearchBox`, `Segmented`, `RowMenu`, `ConfirmModal`, `StatusBadge` with `STATUS_OPTIONS` and `matchesStatus`, and `plural`. The report filters (`packages/web/src/pages/reports/Filters.tsx`) import `SearchBox` and `Segmented` from there rather than keeping copies.
 
-`RowMenu` focuses its button before it runs an item, because the menu unmounts with the item's click. A modal that item opens then remembers "More actions" as its opener and returns focus there (see the keyboard and focus node).
+`RowMenu` focuses its button before it runs an item, because the menu unmounts with the item's click. A modal that item opens then remembers "More actions" as its opener and returns focus there (see the keyboard and focus node). Its button carries `data-row-action="menu"`, which `focusPastRow` and `keepFocusPastRow` in `packages/web/src/pages/manage/rowFocus.ts` use to move focus to the next row when this row leaves a list; the table rows need `data-id`.
 
 Shared classes: `.search-box` (the `SearchBox` wrapper), `.select-button` and `.card` in `packages/web/src/styles.css`. Reuse these before adding a page-specific variant.
 

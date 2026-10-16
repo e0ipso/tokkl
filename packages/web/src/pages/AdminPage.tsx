@@ -12,6 +12,7 @@ import { copyText } from '../lib/clipboard.ts';
 import { localDay } from '../lib/entryTime.ts';
 import { formatDate, formatTime, useSettings, type Settings } from '../lib/settings.ts';
 import { useAction } from './manage/queries.ts';
+import { focusPastRow, keepFocusPastRow, rowAction } from './manage/rowFocus.ts';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
 import { ConfirmModal, StatusBadge } from './manage/ui.tsx';
 import './manage/manage.css';
@@ -59,26 +60,6 @@ function roleLabel(role: UserRole): string {
 /** A server path such as /invite/<token> as a full link to share. */
 function absoluteLink(path: string): string {
   return new URL(path, window.location.origin).href;
-}
-
-/** The enabled `action` control in the row of `id`, matched by the rows' data-id and data-row-action. */
-function rowAction(tbody: HTMLTableSectionElement | null, id: number, action: string): HTMLElement | null {
-  return tbody?.querySelector<HTMLElement>(`tr[data-id="${id}"] [data-row-action="${action}"]:not(:disabled)`) ?? null;
-}
-
-/**
- * Moves focus off the row of `id` before it goes away, so a keyboard user keeps their place: to the
- * same `action` control in the nearest row after it that has one, else the nearest row before it,
- * else `fallback`.
- */
-function focusPastRow(tbody: HTMLTableSectionElement | null, id: number, action: string, fallback: HTMLElement | null): void {
-  const rows = [...(tbody?.rows ?? [])];
-  const index = rows.findIndex((row) => row.dataset.id === String(id));
-  const others = index < 0 ? [] : [...rows.slice(index + 1), ...rows.slice(0, index).reverse()];
-  const target = others
-    .map((row) => row.querySelector<HTMLElement>(`[data-row-action="${action}"]:not(:disabled)`))
-    .find((control) => control !== null);
-  (target ?? fallback)?.focus();
 }
 
 function UserRow({ user, self, settings, onDelete, onResetLink }: {
@@ -379,12 +360,7 @@ function InvitesSection({ settings }: { settings: Settings }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const createButton = useRef<HTMLButtonElement>(null);
 
-  // Moves focus only when it would otherwise be lost: it is on the revoked row or already on the body.
-  const revoked = (id: number) => {
-    const active = document.activeElement;
-    const row = tbody.current?.querySelector(`tr[data-id="${id}"]`);
-    if (!active || active === document.body || row?.contains(active)) focusPastRow(tbody.current, id, 'revoke', heading.current);
-  };
+  const revoked = (id: number) => keepFocusPastRow(tbody.current, id, 'revoke', heading.current);
 
   const create = useAction<{ role: UserRole; note: string }, Invite & { url: string }>({
     mutationFn: (body) => api.post<Invite & { url: string }>(`${ADMIN}/invites`, body),
@@ -487,9 +463,10 @@ const SETTING_FIELDS = [
 type SettingsDraft = Record<keyof InstanceSettings, string>;
 
 /**
- * The form keeps only what the admin typed and has not saved. Every other field shows the server's
- * value, so a background refetch, such as after another admin's change, updates the untouched
- * fields and leaves the edits and focus alone.
+ * The form keeps only what the admin typed and has not saved. A field changed back to the server's
+ * value is no longer an edit. Every other field shows the server's value, so a background refetch,
+ * such as after another admin's change, updates the untouched fields and leaves the edits and focus
+ * alone. Saving sends only the edited fields, so it never writes back a value the admin did not change.
  */
 function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
   const toast = useToast();
@@ -501,7 +478,7 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
     invite_days: edits.invite_days ?? String(server.invite_days),
   };
 
-  const save = useAction<InstanceSettings, InstanceSettings>({
+  const save = useAction<Partial<InstanceSettings>, InstanceSettings>({
     mutationFn: (body) => api.put<InstanceSettings>(`${ADMIN}/settings`, body),
     invalidate: [adminKeys.settings],
     success: 'Instance settings saved',
@@ -521,13 +498,27 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
 
   // Only whole numbers go to the server; it checks the range and its 400 shows on the field.
   const submit = () => {
-    const values = { session_days: Number(draft.session_days.trim()), invite_days: Number(draft.invite_days.trim()) };
     const valid = fields.validate(SETTING_FIELDS.map(({ key }) => [
       key,
-      (draft[key].trim() === '' || !Number.isInteger(values[key])) && 'Enter a whole number of days',
+      (draft[key].trim() === '' || !Number.isInteger(Number(draft[key].trim()))) && 'Enter a whole number of days',
     ] as const));
-    if (valid) save.mutate(values);
+    if (!valid) return;
+    const changes: Partial<InstanceSettings> = {};
+    for (const { key } of SETTING_FIELDS) {
+      const value = edits[key];
+      if (value !== undefined) changes[key] = Number(value.trim());
+    }
+    if (Object.keys(changes).length > 0) save.mutate(changes);
+    else toast.show('No changes to save');
   };
+
+  // A value equal to the server's is not an edit, so later refetches show the server's value again.
+  const edit = (key: keyof InstanceSettings, value: string) => setEdits((current) => {
+    const next = { ...current };
+    if (value === String(server[key])) delete next[key];
+    else next[key] = value;
+    return next;
+  });
 
   return (
     <SettingsCard id="instance" title="Instance settings" onSubmit={submit} saving={save.isPending}>
@@ -540,7 +531,7 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
               type="number"
               inputMode="numeric"
               value={draft[key]}
-              onChange={(event) => setEdits((current) => ({ ...current, [key]: event.target.value }))}
+              onChange={(event) => edit(key, event.target.value)}
             />
             {fields.message(key)}
             <p className="hint">{hint}</p>

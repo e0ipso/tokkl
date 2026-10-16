@@ -367,6 +367,45 @@ test('closing the delete dialog without deleting returns focus to its Delete but
   }
 });
 
+// TT-0202: a field changed back to the server's value is no longer an edit, so a refetch updates it,
+// and saving sends only the fields that are still edited.
+test('an instance setting restored to the server value follows refetches, and saving sends only edited fields', async ({ page, data }) => {
+  const before = await data.instanceSettings();
+  try {
+    await login(page);
+    await openAdmin(page);
+    const card = page.locator('#instance');
+    const sessionDays = card.getByLabel('Session length (days)');
+    const inviteDays = card.getByLabel('Invite link lifetime (days)');
+    await expect(sessionDays).toHaveValue(String(before.session_days));
+
+    await sessionDays.fill(String(before.session_days + 1));
+    await sessionDays.fill(String(before.session_days));
+    const changed = before.session_days === 60 ? 61 : 60;
+    await data.saveInstanceSettings({ session_days: changed, invite_days: before.invite_days });
+    // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+    await expect(async () => {
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await expect(sessionDays).toHaveValue(String(changed), { timeout: 1500 });
+    }).toPass();
+    // With no field edited, Save sends nothing.
+    await card.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('No changes to save')).toBeVisible();
+
+    // Another admin changes the session length while this one edits only the invite lifetime.
+    const invite = before.invite_days === 10 ? 11 : 10;
+    await inviteDays.fill(String(invite));
+    await data.saveInstanceSettings({ session_days: 90, invite_days: before.invite_days });
+    await card.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('Instance settings saved')).toBeVisible();
+    expect(await data.instanceSettings()).toEqual({ session_days: 90, invite_days: invite });
+    await expect(sessionDays).toHaveValue('90');
+    await expect(inviteDays).toHaveValue(String(invite));
+  } finally {
+    await data.saveInstanceSettings(before);
+  }
+});
+
 test('every admin control is reachable by keyboard and shows a focus ring',async ({ page, data, users }) => {
   await users.create();
   await data.createInvite({ role: 'user', note: 'Keyboard check' });
