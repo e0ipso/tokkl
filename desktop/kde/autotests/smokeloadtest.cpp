@@ -158,6 +158,17 @@ private Q_SLOTS:
         QVERIFY2(object, qPrintable(component.errorString()));
         QCOMPARE(object->property("version").toString(), version);
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
+
+        // The timer controller is a QML type; without a connection it is idle.
+        QQmlComponent timerComponent(&engine);
+        timerComponent.setData(QStringLiteral("import %1\nTokklTimer {}").arg(backendUri).toUtf8(), QUrl());
+        std::unique_ptr<QObject> timer(timerComponent.create());
+        QVERIFY2(timer, qPrintable(timerComponent.errorString()));
+        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(timer->property("running").toBool(), false);
+        QCOMPARE(timer->property("connected").toBool(), false);
+        QCOMPARE(timer->property("canWrite").toBool(), false);
+        QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 
     void appletLoads()
@@ -176,6 +187,12 @@ private Q_SLOTS:
         QVERIFY2(!applet->failedToLaunch(), qPrintable(applet->launchErrorMessage()));
         // main.qml reads this from the backend, so it proves the import resolved.
         QCOMPARE(item->property("toolTipSubText").toString(), QStringLiteral("Version %1").arg(version));
+        // The timer is bound to the widget's connection and idle while unconfigured.
+        auto *timer = item->property("timer").value<QObject *>();
+        QVERIFY(timer);
+        QCOMPARE(timer->property("connection").value<QObject *>(), item->property("connection").value<QObject *>());
+        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(timer->property("canWrite").toBool(), false);
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 

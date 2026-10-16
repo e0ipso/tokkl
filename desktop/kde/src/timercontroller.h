@@ -1,0 +1,180 @@
+#pragma once
+
+#include "apitypes.h"
+#include "clock.h"
+#include "connection.h"
+
+#include <QDateTime>
+#include <QObject>
+#include <QPointer>
+#include <QVariant>
+
+#include <optional>
+
+namespace Tokkl
+{
+
+// The timer for QML: the running entry of the connection's validated
+// account and workspace, its elapsed time, the project and billable choices
+// for the next start, and start/stop actions.
+//
+// Elapsed time is recomputed from the entry's server start time on every
+// clock tick, so a sleep or a late tick loses nothing. The current entry is
+// polled every 30 seconds and read again after every action, after a resume
+// (a tick that arrives far too late) and whenever the connection becomes
+// Connected again.
+//
+// One mutation runs at a time; clicks while it runs are ignored. Reads issued
+// before a mutation cannot overwrite what it returned. A failure that leaves
+// the server state unknown (no answer, timeout, 5xx, unreadable answer) keeps
+// the controller busy until a read reconciles it; a start is never replayed.
+//
+// A 403 from a workspace operation may mean the account lost the workspace:
+// the controller clears the workspace data it exposes, blocks writes and
+// polling, and asks /me once whether the account now has another workspace.
+// Only a new connection generation or reconnect() lifts the block.
+//
+// Everything is tied to the connection's generation. A new instance, account
+// or secret clears the entry, projects, busy state and errors at once, and
+// replies from the earlier generation never reach this object, even when the
+// two accounts use the same numeric ids.
+class TimerController : public QObject
+{
+    Q_OBJECT
+
+    Q_PROPERTY(Tokkl::Connection *connection READ connection WRITE setConnection NOTIFY connectionChanged)
+
+    // The validated context.
+    Q_PROPERTY(bool connected READ isConnected NOTIFY contextChanged)
+    Q_PROPERTY(QVariantMap account READ account NOTIFY contextChanged)
+    Q_PROPERTY(qint64 workspaceId READ workspaceId NOTIFY contextChanged)
+    Q_PROPERTY(Tokkl::Connection::State connectionState READ connectionState NOTIFY statusChanged)
+    // Shown data is the last known; the latest request failed transiently.
+    Q_PROPERTY(bool stale READ isStale NOTIFY statusChanged)
+    // A workspace operation answered 403; writes stay blocked until a new
+    // generation or reconnect().
+    Q_PROPERTY(bool workspaceAccessLost READ workspaceAccessLost NOTIFY statusChanged)
+    Q_PROPERTY(bool busy READ isBusy NOTIFY statusChanged)
+    // start() or stop() would send a request now.
+    Q_PROPERTY(bool canWrite READ canWrite NOTIFY statusChanged)
+    Q_PROPERTY(QString errorString READ errorString NOTIFY statusChanged)
+
+    Q_PROPERTY(QVariant currentEntry READ currentEntryVariant NOTIFY currentEntryChanged)
+    Q_PROPERTY(bool running READ isRunning NOTIFY currentEntryChanged)
+    Q_PROPERTY(qint64 elapsedSeconds READ elapsedSeconds NOTIFY elapsedChanged)
+    // H:MM:SS, as in the web app; 0:00:00 when nothing runs.
+    Q_PROPERTY(QString elapsedText READ elapsedText NOTIFY elapsedChanged)
+
+    Q_PROPERTY(QVariantList projects READ projects NOTIFY projectsChanged)
+    // Choices for the next start, kept by the connection for its account:
+    // null or a project id, and the billable flag.
+    Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId WRITE setSelectedProjectId NOTIFY selectionChanged)
+    Q_PROPERTY(bool billable READ billable WRITE setBillable NOTIFY selectionChanged)
+
+public:
+    static constexpr int pollIntervalMs = 30000;
+    // A tick this late means the machine slept or the clock jumped.
+    static constexpr int resumeGapMs = 10000;
+
+    // Uses the system clock.
+    explicit TimerController(QObject *parent = nullptr);
+    // Uses the given clock; the controller does not own it.
+    explicit TimerController(Clock *clock, QObject *parent = nullptr);
+    ~TimerController() override;
+
+    Connection *connection() const;
+    void setConnection(Connection *connection);
+
+    bool isConnected() const;
+    QVariantMap account() const;
+    qint64 workspaceId() const;
+    Connection::State connectionState() const;
+    bool isStale() const;
+    bool workspaceAccessLost() const;
+    bool isBusy() const;
+    bool canWrite() const;
+    QString errorString() const;
+
+    std::optional<TimeEntry> currentEntry() const;
+    QVariant currentEntryVariant() const;
+    bool isRunning() const;
+    qint64 elapsedSeconds() const;
+    QString elapsedText() const;
+
+    QVariantList projects() const;
+    QVariant selectedProjectId() const;
+    void setSelectedProjectId(const QVariant &projectId);
+    bool billable() const;
+    void setBillable(bool billable);
+
+    static QString formatElapsed(qint64 seconds);
+
+    // Return true when a request was sent.
+    Q_INVOKABLE bool start();
+    Q_INVOKABLE bool stop();
+    // Stops a running entry, otherwise starts one.
+    Q_INVOKABLE bool toggle();
+
+public Q_SLOTS:
+    // Reads the current entry and the projects again.
+    void refresh();
+    // The session resumed from sleep; refresh at once.
+    void resumed();
+    // Explicit reconnect: lifts a workspace block and revalidates the account.
+    void reconnect();
+
+Q_SIGNALS:
+    void connectionChanged();
+    void contextChanged();
+    void statusChanged();
+    void currentEntryChanged();
+    void elapsedChanged();
+    void projectsChanged();
+    void selectionChanged();
+
+private:
+    void onTick();
+    void onConnectionChanged();
+    void reset();
+    void beginMutation();
+    void fetchEntry();
+    void fetchProjects();
+    void applyEntry(const std::optional<TimeEntry> &entry);
+    void finishMutation(const ApiError &error, bool succeeded);
+    void loseWorkspace(const ApiError &error);
+    void setError(const QString &error);
+    void updateElapsed();
+    bool readable() const;
+
+    QPointer<Clock> m_clock;
+    QPointer<Connection> m_connection;
+
+    // Bumped by reset(); callbacks from an earlier epoch do nothing.
+    quint64 m_epoch = 0;
+    Connection::State m_lastState = Connection::Unconfigured;
+    // The data of the current context was requested once.
+    bool m_loaded = false;
+
+    std::optional<TimeEntry> m_entry;
+    QList<Project> m_projects;
+    qint64 m_elapsed = 0;
+    QString m_error;
+
+    bool m_mutating = false;
+    bool m_reconciling = false;
+    bool m_workspaceLost = false;
+    bool m_rediscoveryUsed = false;
+
+    // Current-entry reads are numbered. A reply is applied only if no newer
+    // read was applied and no mutation started after it was issued.
+    quint64 m_readsIssued = 0;
+    quint64 m_firstValidRead = 1;
+    quint64 m_lastAppliedRead = 0;
+    quint64 m_entryReadPending = 0; // number of the valid read in flight, or 0
+    bool m_projectsPending = false;
+
+    QDateTime m_lastTick;
+    QDateTime m_nextPoll;
+};
+
+}
