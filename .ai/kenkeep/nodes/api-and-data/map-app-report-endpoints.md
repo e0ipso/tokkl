@@ -16,7 +16,7 @@ kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
 ---
-`appReportRoutes` in `packages/api/src/routes/reports.ts` (mounted at `/api/app`) serves every report the web app shows. The client does not aggregate entries itself.
+`appReportRoutes` in `packages/api/src/routes/reports.ts` (mounted at `/api/app`) serves every report the web app shows. The client does not aggregate entries itself. App reports cover the signed-in user's `default_workspace_id`. `memberWorkspace` (`packages/api/src/models/workspaces.ts`) answers 403 when the user is no longer a member of it, and the Toggl v3 routes check the `:wid` in the URL the same way.
 
 - `POST /api/app/report`: totals, time series and groupings. It does not embed entries.
 - `POST /api/app/report/weekly`: the weekly grid, rows by `projects` or `clients`.
