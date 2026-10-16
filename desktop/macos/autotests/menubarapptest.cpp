@@ -12,6 +12,7 @@
 #include "settingswindow.h"
 #include "statusitem.h"
 #include "statusmenu.h"
+#include "statuswords.h"
 #include "timercontroller.h"
 
 #include <QAction>
@@ -65,6 +66,14 @@ public:
     {
         menu = value;
     }
+    void setIndicator(const ProjectIndicator &value) override
+    {
+        indicator = value;
+    }
+    bool reduceMotion() const override
+    {
+        return reduce;
+    }
 
     // A primary click.
     void click()
@@ -72,10 +81,19 @@ public:
         Q_EMIT activated();
     }
 
+    // Reduce Motion turned on or off in the system settings.
+    void setReduceMotion(bool on)
+    {
+        reduce = on;
+        Q_EMIT reduceMotionChanged();
+    }
+
     QString title;
     QString toolTip;
     QString accessibleName;
     QMenu *menu = nullptr;
+    ProjectIndicator indicator;
+    bool reduce = false;
 };
 
 // The core's fake store, with writes that can wait until the test finishes
@@ -331,7 +349,7 @@ private Q_SLOTS:
         f.clock.advance(1000);
         QCOMPARE(f.item.title, QStringLiteral("0:01:06"));
         QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Running 0:01:06 · No project · Connected")), qPrintable(f.item.toolTip));
-        QCOMPARE(f.item.accessibleName, QStringLiteral("Stop the Tokkl timer"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Stop the Tokkl timer, No project"));
         QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:01:06")));
     }
 
@@ -358,7 +376,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(QByteArrayLiteral("null"), qint64(12)));
         QCOMPARE(f.item.title, QStringLiteral("0:00:00"));
-        QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer, Beta (Acme)"));
         f.item.click();
         const qsizetype start = f.last("POST", "/workspaces/7/time_entries");
         QVERIFY(start >= 0);
@@ -424,6 +442,107 @@ private Q_SLOTS:
         QCOMPARE(update.method, QByteArray("PUT"));
         QCOMPARE(update.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5"));
         QCOMPARE(jsonBody(update), QJsonObject({{QStringLiteral("billable"), true}}));
+    }
+
+    // The running entry's project: a pulsing dot in its colour. Stopping it
+    // leaves a still square.
+    void indicatorRunningThenStopped()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(true, qint64(11))));
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QVERIFY(f.item.indicator.round);
+        QCOMPARE(f.item.indicator.color, QStringLiteral("#06aaf5"));
+        QVERIFY(f.item.indicator.pulsing);
+        QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Stop the Tokkl timer, Alpha"));
+
+        f.item.click();
+        f.respond(f.last("PATCH", "/stop"), 200, entryBody(false, qint64(11)));
+        QTRY_VERIFY(!f.app.timer()->isRunning());
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QVERIFY(!f.item.indicator.round);
+        QVERIFY(!f.item.indicator.pulsing);
+        QCOMPARE(f.item.indicator.label, StatusWords::projectText(*f.app.timer()));
+    }
+
+    // Stopped, the indicator shows the next start's project, still.
+    void indicatorShowsTheNextStart()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null"), qint64(12)));
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QVERIFY(!f.item.indicator.round);
+        QVERIFY(!f.item.indicator.pulsing);
+        QCOMPARE(f.item.indicator.color, QStringLiteral("#c7af14"));
+        QCOMPARE(f.item.indicator.label, QStringLiteral("Beta (Acme)"));
+
+        f.app.timer()->setSelectedProjectId(qint64(11));
+        QTRY_COMPARE(f.item.indicator.color, QStringLiteral("#06aaf5"));
+        QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
+    }
+
+    // No project is a dashed outline, and a project still being read leaves
+    // the slot empty; neither pulses.
+    void indicatorWithoutAProject()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(true)));
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Outline);
+        QVERIFY(f.item.indicator.round);
+        QVERIFY(!f.item.indicator.pulsing);
+        QCOMPARE(f.item.indicator.label, QStringLiteral("No project"));
+    }
+
+    void indicatorWhileTheProjectIsRead()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(true, qint64(13))));
+        QVERIFY(f.waitFor("GET", "/workspaces/7/projects/13"));
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Empty);
+        QVERIFY(!f.item.indicator.pulsing);
+        f.respond(f.last("GET", "/workspaces/7/projects/13"),
+                  200,
+                  QByteArrayLiteral(R"({"id":13,"workspace_id":7,"client_id":null,"name":"Gamma","color":"#2da608","active":false,"billable":false})"));
+        QTRY_COMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QCOMPARE(f.item.indicator.color, QStringLiteral("#2da608"));
+        QVERIFY(f.item.indicator.pulsing);
+    }
+
+    // Reduce Motion stops the pulse at once and leaves the dot steady.
+    void indicatorUnderReduceMotion()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(true, qint64(11))));
+        QVERIFY(f.item.indicator.pulsing);
+        f.item.setReduceMotion(true);
+        QVERIFY(!f.item.indicator.pulsing);
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QVERIFY(f.item.indicator.round);
+        f.clock.advance(1000);
+        QVERIFY(!f.item.indicator.pulsing);
+        f.item.setReduceMotion(false);
+        QVERIFY(f.item.indicator.pulsing);
+    }
+
+    // The pulse runs from full opacity to 0.35 and back every 1.6 s. The ink
+    // is the menu bar's text colour and fills a shape without a colour.
+    void indicatorDrawingRules()
+    {
+        QCOMPARE(ProjectIndicator::pulseOpacity(0), 1.0);
+        QVERIFY(qFuzzyCompare(ProjectIndicator::pulseOpacity(800), 0.35));
+        QVERIFY(qFuzzyCompare(ProjectIndicator::pulseOpacity(400), 0.675));
+        QCOMPARE(ProjectIndicator::pulseOpacity(1600), 1.0);
+        QVERIFY(qFuzzyCompare(ProjectIndicator::pulseOpacity(2400), 0.35));
+
+        QCOMPARE(ProjectIndicator::inkColor(false), QColor(Qt::black));
+        QCOMPARE(ProjectIndicator::inkColor(true), QColor(Qt::white));
+        ProjectIndicator indicator;
+        indicator.kind = ProjectIndicator::Kind::Filled;
+        QCOMPARE(indicator.fillColor(true), QColor(Qt::white));
+        QCOMPARE(indicator.fillColor(false), QColor(Qt::black));
+        indicator.color = QStringLiteral("#06aaf5");
+        QCOMPARE(indicator.fillColor(true), QColor(0x06, 0xaa, 0xf5));
     }
 
     void openAndSettingsActions()

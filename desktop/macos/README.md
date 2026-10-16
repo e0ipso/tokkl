@@ -11,6 +11,8 @@ Right-click or Control-click for the menu. It shows the timer state and has Star
 - Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. The project of a running entry is locked. To switch, stop the entry and start a new one.
 - Billable sets the next start too. While an entry runs, it changes that entry.
 
+A small shape before the time shows the project: the running entry's, or the one the next start will use. A dot pulses while the timer runs, and a still square shows while it is stopped. The project colour fills it inside a ring in the menu bar's text colour. A dashed outline means no project, and the space stays empty while the project is still loading. With Reduce Motion on, the dot does not pulse. The tooltip and VoiceOver name the project, so the colour is never the only clue.
+
 While the timer is loading or saving, the time ends with `…`. When it is offline, refused or failing, the time ends with `!`, and the tooltip and the first menu line say why.
 
 The app sets `LSUIElement`, so it has no Dock icon. Quit it from its menu.
@@ -48,8 +50,8 @@ To install it, copy `Tokkl.app` to `/Applications`. The bundle links Qt from Hom
 
 ## Layout and tests
 
-- `src/menubarapp.*`, `statusmenu.*`, `statuswords.*` and `settingswindow.*` are the app without its platform layer. They need only Qt Widgets and the core, so they build and are tested on Linux as well.
+- `src/menubarapp.*`, `statusmenu.*`, `statuswords.*`, `projectindicator.*` and `settingswindow.*` are the app without its platform layer. They need only Qt Widgets and the core, so they build and are tested on Linux as well.
 - `src/keychaincredentialstore.*` stores secrets through QtKeychain. It builds wherever QtKeychain is installed.
-- `src/macstatusitem.mm`, `macloginitem.mm` and `main.mm` are the macOS layer. They hold the NSStatusItem, the SMAppService login item and the wiring. The app does not use `QSystemTrayIcon` because it cannot show text. Its API has an icon and a tooltip only, and Qt's Cocoa backend sets only the status button's image.
+- `src/macstatusitem.mm`, `macloginitem.mm` and `main.mm` are the macOS layer. They hold the NSStatusItem and the drawing of the project indicator, the SMAppService login item and the wiring. The app does not use `QSystemTrayIcon` because it cannot show text. Its API has an icon and a tooltip only, and Qt's Cocoa backend sets only the status button's image.
 
 On a machine without macOS, the same commands build no app but run the tests: `menubarapp`, `infoplist`, the core's tests, and `keychaincredentialstore` when QtKeychain is installed. The `macos` CI job builds and tests the app on `macos-latest`.

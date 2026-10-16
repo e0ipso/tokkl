@@ -50,13 +50,15 @@ MenuBarApp::MenuBarApp(Transport *transport,
                         &TimerController::currentEntryChanged,
                         &TimerController::choiceChanged,
                         &TimerController::projectsChanged,
-                        &TimerController::entryProjectChanged}) {
+                        &TimerController::entryProjectChanged,
+                        &TimerController::indicatorChanged}) {
         connect(m_timer.get(), signal, this, &MenuBarApp::updateItem);
     }
 
     if (m_statusItem) {
         m_statusItem->setMenu(m_menu->menu());
         connect(m_statusItem, &StatusItem::activated, m_timer.get(), &TimerController::toggle);
+        connect(m_statusItem, &StatusItem::reduceMotionChanged, this, &MenuBarApp::updateItem);
     }
     updateItem();
 }
@@ -129,7 +131,8 @@ void MenuBarApp::updateItem()
     }
     m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer));
     m_statusItem->setToolTip(StatusWords::summary(*m_timer));
-    m_statusItem->setAccessibleName(StatusWords::actionName(*m_timer));
+    m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer));
+    m_statusItem->setIndicator(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()));
 }
 
 }

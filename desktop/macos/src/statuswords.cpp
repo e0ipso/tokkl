@@ -128,4 +128,9 @@ QString actionName(const TimerController &timer)
     return timer.isRunning() ? tr("Stop the Tokkl timer") : tr("Start the Tokkl timer");
 }
 
+QString itemName(const TimerController &timer)
+{
+    return tr("%1, %2").arg(actionName(timer), projectText(timer));
+}
+
 }

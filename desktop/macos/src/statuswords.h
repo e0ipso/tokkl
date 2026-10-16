@@ -26,5 +26,8 @@ QString summary(const TimerController &timer);
 QString menuBarTitle(const TimerController &timer);
 // What the item does on a primary click, for screen readers.
 QString actionName(const TimerController &timer);
+// What a screen reader announces for the menu bar item: the action and the
+// project, so the project never depends on the indicator's colour.
+QString itemName(const TimerController &timer);
 
 }

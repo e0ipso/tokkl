@@ -4,6 +4,8 @@ add_library(tokklmacos STATIC
     loginitem.h
     menubarapp.cpp
     menubarapp.h
+    projectindicator.cpp
+    projectindicator.h
     settingswindow.cpp
     settingswindow.h
     statusitem.h
