@@ -24,6 +24,28 @@ ecm_add_test(timercontrollertest.cpp fakes.h
 set_tests_properties(api connection networktransport timer PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")
 
+# The KDE connection types as the widget creates them, linked to tokklkde:
+# the process-wide KDE Wallet store, their own transport and the tokkl-kde
+# client name. kdeconnection runs the real KDE Wallet client against a fake
+# kwalletd on a private D-Bus daemon it starts without service files, and an
+# in-process HTTP server; the user's session bus and wallet are never
+# reached. KDE Wallet reads Enabled from kwalletrc once per process, so the
+# disabled wallet has its own test. Both write kwalletrc only to their own
+# temporary directory.
+find_program(TOKKL_DBUS_DAEMON dbus-daemon REQUIRED)
+ecm_add_test(kdeconnectiontest.cpp
+    TEST_NAME kdeconnection
+    LINK_LIBRARIES tokklkde Qt6::DBus Qt6::Test)
+target_compile_definitions(kdeconnection PRIVATE
+    TOKKL_VERSION_STRING="${TOKKL_RESOLVED_VERSION}"
+    TOKKL_DBUS_DAEMON="${TOKKL_DBUS_DAEMON}")
+ecm_add_test(kdewalletdisabledtest.cpp
+    TEST_NAME kdewallet-disabled
+    LINK_LIBRARIES tokklkde Qt6::Test)
+set(_kde_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-kde")
+set_tests_properties(kdeconnection kdewallet-disabled PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_kde_xdg}/data;XDG_CONFIG_HOME=${_kde_xdg}/config;XDG_CACHE_HOME=${_kde_xdg}/cache;XDG_STATE_HOME=${_kde_xdg}/state")
+
 # The panel item and its menu (package/contents/ui), driven by QtQuickTest
 # through the QML tests in qml/. The backend types come from tokklcore, wired
 # to the fakes; the test never loads main.qml, the real connection or a

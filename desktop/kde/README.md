@@ -92,14 +92,14 @@ before a release.
 
 ## Requirements
 
-| Dependency                                                  | Minimum |
-| ----------------------------------------------------------- | ------- |
-| CMake                                                       | 3.27    |
-| Qt 6: Core, Network, Qml, Quick (Test, QuickTest for tests) | 6.10    |
-| Extra CMake Modules; KF6 Wallet, Package, Config            | 6.24    |
-| KF6 I18n with I18nQml (tests only)                          | 6.24    |
-| QML modules: Kirigami, KCMUtils                             | 6.24    |
-| Plasma: libplasma, PlasmaQuick                              | 6.6     |
+| Dependency                                                        | Minimum |
+| ----------------------------------------------------------------- | ------- |
+| CMake                                                             | 3.27    |
+| Qt 6: Core, Network, Qml, Quick (DBus, Test, QuickTest for tests) | 6.10    |
+| Extra CMake Modules; KF6 Wallet, Package, Config                  | 6.24    |
+| KF6 I18n with I18nQml (tests only)                                | 6.24    |
+| QML modules: Kirigami, KCMUtils                                   | 6.24    |
+| Plasma: libplasma, PlasmaQuick                                    | 6.6     |
 
 The minimums cover the two supported targets: TUXEDO OS 24.04 (Qt 6.10.2, KDE
 Frameworks 6.24.0, Plasma 6.6.6) and Fedora KDE 44 (released with Qt 6.10.2,
@@ -109,7 +109,8 @@ versions its updates bring). Older Plasma 6 releases are not supported.
 Packages on TUXEDO OS 24.04: `cmake extra-cmake-modules qt6-base-dev
 qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and for the tests
-`qml6-module-qttest` and `plasma-desktoptheme` (Plasma's QML components).
+`qml6-module-qttest`, `plasma-desktoptheme` (Plasma's QML components) and
+`dbus-daemon`.
 The CI images in `ci/` hold the complete lists for both targets (see
 [CI and releases](#ci-and-releases)).
 
@@ -143,6 +144,17 @@ CTest runs these checks:
   projects, every state, disabled controls and account switches.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
+- `kdeconnection`: the connection and Configure page types the widget creates
+  (`TokklConnection`, `TokklConnectionSetup`) with the real KDE Wallet client
+  and transport. A fake kwalletd answers on a private `dbus-daemon` the test
+  starts, and an in-process server on 127.0.0.1 plays Tokkl, so neither your
+  wallet nor your session bus is touched. It checks the KDE Wallet message for
+  each wallet status, that both types share one wallet store, that each owns
+  its transport, and the `tokkl-kde` client name in `created_with` and the
+  User-Agent.
+- `kdewallet-disabled`: the same types with KDE Wallet turned off in a
+  temporary `kwalletrc`. KDE Wallet reads that setting once per process, so
+  this is a test of its own.
 - `version`: version resolution and metadata stamping.
 - `native-version`: the versions `scripts/native-version.sh` accepts, what it
   maps them to and the ones it refuses. dpkg and rpm then check that the
