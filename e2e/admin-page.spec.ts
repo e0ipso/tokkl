@@ -171,6 +171,32 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await expect(await describedError(inviteDays)).toHaveText('Enter a whole number of days');
 });
 
+// TT-0174: another admin's change arrives with a background refetch while this admin is typing.
+test('a refetch keeps an unsaved instance setting and its focus, and updates the untouched one', async ({ page, data }) => {
+  await login(page);
+  await openAdmin(page);
+  const card = page.locator('#instance');
+  const sessionDays = card.getByLabel('Session length (days)');
+  const inviteDays = card.getByLabel('Invite link lifetime (days)');
+  await expect(inviteDays).toHaveValue('7');
+
+  await sessionDays.fill('21');
+  await data.saveInstanceSettings({ session_days: 45, invite_days: 5 });
+  // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+  await expect(async () => {
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(inviteDays).toHaveValue('5', { timeout: 1500 });
+  }).toPass();
+  await expect(sessionDays).toHaveValue('21');
+  await expect(sessionDays).toBeFocused();
+
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Instance settings saved')).toBeVisible();
+  expect(await data.instanceSettings()).toEqual({ session_days: 21, invite_days: 5 });
+  await expect(sessionDays).toHaveValue('21');
+  await expect(inviteDays).toHaveValue('5');
+});
+
 test('demoting or disabling the last active admin shows the 400 next to that control', async ({ page, data, runtimeErrors }) => {
   runtimeErrors.allowResponse({
     status: 400, method: 'PATCH', path: /^\/api\/app\/admin\/users\/\d+$/, reason: 'the setup account is the only active admin',

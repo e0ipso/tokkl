@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { keys, useMe } from '../api/hooks.ts';
 import type { AdminAccount, InstanceSettings, Invite, PasswordResetLink, UserRole } from '../api/types.ts';
@@ -422,18 +422,33 @@ const SETTING_FIELDS = [
   { key: 'invite_days', label: 'Invite link lifetime (days)', hint: 'New invite links stop working after this many days.' },
 ] as const satisfies ReadonlyArray<{ key: keyof InstanceSettings; label: string; hint: string }>;
 
-function InstanceSettingsSection({ initial }: { initial: InstanceSettings }) {
+type SettingsDraft = Record<keyof InstanceSettings, string>;
+
+/**
+ * The form keeps only what the admin typed and has not saved. Every other field shows the server's
+ * value, so a background refetch, such as after another admin's change, updates the untouched
+ * fields and leaves the edits and focus alone.
+ */
+function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
   const toast = useToast();
+  const queryClient = useQueryClient();
   const fields = useFieldErrors<keyof InstanceSettings>();
-  const [draft, setDraft] = useState<Record<keyof InstanceSettings, string>>({
-    session_days: String(initial.session_days),
-    invite_days: String(initial.invite_days),
-  });
+  const [edits, setEdits] = useState<Partial<SettingsDraft>>({});
+  const draft: SettingsDraft = {
+    session_days: edits.session_days ?? String(server.session_days),
+    invite_days: edits.invite_days ?? String(server.invite_days),
+  };
 
   const save = useAction<InstanceSettings, InstanceSettings>({
     mutationFn: (body) => api.put<InstanceSettings>(`${ADMIN}/settings`, body),
     invalidate: [adminKeys.settings],
     success: 'Instance settings saved',
+    onSuccess: (saved, sent) => {
+      queryClient.setQueryData(adminKeys.settings, saved);
+      // Drop the edits that were saved; anything typed while the request ran stays.
+      setEdits((current) => Object.fromEntries(Object.entries(current)
+        .filter(([key, value]) => Number(value.trim()) !== sent[key as keyof InstanceSettings])));
+    },
     onError: (error) => {
       // The server names the setting it refused, as in "Invalid invite_days: ...".
       const field = SETTING_FIELDS.find(({ key }) => error.message.includes(key));
@@ -463,7 +478,7 @@ function InstanceSettingsSection({ initial }: { initial: InstanceSettings }) {
               type="number"
               inputMode="numeric"
               value={draft[key]}
-              onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
+              onChange={(event) => setEdits((current) => ({ ...current, [key]: event.target.value }))}
             />
             {fields.message(key)}
             <p className="hint">{hint}</p>
@@ -516,7 +531,7 @@ export function AdminPage() {
       </nav>
       <UsersSection users={users.data} meId={me?.id} settings={settings} />
       <InvitesSection settings={settings} />
-      {instance.data ? <InstanceSettingsSection key={JSON.stringify(instance.data)} initial={instance.data} /> : (
+      {instance.data ? <InstanceSettingsSection server={instance.data} /> : (
         <SettingsCard id="instance" title="Instance settings">
           {instance.error ? (
             <LoadError message={`Could not load instance settings: ${instance.error.message}`} onRetry={() => void instance.refetch()} className="is-compact" />
