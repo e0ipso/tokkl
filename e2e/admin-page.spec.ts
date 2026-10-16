@@ -196,7 +196,9 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await expect(await describedError(inviteDays)).toHaveText('Enter a whole number of days');
 });
 
-test('an admin saves the time resolution, sees it after a reload, and sees the server error for a value that does not divide an hour', async ({ page, data, runtimeErrors }) => {
+test('an admin saves the time resolution, every account reads it on /me, and a value that does not divide an hour shows the server error', async ({ page, data, users, runtimeErrors }) => {
+  const rita = await users.create();
+  expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 5 });
   await login(page);
   await openAdmin(page);
   const card = page.locator('#instance');
@@ -208,6 +210,9 @@ test('an admin saves the time resolution, sees it after a reload, and sees the s
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
   expect(await data.instanceSettings()).toEqual({ session_days: 30, invite_days: 7, time_resolution_minutes: 15 });
+  // The admin's save is what a regular account, which cannot read the admin settings, now gets on /me.
+  expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 15 });
+  expect(await data.me()).toMatchObject({ role: 'admin', time_resolution_minutes: 15 });
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
   await expect(resolution).toHaveValue('15');

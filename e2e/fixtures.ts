@@ -171,6 +171,11 @@ export class TestData {
     }
   }
 
+  /** Tokkl's own fields on this account's GET /api/v9/me: its instance role and the time resolution. */
+  async me(): Promise<{ role: 'admin' | 'user'; time_resolution_minutes: number }> {
+    return json(this.api.get('/api/v9/me'));
+  }
+
   /** Every account on the server, as an admin sees them. */
   async listUsers(): Promise<Array<{ id: number; email: string; role: 'admin' | 'user'; disabled_at: string | null }>> {
     return json(this.api.get('/api/app/admin/users'));
