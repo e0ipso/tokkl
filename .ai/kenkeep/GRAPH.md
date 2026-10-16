@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:e74d80d140c17165337c6a46c99edc77f4b417387920b23fec705bb7dd9ecfc7'
-node_count: 41
+nodes_hash: 'sha256:76be89614ecba9705d795cfd2a50e492fffcf0856f4d0ddac140efad65d2e3eb'
+node_count: 42
 ---
 # kenkeep Graph
 
-Total nodes: 41
+Total nodes: 42
 
 ## map-admin-api-and-disabled-accounts
 
@@ -46,13 +46,21 @@ Total nodes: 41
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
 
+## map-kde-ci-and-release-pipeline
+
+- **kind:** map
+- **title:** KDE CI job and release: kde matrix, real-server test, semantic-release plugin
+- **path:** tooling-and-project/map-kde-ci-and-release-pipeline.md
+- **tags:** tooling, kde, ci, release
+- **relates_to:** map-kde-native-packaging, map-kde-plasma-companion-desktop-kde, map-test-and-static-analysis-layout
+
 ## map-kde-native-packaging
 
 - **kind:** map
 - **title:** KDE native packaging: DEB, RPM and the version mapping
 - **path:** tooling-and-project/map-kde-native-packaging.md
 - **tags:** tooling, kde, packaging, release
-- **relates_to:** map-kde-plasma-companion-desktop-kde
+- **relates_to:** map-kde-plasma-companion-desktop-kde, map-kde-ci-and-release-pipeline
 
 ## map-kde-plasma-companion-desktop-kde
 
