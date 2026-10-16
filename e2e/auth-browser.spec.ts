@@ -2,7 +2,8 @@ import type { Page } from '@playwright/test';
 import { EMAIL, PASSWORD } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  ACCOUNT, SETUP_CODE, basic, createAccount, expect, logInThroughForm, meWithBasic, meWithSession, sessionCookie, test,
+  ACCOUNT, LIMIT_WINDOW_SECONDS, SETUP_CODE, basic, createAccount, expect, logInThroughForm, meWithSession, retryAfter,
+  sessionCookie, test,
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
@@ -48,6 +49,28 @@ test('the startup log prints the setup code until the first admin exists', async
   await expect.poll(() => restarted.output()).toContain('tokkl listening on');
   expect(restarted.output()).not.toContain(SETUP_CODE);
   expect(restarted.output()).not.toContain('No admin account yet');
+});
+
+// TT-0160: ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.
+test('ten wrong setup codes lock setup on this address, and the setup form says so', async ({ page, runtimeErrors, servers }) => {
+  const server = await servers.start({ slot: 0 });
+  runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/setup$/, reason: 'this address sent ten wrong setup codes' });
+  for (let i = 0; i < 10; i++) {
+    const wrong = await page.request.post(`${server.baseURL}/api/app/setup`, { data: { setup_code: 'WRONG-CODE', ...ACCOUNT } });
+    expect(wrong.status()).toBe(403);
+  }
+
+  await page.goto(server.baseURL);
+  await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
+  await page.getByLabel('Setup code').fill(SETUP_CODE);
+  await page.getByLabel('Name').fill(ACCOUNT.fullname);
+  await page.getByLabel('Email').fill(ACCOUNT.email);
+  await page.getByLabel('Password').fill(ACCOUNT.password);
+  const locked = page.waitForResponse((r) => r.url() === `${server.baseURL}/api/app/setup` && r.status() === 429);
+  await page.getByRole('button', { name: 'Create admin account' }).click();
+  expect(retryAfter(await locked)).toBeGreaterThan(LIMIT_WINDOW_SECONDS - 60);
+  await expect(page.getByRole('alert')).toHaveText('Too many failed attempts, try again later');
+  expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual({ setup_required: true });
 });
 
 test('wrong credentials show an error and keep the browser logged out until a valid retry', async ({ page, runtimeErrors }) => {
@@ -120,6 +143,7 @@ test('after logout the old session is refused, and reload or back shows no priva
 // TT-0128: wrong passwords count per account and address, so ten lock that account here while
 // other emails from the same address still get the usual answer. Setup codes have their own count.
 // TT-0153: an email that differs only in ASCII case is the same account and shares its count.
+// TT-0160: every 429 says when to retry; the account's window opened seconds ago, so nearly all of it is left.
 test('ten wrong passwords lock the account on this address, and the login form says so', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });
   runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/login$/, reason: 'the account has ten failed logins from this address' });
@@ -129,19 +153,34 @@ test('ten wrong passwords lock the account on this address, and the login form s
 
   // Failed logins before the account exists leave the setup code's attempts alone.
   for (let i = 0; i < 10; i++) expect(await attempt('nobody@auth.example', 'wrong password')).toBe(403);
-  await createAccount(server.baseURL);
+  const { apiToken } = await createAccount(server.baseURL);
   for (let i = 0; i < 10; i++) expect(await attempt(ACCOUNT.email.toUpperCase(), 'wrong password')).toBe(403);
+  const expectNearlyFullWindow = (response: { headers(): Record<string, string> }) =>
+    expect(retryAfter(response)).toBeGreaterThan(LIMIT_WINDOW_SECONDS - 60);
 
   await page.goto(server.baseURL);
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   const alert = page.getByRole('alert');
   await page.getByLabel('Email').fill(ACCOUNT.email);
   await page.getByLabel('Password').fill(ACCOUNT.password);
+  const formLocked = page.waitForResponse((r) => r.url() === `${server.baseURL}/api/app/login` && r.status() === 429);
   await page.getByRole('button', { name: 'Log in' }).click();
+  expectNearlyFullWindow(await formLocked);
   await expect(alert).toHaveText('Too many failed login attempts, try again later');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tokkl_session')).toBe(false);
-  expect(await meWithBasic(server.baseURL, basic(ACCOUNT.email, ACCOUNT.password))).toBe(429);
+  const basicLocked = await page.request.get(`${server.baseURL}/api/v9/me`, {
+    headers: { authorization: basic(ACCOUNT.email, ACCOUNT.password) },
+  });
+  expect(basicLocked.status()).toBe(429);
+  expectNearlyFullWindow(basicLocked);
+  // A password change checks the current password against the same counters, even over the API token.
+  const changeLocked = await page.request.put(`${server.baseURL}/api/v9/me`, {
+    headers: { authorization: basic(apiToken, 'api_token') },
+    data: { current_password: ACCOUNT.password, password: 'second password 2' },
+  });
+  expect(changeLocked.status()).toBe(429);
+  expectNearlyFullWindow(changeLocked);
 
   // Twenty failures from this address are far below its own limit, so another email is not refused.
   await page.getByLabel('Email').fill('someone@auth.example');
