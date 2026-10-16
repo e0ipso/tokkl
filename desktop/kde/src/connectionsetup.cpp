@@ -95,6 +95,12 @@ bool ConnectionSetup::isInsecure(const QString &url) const
     return host != QLatin1String("localhost") && !address.isLoopback();
 }
 
+QString ConnectionSetup::persistedUrl(const QString &url) const
+{
+    const InstanceUrl instance = parseInstanceUrl(url);
+    return instance.isValid() ? instance.key() : QString();
+}
+
 void ConnectionSetup::setBusy(int delta)
 {
     const bool wasBusy = isBusy();

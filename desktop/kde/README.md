@@ -70,7 +70,9 @@ Right-click the widget and choose Configure, then Connection:
   `http://` or `https://`. A path prefix is kept, so
   `https://example.com/tokkl` reaches the API at
   `https://example.com/tokkl/api/v9/`. Addresses with a user name, password,
-  query or fragment are refused. Plain `http://` to another machine shows a
+  query or fragment are refused and never saved; Apply with an unusable
+  address saves an empty one. A valid address is saved normalized, for example
+  without a trailing slash or default port. Plain `http://` to another machine shows a
   warning, because the secret would travel unencrypted.
 - **Sign in with**: an API token (the default; find it under Settings → API
   token in Tokkl) or an email and password. Both use HTTP Basic auth, as

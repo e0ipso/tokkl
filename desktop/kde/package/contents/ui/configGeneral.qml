@@ -13,7 +13,9 @@ import com.github.e0ipso.tokkl.backend
 KCM.SimpleKCM {
     id: page
 
-    property alias cfg_instanceUrl: urlField.text
+    // Plasma saves every cfg_ property on Apply, so this one only ever holds
+    // a validated address; the field may hold anything the user typed.
+    property string cfg_instanceUrl
     property string cfg_authMode: "token"
     property alias cfg_email: emailField.text
 
@@ -27,6 +29,14 @@ KCM.SimpleKCM {
     function saveConfig() {
         setup.saveSecret();
     }
+
+    // Shows the address Plasma passes in, unless the field already holds it.
+    function showInstanceUrl() {
+        if (setup.persistedUrl(urlField.text) !== cfg_instanceUrl) {
+            urlField.text = cfg_instanceUrl;
+        }
+    }
+    onCfg_instanceUrlChanged: showInstanceUrl()
 
     // Keeps the secret field tied to the account on screen: a secret loaded
     // for one account is cleared when the page moves to another.
@@ -51,6 +61,7 @@ KCM.SimpleKCM {
         loadTimer.restart();
     }
     Component.onCompleted: {
+        showInstanceUrl();
         setup.setAccount(urlField.text, cfg_authMode, emailField.text);
         loadTimer.restart();
     }
@@ -62,6 +73,7 @@ KCM.SimpleKCM {
             placeholderText: "https://tokkl.example.com"
             inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
             Layout.fillWidth: true
+            onTextChanged: page.cfg_instanceUrl = setup.persistedUrl(text)
         }
 
         QQC2.Label {

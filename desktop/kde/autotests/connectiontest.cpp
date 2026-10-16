@@ -898,6 +898,27 @@ private Q_SLOTS:
         QVERIFY(setup.urlError(QStringLiteral("https://u:p@example.test")).contains(QLatin1String("user name")));
         QCOMPARE(setup.urlError(instance), QString());
     }
+
+    void setupPersistsOnlyAValidatedUrl()
+    {
+        ConnectionSetup setup(nullptr, nullptr);
+        QCOMPARE(setup.persistedUrl(QStringLiteral(" HTTPS://Example.test:443/tokkl/ ")), instance);
+        QCOMPARE(setup.persistedUrl(QStringLiteral("http://127.0.0.1:8080/")), QStringLiteral("http://127.0.0.1:8080"));
+        QCOMPARE(setup.persistedUrl(instance), instance);
+        // Normalizing twice changes nothing, so the field and the setting agree.
+        const QString once = setup.persistedUrl(QStringLiteral("https://example.test/a%20b/"));
+        QCOMPARE(setup.persistedUrl(once), once);
+
+        for (const QString &rejected : {QStringLiteral("https://user:password@example.test"),
+                                        QStringLiteral("https://user@example.test/tokkl"),
+                                        QStringLiteral("https://example.test/tokkl?token=x"),
+                                        QStringLiteral("https://example.test/tokkl#x"),
+                                        QStringLiteral("example.test"),
+                                        QStringLiteral("ftp://example.test"),
+                                        QString()}) {
+            QVERIFY2(setup.persistedUrl(rejected).isEmpty(), qPrintable(rejected));
+        }
+    }
 };
 
 QTEST_GUILESS_MAIN(ConnectionTest)

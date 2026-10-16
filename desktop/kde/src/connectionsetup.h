@@ -55,6 +55,10 @@ public:
     // True for plain http to a host other than this machine: the secret would
     // travel unencrypted.
     Q_INVOKABLE bool isInsecure(const QString &url) const;
+    // The address to keep in the widget configuration: normalized, with any
+    // path prefix, or an empty string when the address is not usable. User
+    // info, queries and fragments are refused, so no credential is stored.
+    Q_INVOKABLE QString persistedUrl(const QString &url) const;
 
     // The address, sign-in method and email on screen. Moving to another
     // account clears a secret that belongs to the previous one.

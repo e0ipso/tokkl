@@ -45,6 +45,44 @@ void collectQmlProblems(QtMsgType type, const QMessageLogContext &context, const
     }
     previousHandler(type, context, message);
 }
+
+// Plasma writes cfg_instanceUrl to the configuration on Apply, so it holds
+// only a validated address. The event loop never runs here, so the page
+// never reads the wallet.
+void checkPersistedUrl(QObject *page)
+{
+    QObject *urlField = nullptr;
+    for (QObject *child : page->findChildren<QObject *>()) {
+        if (child->property("placeholderText").toString() == QLatin1String("https://tokkl.example.com")) {
+            urlField = child;
+        }
+    }
+    QVERIFY(urlField);
+
+    // The value Plasma passes in fills the field.
+    QVERIFY(page->setProperty("cfg_instanceUrl", QStringLiteral("https://example.test/tokkl")));
+    QCOMPARE(urlField->property("text").toString(), QStringLiteral("https://example.test/tokkl"));
+
+    // Rejected addresses, credentials included, are never persisted, and the
+    // field keeps what was typed.
+    for (const QString &rejected : {QStringLiteral("https://user:password@example.test"),
+                                    QStringLiteral("https://example.test/?password=hunter2"),
+                                    QStringLiteral("https://example.test/#hunter2"),
+                                    QStringLiteral("example.test")}) {
+        urlField->setProperty("text", rejected);
+        QCOMPARE(page->property("cfg_instanceUrl").toString(), QString());
+        QCOMPARE(urlField->property("text").toString(), rejected);
+    }
+
+    // A valid address is persisted normalized, with its path prefix.
+    urlField->setProperty("text", QStringLiteral(" HTTPS://Example.test:443/tokkl/ "));
+    QCOMPARE(page->property("cfg_instanceUrl").toString(), QStringLiteral("https://example.test/tokkl"));
+    // Typing is not rewritten under the cursor.
+    QCOMPARE(urlField->property("text").toString(), QStringLiteral(" HTTPS://Example.test:443/tokkl/ "));
+
+    urlField->setProperty("text", QString());
+    QCOMPARE(page->property("cfg_instanceUrl").toString(), QString());
+}
 }
 
 // The smallest shell that can host an applet: one screen and an empty
@@ -185,6 +223,7 @@ private Q_SLOTS:
                     QVERIFY2(!name.startsWith(QLatin1String("cfg_")) || !secretLike.match(name).hasMatch(), qPrintable(name));
                 }
                 QVERIFY(meta->indexOfMethod("saveConfig()") >= 0);
+                checkPersistedUrl(object.get());
             }
         }
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
