@@ -1,6 +1,10 @@
 // Loads the staged install the way Plasma does: the widget package from the
 // data dirs and the backend from the QML import path. The CTest fixture
 // stages the install and points XDG_DATA_DIRS and QML_IMPORT_PATH at it.
+//
+// scripts/check-package.sh runs the same binary against an installed
+// package: TOKKL_SMOKE_PLASMOID_DIR and TOKKL_SMOKE_BACKEND_DIR then name the
+// installed widget and backend directories that Plasma must resolve.
 
 #include <KConfigLoader>
 #include <KLocalizedContext>
@@ -28,8 +32,13 @@ namespace
 const QString plasmoidId = QStringLiteral(TOKKL_PLASMOID_ID);
 const QString backendUri = QStringLiteral(TOKKL_BACKEND_URI);
 const QString version = QStringLiteral(TOKKL_VERSION_STRING);
-const QString stagedPlasmoidDir = QStringLiteral(TOKKL_STAGED_PLASMOID_DIR);
-const QString stagedBackendDir = QStringLiteral(TOKKL_STAGED_BACKEND_DIR);
+QString expectedDir(const char *variable, const QString &staged)
+{
+    const QString value = qEnvironmentVariable(variable);
+    return value.isEmpty() ? staged : value;
+}
+const QString stagedPlasmoidDir = expectedDir("TOKKL_SMOKE_PLASMOID_DIR", QStringLiteral(TOKKL_STAGED_PLASMOID_DIR));
+const QString stagedBackendDir = expectedDir("TOKKL_SMOKE_BACKEND_DIR", QStringLiteral(TOKKL_STAGED_BACKEND_DIR));
 
 // QML errors from our package or backend; Qt reports them as warnings.
 QStringList qmlProblems;

@@ -71,6 +71,7 @@ if(BUILD_TESTING)
     find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Config I18n)
     find_package(PlasmaQuick ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
     add_subdirectory(autotests)
+    add_subdirectory(tests)
 endif()
 
 feature_summary(WHAT ALL INCLUDE_QUIET_PACKAGES FATAL_ON_MISSING_REQUIRED_PACKAGES)

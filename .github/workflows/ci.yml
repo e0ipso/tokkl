@@ -45,8 +45,47 @@ jobs:
           sudo apt-get install -y --no-install-recommends fonts-noto-core
       - run: npm run test:e2e
 
+  # The KDE companion on each supported target, in the pinned images of
+  # desktop/kde/ci: CTest, the DEB or RPM with installation, loading,
+  # upgrade and removal checks, then the real-server test. The version is
+  # the one in package.json; the release job builds its own packages.
+  kde:
+    name: kde (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: TUXEDO OS 24.04
+            format: deb
+          - target: Fedora KDE 44
+            format: rpm
+    env:
+      FORMAT: ${{ matrix.format }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Test, package and check
+        env:
+          OUTPUT: ${{ runner.temp }}/kde
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          desktop/kde/scripts/container-check.sh --version "$version" --format "$FORMAT" --output "$OUTPUT"
+      - name: Real-server test
+        env:
+          OUTPUT: ${{ runner.temp }}/kde
+        run: desktop/kde/ci/realserver.sh --format "$FORMAT" --output "$OUTPUT"
+
   release:
-    needs: test
+    needs: [test, kde]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency: release
@@ -64,9 +103,11 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
 
-      # Bumps the version, commits CHANGELOG.md and package.json, tags
-      # v<version> and creates the GitHub release, or does nothing when the
-      # pushed commits warrant no release.
+      # Bumps the version, builds and checks the KDE packages for it
+      # (desktop/kde/ci/semantic-release.js), commits CHANGELOG.md and
+      # package.json, tags v<version> and creates the GitHub release with the
+      # DEB and RPM attached, or does nothing when the pushed commits warrant
+      # no release.
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

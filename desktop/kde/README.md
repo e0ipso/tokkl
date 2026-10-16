@@ -32,6 +32,8 @@ Packages on TUXEDO OS 24.04: `cmake extra-cmake-modules qt6-base-dev
 qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and for the tests
 `qml6-module-qttest` and `plasma-desktoptheme` (Plasma's QML components).
+The CI images in `ci/` hold the complete lists for both targets (see
+[CI and releases](#ci-and-releases)).
 
 ## Configure, build and test
 
@@ -269,42 +271,145 @@ configuration) and the KDE Wallet entries untouched.
 
 ### Build and check
 
-`scripts/container-check.sh` builds both packages and checks them in
-throwaway containers, `ubuntu:24.04` with the TUXEDO OS repositories added and
-`fedora:44`, so nothing is installed on the host. It needs Docker, or another
-engine set in `CONTAINER_ENGINE`. Run it from the repository root with the
-version from `package.json`:
+`scripts/container-check.sh` tests, builds and checks both packages in
+throwaway containers, so nothing is installed on the host. It needs Docker,
+or another engine set in `CONTAINER_ENGINE`. Run it from the repository root
+with the version from `package.json`:
 
 ```sh
 version="$(node -p 'require("./package.json").version')"
 desktop/kde/scripts/container-check.sh --version "$version" --output "$(mktemp -d)"
 ```
 
-The output directory gets `tokkl-kde_<version>_amd64.deb` and
-`tokkl-kde-<version>-1.fc44.x86_64.rpm`, plus a `previous/` directory with
-version 0.0.0 builds of the same source that the upgrade check starts from.
-`--format deb` or `--format rpm` builds one; `--previous-version` changes the
-older version. `TOKKL_DEB_IMAGE` and `TOKKL_RPM_IMAGE` replace the images, for
-example with pinned digests.
+For each format it builds the three stages of `ci/Dockerfile` (TUXEDO OS) or
+`ci/fedora.Dockerfile` (Fedora) as `tokkl-kde-ci:<format>-target`, `-build`
+and `-test` (`TOKKL_KDE_CI_IMAGE` changes the name), then:
 
-The scripts it runs work on their own, for CI or a prepared machine:
+1. In the test image, configures and builds the project with the version and
+   runs CTest under Xvfb and a DBus session. The `smokeload` and
+   `realservertest` binaries go to `tests/<format>/` in the output directory,
+   with `packages.txt`, the packages the load check installs.
+2. In the build image, builds the package for the version and for the older
+   `--previous-version` (default 0.0.0, a build of the same source).
+3. In a fresh target container, runs `scripts/check-package.sh` with the
+   load check.
+
+The output directory gets `tokkl-kde_<version>_amd64.deb` and
+`tokkl-kde-<version>-1.fc44.x86_64.rpm`, plus `previous/` and `tests/`.
+`--format deb` or `--format rpm` does one target. The images stay for
+`ci/realserver.sh`; remove them with `docker image rm`.
+
+The scripts it runs work on their own, for a prepared machine:
 
 - `scripts/prepare-target.sh --format deb|rpm [--build-deps]`: adds the TUXEDO
   OS repositories on Ubuntu 24.04 (the key fingerprint is checked) and, with
   `--build-deps`, installs the build dependencies from `debian/control` or
-  `packaging/rpm/tokkl-kde.spec`. Run it as root, only in a container.
+  `packaging/rpm/tokkl-kde.spec`. A second run keeps repositories it finds.
+  Run it as root, only in a container.
 - `scripts/package-release.sh --version <version> --format deb|rpm --output
   <dir>`: builds one package with `dpkg-buildpackage` or `rpmbuild` from a
   copy of the source, without the tests, and prints its path. The version is
   required; `debian/changelog` is written from it at build time.
 - `scripts/check-package.sh --version <version> --package <file> [--previous
-  <file>]`: inspects the package (name, version, architecture, widget and
-  backend paths, dependencies, no maintainer scripts), installs it on a clean
-  system, checks the stamped widget version, the backend's libraries and the
-  package manager's verify, removes it, then installs the previous package,
-  upgrades and removes again (purging on Debian). Settings and wallet files in
-  a test home directory must not change. It installs packages, so run it as
-  root in a container.
+  <file>] [--load-test <dir>]`: inspects the package (name, version,
+  architecture, widget and backend paths, dependencies, no maintainer
+  scripts), installs it on a clean system, checks the stamped widget version,
+  the backend's libraries and the package manager's verify, removes it, then
+  installs the previous package, upgrades and removes again (purging on
+  Debian). Settings and wallet files in a test home directory must not
+  change. With `--load-test`, after the clean install and after the upgrade
+  it installs the packages in `<dir>/packages.txt` and runs `<dir>/smokeload`
+  against the installed files, under Xvfb and `dbus-run-session`: the
+  widget, its configuration schema and Configure page load through libplasma
+  and the backend loads from Qt's QML directory. It installs packages, so
+  run it as root in a container.
 
-The checks do not load the widget in Plasma; the CTest `smokeload` test does
-that from a staged install.
+## CI and releases
+
+The `kde` job in `.github/workflows/ci.yml` runs once per target, TUXEDO OS
+24.04 (DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
+`scripts/container-check.sh` for the version in `package.json`, then
+`ci/realserver.sh`. The release job needs both targets and the server and
+web checks to pass.
+
+The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
+images pinned by digest, the TUXEDO OS repositories, and the build and test
+packages. The distribution archives have no snapshots, so a build gets the
+Qt, KDE Frameworks and Plasma packages they hold that day. `ci/baseline.sh`
+prints those versions in every build and fails it when they are older than
+the supported baseline (TUXEDO OS: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma
+6.6.6; Fedora: the CMake minimums). On 2026-10-16 the images had Qt 6.10.2,
+KDE Frameworks 6.24.0 and libplasma 6.6.6 (TUXEDO OS) and Qt 6.11.2, KDE
+Frameworks 6.31.0 and libplasma 6.7.5 (Fedora). To move a base image, update
+its digest in the Dockerfile.
+
+semantic-release builds the release packages through the local plugin
+`ci/semantic-release.js`, listed in `.releaserc.json` after
+`@semantic-release/npm` and before `@semantic-release/git`:
+
+- `verifyRelease` refuses a next version that `scripts/native-version.sh`
+  cannot map, before anything is written.
+- `prepare` runs `scripts/container-check.sh` with the next version, so the
+  packages and widget metadata carry it, into `dist/kde`, and fails unless
+  exactly one DEB and one RPM of that version are there. A failure stops the
+  release before the tag is pushed.
+- `@semantic-release/github` attaches `dist/kde/tokkl-kde_*_amd64.deb` and
+  `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it creates.
+
+There is no separate companion version, tag or workflow, and the packages
+are published nowhere else.
+
+### Real-server test
+
+`tests/realserver.test.ts` runs the companion's `Connection` and
+`TokklTimer`, with the real HTTP transport, against two Tokkl instances
+started with the API's multi-user test fixtures (`packages/api/test/helpers.ts`)
+on 127.0.0.1. The ids on the two instances collide by construction. A proxy
+in front of each instance can hold a reply back, and the test binary
+(`tests/realservertest.cpp`, built by CMake but not a CTest test) drives a
+control server to hold and release replies, disable an account through the
+admin API and remove a workspace membership. It checks:
+
+- isolation: a user who is not an admin, in a workspace other than 1, sees
+  only their own projects and timer; start, stop and update requests against
+  another workspace get 403;
+- account and instance switches: a late reply for the previous account or
+  instance, a read or a start, changes nothing, and the start is not sent
+  again; after the switch, a stop goes to the new instance only;
+- membership loss: a stop refused with 403 leads to one `/me` request,
+  blocked writes and polling, and no repeated stop, while the credentials
+  stay accepted;
+- disabled accounts, with a token and with email and password: the 403 is
+  the same as for an unknown token, account data is cleared, writes are
+  refused, and nothing is sent again until the user reconnects.
+
+Afterwards the script compares each instance's database with a snapshot
+taken before the run: only the changes the companion was allowed to make are
+there. Run it with:
+
+```sh
+npm ci
+desktop/kde/scripts/container-check.sh --version "$version" --format deb --output "$out"
+TOKKL_KDE_TEST_PORT=8170 desktop/kde/ci/realserver.sh --format deb --output "$out"
+```
+
+With a native build, set `TOKKL_KDE_REALSERVER_COMMAND` to a JSON array that
+runs `<build>/tests/realservertest` and run
+`node --test desktop/kde/tests/realserver.test.ts`.
+
+### What CI does not cover
+
+- No Plasma Wayland session. The load check uses libplasma in a test shell
+  under Xvfb; it does not start `plasmashell` or KWin, add the widget to a
+  real panel, or test clicks, keyboard focus, tooltips, popups or scaling on
+  Wayland.
+- No KDE Wallet. Every test uses a fake credential store; nothing checks
+  that `kwalletd6` stores, unlocks or denies the secret on a real desktop.
+- The packages are installed and loaded in containers, not on TUXEDO OS or
+  Fedora KDE desktop installations.
+
+Check those by hand on both targets before a release that changes the
+widget, its packaging or the wallet code.
+
+The packages declare `License: NOASSERTION` because the repository has no
+license yet; publishing them should wait until it has one.

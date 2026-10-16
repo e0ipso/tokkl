@@ -2,6 +2,7 @@
 # Inspects a tokkl-kde DEB or RPM, then installs, upgrades and removes it.
 #
 #   check-package.sh --version <version> --package <file> [--previous <file>]
+#                    [--load-test <dir>]
 #
 # Run it as root on a disposable target system (a container) that has the
 # distribution's repositories, so the package manager can install the runtime
@@ -14,28 +15,34 @@
 #      outside /usr and no maintainer scripts.
 #   2. Clean install: the widget metadata carries the Tokkl version, the
 #      backend's libraries resolve and the package manager's verify is clean.
+#      With --load-test, the installed widget and backend then load through
+#      libplasma under Xvfb and a DBus session: <dir> holds the smokeload
+#      binary built for this target and packages.txt, the packages it needs
+#      (its libraries, Xvfb and DBus), which are installed first.
 #   3. Remove: no widget or backend files are left.
 #   4. With --previous (an older tokkl-kde): install it, upgrade to <file>,
-#      check that only the new package's files are present, then remove it
-#      (purge on Debian).
+#      check that only the new package's files are present, load it again
+#      with --load-test, then remove it (purge on Debian).
 # A fixture home with Plasma applet settings and a KDE Wallet file is created
 # first and must be byte-for-byte unchanged after every removal.
 
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --version <version> --package <file> [--previous <file>]" >&2
+    echo "usage: $0 --version <version> --package <file> [--previous <file>] [--load-test <dir>]" >&2
     exit 2
 }
 
 version=""
 package=""
 previous=""
+load_test=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --version) version="${2-}"; shift 2 || usage ;;
         --package) package="${2-}"; shift 2 || usage ;;
         --previous) previous="${2-}"; shift 2 || usage ;;
+        --load-test) load_test="${2-}"; shift 2 || usage ;;
         *) usage ;;
     esac
 done
@@ -45,6 +52,7 @@ native_version="$("$(dirname "${BASH_SOURCE[0]}")/native-version.sh" "$version")
 
 package="$(realpath "$package")"
 [ -z "$previous" ] || previous="$(realpath "$previous")"
+[ -z "$load_test" ] || load_test="$(realpath "$load_test")"
 
 plasmoid_id="com.github.e0ipso.tokkl"
 widget_dir="/usr/share/plasma/plasmoids/$plasmoid_id"
@@ -165,6 +173,13 @@ target_versions() { # the Qt, KDE Frameworks and Plasma packages installed
         rpm -q qt6-qtbase kf6-kwallet-libs libplasma
     fi | sed 's/^/target: /'
 }
+install_names() { # package names from the repositories
+    if [ "$format" = deb ]; then
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "$@"
+    else
+        dnf install -y -q "$@"
+    fi
+}
 verify_installed() {
     if [ "$format" = deb ]; then
         dpkg --verify tokkl-kde
@@ -248,6 +263,35 @@ check_installed() { # <native version> <semver> <file>
     fi
 }
 
+# Loads the installed widget and backend the way Plasma does, with the
+# smokeload test from the build: the package from the data dirs, the backend
+# from Qt's QML directory, the applet in a containment, its configuration
+# and Configure page. A real X server (Xvfb) and a private DBus session
+# stand in for the desktop session; the home directory is a throwaway one.
+loaded_once=false
+check_loads() {
+    [ -n "$load_test" ] || return 0
+    if ! $loaded_once; then
+        local packages
+        mapfile -t packages < "$load_test/packages.txt"
+        install_names "${packages[@]}" > /dev/null
+        loaded_once=true
+    fi
+    local home status=0
+    home="$(mktemp -d)"
+    (cd "$home" && env HOME="$home" XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" \
+        XDG_CACHE_HOME="$home/cache" XDG_STATE_HOME="$home/state" \
+        QT_QPA_PLATFORM=xcb QT_QUICK_BACKEND=software \
+        TOKKL_SMOKE_PLASMOID_DIR="$widget_dir" TOKKL_SMOKE_BACKEND_DIR="$backend_dir" \
+        dbus-run-session -- xvfb-run -a "$load_test/smokeload") || status=$?
+    rm -rf "$home"
+    if [ "$status" -eq 0 ]; then
+        pass "widget and backend load from the installed package under Xvfb and DBus"
+    else
+        fail "widget or backend failed to load from the installed package (exit $status)"
+    fi
+}
+
 check_removed() {
     expect "tokkl-kde is not installed" "tokkl-kde is still installed" [ -z "$(installed_version)" ]
     for dir in "$widget_dir" "$(dirname "$(dirname "$backend_dir")")"; do
@@ -287,6 +331,7 @@ step "clean install of $native_version"
 install_file "$package"
 target_versions
 check_installed "$native_version" "$version" "$package"
+check_loads
 
 step "remove $native_version"
 remove_package
@@ -309,6 +354,7 @@ if [ -n "$previous" ]; then
         [ "$got" = "$previous_version" ]
     upgrade_file "$package"
     check_installed "$native_version" "$version" "$package"
+    check_loads
 
     step "remove $native_version after the upgrade (purge on Debian)"
     remove_package purge
