@@ -245,6 +245,74 @@ test('a regular user sees no Admin entry, and opening /admin shows the server\'s
   await expect(page.locator('#users')).toHaveCount(0);
 });
 
+// TT-0175: when a row goes away, focus moves to the same control in the next row, else the
+// previous row, else the section heading. Closing a new link returns focus to what created it.
+test('revoking invites by keyboard keeps focus in the invites section', async ({ page, data }) => {
+  for (const note of ['Invite A', 'Invite B', 'Invite C']) await data.createInvite({ role: 'user', note });
+  await login(page);
+  await openAdmin(page);
+  const revoke = (note: string) => inviteRow(page, note).getByRole('button', { name: `Revoke invite "${note}"` });
+
+  await revoke('Invite B').focus();
+  await page.keyboard.press('Enter');
+  await expect(inviteRow(page, 'Invite B')).toHaveCount(0);
+  await expect(revoke('Invite C')).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(inviteRow(page, 'Invite C')).toHaveCount(0);
+  await expect(revoke('Invite A')).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#invites').getByText('No pending invites')).toBeVisible();
+  const heading = page.locator('#invites').getByRole('heading', { name: 'Pending invites' });
+  await expect(heading).toBeFocused();
+  await expect(heading).toHaveCSS('outline-width', '2px');
+
+  const create = page.locator('#invites').getByRole('button', { name: 'Create invite' });
+  await create.focus();
+  await page.keyboard.press('Enter');
+  const done = page.locator('#invites').getByRole('button', { name: 'Done' });
+  await expect(done).toBeVisible();
+  await done.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Invite link', { exact: true })).toHaveCount(0);
+  await expect(create).toBeFocused();
+});
+
+test('deleting users by keyboard keeps focus in the users section', async ({ page, users }) => {
+  const rita = await users.create({ fullname: 'Regular Rita' });
+  const sam = await users.create({ fullname: 'Regular Sam' });
+  await login(page);
+  await openAdmin(page);
+  const button = (email: string, action: string) => userRow(page, email).getByRole('button', { name: `${action} ${email}` });
+
+  // A reset link's Done button goes away with the link; focus goes back to the button that made it.
+  await button(rita.account.email, 'Reset password of').focus();
+  await page.keyboard.press('Enter');
+  const done = page.locator('#users').getByRole('button', { name: 'Done' });
+  await expect(done).toBeVisible();
+  await done.focus();
+  await page.keyboard.press('Enter');
+  await expect(done).toHaveCount(0);
+  await expect(button(rita.account.email, 'Reset password of')).toBeFocused();
+
+  const remove = async (email: string) => {
+    await button(email, 'Delete').focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: `Delete ${email}?` });
+    await expect(dialog.getByLabel(`Type ${email} to confirm`)).toBeFocused();
+    await page.keyboard.type(email);
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(userRow(page, email)).toHaveCount(0);
+  };
+  await remove(rita.account.email);
+  await expect(button(sam.account.email, 'Delete')).toBeFocused();
+  // Only the signed-in admin is left, and its row has no Delete button.
+  await remove(sam.account.email);
+  await expect(page.locator('#users').getByRole('heading', { name: 'Users' })).toBeFocused();
+});
+
 test('every admin control is reachable by keyboard and shows a focus ring', async ({ page, data, users }) => {
   await users.create();
   await data.createInvite({ role: 'user', note: 'Keyboard check' });

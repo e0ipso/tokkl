@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { keys, useMe } from '../api/hooks.ts';
@@ -61,6 +61,26 @@ function absoluteLink(path: string): string {
   return new URL(path, window.location.origin).href;
 }
 
+/** The enabled `action` control in the row of `id`, matched by the rows' data-id and data-row-action. */
+function rowAction(tbody: HTMLTableSectionElement | null, id: number, action: string): HTMLElement | null {
+  return tbody?.querySelector<HTMLElement>(`tr[data-id="${id}"] [data-row-action="${action}"]:not(:disabled)`) ?? null;
+}
+
+/**
+ * Moves focus off the row of `id` before it goes away, so a keyboard user keeps their place: to the
+ * same `action` control in the nearest row after it that has one, else the nearest row before it,
+ * else `fallback`.
+ */
+function focusPastRow(tbody: HTMLTableSectionElement | null, id: number, action: string, fallback: HTMLElement | null): void {
+  const rows = [...(tbody?.rows ?? [])];
+  const index = rows.findIndex((row) => row.dataset.id === String(id));
+  const others = index < 0 ? [] : [...rows.slice(index + 1), ...rows.slice(0, index).reverse()];
+  const target = others
+    .map((row) => row.querySelector<HTMLElement>(`[data-row-action="${action}"]:not(:disabled)`))
+    .find((control) => control !== null);
+  (target ?? fallback)?.focus();
+}
+
 function UserRow({ user, self, settings, onDelete, onResetLink }: {
   user: AdminAccount;
   self: boolean;
@@ -98,7 +118,7 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
   };
 
   return (
-    <tr className={disabled ? 'archived' : undefined}>
+    <tr className={disabled ? 'archived' : undefined} data-id={user.id}>
       <td className="admin-account">
         <span className="admin-account-name">{user.fullname || user.email}{self ? <span className="muted"> (you)</span> : null}</span>
         {user.fullname ? <span className="admin-account-email">{user.email}</span> : null}
@@ -148,6 +168,7 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
               type="button"
               className="icon-button"
               aria-label={`Reset password of ${user.email}`}
+              data-row-action="reset"
               title="Reset password: create a one-time link to set a new password"
               disabled={reset.isPending}
               onClick={() => reset.mutate()}
@@ -158,6 +179,7 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
               type="button"
               className="icon-button"
               aria-label={`Delete ${user.email}`}
+              data-row-action="delete"
               title="Delete account"
               onClick={() => onDelete(user)}
             >
@@ -170,14 +192,14 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
   );
 }
 
-function DeleteUserModal({ user, onClose }: { user: AdminAccount; onClose: () => void }) {
+function DeleteUserModal({ user, onClose, onDeleted }: { user: AdminAccount; onClose: () => void; onDeleted: () => void }) {
   const fields = useFieldErrors<'email'>();
   const [email, setEmail] = useState('');
   const remove = useAction<string>({
     mutationFn: (typed) => api.delete(`${ADMIN}/users/${user.id}`, { email: typed }),
     invalidate: [adminKeys.users],
     success: `Deleted ${user.email}`,
-    onSuccess: onClose,
+    onSuccess: onDeleted,
     onError: (error) => fields.validate([['email', error.message]]),
   });
 
@@ -218,11 +240,14 @@ function DeleteUserModal({ user, onClose }: { user: AdminAccount; onClose: () =>
 
 function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: number | undefined; settings: Settings }) {
   const [deleting, setDeleting] = useState<AdminAccount | null>(null);
-  const [reset, setReset] = useState<{ email: string; link: string } | null>(null);
+  const [reset, setReset] = useState<{ id: number; email: string; link: string } | null>(null);
+  const tbody = useRef<HTMLTableSectionElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
   return (
     <SettingsCard
       id="users"
       title="Users"
+      titleRef={title}
       intro="Every account on this server. Disabling signs the account out and blocks it until you enable it again."
     >
       <div className="table-wrap">
@@ -236,7 +261,7 @@ function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: 
               <th><span className="visually-hidden">Actions</span></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={tbody}>
             {users.map((user) => (
               <UserRow
                 key={user.id}
@@ -244,7 +269,7 @@ function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: 
                 self={user.id === meId}
                 settings={settings}
                 onDelete={setDeleting}
-                onResetLink={(account, link) => setReset({ email: account.email, link })}
+                onResetLink={(account, link) => setReset({ id: account.id, email: account.email, link })}
               />
             ))}
           </tbody>
@@ -256,13 +281,27 @@ function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: 
           link={reset.link}
           label={`Password reset link for ${reset.email}`}
           copied="Reset link copied"
-          onDone={() => setReset(null)}
+          onDone={() => {
+            (rowAction(tbody.current, reset.id, 'reset') ?? title.current)?.focus();
+            setReset(null);
+          }}
         >
           <strong>Password reset link for {reset.email} created.</strong> Copy it now: it is shown only once. Send it to
           them; it works once, for 24 hours, and replaces any earlier link. Using it signs the account out everywhere.
         </NewLink>
       ) : null}
-      {deleting ? <DeleteUserModal key={deleting.id} user={deleting} onClose={() => setDeleting(null)} /> : null}
+      {deleting ? (
+        <DeleteUserModal
+          key={deleting.id}
+          user={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            // The modal had focus; the row that opened it goes away once the list refetches.
+            focusPastRow(tbody.current, deleting.id, 'delete', title.current);
+            setDeleting(null);
+          }}
+        />
+      ) : null}
     </SettingsCard>
   );
 }
@@ -299,15 +338,16 @@ function NewLink({ link, label, copied, onDone, children }: {
   );
 }
 
-function InviteRow({ invite, settings }: { invite: Invite; settings: Settings }) {
+function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: Settings; onRevoked: () => void }) {
   const revoke = useAction({
     mutationFn: () => api.delete(`${ADMIN}/invites/${invite.id}`),
     invalidate: [adminKeys.invites],
     success: 'Invite revoked. Its link no longer works.',
+    onSuccess: onRevoked,
   });
   const name = invite.note ? `invite "${invite.note}"` : `${invite.role} invite`;
   return (
-    <tr>
+    <tr data-id={invite.id}>
       <td>{invite.role === 'admin' ? 'Admin' : 'User'}</td>
       <td className="manage-notes" title={invite.note ?? undefined}>{invite.note ?? <span className="muted">None</span>}</td>
       <td className="num admin-date">{day(invite.created_at, settings)}</td>
@@ -317,6 +357,7 @@ function InviteRow({ invite, settings }: { invite: Invite; settings: Settings })
           type="button"
           className="button button-danger-ghost"
           aria-label={`Revoke ${name}`}
+          data-row-action="revoke"
           disabled={revoke.isPending}
           onClick={() => revoke.mutate()}
         >
@@ -333,6 +374,16 @@ function InvitesSection({ settings }: { settings: Settings }) {
   const [role, setRole] = useState<UserRole>('user');
   const [note, setNote] = useState('');
   const [link, setLink] = useState<string | null>(null);
+  const tbody = useRef<HTMLTableSectionElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const createButton = useRef<HTMLButtonElement>(null);
+
+  // Moves focus only when it would otherwise be lost: it is on the revoked row or already on the body.
+  const revoked = (id: number) => {
+    const active = document.activeElement;
+    const row = tbody.current?.querySelector(`tr[data-id="${id}"]`);
+    if (!active || active === document.body || row?.contains(active)) focusPastRow(tbody.current, id, 'revoke', heading.current);
+  };
 
   const create = useAction<{ role: UserRole; note: string }, Invite & { url: string }>({
     mutationFn: (body) => api.post<Invite & { url: string }>(`${ADMIN}/invites`, body),
@@ -376,18 +427,26 @@ function InvitesSection({ settings }: { settings: Settings }) {
           {fields.message('note')}
         </div>
         <div className="settings-actions field-full">
-          <button type="submit" className="button button-primary" disabled={create.isPending}>
+          <button ref={createButton} type="submit" className="button button-primary" disabled={create.isPending}>
             {create.isPending ? 'Creating…' : 'Create invite'}
           </button>
         </div>
       </form>
       {link ? (
-        <NewLink link={link} label="Invite link" copied="Invite link copied" onDone={() => setLink(null)}>
+        <NewLink
+          link={link}
+          label="Invite link"
+          copied="Invite link copied"
+          onDone={() => {
+            createButton.current?.focus();
+            setLink(null);
+          }}
+        >
           <strong>Invite link created.</strong> Copy it now: it is shown only once. Send it to the person you invite.
         </NewLink>
       ) : null}
 
-      <h3 className="settings-subheading">Pending invites</h3>
+      <h3 ref={heading} className="settings-subheading" tabIndex={-1}>Pending invites</h3>
       {invites.error ? (
         <LoadError message={`Could not load invites: ${invites.error.message}`} onRetry={() => void invites.refetch()} className="is-compact" />
       ) : null}
@@ -407,8 +466,10 @@ function InvitesSection({ settings }: { settings: Settings }) {
                 <th><span className="visually-hidden">Actions</span></th>
               </tr>
             </thead>
-            <tbody>
-              {invites.data.map((invite) => <InviteRow key={invite.id} invite={invite} settings={settings} />)}
+            <tbody ref={tbody}>
+              {invites.data.map((invite) => (
+                <InviteRow key={invite.id} invite={invite} settings={settings} onRevoked={() => revoked(invite.id)} />
+              ))}
             </tbody>
           </table>
         </div>
