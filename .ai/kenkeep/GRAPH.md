@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:026da013df5aa37c7a517f3602d4e8acb9ee9e78f6184c9dab1328c9b9a86091'
-node_count: 50
+nodes_hash: 'sha256:6950a26dcfb4dd8951f316975b2d6a6e1622d3450968dad8151154b120bcd92a'
+node_count: 52
 ---
 # kenkeep Graph
 
-Total nodes: 50
+Total nodes: 52
 
 ## map-admin-api-and-disabled-accounts
 
@@ -46,6 +46,14 @@ Total nodes: 50
 - **tags:** kde, desktop, tooling
 - **relates_to:** practice-kde-companion-connection-and-configure-page-rules, map-npm-workspaces-package-layout, map-kde-native-packaging
 
+## map-gnome-timerd-d-bus-timer-service
+
+- **kind:** map
+- **title:** GNOME timer service: tokkl-timerd and org.tokkl.Timer1
+- **path:** tooling-and-project/map-gnome-timerd-d-bus-timer-service.md
+- **tags:** tooling, desktop, gnome, ci
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline
+
 ## map-history-scale-bench
 
 - **kind:** map
@@ -85,6 +93,14 @@ Total nodes: 50
 - **path:** tooling-and-project/kde-companion/plasma-companion/map-kde-panel-button-menu-and-project-indicator.md
 - **tags:** kde, desktop
 - **relates_to:** practice-kde-timer-controller-rules
+
+## map-macos-menu-bar-app
+
+- **kind:** map
+- **title:** macOS menu bar app: portable library, Objective-C++ shims and CI
+- **path:** tooling-and-project/map-macos-menu-bar-app.md
+- **tags:** tooling, desktop, macos, ci
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-gnome-timerd-d-bus-timer-service
 
 ## map-npm-workspaces-package-layout
 
