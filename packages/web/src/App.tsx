@@ -115,6 +115,24 @@ function MoreSheet({ onClose, children }: { onClose: () => void; children: React
   );
 }
 
+/**
+ * Who is signed in, shown beside Log out so a shared browser shows whose account is open. Reads
+ * the /me query the auth gate already loaded. Long values are cut with an ellipsis and keep the
+ * full text in title; with no full name the email stands alone.
+ */
+function SignedInUser() {
+  const { data: me } = useMe();
+  if (!me) return null;
+  const name = me.fullname.trim();
+  return (
+    <div className="signed-in">
+      <span className="visually-hidden">Signed in as </span>
+      {name ? <span className="signed-in-name" title={name}>{name}</span> : null}
+      <span className="signed-in-email" title={me.email}>{me.email}</span>
+    </div>
+  );
+}
+
 function Shell() {
   const [location] = useLocation();
   const qc = useQueryClient();
@@ -190,6 +208,7 @@ function Shell() {
             {moreOpen ? (
               <MoreSheet onClose={closeMore}>
                 {moreItems.map((item) => navLink(item, closeMore))}
+                <SignedInUser />
                 {logoutButton}
               </MoreSheet>
             ) : null}
@@ -199,6 +218,7 @@ function Shell() {
             <Brand />
             {NAV.map((item) => navLink(item))}
             <span className="spacer" />
+            <SignedInUser />
             {logoutButton}
           </>
         )}
