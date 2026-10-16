@@ -530,9 +530,9 @@ The scripts it runs work on their own, for a prepared machine:
 The `kde` job in `.github/workflows/ci.yml` runs once per target, TUXEDO OS
 24.04 (DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
 `scripts/container-check.sh` for the version in `package.json`, then
-`ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`. The
-release job needs both targets, the `core` job and the server and web checks
-to pass.
+`ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`, and the
+`gnome` job runs `desktop/gnome/ci/check.sh`. The release job needs both
+targets, the `core` and `gnome` jobs and the server and web checks to pass.
 
 The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
 images pinned by digest, the TUXEDO OS repositories, and the build and test

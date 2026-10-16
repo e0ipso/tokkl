@@ -1,0 +1,11 @@
+# The Tokkl timer service, started by D-Bus activation of org.tokkl.Timer1.
+[Unit]
+Description=Tokkl timer service
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.tokkl.Timer1
+ExecStart=@TOKKL_TIMERD_EXEC@
+Restart=on-failure

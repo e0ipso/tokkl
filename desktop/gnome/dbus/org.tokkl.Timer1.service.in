@@ -1,0 +1,6 @@
+# D-Bus activation of tokkl-timerd: the first call to org.tokkl.Timer1
+# starts the systemd user unit, or runs Exec on a bus without systemd.
+[D-BUS Service]
+Name=org.tokkl.Timer1
+Exec=@TOKKL_TIMERD_EXEC@
+SystemdService=tokkl-timerd.service

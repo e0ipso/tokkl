@@ -99,6 +99,19 @@ jobs:
           persist-credentials: false
       - run: desktop/core/ci/check.sh
 
+  # desktop/gnome (tokkl-timerd on desktop/core) in a pinned Fedora 44
+  # container with QtKeychain and GNOME Keyring and no Qt Gui runtime: CTest,
+  # the Qt libraries the service loads and its installed files.
+  gnome:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: desktop/gnome/ci/check.sh
+
   # The macOS menu bar app with Qt and QtKeychain from Homebrew: build
   # Tokkl.app, run CTest (desktop/core's tests included), check the bundle's
   # Info.plist, and start the app once to see that it stays up. The release
@@ -143,7 +156,7 @@ jobs:
           kill "$pid"
 
   release:
-    needs: [test, kde, core]
+    needs: [test, kde, core, gnome]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency: release
