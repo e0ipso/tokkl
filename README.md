@@ -153,6 +153,7 @@ npm run typecheck  # tsc over every package, e2e, scripts, bench and the KDE tes
 npm run build      # builds the web app into dist/web
 npm run test:e2e   # builds, then runs the Playwright browser tests
 npm run screenshots  # builds, then rewrites docs/screenshots/*.png
+npm run check:tracker-refs  # fails when a tracked file cites a ticket ID or plan path
 npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
 

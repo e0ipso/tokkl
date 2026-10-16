@@ -37,6 +37,7 @@ jobs:
           fi
 
       - run: npm run typecheck
+      - run: npm run check:tracker-refs
       - run: npm test
       # The visual baselines were drawn with Noto Sans as system-ui. Without
       # it Ubuntu picks WenQuanYi Zen Hei and every baseline fails.
