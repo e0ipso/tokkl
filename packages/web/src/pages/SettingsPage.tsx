@@ -27,7 +27,7 @@ function SessionSection() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   // Like the sidebar button: the tab forgets the session even when the request fails, and the
-  // reload shows what the server says.
+  // reload shows what the server says. After a failure the reloaded app says logout failed.
   const logout = () => {
     setBusy(true);
     logOut(qc)

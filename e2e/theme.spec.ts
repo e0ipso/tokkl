@@ -9,6 +9,7 @@ import { login } from './helpers.ts';
 // TT-0075: the theme picked in Settings decides the page and chart colours.
 // TT-0080: the two media-scoped theme-color metas follow that choice, and "Match the system" restores them.
 // TT-0129: a failed logout request and an expired session also clear the cached theme.
+// TT-0155: when the failed request leaves the user signed in, the reloaded page says so.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const CACHE_KEY = 'tokkl.theme';
@@ -211,6 +212,51 @@ test('a failed logout request still clears the cached theme', async ({ page, run
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   expect(await cachedTheme(page)).toBeNull();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+  // The session did end, so there is no "still signed in" message.
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('a logout the server never carries out clears the cache, then says the user is still signed in', async ({ page, runtimeErrors }) => {
+  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/app\/logout$/, reason: 'the logout request fails before the server ends the session' });
+  await loginWithCachedDark(page);
+  const failLogout = (route: Route) => route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' });
+  await page.route('**/api/app/logout', failLogout);
+  const message = page.getByRole('alert').filter({ hasText: 'Log out failed. You are still signed in.' });
+  const buttons = {
+    sidebar: () => page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Log out' }),
+    Settings: () => page.getByRole('region', { name: 'Session' }).getByRole('button', { name: 'Log out' }),
+  };
+
+  for (const [where, button] of Object.entries(buttons)) {
+    if (where === 'Settings') await page.getByRole('link', { name: 'Settings' }).click();
+    // Hold the reloaded page's preferences, so the cleared theme cannot be cached again before the check.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const hold = async (route: Route) => {
+      await held;
+      await route.fallback();
+    };
+    await page.route('**/api/v9/me/preferences', hold);
+    await button().click();
+    await expect(message, where).toBeVisible();
+    expect(await cachedTheme(page), where).toBeNull();
+    await expect(page.locator('html'), where).not.toHaveAttribute('data-theme');
+    release();
+    await page.unroute('**/api/v9/me/preferences', hold);
+    // Still signed in: the account's own theme comes back from the server.
+    await expect(page.locator('html'), where).toHaveAttribute('data-theme', 'dark');
+    if (where === 'sidebar') await message.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(message).toHaveCount(where === 'sidebar' ? 0 : 1);
+  }
+
+  // Try again once the server answers: the session ends, and logging in again shows no message.
+  await page.unroute('**/api/app/logout', failLogout);
+  await message.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await login(page);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(message).toHaveCount(0);
 });
 
 test('an expired session clears the cached theme once, and the login page follows the system', async ({ page, browser, baseURL, runtimeErrors }) => {

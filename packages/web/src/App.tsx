@@ -7,9 +7,10 @@ import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
+import { useToast } from './components/Toast.tsx';
 import { formatDuration } from '@tokkl/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
-import { endSession, logOut } from './lib/session.ts';
+import { endSession, logOut, takeLogoutFailure } from './lib/session.ts';
 import { applyTheme } from './lib/theme.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { ClientsPage } from './pages/ClientsPage.tsx';
@@ -140,6 +141,7 @@ function Shell() {
   const phone = useMediaQuery(PHONE_QUERY);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
+  const toast = useToast();
   useTheme();
   useRunningTitle();
 
@@ -157,6 +159,18 @@ function Shell() {
         window.location.href = '/';
       });
   };
+
+  // This account loaded after a failed logout, from here or from Settings. Say so, so nobody on a
+  // shared browser walks away thinking they logged out.
+  useEffect(() => {
+    if (!takeLogoutFailure()) return;
+    toast.show('Log out failed. You are still signed in.', {
+      kind: 'error',
+      action: { label: 'Try again', run: logout },
+      durationMs: 60_000,
+    });
+    // Runs once per page load; the first read clears the flag.
+  }, []);
 
   const closeMore = () => {
     setMoreOpen(false);

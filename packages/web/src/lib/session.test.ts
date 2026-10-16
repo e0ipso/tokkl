@@ -3,17 +3,18 @@ import { afterEach, beforeEach, test } from 'node:test';
 import { QueryClient } from '@tanstack/react-query';
 
 // TT-0129: logging out ends the session in this tab whether or not the request succeeds.
+// TT-0155: a failed request leaves a one-time flag so the reloaded app can say logout failed.
 // lib/theme.ts reads localStorage and <html> when it loads, so a minimal browser stands in first.
 const storage = new Map<string, string>();
+const tabStorage = new Map<string, string>();
 const attributes = new Map<string, string>();
+const fakeStorage = (map: Map<string, string>) => ({
+  getItem: (key: string) => map.get(key) ?? null,
+  setItem: (key: string, value: string) => void map.set(key, value),
+  removeItem: (key: string) => void map.delete(key),
+});
 Object.assign(globalThis, {
-  window: {
-    localStorage: {
-      getItem: (key: string) => storage.get(key) ?? null,
-      setItem: (key: string, value: string) => void storage.set(key, value),
-      removeItem: (key: string) => void storage.delete(key),
-    },
-  },
+  window: { localStorage: fakeStorage(storage), sessionStorage: fakeStorage(tabStorage) },
   document: {
     documentElement: {
       setAttribute: (name: string, value: string) => void attributes.set(name, value),
@@ -23,7 +24,7 @@ Object.assign(globalThis, {
   },
 });
 const { ApiError } = await import('../api/client.ts');
-const { logOut } = await import('./session.ts');
+const { endSession, logOut, takeLogoutFailure } = await import('./session.ts');
 
 const realFetch = globalThis.fetch;
 let qc: QueryClient;
@@ -36,6 +37,7 @@ beforeEach(() => {
   qc.setQueryData(['preferences'], { theme: 'dark' });
   storage.clear();
   storage.set('tokkl.theme', 'dark');
+  tabStorage.clear();
   attributes.clear();
   attributes.set('data-theme', 'dark');
   requests = [];
@@ -63,12 +65,15 @@ test('a successful logout clears the query cache and the cached theme', async ()
   await logOut(qc);
   assert.deepEqual(requests, [{ url: '/api/app/logout', method: 'POST' }]);
   assertSessionEnded();
+  assert.equal(takeLogoutFailure(), false, 'no failure message');
 });
 
 test('a logout the server answers with an error still clears both, then rejects', async () => {
   answerLogout(async () => new Response('Internal Server Error', { status: 500 }));
   await assert.rejects(logOut(qc), (error: unknown) => error instanceof ApiError && error.status === 500);
   assertSessionEnded();
+  assert.equal(takeLogoutFailure(), true, 'the next page load says logout failed');
+  assert.equal(takeLogoutFailure(), false, 'once');
 });
 
 test('a logout that never reaches the server still clears both, then rejects', async () => {
@@ -77,4 +82,12 @@ test('a logout that never reaches the server still clears both, then rejects', a
   });
   await assert.rejects(logOut(qc), TypeError);
   assertSessionEnded();
+  assert.equal(takeLogoutFailure(), true, 'the next page load says logout failed');
+});
+
+test('a session that ends after a failed logout drops the failure message', async () => {
+  answerLogout(async () => new Response('Internal Server Error', { status: 500 }));
+  await assert.rejects(logOut(qc));
+  endSession(qc);
+  assert.equal(takeLogoutFailure(), false, 'the login page does not say the user is still signed in');
 });
