@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:76be89614ecba9705d795cfd2a50e492fffcf0856f4d0ddac140efad65d2e3eb'
-node_count: 42
+nodes_hash: 'sha256:018c0abfd1d617211497778272545e2f8756d93fd1badcf196685011b991c96f'
+node_count: 43
 ---
 # kenkeep Graph
 
-Total nodes: 42
+Total nodes: 43
 
 ## map-admin-api-and-disabled-accounts
 
@@ -278,6 +278,14 @@ Total nodes: 42
 - **path:** web-ui-styling-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md
 - **tags:** web, css, timer, mobile
 - **relates_to:** practice-phone-layout-css-gotchas, practice-web-ui-survives-background-refetches
+
+## practice-timer-bar-pickers-return-focus-without-opening-suggestions
+
+- **kind:** practice
+- **title:** Timer bar pickers return focus to the description without opening suggestions
+- **path:** web-ui-behaviour/practice-timer-bar-pickers-return-focus-without-opening-suggestions.md
+- **tags:** web, timer, focus, a11y
+- **relates_to:** practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows, practice-web-ui-survives-background-refetches
 
 ## practice-toggl-csv-import-selects-users-by-opaque-key
 

@@ -4,6 +4,7 @@
 #include "clock.h"
 #include "connection.h"
 
+#include <QColor>
 #include <QDateTime>
 #include <QObject>
 #include <QPointer>
@@ -36,11 +37,22 @@ namespace Tokkl
 // stop still in flight keeps the controller busy through the loss and any
 // reconnect, until its reply arrives and a read reconciles the state.
 //
+// The next start defaults to the project of the last entry: of the entry
+// that stopped, after every stop (as the stop reply names it, when the panel
+// stopped it), and of the newest entry the API lists when a connection starts
+// or reconnect() runs with nothing running. Only an active project of the
+// workspace counts; otherwise it is no project. A stop seen before the
+// project list waits for it. A pick made while stopped wins until the next
+// start; a reconnect replaces only an automatic default.
+//
 // The panel menu edits the choices through chooseProject() and
-// chooseBillable(). They set the choices for the next start and, while an
-// entry runs, change that whole entry in place with one PUT, so the entry is
-// never split. Choosing a project applies its billable default (false for no
-// project); a later billable choice overrides it.
+// chooseBillable(). chooseProject() sets only the project of the next start
+// and is refused while an entry runs: the project of a running entry is fixed,
+// and changing it means stopping and starting a new entry. chooseBillable()
+// sets the next start too and, while an entry runs, edits that entry in place
+// with one PUT carrying only billable, so the entry is never split. Choosing a
+// project applies its billable default (false for no project); a later
+// billable choice overrides it.
 //
 // Everything is tied to the connection's generation. A new instance, account
 // or secret clears the entry, projects, busy state and errors at once, and
@@ -63,6 +75,14 @@ public:
         Error, // settings, wallet, workspace, rate limit or another failure; see errorString
     };
     Q_ENUM(Status)
+
+    // What the panel indicator can show for chosenProjectId.
+    enum class IndicatorState {
+        None, // no project, or the instance no longer has it (404)
+        Pending, // the project's details are still being read
+        Project, // the project is known, archived or not
+    };
+    Q_ENUM(IndicatorState)
 
 private:
     Q_PROPERTY(Tokkl::Connection *connection READ connection WRITE setConnection NOTIFY connectionChanged)
@@ -108,6 +128,11 @@ private:
     // and so missing from projects; null without one or while unresolved. A
     // project the instance no longer has is a map with an empty name.
     Q_PROPERTY(QVariant entryProject READ entryProjectVariant NOTIFY entryProjectChanged)
+    // The project behind chosenProjectId for the panel indicator, and its
+    // colour. The colour is valid only in the Project state and for a
+    // #rrggbb value.
+    Q_PROPERTY(IndicatorState indicatorState READ indicatorState NOTIFY indicatorChanged)
+    Q_PROPERTY(QColor indicatorColor READ indicatorColor NOTIFY indicatorChanged)
 
 public:
     static constexpr int pollIntervalMs = 30000;
@@ -150,6 +175,8 @@ public:
     bool chosenBillable() const;
     std::optional<Project> entryProject() const;
     QVariant entryProjectVariant() const;
+    IndicatorState indicatorState() const;
+    QColor indicatorColor() const;
 
     static QString formatElapsed(qint64 seconds);
 
@@ -159,7 +186,7 @@ public:
     // Stops a running entry, otherwise starts one.
     Q_INVOKABLE bool toggle();
     // Null, 0 or an active project's id. Returns false when refused: no
-    // write possible now, or not an active project.
+    // write possible now, an entry runs, or not an active project.
     Q_INVOKABLE bool chooseProject(const QVariant &projectId);
     Q_INVOKABLE bool chooseBillable(bool billable);
 
@@ -181,6 +208,7 @@ Q_SIGNALS:
     void selectionChanged();
     void choiceChanged();
     void entryProjectChanged();
+    void indicatorChanged();
 
 private:
     void onTick();
@@ -189,10 +217,24 @@ private:
     void beginMutation();
     void fetchEntry();
     void fetchProjects();
-    void applyEntry(const std::optional<TimeEntry> &entry);
+    void fetchLastEntry();
+    // stoppedReply is the server's answer to a stop or edit that ended the
+    // entry; its project wins over the one last read.
+    void applyEntry(const std::optional<TimeEntry> &entry, const std::optional<TimeEntry> &stoppedReply = std::nullopt);
+    void applyStopDefault();
+    void setStopDefault(std::optional<qint64> projectId);
+    void setNextStart(std::optional<qint64> projectId, bool billable);
+    void pickNextStart();
     bool updateEntry(const TimeEntryUpdate &update);
-    void resolveEntryProject();
+    std::optional<qint64> chosenProject() const;
+    // The details of a project: from projects, else from the single-project
+    // read. gone is set when that read answered 404.
+    std::optional<Project> knownProject(qint64 id, bool *gone = nullptr) const;
+    // Reads the chosen project when projects lacks it, then updates
+    // entryProject and the indicator.
+    void resolveProject();
     void setEntryProject(const std::optional<Project> &project);
+    void updateIndicator();
     void finishMutation(const ApiError &error, bool succeeded);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
@@ -219,7 +261,13 @@ private:
     // The project list of this context was read at least once.
     bool m_projectsKnown = false;
     std::optional<Project> m_entryProject;
-    qint64 m_entryProjectPending = 0; // id of the project read in flight, or 0
+    // The last project read on its own, because projects lacked it, and
+    // whether the instance answered 404 for it.
+    std::optional<Project> m_lookedUp;
+    bool m_lookedUpGone = false;
+    qint64 m_lookupPending = 0; // id of the project read in flight, or 0
+    IndicatorState m_indicatorState = IndicatorState::None;
+    QColor m_indicatorColor;
     qint64 m_elapsed = 0;
     QString m_error;
 
@@ -235,6 +283,17 @@ private:
     quint64 m_lastAppliedRead = 0;
     quint64 m_entryReadPending = 0; // number of the valid read in flight, or 0
     bool m_projectsPending = false;
+
+    // The user picked the next-start choice since the last start or stop, so
+    // no automatic default replaces it. Defaults themselves do not set it.
+    bool m_nextStartPicked = false;
+    // The project of an entry that stopped before the project list could
+    // tell whether it is active; applied when the list arrives.
+    std::optional<qint64> m_stopDefault;
+    // Ask for the last entry's project after the next current-entry read.
+    bool m_lastEntryWanted = false;
+    quint64 m_lastEntryReads = 0;
+    quint64 m_lastEntryRead = 0; // number of the last-entry read that may apply, or 0
 
     QDateTime m_lastTick;
     QDateTime m_nextPoll;

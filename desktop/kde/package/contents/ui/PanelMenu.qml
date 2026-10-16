@@ -10,9 +10,11 @@ import com.github.e0ipso.tokkl.backend
 // Configure. Arrow keys move, Right opens Project, Return or Space triggers
 // and Escape closes.
 //
-// Project and Billable change the choices for the next start and, while an
-// entry runs, that whole entry in place. They are disabled whenever the
-// timer cannot write, so nothing is queued for another account.
+// Project sets only the project of the next start and is locked while an
+// entry runs: changing it means stopping and starting a new entry. Billable
+// sets the next start too and, while an entry runs, edits that entry in
+// place. Both are disabled whenever the timer cannot write, so nothing is
+// queued for another account.
 PlasmaComponents.Menu {
     id: menu
 
@@ -70,16 +72,19 @@ PlasmaComponents.Menu {
         // Items before the active projects: No project and the archived one.
         readonly property int fixedCount: 1 + (hasArchived ? 1 : 0)
 
+        // A choice is possible: the timer can write and nothing runs.
+        readonly property bool choosable: menu.timer.canWrite && !menu.timer.running
+
         popupType: T.Popup.Window
         delegate: PlasmaComponents.MenuItem {}
-        enabled: menu.timer.canWrite
+        enabled: choosable
         title: i18nc("@title:menu current project", "Project: %1", menu.words.projectText)
 
         ChoiceItem {
             id: noProjectItem
             text: i18nc("@item:inmenu", "No project")
             selected: menu.timer.chosenProjectId === null
-            enabled: menu.timer.canWrite
+            enabled: projectMenu.choosable
             onTriggered: menu.timer.chooseProject(null)
         }
 
@@ -120,7 +125,7 @@ PlasmaComponents.Menu {
 
                 text: menu.words.projectLabel(modelData)
                 selected: menu.timer.chosenProjectId === modelData.id
-                enabled: menu.timer.canWrite
+                enabled: projectMenu.choosable
                 onTriggered: menu.timer.chooseProject(modelData.id)
             }
             onObjectAdded: (index, object) => projectMenu.insertItem(projectMenu.fixedCount + (menu.timer.projectsIncomplete ? 1 : 0) + index, object)

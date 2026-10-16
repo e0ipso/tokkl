@@ -772,6 +772,13 @@ void Connection::fetchProject(qint64 projectId, Callback<Project> done)
         std::move(done));
 }
 
+void Connection::fetchRecentEntries(Callback<QList<ListedEntry>> done)
+{
+    // Without dates the API answers with the entries started in the last 9
+    // days.
+    call<QList<ListedEntry>>("GET", QStringLiteral("/me/time_entries?meta=true"), QByteArray(), Access::Read, &decodeListedEntries, {}, std::move(done));
+}
+
 void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
 {
     const qint64 workspace = workspaceId();

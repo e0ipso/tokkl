@@ -84,6 +84,11 @@ export class EntityApi {
     return body(await this.page.request.post(this.ws('/projects'), { headers: CSRF, data: project }));
   }
 
+  /** Archives the project. Its tasks stay, and the API still lets them be deleted. */
+  async archiveProject(id: number): Promise<Project> {
+    return body(await this.page.request.put(this.ws(`/projects/${id}`), { headers: CSRF, data: { active: false } }));
+  }
+
   async createTask(projectId: number, name: string): Promise<Task> {
     return body(await this.page.request.post(this.ws(`/projects/${projectId}/tasks`), { headers: CSRF, data: { name } }));
   }

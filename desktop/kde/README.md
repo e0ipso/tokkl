@@ -1,6 +1,12 @@
-# Tokkl KDE companion: build notes
+# Tokkl KDE companion
 
-A Plasma 6 panel widget for Tokkl. It has two parts:
+A Plasma 6 panel widget for Tokkl. It shows the running timer in the panel,
+starts and stops it with a click, and sets the project and billable flag. It
+is a client of the Toggl-compatible API of one Tokkl instance and keeps
+nothing locally except its settings; the API token or password is in KDE
+Wallet.
+
+It has two parts:
 
 - `package/`: the widget, a QML package with plugin id `com.github.e0ipso.tokkl`.
   Its entry point is `contents/ui/main.qml`; the panel item and its menu are
@@ -11,6 +17,74 @@ A Plasma 6 panel widget for Tokkl. It has two parts:
 
 This is a standalone CMake project. The npm workspaces, `npm run build` and the
 server image do not build or ship it.
+
+Contents: [Install, upgrade and remove](#install-upgrade-and-remove),
+[Add the widget to a panel](#add-the-widget-to-a-panel),
+[Connection settings](#connection-settings),
+[Accounts and privacy](#accounts-and-privacy), [Panel](#panel),
+[Timer](#timer), [Packages](#packages), [Build and test](#configure-build-and-test),
+[CI and releases](#ci-and-releases) and the
+[Plasma smoke checklist](#real-plasma-smoke-checklist).
+
+## Install, upgrade and remove
+
+The companion is for two systems, each with one package:
+
+| System                      | Architecture | Package                                 |
+| --------------------------- | ------------ | --------------------------------------- |
+| TUXEDO OS 24.04             | amd64        | `tokkl-kde_<version>_amd64.deb`         |
+| Fedora KDE 44, with updates | x86_64       | `tokkl-kde-<version>-1.fc44.x86_64.rpm` |
+
+Both need Plasma 6.6 or newer, KDE Frameworks 6.24 and Qt 6.10; the exact
+bounds are under [Requirements](#requirements) and [Packages](#packages).
+Other distributions, releases and architectures are not supported. The manual
+checks cover a Plasma Wayland session; X11 sessions are not checked.
+
+A Tokkl release at <https://github.com/e0ipso/tokkl/releases> that includes
+the companion has both files attached. The two releases so far, v1.0.0 and
+v1.0.1, have no assets (checked 2026-10-16). Until a later release carries
+the packages, build them as [Build and check](#build-and-check) describes.
+
+In the directory with the downloaded file:
+
+```sh
+# TUXEDO OS 24.04
+sudo apt install ./tokkl-kde_<version>_amd64.deb      # install or upgrade
+sudo apt remove tokkl-kde                             # remove
+
+# Fedora KDE 44
+sudo dnf install ./tokkl-kde-<version>-1.fc44.x86_64.rpm   # install
+sudo dnf upgrade ./tokkl-kde-<version>-1.fc44.x86_64.rpm   # upgrade
+sudo dnf remove tokkl-kde                             # remove
+```
+
+`<version>` is the Tokkl version; a pre-release such as `1.2.0-rc.1` appears
+as `1.2.0~rc1` in the file name. `apt` and `dnf` install the QML modules the
+widget needs (see [Packages](#packages)). `apt purge tokkl-kde` also works. The
+package has no maintainer scripts, so remove and purge leave each user's
+widget settings and KDE Wallet entries in place; a later install finds them
+again. Delete the `Tokkl` folder in KDE Wallet by hand to drop the saved
+secrets.
+
+The packages are published without a declared license, because the
+repository has none yet (`License: NOASSERTION` in both).
+
+The Tokkl server needs no change. The Docker image does not contain the
+companion, which uses only the instance's public API.
+
+## Add the widget to a panel
+
+1. Install the package. If the widget does not appear in the next step, log
+   out and back in so Plasma rescans its widgets.
+2. Right-click the panel, open its edit mode, choose Add Widgets, search for
+   Tokkl (category Utilities) and add it.
+3. Right-click the new widget, choose Configure and fill in the Connection
+   page as described next. Until you do, the panel shows the Not configured
+   symbol.
+
+Menu names can differ between Plasma versions; the
+[smoke checklist](#real-plasma-smoke-checklist) confirms them on each target
+before a release.
 
 ## Requirements
 
@@ -96,7 +170,14 @@ Right-click the widget and choose Configure, then Connection:
   token in Tokkl) or an email and password. Both use HTTP Basic auth, as
   `<token>:api_token` or `<email>:<password>`.
 - **Test Connection** calls `GET /api/v9/me` with the values on screen, before
-  they are saved, and reports the account and its workspace.
+  they are saved, and reports "Connected as <name>, workspace <id>". It needs
+  an address and a secret on screen.
+
+Token sign-in is the default. Use it unless you want the widget to follow the
+account's password: rotating the token under Settings → API token in Tokkl
+makes the saved one fail, and the widget shows Sign-in refused until you
+save the new token. A password reset through an admin's link does not change
+the token, but it does change the password that email sign-in sends.
 
 The page loads the saved token or password of the address, sign-in method and
 email on screen. Changing any of them clears a loaded or saved secret, so it
@@ -120,6 +201,37 @@ sends none). Connection failures, timeouts and 5xx answers keep the last account
 data, marked stale. Redirects are not followed, so the credentials never go to
 another address; enter the final address instead.
 
+## Accounts and privacy
+
+Every Tokkl account has its own private workspace, and the widget works inside
+the one account it is configured for:
+
+- It sends that account's credentials only, to the one address you entered,
+  and reads and writes the account's `default_workspace_id` workspace only.
+  The server answers 403 for any other workspace, including to admins, who
+  manage accounts but cannot read anyone else's entries.
+- It never reads other accounts' projects or entries. The real-server test
+  checks this against two instances whose ids collide by construction (see
+  [Real-server test](#real-server-test)).
+- The tooltip, menu and Open Tokkl address hold no token or password. The
+  token or password is only in KDE Wallet.
+
+To switch to another account or instance, open Configure, change the address,
+sign-in method, email or secret, and Apply. The widget then:
+
+- drops the previous account's entry, projects, project and billable choices
+  and errors at once, and closes an open menu;
+- ignores any reply still on its way for the previous account, even when the
+  new account uses the same numeric ids, and does not send a start or stop
+  again;
+- starts reading the new account from nothing: the first current-entry read
+  must succeed before Start works.
+
+The wallet keeps one secret per instance and email, so switching back loads
+the one saved before. If the server disables the account (Sign-in refused) or
+removes its access to the workspace (Error), the widget clears the account's
+data and stops until you choose Reconnect or change the settings.
+
 ## Panel
 
 The panel shows the Tokkl icon, a running (playing) or stopped symbol, the
@@ -128,25 +240,52 @@ state also has its own words in the tooltip, the menu and the accessible
 description, so none relies on color: Not configured, Loading, Connected,
 Saving, Offline (the last known state), Sign-in refused and Error.
 
+| State           | Symbol             | Meaning                                                                                                                                                                  |
+| --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Not configured  | configure          | No address or no saved secret. Open Configure.                                                                                                                           |
+| Loading         | network-connect    | Reading the secret, validating the account or making the first current-entry read.                                                                                       |
+| Connected       | none               | Ready. Start, stop, Project and Billable work.                                                                                                                           |
+| Saving          | view-refresh       | A start, stop or edit is on its way, or its outcome is not known yet. Clicks are ignored.                                                                                |
+| Offline         | network-disconnect | The instance cannot be reached after a successful connection. The last entry stays, marked stale, and reads are retried.                                                 |
+| Sign-in refused | dialog-password    | The instance answered 403 to the credentials: a wrong or rotated token, a wrong password or a disabled account. Nothing is retried until Reconnect or a settings change. |
+| Error           | dialog-error       | The wallet, the settings, a rate limit, a lost workspace, or a connection that never succeeded. The menu and tooltip give the text.                                      |
+
 - Left click, Space or Return starts or stops the timer. Tab focuses the item
   and a frame shows the focus.
 - Right click, the Menu key or Shift+F10 opens the menu. It is a separate
   window, so the panel does not clip it. It shows the state, then Project,
   Billable, Reconnect, Open Tokkl and Configure Tokkl. The arrow keys move,
   Right opens Project, Return or Space chooses and Escape closes.
-- Project lists No project and every active project of the workspace. The
-  running entry's archived project is shown, checked and disabled, but is
-  never offered for new work.
+- Project lists No project and the active projects of the workspace, up to
+  100 pages of 200; a longer list is cut short, with a note in the menu that
+  points to Open Tokkl. The running entry's archived project is shown,
+  checked and disabled, but is never offered for new work. Project is
+  disabled while an entry runs: its project stays fixed, and changing it
+  means stopping and starting a new entry. The menu title names the current
+  project.
 - Choosing a project applies its billable default, or nonbillable for No
-  project; changing Billable afterwards overrides it. The choices start as No
-  project and nonbillable, apply to the next start and belong to the
-  validated instance and account: any change of instance, account or secret
-  resets them and closes the menu.
-- While an entry runs, a choice also changes that entry in place with
-  `PUT /api/v9/workspaces/{wid}/time_entries/{id}`. A project change sends
-  exactly `project_id`, `billable` and `task_id: null`; a billable change sends
-  only `billable`. The description, tags, start and the rest stay as they are,
-  and the entry is not split.
+  project; changing Billable afterwards overrides it. The choices apply to
+  the next start and belong to the validated instance and account: any change
+  of instance, account or secret resets them to No project and nonbillable
+  and closes the menu.
+- The next start defaults to the last entry's project, with its billable
+  default. After a stop from the panel, that is the project in the server's
+  stop reply, so a project changed on the web since the last read wins. After
+  a stop seen by polling, it is the project of the entry as last read. A stop
+  that happens before the project list has arrived waits for the list and
+  then checks the project against it. When the timer connects, or you choose
+  Reconnect, with nothing running, it reads
+  `GET /api/v9/me/time_entries?meta=true` and takes the newest entry's
+  project. Only an active project of the workspace counts; an archived or
+  deleted project, or none, gives No project. The API lists only the last 9
+  days, so after a longer break the default is No project. A choice made
+  while stopped (a project or Billable) wins until the next start, and
+  Reconnect replaces only an automatic default, never a choice you made. A
+  choice made before a stop does not carry over it.
+- While an entry runs, Billable also changes that entry in place with
+  `PUT /api/v9/workspaces/{wid}/time_entries/{id}`, sending only `billable`.
+  The description, tags, start and the rest stay as they are, and the entry
+  is not split.
 - Project and Billable are disabled whenever the timer cannot write: not
   configured, loading, busy, offline before the entry is known, refused
   credentials, a lost workspace or a cooldown.
@@ -167,8 +306,15 @@ sets its `connection` to the widget's `TokklConnection`.
   after a resume (a clock tick more than 10 seconds late) and when the
   connection comes back. Projects are read on connect, resume and reconnection,
   200 a page with `page` and `per_page` until a page comes back short. When the
-  running entry's project is not among the active ones it is read on its own
+  chosen project (the running entry's, or the next start's while stopped) is
+  not among the active ones it is read on its own
   (`GET /api/v9/workspaces/{wid}/projects/{id}`) so the menu can name it.
+- `indicatorState` says what the panel can show for that project: `None`
+  without a project or when the read answered 404, `Pending` while its
+  details are still unknown, and `Project` once they are, archived projects
+  included. `indicatorColor` is the project's colour in the `Project` state
+  when it is `#rrggbb`, and an invalid colour otherwise. `indicatorChanged`
+  fires whenever either changes. The panel item does not draw it yet.
 - Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
   `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
   an empty description and the selected project and billable choice. Stop
@@ -357,7 +503,21 @@ semantic-release builds the release packages through the local plugin
   `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it creates.
 
 There is no separate companion version, tag or workflow, and the packages
-are published nowhere else.
+are published nowhere else: no app store, KDE Store, Flatpak or distribution
+repository.
+
+### One version, one release
+
+Tokkl has one version, the `version` in the root `package.json`. One push to
+main that semantic-release turns into a release produces, under that
+version, the `v<version>` tag, the GitHub release with the DEB and RPM
+attached, and the `ghcr.io/e0ipso/tokkl` Docker image (tagged `<version>`,
+`<major>.<minor>`, `<major>` and `latest`). A push that cuts no release
+produces none of the three. The image publishes in the same `release` job,
+after semantic-release, only when it created a tag; it does not contain the
+companion. The companion sends its version in the User-Agent (`tokkl-kde/<version>`)
+and does not compare it with the server's or refuse a server of another
+version.
 
 ### Real-server test
 
@@ -409,7 +569,126 @@ runs `<build>/tests/realservertest` and run
   Fedora KDE desktop installations.
 
 Check those by hand on both targets before a release that changes the
-widget, its packaging or the wallet code.
+widget, its packaging or the wallet code, with the checklist below. CI covers
+everything else in the [CTest list](#configure-build-and-test), the package
+checks and the [real-server test](#real-server-test).
 
-The packages declare `License: NOASSERTION` because the repository has no
-license yet; publishing them should wait until it has one.
+## Real Plasma smoke checklist
+
+Run this on a Plasma Wayland session of each target (TUXEDO OS 24.04 with the
+DEB, Fedora KDE 44 with the RPM), with the release's packages and a Tokkl
+instance you can break on purpose. Nothing here is automated, and no run has
+been recorded yet.
+
+Prepare:
+
+- Two accounts, A and B, on the instance. Account A has a billable project,
+  a nonbillable project, an archived project that has a stopped entry, and
+  one entry from the last 9 days. B has one project with a different name.
+- Both accounts' API tokens, and A's email and password.
+- `echo $XDG_SESSION_TYPE` prints `wayland`, and KWalletManager shows the
+  network wallet. Note the Plasma, KDE Frameworks and Qt versions.
+
+Install and load:
+
+- [ ] `sudo apt install ./<file>.deb` or `sudo dnf install ./<file>.rpm`
+      succeeds; `dpkg -s tokkl-kde` or `rpm -q tokkl-kde` shows the release
+      version.
+- [ ] Add Widgets lists Tokkl, and the widget goes onto a horizontal panel.
+      Record the menu path you used and whether a log out was needed.
+- [ ] The panel shows the Tokkl icon, the stopped symbol, `0:00:00` and the
+      Not configured symbol. The tooltip reads "Tokkl: Stopped 0:00:00 · Not
+      configured · Set the instance URL and credentials in the widget
+      settings." and shows the version.
+- [ ] Configure opens on Connection. Test Connection is disabled until an
+      address and a secret are on screen.
+
+Wallet and connection:
+
+- [ ] Enter the instance address and A's token. Test Connection says
+      "Connected as" A. Apply. If KWallet asks for access, allow it. The widget
+      reaches Connected.
+- [ ] KWalletManager shows the secret in the network wallet, folder `Tokkl`,
+      and no secret is in `~/.config/plasma-org.kde.plasma.desktop-appletsrc`.
+- [ ] Close the wallet and log out and in, or restart the widget. The prompt
+      returns; deny it. The widget and the Configure page say KDE Wallet is
+      locked or denied access, and nothing is saved anywhere else.
+- [ ] Disable the wallet in System Settings. The page and the widget say KDE
+      Wallet is disabled. Enable it again.
+- [ ] Switch to Email and password with A's email and password; Test
+      Connection and Apply work. Switch back to the API token.
+
+Timer:
+
+- [ ] Left click starts the timer. The panel counts up once a second for 10
+      seconds, and the web app shows the entry running.
+- [ ] Left click again stops it. The count stops and the web app shows a
+      stopped entry.
+- [ ] Tab to the widget: a frame shows. Space and Return start and stop it.
+- [ ] Start in the web app: the panel shows it running within 30 seconds.
+      Stop it in the web app: the panel stops.
+- [ ] Suspend and resume with the timer running: the elapsed time matches the
+      web app after the resume.
+
+Menu:
+
+- [ ] Right click, the Menu key and Shift+F10 open the menu in a separate
+      window that the panel does not clip. Try the panel at the top, bottom,
+      left and right of the screen, and at 100% and 200% scaling.
+- [ ] Arrow keys move, Right opens Project, Return and Space choose and
+      Escape closes. The menu shows the state, then Project, Billable,
+      Reconnect, Open Tokkl and Configure Tokkl.
+- [ ] While stopped, choosing the billable project turns Billable on, the
+      nonbillable project turns it off, and toggling Billable afterwards
+      sticks. Start: the web app shows that project and billable flag.
+- [ ] While running, Project is disabled. Toggling Billable changes the same
+      entry in the web app, with the same description, tags and start, and
+      does not create another entry.
+- [ ] Stop. The next start is preselected with the stopped entry's project.
+      Repeat after changing the running entry's project in the web app
+      first: the panel stop preselects the changed project.
+- [ ] With nothing running, pick another project, then choose Reconnect: the
+      pick stays. Pick nothing, change the newest entry's project in the web
+      app, then choose Reconnect: the preselected project follows it.
+- [ ] Log out and in with nothing running: the preselected project is the
+      newest entry's from the last 9 days. With no entry in 9 days it is No
+      project.
+- [ ] Start an entry on the archived project in the web app, then open the
+      menu: the project is shown checked and disabled, and is not offered
+      for a new start.
+- [ ] Open Tokkl opens the instance address in the browser.
+
+States:
+
+- [ ] Stop the server, or block it with the firewall. Within about a minute
+      the panel shows Offline with the last state kept. Bring it back; it
+      returns to Connected within about a minute.
+- [ ] Rotate A's token in Tokkl. The panel shows Sign-in refused and the
+      server log shows no repeated requests. Save the new token in
+      Configure, or choose Reconnect: the panel recovers.
+- [ ] Disable A on the Admin page. The panel shows Sign-in refused. Enable
+      A and choose Reconnect.
+
+Accounts:
+
+- [ ] With the menu open and a timer running for A, change to B's token in
+      Configure and Apply. The menu closes, nothing of A's projects or timer
+      is visible, and Start works only after B's state loads. B's start
+      appears in B's web app only.
+- [ ] Switch back to A's token: the saved secret loads from the wallet and
+      A's timer shows.
+
+Packages:
+
+- [ ] Install a newer package over the older one with the widget on the
+      panel. The new version loads after a log out and in; settings and the
+      wallet entry are still there.
+- [ ] Remove the package. The widget is gone from Add Widgets, and the
+      wallet folder `Tokkl` and the applet settings remain.
+
+Write down the date, target, versions, package file name and any step that
+failed. A failed step blocks a release that changes the widget, its
+packaging or the wallet code.
+
+The packages declare `License: NOASSERTION`, because the repository has no
+license yet. They are published without a declared license until it has one.

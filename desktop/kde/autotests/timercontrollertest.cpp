@@ -19,6 +19,7 @@ const QString instanceA = QStringLiteral("https://a.example.test");
 const QString instanceB = QStringLiteral("https://b.example.test/tokkl");
 const QString token = QStringLiteral("tok-timer-1");
 const QByteArray currentPath = "/me/time_entries/current";
+const QByteArray listPath = "/me/time_entries";
 
 QByteArray meBody(qint64 id, qint64 workspace)
 {
@@ -33,21 +34,39 @@ QByteArray meBody(qint64 id, qint64 workspace)
         .toJson(QJsonDocument::Compact);
 }
 
-QByteArray entryBody(qint64 id, qint64 workspace, const QString &start, bool running = true)
+QJsonObject entryObject(qint64 id, qint64 workspace, const QString &start, bool running = true, std::optional<qint64> project = std::nullopt)
 {
     const QDateTime begin = QDateTime::fromString(start, Qt::ISODate);
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), id},
-                             {QStringLiteral("workspace_id"), workspace},
-                             {QStringLiteral("project_id"), QJsonValue::Null},
-                             {QStringLiteral("billable"), false},
-                             {QStringLiteral("start"), start},
-                             {QStringLiteral("stop"), running ? QJsonValue(QJsonValue::Null) : QJsonValue(begin.addSecs(60).toString(Qt::ISODate))},
-                             {QStringLiteral("duration"), running ? -begin.toSecsSinceEpoch() : 60},
-                             {QStringLiteral("description"), QString()},
-                             {QStringLiteral("tags"), QJsonArray()},
-                         })
-        .toJson(QJsonDocument::Compact);
+    return QJsonObject{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("workspace_id"), workspace},
+        {QStringLiteral("project_id"), project ? QJsonValue(*project) : QJsonValue(QJsonValue::Null)},
+        {QStringLiteral("billable"), false},
+        {QStringLiteral("start"), start},
+        {QStringLiteral("stop"), running ? QJsonValue(QJsonValue::Null) : QJsonValue(begin.addSecs(60).toString(Qt::ISODate))},
+        {QStringLiteral("duration"), running ? -begin.toSecsSinceEpoch() : 60},
+        {QStringLiteral("description"), QString()},
+        {QStringLiteral("tags"), QJsonArray()},
+    };
+}
+
+QByteArray entryBody(qint64 id, qint64 workspace, const QString &start, bool running = true, std::optional<qint64> project = std::nullopt)
+{
+    return QJsonDocument(entryObject(id, workspace, start, running, project)).toJson(QJsonDocument::Compact);
+}
+
+// One stopped entry of GET /me/time_entries?meta=true.
+QJsonObject listedEntry(qint64 id, qint64 workspace, std::optional<qint64> project, const QJsonValue &active, bool billable = false)
+{
+    QJsonObject entry = entryObject(id, workspace, QStringLiteral("2026-10-15T08:00:00Z"), false, project);
+    entry.insert(QStringLiteral("project_active"), active);
+    entry.insert(QStringLiteral("project_billable"), project ? QJsonValue(billable) : QJsonValue(QJsonValue::Null));
+    return entry;
+}
+
+QByteArray listBody(const QJsonArray &entries)
+{
+    return QJsonDocument(entries).toJson(QJsonDocument::Compact);
 }
 
 QByteArray projectsBody(qint64 workspace)
@@ -55,6 +74,21 @@ QByteArray projectsBody(qint64 workspace)
     return QStringLiteral(R"([{"id":11,"workspace_id":%1,"client_id":null,"client_name":null,"name":"Alpha","color":"#06aaf5","active":true,"billable":true}])")
         .arg(workspace)
         .toUtf8();
+}
+
+QJsonObject projectObject(qint64 id, qint64 workspace, const QString &color, bool active = true)
+{
+    return QJsonObject{{QStringLiteral("id"), id},
+                       {QStringLiteral("workspace_id"), workspace},
+                       {QStringLiteral("name"), QStringLiteral("P%1").arg(id)},
+                       {QStringLiteral("color"), color},
+                       {QStringLiteral("active"), active},
+                       {QStringLiteral("billable"), false}};
+}
+
+QByteArray json(const QJsonObject &object)
+{
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
 // A page of distinct active projects of the workspace, ids first .. first + count - 1.
@@ -147,6 +181,14 @@ class TimerControllerTest : public QObject
         f.respond(entry, FakeTransport::answer(200, current));
         f.respond(projects, FakeTransport::answer(200, projectsBody(workspace)));
         return f.timer.isConnected();
+    }
+
+    // Thirty one-second ticks: the next poll of the current entry goes out.
+    static void poll(Fixture &f)
+    {
+        for (int i = 0; i < 30; ++i) {
+            f.clock.advance(1000);
+        }
     }
 
 private Q_SLOTS:
@@ -381,8 +423,9 @@ private Q_SLOTS:
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"), false)));
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
-        f.timer.setSelectedProjectId(QVariant::fromValue(nullptr));
-        f.timer.setBillable(false);
+        // The stopped entry had no project, so the next start has none either.
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(!f.timer.billable());
         QVERIFY(f.timer.start());
         const QJsonObject plain = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
         QVERIFY(plain.value(QStringLiteral("project_id")).isNull());
@@ -407,6 +450,329 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
         QVERIFY(f.unanswered(f.last("GET", currentPath)));
+    }
+
+    void projectIsLockedWhileRunning()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(f.timer.canWrite());
+        const QVariantMap before = f.timer.currentEntryVariant().toMap();
+        const qsizetype requests = f.transport.requests.size();
+        QSignalSpy selection(&f.timer, &TimerController::selectionChanged);
+
+        QVERIFY(!f.timer.chooseProject(11));
+        QVERIFY(!f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QCOMPARE(f.transport.requests.size(), requests);
+        QCOMPARE(f.timer.currentEntryVariant().toMap(), before);
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(!f.timer.billable());
+        QCOMPARE(selection.count(), 0);
+        QVERIFY(!f.timer.isBusy());
+
+        // Billable still edits the running entry, with billable alone.
+        QVERIFY(f.timer.chooseBillable(true));
+        const qsizetype put = f.last("PUT", "/time_entries/5");
+        QVERIFY(f.unanswered(put));
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(put).body).object(), QJsonObject({{QStringLiteral("billable"), true}}));
+
+        // Stopped, the project is a choice again.
+        f.respond(put, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.timer.chooseProject(11));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
+    }
+
+    void panelStopDefaultsToTheEntryProject()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
+        QVERIFY(f.find("GET", listPath).isEmpty());
+        QVERIFY(f.timer.selectedProjectId().isNull());
+
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
+        QVERIFY(!f.timer.isRunning());
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        QVERIFY(f.timer.billable());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+
+        // The read after the stop changes nothing, and the next start sends it.
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        QVERIFY(f.find("GET", listPath).isEmpty());
+        QVERIFY(f.timer.start());
+        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
+        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(body.value(QStringLiteral("billable")).toBool(), true);
+    }
+
+    void polledStopDefaultsToTheEntryProject()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(!f.timer.isRunning());
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        QVERIFY(f.timer.billable());
+    }
+
+    void stopWithoutAnActiveProjectGivesNoProject_data()
+    {
+        QTest::addColumn<QByteArray>("running");
+        QTest::addColumn<int>("lookupStatus");
+        QTest::addColumn<QByteArray>("lookup");
+        QTest::newRow("archived") << entryBody(5, 7, startedAt, true, 33) << 200
+                                  << QJsonDocument(QJsonObject{{QStringLiteral("id"), 33},
+                                                               {QStringLiteral("workspace_id"), 7},
+                                                               {QStringLiteral("name"), QStringLiteral("Legacy")},
+                                                               {QStringLiteral("active"), false},
+                                                               {QStringLiteral("billable"), true}})
+                                         .toJson(QJsonDocument::Compact);
+        QTest::newRow("deleted") << entryBody(5, 7, startedAt, true, 44) << 404 << QByteArray("\"Project not found\"");
+        QTest::newRow("no project") << entryBody(5, 7, startedAt) << 0 << QByteArray();
+    }
+
+    void stopWithoutAnActiveProjectGivesNoProject()
+    {
+        QFETCH(QByteArray, running);
+        QFETCH(int, lookupStatus);
+        QFETCH(QByteArray, lookup);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, running));
+        if (lookupStatus != 0) {
+            f.respond(f.last("GET", "/projects/" + QByteArray::number(lookupStatus == 200 ? 33 : 44)), FakeTransport::answer(lookupStatus, lookup));
+        }
+        f.timer.setSelectedProjectId(11);
+        f.timer.setBillable(true);
+
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(!f.timer.isRunning());
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(!f.timer.billable());
+    }
+
+    void connectDefaultsToTheLastEntryProject_data()
+    {
+        QTest::addColumn<QByteArray>("list");
+        QTest::addColumn<QVariant>("project");
+        QTest::addColumn<bool>("billable");
+        const QVariant none = QVariant::fromValue(nullptr);
+        QTest::newRow("active") << listBody({listedEntry(8, 7, 11, true, true), listedEntry(6, 7, 12, true)}) << QVariant(qint64(11)) << true;
+        QTest::newRow("active, nonbillable") << listBody({listedEntry(8, 7, 12, true, false)}) << QVariant(qint64(12)) << false;
+        QTest::newRow("archived") << listBody({listedEntry(8, 7, 33, false, true), listedEntry(6, 7, 11, true)}) << none << false;
+        QTest::newRow("unknown state") << listBody({listedEntry(8, 7, 11, QJsonValue::Null)}) << none << false;
+        QTest::newRow("no project") << listBody({listedEntry(8, 7, std::nullopt, QJsonValue::Null), listedEntry(6, 7, 11, true)}) << none << false;
+        QTest::newRow("another workspace") << listBody({listedEntry(8, 9, 11, true, true)}) << none << false;
+        QTest::newRow("empty") << QByteArray("[]") << none << false;
+    }
+
+    void connectDefaultsToTheLastEntryProject()
+    {
+        QFETCH(QByteArray, list);
+        QFETCH(QVariant, project);
+        QFETCH(bool, billable);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QCOMPARE(f.find("GET", listPath).size(), 1);
+        const qsizetype read = f.last("GET", listPath);
+        QVERIFY(f.unanswered(read));
+        const QUrl url = f.transport.requests.at(read).url;
+        QCOMPARE(url.path(), QStringLiteral("/api/v9/me/time_entries"));
+        QCOMPARE(url.query(), QStringLiteral("meta=true"));
+
+        QSignalSpy choice(&f.timer, &TimerController::choiceChanged);
+        f.respond(read, FakeTransport::answer(200, list));
+        if (project.isNull()) {
+            QVERIFY(f.timer.selectedProjectId().isNull());
+        } else {
+            QCOMPARE(f.timer.selectedProjectId().toLongLong(), project.toLongLong());
+            QVERIFY(choice.count() > 0);
+        }
+        QCOMPARE(f.timer.billable(), billable);
+
+        // Polls that keep seeing nothing running neither ask again nor change it.
+        f.timer.setSelectedProjectId(QVariant::fromValue(nullptr));
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.find("GET", listPath).size(), 1);
+        QVERIFY(f.timer.selectedProjectId().isNull());
+    }
+
+    void connectWithARunningEntryAsksNothing()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(f.find("GET", listPath).isEmpty());
+    }
+
+    void manualPickWinsOverTheConnectDefault_data()
+    {
+        QTest::addColumn<QString>("pick");
+        QTest::newRow("project") << QStringLiteral("project");
+        QTest::newRow("billable") << QStringLiteral("billable");
+    }
+
+    void manualPickWinsOverTheConnectDefault()
+    {
+        QFETCH(QString, pick);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        const qsizetype read = f.last("GET", listPath);
+        QVERIFY(f.unanswered(read));
+
+        // Picked before the read answers: the pick stays.
+        if (pick == QLatin1String("project")) {
+            QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        } else {
+            QVERIFY(f.timer.chooseBillable(true));
+        }
+        f.respond(read, FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QCOMPARE(f.timer.billable(), pick == QLatin1String("billable"));
+
+        QVERIFY(f.timer.chooseProject(11));
+        QVERIFY(f.timer.chooseBillable(false));
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.find("GET", listPath).size(), 1);
+        QVERIFY(f.timer.start());
+        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
+        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(body.value(QStringLiteral("billable")).toBool(true), false);
+    }
+
+    void startBeforeTheConnectDefaultKeepsItsChoice()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        const qsizetype read = f.last("GET", listPath);
+        QVERIFY(f.timer.start());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
+        f.respond(read, FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(!f.timer.billable());
+    }
+
+    void connectDefaultOfAnOlderGenerationIsIgnored()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        const qsizetype oldRead = f.last("GET", listPath);
+        QVERIFY(connectAccount(f, instanceB, 4, 7, "null"));
+        const qsizetype newRead = f.last("GET", listPath);
+        QVERIFY(newRead > oldRead);
+        f.respond(oldRead, FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(!f.timer.billable());
+        f.respond(newRead, FakeTransport::answer(200, listBody({listedEntry(9, 7, 11, true, false)})));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        QVERIFY(!f.timer.billable());
+    }
+
+    void stopBeforeTheProjectListKeepsItsDefault_data()
+    {
+        QTest::addColumn<bool>("pick");
+        QTest::newRow("default") << false;
+        QTest::newRow("manual pick in between") << true;
+    }
+
+    void stopBeforeTheProjectListKeepsItsDefault()
+    {
+        QFETCH(bool, pick);
+        Fixture f;
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceA);
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.transport.requests.size() == 1;
+        }));
+        f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
+        const qsizetype projects = f.last("GET", "/projects");
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        QVERIFY(f.unanswered(projects));
+        QVERIFY(f.timer.canWrite());
+
+        // The stop answers before the project list.
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(!f.timer.isRunning());
+        if (pick) {
+            QVERIFY(f.timer.chooseBillable(true));
+        }
+
+        f.respond(projects, FakeTransport::answer(200, projectsBody(7)));
+        if (pick) {
+            QVERIFY(f.timer.selectedProjectId().isNull());
+            QVERIFY(f.timer.billable());
+        } else {
+            QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+            QVERIFY(f.timer.billable());
+        }
+    }
+
+    void stopDefaultsToTheProjectTheServerStopped()
+    {
+        Fixture f;
+        const QByteArray projects = "[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]";
+        QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
+        f.timer.refresh();
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projects));
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+
+        // The web moved the entry to project 12 since the last read.
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 12)));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 12);
+        QVERIFY(!f.timer.billable());
+    }
+
+    void reconnectReplacesAnAutomaticDefault_data()
+    {
+        QTest::addColumn<bool>("pick");
+        QTest::newRow("automatic default") << false;
+        QTest::newRow("manual pick") << true;
+    }
+
+    void reconnectReplacesAnAutomaticDefault()
+    {
+        QFETCH(bool, pick);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        if (pick) {
+            QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        }
+
+        // Meanwhile an entry on project 12 ran and stopped elsewhere.
+        const qsizetype before = f.transport.requests.size();
+        f.timer.reconnect();
+        const qsizetype read = f.last("GET", currentPath);
+        QVERIFY(read >= before);
+        QVERIFY(f.unanswered(read));
+        f.respond(read, FakeTransport::answer(200, "null"));
+        if (pick) {
+            QCOMPARE(f.find("GET", listPath).size(), 1);
+            QVERIFY(f.timer.selectedProjectId().isNull());
+            QVERIFY(!f.timer.billable());
+            return;
+        }
+        QCOMPARE(f.find("GET", listPath).size(), 2);
+        f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(9, 7, 12, true, false), listedEntry(8, 7, 11, true, true)})));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 12);
+        QVERIFY(!f.timer.billable());
     }
 
     void stoppedConflictReconciles_data()
@@ -908,6 +1274,153 @@ private Q_SLOTS:
         QVERIFY(f.timer.stop());
         QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.host(),
                  switchInstance ? QStringLiteral("b.example.test") : QStringLiteral("a.example.test"));
+    }
+
+    void indicatorFollowsTheRunningEntry()
+    {
+        Fixture f;
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
+
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceA);
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.transport.requests.size() == 1;
+        }));
+        f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        // The project is not known until the project list answers.
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 1);
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(f.timer.indicatorColor(), QColor(0x06, 0xaa, 0xf5));
+        QCOMPARE(indicator.count(), 2);
+
+        // An entry without a project shows nothing.
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 3);
+    }
+
+    void indicatorResolvesProjectsMissingFromTheList_data()
+    {
+        QTest::addColumn<bool>("running");
+        QTest::newRow("running entry") << true;
+        QTest::newRow("next start") << false;
+    }
+
+    void indicatorResolvesProjectsMissingFromTheList()
+    {
+        QFETCH(bool, running);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, running ? entryBody(5, 7, startedAt, true, 33) : QByteArray("null")));
+        if (!running) {
+            f.timer.setSelectedProjectId(33);
+        }
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 33);
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
+        const qsizetype archived = f.last("GET", "/projects/33");
+        QVERIFY(f.unanswered(archived));
+
+        // Archived: known, with its colour, whatever the case of the digits.
+        QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
+        f.respond(archived, FakeTransport::answer(200, json(projectObject(33, 7, QStringLiteral("#9E5BD9"), false))));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(f.timer.indicatorColor(), QColor(0x9e, 0x5b, 0xd9));
+        QCOMPARE(indicator.count(), 1);
+
+        // Deleted on the server: 404 gives None.
+        if (running) {
+            poll(f);
+            f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 44)));
+        } else {
+            f.timer.setSelectedProjectId(44);
+        }
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
+        f.respond(f.last("GET", "/projects/44"), FakeTransport::answer(404, "\"Project not found\""));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 3);
+        if (running) {
+            // entryProject keeps the id without a name, as before.
+            QCOMPARE(f.timer.entryProject()->id, 44);
+            QVERIFY(f.timer.entryProject()->name.isEmpty());
+        } else {
+            QVERIFY(!f.timer.entryProject());
+        }
+        QCOMPARE(f.find("GET", "/projects/44").size(), 1);
+    }
+
+    void indicatorColorMustBeHex_data()
+    {
+        QTest::addColumn<QString>("color");
+        QTest::newRow("empty") << QString();
+        QTest::newRow("short") << QStringLiteral("#abc");
+        QTest::newRow("long") << QStringLiteral("#06aaf5ff");
+        QTest::newRow("no hash") << QStringLiteral("06aaf5");
+        QTest::newRow("name") << QStringLiteral("red");
+        QTest::newRow("not hex") << QStringLiteral("#06aaf g");
+        QTest::newRow("trailing space") << QStringLiteral("#06aaf5 ");
+    }
+
+    void indicatorColorMustBeHex()
+    {
+        QFETCH(QString, color);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        f.timer.refresh();
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(12, 7, color)) + "]"));
+        QVERIFY(f.timer.chooseProject(12));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+    }
+
+    void indicatorChangesAreSignalled()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+
+        // A choice.
+        QVERIFY(f.timer.chooseProject(11));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(indicator.count(), 1);
+
+        // A start: the running entry's project counts, here none.
+        QVERIFY(f.timer.start());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QCOMPARE(indicator.count(), 2);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
+        QCOMPARE(indicator.count(), 2);
+
+        // A stop of an entry on a project: the next start takes it.
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(22, 7, startedAt, true, 11)));
+        QCOMPARE(indicator.count(), 3);
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(22, 7, startedAt, false, 11)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(indicator.count(), 3);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+
+        // A projects reload with a new colour.
+        f.timer.refresh();
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(11, 7, QStringLiteral("#d92b2b"))) + "]"));
+        QCOMPARE(f.timer.indicatorColor(), QColor(0xd9, 0x2b, 0x2b));
+        QCOMPARE(indicator.count(), 4);
+
+        // A new generation clears it.
+        f.connection.setInstanceUrl(instanceB);
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 5);
     }
 
     void incompleteProjectListFollowsTheConnection()

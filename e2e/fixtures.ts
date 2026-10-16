@@ -16,6 +16,20 @@ export interface Account {
 /** The setup account: the first admin of each e2e server. Specs in the instance project sign in as it. */
 export const ADMIN_ACCOUNT: Account = { email: EMAIL, password: PASSWORD, fullname: 'E2E User' };
 
+// Worker accounts are `worker-<run id>-<workerIndex>@e2e.example`. Global setup picks the run id
+// and deletes worker accounts left by earlier runs, such as a killed run on a reused
+// TOKKL_E2E_DATA_DIR, so a new run never invites an address that already has an account.
+const WORKER_EMAIL = /^worker-[^@]*@e2e\.example$/;
+
+/** Global setup sets this before any worker starts; workers inherit it. */
+export const RUN_ID_VARIABLE = 'TOKKL_E2E_RUN_ID';
+
+function workerEmail(workerIndex: number): string {
+  const runId = process.env[RUN_ID_VARIABLE];
+  if (!runId) throw new Error(`${RUN_ID_VARIABLE} is not set; e2e/global-setup.ts sets it`);
+  return `worker-${runId}-${workerIndex}@e2e.example`;
+}
+
 // Each Playwright worker is its own process, and the worker-scoped `account` fixture sets this
 // before any of the worker's tests run.
 let workerAccount: Account = ADMIN_ACCOUNT;
@@ -188,6 +202,13 @@ export class TestData {
     }
   }
 
+  /** Deletes every worker account, as an admin. Only global setup calls it, before any worker starts. */
+  async deleteWorkerAccounts(): Promise<void> {
+    for (const user of await this.listUsers()) {
+      if (WORKER_EMAIL.test(user.email)) await this.deleteUser(user);
+    }
+  }
+
   /** Pending invites, as an admin sees them. */
   async inviteList(): Promise<Array<{ id: number; role: 'admin' | 'user'; note: string | null }>> {
     return json(this.api.get('/api/app/admin/invites'));
@@ -319,7 +340,7 @@ export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErro
     const baseURL = workerInfo.project.use.baseURL!;
     const setupAdmin = await TestData.open(baseURL);
     try {
-      const user = await setupAdmin.inviteUser({ role: 'admin', email: `worker-${workerInfo.workerIndex}@e2e.example`, fullname: 'E2E User' });
+      const user = await setupAdmin.inviteUser({ role: 'admin', email: workerEmail(workerInfo.workerIndex), fullname: 'E2E User' });
       await user.close();
       workerAccount = user.account;
       try {

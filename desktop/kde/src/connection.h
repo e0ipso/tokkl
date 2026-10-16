@@ -134,6 +134,9 @@ public:
     void fetchProjects(Callback<QList<Project>> done = {});
     // One project of the workspace, archived or not.
     void fetchProject(qint64 projectId, Callback<Project> done = {});
+    // The account's entries of the last 9 days in every workspace, newest
+    // first, with project metadata (GET /me/time_entries?meta=true).
+    void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});

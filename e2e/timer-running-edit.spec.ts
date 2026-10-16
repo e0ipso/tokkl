@@ -12,13 +12,6 @@ test('editing a running entry keeps its ID, leaves it running and survives reloa
   await page.reload();
 
   const timer = page.getByRole('region', { name: 'Timer' });
-  // Closing a picker focuses the description, and its suggestions then cover the buttons beside it
-  // whenever the picker stayed open longer than the description's blur timeout. Close them first.
-  const closeSuggestions = async () => {
-    await expect(timer.getByLabel('Description')).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(timer.getByRole('listbox')).toHaveCount(0);
-  };
   await timer.getByLabel('Description').fill('Draft');
   await timer.getByRole('button', { name: 'Start timer' }).click();
   const running = await nextRunning(api, null);
@@ -31,14 +24,12 @@ test('editing a running entry keeps its ID, leaves it running and survives reloa
   await page.locator('.picker-subitem', { hasText: 'Wireframes' }).click();
   await expect.poll(async () => [(await api.current())?.project_id, (await api.current())?.task_id]).toEqual([design, wireframes]);
 
-  await closeSuggestions();
   await timer.getByRole('button', { name: 'Tags' }).click();
   await page.getByPlaceholder('Find or create tags…').fill('focus');
   await page.getByRole('button', { name: 'Create tag "focus"' }).click();
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await api.current())?.tags).toEqual(['focus']);
 
-  await closeSuggestions();
   await timer.getByRole('button', { name: 'Billable' }).click();
   await expect.poll(async () => (await api.current())?.billable).toBe(true);
 
@@ -72,6 +63,67 @@ test('editing a running entry keeps its ID, leaves it running and survives reloa
   await expect(timer.getByRole('button', { name: 'Billable' })).toHaveAttribute('aria-pressed', 'true');
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await check();
+});
+
+test('closing a picker focuses the description without opening its suggestions', async ({ page }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const design = await api.createProject('Design');
+  await page.reload();
+
+  const timer = page.getByRole('region', { name: 'Timer' });
+  const description = timer.getByLabel('Description');
+  const suggestions = page.locator('.suggestions');
+  await description.fill('Draft the spec');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  await nextRunning(api, null);
+  await description.blur();
+  await expect(suggestions).toHaveCount(0);
+
+  // Records whether the list shows at any point, so a list that opens and then closes again on a
+  // stale blur timeout fails as well as one that stays open.
+  const watchSuggestions = () => page.evaluate(() => {
+    const flag = window as Window & { suggestionsShown?: boolean };
+    flag.suggestionsShown = false;
+    new MutationObserver(() => {
+      if (document.querySelector('.suggestions')) flag.suggestionsShown = true;
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  const suggestionsShown = () => page.evaluate(() => (window as Window & { suggestionsShown?: boolean }).suggestionsShown);
+
+  await timer.getByRole('button', { name: 'Project' }).click();
+  await watchSuggestions();
+  await page.locator('.picker-item', { hasText: 'Design' }).click();
+  await expect.poll(async () => (await api.current())?.project_id).toBe(design);
+  await expect(description).toBeFocused();
+  await expect(suggestions).toHaveCount(0);
+  expect(await suggestionsShown()).toBe(false);
+
+  await timer.getByRole('button', { name: 'Tags' }).click();
+  await watchSuggestions();
+  await page.getByPlaceholder('Find or create tags…').fill('focus');
+  await page.getByRole('button', { name: 'Create tag "focus"' }).click();
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await api.current())?.tags).toEqual(['focus']);
+  await expect(description).toBeFocused();
+  await expect(suggestions).toHaveCount(0);
+  expect(await suggestionsShown()).toBe(false);
+
+  // Typing after a picker closed opens the list again. Retyping the last letter leaves the
+  // description as it was, so the blur below has nothing to save.
+  await page.keyboard.press('End');
+  await page.keyboard.press('Backspace');
+  await expect(suggestions.getByRole('option')).toHaveCount(1);
+  await page.keyboard.type('c');
+  await expect(description).toHaveValue('Draft the spec');
+  await page.keyboard.press('Escape');
+  await expect(suggestions).toHaveCount(0);
+
+  // Focusing the field by hand still offers the matching entry.
+  await description.blur();
+  await description.click();
+  await expect(suggestions.getByRole('option')).toHaveCount(1);
+  await expect(suggestions.getByRole('option')).toContainText('Draft the spec');
 });
 
 test('the clock keeps ticking and a refetch keeps what is being typed into the running description', async ({ page }) => {

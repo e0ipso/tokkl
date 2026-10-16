@@ -121,7 +121,8 @@
 .settings-subheading { margin: 16px 0 6px; }
 .settings-card-head + .settings-subheading { margin-top: 0; }
 /* A page or section title takes focus when the last row goes away (manage/rowFocus.ts); same ring as controls. */
-.page-header h1[tabindex]:focus-visible, .settings-card h2[tabindex]:focus-visible, .settings-subheading[tabindex]:focus-visible {
+.page-header h1[tabindex]:focus-visible, .settings-card h2[tabindex]:focus-visible, .settings-subheading[tabindex]:focus-visible,
+.project-tasks h3[tabindex]:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
 }

@@ -118,6 +118,16 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const manualErrors = useFieldErrors<'start' | 'end'>();
   const [timerDuration, setTimerDuration] = useState('');
   const descriptionRef = useRef<HTMLInputElement>(null);
+  // The description's blur hides the suggestions after a delay, so a click on one still lands.
+  // A later focus cancels that pending hide, and a focus that comes from a closing picker does not
+  // open the suggestions: the user did not ask for them.
+  const hideSuggestionsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const quietFocus = useRef(false);
+  const focusDescriptionQuietly = () => {
+    quietFocus.current = true;
+    descriptionRef.current?.focus();
+    quietFocus.current = false;
+  };
   const projectButton = useRef<HTMLButtonElement>(null);
   const tagButton = useRef<HTMLButtonElement>(null);
   const barRef = useRef<HTMLElement>(null);
@@ -311,9 +321,12 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             setShowSuggestions(true);
             setHighlight(-1);
           }}
-          onFocus={() => setShowSuggestions(true)}
+          onFocus={() => {
+            clearTimeout(hideSuggestionsTimer.current);
+            setShowSuggestions(!quietFocus.current);
+          }}
           onBlur={() => {
-            setTimeout(() => setShowSuggestions(false), 150);
+            hideSuggestionsTimer.current = setTimeout(() => setShowSuggestions(false), 150);
             if (current && draft.description !== current.description) patchRunning({ description: draft.description });
           }}
           onKeyDown={(event) => {
@@ -521,7 +534,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             setDraft((d) => ({ ...d, project_id: pid, task_id: tid, billable }));
             if (current) patchRunning({ project_id: pid, task_id: tid, billable });
           }}
-          onClose={() => { setPicker(null); descriptionRef.current?.focus(); }}
+          onClose={() => { setPicker(null); focusDescriptionQuietly(); }}
         />
       ) : null}
       {picker === 'tags' ? (
@@ -529,7 +542,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
           anchor={tagButton.current}
           value={draft.tags}
           onChange={(tags) => setField('tags', tags)}
-          onClose={() => { setPicker(null); descriptionRef.current?.focus(); }}
+          onClose={() => { setPicker(null); focusDescriptionQuietly(); }}
         />
       ) : null}
       {editing && current ? <EntryEditor entry={current} onClose={() => setEditing(false)} /> : null}

@@ -29,6 +29,7 @@ BuildRequires:  gcc-c++
 BuildRequires:  extra-cmake-modules >= 6.24.0
 BuildRequires:  kf6-rpm-macros
 BuildRequires:  cmake(Qt6Core) >= 6.10.0
+BuildRequires:  cmake(Qt6Gui)
 BuildRequires:  cmake(Qt6Network)
 BuildRequires:  cmake(Qt6Qml)
 BuildRequires:  cmake(Qt6Quick)

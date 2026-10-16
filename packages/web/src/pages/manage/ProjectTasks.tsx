@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client.ts';
 import { keys, useWid } from '../../api/hooks.ts';
 import type { Project, Task } from '../../api/types.ts';
@@ -8,14 +8,29 @@ import { Icon } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';
 import { duration, useSettings } from '../../lib/settings.ts';
 import { taskTrackedSeconds, useAction, useProjectTasks, wsPath } from './queries.ts';
+import { keepFocusPastRow } from './rowFocus.ts';
 
 const TASK_KEYS = [keys.tasks, keys.entries, keys.current, keys.report] as const;
 
-function TaskRow({ project, task }: { project: Project; task: Task }) {
+function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; onDeleted: () => void }) {
   const wid = useWid();
   const settings = useSettings();
   const [name, setName] = useState(task.name);
   const [confirming, setConfirming] = useState(false);
+  // Opening or closing the inline confirm unmounts the focused button, so focus follows the swap:
+  // to Keep when it opens, back to "Delete task" when it closes.
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const keepButton = useRef<HTMLButtonElement>(null);
+  const focusAfterSwap = useRef(false);
+  useEffect(() => {
+    if (!focusAfterSwap.current) return;
+    focusAfterSwap.current = false;
+    (confirming ? keepButton : deleteButton).current?.focus();
+  }, [confirming]);
+  const confirm = (next: boolean) => {
+    focusAfterSwap.current = true;
+    setConfirming(next);
+  };
   // Flip the checkbox right away; the refetch after the save confirms it.
   const [active, setActive] = useState(task.active);
   useEffect(() => setActive(task.active), [task.active]);
@@ -30,6 +45,7 @@ function TaskRow({ project, task }: { project: Project; task: Task }) {
     mutationFn: () => api.delete<null>(path),
     invalidate: TASK_KEYS,
     success: `Deleted task ${task.name}`,
+    onSuccess: onDeleted,
   });
 
   const commitName = () => {
@@ -39,7 +55,7 @@ function TaskRow({ project, task }: { project: Project; task: Task }) {
   };
 
   return (
-    <li className={`task-row${active ? '' : ' is-done'}`}>
+    <li className={`task-row${active ? '' : ' is-done'}`} data-id={task.id}>
       <input
         type="checkbox"
         checked={!active}
@@ -70,10 +86,18 @@ function TaskRow({ project, task }: { project: Project; task: Task }) {
       {confirming ? (
         <span className="inline-controls">
           <button type="button" className="button button-danger" disabled={remove.isPending} onClick={() => remove.mutate()}>Delete</button>
-          <button type="button" className="button button-ghost" onClick={() => setConfirming(false)}>Keep</button>
+          <button ref={keepButton} type="button" className="button button-ghost" onClick={() => confirm(false)}>Keep</button>
         </span>
       ) : (
-        <button type="button" className="icon-button" aria-label={`Delete task ${task.name}`} title="Delete task" onClick={() => setConfirming(true)}>
+        <button
+          ref={deleteButton}
+          type="button"
+          className="icon-button"
+          aria-label={`Delete task ${task.name}`}
+          title="Delete task"
+          data-row-action="delete"
+          onClick={() => confirm(true)}
+        >
           <Icon name="trash" size={16} />
         </button>
       )}
@@ -87,6 +111,13 @@ export function ProjectTasks({ project }: { project: Project }) {
   const fields = useFieldErrors<'name'>();
   const { data: tasks, isLoading, error, refetch } = useProjectTasks(project.id);
   const [newName, setNewName] = useState('');
+  const list = useRef<HTMLUListElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const newTask = useRef<HTMLInputElement | null>(null);
+  const nameField = fields.field('name');
+  // A deleted task's row goes away with the refetch. Focus moves to the next task's "Delete task",
+  // else the previous one's, else the new task field, or the heading when the project is archived.
+  const deleted = (id: number) => keepFocusPastRow(list.current, id, 'delete', newTask.current ?? heading.current);
 
   const create = useAction<string, Task>({
     mutationFn: (name) => api.post<Task>(wsPath(wid, 'projects', project.id, 'tasks'), { name }),
@@ -105,11 +136,15 @@ export function ProjectTasks({ project }: { project: Project }) {
 
   return (
     <section className="project-tasks" aria-label="Tasks">
-      <h3>Tasks</h3>
+      <h3 ref={heading} tabIndex={-1}>Tasks</h3>
       {project.active ? (
         <div className="inline-controls">
           <input
-            {...fields.field('name')}
+            {...nameField}
+            ref={(element) => {
+              nameField.ref(element);
+              newTask.current = element;
+            }}
             value={newName}
             placeholder="Add a task"
             aria-label="New task name"
@@ -136,8 +171,8 @@ export function ProjectTasks({ project }: { project: Project }) {
         <EmptyState compact title="No tasks yet.">{project.active ? "Add one above to split this project's time." : null}</EmptyState>
       ) : null}
       {tasks && tasks.length > 0 ? (
-        <ul className="task-list">
-          {[...open, ...done].map((task) => <TaskRow key={task.id} project={project} task={task} />)}
+        <ul className="task-list" ref={list}>
+          {[...open, ...done].map((task) => <TaskRow key={task.id} project={project} task={task} onDeleted={() => deleted(task.id)} />)}
         </ul>
       ) : null}
     </section>
