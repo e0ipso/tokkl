@@ -47,6 +47,8 @@ WORKDIR /app
 # container. Node strips types only outside node_modules, which holds here
 # because node_modules/@tokkl/* are workspace symlinks into packages/.
 COPY --from=app /app /app
+# The MIT license asks that its notice travel with copies of the software.
+COPY LICENSE /app/LICENSE
 # Only /data is written. The image defaults to the non-root node user (1000);
 # with another UID, such as TrueNAS's 568, mount a directory that UID owns.
 # There is no RUN in this stage, so building it for another platform needs no

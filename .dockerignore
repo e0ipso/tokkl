@@ -1,9 +1,10 @@
 # Allowlist: the build needs the workspace manifests, the lockfile and the
-# package sources, nothing else. Keeps .env, data/ and local node_modules out
-# of the build context.
+# package sources, plus the LICENSE the runtime stage copies. Nothing else.
+# Keeps .env, data/ and local node_modules out of the build context.
 *
 !package.json
 !package-lock.json
 !tsconfig.base.json
+!LICENSE
 !packages/
 packages/*/node_modules
