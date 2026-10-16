@@ -54,6 +54,8 @@ function server(serverPort: number, serverDataDir: string) {
 
 export default defineConfig<object, { instanceWide: boolean }>({
   testDir: 'e2e',
+  // Only specs. e2e/*.test.ts files are node --test unit tests for the e2e tooling (npm test).
+  testMatch: /\.spec\.ts$/,
   globalSetup: './e2e/global-setup.ts',
   // Half the CPU cores; pass --workers to change it. The instance project never uses more than one.
   workers: '50%',
