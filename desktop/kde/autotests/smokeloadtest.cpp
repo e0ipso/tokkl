@@ -2,6 +2,8 @@
 // data dirs and the backend from the QML import path. The CTest fixture
 // stages the install and points XDG_DATA_DIRS and QML_IMPORT_PATH at it.
 
+#include <KConfigLoader>
+#include <KLocalizedContext>
 #include <KPackage/Package>
 #include <KPackage/PackageLoader>
 #include <Plasma/Applet>
@@ -11,7 +13,10 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QMetaProperty>
+#include <QRegularExpression>
 #include <QQmlComponent>
+#include <QQmlContext>
 #include <QQmlEngine>
 #include <QStringList>
 #include <QTest>
@@ -133,6 +138,55 @@ private Q_SLOTS:
         QVERIFY2(!applet->failedToLaunch(), qPrintable(applet->launchErrorMessage()));
         // main.qml reads this from the backend, so it proves the import resolved.
         QCOMPARE(item->property("toolTipSubText").toString(), QStringLiteral("Version %1").arg(version));
+        QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
+    }
+
+    // Ordinary configuration holds only nonsecret settings; the secret is
+    // kept in KDE Wallet.
+    void configSchema()
+    {
+        TestCorona corona;
+        Plasma::Containment *containment = corona.createContainment(QStringLiteral("tokkl.test.emptycontainment"));
+        QVERIFY(containment);
+        Plasma::Applet *applet = containment->createApplet(plasmoidId);
+        QVERIFY(applet);
+        KConfigLoader *scheme = applet->configScheme();
+        QVERIFY(scheme);
+
+        QStringList names;
+        for (const KConfigSkeletonItem *item : scheme->items()) {
+            names.append(item->name());
+        }
+        names.sort();
+        QCOMPARE(names, QStringList({QStringLiteral("authMode"), QStringLiteral("email"), QStringLiteral("instanceUrl")}));
+        QCOMPARE(scheme->property(QStringLiteral("instanceUrl")).toString(), QString());
+        QCOMPARE(scheme->property(QStringLiteral("authMode")).toString(), QStringLiteral("token"));
+    }
+
+    void configPageLoads()
+    {
+        QQmlEngine engine;
+        auto *localized = new KLocalizedContext(&engine);
+        localized->setTranslationDomain(QStringLiteral("plasma_applet_") + plasmoidId);
+        engine.rootContext()->setContextObject(localized);
+
+        for (const QString &file : {QStringLiteral("/contents/config/config.qml"), QStringLiteral("/contents/ui/configGeneral.qml")}) {
+            QQmlComponent component(&engine, QUrl::fromLocalFile(stagedPlasmoidDir + file));
+            std::unique_ptr<QObject> object(component.create());
+            QVERIFY2(object, qPrintable(component.errorString()));
+            if (file.endsWith(QLatin1String("configGeneral.qml"))) {
+                // Starts blank with token sign-in, and has no setting for the secret.
+                QCOMPARE(object->property("cfg_instanceUrl").toString(), QString());
+                QCOMPARE(object->property("cfg_authMode").toString(), QStringLiteral("token"));
+                const QRegularExpression secretLike(QStringLiteral("token|password|secret"), QRegularExpression::CaseInsensitiveOption);
+                const QMetaObject *meta = object->metaObject();
+                for (int i = 0; i < meta->propertyCount(); ++i) {
+                    const QString name = QString::fromLatin1(meta->property(i).name());
+                    QVERIFY2(!name.startsWith(QLatin1String("cfg_")) || !secretLike.match(name).hasMatch(), qPrintable(name));
+                }
+                QVERIFY(meta->indexOfMethod("saveConfig()") >= 0);
+            }
+        }
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 };
