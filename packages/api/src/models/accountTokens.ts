@@ -54,6 +54,11 @@ export function revokeInvite(db: Db, id: number): boolean {
   return Number(db.prepare("DELETE FROM account_tokens WHERE id = ? AND kind = 'invite' AND used_at IS NULL").run(id).changes) > 0;
 }
 
+/** Deletes every unused invite `userId` created, so their links stop working once the account is gone. */
+export function revokeInvitesCreatedBy(db: Db, userId: number): void {
+  db.prepare("DELETE FROM account_tokens WHERE created_by = ? AND kind = 'invite' AND used_at IS NULL").run(userId);
+}
+
 /** The invite behind `token` when it is unused and unexpired. */
 export function findUsableInvite(db: Db, token: string): AccountTokenRow | undefined {
   return db.prepare(`
