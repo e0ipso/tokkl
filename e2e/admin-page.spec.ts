@@ -141,6 +141,29 @@ test('an admin issues a password reset link, sees it once, and a new one replace
   expect(await page.content()).not.toContain(second);
 });
 
+// TT-0141 and TT-0143: the one-time links are shown once, so Copy link must hand over the exact link.
+test('Copy link puts the invite link and the reset link on the clipboard', async ({ page, users, baseURL }) => {
+  const rita = await users.create();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL });
+  await login(page);
+  await openAdmin(page);
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
+
+  const invites = page.locator('#invites');
+  await invites.getByRole('button', { name: 'Create invite' }).click();
+  const invite = (await invites.getByLabel('Invite link', { exact: true }).textContent())!;
+  await invites.getByRole('button', { name: 'Copy link' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Invite link copied' })).toBeVisible();
+  expect(await clipboard()).toBe(invite);
+
+  const usersCard = page.locator('#users');
+  await userRow(page, rita.account.email).getByRole('button', { name: `Reset password of ${rita.account.email}` }).click();
+  const reset = (await page.getByLabel(`Password reset link for ${rita.account.email}`, { exact: true }).textContent())!;
+  await usersCard.getByRole('button', { name: 'Copy link' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Reset link copied' })).toBeVisible();
+  expect(await clipboard()).toBe(reset);
+});
+
 test('an admin updates the instance settings, and an out-of-range value shows the server error on its field', async ({ page, data, runtimeErrors }) => {
   await login(page);
   await openAdmin(page);

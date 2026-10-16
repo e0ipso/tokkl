@@ -1,5 +1,6 @@
+import { request } from '@playwright/test';
 import {
-  acceptInvite, createAccount, createInvite, createPasswordReset, expect, meWithSession, test,
+  CSRF, acceptInvite, createAccount, createInvite, createPasswordReset, expect, meWithSession, resetApiPath, test,
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
@@ -83,6 +84,36 @@ test('a password the server rejects shows its error on the password field', asyn
   await expect(password).not.toHaveAttribute('aria-invalid');
   await submit.tap();
   await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
+});
+
+// TT-0143 and TT-0179: a link spent after the form loaded gets the same 404 as any bad link. That
+// is about the link, not the password, so it shows under the form and the field stays valid.
+test('a link used elsewhere while the form is open shows the 404 under the form', async ({ page, runtimeErrors, servers }) => {
+  const server = await servers.start({ slot: 0 });
+  const { apiToken } = await createAccount(server.baseURL);
+  const account = await acceptInvite(server.baseURL, await createInvite(server.baseURL, apiToken, 'user'), 'twice@auth.example');
+  const link = await createPasswordReset(server.baseURL, apiToken, account.email);
+
+  await page.goto(`${server.baseURL}${link}`);
+  const password = page.getByLabel('New password');
+  await expect(password).toBeVisible();
+  const elsewhere = await request.newContext({ baseURL: server.baseURL });
+  try {
+    expect((await elsewhere.post(resetApiPath(link), {
+      headers: CSRF, data: { password: 'spent elsewhere 1' },
+    })).status()).toBe(200);
+  } finally {
+    await elsewhere.dispose();
+  }
+
+  runtimeErrors.allowResponse({ status: 404, method: 'POST', path: RESET_PATH, reason: 'the link was used in another browser' });
+  await password.fill('my new password 1');
+  await page.getByRole('button', { name: 'Set password' }).tap();
+  await expect(page.locator('.auth-error')).toHaveText('This password reset link is not valid. Ask your admin for a new one.');
+  await expectFits(page.locator('.auth-error'));
+  await expect(password).not.toHaveAttribute('aria-invalid');
+  await expect(page.getByRole('heading', { name: 'Password changed' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Set password' })).toBeEnabled();
 });
 
 test('a bad reset link says so and offers the login page',async ({ page, runtimeErrors, servers }) => {

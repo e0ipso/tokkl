@@ -197,6 +197,11 @@ export function inviteApiPath(invite: string): string {
   return invite.replace(/^\/invite\//, '/api/app/invites/');
 }
 
+/** The API path behind a /reset/<token> link: GET looks the link up, POST sets the password. */
+export function resetApiPath(reset: string): string {
+  return reset.replace(/^\/reset\//, '/api/app/password-resets/');
+}
+
 export interface InvitedAccount {
   email: string;
   password: string;
