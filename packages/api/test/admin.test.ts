@@ -1,7 +1,6 @@
-import { test, type TestContext as NodeTestContext } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FailureLimiter, type Keys } from '../src/auth/rateLimit.ts';
-import { CSRF, PASSWORD, addUser, sessionCookie, setup, type TestContext } from './helpers.ts';
+import { CSRF, PASSWORD, addUser, duringPasswordCheck, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const basicPassword = (email: string, password = PASSWORD) =>
   `Basic ${Buffer.from(`${email}:${password}`).toString('base64')}`;
@@ -263,25 +262,6 @@ test('a disabled admin gets 403 from every admin route', async () => {
   }
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[0].role, 'admin');
 });
-
-/**
- * Runs `during` once, after the next password check has passed and before the request goes on,
- * as if an admin acted while scrypt ran. Requests signed in by API token run no check.
- */
-function duringPasswordCheck(t: NodeTestContext, during: () => Promise<unknown>): void {
-  const attempt = FailureLimiter.prototype.attempt;
-  let pending = true;
-  t.mock.method(FailureLimiter.prototype, 'attempt', function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>) {
-    return attempt.call(this, keys, async () => {
-      const valid = await check();
-      if (pending) {
-        pending = false;
-        await during();
-      }
-      return valid;
-    });
-  });
-}
 
 test('an admin demoted during their Basic password check is refused and stays demoted', async (t) => {
   const admin = await setup();

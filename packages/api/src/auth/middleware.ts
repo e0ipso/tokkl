@@ -49,13 +49,17 @@ export async function verifyAccountPassword(user: UserRow | undefined, password:
 }
 
 /**
- * The account as stored now, once its password check has passed, or undefined when it was deleted or
- * suspended while scrypt ran. Authorize with this row, not the one read before the check, so a
- * demotion or suspension made during the check applies to the request.
+ * The account as stored now, once a password check against `user.password_hash` has passed, or
+ * undefined when it was deleted, suspended or given a new password while scrypt ran. Authorize with
+ * this row, not the one read before the check, so a demotion or suspension made during the check
+ * applies to the request. A reset or password change deletes the account's sessions, so callers must
+ * start the session or run the request without waiting on I/O after this call. Otherwise a reset
+ * could commit in between and the old password would still get a session.
  */
 export function currentActiveUser(db: Deps['db'], user: UserRow): UserRow | undefined {
   const current = getUser(db, user.id);
-  return current && isActiveUser(current) ? current : undefined;
+  if (!current || !isActiveUser(current)) return undefined;
+  return current.password_hash === user.password_hash ? current : undefined;
 }
 
 async function userFromBasic(deps: Deps, req: Request, header: string): Promise<UserRow> {

@@ -1,8 +1,8 @@
-import { test } from 'node:test';
+import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ACCOUNT_ADDRESS_LIMIT, ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
 import { RESET_NOT_FOUND } from '../src/models/accountTokens.ts';
-import { addUser, CSRF, PASSWORD, sessionCookie, setup, type TestContext } from './helpers.ts';
+import { addUser, CSRF, duringPasswordCheck, PASSWORD, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const HOUR_MS = 3_600_000;
 const NEW_PASSWORD = 'brand new secret';
@@ -196,3 +196,52 @@ test('a reset clears earlier failed logins against the account from that address
   assert.equal((await use(admin, created.token)).status, 200);
   assert.equal((await login(admin, 'bob@example.com', NEW_PASSWORD)).status, 200);
 });
+
+/**
+ * The two ways a password changes while someone else's check against the old one is running: an
+ * admin's reset link used, and the owner's own change through PUT /me (signed in by API token, so it
+ * runs no check of its own before the mocked one).
+ */
+const passwordChanges: Array<[string, (admin: TestContext, bob: TestContext) => Promise<void>]> = [
+  ['a password reset', async (admin, bob) => {
+    const created = await issue(admin, bob.user.id);
+    assert.equal((await use(admin, created.token)).status, 200);
+  }],
+  ['a PUT /me password change', async (_admin, bob) => {
+    const changed = await bob.request('PUT', '/api/v9/me', { current_password: PASSWORD, password: NEW_PASSWORD });
+    assert.equal(changed.status, 200);
+  }],
+];
+
+async function changedDuringCheck(t: NodeTestContext, change: (typeof passwordChanges)[number][1]) {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  duringPasswordCheck(t, () => change(admin, bob));
+  return { admin, bob };
+}
+
+const sessionCount = (ctx: TestContext, userId: number) =>
+  (ctx.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?').get(userId) as { n: number }).n;
+
+for (const [name, change] of passwordChanges) {
+  test(`a form login checked against the old password while ${name} commits gets 403 and no session`, async (t) => {
+    const { admin, bob } = await changedDuringCheck(t, change);
+    const response = await login(admin, 'bob@example.com', PASSWORD);
+    assert.equal(response.status, 403);
+    assert.equal(await response.json(), 'Incorrect email or password');
+    assert.equal(response.headers.get('set-cookie'), null);
+    assert.equal(sessionCount(admin, bob.user.id), 0);
+    assert.equal((await login(admin, 'bob@example.com', NEW_PASSWORD)).status, 200, 'the new password works');
+  });
+
+  test(`a Basic request checked against the old password while ${name} commits gets 403`, async (t) => {
+    const { admin } = await changedDuringCheck(t, change);
+    const basic = (password: string) => anonymous(admin, 'GET', '/api/v9/me', undefined, {
+      authorization: `Basic ${Buffer.from(`bob@example.com:${password}`).toString('base64')}`,
+    });
+    const response = await basic(PASSWORD);
+    assert.equal(response.status, 403);
+    assert.equal(await response.json(), 'Incorrect username and/or password');
+    assert.equal((await basic(NEW_PASSWORD)).status, 200, 'the new password works');
+  });
+}
