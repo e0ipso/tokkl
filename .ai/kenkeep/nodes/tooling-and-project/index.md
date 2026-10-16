@@ -18,31 +18,32 @@ _None._
 
 ## Components (what exists)
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) to learn about: Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint. #testing #typecheck #tooling #workflow
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) to learn about: Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 12 ctest tests; DEB and RPM packaging. #tooling #kde #desktop #testing
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) to learn about: Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree. #monorepo #workspaces #layout #tooling #common #api #web #types
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) to learn about: Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 11 ctest tests. #tooling #kde #desktop #testing
 - Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) to learn about: scripts/screenshots.ts rebuilds the nine docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops. #tooling #docs #screenshots #playwright
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) to learn about: scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons and wordmark, and copies the maskable and apple-touch icons as supplied. #tooling #pwa #icons #imagemagick #maskable #web
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) to learn about: bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it. #performance #bench #tooling #reports
+- Open [**KDE native packaging: DEB, RPM and the version mapping**](map-kde-native-packaging.md) to learn about: tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping. #tooling #kde #packaging #release
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) to learn about: Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work. #server #web #config #rename
 
 ## By topic
 
 ### #tooling
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 12 ctest tests; DEB and RPM packaging.
 - Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI tool trailers and subjects over 72 chars; worktrees without npm ci skip the hook.
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 11 ctest tests.
+### #kde
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry; panel choices edit a running entry with a partial PUT.
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 12 ctest tests; DEB and RPM packaging.
+- Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) — Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet.
 ### #testing
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
 ### #desktop
 - Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry; panel choices edit a running entry with a partial PUT.
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 12 ctest tests; DEB and RPM packaging.
 - Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) — Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet.
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 11 ctest tests.
-### #kde
-- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry; panel choices edit a running entry with a partial PUT.
-- Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) — Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet.
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; panel item and menu; versioned from root package.json; 11 ctest tests.
 ### #playwright
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
@@ -91,12 +92,16 @@ _None._
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons and wordmark, and copies the maskable and apple-touch icons as supplied.
 ### #monorepo
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
+### #packaging
+- Open [**KDE native packaging: DEB, RPM and the version mapping**](map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.
 ### #performance
 - Open [**Project and task totals rely on the live-entry partial indexes**](../api-and-data/practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](../api-and-data/practice-write-paths-validate-refs-not-totals.md) — Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals.
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) — bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it.
 ### #pwa
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons and wordmark, and copies the maskable and apple-touch icons as supplied.
+### #release
+- Open [**KDE native packaging: DEB, RPM and the version mapping**](map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.
 ### #rename
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) — Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work.
 ### #reports
