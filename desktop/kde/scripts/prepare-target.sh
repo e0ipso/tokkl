@@ -76,7 +76,8 @@ prepare_rpm() {
     if $build_deps; then
         dnf install -y -q rpm-build
         # Any version will do: builddep only reads the BuildRequires.
-        dnf builddep -y -q -D "tokkl_version 0.0.0" "$source_dir/packaging/rpm/tokkl-kde.spec"
+        dnf builddep -y -q -D "tokkl_version 0.0.0" \
+            -D "tokkl_native_version 0.0.0" "$source_dir/packaging/rpm/tokkl-kde.spec"
     fi
 }
 

@@ -2,8 +2,8 @@
 # Builds and checks the tokkl-kde packages in throwaway containers, so the
 # host's packages are never touched.
 #
-#   container-check.sh --version <semver> --output <dir>
-#                      [--format deb|rpm|all] [--previous-version <semver>]
+#   container-check.sh --version <version> --output <dir>
+#                      [--format deb|rpm|all] [--previous-version <version>]
 #
 # For each format it runs two containers, both removed afterwards:
 #   1. build: scripts/prepare-target.sh --build-deps, then
@@ -22,7 +22,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --version <semver> --output <dir> [--format deb|rpm|all] [--previous-version <semver>]" >&2
+    echo "usage: $0 --version <version> --output <dir> [--format deb|rpm|all] [--previous-version <version>]" >&2
     exit 2
 }
 
@@ -47,19 +47,15 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$version" ] && [ -n "$output" ] || usage
 
-semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
-for v in "$version" "$previous_version"; do
-    [[ "$v" =~ $semver ]] || { echo "error: \"$v\" is not a semantic version" >&2; exit 2; }
-done
+source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+native_version="$("$source_dir/scripts/native-version.sh" "$version")" || exit 2
+native_previous="$("$source_dir/scripts/native-version.sh" "$previous_version")" || exit 2
 if [ "$previous_version" = "$version" ]; then
     echo "error: --previous-version must be older than --version" >&2
     exit 2
 fi
-native_version="${version/-/\~}"
-native_previous="${previous_version/-/\~}"
 
 engine="${CONTAINER_ENGINE:-docker}"
-source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$output/previous"
 output="$(cd "$output" && pwd)"
 build_env=()

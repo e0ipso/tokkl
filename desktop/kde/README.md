@@ -239,9 +239,13 @@ supported. Stock Ubuntu 24.04 has no KDE Frameworks 6 or Plasma 6, so the
 
 The package version is the shared Tokkl version from the root `package.json`;
 there is no separate companion version. The widget metadata carries it
-unchanged. The package version uses `~` in place of a pre-release dash, so
-`1.2.0-rc.1` becomes `1.2.0~rc.1` and sorts before `1.2.0`. The RPM release is
-always `1`.
+unchanged. Packages take only versions that dpkg and rpm order the same way
+as SemVer: `MAJOR.MINOR.PATCH`, optionally followed by `-<letters>` or
+`-<letters>.<number>` (number 1 or more). `scripts/native-version.sh` turns the
+pre-release into a `~` suffix without the dot, so `1.2.0-rc.1` becomes
+`1.2.0~rc1` and sorts before `1.2.0`. Other forms, such as `1.2.0-alpha-1`,
+`1.2.0-rc1`, `1.2.0-rc.0` or build metadata, are refused; the CMake build still
+accepts them for development builds. The RPM release is always `1`.
 
 Dependencies:
 

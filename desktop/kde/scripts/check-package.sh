@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Inspects a tokkl-kde DEB or RPM, then installs, upgrades and removes it.
 #
-#   check-package.sh --version <semver> --package <file> [--previous <file>]
+#   check-package.sh --version <version> --package <file> [--previous <file>]
 #
 # Run it as root on a disposable target system (a container) that has the
 # distribution's repositories, so the package manager can install the runtime
@@ -24,7 +24,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --version <semver> --package <file> [--previous <file>]" >&2
+    echo "usage: $0 --version <version> --package <file> [--previous <file>]" >&2
     exit 2
 }
 
@@ -41,9 +41,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$version" ] && [ -n "$package" ] || usage
 
-semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
-[[ "$version" =~ $semver ]] || { echo "error: \"$version\" is not a semantic version" >&2; exit 2; }
-native_version="${version/-/\~}"
+native_version="$("$(dirname "${BASH_SOURCE[0]}")/native-version.sh" "$version")" || exit 2
 
 package="$(realpath "$package")"
 [ -z "$previous" ] || previous="$(realpath "$previous")"
@@ -224,8 +222,14 @@ check_installed() { # <native version> <semver> <file>
         "backend qmldir does not name com.github.e0ipso.tokkl.backend" \
         grep -qx "module com.github.e0ipso.tokkl.backend" "$backend_dir/qmldir"
 
-    if ldd "$backend_dir/libtokklbackend.so" | grep -q 'not found'; then
-        fail "backend libraries missing: $(ldd "$backend_dir/libtokklbackend.so" | grep 'not found' | tr '\n' ' ')"
+    # ldd fails on a file that is not a dynamic ELF object; a missing library
+    # shows as "not found" with a zero exit status.
+    local ldd_out ldd_status=0
+    ldd_out="$(ldd "$backend_dir/libtokklbackend.so" 2>&1)" || ldd_status=$?
+    if [ "$ldd_status" -ne 0 ]; then
+        fail "ldd failed on the backend (exit $ldd_status): $(tr '\n' ' ' <<<"$ldd_out")"
+    elif grep -q 'not found' <<<"$ldd_out"; then
+        fail "backend libraries missing: $(grep 'not found' <<<"$ldd_out" | tr '\n' ' ')"
     else
         pass "backend libraries resolve"
     fi

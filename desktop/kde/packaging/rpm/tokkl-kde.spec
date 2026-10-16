@@ -1,10 +1,12 @@
 # Tokkl KDE companion for Fedora KDE 44 x86_64.
 #
-# tokkl_version is the shared Tokkl release version (semver, for example 1.2.0
-# or 1.2.0-rc.1). scripts/package-release.sh passes it and builds the source
-# tarball; the RPM version is the same with "~" for the pre-release dash.
+# tokkl_version is the shared Tokkl release version (for example 1.2.0 or
+# 1.2.0-rc.1) and tokkl_native_version the RPM version scripts/native-version.sh
+# makes of it (1.2.0~rc1). scripts/package-release.sh passes both and builds the
+# source tarball.
 
 %{!?tokkl_version:%{error:tokkl_version is not set; build with scripts/package-release.sh}}
+%{!?tokkl_native_version:%{error:tokkl_native_version is not set; build with scripts/package-release.sh}}
 
 %global plasmoid_id com.github.e0ipso.tokkl
 
@@ -12,7 +14,7 @@
 %global __provides_exclude_from ^%{_qt6_qmldir}/.*\\.so$
 
 Name:           tokkl-kde
-Version:        %{lua: print((string.gsub(rpm.expand("%{tokkl_version}"), "-", "~", 1)))}
+Version:        %{tokkl_native_version}
 Release:        1%{?dist}
 Summary:        Tokkl timer widget for the Plasma panel
 # The Tokkl repository does not declare a license yet.
