@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:a466615112dafa51e4d4cee440f6426fe28f75d598000ff503daac44d6a4e539'
+nodes_hash: 'sha256:8ab00bc1fc2405bd1eda45700bd2ae623e29f8f931bbc6a7a07d7886f0da314a'
 node_count: 40
 ---
 # kenkeep Graph
@@ -12,7 +12,7 @@ Total nodes: 40
 - **kind:** map
 - **title:** Admin API and disabled accounts
 - **path:** api-and-data/map-admin-api-and-disabled-accounts.md
-- **tags:** server, auth, admin
+- **tags:** server, auth, admin, invites, settings
 - **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-and-csrf-rules
 
 ## map-app-icons-script
@@ -100,7 +100,7 @@ Total nodes: 40
 - **title:** Users, roles and workspace membership
 - **path:** api-and-data/map-users-roles-and-workspace-membership.md
 - **tags:** server, database, migrations, auth, workspaces
-- **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-and-csrf-rules
+- **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-and-csrf-rules, map-admin-api-and-disabled-accounts
 
 ## map-web-page-state-and-field-error-components
 

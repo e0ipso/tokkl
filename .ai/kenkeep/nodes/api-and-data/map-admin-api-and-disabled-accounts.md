@@ -2,12 +2,14 @@
 type: map
 title: Admin API and disabled accounts
 description: >-
-  /api/app/admin user list, role and disable changes, session revoke;
-  last-active-admin rule; where disabled accounts are refused.
+  /api/app/admin users, delete, invites and instance settings; public invite
+  routes; last-active-admin rule; where disabled accounts are refused.
 tags:
   - server
   - auth
   - admin
+  - invites
+  - settings
 kk_schema_version: 3
 kk_id: map-admin-api-and-disabled-accounts
 kk_derived_from: []
@@ -24,6 +26,12 @@ kk_confidence: high
 - `POST /users/:id/sessions/revoke` deletes all of the account's sessions and answers `{ ok: true }`. The API token keeps working.
 
 At least one active admin must remain. The PATCH reads the account, counts active admins, updates the row and deletes sessions in one `transaction` (`BEGIN IMMEDIATE`, `packages/api/src/db/index.ts`), so two concurrent requests cannot each remove what they see as the second-to-last admin. A change that would leave none answers 400 "At least one active admin must remain".
+
+`DELETE /users/:id` removes an account for good; disabling is the reversible option. The body must repeat the account's email, compared with `normalizeEmail`, or the answer is 400. It also answers 400 for the caller's own account and for the last active admin. One `transaction` runs `deleteSoleMemberWorkspaces` (`models/workspaces.ts`, which cascades to the workspace's clients, projects, tasks, tags and entries), `revokeInvitesCreatedBy` (the user's unused invites) and the `users` delete, which cascades sessions, memberships and tokens tied to the account. Used invites and stored settings keep their rows with `created_by` or `updated_by` set to NULL.
+
+Invites use the `account_tokens` table (migration 5; `kind` is `invite` or `password_reset`, and only invites exist so far) and `models/accountTokens.ts`. The token is 256 random bits, only its SHA-256 is stored, and `POST /invites` is the one response that carries it, as `url: /invite/<token>`. `GET /invites` lists unused, unexpired invites and `DELETE /invites/:id` revokes one by row id. An invite expires after the `invite_days` setting. The public routes `GET` and `POST /api/app/invites/:token` (in `routes/app.ts`, with no login) answer one identical 404 (`INVITE_NOT_FOUND`) for unknown, expired, used and revoked tokens. `POST` runs `acceptInvite`, which in one transaction re-checks the invite, creates the user through `insertAccount`, gives it a private workspace it owns as its default, and marks the token used, then starts a session. `insertAccount` and the field checks in `readNewAccount` are shared with first-admin setup. The web page is `InvitePage` at `/invite/:token` (`packages/web/src/pages/InvitePage.tsx`), reachable signed in or not.
+
+`GET` and `PUT /settings` read and change the runtime settings in `instance_settings` (migration 4, JSON values, `updated_by` set to NULL when its admin is deleted); `getInstanceSettings` in `models/settings.ts` returns the effective values. `session_days` is the stored value, else `TOKKL_SESSION_DAYS`, else 30, from 1 to 365. `invite_days` is the stored value, else 7, from 1 to 90. An unknown key or a value outside the range is a 400 and stores nothing. New logins and new accounts take the current `session_days`; sessions that exist keep their expiry. Everything else in `Config` (server, paths, setup) stays env-only. To add a setting, add a rule to `SETTING_RULES`.
 
 A disabled account is refused on every sign-in path with the same answer as bad credentials: `findSessionUser` ignores its session cookies, Basic auth with its API token or password fails, and form login fails. Use `isActiveUser` when adding another path.
 

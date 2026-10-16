@@ -16,6 +16,7 @@ kk_derived_from: []
 kk_relates_to:
   - practice-live-entry-indexes-back-project-and-task-totals
   - practice-password-checks-and-csrf-rules
+  - map-admin-api-and-disabled-accounts
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -33,18 +34,19 @@ The membership helpers live in `packages/api/src/models/workspaces.ts`: `addWork
 
 The `/me` collections (`/me/workspaces`, `/me/organizations` with a real `user_count`, and the per-workspace lists) and `buildJsonExport` in `services/export.ts` use `listWorkspacesForUser`. There is no helper that lists every workspace on the instance; add one only for a deliberate admin feature.
 
-Shared workspaces are out of scope in `docs/PRD.md`: each account tracks time in its own workspace and data is never shared between accounts. Apart from the migration backfill, only `createFirstAdmin` (and the `addUser` test helper) writes `workspace_users` rows, always an owner of a new workspace. Some code relies on one member per workspace. Fix these before adding shared workspaces (several members in one workspace):
+Shared workspaces are out of scope in `docs/PRD.md`: each account tracks time in its own workspace and data is never shared between accounts. Apart from the migration backfill, only `insertAccount` (`models/users.ts`) writes `workspace_users` rows, always an owner of a new workspace. First-admin setup, invite acceptance and the `addUser` test helper all go through it. Some code relies on one member per workspace. Fix these before adding shared workspaces (several members in one workspace):
 
 - `deleteProject` in `models/projects.ts` with `teDeletionMode=delete` trashes the entries of every user on that project, not only the caller's.
 - Project `actual_seconds`/`actual_hours` (`models/projects.ts`) and task `tracked_seconds` (`models/tasks.ts`) sum every user's live entries.
 
 For multi-user API tests, `addUser(ctx, { email, role })` in `packages/api/test/helpers.ts` adds an account that owns its own workspace and returns a `TestContext` signed in as it. Every context on one database shares one app (a `WeakMap` keyed by `Db`), so they also share the rate limiters. `sessionCookie(ctx)` logs in through `/api/app/login` and returns the `tokkl_session=...` pair; send it with `authorization: ''`, or the API token still signs the request in.
 
-`packages/api/test/entities.test.ts` asserts `PRAGMA user_version` equals both `MIGRATIONS.length` and a literal (now 3). A new migration must bump that literal.
+`packages/api/test/entities.test.ts` asserts `PRAGMA user_version` equals both `MIGRATIONS.length` and a literal (now 5). A new migration must bump that literal. Migrations 4 and 5 add `instance_settings` and `account_tokens`; see the admin API node.
 
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-live-entry-indexes-back-project-and-task-totals](practice-live-entry-indexes-back-project-and-task-totals.md)
 - Related: [practice-password-checks-and-csrf-rules](practice-password-checks-and-csrf-rules.md)
+- Related: [map-admin-api-and-disabled-accounts](map-admin-api-and-disabled-accounts.md)
 <!-- kk:related:end -->
