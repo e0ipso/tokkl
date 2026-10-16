@@ -128,4 +128,26 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX time_entries_task_live ON time_entries(task_id, start, stop, deleted_at)
     WHERE deleted_at IS NULL AND task_id IS NOT NULL;
   `,
+  // Instance roles, suspended accounts and workspace membership. Before this, setup allowed a
+  // single account, so the backfill makes every existing user an admin and gives every existing
+  // workspace, including ones created without an owner, to the lowest-id user. A fresh database
+  // has no users or workspaces yet, so the backfill touches no rows.
+  `
+  ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user'));
+  ALTER TABLE users ADD COLUMN disabled_at TEXT;
+
+  CREATE TABLE workspace_users (
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('owner', 'member')),
+    PRIMARY KEY (workspace_id, user_id)
+  );
+  CREATE INDEX workspace_users_user ON workspace_users(user_id);
+
+  UPDATE users SET role = 'admin';
+  INSERT INTO workspace_users (workspace_id, user_id, role)
+    SELECT workspaces.id, owner.id, 'owner'
+    FROM workspaces, (SELECT MIN(id) AS id FROM users) AS owner
+    WHERE owner.id IS NOT NULL;
+  `,
 ];
