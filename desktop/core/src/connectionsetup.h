@@ -7,6 +7,8 @@
 #include <QPointer>
 #include <QString>
 
+#include <functional>
+
 namespace Tokkl
 {
 
@@ -72,6 +74,12 @@ public:
     // Saves the field under the current account, when it differs from what
     // is stored there.
     Q_INVOKABLE void saveSecret();
+    // As saveSecret(), then calls done with true once the store has kept the
+    // secret or when there was nothing to write, and with false when the
+    // write failed; walletError says why. done runs at once when nothing is
+    // written, and otherwise later, from the event loop, while context is
+    // alive.
+    void saveSecret(QObject *context, std::function<void(bool saved)> done);
     // Tests the current account with the secret in the field.
     Q_INVOKABLE void testAccount();
 

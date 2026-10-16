@@ -21,8 +21,9 @@ class Transport;
 
 // Connection settings and the login item. The address, sign-in method and
 // email go to QSettings; the API token or password goes to the credential
-// store through ConnectionSetup and never to the settings. Save keeps them;
-// closing without saving drops what was typed.
+// store through ConnectionSetup and never to the settings. Save keeps them
+// once the store has kept the secret; closing without saving drops what was
+// typed.
 //
 // The address kept is ConnectionSetup::persistedUrl() of the field: the
 // normalized address with its path prefix, never user info, a query or a
@@ -43,11 +44,14 @@ public:
     SettingsWindow(Transport *transport, CredentialStore *store, QSettings *settings, LoginItem *loginItem, QWidget *parent = nullptr);
     ~SettingsWindow() override;
 
-    // Fills the fields from the settings and the stored secret. Call it
-    // before showing the window.
+    // Fills the fields from the settings and the stored secret, and forgets
+    // a save still waiting for the store. Call it before showing the window.
     void load();
-    // Keeps the fields. Returns false, and changes nothing, when the address
-    // is not usable.
+    // Saves the secret in the store and, once the store has kept it, the
+    // other fields in the settings; then emits saved() and closes the window.
+    // When the store fails, the window stays open with the fields as typed
+    // and shows the store's error. Returns false, and changes nothing, when
+    // the address is not usable or a save is already waiting for the store.
     bool save();
 
     ConnectionSetup *setup() const;
@@ -69,7 +73,14 @@ Q_SIGNALS:
     void saved();
 
 private:
+    struct Fields {
+        QString url;
+        QString authMode;
+        QString email;
+    };
+
     QString authMode() const;
+    void finishSave(quint64 serial, const Fields &fields, bool stored);
     void onAccountChanged();
     void updateFields();
     void updateTest();
@@ -80,6 +91,9 @@ private:
     LoginItem *m_loginItem;
     ConnectionSetup *m_setup;
     QTimer m_loadTimer;
+    // Counts saves; a store result for an earlier one is dropped.
+    quint64 m_saveSerial = 0;
+    bool m_saving = false;
 
     QLineEdit *m_urlField;
     QLabel *m_urlNote;

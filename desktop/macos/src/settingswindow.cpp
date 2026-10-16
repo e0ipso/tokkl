@@ -125,11 +125,7 @@ SettingsWindow::SettingsWindow(Transport *transport, CredentialStore *store, QSe
 
     connect(m_loginToggle, &QCheckBox::toggled, this, &SettingsWindow::onLoginToggled);
 
-    connect(buttons, &QDialogButtonBox::accepted, this, [this] {
-        if (save()) {
-            close();
-        }
-    });
+    connect(buttons, &QDialogButtonBox::accepted, this, &SettingsWindow::save);
     connect(buttons, &QDialogButtonBox::rejected, this, &QWidget::close);
 
     m_storeError->hide();
@@ -149,6 +145,9 @@ void SettingsWindow::load()
         m_emailField->setText(m_settings->value(emailKey).toString());
     }
     m_testResult->clear();
+    ++m_saveSerial;
+    m_saving = false;
+    m_saveButton->setEnabled(true);
     // Drop a secret typed and not saved; the stored one loads below.
     m_setup->editSecret(QString());
     m_secretField->clear();
@@ -158,21 +157,47 @@ void SettingsWindow::load()
 
 bool SettingsWindow::save()
 {
+    if (m_saving) {
+        return false;
+    }
     const QString text = m_urlField->text().trimmed();
     const QString persisted = m_setup->persistedUrl(text);
     if (!text.isEmpty() && persisted.isEmpty()) {
         updateFields();
         return false;
     }
+    const Fields fields{persisted, authMode(), m_emailField->text().trimmed()};
+    const quint64 serial = ++m_saveSerial;
+    m_saving = true;
+    m_saveButton->setEnabled(false);
+    // A Keychain write can wait for the user to allow access, and it can
+    // fail. Nothing else changes, and the window stays, until it is done.
+    m_setup->saveSecret(this, [this, serial, fields](bool stored) {
+        finishSave(serial, fields, stored);
+    });
+    return true;
+}
+
+void SettingsWindow::finishSave(quint64 serial, const Fields &fields, bool stored)
+{
+    if (serial != m_saveSerial) {
+        return;
+    }
+    m_saving = false;
+    m_saveButton->setEnabled(true);
+    if (!stored) {
+        // walletErrorChanged has put the store's error on screen; the
+        // secret field keeps what was typed.
+        return;
+    }
     if (m_settings) {
-        m_settings->setValue(instanceUrlKey, persisted);
-        m_settings->setValue(authModeKey, authMode());
-        m_settings->setValue(emailKey, m_emailField->text().trimmed());
+        m_settings->setValue(instanceUrlKey, fields.url);
+        m_settings->setValue(authModeKey, fields.authMode);
+        m_settings->setValue(emailKey, fields.email);
         m_settings->sync();
     }
-    m_setup->saveSecret();
     Q_EMIT saved();
-    return true;
+    close();
 }
 
 QString SettingsWindow::authMode() const

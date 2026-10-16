@@ -22,6 +22,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSettings>
@@ -75,6 +76,47 @@ public:
     QString toolTip;
     QString accessibleName;
     QMenu *menu = nullptr;
+};
+
+// The core's fake store, with writes that can wait until the test finishes
+// them, as a Keychain write waits while macOS asks the user for access.
+class HeldCredentialStore : public FakeCredentialStore
+{
+public:
+    using FakeCredentialStore::FakeCredentialStore;
+
+    void write(const QString &key, const QString &secret, QObject *context, Callback done) override
+    {
+        if (!hold) {
+            FakeCredentialStore::write(key, secret, context, done);
+            return;
+        }
+        held.append(Held{key, secret, context, done});
+    }
+
+    // Finishes the oldest held write with the status; its callback runs
+    // later, from the event loop.
+    void finish(CredentialResult::Status status)
+    {
+        const Held write = held.takeFirst();
+        if (!write.context) {
+            return;
+        }
+        const CredentialResult::Status previous = failure;
+        failure = status;
+        FakeCredentialStore::write(write.key, write.secret, write.context, write.done);
+        failure = previous;
+    }
+
+    struct Held {
+        QString key;
+        QString secret;
+        QPointer<QObject> context;
+        Callback done;
+    };
+
+    bool hold = false;
+    QList<Held> held;
 };
 
 class FakeLoginItem : public LoginItem
@@ -168,7 +210,7 @@ class MenuBarAppTest : public QObject
         QTemporaryDir dir;
         QSettings settings;
         FakeTransport transport;
-        FakeCredentialStore store;
+        HeldCredentialStore store;
         FakeClock clock;
         FakeStatusItem item;
         FakeLoginItem login;
@@ -412,12 +454,14 @@ private Q_SLOTS:
         window.urlField()->setText(QStringLiteral("  https://a.example.test/tokkl/  "));
         QTest::keyClicks(window.secretField(), token);
         QVERIFY(window.testButton()->isEnabled());
+        QSignalSpy saved(&window, &SettingsWindow::saved);
         QVERIFY(window.save());
+        QTRY_COMPARE(saved.count(), 1);
 
         QCOMPARE(f.settings.value(SettingsWindow::instanceUrlKey).toString(), QStringLiteral("https://a.example.test/tokkl"));
         QCOMPARE(f.settings.value(SettingsWindow::authModeKey).toString(), QStringLiteral("token"));
         const QString key = credentialKey(parseInstanceUrl(QStringLiteral("https://a.example.test/tokkl")), AuthMode::Token, QString());
-        QTRY_COMPARE(f.store.secrets.value(key), token);
+        QCOMPARE(f.store.secrets.value(key), token);
         QCOMPARE(f.app.connection()->instanceUrl(), QStringLiteral("https://a.example.test/tokkl"));
 
         f.settings.sync();
@@ -427,6 +471,69 @@ private Q_SLOTS:
 
         QVERIFY(f.waitFor("GET", "/me"));
         QCOMPARE(f.transport.requests.at(f.last("GET", "/me")).url.path(), QStringLiteral("/tokkl/api/v9/me"));
+    }
+
+    // Save waits for the store: the settings change, saved() comes and the
+    // window closes only once the store has kept the secret.
+    void settingsCloseOnceTheStoreKeepsTheSecret()
+    {
+        Fixture f;
+        f.store.hold = true;
+        f.app.start();
+        SettingsWindow &window = *f.app.settingsWindow();
+        QVERIFY(window.isVisible());
+        QSignalSpy saved(&window, &SettingsWindow::saved);
+        window.urlField()->setText(instance);
+        QTest::keyClicks(window.secretField(), token);
+        window.saveButton()->click();
+
+        QTRY_COMPARE(f.store.held.size(), 1);
+        QCoreApplication::processEvents();
+        QCOMPARE(saved.count(), 0);
+        QVERIFY(window.isVisible());
+        QVERIFY(!window.saveButton()->isEnabled());
+        QVERIFY(!f.settings.contains(SettingsWindow::instanceUrlKey));
+        QVERIFY(f.app.connection()->instanceUrl().isEmpty());
+
+        f.store.finish(CredentialResult::Status::Ok);
+        QTRY_COMPARE(saved.count(), 1);
+        QVERIFY(!window.isVisible());
+        QCOMPARE(f.settings.value(SettingsWindow::instanceUrlKey).toString(), instance);
+        QCOMPARE(f.store.secrets.value(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString())), token);
+        QCOMPARE(f.app.connection()->instanceUrl(), instance);
+    }
+
+    // A failed write keeps the window open with the typed secret and the
+    // store's error, and changes no setting. Save works again afterwards.
+    void settingsStayOpenWhenTheStoreFails()
+    {
+        Fixture f;
+        f.store.hold = true;
+        f.app.start();
+        SettingsWindow &window = *f.app.settingsWindow();
+        QSignalSpy saved(&window, &SettingsWindow::saved);
+        window.urlField()->setText(instance);
+        QTest::keyClicks(window.secretField(), token);
+        window.saveButton()->click();
+        QTRY_COMPARE(f.store.held.size(), 1);
+
+        f.store.finish(CredentialResult::Status::Unavailable);
+        QTRY_VERIFY(window.storeError()->isVisibleTo(&window));
+        QCOMPARE(window.storeError()->text(), f.store.message(CredentialResult{CredentialResult::Status::Unavailable, {}}));
+        QCOMPARE(saved.count(), 0);
+        QVERIFY(window.isVisible());
+        QCOMPARE(window.secretField()->text(), token);
+        QVERIFY(window.saveButton()->isEnabled());
+        QVERIFY(!f.settings.contains(SettingsWindow::instanceUrlKey));
+        QVERIFY(f.store.secrets.isEmpty());
+
+        window.saveButton()->click();
+        QTRY_COMPARE(f.store.held.size(), 1);
+        QVERIFY(!window.storeError()->isVisibleTo(&window));
+        f.store.finish(CredentialResult::Status::Ok);
+        QTRY_COMPARE(saved.count(), 1);
+        QVERIFY(!window.isVisible());
+        QCOMPARE(f.settings.value(SettingsWindow::instanceUrlKey).toString(), instance);
     }
 
     void settingsRefuseCredentialsInTheAddress()
@@ -468,10 +575,12 @@ private Q_SLOTS:
 
         // Nothing is kept before Save.
         QVERIFY(f.store.secrets.isEmpty());
+        QSignalSpy saved(&window, &SettingsWindow::saved);
         QVERIFY(window.save());
+        QTRY_COMPARE(saved.count(), 1);
         QCOMPARE(f.settings.value(SettingsWindow::authModeKey).toString(), QStringLiteral("password"));
         QCOMPARE(f.settings.value(SettingsWindow::emailKey).toString(), QStringLiteral("bea@example.test"));
-        QTRY_COMPARE(f.store.secrets.size(), 1);
+        QCOMPARE(f.store.secrets.size(), 1);
     }
 
     // A secret typed and not saved is gone when the window opens again; the

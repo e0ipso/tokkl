@@ -175,28 +175,39 @@ void ConnectionSetup::loadSecret()
 
 void ConnectionSetup::saveSecret()
 {
+    saveSecret(this, [](bool) { });
+}
+
+void ConnectionSetup::saveSecret(QObject *context, std::function<void(bool saved)> done)
+{
     const QString key = m_accountKey;
     const AuthMode mode = authModeFromString(m_authMode);
     const QString submitted = m_secret;
     const QString cleaned = cleanSecret(mode, submitted);
     if (key.isEmpty() || cleaned.isEmpty() || (key == m_storedKey && submitted == m_storedSecret)) {
+        done(true);
         return;
     }
     // From now on the field belongs to this account.
     m_secretOwner = key;
     if (!m_store) {
         setWalletError(CredentialResult{CredentialResult::Status::Unavailable, {}}.message());
+        done(false);
         return;
     }
     setWalletError(QString());
     setBusy(1);
-    m_store->write(key, cleaned, this, [this, key, submitted](const CredentialResult &result) {
+    QPointer<QObject> guard(context);
+    m_store->write(key, cleaned, this, [this, key, submitted, guard, done](const CredentialResult &result) {
         setBusy(-1);
         if (result.ok()) {
             m_storedKey = key;
             m_storedSecret = submitted;
         } else {
             setWalletError(credentialMessage(result));
+        }
+        if (guard) {
+            done(result.ok());
         }
     });
 }
