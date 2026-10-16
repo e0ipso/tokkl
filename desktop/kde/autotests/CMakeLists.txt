@@ -25,11 +25,12 @@ set_tests_properties(api connection networktransport timer PROPERTIES
 # through the QML tests in qml/. The backend types come from tokklcore, wired
 # to the fakes; the test never loads main.qml, the real connection or a
 # plugin copy of the backend. Kept out of bin/, where the build-tree backend
-# module lives.
+# module lives. KF6::KirigamiPlatform, which find_package(Plasma) brings in,
+# lets the fixture set Kirigami.Units.longDuration for the reduced-motion test.
 set(_panel_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-panel")
 ecm_add_test(panelquicktest.cpp fakes.h
     TEST_NAME panel
-    LINK_LIBRARIES tokklcore Qt6::Qml Qt6::Quick Qt6::QuickTest KF6::I18n KF6::I18nQml)
+    LINK_LIBRARIES tokklcore Qt6::Qml Qt6::Quick Qt6::QuickTest KF6::I18n KF6::I18nQml KF6::KirigamiPlatform)
 set_target_properties(panel PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(panel PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"

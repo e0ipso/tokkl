@@ -62,9 +62,10 @@ QtObject {
         return i18nc("@item:inmenu", "Unknown project");
     }
 
-    // One line for the tooltip and the accessible description.
+    // One line for the tooltip and the accessible description. It names the
+    // project, so the panel's project indicator is never the only sign of it.
     readonly property string summary: {
-        const parts = [i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText), statusText];
+        const parts = [i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText), projectText, statusText];
         if (detailText.length > 0) {
             parts.push(detailText);
         }

@@ -7,6 +7,7 @@
 #include "fakes.h"
 #include "timercontroller.h"
 
+#include <Kirigami/Platform/Units>
 #include <KLocalizedQmlContext>
 #include <KLocalizedString>
 
@@ -121,6 +122,20 @@ public:
     Q_INVOKABLE void advance(int ms)
     {
         m_clock.advance(ms);
+    }
+
+    // Sets Kirigami.Units.longDuration for the engine, as Plasma's Animation
+    // speed setting does (1 at "Instant"). Returns the value before.
+    Q_INVOKABLE int setLongDuration(int ms)
+    {
+        QQmlEngine *engine = qmlEngine(this);
+        auto *units = engine ? engine->singletonInstance<Kirigami::Platform::Units *>("org.kde.kirigami.platform", "Units") : nullptr;
+        if (!units) {
+            return -1;
+        }
+        const int before = units->longDuration();
+        units->setLongDuration(ms);
+        return before;
     }
 
 private:

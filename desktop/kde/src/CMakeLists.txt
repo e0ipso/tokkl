@@ -37,10 +37,11 @@ target_link_libraries(tokklcore
 # The QML module's type registrar reads these for the QML_FOREIGN types.
 qt6_extract_metatypes(tokklcore)
 
+# QtQuick declares the color type of TokklTimer.indicatorColor for qmllint.
 ecm_add_qml_module(tokklbackend
     URI ${TOKKL_BACKEND_URI}
     GENERATE_PLUGIN_SOURCE
-    DEPENDENCIES QtQml
+    DEPENDENCIES QtQml QtQuick
 )
 
 target_sources(tokklbackend PRIVATE
