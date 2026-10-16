@@ -59,9 +59,9 @@ Where Toggl's own sources disagree, this document says so and picks a behavior. 
 
 ### Visual direction
 
-This is the brief every restyle ticket is checked against.
+This is the brief every visual change is checked against.
 
-- **Palette roles.** Light theme: sand background, ink text, sunset orange primary, aqua secondary, hot pink and lime for states. Dark theme: deep navy background with a neon counterpart for each role. The design tokens ticket (TT-0067) picks the exact values.
+- **Palette roles.** Light theme: sand background, ink text, sunset orange primary, aqua secondary, hot pink and lime for states. Dark theme: deep navy background with a neon counterpart for each role. The exact values are the colour tokens in `packages/web/src/styles.css`.
 - **Typeface.** One display face for headings, the running clock and totals. The wordmark is the owner-supplied graffiti artwork, shipped as an image named "Tokkl", so it uses no font. Body text, controls and tables use the system font stack.
 - **Texture.** CSS gradients or inline SVG only, never raster images. Texture never sits behind data tables or inputs.
 - **Type effects.** Rotated or skewed type is decoration only. It never appears on controls, numbers or labels.
