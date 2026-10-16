@@ -18,7 +18,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 
 ## Screenshots
 
-The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as [README screenshots](#readme-screenshots) explains.
+The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as the [Development](#development) section explains.
 
 **Timer.** The running entry is at the top and history is grouped by day. Favorites are bold numbered pills under the timer, and the sidebar lists Timer, Reports, Projects, Clients, Tags, Trash and Settings, plus Admin for admins.
 
