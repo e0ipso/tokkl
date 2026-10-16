@@ -38,10 +38,12 @@ namespace Tokkl
 // reconnect, until its reply arrives and a read reconciles the state.
 //
 // The next start defaults to the project of the last entry: of the entry
-// that stopped, after every stop, and of the newest entry the API lists when
-// a connection starts with nothing running. Only an active project of the
-// workspace counts; otherwise it is no project. A pick made while stopped
-// wins until the next start.
+// that stopped, after every stop (as the stop reply names it, when the panel
+// stopped it), and of the newest entry the API lists when a connection starts
+// or reconnect() runs with nothing running. Only an active project of the
+// workspace counts; otherwise it is no project. A stop seen before the
+// project list waits for it. A pick made while stopped wins until the next
+// start; a reconnect replaces only an automatic default.
 //
 // The panel menu edits the choices through chooseProject() and
 // chooseBillable(). chooseProject() sets only the project of the next start
@@ -216,9 +218,13 @@ private:
     void fetchEntry();
     void fetchProjects();
     void fetchLastEntry();
-    void applyEntry(const std::optional<TimeEntry> &entry);
+    // stoppedReply is the server's answer to a stop or edit that ended the
+    // entry; its project wins over the one last read.
+    void applyEntry(const std::optional<TimeEntry> &entry, const std::optional<TimeEntry> &stoppedReply = std::nullopt);
+    void applyStopDefault();
+    void setStopDefault(std::optional<qint64> projectId);
     void setNextStart(std::optional<qint64> projectId, bool billable);
-    void decideNextStart();
+    void pickNextStart();
     bool updateEntry(const TimeEntryUpdate &update);
     std::optional<qint64> chosenProject() const;
     // The details of a project: from projects, else from the single-project
@@ -278,9 +284,12 @@ private:
     quint64 m_entryReadPending = 0; // number of the valid read in flight, or 0
     bool m_projectsPending = false;
 
-    // The next-start choice was set in this context, by a pick or a default,
-    // so the last entry's project no longer applies.
-    bool m_nextStartDecided = false;
+    // The user picked the next-start choice since the last start or stop, so
+    // no automatic default replaces it. Defaults themselves do not set it.
+    bool m_nextStartPicked = false;
+    // The project of an entry that stopped before the project list could
+    // tell whether it is active; applied when the list arrives.
+    std::optional<qint64> m_stopDefault;
     // Ask for the last entry's project after the next current-entry read.
     bool m_lastEntryWanted = false;
     quint64 m_lastEntryReads = 0;

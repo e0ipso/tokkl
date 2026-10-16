@@ -680,6 +680,101 @@ private Q_SLOTS:
         QVERIFY(!f.timer.billable());
     }
 
+    void stopBeforeTheProjectListKeepsItsDefault_data()
+    {
+        QTest::addColumn<bool>("pick");
+        QTest::newRow("default") << false;
+        QTest::newRow("manual pick in between") << true;
+    }
+
+    void stopBeforeTheProjectListKeepsItsDefault()
+    {
+        QFETCH(bool, pick);
+        Fixture f;
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceA);
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.transport.requests.size() == 1;
+        }));
+        f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
+        const qsizetype projects = f.last("GET", "/projects");
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        QVERIFY(f.unanswered(projects));
+        QVERIFY(f.timer.canWrite());
+
+        // The stop answers before the project list.
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(!f.timer.isRunning());
+        if (pick) {
+            QVERIFY(f.timer.chooseBillable(true));
+        }
+
+        f.respond(projects, FakeTransport::answer(200, projectsBody(7)));
+        if (pick) {
+            QVERIFY(f.timer.selectedProjectId().isNull());
+            QVERIFY(f.timer.billable());
+        } else {
+            QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+            QVERIFY(f.timer.billable());
+        }
+    }
+
+    void stopDefaultsToTheProjectTheServerStopped()
+    {
+        Fixture f;
+        const QByteArray projects = "[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]";
+        QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
+        f.timer.refresh();
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projects));
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+
+        // The web moved the entry to project 12 since the last read.
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 12)));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 12);
+        QVERIFY(!f.timer.billable());
+    }
+
+    void reconnectReplacesAnAutomaticDefault_data()
+    {
+        QTest::addColumn<bool>("pick");
+        QTest::newRow("automatic default") << false;
+        QTest::newRow("manual pick") << true;
+    }
+
+    void reconnectReplacesAnAutomaticDefault()
+    {
+        QFETCH(bool, pick);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        if (pick) {
+            QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        }
+
+        // Meanwhile an entry on project 12 ran and stopped elsewhere.
+        const qsizetype before = f.transport.requests.size();
+        f.timer.reconnect();
+        const qsizetype read = f.last("GET", currentPath);
+        QVERIFY(read >= before);
+        QVERIFY(f.unanswered(read));
+        f.respond(read, FakeTransport::answer(200, "null"));
+        if (pick) {
+            QCOMPARE(f.find("GET", listPath).size(), 1);
+            QVERIFY(f.timer.selectedProjectId().isNull());
+            QVERIFY(!f.timer.billable());
+            return;
+        }
+        QCOMPARE(f.find("GET", listPath).size(), 2);
+        f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(9, 7, 12, true, false), listedEntry(8, 7, 11, true, true)})));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 12);
+        QVERIFY(!f.timer.billable());
+    }
+
     void stoppedConflictReconciles_data()
     {
         QTest::addColumn<int>("status");
