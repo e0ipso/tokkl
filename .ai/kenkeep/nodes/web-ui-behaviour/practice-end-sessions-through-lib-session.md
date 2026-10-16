@@ -27,6 +27,8 @@ kk_confidence: high
 
 `qc.clear()` does not notify mounted queries. They keep showing their last result until their component renders again, and later cache operations do not reach them. After `endSession`, either reload the page or re-render the components that read the cleared queries.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

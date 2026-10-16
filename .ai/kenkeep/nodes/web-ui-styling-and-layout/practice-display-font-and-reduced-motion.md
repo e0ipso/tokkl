@@ -26,6 +26,8 @@ The display face is Anybody (SIL OFL 1.1), one variable file at `packages/web/pu
 
 The only `prefers-reduced-motion` query in `packages/web/src` is the last rule in `packages/web/src/styles.css`. It sets `--duration-fast` and `--duration-base` to 0ms and forces every animation and transition to 0.01ms with `!important`, which is needed to beat class selectors such as `.running-dot`. New rules use the `--duration-*` tokens and add no reduced-motion query of their own.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

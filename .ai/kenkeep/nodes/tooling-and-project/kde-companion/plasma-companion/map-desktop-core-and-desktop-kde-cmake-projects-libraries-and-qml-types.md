@@ -26,6 +26,8 @@ The version defaults to the root `package.json` (`TOKKL_PACKAGE_JSON`, resolved 
 
 `desktop/kde/README.md` is the companion's guide: install, upgrade and remove; adding the widget to a panel; connection settings; accounts and privacy; the panel state table; the timer; packages; CI and releases; and the real Plasma smoke checklist. Build dependencies and install commands are there too. The PRD allows the companion: a narrowed non-goal and requirements C5 and C6 in `docs/PRD.md`. No GitHub release carries the packages yet (v1.0.0 and v1.0.1 have no assets; checked 2026-10-16), so the README tells readers to build them.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

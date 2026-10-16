@@ -24,6 +24,8 @@ kk_confidence: high
 - `e2e/data-dir-lock.test.ts` holds node:test cases (ten, including a race of six processes for one stale lock). `playwright.config.ts` sets `testMatch: /\.spec\.ts$/` so Playwright does not import it, and root `npm test` runs it with `node --test`.
 - On this host 127.0.0.1:8142 and 8143 are held by `rootlesskit`, the port forward of a rootless container, so do not pick an `E2E_PORT` that lands on them (directly, through the instance server at +1 or through the +50 disposable range). A taken port fails with `EADDRINUSE` when `webServer` starts; check with `ss -ltnp` first, then set `E2E_PORT` to a free port such as 8191.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

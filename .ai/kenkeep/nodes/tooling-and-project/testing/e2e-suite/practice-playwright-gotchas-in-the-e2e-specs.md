@@ -25,3 +25,5 @@ kk_confidence: high
 - `cellTexts(rows)` in `e2e/report-tests-helpers.ts` waits for the first row, so a loading table is not read as empty, then reads every row once. When more rows may still arrive, poll it: `expect.poll(() => cellTexts(rows))`. Treat any one-shot table read the same way.
 - `page.waitForLoadState('networkidle')` resolves once the page has reached network idle, and immediately if it already has, so it cannot show that a page has no request loop. Count the requests, wait through a quiet window and check the count has not grown, as the logout test in `e2e/theme.spec.ts` does with `/api/v9/me`.
 - Chromium's mobile emulation snaps a touch on bare margin to a nearby control. To close a popover the way a finger does, use `tapOutside` on plain text away from the popover, such as a heading.
+
+<!-- Verified against the current code on 2026-10-16. -->

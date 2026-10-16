@@ -20,6 +20,8 @@ The bulk bar is not inside the timer bar, so it cannot measure it. `useHeightPro
 
 On phones (the `max-width: 760px` block) both bars stuck together take too much of the screen. `.page:has(.bulk-bar)` sets `--timer-bar-height: 0px` and makes the timer bar `position: relative`, so while entries are selected the timer bar scrolls away and the bulk bar sticks at the top.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

@@ -30,6 +30,8 @@ Colour literals in CSS live only in the token block on `:root` at the top of `st
 
 The check mark on a chosen colour swatch sits on the raw hex in both themes, so it cannot follow the theme. `checkColor` in `packages/web/src/pages/manage/swatchCheck.ts` picks whichever check token has the higher WCAG ratio against that hex, and `ColorField.tsx` sets it per swatch as `--swatch-check`. The worst palette case is 4.43:1 (the dark check on `#9e5bd9`), which passes the 3:1 non-text bar; `swatchCheck.test.ts` pins it and the table in `manage.css` records it.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

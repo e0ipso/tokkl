@@ -24,6 +24,8 @@ Fixtures: `year` (3,000 entries over 365 days) and `decade` (30,000 entries over
 
 `bench/tsconfig.json` covers `bench/**/*.ts`, and `npm run typecheck` runs it.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

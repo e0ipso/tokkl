@@ -26,6 +26,8 @@ Outputs in `packages/web/public`: `favicon-32.png` and `icon-192.png` are copies
 
 The manifest keeps `icon-192.png` and `icon-512.png` as general-purpose icons and adds the two maskable files with `"purpose": "maskable"`. The general-purpose icons stay separate because their artwork does not fit the safe zone. `e2e/pwa.spec.ts` expects all four entries, checks that the maskable ones are fully opaque and decode at their declared sizes. There is no `icon.svg`. `index.html` links `favicon-32.png` and `apple-touch-icon.png`. If you change `WORDMARK_CROP`, change `WORDMARK_RATIO` in `Brand.tsx` with it.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

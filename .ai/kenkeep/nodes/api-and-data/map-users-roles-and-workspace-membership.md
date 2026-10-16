@@ -43,6 +43,8 @@ For multi-user API tests, `addUser(ctx, { email, role })` in `packages/api/test/
 
 `packages/api/test/entities.test.ts` asserts `PRAGMA user_version` equals both `MIGRATIONS.length` and a literal (now 5). A new migration must bump that literal. Migrations 4 and 5 add `instance_settings` and `account_tokens`; see the admin API node.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 

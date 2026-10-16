@@ -25,6 +25,8 @@ The baselines are rendered by the default Playwright headless shell (revision 12
 
 Because the threshold is a ratio of the whole page, a small element can break without failing a baseline. The 30px brand icon is one: `e2e/typography.spec.ts` decodes `/brand/icon-96.png` for that reason. Give any small asset its own check, and decode it, since the static server answers a missing path with the HTML shell and status 200.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 
