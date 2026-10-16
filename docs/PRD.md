@@ -234,6 +234,7 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 - Responses are bare JSON objects or arrays with explicit `null`s. No `{"data": ...}` envelope (that was v8).
 - Errors are JSON-encoded strings, e.g. `"Time entry already stopped"`, with 400, 403, 404 or 409.
 - Timestamps go out as RFC 3339 UTC with `+00:00`; any RFC 3339 offset is accepted on input. Times are stored with second precision.
+- Every API write that stores a stopped entry (create, update, stop, bulk `PATCH`, and stopping the running entry when a new one starts) snaps it to the instance time resolution on the clock of the owner's timezone. The duration rounds up to a multiple of the resolution, the start moves to the nearest grid point, and the response returns the stored values, so `stop - start` equals `duration`. A running entry keeps its exact start until it stops. When a new timer stops it, its stored stop lands up to half a step before the new start or up to one and a half steps after it. CSV import and JSON restore keep the times in the file, and existing entries change only when they are next edited.
 - Legacy field aliases are emitted and accepted: `wid`/`workspace_id`, `pid`/`project_id`, `tid`/`task_id`, `uid`/`user_id`, `cid`/`client_id`.
 - A running entry has `stop: null` and `duration` equal to minus its start in Unix seconds. That satisfies clients computing `now + duration` (the documented v8-era rule) and clients that only test `duration < 0`.
 - Any negative `duration` on create means "running". `created_with` is accepted but optional (Toggl requires it).
@@ -299,7 +300,7 @@ The web UI is a client of the same Toggl-compatible API it exposes. Every timer 
 | HTTP | Express 5 | The most widely known Node server framework. Version 5 sends rejected promises from async handlers to the error handler, so routes need no wrappers. `trust proxy` handles a reverse proxy's forwarded headers. |
 | Database | SQLite through the built-in `node:sqlite` | No native module to compile, on amd64 or arm64; a single file to back up. WAL mode, foreign keys on. |
 | UI | React 19, Vite, TanStack Query, wouter | Query caching and refetch-on-focus give cross-device freshness for free. |
-| Shared | `packages/common` (`@tokkl/common`) modules for duration parsing, time-of-day parsing, timezone math, with their types in `packages/types` (`@tokkl/types`) | Server and UI parse `1h 30m` and midnight the same way. |
+| Shared | `packages/common` (`@tokkl/common`) modules for duration parsing, time-of-day parsing, timezone math, snapping entries to the time resolution, with their types in `packages/types` (`@tokkl/types`) | Server and UI parse `1h 30m` and midnight the same way. |
 
 ### 8.3 Data model
 

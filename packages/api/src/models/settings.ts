@@ -25,12 +25,13 @@ type SettingRule = ({ min: number; max: number } | { allowed: readonly number[] 
 
 /** The resolutions that divide an hour evenly. */
 const TIME_RESOLUTIONS = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60] as const;
+const DEFAULT_TIME_RESOLUTION = 5;
 
 const SETTING_RULES: Record<SettingKey, SettingRule> = {
   // TOKKL_SESSION_DAYS, which loadConfig already defaults to 30.
   session_days: { min: 1, max: 365, fallback: (config) => config.sessionDays },
   invite_days: { min: 1, max: 90, fallback: () => 7 },
-  time_resolution_minutes: { allowed: TIME_RESOLUTIONS, fallback: () => 5 },
+  time_resolution_minutes: { allowed: TIME_RESOLUTIONS, fallback: () => DEFAULT_TIME_RESOLUTION },
 };
 
 const SETTING_KEYS = Object.keys(SETTING_RULES) as SettingKey[];
@@ -66,6 +67,14 @@ export function getInstanceSettings(db: Db, config: Config): InstanceSettings {
     settings[key] = isValid(key, value) ? value : SETTING_RULES[key].fallback(config);
   }
   return settings;
+}
+
+/** The resolution in effect, read on its own because the time entry model has no Config at hand. */
+export function getTimeResolutionMinutes(db: Db): number {
+  const row = db.prepare("SELECT value FROM instance_settings WHERE key = 'time_resolution_minutes'").get() as
+    { value: string } | undefined;
+  const value = row ? storedValue(row.value) : undefined;
+  return isValid('time_resolution_minutes', value) ? value : DEFAULT_TIME_RESOLUTION;
 }
 
 /** Validates a settings update. Unknown keys, non-integers and values outside a rule are a 400. */

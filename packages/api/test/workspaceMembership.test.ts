@@ -344,12 +344,12 @@ test('a member reaches a shared workspace through the same routes', async () => 
   const project = await b.json('POST', `/api/v9/workspaces/${a.wid}/projects`, { name: 'Shared' });
   assert.equal(project.status, 200);
   const entry = await b.json('POST', `/api/v9/workspaces/${a.wid}/time_entries`,
-    { start: '2026-10-01T08:00:00Z', duration: 60, project_id: project.body.id, workspace_id: a.wid });
+    { start: '2026-10-01T08:00:00Z', duration: 300, project_id: project.body.id, workspace_id: a.wid });
   assert.equal(entry.status, 200);
   const totals = await b.json('POST', `/reports/api/v3/workspace/${a.wid}/search/time_entries/totals`,
     { start_date: '2026-10-01', end_date: '2026-10-07' });
   assert.equal(totals.status, 200);
-  assert.equal(totals.body.seconds, 60);
+  assert.equal(totals.body.seconds, 300);
 });
 
 test('PUT /me accepts only a default workspace the caller belongs to, and app reports follow that rule', async () => {

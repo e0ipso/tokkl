@@ -1,0 +1,40 @@
+/**
+ * Snapping a time entry to a resolution: the step, in minutes, that every stored duration is a
+ * multiple of. Shared by the server, which snaps on write, and the web app.
+ */
+
+import { timeZoneOffsetMs } from './time.ts';
+
+const MINUTE_MS = 60_000;
+
+export interface SnappedSpan {
+  start: Date;
+  stop: Date;
+}
+
+/** True for the resolutions that divide an hour evenly: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 and 60. */
+export function isTimeResolution(minutes: number): boolean {
+  return Number.isInteger(minutes) && minutes >= 1 && 60 % minutes === 0;
+}
+
+/**
+ * Snaps the span from `start` to `stop` to a resolution of `minutes`, which must divide 60.
+ *
+ * The duration rounds up to a multiple of the resolution: it never shrinks, it gains less than one
+ * step, and a duration that is already a multiple stays as it is. The start moves to the nearest
+ * point of the grid on the wall clock of `timeZone`, rounding a tie up. Because the resolution
+ * divides an hour, the grid falls on every whole hour, also in zones 30 or 45 minutes off UTC.
+ * The stop is the snapped start plus the rounded duration, counted in elapsed time, so a span
+ * across a DST change keeps its duration.
+ */
+export function snapSpan(start: Date, stop: Date, minutes: number, timeZone: string): SnappedSpan {
+  if (!isTimeResolution(minutes)) throw new RangeError(`Invalid time resolution: ${minutes}`);
+  const elapsed = stop.getTime() - start.getTime();
+  if (!(elapsed >= 0)) throw new RangeError('Stop must not be before start');
+  const step = minutes * MINUTE_MS;
+  const duration = Math.ceil(elapsed / step) * step;
+  const offset = timeZoneOffsetMs(start, timeZone);
+  const below = Math.floor((start.getTime() + offset) / step) * step - offset;
+  const snappedStart = (start.getTime() - below) * 2 >= step ? below + step : below;
+  return { start: new Date(snappedStart), stop: new Date(snappedStart + duration) };
+}

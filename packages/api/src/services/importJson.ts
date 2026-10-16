@@ -180,7 +180,7 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
           billable: entry.billable === true,
           tag_ids: entryTagIds,
           created_with: typeof entry.created_with === 'string' ? entry.created_with : 'tokkl-json-import',
-        });
+        }, { exact: true });
         result.time_entries++;
         db.exec('RELEASE import_entry');
       } catch (error) {

@@ -178,11 +178,12 @@ test('arrow keys on the summary chart move its column and leave the report range
 
 test('detailed rows sort globally and page across a range longer than a year', async ({ page, api }) => {
   // 105 entries four days apart from 1 January 2025. Durations and descriptions are permutations
-  // unrelated to the dates, so a sort that only covered one page would show.
+  // unrelated to the dates, so a sort that only covered one page would show. Durations are distinct
+  // multiples of the default 5-minute time resolution, so the server stores them unchanged.
   const entries = Array.from({ length: 105 }, (_, i) => ({
     description: `Task ${String((i * 58) % 105).padStart(3, '0')}`,
     start: Date.UTC(2025, 0, 1 + i * 4, 9),
-    minutes: ((i * 37) % 105) + 1,
+    minutes: (((i * 37) % 105) + 1) * 5,
   }));
   for (const entry of entries) {
     await api.entry({ description: entry.description, start: iso(entry.start), stop: iso(entry.start + entry.minutes * 60_000) });

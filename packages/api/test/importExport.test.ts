@@ -40,6 +40,36 @@ test('imports a Toggl detailed CSV in the account timezone and skips duplicates 
   assert.equal(second.skipped_duplicates, 3);
 });
 
+// Live writes snap to the time resolution; imported history keeps the times in the file.
+test('CSV import and JSON restore keep exact times, and a second import adds nothing', async () => {
+  const ctx = await setup();
+  const csv = [
+    'User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount (EUR)',
+    'Me,me@example.com,,,,From CSV,No,2026-09-01,09:02:31,2026-09-01,09:13:07,00:10:36,,',
+  ].join('\n');
+  const file = {
+    format: 'tokkl-export',
+    time_entries: [{ id: 1, start: '2026-09-02T08:00:07Z', stop: '2026-09-02T08:31:45Z', description: 'From JSON' }],
+  };
+  const importCsv = async () => (await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+
+  assert.equal((await importCsv()).created, 1);
+  assert.equal((await restoreJson(ctx, file)).time_entries, 1);
+  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03')).body;
+  const times = (description: string) => {
+    const entry = entries.find((e: any) => e.description === description);
+    return [entry.start, entry.stop, entry.duration];
+  };
+  assert.deepEqual(times('From CSV'), ['2026-09-01T09:02:31+00:00', '2026-09-01T09:13:07+00:00', 636]);
+  assert.deepEqual(times('From JSON'), ['2026-09-02T08:00:07+00:00', '2026-09-02T08:31:45+00:00', 1898]);
+
+  const csvAgain = await importCsv();
+  assert.deepEqual([csvAgain.created, csvAgain.skipped_duplicates], [0, 1]);
+  const jsonAgain = await restoreJson(ctx, file);
+  assert.deepEqual([jsonAgain.time_entries, jsonAgain.skipped_duplicates], [0, 1]);
+  assert.equal((ctx.db.prepare('SELECT COUNT(*) AS n FROM time_entries').get() as { n: number }).n, 2);
+});
+
 test('CSV export round-trips through the importer and neutralises formulas', async () => {
   const ctx = await setup({ timezone: 'America/New_York' });
   await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' });

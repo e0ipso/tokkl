@@ -255,7 +255,7 @@ export function importTogglCsv(
           billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
           tags,
           created_with: 'tokkl-csv-import',
-        });
+        }, { exact: true });
         result.created++;
         db.exec('RELEASE import_row');
       } catch (error) {

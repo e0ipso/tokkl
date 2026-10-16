@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
-test('editing only the description keeps start and stop seconds', async ({ page }) => {
+test('editing only the description keeps the stored start and stop', async ({ page }) => {
   await login(page);
   const me = await (await page.request.get('/api/v9/me')).json();
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
@@ -9,6 +9,8 @@ test('editing only the description keeps start and stop seconds', async ({ page 
     headers: { 'X-Tokkl-CSRF': '1' },
     data: { description: 'Seconds matter', start: `${day}T07:00:37Z`, stop: `${day}T08:15:12Z`, created_with: 'e2e' },
   })).json();
+  // The server stores the span snapped to the default 5-minute resolution.
+  expect([created.start, created.stop]).toEqual([`${day}T07:00:00+00:00`, `${day}T08:15:00+00:00`]);
   await page.reload();
 
   const row = page.locator('.entry-line', { has: page.locator('input[value="Seconds matter"]') });
@@ -24,8 +26,8 @@ test('editing only the description keeps start and stop seconds', async ({ page 
 
   const saved = await (await page.request.get(`/api/v9/me/time_entries/${created.id}`)).json();
   expect(saved.description).toBe('Seconds still matter');
-  expect(saved.start).toBe(`${day}T07:00:37+00:00`);
-  expect(saved.stop).toBe(`${day}T08:15:12+00:00`);
+  expect(saved.start).toBe(created.start);
+  expect(saved.stop).toBe(created.stop);
 });
 
 // Overnight entries split at a clock time before their start, on the night the clocks change.

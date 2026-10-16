@@ -110,22 +110,23 @@ test('a saved report URL restores every control and the matching results', async
   const beta = await api.project({ name: 'Beta', client_id: acme });
   const gamma = await api.project({ name: 'Gamma' });
 
-  // 103 matches lasting 1 to 103 minutes; odd ones are tagged "draft".
+  // 103 matches lasting 5 to 515 minutes, multiples of the default 5-minute time resolution so the
+  // server stores them unchanged; odd ones are tagged "draft".
   for (let i = 1; i <= 103; i++) {
     const start = Date.UTC(2025, 10, 1 + (i % 61), 9);
     await api.entry({
       description: `match ${String(i).padStart(3, '0')}`, project_id: alpha, billable: true,
-      start: iso(start), stop: iso(start + i * 60_000), tags: i % 2 ? ['draft'] : [],
+      start: iso(start), stop: iso(start + i * 5 * 60_000), tags: i % 2 ? ['draft'] : [],
     });
   }
   // Each of these fails exactly one filter, and lasts longer than any match.
-  const long = { start: '2025-11-20T12:00:00Z', stop: '2025-11-20T16:00:00Z' };
+  const long = { start: '2025-11-20T12:00:00Z', stop: '2025-11-20T21:00:00Z' };
   await api.entry({ description: 'match beta', project_id: beta, billable: true, ...long });
   await api.entry({ description: 'match gamma', project_id: gamma, billable: true, ...long });
   await api.entry({ description: 'match paid', project_id: alpha, billable: true, tags: ['paid'], ...long });
   await api.entry({ description: 'match unbilled', project_id: alpha, billable: false, ...long });
   await api.entry({ description: 'other work', project_id: alpha, billable: true, ...long });
-  await api.entry({ description: 'match late', project_id: alpha, billable: true, start: '2026-01-02T12:00:00Z', stop: '2026-01-02T16:00:00Z' });
+  await api.entry({ description: 'match late', project_id: alpha, billable: true, start: '2026-01-02T12:00:00Z', stop: '2026-01-02T21:00:00Z' });
   const paid = await api.tagId('paid');
 
   // In the order the app writes its parameters, so an unchanged state keeps the URL as is.
@@ -139,7 +140,7 @@ test('a saved report URL restores every control and the matching results', async
   await expect(pager).toContainText('101 to 103 of 103');
   const rows = page.locator('tr.entry-row');
   await expect.poll(async () => (await cellTexts(rows)).map((cells) => [cells[1], cells[6]])).toEqual([
-    ['match 101', '1:41:00'], ['match 102', '1:42:00'], ['match 103', '1:43:00'],
+    ['match 101', '8:25:00'], ['match 102', '8:30:00'], ['match 103', '8:35:00'],
   ]);
   expect(new URL(page.url()).search).toBe(search);
   await expect(rangeButton(page)).toContainText('1 Nov to 31 Dec 2025');
@@ -160,8 +161,8 @@ test('a saved report URL restores every control and the matching results', async
   await page.keyboard.press('Escape');
   await expect(page.getByRole('checkbox', { name: 'paid' })).toBeHidden();
 
-  // 1 + 2 + ... + 103 minutes; odd minutes are tagged "draft".
-  const all = hms(103 * 104 / 2 * 60);
+  // 5 × (1 + 2 + ... + 103) minutes; odd matches are tagged "draft".
+  const all = hms(103 * 104 / 2 * 5 * 60);
   await tabs.getByRole('tab', { name: 'Weekly' }).click();
   await expect(page.getByRole('group', { name: 'Rows' }).getByRole('button', { name: 'Clients' })).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(async () => (await cellTexts(page.locator('.weekly-table tbody tr')))
@@ -176,8 +177,8 @@ test('a saved report URL restores every control and the matching results', async
   await breakdown.getByRole('button', { name: 'Show tag breakdown for ACME' }).click();
   await expect.poll(async () => (await cellTexts(breakdown.locator('tbody tr'))).map((cells) => [cells[0], cells[1]])).toEqual([
     ['ACME', all],
-    ['draft', hms(52 * 52 * 60)],
-    ['Without tags', hms(51 * 52 * 60)],
+    ['draft', hms(52 * 52 * 5 * 60)],
+    ['Without tags', hms(51 * 52 * 5 * 60)],
   ]);
   // The page number survives tab changes, so returning to the detailed tab shows the same rows.
   await tabs.getByRole('tab', { name: 'Detailed' }).click();

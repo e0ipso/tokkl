@@ -99,7 +99,9 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   const timer = page.getByRole('region', { name: 'Timer' });
   const entries = async () => (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'))
     .json() as Promise<Array<{ description: string; start: string; stop: string | null }>>;
-  // Exactly one entry runs, it is `description`, and `previous` stopped when it started.
+  const step = (await data.me()).time_resolution_minutes * 60_000;
+  // Exactly one entry runs, it is `description`, and `previous` stopped when it started, snapped to
+  // the time resolution: its start moves up to half a step and its duration grows by less than one.
   const expectReplaced = async (description: string, previous: string) => {
     await expect(timer.getByLabel('Description')).toHaveValue(description);
     await expect.poll(async () => {
@@ -107,7 +109,8 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
       const running = all.filter((entry) => !entry.stop);
       const stopped = all.find((entry) => entry.description === previous && entry.stop);
       return running.length === 1 && running[0]!.description === description && stopped !== undefined
-        && Date.parse(stopped.stop!) === Date.parse(running[0]!.start);
+        && Math.abs(Date.parse(stopped.stop!) - Date.parse(running[0]!.start) - step / 2) <= step
+        && (Date.parse(stopped.stop!) - Date.parse(stopped.start)) % step === 0;
     }).toBe(true);
   };
 

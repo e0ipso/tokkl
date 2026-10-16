@@ -85,7 +85,7 @@ test('tasks belong to projects and set the project on entries', async () => {
   assert.equal(task.status, 200);
   assert.equal(task.body.project_id, project.body.id);
 
-  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 60, task_id: task.body.id });
+  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 300, task_id: task.body.id });
   assert.equal(entry.body.project_id, project.body.id);
   const mismatch = await ctx.json('POST', `${base}/time_entries`, {
     start: '2026-10-01T08:00:00Z', duration: 60, task_id: task.body.id, project_id: other.body.id,
@@ -94,7 +94,7 @@ test('tasks belong to projects and set the project on entries', async () => {
 
   const listed = await ctx.json('GET', `${base}/projects/${project.body.id}/tasks`);
   assert.equal(listed.body.length, 1);
-  assert.equal(listed.body[0].tracked_seconds, 60_000);
+  assert.equal(listed.body[0].tracked_seconds, 300_000);
   const done = await ctx.json('PUT', `${base}/projects/${project.body.id}/tasks/${task.body.id}`, { active: false });
   assert.equal(done.body.active, false);
 });

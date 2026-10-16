@@ -316,6 +316,12 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     const old = before.b.entries.find((entry) => entry.id === stopped)!;
     assert.equal(old.stop, null);
     assert.notEqual(row.stop, null);
-    assert.deepEqual(without(row, 'stop', 'duration', 'updated_at'), without(old, 'stop', 'duration', 'updated_at'));
+    // Stopping snaps the entry to the time resolution, so its start moves to the nearest grid point.
+    assert.deepEqual(without(row, 'start', 'stop', 'duration', 'updated_at'), without(old, 'start', 'stop', 'duration', 'updated_at'));
+    const step = 5 * 60_000;
+    const start = Date.parse(String(row.start));
+    assert.equal(start % step, 0);
+    assert.ok(Math.abs(start - Date.parse(String(old.start))) <= step / 2, `${row.start} near ${old.start}`);
+    assert.equal((Date.parse(String(row.stop)) - start) % step, 0);
   });
 });

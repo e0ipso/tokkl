@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, type TestContext } from './helpers.ts';
+import { iso, setup, type TestContext } from './helpers.ts';
 import { addWorkspaceMember, createWorkspace } from '../src/models/workspaces.ts';
 
 test('starting a timer returns a running entry with negative epoch duration', async () => {
@@ -38,8 +38,8 @@ function runningCount(ctx: TestContext): number {
 }
 
 // Continue and favorites (web `start(from, { replace: true })`) post a plain running entry;
-// the server stops whatever runs at the new entry's start.
-test('starting a second timer stops the first one exactly at the new start', async () => {
+// the server stops whatever runs at the new entry's start, snapped to the time resolution.
+test('starting a second timer stops the first one at the new start, snapped to the resolution', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const project = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Alpha', billable: true });
@@ -51,18 +51,24 @@ test('starting a second timer stops the first one exactly at the new start', asy
   assert.equal(runningCount(ctx), 1);
 
   const second = await ctx.json('POST', url, {
-    description: 'second', start: '2026-10-14T09:15:00Z', duration: -1, project_id: project.body.id, tags: ['dev'], created_with: 'test',
+    description: 'second', start: '2026-10-14T09:13:20Z', duration: -1, project_id: project.body.id, tags: ['dev'], created_with: 'test',
   });
   assert.equal(second.status, 200);
   assert.notEqual(second.body.id, first.body.id);
+  assert.equal(second.body.start, '2026-10-14T09:13:20+00:00');
   assert.equal(second.body.stop, null);
   assert.equal(second.body.project_id, project.body.id);
   assert.equal(second.body.billable, true);
   assert.deepEqual(second.body.tags, ['dev']);
 
+  // 73m20s rounds up to 75 minutes at the default resolution of 5, so the first entry overlaps
+  // the second by 100 seconds, less than one step.
   const firstNow = await ctx.json('GET', `/api/v9/me/time_entries/${first.body.id}`);
-  assert.equal(firstNow.body.stop, second.body.start);
+  assert.equal(firstNow.body.start, '2026-10-14T08:00:00+00:00');
+  assert.equal(firstNow.body.stop, '2026-10-14T09:15:00+00:00');
   assert.equal(firstNow.body.duration, 4500);
+  const overlap = (Date.parse(firstNow.body.stop) - Date.parse(second.body.start)) / 1000;
+  assert.ok(overlap > 0 && overlap < 300, `overlap ${overlap}`);
   const current = await ctx.json('GET', '/api/v9/me/time_entries/current');
   assert.equal(current.body.id, second.body.id);
   assert.equal(runningCount(ctx), 1);
@@ -117,8 +123,11 @@ test('zone-free, impossible and non-string timestamps are rejected without side 
 
 test('offsets, null stop, sub-second values and negative running durations still work', async () => {
   const ctx = await setup();
+  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
-  const offset = await ctx.json('POST', url, { start: '2026-10-14T11:00:00.750+02:00', stop: '2026-10-14T12:30:00.999+02:00' });
+  // Fractions of a second are dropped, then the span snaps to whole minutes: 09:00:20 is nearest
+  // 09:00 and 89m50s rounds up to 90 minutes.
+  const offset = await ctx.json('POST', url, { start: '2026-10-14T11:00:20.750+02:00', stop: '2026-10-14T12:30:10.999+02:00' });
   assert.equal(offset.status, 200);
   assert.equal(offset.body.start, '2026-10-14T09:00:00+00:00');
   assert.equal(offset.body.stop, '2026-10-14T10:30:00+00:00');
@@ -139,9 +148,10 @@ test('offsets, null stop, sub-second values and negative running durations still
   const previous = await ctx.json('GET', `/api/v9/me/time_entries/${nullStop.body.id}`);
   assert.equal(previous.body.stop, '2026-10-14T14:00:00+00:00');
 
-  const moved = await ctx.json('PUT', `${url}/${negativeEpoch.body.id}`, { start: '2026-10-14T16:30:00.400+02:00' });
+  // A running entry keeps its exact start, to the second.
+  const moved = await ctx.json('PUT', `${url}/${negativeEpoch.body.id}`, { start: '2026-10-14T16:30:07.400+02:00' });
   assert.equal(moved.status, 200);
-  assert.equal(moved.body.start, '2026-10-14T14:30:00+00:00');
+  assert.equal(moved.body.start, '2026-10-14T14:30:07+00:00');
   assert.equal(moved.body.stop, null);
 });
 
@@ -360,4 +370,141 @@ test('trash lists deleted entries, restores and purges them', async () => {
   const empty = await ctx.json('DELETE', '/api/app/trash');
   assert.equal(empty.body.deleted, 1);
   assert.deepEqual((await ctx.json('GET', '/api/app/trash')).body, []);
+});
+
+/** An instant as the API returns it, to the second with a +00:00 offset. */
+function apiTime(date: Date): string {
+  return `${date.toISOString().slice(0, 19)}+00:00`;
+}
+
+/** Asserts that `entry` was stored from `start` to `stop` and that its duration is stop minus start. */
+function assertStored(ctx: TestContext, entry: any, start: string, stop: string): void {
+  assert.equal(entry.start, start);
+  assert.equal(entry.stop, stop);
+  assert.equal(entry.duration, (Date.parse(stop) - Date.parse(start)) / 1000);
+  const row = ctx.db.prepare('SELECT start, stop FROM time_entries WHERE id = ?').get(entry.id) as { start: string; stop: string };
+  assert.deepEqual({ ...row }, { start: iso(start), stop: iso(stop) });
+}
+
+async function setResolution(ctx: TestContext, minutes: number): Promise<void> {
+  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: minutes })).status, 200);
+}
+
+test('create, update and bulk PATCH store the span snapped to the resolution', async () => {
+  const ctx = await setup();
+  await setResolution(ctx, 15);
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+
+  // 10:07:40 is nearer 10:15 than 10:00, and 23m25s rounds up to 30 minutes.
+  const byStop = await ctx.json('POST', url, { start: '2026-10-14T10:07:40Z', stop: '2026-10-14T10:31:05Z' });
+  assert.equal(byStop.status, 200);
+  assertStored(ctx, byStop.body, '2026-10-14T10:15:00+00:00', '2026-10-14T10:45:00+00:00');
+
+  const byDuration = await ctx.json('POST', url, { start: '2026-10-14T12:07:00Z', duration: 900 });
+  assert.equal(byDuration.status, 200);
+  assertStored(ctx, byDuration.body, '2026-10-14T12:00:00+00:00', '2026-10-14T12:15:00+00:00');
+
+  const newStop = await ctx.json('PUT', `${url}/${byDuration.body.id}`, { stop: '2026-10-14T12:40:00Z' });
+  assert.equal(newStop.status, 200);
+  assertStored(ctx, newStop.body, '2026-10-14T12:00:00+00:00', '2026-10-14T12:45:00+00:00');
+
+  // A start exactly halfway between two grid points goes to the later one; one second becomes a step.
+  const newDuration = await ctx.json('PUT', `${url}/${byDuration.body.id}`, { start: '2026-10-14T13:52:30Z', duration: 1 });
+  assert.equal(newDuration.status, 200);
+  assertStored(ctx, newDuration.body, '2026-10-14T14:00:00+00:00', '2026-10-14T14:15:00+00:00');
+
+  const patched = await ctx.json('PATCH', `${url}/${byStop.body.id},${byDuration.body.id}`, [
+    { op: 'replace', path: '/stop', value: '2026-10-14T16:20:00Z' },
+  ]);
+  assert.deepEqual(patched.body, { success: [byStop.body.id, byDuration.body.id], failure: [] });
+  // 6h05m and 2h20m round up to 6h15m and 2h30m.
+  assertStored(ctx, (await ctx.json('GET', `/api/v9/me/time_entries/${byStop.body.id}`)).body,
+    '2026-10-14T10:15:00+00:00', '2026-10-14T16:30:00+00:00');
+  assertStored(ctx, (await ctx.json('GET', `/api/v9/me/time_entries/${byDuration.body.id}`)).body,
+    '2026-10-14T14:00:00+00:00', '2026-10-14T16:30:00+00:00');
+});
+
+test('the grid follows the clock of the entry owner\'s timezone', async () => {
+  const ctx = await setup({ timezone: 'Asia/Kolkata' });
+  await setResolution(ctx, 60);
+  // Kolkata is UTC+5:30, so its whole hours fall at half past in UTC.
+  const entry = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
+    start: '2026-10-14T04:40:00Z', stop: '2026-10-14T05:20:00Z',
+  });
+  assert.equal(entry.status, 200);
+  assertStored(ctx, entry.body, '2026-10-14T04:30:00+00:00', '2026-10-14T05:30:00+00:00');
+});
+
+test('a running entry keeps its exact start until the stop endpoint snaps it', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 1_210_000);
+  const running = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1 });
+  assert.equal(running.status, 200);
+  assert.equal(running.body.start, apiTime(realStart));
+  assert.equal((await ctx.json('GET', '/api/v9/me/time_entries/current')).body.start, apiTime(realStart));
+
+  const before = Math.floor(Date.now() / 1000);
+  const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`);
+  const after = Math.ceil(Date.now() / 1000);
+  assert.equal(stopped.status, 200);
+  const start = Date.parse(stopped.body.start) / 1000;
+  const stop = Date.parse(stopped.body.stop) / 1000;
+  assert.equal(start % 300, 0);
+  assert.ok(Math.abs(start - realStart.getTime() / 1000) <= 150, stopped.body.start);
+  assert.equal(stopped.body.duration, stop - start);
+  assert.equal(stopped.body.duration % 300, 0);
+  assert.ok(stopped.body.duration >= before - realStart.getTime() / 1000, String(stopped.body.duration));
+  assert.ok(stopped.body.duration < after - realStart.getTime() / 1000 + 300, String(stopped.body.duration));
+  assertStored(ctx, stopped.body, stopped.body.start, stopped.body.stop);
+});
+
+test('a deleted running entry restored while another timer runs is stopped on the grid', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 1_210_000);
+  const deleted = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1 });
+  await ctx.request('DELETE', `${url}/${deleted.body.id}`);
+  await ctx.json('POST', url, { start: new Date().toISOString(), duration: -1 });
+
+  const restored = await ctx.json('POST', `/api/app/time_entries/${deleted.body.id}/restore`);
+  assert.equal(restored.status, 200);
+  assert.notEqual(restored.body.stop, null);
+  assert.equal((Date.parse(restored.body.start) / 1000) % 300, 0);
+  assert.equal(restored.body.duration % 300, 0);
+  assertStored(ctx, restored.body, restored.body.start, restored.body.stop);
+});
+
+test('the 999-hour cap applies to the snapped duration', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  // 999 hours is a multiple of every resolution, so a duration under the cap never snaps past it.
+  const fits = await ctx.json('POST', url, { start: '2026-01-01T00:00:10Z', duration: 999 * 3600 - 10 });
+  assert.equal(fits.status, 200);
+  assertStored(ctx, fits.body, '2026-01-01T00:00:00+00:00', '2026-02-11T15:00:00+00:00');
+  assert.equal(fits.body.duration, 999 * 3600);
+
+  const over = await ctx.json('POST', url, { start: '2026-01-01T00:00:00Z', duration: 999 * 3600 + 1 });
+  assert.equal(over.status, 400);
+  assert.equal(over.body, 'Time entries can not be longer than 999 hours');
+  const updated = await ctx.json('PUT', `${url}/${fits.body.id}`, { duration: 999 * 3600 + 1 });
+  assert.equal(updated.status, 400);
+  assert.equal(updated.body, 'Time entries can not be longer than 999 hours');
+});
+
+test('an entry stored off the grid stays as it is until it is edited', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 600, description: 'old' });
+  ctx.db.prepare('UPDATE time_entries SET start = ?, stop = ? WHERE id = ?')
+    .run('2026-10-14T09:02:31.000Z', '2026-10-14T09:13:07.000Z', entry.body.id);
+
+  const read = await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`);
+  assertStored(ctx, read.body, '2026-10-14T09:02:31+00:00', '2026-10-14T09:13:07+00:00');
+  const listed = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-14&end_date=2026-10-15');
+  assert.equal(listed.body[0].duration, 636);
+
+  const edited = await ctx.json('PUT', `${url}/${entry.body.id}`, { description: 'edited' });
+  assert.equal(edited.status, 200);
+  assertStored(ctx, edited.body, '2026-10-14T09:05:00+00:00', '2026-10-14T09:20:00+00:00');
 });
