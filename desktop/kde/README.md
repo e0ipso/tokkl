@@ -244,13 +244,15 @@ Connected, Saving, Offline (the last known state), Sign-in refused and Error.
 The project indicator shows the running entry's project, or the next start's
 while stopped. A dot pulses while an entry runs and a still square shows while
 stopped. The project's colour fills it inside a thin ring in the theme's text
-colour, which keeps well over 3:1 against the panel in Breeze Light and
-Breeze Dark whatever the project colour. A project whose colour is not `#rrggbb` is filled
-with the text colour. No project draws a dashed outline of the dot or the
-square, and while the project is still being read the slot stays empty. The
-slot has the same width in every state. With Plasma's Animation speed set to
-Instant the dot does not pulse. The tooltip and the accessible description
-name the project, or say No project, so the colour is never the only sign.
+colour, which keeps well over 3:1 against the panel in Breeze Light and Breeze
+Dark whatever the project colour. A project whose colour is not `#rrggbb` is
+filled with the text colour. No project draws a dashed outline of the dot or
+the square, and while the project is still being read the slot stays empty.
+The slot has the same width in every state. Only the dot's fill pulses; the
+ring and the dashed outline stay solid. The pulse stops while the panel is
+hidden, and with Plasma's Animation speed set to Instant. The tooltip and the
+accessible description name the project, or say No project, so the colour is
+never the only sign.
 
 | State           | Symbol             | Meaning                                                                                                                                                                  |
 | --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

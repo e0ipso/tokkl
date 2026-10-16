@@ -9,7 +9,8 @@ import com.github.e0ipso.tokkl.backend
 // small shape in the panel row. A dot pulses while an entry runs and a still
 // square shows while stopped. The project colour fills the shape inside a
 // ring in the theme text colour, which keeps 3:1 against the panel in light
-// and dark themes whatever the project colour. A project without a valid
+// and dark themes whatever the project colour. Only the fill pulses; the ring
+// and the dashed outline stay at full opacity, so the edge never fades. A project without a valid
 // colour is filled with the text colour. No project draws a dashed outline of
 // the shape, and a project still being read leaves the slot empty. The slot
 // has the same width in every state, so the row never changes size.
@@ -34,7 +35,9 @@ Item {
     readonly property color fillColor: timer.indicatorColor.valid ? timer.indicatorColor : Kirigami.Theme.textColor
     readonly property color ringColor: Kirigami.Theme.textColor
     readonly property bool pulsing: pulse.running
-    readonly property alias shapeOpacity: shape.opacity
+    readonly property alias fillOpacity: fill.opacity
+    // As Plasma's BusyIndicator: no motion for a hidden item or window.
+    readonly property bool shown: visible && Window.visibility !== Window.Hidden
 
     readonly property int shapeSize: Math.round(Kirigami.Units.iconSizes.small * 5 / 8)
 
@@ -44,7 +47,6 @@ Item {
     Accessible.ignored: true
 
     Item {
-        id: shape
         objectName: "indicatorShape"
         width: indicator.shapeSize
         height: indicator.shapeSize
@@ -52,11 +54,21 @@ Item {
         y: Math.round((indicator.height - height) / 2)
 
         Rectangle {
+            id: fill
             objectName: "indicatorFill"
             anchors.fill: parent
             visible: indicator.filled
-            radius: indicator.round ? width / 2 : Math.round(width / 6)
+            radius: ring.radius
             color: indicator.fillColor
+        }
+
+        Rectangle {
+            id: ring
+            objectName: "indicatorRing"
+            anchors.fill: parent
+            visible: indicator.filled
+            radius: indicator.round ? width / 2 : Math.round(width / 6)
+            color: "transparent"
             border.width: 1
             border.color: indicator.ringColor
         }
@@ -92,22 +104,23 @@ Item {
         }
     }
 
-    // The pulse of the running dot: the web app's 1.6 s cycle down to 0.35
-    // opacity and back. Under reduced motion it stops at full opacity.
+    // The pulse of the running dot's fill: the web app's 1.6 s cycle down to
+    // 0.35 opacity and back. Under reduced motion, or while hidden, it stops
+    // at full opacity.
     SequentialAnimation {
         id: pulse
-        running: indicator.round && !indicator.reducedMotion && (indicator.filled || indicator.dashed)
+        running: indicator.round && indicator.filled && indicator.shown && !indicator.reducedMotion
         loops: Animation.Infinite
 
         NumberAnimation {
-            target: shape
+            target: fill
             property: "opacity"
             to: 0.35
             duration: 800
             easing.type: Easing.InOutSine
         }
         NumberAnimation {
-            target: shape
+            target: fill
             property: "opacity"
             to: 1
             duration: 800
@@ -116,7 +129,7 @@ Item {
 
         onRunningChanged: {
             if (!running) {
-                shape.opacity = 1;
+                fill.opacity = 1;
             }
         }
     }

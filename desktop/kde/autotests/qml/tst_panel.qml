@@ -650,6 +650,19 @@ TestCase {
         });
     }
 
+    // The WCAG 2 contrast ratio of two colours.
+    function contrast(a, b) {
+        function channel(c) {
+            return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        }
+        function luminance(c) {
+            return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+        }
+        const la = luminance(a);
+        const lb = luminance(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    }
+
     function indicator() {
         return findChild(button, "projectIndicator");
     }
@@ -681,7 +694,7 @@ TestCase {
         verify(ind.round, "a dot while running");
         verify(Qt.colorEqual(ind.fillColor, "#06aaf5"), ind.fillColor);
         verify(ind.pulsing, "the dot pulses");
-        tryVerify(() => ind.shapeOpacity < 0.9, 3000, "its opacity moves");
+        tryVerify(() => ind.fillOpacity < 0.9, 3000, "its opacity moves");
 
         const fill = findChild(button, "indicatorFill");
         verify(fill.visible);
@@ -702,7 +715,7 @@ TestCase {
         verify(ind.filled);
         verify(!ind.round, "a square while stopped");
         verify(!ind.pulsing, "still");
-        compare(ind.shapeOpacity, 1);
+        compare(ind.fillOpacity, 1);
         const fill = findChild(button, "indicatorFill");
         verify(fill.radius < fill.width / 2);
         verify(button.Accessible.description.indexOf("Stopped 0:00:00 · Alpha") === 0, button.Accessible.description);
@@ -800,16 +813,76 @@ TestCase {
         verify(longDurationBefore > 1, "Kirigami.Units is reachable");
         verify(ind.reducedMotion);
         verify(!ind.pulsing, "no pulse");
-        compare(ind.shapeOpacity, 1, "steady at full opacity");
+        compare(ind.fillOpacity, 1, "steady at full opacity");
         fixture.advance(1000);
         wait(100);
-        compare(ind.shapeOpacity, 1);
+        compare(ind.fillOpacity, 1);
 
         fixture.setLongDuration(0);
         verify(!ind.pulsing);
 
         fixture.setLongDuration(longDurationBefore);
         verify(ind.pulsing, "the pulse comes back with the setting");
+    }
+
+    function test_pulseFadesOnlyTheFill() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const ind = indicator();
+        const shape = findChild(button, "indicatorShape");
+        const fill = findChild(button, "indicatorFill");
+        tryVerify(() => Math.min(shape.opacity, fill.opacity) < 0.45, 3000, "the pulse reaches its low point");
+        compare(shape.opacity, 1, "the shape as a whole stays opaque");
+        verify(fill.opacity < 0.45, "the fill fades");
+        const ring = findChild(button, "indicatorRing");
+        verify(ring, "the ring is drawn on its own");
+        verify(ring.visible);
+        compare(ring.opacity, 1, "the ring never fades");
+        verify(ring.border.width >= 1);
+        verify(Qt.colorEqual(ring.border.color, ind.ringColor));
+        // As drawn, the ring's edge keeps 3:1 against the background next to it.
+        const edge = shapePixel(0, shape.height / 2);
+        const outside = shapePixel(-1, shape.height / 2);
+        const ratio = contrast(edge, outside);
+        verify(ratio >= 3, "ring " + edge + " on " + outside + ": " + ratio);
+    }
+
+    function test_dashedOutlineNeverFades() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, null, true));
+        const ind = indicator();
+        verify(ind.dashed);
+        verify(ind.round);
+        const shape = findChild(button, "indicatorShape");
+        const outline = findChild(button, "indicatorOutline");
+        // A whole pulse cycle is 1.6 s.
+        for (let i = 0; i < 36; ++i) {
+            compare(shape.opacity, 1, "the shape stays opaque");
+            compare(outline.opacity, 1, "the outline stays opaque");
+            wait(50);
+        }
+        verify(!ind.pulsing, "only a fill pulses");
+    }
+
+    function test_hiddenIndicatorStopsThePulse() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const ind = indicator();
+        const fill = findChild(button, "indicatorFill");
+        verify(ind.pulsing);
+
+        ind.visible = false;
+        verify(!ind.pulsing, "a hidden item does not pulse");
+        compare(fill.opacity, 1, "the fill is back at full opacity");
+        ind.visible = true;
+        verify(ind.pulsing, "showing it again restarts the pulse");
+
+        const window = button.Window.window;
+        window.visible = false;
+        try {
+            verify(!ind.pulsing, "a hidden window does not pulse");
+            compare(fill.opacity, 1);
+        } finally {
+            window.visible = true;
+        }
+        tryVerify(() => ind.pulsing, 3000, "the pulse restarts with the window");
     }
 
     // ----- accounts --------------------------------------------------------
