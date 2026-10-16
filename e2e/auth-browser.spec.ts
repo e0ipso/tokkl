@@ -36,6 +36,20 @@ test('a wrong setup code shows an error, and a retry with the right code creates
   expect((await me.json()).email).toBe(ACCOUNT.email);
 });
 
+// TT-0133: the setup error points at the server log, so the log must carry the code until the first admin exists.
+test('the startup log prints the setup code until the first admin exists', async ({ servers }) => {
+  const SETUP_LINE = `No admin account yet. Open the web UI and use this setup code to create it: ${SETUP_CODE}`;
+  const fresh = await servers.start({ slot: 0 });
+  await expect.poll(() => fresh.output()).toContain(SETUP_LINE);
+  await createAccount(fresh.baseURL);
+  await fresh.stop();
+
+  const restarted = await servers.start({ slot: 0, dataDir: fresh.dataDir });
+  await expect.poll(() => restarted.output()).toContain('tokkl listening on');
+  expect(restarted.output()).not.toContain(SETUP_CODE);
+  expect(restarted.output()).not.toContain('No admin account yet');
+});
+
 test('wrong credentials show an error and keep the browser logged out until a valid retry', async ({ page, runtimeErrors }) => {
   runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/login$/, reason: 'the first two attempts use a wrong password and an unknown email' });
 
