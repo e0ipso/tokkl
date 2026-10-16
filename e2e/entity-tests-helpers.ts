@@ -75,7 +75,12 @@ export class EntityApi {
     return body(await this.page.request.post(this.ws('/clients'), { headers: CSRF, data: { name } }));
   }
 
-  async createProject(project: { name: string; client_id?: number; billable?: boolean }): Promise<Project> {
+  /** Archives the client and its projects. */
+  async archiveClient(id: number): Promise<void> {
+    await body(await this.page.request.post(this.ws(`/clients/${id}/archive`), { headers: CSRF }));
+  }
+
+  async createProject(project: { name: string; client_id?: number; billable?: boolean; active?: boolean }): Promise<Project> {
     return body(await this.page.request.post(this.ws('/projects'), { headers: CSRF, data: project }));
   }
 

@@ -163,3 +163,23 @@ test('deleting or archiving a client by keyboard keeps focus in the clients list
   await expect(page.getByRole('heading', { level: 1, name: 'Clients' })).toBeFocused();
   expect((await api.clients()).map((client) => client.name)).toEqual(['Initech']);
 });
+
+// TT-0200: restoring a client under the Archived filter takes its row, and the focused menu button,
+// out of the list, so focus moves to another row's menu, else the page heading.
+test('restoring archived clients by keyboard keeps focus in the clients list', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  for (const name of ['Acme', 'Globex']) await api.archiveClient((await api.createClient(name)).id);
+  await page.getByRole('link', { name: 'Clients' }).click();
+  await page.getByRole('group', { name: 'Client status' }).getByRole('button', { name: 'Archived' }).click();
+  const edit = (name: string) => page.getByRole('button', { name: `Edit ${name}`, exact: true });
+
+  await rowActionByKeyboard(page, 'Globex', 'Restore');
+  await expect(edit('Globex')).toHaveCount(0);
+  await expect(rowMenu(page, 'Acme')).toBeFocused();
+
+  await rowActionByKeyboard(page, 'Acme', 'Restore');
+  await expect(page.getByText('No clients match these filters')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Clients' })).toBeFocused();
+  expect((await api.clients()).map(({ name, archived }) => [name, archived])).toEqual([['Acme', false], ['Globex', false]]);
+});

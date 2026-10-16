@@ -128,6 +128,26 @@ test('archiving or deleting a project by keyboard keeps focus in the projects li
   await expect(rowMenu(page, 'Beta')).toBeFocused();
 });
 
+// TT-0200: restoring a project under the Archived filter takes its row, and the focused menu button,
+// out of the list, so focus moves to another row's menu, else the page heading.
+test('restoring archived projects by keyboard keeps focus in the projects list', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  for (const name of ['Alpha', 'Beta']) await api.createProject({ name, active: false });
+  await page.getByRole('link', { name: 'Projects' }).click();
+  await page.getByRole('group', { name: 'Project status' }).getByRole('button', { name: 'Archived' }).click();
+  const edit = (name: string) => page.getByRole('button', { name: `Edit ${name}`, exact: true });
+
+  await rowActionByKeyboard(page, 'Alpha', 'Restore');
+  await expect(edit('Alpha')).toHaveCount(0);
+  await expect(rowMenu(page, 'Beta')).toBeFocused();
+
+  await rowActionByKeyboard(page, 'Beta', 'Restore');
+  await expect(page.getByText('No projects match these filters')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeFocused();
+  expect((await api.projects()).map(({ name, active }) => [name, active])).toEqual([['Alpha', true], ['Beta', true]]);
+});
+
 test('deleting a project and keeping its entries clears their project and refreshes the report', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
