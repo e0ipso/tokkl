@@ -57,7 +57,8 @@ class TimerController : public QObject
     // generation or reconnect().
     Q_PROPERTY(bool workspaceAccessLost READ workspaceAccessLost NOTIFY statusChanged)
     Q_PROPERTY(bool busy READ isBusy NOTIFY statusChanged)
-    // start() or stop() would send a request now.
+    // start() or stop() would send a request now. False until a current-entry
+    // read for the context has succeeded.
     Q_PROPERTY(bool canWrite READ canWrite NOTIFY statusChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY statusChanged)
 
@@ -156,6 +157,9 @@ private:
     Connection::State m_lastState = Connection::Unconfigured;
     // The data of the current context was requested once.
     bool m_loaded = false;
+    // A current-entry read for this context and workspace was applied, so
+    // a start cannot split a timer already running on the server.
+    bool m_entryKnown = false;
 
     std::optional<TimeEntry> m_entry;
     QList<Project> m_projects;

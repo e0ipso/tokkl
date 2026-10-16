@@ -287,6 +287,44 @@ private Q_SLOTS:
         QCOMPARE(f.find("GET", currentPath).size(), reads + 3);
     }
 
+    void startWaitsForTheFirstCurrentEntryRead()
+    {
+        Fixture f;
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceA);
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.unanswered(f.last("GET", "/me"));
+        }));
+        f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
+        QVERIFY(f.timer.isConnected());
+
+        // The first read has not answered: a server timer may be running.
+        QVERIFY(f.unanswered(f.last("GET", currentPath)));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        QVERIFY(!f.timer.canWrite());
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(!f.timer.start());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 0);
+
+        // It fails: start stays disabled.
+        f.respond(f.last("GET", currentPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        QVERIFY(!f.timer.canWrite());
+        QVERIFY(!f.timer.toggle());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 0);
+
+        // The next read succeeds and enables it.
+        for (int i = 0; i < 30; ++i) {
+            f.clock.advance(1000);
+        }
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        if (f.unanswered(f.last("GET", "/projects"))) {
+            f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        }
+        QVERIFY(f.timer.canWrite());
+        QVERIFY(f.timer.toggle());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+    }
+
     void startSendsTheAgreedEntry()
     {
         Fixture f;

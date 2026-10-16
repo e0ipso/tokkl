@@ -87,7 +87,7 @@ bool TimerController::isBusy() const
 
 bool TimerController::canWrite() const
 {
-    return m_connection && m_connection->canWrite() && m_clock && !m_workspaceLost && !isBusy();
+    return m_connection && m_connection->canWrite() && m_clock && !m_workspaceLost && m_entryKnown && !isBusy();
 }
 
 QString TimerController::errorString() const
@@ -282,6 +282,7 @@ void TimerController::finishMutation(const ApiError &error, bool succeeded)
 void TimerController::loseWorkspace(const ApiError &error)
 {
     m_workspaceLost = true;
+    m_entryKnown = false;
     // A start or stop in flight keeps its lock until it answers, and the
     // server state stays unknown until a read after that answer.
     if (m_mutating) {
@@ -378,6 +379,7 @@ void TimerController::fetchEntry()
             return;
         }
         self->m_lastAppliedRead = number;
+        self->m_entryKnown = true;
         self->m_reconciling = false;
         self->setError(QString());
         self->applyEntry(*result.value);
@@ -475,6 +477,7 @@ void TimerController::reset()
     m_workspaceLost = false;
     m_rediscoveryUsed = false;
     m_loaded = false;
+    m_entryKnown = false;
     m_firstValidRead = m_readsIssued + 1;
     m_lastAppliedRead = m_readsIssued;
     m_entryReadPending = 0;

@@ -120,6 +120,9 @@ sets its `connection` to the widget's `TokklConnection`.
   an empty description and the selected project and billable choice. Stop
   sends `PATCH /api/v9/workspaces/{wid}/time_entries/{id}/stop` for the
   running entry.
+- Start and stop stay disabled until a read of the current entry for the
+  account and workspace has succeeded, so a start never splits a timer that
+  is already running on the server. A failed first read keeps them disabled.
 - One start or stop runs at a time and clicks meanwhile are ignored. A read
   sent before a start or stop cannot overwrite its result. When a start or
   stop gets no clear answer (no response, timeout, 5xx or an unreadable body)
