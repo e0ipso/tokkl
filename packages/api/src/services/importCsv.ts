@@ -87,14 +87,23 @@ function unescapeCell(value: string): string {
 
 class Rollback extends Error {}
 
-/** How a selection names a Toggl user: "Name <email>", or whichever of the two the row has. */
+/**
+ * How a selection names a Toggl user. JSON keeps the pair unambiguous, so User "Alice" with Email
+ * "a@x" and User "Alice <a@x>" with no Email stay two users.
+ */
 function userKey(name: string, email: string): string {
-  return name && email ? `${name} <${email}>` : name || email;
+  return JSON.stringify([name, email]);
+}
+
+/** How the import shows a Toggl user to people: "Name <email>", or whichever of the two it has. */
+function userLabel({ user, email }: ImportUser): string {
+  return user && email ? `${user} <${email}>` : user || email;
 }
 
 /** Rows a selection leaves out, with the reason the import reports for them. */
-function skippedReason(key: string): string {
-  return key ? `Rows from ${key} were not selected` : 'Rows without a Toggl user were not selected';
+function skippedReason(found: ImportUser): string {
+  const label = userLabel(found);
+  return label ? `Rows from ${label} were not selected` : 'Rows without a Toggl user were not selected';
 }
 
 /**
@@ -138,7 +147,7 @@ export function importTogglCsv(
   }
   const selected = options.users ? new Set(options.users) : null;
   for (const key of selected ?? []) {
-    if (!users.has(key)) throw badRequest(`No rows in the file belong to the Toggl user "${key}"`);
+    if (!users.has(key)) throw badRequest(`No rows in the file belong to the Toggl user key ${key}`);
   }
   if (!selected && users.size > 1 && !options.dryRun) {
     throw badRequest(`The file has rows from ${users.size} Toggl users. Choose whose rows to import.`);
@@ -151,7 +160,7 @@ export function importTogglCsv(
     users: [...users.values()],
     skipped: [...users.values()]
       .filter((found) => selected && !selected.has(found.key))
-      .map((found) => ({ rows: found.rows, reason: skippedReason(found.key) })),
+      .map((found) => ({ rows: found.rows, reason: skippedReason(found) })),
   };
   const clientIds = new Map<string, number>();
   const projectIds = new Map<string, number>();

@@ -180,7 +180,10 @@ export interface ReportQuery {
 
 /** One distinct Toggl user found in a CSV's User and Email columns. */
 export interface ImportUser {
-  /** Pass this back as a `user` query parameter to import this user's rows. */
+  /**
+   * Opaque identity of the User and Email pair. Pass it back unchanged as a `user` query parameter
+   * to import this user's rows; show `user` and `email` instead.
+   */
   key: string;
   user: string;
   email: string;
