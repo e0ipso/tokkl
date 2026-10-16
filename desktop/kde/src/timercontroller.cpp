@@ -190,6 +190,7 @@ QVariant TimerController::selectedProjectId() const
 void TimerController::setSelectedProjectId(const QVariant &projectId)
 {
     if (m_connection) {
+        decideNextStart();
         m_connection->setNextProjectIdVariant(projectId);
     }
 }
@@ -202,6 +203,7 @@ bool TimerController::billable() const
 void TimerController::setBillable(bool billable)
 {
     if (m_connection) {
+        decideNextStart();
         m_connection->setNextBillable(billable);
     }
 }
@@ -245,6 +247,8 @@ bool TimerController::start()
     if (!canWrite() || m_entry) {
         return false;
     }
+    // A default that answers after the start must not replace its choice.
+    m_lastEntryRead = 0;
     StartEntry entry;
     entry.start = m_clock->now().toUTC();
     entry.projectId = m_connection->nextProjectId();
@@ -319,8 +323,7 @@ bool TimerController::chooseProject(const QVariant &projectId)
             billable = found->billable;
         }
     }
-    m_connection->setNextProjectId(project);
-    m_connection->setNextBillable(billable);
+    setNextStart(project, billable);
     return true;
 }
 
@@ -329,6 +332,7 @@ bool TimerController::chooseBillable(bool billable)
     if (!canWrite()) {
         return false;
     }
+    decideNextStart();
     m_connection->setNextBillable(billable);
     if (!m_entry || m_entry->billable == billable) {
         return true;
@@ -436,6 +440,8 @@ void TimerController::loseWorkspace(const ApiError &error)
         m_projectsIncomplete = false;
         Q_EMIT projectsChanged();
     }
+    m_nextStartDecided = false;
+    m_lastEntryRead = 0;
     if (m_connection) {
         m_connection->setNextProjectId(std::nullopt);
         m_connection->setNextBillable(false);
@@ -470,6 +476,7 @@ void TimerController::reconnect()
     const bool wasLost = m_workspaceLost;
     m_workspaceLost = false;
     m_rediscoveryUsed = false;
+    m_lastEntryWanted = true;
     m_error.clear();
     Q_EMIT statusChanged();
     m_connection->reconnect();
@@ -528,7 +535,54 @@ void TimerController::fetchEntry()
         self->m_reconciling = false;
         self->setError(QString());
         self->applyEntry(*result.value);
+        if (self->m_lastEntryWanted) {
+            // The first read of a connection. A running entry sets the
+            // default when it stops; otherwise ask for the last one.
+            self->m_lastEntryWanted = false;
+            if (!self->m_entry) {
+                self->fetchLastEntry();
+            }
+        }
         Q_EMIT self->statusChanged();
+    });
+}
+
+void TimerController::fetchLastEntry()
+{
+    if (m_nextStartDecided || !readable()) {
+        return;
+    }
+    const quint64 number = ++m_lastEntryReads;
+    m_lastEntryRead = number;
+
+    QPointer<TimerController> self(this);
+    const quint64 epoch = m_epoch;
+    // Known limit: the API lists only the entries of the last 9 days, so
+    // after a longer break there is no last entry and the next start has no
+    // project. The newest entry comes first.
+    m_connection->fetchRecentEntries([self, epoch, number](const ApiResult<QList<ListedEntry>> &result) {
+        if (!self || epoch != self->m_epoch || self->m_lastEntryRead != number) {
+            return; // another context, or a choice or start since it was sent
+        }
+        self->m_lastEntryRead = 0;
+        if (self->m_workspaceLost || self->m_nextStartDecided || self->m_entry) {
+            return;
+        }
+        if (!result.ok()) {
+            // Try again after the next current-entry read.
+            self->m_lastEntryWanted = true;
+            return;
+        }
+        std::optional<qint64> project;
+        bool billable = false;
+        if (!result.value->isEmpty()) {
+            const ListedEntry &last = result.value->first();
+            if (last.entry.workspaceId == self->workspaceId() && last.entry.projectId && last.projectActive) {
+                project = last.entry.projectId;
+                billable = last.projectBillable;
+            }
+        }
+        self->setNextStart(project, billable);
     });
 }
 
@@ -571,12 +625,45 @@ void TimerController::applyEntry(const std::optional<TimeEntry> &entry)
         next.reset();
     }
     const bool changed = next.has_value() != m_entry.has_value() || (next && next->toVariantMap() != m_entry->toVariantMap());
+    const bool stopped = m_entry.has_value() && !next.has_value();
+    const std::optional<qint64> stoppedProject = stopped ? m_entry->projectId : std::nullopt;
     m_entry = next;
+    if (next) {
+        m_lastEntryRead = 0;
+    }
+    if (stopped && !m_workspaceLost) {
+        // The next start defaults to the project of the entry that stopped,
+        // when it is still an active project of the workspace.
+        const auto found = std::find_if(m_projects.cbegin(), m_projects.cend(), [&stoppedProject](const Project &candidate) {
+            return stoppedProject && candidate.id == *stoppedProject;
+        });
+        if (found != m_projects.cend() && found->active) {
+            setNextStart(found->id, found->billable);
+        } else {
+            setNextStart(std::nullopt, false);
+        }
+    }
     if (changed) {
         Q_EMIT currentEntryChanged();
     }
     updateElapsed();
     resolveEntryProject();
+}
+
+void TimerController::setNextStart(std::optional<qint64> projectId, bool billable)
+{
+    if (!m_connection) {
+        return;
+    }
+    decideNextStart();
+    m_connection->setNextProjectId(projectId);
+    m_connection->setNextBillable(billable);
+}
+
+void TimerController::decideNextStart()
+{
+    m_nextStartDecided = true;
+    m_lastEntryRead = 0;
 }
 
 void TimerController::resolveEntryProject()
@@ -695,6 +782,9 @@ void TimerController::reset()
     m_projectsPending = false;
     m_projectsKnown = false;
     m_entryProjectPending = 0;
+    m_nextStartDecided = false;
+    m_lastEntryWanted = true;
+    m_lastEntryRead = 0;
     m_nextPoll = QDateTime();
     m_error.clear();
     m_lastState = connectionState();

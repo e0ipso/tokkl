@@ -312,6 +312,26 @@ std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &val
     return entry;
 }
 
+std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value)
+{
+    if (!value.isArray()) {
+        return std::nullopt;
+    }
+    QList<ListedEntry> entries;
+    for (const QJsonValue &item : value.toArray()) {
+        ListedEntry listed;
+        std::optional<TimeEntry> entry = decodeTimeEntry(item);
+        const QJsonObject object = item.toObject();
+        if (!entry || !optionalBool(object.value(QLatin1String("project_active")), listed.projectActive, false)
+            || !optionalBool(object.value(QLatin1String("project_billable")), listed.projectBillable, false)) {
+            return std::nullopt;
+        }
+        listed.entry = std::move(*entry);
+        entries.append(std::move(listed));
+    }
+    return entries;
+}
+
 ApiError errorFromResponse(const HttpResponse &response)
 {
     ApiError error;

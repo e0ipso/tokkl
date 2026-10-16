@@ -60,6 +60,14 @@ struct TimeEntry {
     QVariantMap toVariantMap() const;
 };
 
+// An entry of GET /me/time_entries?meta=true with the project flags the meta
+// parameter adds. Both are false for an entry without a project.
+struct ListedEntry {
+    TimeEntry entry;
+    bool projectActive = false;
+    bool projectBillable = false;
+};
+
 // Body of POST /workspaces/{wid}/time_entries for a running entry.
 struct StartEntry {
     QDateTime start; // sent in UTC
@@ -136,6 +144,7 @@ std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
 // null for no running entry.
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value);
+std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value);
 
 // Parses a whole body as one JSON value, including bare null, strings and
 // numbers that QJsonDocument alone rejects.

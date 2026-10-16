@@ -307,6 +307,7 @@ TestCase {
 
     function test_initialChoicesAndBillingDefaults() {
         connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
         const menu = button.menu;
         verify(menu.noProjectItem.checked, "No project at first");
         verify(!menu.billableItem.checked, "nonbillable at first");
@@ -338,6 +339,62 @@ TestCase {
         compare(body.project_id, 11);
         compare(body.billable, false);
         compare(fixture.pending("PUT", "/time_entries/5"), -1, "no edit while stopped");
+    }
+
+    // A stopped entry of the last 9 days, as GET /me/time_entries?meta=true
+    // lists it.
+    function listedEntry(id, projectId, active, billable) {
+        return entry(id, 7, projectId, billable, {
+            stop: fixture.clockIso(-3600),
+            duration: 600,
+            project_active: active,
+            project_billable: projectId === null ? null : billable
+        });
+    }
+
+    function test_nextStartDefaultsToTheLastEntry() {
+        // Nothing runs at connect: the newest listed entry's project.
+        connectAccount(instanceA, 3, 7);
+        const list = waitFor("GET", "/me/time_entries");
+        compare(fixture.request(list).query.meta, "true");
+        compare(Object.keys(fixture.request(list).query), ["meta"], "no date range: the API's last 9 days");
+        fixture.respond(list, 200, JSON.stringify([listedEntry(8, 11, true, true), listedEntry(6, 12, true, false)]));
+        tryCompare(button.timer, "chosenProjectId", 11);
+        const menu = button.menu;
+        compare(menu.projectMenu.title, "Project: Alpha");
+        verify(projectItem("Alpha").checked);
+        verify(!menu.noProjectItem.checked);
+        verify(menu.billableItem.checked, "Alpha's billable default");
+
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        const start = waitFor("POST", "/workspaces/7/time_entries");
+        compare(fixture.request(start).body.project_id, 11);
+        compare(fixture.request(start).body.billable, true);
+    }
+
+    function test_stopFromThePanelKeepsItsProject() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
+        compare(fixture.pending("GET", "/me/time_entries"), -1, "nothing to ask while an entry runs");
+
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, false, {
+            stop: fixture.clockIso(),
+            duration: 65
+        })));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        tryCompare(button.timer, "canWrite", true);
+        verify(!button.timer.running);
+        compare(button.timer.chosenProjectId, 12, "the stopped entry's project");
+        const menu = button.menu;
+        compare(menu.projectMenu.title, "Project: Beta");
+        verify(projectItem("Beta").checked);
+        verify(!menu.billableItem.checked, "Beta is nonbillable");
+        compare(fixture.pending("GET", "/me/time_entries"), -1, "a stop needs no list");
+
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        const start = waitFor("POST", "/workspaces/7/time_entries");
+        compare(fixture.request(start).body.project_id, 12);
+        compare(fixture.request(start).body.billable, false);
     }
 
     function test_projectsFollowPagination() {

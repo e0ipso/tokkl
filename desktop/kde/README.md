@@ -140,10 +140,18 @@ Saving, Offline (the last known state), Sign-in refused and Error.
   project stays fixed, and changing it means stopping and starting a new
   entry.
 - Choosing a project applies its billable default, or nonbillable for No
-  project; changing Billable afterwards overrides it. The choices start as No
-  project and nonbillable, apply to the next start and belong to the
-  validated instance and account: any change of instance, account or secret
-  resets them and closes the menu.
+  project; changing Billable afterwards overrides it. The choices apply to
+  the next start and belong to the validated instance and account: any change
+  of instance, account or secret resets them to No project and nonbillable
+  and closes the menu.
+- The next start defaults to the last entry's project, with its billable
+  default. After every stop, from the panel or seen by polling, that is the
+  stopped entry's project. When the timer connects with nothing running, it
+  reads `GET /api/v9/me/time_entries?meta=true` and takes the newest entry's
+  project. Only an active project of the workspace counts; an archived or
+  deleted project, or none, gives No project. The API lists only the last 9
+  days, so after a longer break the default is No project. A choice made
+  while stopped wins until the next start.
 - While an entry runs, Billable also changes that entry in place with
   `PUT /api/v9/workspaces/{wid}/time_entries/{id}`, sending only `billable`.
   The description, tags, start and the rest stay as they are, and the entry

@@ -36,6 +36,12 @@ namespace Tokkl
 // stop still in flight keeps the controller busy through the loss and any
 // reconnect, until its reply arrives and a read reconciles the state.
 //
+// The next start defaults to the project of the last entry: of the entry
+// that stopped, after every stop, and of the newest entry the API lists when
+// a connection starts with nothing running. Only an active project of the
+// workspace counts; otherwise it is no project. A pick made while stopped
+// wins until the next start.
+//
 // The panel menu edits the choices through chooseProject() and
 // chooseBillable(). chooseProject() sets only the project of the next start
 // and is refused while an entry runs: the project of a running entry is fixed,
@@ -192,7 +198,10 @@ private:
     void beginMutation();
     void fetchEntry();
     void fetchProjects();
+    void fetchLastEntry();
     void applyEntry(const std::optional<TimeEntry> &entry);
+    void setNextStart(std::optional<qint64> projectId, bool billable);
+    void decideNextStart();
     bool updateEntry(const TimeEntryUpdate &update);
     void resolveEntryProject();
     void setEntryProject(const std::optional<Project> &project);
@@ -238,6 +247,14 @@ private:
     quint64 m_lastAppliedRead = 0;
     quint64 m_entryReadPending = 0; // number of the valid read in flight, or 0
     bool m_projectsPending = false;
+
+    // The next-start choice was set in this context, by a pick or a default,
+    // so the last entry's project no longer applies.
+    bool m_nextStartDecided = false;
+    // Ask for the last entry's project after the next current-entry read.
+    bool m_lastEntryWanted = false;
+    quint64 m_lastEntryReads = 0;
+    quint64 m_lastEntryRead = 0; // number of the last-entry read that may apply, or 0
 
     QDateTime m_lastTick;
     QDateTime m_nextPoll;
