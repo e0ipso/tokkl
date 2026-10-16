@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { api } from '../api/client.ts';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMe, usePreferences, useWorkspace } from '../api/hooks.ts';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { useToast } from '../components/Toast.tsx';
-import { clearCachedTheme } from '../lib/theme.ts';
+import { logOut } from '../lib/session.ts';
 import { ApiTokenSection } from './manage/settings/ApiTokenSection.tsx';
 import { DataSection } from './manage/settings/DataSection.tsx';
 import { PasswordSection } from './manage/settings/PasswordSection.tsx';
@@ -25,22 +24,19 @@ const SECTIONS = [
 ] as const;
 
 function SessionSection() {
-  const toast = useToast();
+  const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const logout = async () => {
+  // Like the sidebar button: the tab forgets the session even when the request fails, and the
+  // reload shows what the server says.
+  const logout = () => {
     setBusy(true);
-    try {
-      await api.post('/api/app/logout');
-      clearCachedTheme();
-      window.location.reload();
-    } catch (error) {
-      toast.error(error);
-      setBusy(false);
-    }
+    logOut(qc)
+      .catch(() => {})
+      .finally(() => window.location.reload());
   };
   return (
     <SettingsCard id="session" title="Session" intro="Log out of this browser. To log out everywhere else, change your password.">
-      <button type="button" className="button button-ghost" disabled={busy} onClick={() => void logout()}>
+      <button type="button" className="button button-ghost" disabled={busy} onClick={logout}>
         <Icon name="logout" size={16} /> Log out
       </button>
     </SettingsCard>

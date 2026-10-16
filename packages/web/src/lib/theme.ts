@@ -32,10 +32,10 @@ function readCache(): string | null {
   }
 }
 
-function writeCache(theme: Theme | null): void {
+function writeCache(theme: Theme): void {
   try {
     window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-    if (theme === null || theme === 'system') window.localStorage.removeItem(STORAGE_KEY);
+    if (theme === 'system') window.localStorage.removeItem(STORAGE_KEY);
     else window.localStorage.setItem(STORAGE_KEY, theme);
   } catch {
     // Storage can be blocked. The server preference still applies once it loads.
@@ -69,9 +69,9 @@ export function applyTheme(theme: Theme): void {
   writeCache(theme);
 }
 
-/** Forgets the cached theme, so the login page after logout follows the system. */
+/** Forgets the cached theme and returns the page to the system theme, for the login page after a session ends. */
 export function clearCachedTheme(): void {
-  writeCache(null);
+  applyTheme('system');
 }
 
 const cached = readCache();

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Switch, useLocation } from 'wouter';
 import { ApiError, api } from './api/client.ts';
@@ -9,7 +9,8 @@ import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
 import { formatDuration } from '@tokkl/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
-import { applyTheme, clearCachedTheme } from './lib/theme.ts';
+import { endSession, logOut } from './lib/session.ts';
+import { applyTheme } from './lib/theme.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { ClientsPage } from './pages/ClientsPage.tsx';
 import { ProjectsPage } from './pages/ProjectsPage.tsx';
@@ -129,11 +130,14 @@ function Shell() {
     if (!phone) setMoreOpen(false);
   }, [phone]);
 
-  const logout = async () => {
-    await api.post('/api/app/logout');
-    clearCachedTheme();
-    qc.clear();
-    window.location.href = '/';
+  // The tab forgets the session even when the request fails. The new page load then shows what
+  // the server says: the login page, or this account if the server still holds the session.
+  const logout = () => {
+    logOut(qc)
+      .catch(() => {})
+      .finally(() => {
+        window.location.href = '/';
+      });
   };
 
   const closeMore = () => {
@@ -157,7 +161,7 @@ function Shell() {
   };
 
   const logoutButton = (
-    <button type="button" className="nav-link" onClick={() => void logout()}>
+    <button type="button" className="nav-link" onClick={logout}>
       <Icon name="logout" className="nav-icon" />
       <span>Log out</span>
     </button>
@@ -218,6 +222,27 @@ function Shell() {
   );
 }
 
+/**
+ * Ends the session once when /me answers 403, whether it expired while the app was open or before
+ * this page load. Clearing the cache also drops the status and /me queries, which App reads, so
+ * the state change re-renders App and its queries fetch again. That second 403 finds the session
+ * already ended and does nothing, so the 403 path cannot clear and refetch in a loop. A successful
+ * /me, after the next login, re-arms it. This runs before paint, so the login page never shows in
+ * the previous user's theme.
+ */
+function useEndSessionOnForbidden(forbidden: boolean, signedIn: boolean) {
+  const qc = useQueryClient();
+  const [ended, setEnded] = useState(false);
+  useLayoutEffect(() => {
+    if (signedIn) {
+      setEnded(false);
+    } else if (forbidden && !ended) {
+      endSession(qc);
+      setEnded(true);
+    }
+  }, [forbidden, signedIn, ended, qc]);
+}
+
 export function App() {
   const status = useQuery({
     queryKey: ['status'],
@@ -225,12 +250,14 @@ export function App() {
     staleTime: Infinity,
   });
   const me = useMe();
+  const forbidden = me.error instanceof ApiError && me.error.status === 403;
+  useEndSessionOnForbidden(forbidden, me.isSuccess);
 
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
     return <div className="splash"><Brand size="lg" /><Loading /></div>;
   }
   if (status.data?.setup_required) return <AuthPage mode="setup" />;
-  if (me.error instanceof ApiError && me.error.status === 403) return <AuthPage mode="login" />;
+  if (forbidden) return <AuthPage mode="login" />;
   if (me.error) {
     const retry = () => {
       if (status.error) void status.refetch();
