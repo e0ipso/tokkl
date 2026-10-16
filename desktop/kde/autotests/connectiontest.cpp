@@ -407,6 +407,62 @@ private Q_SLOTS:
         QVERIFY(f.connection.isConnected());
     }
 
+    // fetchMe() validates the account like refreshAccount(); a workspace
+    // operation leaves a 403 to its caller.
+    void fetchMeForbiddenPausesAuthentication()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(populate(f));
+
+        std::optional<ApiResult<QList<Project>>> projects;
+        f.connection.fetchProjects([&](const auto &r) {
+            projects = r;
+        });
+        f.transport.respondLast(FakeTransport::answer(403, "\"User does not have access to this resource.\""));
+        QVERIFY(projects && projects->error.kind == ApiError::Kind::Forbidden);
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(f.connection.canWrite());
+        QVERIFY(f.connection.account().has_value());
+
+        QSignalSpy accountChanged(&f.connection, &Connection::accountChanged);
+        bool answered = false;
+        f.connection.fetchMe([&](const auto &) {
+            answered = true;
+        });
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
+        f.transport.respondLast(FakeTransport::answer(403, "\"Incorrect username and/or password\""));
+        QCOMPARE(f.connection.state(), Connection::AuthenticationFailed);
+        QVERIFY(f.connection.errorString().contains(QLatin1String("Incorrect username and/or password")));
+        verifyCleared(f.connection);
+        QVERIFY(accountChanged.count() >= 1);
+        // As for a 401: the request belonged to the account that is gone.
+        QVERIFY(!answered);
+
+        // Writes are blocked and automatic retries do nothing.
+        const qsizetype sent = f.transport.requests.size();
+        std::optional<ApiResult<TimeEntry>> write;
+        f.connection.stopEntry(5, [&](const auto &r) {
+            write = r;
+        });
+        QTRY_VERIFY(write.has_value());
+        QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
+        f.connection.refreshAccount();
+        QTest::qWait(20);
+        QCOMPARE(f.transport.requests.size(), sent);
+
+        // A 401 from fetchMe() is handled the same way.
+        f.connection.reconnect();
+        QTRY_COMPARE(f.transport.requests.size(), sent + 1);
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        f.connection.fetchMe();
+        f.transport.respondLast(FakeTransport::answer(401, "\"Invalid credentials\""));
+        QCOMPARE(f.connection.state(), Connection::AuthenticationFailed);
+        QVERIFY(f.connection.errorString().contains(QLatin1String("Invalid credentials")));
+        verifyCleared(f.connection);
+    }
+
     void rateLimitCooldown()
     {
         Fixture f;

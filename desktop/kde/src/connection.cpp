@@ -402,13 +402,7 @@ void Connection::handleMe(const HttpResponse &response)
     switch (error.kind) {
     case ApiError::Kind::Forbidden:
     case ApiError::Kind::Unauthorized:
-        // The credentials were refused. A 403 alone does not say why, so the
-        // message does not claim the account is disabled. Wallet values stay
-        // so the user can correct them.
-        resetAccount();
-        m_authPaused = true;
-        setState(AuthenticationFailed,
-                 tr("The instance refused these credentials (%1). Check them in the widget settings, then reconnect.").arg(error.message));
+        refuseCredentials(error);
         return;
     case ApiError::Kind::RateLimited:
         startCooldown(response.retryAfter);
@@ -428,6 +422,17 @@ void Connection::handleMe(const HttpResponse &response)
         setState(Error, error.message);
         return;
     }
+}
+
+// The credentials were refused. A 403 alone does not say why, so the message
+// does not claim the account is disabled. Wallet values stay so the user can
+// correct them.
+void Connection::refuseCredentials(const ApiError &error)
+{
+    resetAccount();
+    m_authPaused = true;
+    setState(AuthenticationFailed,
+             tr("The instance refused these credentials (%1). Check them in the widget settings, then reconnect.").arg(error.message));
 }
 
 void Connection::bind(const Me &me)
@@ -566,7 +571,7 @@ template<typename T>
 void Connection::call(const QByteArray &method,
                       const QString &path,
                       const QByteArray &body,
-                      bool write,
+                      Access access,
                       std::function<std::optional<T>(const QJsonValue &)> decode,
                       std::function<void(const T &)> apply,
                       Callback<T> done)
@@ -582,12 +587,12 @@ void Connection::call(const QByteArray &method,
                      done);
         return;
     }
-    if (write && !canWrite()) {
+    if (access == Access::Write && !canWrite()) {
         failLater<T>(localError(ApiError::Kind::NotConnected, tr("Changes are not possible right now.")), done);
         return;
     }
 
-    send(method, path, body, [this, decode, apply, done](const HttpResponse &response) {
+    send(method, path, body, [this, access, decode, apply, done](const HttpResponse &response) {
         if (isSuccess(response)) {
             const std::optional<QJsonValue> json = parseJsonBody(response.body);
             std::optional<T> value = json ? decode(*json) : std::nullopt;
@@ -613,6 +618,9 @@ void Connection::call(const QByteArray &method,
         if (error.kind == ApiError::Kind::RateLimited) {
             startCooldown(response.retryAfter);
             setState(RateLimited, error.message);
+        } else if (access == Access::Account && (error.kind == ApiError::Kind::Forbidden || error.kind == ApiError::Kind::Unauthorized)) {
+            refuseCredentials(error);
+            return; // the generation changed; the caller's state is gone too
         } else if (error.kind == ApiError::Kind::Unauthorized) {
             resetAccount();
             m_authPaused = true;
@@ -635,7 +643,7 @@ void Connection::fetchMe(Callback<Me> done)
         "GET",
         QStringLiteral("/me"),
         QByteArray(),
-        false,
+        Access::Account,
         &decodeMe,
         [this](const Me &me) {
             bind(me);
@@ -649,7 +657,7 @@ void Connection::fetchCurrentEntry(Callback<std::optional<TimeEntry>> done)
         "GET",
         QStringLiteral("/me/time_entries/current"),
         QByteArray(),
-        false,
+        Access::Read,
         &decodeCurrentEntry,
         [this](const std::optional<TimeEntry> &entry) {
             const bool changed = entry.has_value() != m_currentEntry.has_value() || (entry && entry->toVariantMap() != m_currentEntry->toVariantMap());
@@ -668,7 +676,7 @@ void Connection::fetchProjects(Callback<QList<Project>> done)
         "GET",
         QStringLiteral("/workspaces/%1/projects?active=true").arg(workspace),
         QByteArray(),
-        false,
+        Access::Read,
         [workspace](const QJsonValue &value) -> std::optional<QList<Project>> {
             std::optional<QList<Project>> projects = decodeProjects(value);
             // Only the discovered workspace's projects may be offered.
@@ -693,7 +701,7 @@ void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
         "POST",
         QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
         encodeStartEntry(entry, workspace),
-        true,
+        Access::Write,
         &decodeTimeEntry,
         [this](const TimeEntry &started) {
             m_currentEntry = started.isRunning() ? std::optional<TimeEntry>(started) : std::nullopt;
@@ -708,7 +716,7 @@ void Connection::stopEntry(qint64 entryId, Callback<TimeEntry> done)
         "PATCH",
         QStringLiteral("/workspaces/%1/time_entries/%2/stop").arg(workspaceId()).arg(entryId),
         QByteArray(),
-        true,
+        Access::Write,
         &decodeTimeEntry,
         [this](const TimeEntry &stopped) {
             if (m_currentEntry && m_currentEntry->id == stopped.id) {
@@ -725,7 +733,7 @@ void Connection::updateEntry(qint64 entryId, const TimeEntryUpdate &update, Call
         "PUT",
         QStringLiteral("/workspaces/%1/time_entries/%2").arg(workspaceId()).arg(entryId),
         encodeTimeEntryUpdate(update),
-        true,
+        Access::Write,
         &decodeTimeEntry,
         [this](const TimeEntry &updated) {
             if (m_currentEntry && m_currentEntry->id == updated.id) {

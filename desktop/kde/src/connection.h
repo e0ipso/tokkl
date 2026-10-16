@@ -160,6 +160,7 @@ private:
     void onSecretChanged(const QString &key);
     void authenticate(bool explicitRequest);
     void handleMe(const HttpResponse &response);
+    void refuseCredentials(const ApiError &error);
     void bind(const Me &me);
     void resetAccount();
     void clearAccountData();
@@ -172,11 +173,16 @@ private:
 
     using ResponseHandler = std::function<void(const HttpResponse &)>;
     void send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler);
+    enum class Access {
+        Read,
+        Write, // needs canWrite()
+        Account, // validates the credentials, like refreshAccount()
+    };
     template<typename T>
     void call(const QByteArray &method,
               const QString &path,
               const QByteArray &body,
-              bool write,
+              Access access,
               std::function<std::optional<T>(const QJsonValue &)> decode,
               std::function<void(const T &)> apply,
               Callback<T> done);
