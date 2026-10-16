@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createApp } from '../src/app.ts';
 import { openDatabase } from '../src/db/index.ts';
 import { createFirstAdmin } from '../src/models/users.ts';
-import { PASSWORD, setup, testConfig, testServer } from './helpers.ts';
+import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
 test('JSON bodies work without a Content-Type header, as some Toggl clients send them', async () => {
   const ctx = await setup();
@@ -25,7 +25,7 @@ test('behind a trusted HTTPS proxy the session cookie is Secure and HSTS is sent
   await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
   const login = (app: ReturnType<typeof testServer>) => app.request('/api/app/login', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-proto': 'https', 'x-forwarded-for': '192.168.1.20' },
+    headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-proto': 'https', 'x-forwarded-for': '192.168.1.20' },
     body: JSON.stringify({ email: 'me@example.com', password: PASSWORD }),
   });
 

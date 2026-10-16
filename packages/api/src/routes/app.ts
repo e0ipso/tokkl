@@ -1,6 +1,6 @@
 import express, { type Request, type Response, type Router } from 'express';
-import { MAX_PASSWORD_LENGTH, safeEqual } from '../auth/crypto.ts';
-import { accountCounters, passwordCounters } from '../auth/rateLimit.ts';
+import { hashPassword, MAX_PASSWORD_LENGTH, safeEqual } from '../auth/crypto.ts';
+import { accountCounters, addressCounter, passwordCounters } from '../auth/rateLimit.ts';
 import { currentActiveUser, hasCsrfHeader, requireAuth, sessionTokens, verifyAccountPassword } from '../auth/middleware.ts';
 import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
@@ -11,7 +11,9 @@ import { dateKey, isValidTimeZone } from '@tokkl/common/time';
 import {
   listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
 } from '../models/timeEntries.ts';
-import { countUsers, createFirstAdmin, findUserByEmail } from '../models/users.ts';
+import { acceptInvite, findUsableInvite, INVITE_NOT_FOUND } from '../models/accountTokens.ts';
+import { getInstanceSettings } from '../models/settings.ts';
+import { countUsers, createFirstAdmin, findUserByEmail, type NewAccount } from '../models/users.ts';
 import { buildCsvExport, buildJsonExport } from '../services/export.ts';
 import { importTogglCsv } from '../services/importCsv.ts';
 import { importJsonExport } from '../services/importJson.ts';
@@ -22,7 +24,8 @@ export interface SetupState {
 }
 
 function startSession(deps: Deps, req: Request, res: Response, userId: number): void {
-  const { token, expires } = createSession(deps.db, userId, deps.config.sessionDays, req.get('user-agent') ?? '');
+  const days = getInstanceSettings(deps.db, deps.config).session_days;
+  const { token, expires } = createSession(deps.db, userId, days, req.get('user-agent') ?? '');
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -34,6 +37,27 @@ function startSession(deps: Deps, req: Request, res: Response, userId: number): 
   res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
 }
 
+/**
+ * Bodies are parsed as JSON whatever their Content-Type, so a cross-site form posting text/plain could
+ * otherwise sign the browser into an account the attacker controls. Runs before any lookup, hashing
+ * or limiter charge.
+ */
+function requireCsrfHeader(req: Request): void {
+  if (!hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
+}
+
+/** Reads and checks the account fields of the setup and invite forms. Bad input is a 400. */
+function readNewAccount(body: Record<string, unknown>): NewAccount {
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
+  const timezone = typeof body.timezone === 'string' && isValidTimeZone(body.timezone) ? body.timezone : 'UTC';
+  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
+  if (password.length < 8) throw badRequest('Password must be at least 8 characters');
+  if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+  return { email, password, fullname, timezone };
+}
+
 export function appRoutes(deps: Deps, setup: SetupState): Router {
   const { db, loginLimiter, setupLimiter } = deps;
   const app = express.Router();
@@ -42,6 +66,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.get('/status', (req, res) => res.json({ setup_required: countUsers(db) === 0 }));
 
   app.post('/setup', async (req, res) => {
+    requireCsrfHeader(req);
     if (countUsers(db) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
     const address = clientAddress(req);
     if (setupLimiter.isBlocked(address)) throw tooManyRequests('Too many failed attempts, try again later', setupLimiter.retryAfterSeconds(address));
@@ -50,20 +75,44 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
       setupLimiter.recordFailure(address);
       throw forbidden('Invalid setup code. It is printed in the server log on startup.');
     }
-    const email = typeof body.email === 'string' ? body.email.trim() : '';
-    const password = typeof body.password === 'string' ? body.password : '';
-    const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
-    const timezone = typeof body.timezone === 'string' && isValidTimeZone(body.timezone) ? body.timezone : 'UTC';
-    if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
-    if (password.length < 8) throw badRequest('Password must be at least 8 characters');
-    if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
-    const user = await createFirstAdmin(db, { email, password, fullname, timezone });
+    const user = await createFirstAdmin(db, readNewAccount(body));
     setup.code = null;
     startSession(deps, req, res, user.id);
     return res.json({ ok: true });
   });
 
+  /**
+   * The usable invite behind the URL token, or a 404 that is the same for unknown, expired, used and
+   * revoked tokens. Each miss counts against the address, and a blocked address gets 429 before the
+   * lookup, so tokens cannot be guessed at speed.
+   */
+  const inviteFor = (req: Request) => {
+    const counter = addressCounter(clientAddress(req));
+    if (loginLimiter.isBlocked(counter)) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counter));
+    const token = String(req.params.token);
+    const invite = findUsableInvite(db, token);
+    if (!invite?.role) {
+      loginLimiter.recordFailure(counter);
+      throw notFound(INVITE_NOT_FOUND);
+    }
+    return { token, role: invite.role };
+  };
+
+  app.get('/invites/:token', (req, res) => res.json({ role: inviteFor(req).role }));
+
+  app.post('/invites/:token', async (req, res) => {
+    requireCsrfHeader(req);
+    const { token } = inviteFor(req);
+    const { password, ...account } = readNewAccount(readJson(req));
+    // scrypt runs before the transaction, which checks the invite again.
+    const passwordHash = await hashPassword(password);
+    const user = acceptInvite(db, token, { ...account, passwordHash });
+    startSession(deps, req, res, user.id);
+    return res.json({ ok: true });
+  });
+
   app.post('/login', async (req, res) => {
+    requireCsrfHeader(req);
     const address = clientAddress(req);
     const body = readJson(req);
     const email = typeof body.email === 'string' ? body.email.trim() : '';

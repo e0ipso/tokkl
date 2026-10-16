@@ -150,4 +150,33 @@ export const MIGRATIONS: string[] = [
     FROM workspaces, (SELECT MIN(id) AS id FROM users) AS owner
     WHERE owner.id IS NOT NULL;
   `,
+  // Instance settings an admin can change at runtime. Each value is JSON. A key with no row uses its
+  // default (models/settings.ts). Deleting the admin who last changed a setting keeps the setting.
+  `
+  CREATE TABLE instance_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+  );
+  `,
+  // One-time links: invites now, password resets later. Only the SHA-256 of the token is stored.
+  // user_id is the account a used invite created, or the account a reset is for. created_by is set
+  // to NULL when its admin is deleted, so the used invites they created stay as a record.
+  `
+  CREATE TABLE account_tokens (
+    id INTEGER PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL CHECK (kind IN ('invite', 'password_reset')),
+    role TEXT CHECK (role IN ('admin', 'user')),
+    note TEXT,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT
+  );
+  CREATE INDEX account_tokens_user ON account_tokens(user_id);
+  CREATE INDEX account_tokens_created_by ON account_tokens(created_by);
+  `,
 ];

@@ -382,6 +382,9 @@ QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
     if (update.projectId) {
         object.insert(QStringLiteral("project_id"), idJson(*update.projectId));
     }
+    if (update.taskId) {
+        object.insert(QStringLiteral("task_id"), idJson(*update.taskId));
+    }
     if (update.billable) {
         object.insert(QStringLiteral("billable"), *update.billable);
     }

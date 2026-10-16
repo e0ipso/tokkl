@@ -2,10 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.ts';
 import { generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
-import { accountCounters, FailureLimiter, normalizeEmail, passwordCounters } from '../src/auth/rateLimit.ts';
+import {
+  ACCOUNT_ADDRESS_LIMIT, accountCounters, FailureLimiter, normalizeEmail, passwordCounters, SETUP_CODE_LIMIT,
+} from '../src/auth/rateLimit.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
 import { createFirstAdmin, getUser, type UserRow } from '../src/models/users.ts';
-import { PASSWORD, setup, testConfig, testServer } from './helpers.ts';
+import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
 test('API token Basic auth works and wrong credentials get 403', async () => {
   const ctx = await setup();
@@ -38,7 +40,7 @@ test('email and password Basic auth works', async () => {
 
 test('session cookie login requires the CSRF header for writes', async () => {
   const ctx = await setup();
-  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie')!;
   assert.match(cookie, /tokkl_session=/);
@@ -70,7 +72,7 @@ test('wrong passwords are rate limited', async () => {
   const ctx = await setup();
   let last = 0;
   for (let i = 0; i < 12; i++) {
-    const response = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: 'wrong' }, { authorization: '' });
+    const response = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: 'wrong' }, { authorization: '', ...CSRF });
     last = response.status;
   }
   assert.equal(last, 429);
@@ -81,7 +83,7 @@ test('first-run setup needs the setup code and only works once', async () => {
   const setupState = { code: 'ABCD-EFGH-JKLM' };
   const app = testServer(createApp({ db, config: testConfig(), setup: setupState }));
   const post = (body: unknown) => (app.request('/api/app/setup', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' }, body: JSON.stringify(body),
   }));
 
   assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true });
@@ -91,6 +93,62 @@ test('first-run setup needs the setup code and only works once', async () => {
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/);
   assert.equal((await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' })).status, 403);
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false });
+});
+
+/** A cross-site form with enctype="text/plain" can post a JSON body, but it cannot set a CSRF header. */
+const textPlain = (body: unknown, headers: Record<string, string> = {}): RequestInit => ({
+  method: 'POST', headers: { 'content-type': 'text/plain', ...headers }, body: JSON.stringify(body),
+});
+
+test('form login without the CSRF header is refused before the password check and charges no counter', async () => {
+  const db = openDatabase(':memory:');
+  await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
+  const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
+  const login = (password: string, headers?: Record<string, string>) =>
+    app.request('/api/app/login', textPlain({ email: 'me@example.com', password }, headers));
+  const sessions = () => (db.prepare('SELECT COUNT(*) AS n FROM sessions').get() as { n: number }).n;
+
+  const refused = await login(PASSWORD);
+  assert.equal(refused.status, 403);
+  assert.equal(await refused.json(), 'Missing CSRF header');
+  assert.equal(refused.headers.get('set-cookie'), null);
+  // More than the account and address allowance: if any of these were charged, the logins below would get 429.
+  for (let i = 0; i <= ACCOUNT_ADDRESS_LIMIT; i++) assert.equal((await login('wrong')).status, 403);
+  assert.equal(sessions(), 0);
+
+  const wrong = await login('wrong', CSRF);
+  assert.equal(wrong.status, 403);
+  assert.equal(await wrong.json(), 'Incorrect email or password');
+  for (const header of ['x-tokkl-csrf', 'x-timetrack-csrf']) {
+    const ok = await login(PASSWORD, { [header]: '1' });
+    assert.equal(ok.status, 200, header);
+    assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/, header);
+  }
+  assert.equal(sessions(), 2);
+});
+
+test('setup without the CSRF header is refused before the code check and charges no counter', async () => {
+  const db = openDatabase(':memory:');
+  const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner' };
+  const post = (setupCode: string, headers?: Record<string, string>) =>
+    app.request('/api/app/setup', textPlain({ ...account, setup_code: setupCode }, headers));
+
+  const refused = await post('ABCD-EFGH-JKLM');
+  assert.equal(refused.status, 403);
+  assert.equal(await refused.json(), 'Missing CSRF header');
+  assert.equal(refused.headers.get('set-cookie'), null);
+  // More than the setup code allowance: if any of these were charged, the setup below would get 429.
+  for (let i = 0; i <= SETUP_CODE_LIMIT; i++) assert.equal((await post('WRONG')).status, 403);
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true });
+
+  const wrong = await post('WRONG', CSRF);
+  assert.equal(wrong.status, 403);
+  assert.match(await wrong.json() as string, /^Invalid setup code/);
+  const ok = await post('ABCD-EFGH-JKLM', { 'x-timetrack-csrf': '1' });
+  assert.equal(ok.status, 200);
+  assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/);
   assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false });
 });
 
@@ -158,7 +216,7 @@ test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop
   for (let i = 0; i < 12; i++) {
     const response = await app.request('/api/app/login', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${i}, 192.168.1.50` },
+      headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${i}, 192.168.1.50` },
       body: JSON.stringify({ email: 'me@example.com', password: 'wrong' }),
     });
     last = response.status;
@@ -184,7 +242,7 @@ test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => 
   const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (password: string) => app.request('/api/app/setup', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...CSRF, 'content-type': 'application/json' },
     body: JSON.stringify({ email: 'owner@example.com', password, fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' }),
   });
 
@@ -196,7 +254,7 @@ test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => 
   const longest = 'y'.repeat(MAX_PASSWORD_LENGTH);
   assert.equal((await post(longest)).status, 200);
   const login = await app.request('/api/app/login', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com', password: longest }),
+    method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com', password: longest }),
   });
   assert.equal(login.status, 200);
 });
@@ -213,7 +271,7 @@ test('an owner with a password over the cap can still log in and rotate it', asy
   });
 
   const login = await app.request('/api/app/login', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'me@example.com', password: legacy }),
+    method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' }, body: JSON.stringify({ email: 'me@example.com', password: legacy }),
   });
   assert.equal(login.status, 200);
   assert.equal((await app.request('/api/v9/me', { headers: { authorization: basic('me@example.com', legacy) } })).status, 200);
@@ -232,7 +290,7 @@ test('twelve parallel wrong passwords across login, Basic auth and password chan
   const kinds = ['login', 'basic', 'change'] as const;
   const wrong = (kind: (typeof kinds)[number]) => {
     if (kind === 'login') {
-      return ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: 'wrong' }, { authorization: '' });
+      return ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: 'wrong' }, { authorization: '', ...CSRF });
     }
     if (kind === 'basic') return ctx.request('GET', '/api/v9/me', undefined, { authorization: basic('me@example.com', 'wrong') });
     // Token-authenticated, so only the current_password check counts.
@@ -247,14 +305,14 @@ test('twelve parallel wrong passwords across login, Basic auth and password chan
   for (const { kind, status } of statuses.filter(({ status }) => status !== 429)) assert.equal(status, expected[kind], kind);
 
   // Blocked for passwords, even the right one, but API tokens are exempt.
-  const right = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  const right = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   assert.equal(right.status, 429);
   assert.equal((await ctx.request('GET', '/api/v9/me')).status, 200);
 });
 
 test('a successful login resets the failure count', async () => {
   const ctx = await setup();
-  const login = (password: string) => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password }, { authorization: '' });
+  const login = (password: string) => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password }, { authorization: '', ...CSRF });
   for (let i = 0; i < 9; i++) assert.equal((await login('wrong')).status, 403);
   assert.equal((await login(PASSWORD)).status, 200);
 
@@ -269,7 +327,7 @@ test('wrong API tokens are not counted as password failures', async () => {
     const response = await ctx.request('GET', '/api/v9/me', undefined, { authorization: basic('deadbeef', 'api_token') });
     assert.equal(response.status, 403);
   }
-  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   assert.equal(login.status, 200);
 });
 
@@ -343,7 +401,7 @@ async function multiUserApp(count: number, names = Array.from({ length: count },
   const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': address },
+    headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address },
     body: JSON.stringify({ email, password }),
   })).status;
   /** A password change signed in with `user`'s API token, so only current_password is checked. */
@@ -428,7 +486,7 @@ test('setup codes have their own per-address limit of ten', async () => {
   const db = openDatabase(':memory:');
   const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (path: string, body: unknown, address = '10.0.0.1') => app.request(path, {
-    method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': address }, body: JSON.stringify(body),
+    method: 'POST', headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address }, body: JSON.stringify(body),
   });
   const account = { email: 'owner@example.com', password: 'long enough' };
 
@@ -442,7 +500,7 @@ test('setup codes have their own per-address limit of ten', async () => {
 
 test('logout with a wrong CSRF value keeps the session; no or stale session logout is 200', async () => {
   const ctx = await setup();
-  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   const session = login.headers.get('set-cookie')!.split(';')[0]!;
   const logout = (headers: Record<string, string>) => ctx.request('POST', '/api/app/logout', undefined, { authorization: '', ...headers });
   const me = () => ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: session });
@@ -466,7 +524,7 @@ test('logout with a wrong CSRF value keeps the session; no or stale session logo
 
 test('the tt_session cookie and X-Timetrack-CSRF header from before the rename still work', async () => {
   const ctx = await setup();
-  const signIn = () => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '' });
+  const signIn = () => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   const login = await signIn();
   const issued = login.headers.getSetCookie();
   assert.ok(issued.some((cookie) => /^tokkl_session=[^;]+;/.test(cookie)), 'login issues the new cookie');
@@ -555,7 +613,7 @@ test('login, Basic auth and password-change 429s carry Retry-After, and waiting 
   const [owner] = users as [UserRow];
   const loginResponse = () => app.request('/api/app/login', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
     body: JSON.stringify({ email: owner.email, password: PASSWORD }),
   });
   const basicResponse = () => app.request('/api/v9/me', {
@@ -590,7 +648,7 @@ test('a 429 from the address counter alone carries Retry-After for that counter'
   t.mock.timers.tick(30_000);
   const response = await app.request('/api/app/login', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
     body: JSON.stringify({ email: 'user0@example.com', password: PASSWORD }),
   });
   assert.equal(response.status, 429);
@@ -609,7 +667,7 @@ test('with two full counters, waiting the advertised Retry-After lets the next l
   assert.deepEqual(new Set(late), new Set([403]));
   const send = () => app.request('/api/app/login', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
     body: JSON.stringify({ email: 'user0@example.com', password: PASSWORD }),
   });
 
@@ -629,7 +687,7 @@ test('setup 429s carry Retry-After, and waiting that long allows another code', 
   const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (setupCode: string) => app.request('/api/app/setup', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
     body: JSON.stringify({ email: 'owner@example.com', password: 'long enough', setup_code: setupCode }),
   });
 

@@ -1,13 +1,13 @@
 import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { FailureLimiter, type Keys } from '../src/auth/rateLimit.ts';
-import { PASSWORD, addUser, sessionCookie, setup, type TestContext } from './helpers.ts';
+import { CSRF, PASSWORD, addUser, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const basicPassword = (email: string, password = PASSWORD) =>
   `Basic ${Buffer.from(`${email}:${password}`).toString('base64')}`;
 
 const login = (ctx: TestContext, email: string) =>
-  ctx.request('POST', '/api/app/login', { email, password: PASSWORD }, { authorization: '' });
+  ctx.request('POST', '/api/app/login', { email, password: PASSWORD }, { authorization: '', ...CSRF });
 
 const sessionCount = (ctx: TestContext, userId: number) =>
   (ctx.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?').get(userId) as { n: number }).n;

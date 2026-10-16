@@ -93,6 +93,20 @@ void Connection::setInstanceUrl(const QString &url)
     settingsChanged();
 }
 
+QUrl Connection::webUrl() const
+{
+    const InstanceUrl instance = parseInstanceUrl(m_instanceText);
+    if (!instance.isValid()) {
+        return QUrl();
+    }
+    QUrl url = instance.base.adjusted(QUrl::RemoveUserInfo | QUrl::RemoveQuery | QUrl::RemoveFragment);
+    // The web app lives at the prefix itself: https://host/tokkl/.
+    if (!url.path().endsWith(QLatin1Char('/'))) {
+        url.setPath(url.path() + QLatin1Char('/'));
+    }
+    return url;
+}
+
 AuthMode Connection::authMode() const
 {
     return m_authMode;
@@ -669,28 +683,83 @@ void Connection::fetchCurrentEntry(Callback<std::optional<TimeEntry>> done)
         std::move(done));
 }
 
+struct Connection::ProjectPages {
+    qint64 workspace = 0;
+    int page = 1;
+    QList<Project> projects;
+    QSet<qint64> seen;
+    Callback<QList<Project>> done;
+};
+
 void Connection::fetchProjects(Callback<QList<Project>> done)
 {
-    const qint64 workspace = workspaceId();
+    auto pages = std::make_shared<ProjectPages>();
+    pages->workspace = workspaceId();
+    pages->done = std::move(done);
+    fetchProjectPage(pages);
+}
+
+void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
+{
+    // The reply arrives only within this generation, so the workspace and
+    // the pages read so far still belong to the bound account.
     call<QList<Project>>(
         "GET",
-        QStringLiteral("/workspaces/%1/projects?active=true").arg(workspace),
+        QStringLiteral("/workspaces/%1/projects?active=true&page=%2&per_page=%3").arg(pages->workspace).arg(pages->page).arg(projectPageSize),
         QByteArray(),
         Access::Read,
-        [workspace](const QJsonValue &value) -> std::optional<QList<Project>> {
-            std::optional<QList<Project>> projects = decodeProjects(value);
-            // Only the discovered workspace's projects may be offered.
-            if (projects) {
-                projects->removeIf([workspace](const Project &project) {
-                    return project.workspaceId != workspace;
-                });
+        &decodeProjects,
+        {},
+        [this, pages](const ApiResult<QList<Project>> &result) {
+            if (!result.ok()) {
+                if (pages->done) {
+                    pages->done(result);
+                }
+                return;
             }
-            return projects;
-        },
-        [this](const QList<Project> &projects) {
-            m_projects = projects;
+            bool added = false;
+            for (const Project &project : *result.value) {
+                if (pages->seen.contains(project.id)) {
+                    continue;
+                }
+                pages->seen.insert(project.id);
+                added = true;
+                // Only the discovered workspace's projects may be offered.
+                if (project.workspaceId == pages->workspace) {
+                    pages->projects.append(project);
+                }
+            }
+            // A full page may have a next one. A page with nothing new means
+            // the server ignored the paging parameters.
+            if (result.value->size() >= projectPageSize && added && pages->page < maxProjectPages) {
+                ++pages->page;
+                fetchProjectPage(pages);
+                return;
+            }
+            m_projects = pages->projects;
             Q_EMIT projectsChanged();
+            if (pages->done) {
+                pages->done(ApiResult<QList<Project>>::success(pages->projects));
+            }
+        });
+}
+
+void Connection::fetchProject(qint64 projectId, Callback<Project> done)
+{
+    const qint64 workspace = workspaceId();
+    call<Project>(
+        "GET",
+        QStringLiteral("/workspaces/%1/projects/%2").arg(workspace).arg(projectId),
+        QByteArray(),
+        Access::Read,
+        [workspace, projectId](const QJsonValue &value) -> std::optional<Project> {
+            std::optional<Project> project = decodeProject(value);
+            if (project && (project->id != projectId || project->workspaceId != workspace)) {
+                return std::nullopt;
+            }
+            return project;
         },
+        {},
         std::move(done));
 }
 

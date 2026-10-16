@@ -60,6 +60,19 @@ export function countWorkspaceMembers(db: Db, wid: number): number {
   return (db.prepare('SELECT COUNT(*) AS n FROM workspace_users WHERE workspace_id = ?').get(wid) as { n: number }).n;
 }
 
+/**
+ * Deletes every workspace whose only member is `userId`. The foreign keys cascade to its clients,
+ * projects, tasks, tags and time entries. Workspaces shared with anyone else stay.
+ */
+export function deleteSoleMemberWorkspaces(db: Db, userId: number): void {
+  db.prepare(`
+    DELETE FROM workspaces WHERE id IN (
+      SELECT workspace_id FROM workspace_users WHERE user_id = ?
+      EXCEPT SELECT workspace_id FROM workspace_users WHERE user_id != ?
+    )
+  `).run(userId, userId);
+}
+
 export interface WorkspaceMember {
   id: number;
   email: string;

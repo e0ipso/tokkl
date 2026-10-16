@@ -1,14 +1,20 @@
 import express, { type Router } from 'express';
 import { nowIso, transaction } from '../db/index.ts';
 import { requireAdmin, requireAuth } from '../auth/middleware.ts';
+import { normalizeEmail } from '../auth/rateLimit.ts';
 import { deleteOtherSessions } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { readJson } from '../http/context.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
-import { optionalBool, parseId } from '../lib/values.ts';
+import { optionalBool, optionalString, parseId } from '../lib/values.ts';
+import {
+  createInvite, listPendingInvites, MAX_INVITE_NOTE_LENGTH, revokeInvite, revokeInvitesCreatedBy, serializeInvite,
+} from '../models/accountTokens.ts';
+import { deleteSoleMemberWorkspaces } from '../models/workspaces.ts';
 import {
   countActiveAdmins, getUser, isActiveAdmin, listUsers, serializeAccount, type UserRole,
 } from '../models/users.ts';
+import { getInstanceSettings, readSettingChanges, updateInstanceSettings } from '../models/settings.ts';
 
 interface AccountChanges {
   role?: UserRole;
@@ -26,7 +32,7 @@ function readAccountChanges(body: Record<string, unknown>): AccountChanges {
 
 /** Instance administration. Every route needs an active admin, signed in like any other API call. */
 export function adminRoutes(deps: Deps): Router {
-  const { db } = deps;
+  const { db, config } = deps;
   const api = express.Router();
   api.use(requireAuth(deps), requireAdmin);
 
@@ -56,12 +62,59 @@ export function adminRoutes(deps: Deps): Router {
     return res.json(serializeAccount(updated));
   });
 
+  /**
+   * Deletes an account for good, with every workspace it alone belongs to. The body must repeat the
+   * account's email. Disabling is the reversible option.
+   */
+  api.delete('/users/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    const { email } = readJson(req);
+    transaction(db, () => {
+      const user = getUser(db, id);
+      if (!user) throw notFound('User not found');
+      if (typeof email !== 'string' || normalizeEmail(email) !== normalizeEmail(user.email)) {
+        throw badRequest("Enter the account's email to confirm the deletion");
+      }
+      if (isActiveAdmin(user) && countActiveAdmins(db) <= 1) throw badRequest('At least one active admin must remain');
+      if (id === res.locals.user.id) throw badRequest('You cannot delete your own account');
+      deleteSoleMemberWorkspaces(db, id);
+      revokeInvitesCreatedBy(db, id);
+      // Sessions, memberships, remaining time entries and the tokens tied to the account cascade.
+      db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    });
+    return res.json({ ok: true });
+  });
+
   // Signs the account out of every browser. Its API token keeps working.
   api.post('/users/:id/sessions/revoke', (req, res) => {
     const id = parseId(req.params.id);
     if (!getUser(db, id)) throw notFound('User not found');
     deleteOtherSessions(db, id);
     return res.json({ ok: true });
+  });
+
+  api.post('/invites', (req, res) => {
+    const body = readJson(req);
+    if (body.role !== 'admin' && body.role !== 'user') throw badRequest('Invalid role: expected admin or user');
+    const note = optionalString(body.note, 'note', MAX_INVITE_NOTE_LENGTH)?.trim() || null;
+    const days = getInstanceSettings(db, config).invite_days;
+    const { token, invite } = createInvite(db, { role: body.role, note, createdBy: res.locals.user.id, days });
+    // The only response that ever carries the token.
+    return res.json({ ...serializeInvite(invite), url: `/invite/${token}` });
+  });
+
+  api.get('/invites', (req, res) => res.json(listPendingInvites(db).map(serializeInvite)));
+
+  api.delete('/invites/:id', (req, res) => {
+    if (!revokeInvite(db, parseId(req.params.id))) throw notFound('Invite not found');
+    return res.json({ ok: true });
+  });
+
+  api.get('/settings', (req, res) => res.json(getInstanceSettings(db, config)));
+
+  api.put('/settings', (req, res) => {
+    updateInstanceSettings(db, readSettingChanges(readJson(req)), res.locals.user.id);
+    return res.json(getInstanceSettings(db, config));
   });
 
   return api;

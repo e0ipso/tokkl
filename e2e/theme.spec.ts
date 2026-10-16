@@ -54,7 +54,7 @@ test.use({ colorScheme: 'light' });
 test.afterEach(async ({ baseURL }) => {
   const api = await request.newContext({ baseURL });
   try {
-    expect((await api.post('/api/app/login', { data: { email: EMAIL, password: PASSWORD } })).ok()).toBe(true);
+    expect((await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } })).ok()).toBe(true);
     expect((await api.post('/api/v9/me/preferences', { headers: CSRF, data: { theme: 'system' } })).ok()).toBe(true);
     await api.post('/api/app/logout', { headers: CSRF });
   } finally {

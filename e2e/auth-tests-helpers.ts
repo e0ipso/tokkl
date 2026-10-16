@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, request, type Page } from '@playwright/test';
+import { expect, request, type APIRequestContext, type Page } from '@playwright/test';
 import { test as base } from './fixtures.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -12,6 +12,8 @@ const FIRST_PORT = Number(process.env.E2E_PORT ?? 8095) + 50;
 const DAY_MS = 86_400_000;
 
 export const SETUP_CODE = 'AUTH-TESTS-SETUP';
+/** The header the web client sends; login, setup and invite acceptance refuse requests without it. */
+export const CSRF = { 'X-Tokkl-CSRF': '1' };
 export const ACCOUNT = { email: 'owner@auth.example', password: 'first password 1', fullname: 'Auth Owner' };
 
 export interface ServerOptions {
@@ -142,11 +144,63 @@ export function basic(username: string, password: string): string {
 export async function createAccount(baseURL: string): Promise<{ apiToken: string }> {
   const api = await request.newContext({ baseURL });
   try {
-    const setup = await api.post('/api/app/setup', { data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' } });
+    const setup = await api.post('/api/app/setup', { headers: CSRF, data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' } });
     expect(setup.status()).toBe(200);
     const me = await api.get('/api/v9/me');
     expect(me.status()).toBe(200);
     return { apiToken: (await me.json()).api_token };
+  } finally {
+    await api.dispose();
+  }
+}
+
+/** Runs `use` with a request context that sends the given Authorization header, then disposes it. */
+export async function withAuth<T>(baseURL: string, authorization: string, use: (api: APIRequestContext) => Promise<T>): Promise<T> {
+  const api = await request.newContext({ baseURL, extraHTTPHeaders: { authorization } });
+  try {
+    return await use(api);
+  } finally {
+    await api.dispose();
+  }
+}
+
+/** Creates an invite as an admin, through the API, and returns its /invite/<token> path. */
+export async function createInvite(baseURL: string, apiToken: string, role: 'admin' | 'user'): Promise<string> {
+  return withAuth(baseURL, basic(apiToken, 'api_token'), async (api) => {
+    const response = await api.post('/api/app/admin/invites', { data: { role } });
+    expect(response.status()).toBe(200);
+    const { url } = await response.json() as { url: string };
+    expect(url).toMatch(/^\/invite\/[\w-]+$/);
+    return url;
+  });
+}
+
+/** The API path behind an /invite/<token> link: GET looks the invite up, POST accepts it. */
+export function inviteApiPath(invite: string): string {
+  return invite.replace(/^\/invite\//, '/api/app/invites/');
+}
+
+export interface InvitedAccount {
+  email: string;
+  password: string;
+  apiToken: string;
+  workspaceId: number;
+  /** The tokkl_session cookie value the acceptance set. */
+  session: string;
+}
+
+/** Accepts an invite over the API, as the web form does, and returns the new account's credentials. */
+export async function acceptInvite(baseURL: string, invite: string, email: string): Promise<InvitedAccount> {
+  const password = `${email} password`;
+  const api = await request.newContext({ baseURL });
+  try {
+    const accept = await api.post(inviteApiPath(invite), {
+      headers: CSRF, data: { email, password, fullname: email, timezone: 'Europe/Madrid' },
+    });
+    expect(accept.status()).toBe(200);
+    const session = (await api.storageState()).cookies.find((c) => c.name === 'tokkl_session')!.value;
+    const me = await (await api.get('/api/v9/me')).json() as { api_token: string; default_workspace_id: number };
+    return { email, password, apiToken: me.api_token, workspaceId: me.default_workspace_id, session };
   } finally {
     await api.dispose();
   }

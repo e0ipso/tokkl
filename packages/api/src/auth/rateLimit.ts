@@ -49,9 +49,17 @@ export function accountCounters(email: string, address: string): Counter[] {
   ];
 }
 
+/**
+ * Failures from one address, whatever it tried. Password checks and one-time link tokens share it,
+ * so guesses at either count toward one limit.
+ */
+export function addressCounter(address: string): Counter[] {
+  return [{ key: `address:${address}`, limit: ADDRESS_LIMIT }];
+}
+
 /** Every counter a password check for `email` from `address` is charged to. */
 export function passwordCounters(email: string, address: string): Counter[] {
-  return [...accountCounters(email, address), { key: `address:${address}`, limit: ADDRESS_LIMIT }];
+  return [...accountCounters(email, address), ...addressCounter(address)];
 }
 
 /**

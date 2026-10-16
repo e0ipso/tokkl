@@ -246,6 +246,12 @@ private Q_SLOTS:
         QVERIFY(body.value(QLatin1String("project_id")).isNull());
         QCOMPARE(body.value(QLatin1String("description")).toString(), QStringLiteral("x"));
         QVERIFY(!body.contains(QLatin1String("billable")));
+        QVERIFY(!body.contains(QLatin1String("task_id")));
+
+        update.taskId = std::optional<qint64>();
+        const QJsonObject cleared = QJsonDocument::fromJson(encodeTimeEntryUpdate(update)).object();
+        QVERIFY(cleared.contains(QLatin1String("task_id")));
+        QVERIFY(cleared.value(QLatin1String("task_id")).isNull());
     }
 };
 

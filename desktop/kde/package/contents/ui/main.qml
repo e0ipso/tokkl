@@ -1,12 +1,13 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
-import org.kde.plasma.components as PlasmaComponents
 
 import com.github.e0ipso.tokkl.backend
 
-// Placeholder representation. TT-0149 builds the panel timer and menu.
+// The panel timer: PanelButton shows it and opens PanelMenu.
 PlasmoidItem {
     id: root
 
@@ -22,21 +23,13 @@ PlasmoidItem {
         connection: root.connection
     }
 
-    readonly property string connectionText: {
-        switch (connection.state) {
-        case TokklConnection.Unconfigured:
-            return i18n("Set the instance URL in the widget settings.");
-        case TokklConnection.LoadingCredentials:
-        case TokklConnection.Connecting:
-            return i18n("Connecting…");
-        case TokklConnection.Connected:
-            return i18n("Connected as %1", connection.account.fullname || connection.account.email);
-        default:
-            return connection.errorString;
-        }
+    readonly property StatusText words: StatusText {
+        timer: root.timer
     }
 
-    toolTipMainText: i18n("Tokkl")
+    preferredRepresentation: compactRepresentation
+
+    toolTipMainText: i18n("Tokkl: %1", words.summary)
     toolTipSubText: i18n("Version %1", Companion.version)
 
     Plasmoid.contextualActions: [
@@ -47,9 +40,10 @@ PlasmoidItem {
         }
     ]
 
-    fullRepresentation: PlasmaComponents.Label {
-        text: i18n("Tokkl %1", Companion.version) + "\n" + root.connectionText
-            + (root.timer.running ? "\n" + i18n("Running: %1", root.timer.elapsedText) : "")
-        wrapMode: Text.Wrap
+    compactRepresentation: PanelButton {
+        timer: root.timer
+        // The configured base URL only: it never holds credentials.
+        onOpenRequested: url => Qt.openUrlExternally(url)
+        onConfigureRequested: Plasmoid.internalAction("configure").trigger()
     }
 }

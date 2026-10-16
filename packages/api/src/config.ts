@@ -9,6 +9,10 @@ export interface Config {
   webRoot: string;
   /** Trust X-Forwarded-For / X-Forwarded-Proto from a reverse proxy. */
   trustProxy: boolean;
+  /**
+   * Session lifetime used until an admin stores `session_days` in the instance settings. Read the
+   * effective value through getInstanceSettings in models/settings.ts, never from here.
+   */
   sessionDays: number;
   /** Optional fixed setup code; a random one is generated and logged otherwise. */
   setupCode: string | undefined;

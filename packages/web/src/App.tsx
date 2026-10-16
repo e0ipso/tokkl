@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Redirect, Route, Switch, useLocation } from 'wouter';
+import { Link, Redirect, Route, Switch, useLocation, useRoute } from 'wouter';
 import { ApiError, api } from './api/client.ts';
 import { useCurrentEntry, useMe, usePreferences } from './api/hooks.ts';
 import { Brand } from './components/Brand.tsx';
@@ -13,6 +13,7 @@ import { entrySeconds, useNow } from './lib/settings.ts';
 import { endSession, logOut, takeLogoutFailure } from './lib/session.ts';
 import { applyTheme } from './lib/theme.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
+import { InvitePage } from './pages/InvitePage.tsx';
 import { ClientsPage } from './pages/ClientsPage.tsx';
 import { ProjectsPage } from './pages/ProjectsPage.tsx';
 import { ReportsPage } from './pages/ReportsPage.tsx';
@@ -286,7 +287,10 @@ export function App() {
   const me = useMe();
   const forbidden = me.error instanceof ApiError && me.error.status === 403;
   useEndSessionOnForbidden(forbidden, me.isSuccess);
+  const [isInvite, invite] = useRoute('/invite/:token');
 
+  // Reachable signed in or not: accepting an invite starts the new account's session.
+  if (isInvite) return <InvitePage key={invite.token} token={invite.token} />;
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
     return <div className="splash"><Brand size="lg" /><Loading /></div>;
   }
