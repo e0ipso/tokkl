@@ -1,7 +1,6 @@
-import { test, type TestContext as NodeTestContext } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FailureLimiter, type Keys } from '../src/auth/rateLimit.ts';
-import { CSRF, PASSWORD, addUser, sessionCookie, setup, type TestContext } from './helpers.ts';
+import { CSRF, PASSWORD, addUser, duringPasswordCheck, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const basicPassword = (email: string, password = PASSWORD) =>
   `Basic ${Buffer.from(`${email}:${password}`).toString('base64')}`;
@@ -24,6 +23,38 @@ test('a regular user gets 403 from every admin route', async () => {
     assert.equal(response.status, 403, `${method} ${path}`);
   }
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[1].role, 'user');
+});
+
+// TT-0141: the web app shows the admin area from GET /api/v9/me. role is a Tokkl-only field; the
+// Toggl fields keep their names, and the other user-shaped responses stay Toggl-only.
+test('GET /api/v9/me carries the instance role next to the unchanged Toggl fields', async () => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const TOGGL_FIELDS = [
+    '2fa_enabled', 'api_token', 'at', 'authorization_updated_at', 'beginning_of_week', 'country_id', 'created_at',
+    'default_workspace_id', 'email', 'fullname', 'has_password', 'id', 'image_url', 'oauth_providers', 'openid_email',
+    'openid_enabled', 'timezone', 'toggl_accounts_id', 'updated_at',
+  ];
+
+  const adminMe = await admin.json('GET', '/api/v9/me');
+  assert.equal(adminMe.status, 200);
+  assert.equal(adminMe.body.role, 'admin');
+  assert.deepEqual(Object.keys(adminMe.body).sort(), [...TOGGL_FIELDS, 'role'].sort());
+  assert.equal(adminMe.body.email, 'me@example.com');
+  assert.equal(adminMe.body.default_workspace_id, admin.wid);
+
+  const bobMe = await bob.json('GET', '/api/v9/me');
+  assert.equal(bobMe.body.role, 'user');
+  const related = await bob.json('GET', '/api/v9/me?with_related_data=true');
+  assert.equal(related.body.role, 'user');
+
+  // A role change shows on the next read.
+  assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { role: 'admin' })).status, 200);
+  assert.equal((await bob.json('GET', '/api/v9/me')).body.role, 'admin');
+
+  const updated = await bob.json('PUT', '/api/v9/me', { fullname: 'Bob' });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.role, undefined, 'PUT /me answers in the Toggl shape');
 });
 
 test('an admin lists every account with only the account fields, ordered by id', async () => {
@@ -231,25 +262,6 @@ test('a disabled admin gets 403 from every admin route', async () => {
   }
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[0].role, 'admin');
 });
-
-/**
- * Runs `during` once, after the next password check has passed and before the request goes on,
- * as if an admin acted while scrypt ran. Requests signed in by API token run no check.
- */
-function duringPasswordCheck(t: NodeTestContext, during: () => Promise<unknown>): void {
-  const attempt = FailureLimiter.prototype.attempt;
-  let pending = true;
-  t.mock.method(FailureLimiter.prototype, 'attempt', function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>) {
-    return attempt.call(this, keys, async () => {
-      const valid = await check();
-      if (pending) {
-        pending = false;
-        await during();
-      }
-      return valid;
-    });
-  });
-}
 
 test('an admin demoted during their Basic password check is refused and stays demoted', async (t) => {
   const admin = await setup();

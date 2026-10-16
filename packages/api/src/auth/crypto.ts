@@ -1,5 +1,6 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { badRequest } from '../lib/errors.ts';
 
 const scryptAsync = promisify(scrypt) as (
   password: string, salt: Buffer, keylen: number, options: { N: number; r: number; p: number; maxmem: number },
@@ -11,8 +12,21 @@ const P = 1;
 const KEY_LENGTH = 64;
 const MAXMEM = 64 * 1024 * 1024;
 
+/** Shortest password accepted when one is set. */
+export const MIN_PASSWORD_LENGTH = 8;
 /** Longest password accepted when one is set. Existing longer passwords still verify. */
 export const MAX_PASSWORD_LENGTH = 1024;
+
+/**
+ * The rules for a password being set: first-admin setup, invite acceptance, password change and
+ * password reset. Anything else, a missing value included, is a 400.
+ */
+export function readNewPassword(value: unknown): string {
+  const password = typeof value === 'string' ? value : '';
+  if (password.length < MIN_PASSWORD_LENGTH) throw badRequest(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+  return password;
+}
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);

@@ -57,6 +57,19 @@ QByteArray projectsBody(qint64 workspace)
         .toUtf8();
 }
 
+// A page of distinct active projects of the workspace, ids first .. first + count - 1.
+QByteArray projectPage(int first, int count, qint64 workspace)
+{
+    QJsonArray projects;
+    for (int id = first; id < first + count; ++id) {
+        projects.append(QJsonObject{{QStringLiteral("id"), id},
+                                    {QStringLiteral("workspace_id"), workspace},
+                                    {QStringLiteral("name"), QStringLiteral("P%1").arg(id)},
+                                    {QStringLiteral("active"), true}});
+    }
+    return QJsonDocument(projects).toJson(QJsonDocument::Compact);
+}
+
 const QString startedAt = QStringLiteral("2026-10-16T08:58:55Z"); // 65 s before the fake clock
 }
 
@@ -895,6 +908,51 @@ private Q_SLOTS:
         QVERIFY(f.timer.stop());
         QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.host(),
                  switchInstance ? QStringLiteral("b.example.test") : QStringLiteral("a.example.test"));
+    }
+
+    void incompleteProjectListFollowsTheConnection()
+    {
+        Fixture f;
+        QVERIFY(f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token) != f.store.secrets.end());
+        f.connection.setInstanceUrl(instanceA);
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.unanswered(f.last("GET", "/me"));
+        }));
+        f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(!f.timer.projectsIncomplete());
+
+        // Every page up to the limit is full and new.
+        QSignalSpy changed(&f.timer, &TimerController::projectsChanged);
+        for (int page = 1; page <= Connection::maxProjectPages; ++page) {
+            const qsizetype request = f.last("GET", "/projects");
+            QVERIFY(f.unanswered(request));
+            QCOMPARE(f.timer.projects().size(), 0);
+            f.respond(request, FakeTransport::answer(200, projectPage((page - 1) * Connection::projectPageSize + 1, Connection::projectPageSize, 7)));
+        }
+        QVERIFY(f.connection.projectsIncomplete());
+        QVERIFY(f.timer.projectsIncomplete());
+        // The projects read stay selectable.
+        QCOMPARE(f.timer.projects().size(), Connection::maxProjectPages * Connection::projectPageSize);
+        QCOMPARE(changed.count(), 1);
+
+        // Another account clears the notice with the projects.
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceB), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceB);
+        QVERIFY(!f.timer.projectsIncomplete());
+        QVERIFY(f.timer.projects().isEmpty());
+        QVERIFY(changed.count() > 1);
+
+        // A list that ends on a short page is complete.
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.unanswered(f.last("GET", "/me"));
+        }));
+        f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(4, 7)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 7)));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectPage(1000, 3, 7)));
+        QCOMPARE(f.timer.projects().size(), Connection::projectPageSize + 3);
+        QVERIFY(!f.timer.projectsIncomplete());
     }
 
     void entryFromAnotherWorkspaceIsNotShown()

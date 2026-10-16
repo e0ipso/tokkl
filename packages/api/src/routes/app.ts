@@ -1,5 +1,5 @@
 import express, { type Request, type Response, type Router } from 'express';
-import { hashPassword, MAX_PASSWORD_LENGTH, safeEqual } from '../auth/crypto.ts';
+import { hashPassword, readNewPassword, safeEqual } from '../auth/crypto.ts';
 import { accountCounters, addressCounter, passwordCounters } from '../auth/rateLimit.ts';
 import { currentActiveUser, hasCsrfHeader, requireAuth, sessionTokens, verifyAccountPassword } from '../auth/middleware.ts';
 import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
@@ -11,7 +11,9 @@ import { dateKey, isValidTimeZone } from '@tokkl/common/time';
 import {
   listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
 } from '../models/timeEntries.ts';
-import { acceptInvite, findUsableInvite, INVITE_NOT_FOUND } from '../models/accountTokens.ts';
+import {
+  acceptInvite, findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND, resetPassword,
+} from '../models/accountTokens.ts';
 import { getInstanceSettings } from '../models/settings.ts';
 import { countUsers, createFirstAdmin, findUserByEmail, type NewAccount } from '../models/users.ts';
 import { buildCsvExport, buildJsonExport } from '../services/export.ts';
@@ -49,13 +51,10 @@ function requireCsrfHeader(req: Request): void {
 /** Reads and checks the account fields of the setup and invite forms. Bad input is a 400. */
 function readNewAccount(body: Record<string, unknown>): NewAccount {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const password = typeof body.password === 'string' ? body.password : '';
   const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
   const timezone = typeof body.timezone === 'string' && isValidTimeZone(body.timezone) ? body.timezone : 'UTC';
   if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
-  if (password.length < 8) throw badRequest('Password must be at least 8 characters');
-  if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
-  return { email, password, fullname, timezone };
+  return { email, password: readNewPassword(body.password), fullname, timezone };
 }
 
 export function appRoutes(deps: Deps, setup: SetupState): Router {
@@ -108,6 +107,38 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const passwordHash = await hashPassword(password);
     const user = acceptInvite(db, token, { ...account, passwordHash });
     startSession(deps, req, res, user.id);
+    return res.json({ ok: true });
+  });
+
+  /**
+   * The account behind a password reset link, or one 404 for unknown, expired, used and revoked
+   * links and for disabled accounts. Misses count against the address like invite misses.
+   */
+  const resetFor = (req: Request) => {
+    const counter = addressCounter(clientAddress(req));
+    if (loginLimiter.isBlocked(counter)) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counter));
+    const token = String(req.params.token);
+    const user = findResetUser(db, token);
+    if (!user) {
+      loginLimiter.recordFailure(counter);
+      throw notFound(RESET_NOT_FOUND);
+    }
+    return { token, user };
+  };
+
+  // The email tells the holder which account the link is for; holding the link already grants it.
+  app.get('/password-resets/:token', (req, res) => res.json({ email: resetFor(req).user.email }));
+
+  /** Sets a new password and signs the account out everywhere. No session starts; the user logs in next. */
+  app.post('/password-resets/:token', async (req, res) => {
+    requireCsrfHeader(req);
+    const { token, user } = resetFor(req);
+    const password = readNewPassword(readJson(req).password);
+    // scrypt runs before the transaction, which checks the link and the account again.
+    const passwordHash = await hashPassword(password);
+    resetPassword(db, token, passwordHash);
+    // Failed logins from before the reset no longer stand between the user and the new password.
+    loginLimiter.reset(accountCounters(user.email, clientAddress(req)));
     return res.json({ ok: true });
   });
 

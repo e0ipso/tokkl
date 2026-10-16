@@ -1,4 +1,4 @@
-import type { Request, RequestHandler } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
 import { forbidden, tooManyRequests } from '../lib/errors.ts';
@@ -49,13 +49,32 @@ export async function verifyAccountPassword(user: UserRow | undefined, password:
 }
 
 /**
- * The account as stored now, once its password check has passed, or undefined when it was deleted or
- * suspended while scrypt ran. Authorize with this row, not the one read before the check, so a
- * demotion or suspension made during the check applies to the request.
+ * The account as stored now, once a password check against `user.password_hash` has passed, or
+ * undefined when it was deleted, suspended or given a new password while scrypt ran. Authorize with
+ * this row, not the one read before the check, so a demotion or suspension made during the check
+ * applies to the request. A reset or password change deletes the account's sessions, so callers must
+ * start the session or run the request without waiting on I/O after this call. Otherwise a reset
+ * could commit in between and the old password would still get a session.
  */
 export function currentActiveUser(db: Deps['db'], user: UserRow): UserRow | undefined {
   const current = getUser(db, user.id);
-  return current && isActiveUser(current) ? current : undefined;
+  if (!current || !isActiveUser(current)) return undefined;
+  return current.password_hash === user.password_hash ? current : undefined;
+}
+
+/**
+ * Whether a request authenticated as `user` is still signed in after waiting on I/O: the account
+ * passes currentActiveUser and the credential requireAuth accepted still exists. A session must still
+ * be live. A Basic request needs the same API token; that also refuses a password-Basic request whose
+ * token was rotated meanwhile, which is harmless. A reset or another password change ends sessions and
+ * changes the hash, so a request that awaited while one committed fails here. Run it after the last
+ * await, right before the write.
+ */
+export function stillSignedIn(db: Deps['db'], locals: Response['locals'], user: UserRow): boolean {
+  const current = currentActiveUser(db, user);
+  if (!current) return false;
+  if (locals.authMethod === 'session') return findSessionUser(db, locals.sessionToken)?.id === user.id;
+  return current.api_token === user.api_token;
 }
 
 async function userFromBasic(deps: Deps, req: Request, header: string): Promise<UserRow> {

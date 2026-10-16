@@ -69,6 +69,35 @@ test('project settings, rate and estimate persist, and archiving hides the proje
   expect(await api.project(project.id)).toMatchObject({ rate: 80, currency: 'USD', estimated_hours: 4, billable: true });
 });
 
+// TT-0199: a dialog opened from a row menu gives focus back to that row's menu button, since the
+// menu item that opened it is gone.
+test('closing a dialog opened from the row menu returns focus to the menu button', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  const intranet = await api.createProject({ name: 'Intranet' });
+  await api.createProject({ name: 'Website' });
+  await page.getByRole('link', { name: 'Projects' }).click();
+  const more = (name: string) => page.getByRole('button', { name: `More actions for ${name}`, exact: true });
+  const choose = async (name: string, action: string) => {
+    await more(name).focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('menuitem', { name: action, exact: true }).focus();
+    await page.keyboard.press('Enter');
+  };
+
+  await choose('Website', 'Delete');
+  const dialog = page.getByRole('dialog', { name: 'Delete Website?' });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(more('Website')).toBeFocused();
+
+  // Archiving from the menu by keyboard still works.
+  await choose('Intranet', 'Archive');
+  await expect.poll(async () => (await api.project(intranet.id)).active).toBe(false);
+  await expect(page.getByRole('button', { name: 'Edit Intranet' })).toHaveCount(0);
+});
+
 test('deleting a project and keeping its entries clears their project and refreshes the report', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);

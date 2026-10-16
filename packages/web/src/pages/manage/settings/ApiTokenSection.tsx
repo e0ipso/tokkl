@@ -4,45 +4,10 @@ import { keys } from '../../../api/hooks.ts';
 import type { Me } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
+import { copyText } from '../../../lib/clipboard.ts';
 import { ConfirmModal } from '../ui.tsx';
 import { useAction, V9 } from '../queries.ts';
 import { SettingsCard } from './SettingsCard.tsx';
-
-/** Copies through a hidden textarea; returns whether the browser reports success. */
-function copyWithTextarea(text: string): boolean {
-  const area = document.createElement('textarea');
-  area.value = text;
-  area.setAttribute('readonly', '');
-  area.style.position = 'fixed';
-  area.style.opacity = '0';
-  document.body.append(area);
-  area.select();
-  try {
-    return document.execCommand('copy');
-  } catch {
-    return false;
-  } finally {
-    area.remove();
-  }
-}
-
-/**
- * Copies text to the clipboard. `navigator.clipboard` only exists on HTTPS or localhost, and a
- * self-hosted server is often reached over plain HTTP on the LAN. The browser can also refuse the
- * Clipboard API, for example when the user blocked clipboard access. Both cases fall back to a
- * hidden textarea, and a failure there tells the user to copy by hand.
- */
-async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard && window.isSecureContext) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Refused; try the textarea below.
-    }
-  }
-  if (!copyWithTextarea(text)) throw new Error('Could not copy. Show the token and copy it by hand.');
-}
 
 export function ApiTokenSection({ me }: { me: Me }) {
   const toast = useToast();
@@ -61,7 +26,7 @@ export function ApiTokenSection({ me }: { me: Me }) {
   });
 
   const copy = () => {
-    copyText(me.api_token).then(() => toast.show('API token copied'), (error: unknown) => toast.error(error));
+    copyText(me.api_token, 'Could not copy. Show the token and copy it by hand.').then(() => toast.show('API token copied'), (error: unknown) => toast.error(error));
   };
 
   return (

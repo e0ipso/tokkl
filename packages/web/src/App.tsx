@@ -12,8 +12,10 @@ import { formatDuration } from '@tokkl/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
 import { endSession, logOut, takeLogoutFailure } from './lib/session.ts';
 import { applyTheme } from './lib/theme.ts';
+import { AdminPage } from './pages/AdminPage.tsx';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { InvitePage } from './pages/InvitePage.tsx';
+import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx';
 import { ClientsPage } from './pages/ClientsPage.tsx';
 import { ProjectsPage } from './pages/ProjectsPage.tsx';
 import { ReportsPage } from './pages/ReportsPage.tsx';
@@ -22,9 +24,12 @@ import { TagsPage } from './pages/TagsPage.tsx';
 import { TimerPage } from './pages/TimerPage.tsx';
 import { TrashPage } from './pages/TrashPage.tsx';
 
-type NavItem = { href: string; label: string; icon: IconName; inMore?: true };
+type NavItem = { href: string; label: string; icon: IconName; inMore?: true; adminOnly?: true };
 
-/** Every page in the navigation. On phones the inMore items move from the bottom bar into the More sheet. */
+/**
+ * Every page in the navigation. On phones the inMore items move from the bottom bar into the More
+ * sheet. adminOnly items show only to admins; the server still refuses everyone else.
+ */
 const NAV: NavItem[] = [
   { href: '/', label: 'Timer', icon: 'timer' },
   { href: '/reports', label: 'Reports', icon: 'chart' },
@@ -32,6 +37,7 @@ const NAV: NavItem[] = [
   { href: '/clients', label: 'Clients', icon: 'users', inMore: true },
   { href: '/tags', label: 'Tags', icon: 'tag', inMore: true },
   { href: '/trash', label: 'Trash', icon: 'trash', inMore: true },
+  { href: '/admin', label: 'Admin', icon: 'shield', inMore: true, adminOnly: true },
   { href: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
@@ -139,6 +145,7 @@ function Shell() {
   const [location] = useLocation();
   const qc = useQueryClient();
   const { data: current } = useCurrentEntry();
+  const { data: me } = useMe();
   const phone = useMediaQuery(PHONE_QUERY);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -200,7 +207,8 @@ function Shell() {
     </button>
   );
 
-  const moreItems = NAV.filter((item) => item.inMore);
+  const nav = NAV.filter((item) => !item.adminOnly || me?.role === 'admin');
+  const moreItems = nav.filter((item) => item.inMore);
   const moreActive = moreItems.some((item) => isActive(item.href));
 
   return (
@@ -208,7 +216,7 @@ function Shell() {
       <nav className="sidebar" aria-label="Main">
         {phone ? (
           <>
-            {NAV.filter((item) => !item.inMore).map((item) => navLink(item))}
+            {nav.filter((item) => !item.inMore).map((item) => navLink(item))}
             <button
               ref={moreButton}
               type="button"
@@ -231,7 +239,7 @@ function Shell() {
         ) : (
           <>
             <Brand />
-            {NAV.map((item) => navLink(item))}
+            {nav.map((item) => navLink(item))}
             <span className="spacer" />
             <SignedInUser />
             {logoutButton}
@@ -249,6 +257,7 @@ function Shell() {
           <Route path="/tags" component={TagsPage} />
           <Route path="/trash" component={TrashPage} />
           <Route path="/settings" component={SettingsPage} />
+          <Route path="/admin" component={AdminPage} />
           <Route><Redirect to="/" /></Route>
         </Switch>
         </ErrorBoundary>
@@ -288,9 +297,12 @@ export function App() {
   const forbidden = me.error instanceof ApiError && me.error.status === 403;
   useEndSessionOnForbidden(forbidden, me.isSuccess);
   const [isInvite, invite] = useRoute('/invite/:token');
+  const [isReset, reset] = useRoute('/reset/:token');
 
   // Reachable signed in or not: accepting an invite starts the new account's session.
   if (isInvite) return <InvitePage key={invite.token} token={invite.token} />;
+  // Reachable signed in or not: the person resetting has usually lost access to the account.
+  if (isReset) return <ResetPasswordPage key={reset.token} token={reset.token} />;
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
     return <div className="splash"><Brand size="lg" /><Loading /></div>;
   }

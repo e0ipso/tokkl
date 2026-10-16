@@ -120,6 +120,8 @@
 .settings-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
 .settings-subheading { margin: 16px 0 6px; }
 .settings-card-head + .settings-subheading { margin-top: 0; }
+/* A section title takes focus when the row that had it goes away (pages/AdminPage.tsx); same ring as controls. */
+.settings-card h2[tabindex]:focus-visible, .settings-subheading[tabindex]:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .settings-row { margin-top: 10px; align-items: center; flex-wrap: wrap; }
 .settings-notice {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
@@ -157,4 +159,23 @@
 
 @media (max-width: 760px) {
   .manage-actions .button { min-height: 44px; }
+}
+
+/* Admin page. The users and invites tables scroll sideways inside .table-wrap on a phone, so the
+   page itself stays within the screen. */
+.admin-table td { white-space: nowrap; }
+.admin-account-name { display: block; font-weight: 600; }
+.admin-account-email { display: block; color: var(--muted); font-size: var(--text-sm); }
+.admin-status { display: flex; align-items: center; gap: 8px; }
+.admin-table .field-error { max-width: 260px; white-space: normal; margin-top: 4px; }
+.admin-table .button { min-height: 32px; padding: 2px 12px; }
+.admin-invite-form .settings-actions { margin-top: 0; }
+.admin-new-link { margin-top: 12px; }
+.admin-new-link-text { min-width: 0; flex: 1 1 260px; }
+.admin-new-link-text p { margin: 0 0 6px; }
+.admin-new-link .token-value { display: block; }
+@media (max-width: 760px) {
+  .admin-table .button { min-height: 44px; }
+  .admin-table select { min-height: 44px; }
+  .admin-table .icon-button { min-width: 44px; height: 44px; }
 }

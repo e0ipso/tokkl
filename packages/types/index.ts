@@ -13,6 +13,45 @@ export interface Me {
   timezone: string;
   default_workspace_id: number;
   beginning_of_week: number;
+  /** Tokkl only, not in Toggl's /me: the instance role. Only admins reach /api/app/admin. */
+  role: UserRole;
+}
+
+export type UserRole = 'admin' | 'user';
+
+/** An account as GET /api/app/admin/users lists it. */
+export interface AdminAccount {
+  id: number;
+  email: string;
+  fullname: string;
+  role: UserRole;
+  created_at: string;
+  disabled_at: string | null;
+}
+
+/** A pending invite from GET /api/app/admin/invites. The link token is never listed. */
+export interface Invite {
+  id: number;
+  role: UserRole;
+  note: string | null;
+  created_by: number | null;
+  created_at: string;
+  expires_at: string;
+}
+
+/**
+ * A new password reset link from POST /api/app/admin/users/:id/password-reset. This response is the
+ * only place the token appears.
+ */
+export interface PasswordResetLink {
+  url: string;
+  expires_at: string;
+}
+
+/** Settings an admin changes at runtime, from /api/app/admin/settings. */
+export interface InstanceSettings {
+  session_days: number;
+  invite_days: number;
 }
 
 export type DurationFormat = 'improved' | 'classic' | 'decimal';

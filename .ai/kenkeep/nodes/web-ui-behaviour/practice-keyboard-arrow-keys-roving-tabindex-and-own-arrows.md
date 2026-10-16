@@ -25,6 +25,12 @@ kk_confidence: high
 
 Page-level arrow shortcuts, such as Left/Right shifting the report range in `RangeControl.tsx`, must yield to widgets that use the arrows themselves. The handler returns early when `event.defaultPrevented` is set (a widget already handled the key) or when the target is inside `[data-own-arrows]` (the report chart in `SeriesChart.tsx` sets it), as well as for text fields and open modals or popovers. Test the target with `instanceof Element` and `closest()`, not `instanceof HTMLElement`. Chart targets are SVG elements, which are not HTMLElements, so an HTMLElement check lets their keys through.
 
+Focus must not fall to the page body when something the user was on goes away:
+
+- `Modal` in `packages/web/src/components/Overlay.tsx` remembers `document.activeElement` on its first render and refocuses it on unmount, but only when focus is then on the body or inside the modal and the element is still connected. A caller that moved focus elsewhere first (for example to the next row) keeps control. Backdrop presses call `preventDefault` so the browser does not drop focus when the backdrop goes.
+- `RowMenu` in `packages/web/src/pages/manage/ui.tsx` focuses its button before it runs an item, so a modal opened from a menu returns focus to "More actions" instead of to an item that has just unmounted.
+- After a row is removed, `focusPastRow` in `packages/web/src/pages/AdminPage.tsx` moves focus to the same `data-row-action` control in the next row, else the previous row, else a fallback: the section heading, which is focusable with `tabIndex={-1}` (`titleRef` on `SettingsCard`). It is local to `AdminPage` for now.
+
 <!-- kk:related:start -->
 # Related
 

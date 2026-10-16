@@ -109,7 +109,13 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
                 type="button"
                 role="menuitem"
                 className={item.danger ? 'danger' : undefined}
-                onClick={() => { setAnchor(null); item.onSelect(); }}
+                onClick={() => {
+                  // The item goes away with the menu. Focus the menu button first, so a modal the
+                  // item opens returns focus there when it closes.
+                  anchor.focus();
+                  setAnchor(null);
+                  item.onSelect();
+                }}
               >
                 {item.icon ? <Icon name={item.icon} size={16} /> : <span className="manage-menu-gap" />}
                 {item.label}
@@ -122,9 +128,9 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
   );
 }
 
-/** Status pill for active and archived rows. */
-export function StatusBadge({ archived }: { archived: boolean }) {
-  return <span className={`manage-status${archived ? ' is-archived' : ''}`}>{archived ? 'Archived' : 'Active'}</span>;
+/** Status pill for active and archived rows. `label` replaces the text, as in Disabled for accounts. */
+export function StatusBadge({ archived, label }: { archived: boolean; label?: string }) {
+  return <span className={`manage-status${archived ? ' is-archived' : ''}`}>{label ?? (archived ? 'Archived' : 'Active')}</span>;
 }
 
 export type StatusFilter = 'active' | 'archived' | 'all';

@@ -1,46 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { ApiError, api } from '../api/client.ts';
+import { api } from '../api/client.ts';
 import { Brand } from '../components/Brand.tsx';
 import { FieldError } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { LoadError, Loading } from '../components/PageState.tsx';
-
-type InviteCheck =
-  | { state: 'loading' }
-  | { state: 'valid'; role: 'admin' | 'user' }
-  | { state: 'error'; message: string; invalid: boolean };
-
-/**
- * Checks the invite token once. Plain state rather than a query: the app clears the query cache
- * when the logged-out /me check fails, and this check must survive that.
- */
-function useInviteCheck(path: string): [InviteCheck, () => void] {
-  const [check, setCheck] = useState<InviteCheck>({ state: 'loading' });
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let current = true;
-    setCheck({ state: 'loading' });
-    api.get<{ role: 'admin' | 'user' }>(path).then(
-      ({ role }) => { if (current) setCheck({ state: 'valid', role }); },
-      (error: unknown) => {
-        if (!current) return;
-        const message = error instanceof Error ? error.message : String(error);
-        setCheck({ state: 'error', message, invalid: error instanceof ApiError && error.status === 404 });
-      },
-    );
-    return () => { current = false; };
-  }, [path, attempt]);
-  return [check, () => setAttempt((n) => n + 1)];
-}
+import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 
 /** /invite/:token, reachable while logged out. Creates the invited account and lands on the timer. */
 export function InvitePage({ token }: { token: string }) {
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
   const path = `/api/app/invites/${encodeURIComponent(token)}`;
-  const [check, retry] = useInviteCheck(path);
+  const [check, retry] = useLinkCheck<{ role: 'admin' | 'user' }>(path);
   const [fullname, setFullname] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -62,20 +34,15 @@ export function InvitePage({ token }: { token: string }) {
     }
   };
 
-  if (check.state === 'loading') {
-    return <div className="splash"><Brand size="lg" /><Loading label="Checking your invite…" /></div>;
-  }
-  if (check.state === 'error') {
+  if (check.state !== 'valid') {
     return (
-      <div className="splash">
-        <Brand size="lg" />
-        <LoadError
-          title={check.invalid ? 'Invite link not valid' : undefined}
-          message={check.invalid ? check.message : `Can't check this invite: ${check.message}`}
-          onRetry={check.invalid ? undefined : retry}
-        />
-        <a className="button button-ghost" href="/">Go to log in</a>
-      </div>
+      <LinkCheckSplash
+        check={check}
+        retry={retry}
+        loadingLabel="Checking your invite…"
+        invalidTitle="Invite link not valid"
+        failurePrefix="Can't check this invite"
+      />
     );
   }
 
@@ -85,7 +52,7 @@ export function InvitePage({ token }: { token: string }) {
       <form className="auth-card" onSubmit={submit}>
         <h1>Create your account</h1>
         <p className="muted">
-          {check.role === 'admin'
+          {check.data.role === 'admin'
             ? 'You are invited as an administrator of this Tokkl server.'
             : 'You are invited to track time on this Tokkl server.'}
           {' '}Your entries stay private to your account.

@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { expect, test, type Account, type ExtraUsers, type TestData } from './fixtures.ts';
+import { login, loginAs } from './helpers.ts';
 import { PHONE } from './mobile-tests-helpers.ts';
 import { transferFixture } from './transfer-tests-helpers.ts';
 
@@ -12,7 +12,11 @@ import { transferFixture } from './transfer-tests-helpers.ts';
 // The data is e2e/fixtures-data/transfer/restore-full.json, which has no running entry. The
 // browser clock is fixed at NOW, the day after the fixture's "Planning" entry, so the timer list,
 // the calendar week and every relative date render the same on every run. Only the browser clock
-// is fixed: the server keeps real time, which nothing on these pages shows.
+// is fixed: the server keeps real time, which nothing on these pages shows except the admin
+// page's created and expiry dates, which the shot masks.
+//
+// Settings is shot as a regular account (TT-0141), whose page has no Admin link; every other page
+// is shot as the setup admin.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 /** Thursday 16 July 2026, 15:20 in Europe/Madrid (the config's timezone). */
@@ -26,6 +30,12 @@ interface Capture {
   path: string;
   timerView?: 'list' | 'calendar';
   ready: (page: Page) => Locator;
+  /** Signs in as this regular account, created through an invite, instead of the setup admin. */
+  regularUser?: { email: string; fullname: string };
+  /** Creates what the page shows beyond the restored fixture. */
+  prepare?: (data: TestData, users: ExtraUsers) => Promise<void>;
+  /** Parts that follow the server's real clock, masked in the shot. */
+  mask?: (page: Page) => Locator[];
 }
 
 const PAGES: readonly Capture[] = [
@@ -37,7 +47,22 @@ const PAGES: readonly Capture[] = [
     ready: (page) => page.getByRole('region', { name: 'Breakdown' }).getByText('Roadmap').first(),
   },
   { name: 'projects', path: '/projects', ready: (page) => page.getByRole('main').getByText('Website').first() },
-  { name: 'settings', path: '/settings', ready: (page) => page.getByRole('main').getByText('API token').first() },
+  {
+    name: 'settings',
+    path: '/settings',
+    ready: (page) => page.getByRole('main').getByText('API token').first(),
+    regularUser: { email: 'e2e-user@example.com', fullname: 'E2E User' },
+  },
+  {
+    name: 'admin',
+    path: '/admin',
+    ready: (page) => page.locator('#invites').getByText('For the design team'),
+    prepare: async (data, users) => {
+      await users.create({ email: 'rita@example.com', fullname: 'Regular Rita' });
+      await data.createInvite({ role: 'user', note: 'For the design team' });
+    },
+    mask: (page) => [page.locator('.admin-date')],
+  },
 ];
 
 async function post(page: Page, path: string, data: unknown): Promise<void> {
@@ -46,9 +71,10 @@ async function post(page: Page, path: string, data: unknown): Promise<void> {
 }
 
 /** Logs in on the frozen clock and restores the fixture through the page's own session. */
-async function seed(page: Page, timerView: Capture['timerView']): Promise<void> {
+async function seed(page: Page, timerView: Capture['timerView'], account?: Account): Promise<void> {
   await page.clock.setFixedTime(new Date(NOW));
-  await login(page);
+  if (account) await loginAs(page, account);
+  else await login(page);
   const backup = transferFixture('restore-full.json');
   await post(page, '/api/app/import/json', JSON.parse(backup.buffer.toString('utf8')));
   // The shared fixture does not reset the theme; "system" lets colorScheme pick light or dark.
@@ -74,8 +100,10 @@ for (const [device, deviceOptions] of Object.entries(DEVICES)) {
       test.use({ ...deviceOptions, colorScheme, reducedMotion: 'reduce' });
 
       for (const capture of PAGES) {
-        test(`${capture.name} matches its baseline`, async ({ page }) => {
-          await seed(page, capture.timerView);
+        test(`${capture.name} matches its baseline`, async ({ page, data, users }) => {
+          const regular = capture.regularUser ? await users.create(capture.regularUser) : null;
+          await capture.prepare?.(data, users);
+          await seed(page, capture.timerView, regular?.account);
           await page.goto(capture.path);
           await expect(capture.ready(page)).toBeVisible();
           await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
@@ -88,6 +116,7 @@ for (const [device, deviceOptions] of Object.entries(DEVICES)) {
             fullPage: true,
             animations: 'disabled',
             caret: 'hide',
+            mask: capture.mask?.(page),
             maxDiffPixelRatio: 0.002,
           });
         });

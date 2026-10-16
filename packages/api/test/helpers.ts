@@ -1,4 +1,4 @@
-import { after } from 'node:test';
+import { after, type TestContext as NodeTestContext } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 import { createApp } from '../src/app.ts';
 import { hashPassword } from '../src/auth/crypto.ts';
+import { FailureLimiter, type Keys } from '../src/auth/rateLimit.ts';
 import type { Config } from '../src/config.ts';
 import { openDatabase, transaction, type Db } from '../src/db/index.ts';
 import { createFirstAdmin, insertAccount, type UserRole, type UserRow } from '../src/models/users.ts';
@@ -130,4 +131,23 @@ export function fileBackedCopy(ctx: TestContext): TestContext & { path: string }
 
 export function iso(value: string): string {
   return new Date(value).toISOString();
+}
+
+/**
+ * Runs `during` once, after the next password check has passed and before the request goes on,
+ * as if another request committed while scrypt ran. Requests signed in by API token run no check.
+ */
+export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<unknown>): void {
+  const attempt = FailureLimiter.prototype.attempt;
+  let pending = true;
+  t.mock.method(FailureLimiter.prototype, 'attempt', function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>) {
+    return attempt.call(this, keys, async () => {
+      const valid = await check();
+      if (pending) {
+        pending = false;
+        await during();
+      }
+      return valid;
+    });
+  });
 }

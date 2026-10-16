@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:8ab00bc1fc2405bd1eda45700bd2ae623e29f8f931bbc6a7a07d7886f0da314a'
-node_count: 40
+nodes_hash: 'sha256:e74d80d140c17165337c6a46c99edc77f4b417387920b23fec705bb7dd9ecfc7'
+node_count: 41
 ---
 # kenkeep Graph
 
-Total nodes: 40
+Total nodes: 41
 
 ## map-admin-api-and-disabled-accounts
 
@@ -45,6 +45,14 @@ Total nodes: 40
 - **path:** tooling-and-project/map-history-scale-bench.md
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
+
+## map-kde-native-packaging
+
+- **kind:** map
+- **title:** KDE native packaging: DEB, RPM and the version mapping
+- **path:** tooling-and-project/map-kde-native-packaging.md
+- **tags:** tooling, kde, packaging, release
+- **relates_to:** map-kde-plasma-companion-desktop-kde
 
 ## map-kde-plasma-companion-desktop-kde
 

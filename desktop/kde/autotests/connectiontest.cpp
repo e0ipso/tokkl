@@ -204,6 +204,66 @@ private Q_SLOTS:
         QCOMPARE(f.connection.account()->email, QStringLiteral("bea@example.test"));
     }
 
+    // A page of distinct projects: ids first .. first + count - 1.
+    static QByteArray projectPage(int first, int count, qint64 workspace)
+    {
+        QJsonArray projects;
+        for (int id = first; id < first + count; ++id) {
+            projects.append(QJsonObject{{QStringLiteral("id"), id},
+                                        {QStringLiteral("workspace_id"), workspace},
+                                        {QStringLiteral("name"), QStringLiteral("P%1").arg(id)},
+                                        {QStringLiteral("active"), true}});
+        }
+        return QJsonDocument(projects).toJson(QJsonDocument::Compact);
+    }
+
+    void projectsAreIncompleteAtThePageLimit()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, 3, 42));
+        std::optional<ApiResult<QList<Project>>> received;
+        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+            received = result;
+        });
+        const qsizetype before = f.transport.requests.size();
+        // Every page up to the limit is full and new.
+        for (int page = 1; page <= Connection::maxProjectPages; ++page) {
+            QVERIFY(!received);
+            f.transport.respondLast(FakeTransport::answer(200, projectPage((page - 1) * Connection::projectPageSize + 1, Connection::projectPageSize, 42)));
+        }
+        // Reading stopped at the limit instead of asking for page 101: the
+        // first page's request already exists, one more per later page.
+        QCOMPARE(f.transport.requests.size(), before + Connection::maxProjectPages - 1);
+        QVERIFY(received);
+        QVERIFY(received->ok());
+        QCOMPARE(received->value->size(), Connection::maxProjectPages * Connection::projectPageSize);
+        // The truncated list is reported, not passed off as the whole list.
+        QVERIFY(f.connection.projectsIncomplete());
+        QCOMPARE(f.connection.projectList().size(), Connection::maxProjectPages * Connection::projectPageSize);
+
+        // A short last page ends the reading as complete, and clears the flag.
+        received.reset();
+        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+            received = result;
+        });
+        f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
+        f.transport.respondLast(FakeTransport::answer(200, projectPage(1000, 3, 42)));
+        QVERIFY(received && received->ok());
+        QVERIFY(!f.connection.projectsIncomplete());
+        QCOMPARE(received->value->size(), Connection::projectPageSize + 3);
+
+        // A full page of nothing new is a server ignoring the paging, and
+        // also ends the reading as before.
+        received.reset();
+        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+            received = result;
+        });
+        f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
+        f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
+        QVERIFY(received && received->ok());
+        QVERIFY(!f.connection.projectsIncomplete());
+    }
+
     void projectsFollowEveryPage()
     {
         Fixture f;

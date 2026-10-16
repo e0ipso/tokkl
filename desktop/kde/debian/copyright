@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: tokkl-kde
+Source: https://github.com/e0ipso/tokkl
+
+Files: *
+Copyright: Tokkl contributors
+License: NOASSERTION
+ The Tokkl repository does not declare a license yet.

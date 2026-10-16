@@ -3,7 +3,7 @@ type: map
 title: KDE Plasma companion in desktop/kde
 description: >-
   Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl;
-  tokklcore library; panel item and menu; versioned from root package.json; 11 ctest tests.
+  tokklcore library; panel item and menu; versioned from root package.json; 12 ctest tests; DEB and RPM packaging.
 tags:
   - tooling
   - kde
@@ -33,7 +33,7 @@ cmake --build "$build" -j"$(nproc)"
 QT_QPA_PLATFORM=offscreen ctest --test-dir "$build" --output-on-failure
 ```
 
-ctest runs eleven tests: `appstreamtest` (added by ECM), the unit tests `api`, `connection`, `networktransport` and `timer`, the QtQuickTest `panel`, then `version`, `prune-package`, `stage-install`, `smokeload` and `stage-cleanup`. The unit tests use `FakeTransport`, `FakeCredentialStore` and `FakeClock` from `autotests/fakes.h` and never touch the network or the real wallet. `panel` runs the QML tests in `autotests/qml/` (`tst_panel.qml`) offscreen against `tokklcore` wired to those fakes; it never loads `main.qml` or the real connection. Its fake responses echo the metadata the test scripts into them, so it cannot catch the server losing description or tags on a partial PUT. That behaviour lives in `updateTimeEntry` (`packages/api/src/models/timeEntries.ts`) and needs an API test. `smokeload` loads the widget through libplasma inside a minimal `TestCorona` with an empty containment. libplasma's CMake package does not pull in KF6Config, so the test block calls `find_package(KF6 ... COMPONENTS Config)` itself. The `version` test checks the real root `package.json` only when it exists. Build dependencies and install commands are in `desktop/kde/README.md`.
+ctest runs twelve tests: `appstreamtest` (added by ECM), the unit tests `api`, `connection`, `networktransport` and `timer`, the QtQuickTest `panel`, then `version`, `native-version`, `prune-package`, `stage-install`, `smokeload` and `stage-cleanup`. `native-version` checks `scripts/native-version.sh` (see the packaging node), including dpkg order; the rpm order check is skipped where `rpm` is absent, as on this host. The unit tests use `FakeTransport`, `FakeCredentialStore` and `FakeClock` from `autotests/fakes.h` and never touch the network or the real wallet. `panel` runs the QML tests in `autotests/qml/` (`tst_panel.qml`) offscreen against `tokklcore` wired to those fakes; it never loads `main.qml` or the real connection. Its fake responses echo the metadata the test scripts into them, so it cannot catch the server losing description or tags on a partial PUT. That behaviour lives in `updateTimeEntry` (`packages/api/src/models/timeEntries.ts`) and needs an API test. `smokeload` loads the widget through libplasma inside a minimal `TestCorona` with an empty containment. libplasma's CMake package does not pull in KF6Config, so the test block calls `find_package(KF6 ... COMPONENTS Config)` itself. The `version` test checks the real root `package.json` only when it exists. Build dependencies and install commands are in `desktop/kde/README.md`. Native DEB and RPM packages are described in [map-kde-native-packaging](map-kde-native-packaging.md).
 
 <!-- kk:related:start -->
 # Related

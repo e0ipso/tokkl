@@ -45,6 +45,13 @@ add_test(NAME version
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/version
         -P ${CMAKE_CURRENT_SOURCE_DIR}/versiontest.cmake)
 
+# Package versions from scripts/native-version.sh: accepted and refused
+# forms, and dpkg and rpm order where those tools are installed.
+add_test(NAME native-version
+    COMMAND ${CMAKE_COMMAND}
+        -DTOKKL_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/nativeversiontest.cmake)
+
 # A source file removed from package/contents/ must leave the package.
 add_test(NAME prune-package
     COMMAND ${CMAKE_COMMAND}

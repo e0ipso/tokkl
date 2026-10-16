@@ -1,0 +1,43 @@
+Source: tokkl-kde
+Section: kde
+Priority: optional
+Maintainer: Tokkl contributors <contributors@example.invalid>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.27),
+               extra-cmake-modules (>= 6.24.0~),
+               libkf6package-dev (>= 6.24.0~),
+               libkf6wallet-dev (>= 6.24.0~),
+               libplasma-dev (>= 6.6.0~),
+               plasma-desktoptheme (>= 6.6.0~),
+               qml6-module-org-kde-kcmutils (>= 6.24.0~),
+               qml6-module-org-kde-kirigami (>= 6.24.0~),
+               qt6-base-dev (>= 6.10.0~),
+               qt6-declarative-dev (>= 6.10.0~)
+Standards-Version: 4.6.2
+Homepage: https://github.com/e0ipso/tokkl
+Rules-Requires-Root: no
+
+Package: tokkl-kde
+Architecture: amd64
+# The widget's QML imports are loaded at run time, so dpkg-shlibdeps cannot
+# see them. On TUXEDO OS the org.kde.plasma.* QML modules (plasmoid, core,
+# components, configuration) are in plasma-desktoptheme.
+Depends: plasma-desktoptheme (>= 6.6.0~),
+         qml6-module-org-kde-kcmutils (>= 6.24.0~),
+         qml6-module-org-kde-kirigami (>= 6.24.0~),
+         qml6-module-qtqml (>= 6.10.0~),
+         qml6-module-qtquick (>= 6.10.0~),
+         qml6-module-qtquick-controls (>= 6.10.0~),
+         qml6-module-qtquick-layouts (>= 6.10.0~),
+         qml6-module-qtquick-templates (>= 6.10.0~),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Recommends: kwallet6
+Description: Tokkl timer widget for the Plasma panel
+ A Plasma 6 panel widget for Tokkl, a self-hosted time tracker with a Toggl
+ Track compatible API. It signs in to an account on a Tokkl server, shows
+ the running timer, starts and stops it, and sets the project and billable
+ flag of the next or running entry.
+ .
+ The token or password is stored in KDE Wallet. Built for TUXEDO OS 24.04
+ amd64 with Plasma 6.6, KDE Frameworks 6.24 and Qt 6.10.

@@ -367,6 +367,60 @@ TestCase {
         verify(button.menu.billableItem.checked);
     }
 
+    // The notice in the Project submenu, or null.
+    function incompleteNotice() {
+        const menu = button.menu.projectMenu;
+        for (let i = 0; i < menu.count; ++i) {
+            const item = menu.itemAt(i);
+            if (item && item.text.indexOf("cut short") >= 0) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    function test_incompleteProjectListShowsANotice() {
+        // A complete list has no notice.
+        connectAccount(instanceA, 3, 7);
+        compare(button.timer.projectsIncomplete, false);
+        verify(incompleteNotice() === null, "no notice for a complete list");
+
+        // Every page up to the limit is full of new projects, so the list is
+        // cut short. The menu only offers the discovered workspace's projects,
+        // so all but three of them belong to another workspace; this keeps a
+        // menu of 20,000 items out of the test.
+        fixture.configure(instanceB, "tok-4");
+        tryVerify(() => button.timer.projects.length === 0, 3000, "the first account's projects are gone");
+        compare(button.timer.projectsIncomplete, false);
+        answer("GET", "/me", 200, meBody(4, 7));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        for (let page = 1; page <= 100; ++page) {
+            const projects = [];
+            for (let i = 1; i <= 200; ++i) {
+                const id = (page - 1) * 200 + i;
+                projects.push(project(id, page === 1 && i <= 3 ? 7 : 9, "P" + id, false));
+            }
+            answer("GET", "/projects", 200, projects);
+        }
+        tryCompare(button.timer, "projectsIncomplete", true, 3000);
+        compare(button.timer.projects.length, 3, "the projects of the workspace");
+        const menu = button.menu.projectMenu;
+        tryCompare(menu, "count", 5, 3000, "No project, the notice and the three projects");
+        const notice = incompleteNotice();
+        verify(notice !== null, "the notice is in the Project submenu");
+        verify(!notice.enabled, "the notice cannot be chosen");
+        verify(notice.Accessible.description.length > 0, "a screen reader gets the explanation");
+        compare(menu.itemAt(1), notice, "the notice comes before the projects");
+        verify(projectItem("P1"), "the projects read stay selectable");
+        verify(projectItem("P3"));
+
+        // Switching account clears the notice with the projects.
+        fixture.configure(instanceA, "tok-3");
+        tryCompare(button.timer, "projectsIncomplete", false, 3000);
+        tryCompare(menu, "count", 1, 3000);
+        verify(incompleteNotice() === null, "no notice after the switch");
+    }
+
     function test_archivedCurrentProjectIsShownNotOffered() {
         fixture.configure(instanceA, "tok-3");
         answer("GET", "/me", 200, meBody(3, 7));

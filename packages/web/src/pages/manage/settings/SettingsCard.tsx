@@ -1,9 +1,11 @@
-import type { FormEvent, ReactNode } from 'react';
+import type { FormEvent, ReactNode, Ref } from 'react';
 
 /** One settings section: a card with a title, an optional intro line and its own save button. */
-export function SettingsCard({ id, title, intro, children, onSubmit, saveLabel = 'Save', saving = false, saveDisabled = false }: {
+export function SettingsCard({ id, title, titleRef, intro, children, onSubmit, saveLabel = 'Save', saving = false, saveDisabled = false }: {
   id: string;
   title: string;
+  /** Lets the section move focus to its title, for example when the focused row went away. */
+  titleRef?: Ref<HTMLHeadingElement>;
   intro?: ReactNode;
   children: ReactNode;
   /** Renders the card as a form with a save button when set. */
@@ -15,7 +17,9 @@ export function SettingsCard({ id, title, intro, children, onSubmit, saveLabel =
   const headingId = `${id}-title`;
   const body = (
     <>
-      <div className="settings-card-head"><h2 id={headingId}>{title}</h2></div>
+      <div className="settings-card-head">
+        <h2 id={headingId} ref={titleRef} tabIndex={titleRef ? -1 : undefined}>{title}</h2>
+      </div>
       {intro ? <p className="hint settings-intro">{intro}</p> : null}
       {children}
     </>

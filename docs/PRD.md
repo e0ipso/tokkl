@@ -72,7 +72,7 @@ This is the brief every restyle ticket is checked against.
 
 ## 5. Functional requirements
 
-Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: **Done** means implemented and exercised by the automated tests (server tests, Playwright browser tests) or by a scripted browser run during development, **Partial** means usable with the stated gap, **Planned** means not started.
+Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: **Done** means implemented and exercised by the automated tests (server tests, Playwright browser tests) or by a scripted browser run during development, **Partial** means usable with the stated gap, **Planned** means not started.
 
 ### 5.1 Timer
 
@@ -172,20 +172,20 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: *
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | A1 | First-run setup code, printed in the server log, creates the first admin. Whoever reaches the server first cannot claim it without reading the log. The code creates only the first admin. | MUST | Done |
-| A2 | Email and password login; session cookie (HttpOnly, SameSite=Lax, Secure behind HTTPS). | MUST | Done |
+| A2 | Email and password login; session cookie (HttpOnly, SameSite=Lax, Secure behind HTTPS). `GET /me` also returns the account's `role`, which the web app uses to show the Admin page. | MUST | Done |
 | A3 | Change password (signs out other sessions), email, name. | MUST | Done |
 | A4 | Timezone, first day of week, date format, 12/24-hour time, duration format (improved, classic, decimal). | MUST | Done |
 | A5 | Theme: system, light, dark. | SHOULD | Done |
 | A6 | API token: view, copy, reset. | SHOULD | Done |
 | A7 | Keyboard shortcuts toggle and `?` help overlay. | SHOULD | Done |
 | A8 | TOTP two-factor login. | SHOULD | Planned |
-| A9 | Two account roles, admin and user. The first account is an admin. | MUST | Planned |
-| A10 | Admins create invite links and share them by hand. Opening a link lets one person create an account with a private workspace. The server sends no email. | MUST | Planned |
-| A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, and its data stays. | SHOULD | Planned |
-| A12 | Admins delete an account together with its workspace and everything in it. | SHOULD | Planned |
-| A13 | Admins create password-reset links for an account and share them by hand. | SHOULD | Planned |
-| A14 | Admins edit instance settings: session lifetime and invite lifetime. | COULD | Planned |
-| A15 | Admins manage accounts only and cannot read other users' time data. | MUST | Planned |
+| A9 | Two account roles, admin and user. The first account is an admin. An admin changes any account's role, but the server always keeps at least one active admin. | MUST | Done |
+| A10 | Admins create invite links, choose the new account's role, and share the link by hand. A link works once and expires after the invite lifetime (7 days by default). Opening it lets one person create an account with a private workspace. Admins list and revoke unused links. The server sends no email. | MUST | Done |
+| A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, its sessions end, and its data stays. Admins can also sign an account out of every browser without disabling it; its API token keeps working. | SHOULD | Done |
+| A12 | Admins delete an account together with its workspace and everything in it, after typing the account's email to confirm. An admin cannot delete their own account or the last active admin. A workspace that has another member stays. | SHOULD | Done |
+| A13 | Admins create password-reset links for an account and share them by hand. A link works once, expires after 24 hours, and replaces the account's earlier unused link. Using it signs the account out of every session. It does not change the account's API token, which the user resets separately (`POST /me/reset_token`). | SHOULD | Done |
+| A14 | Admins edit instance settings: session lifetime (1 to 365 days) and invite lifetime (1 to 90 days). A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. | COULD | Done |
+| A15 | Admins manage accounts only and cannot read other users' time data. Workspace access depends on membership, never on the instance role, so an admin gets 403 on another account's workspace. | MUST | Done |
 
 ### 5.8 Clients and devices
 
@@ -208,13 +208,13 @@ Base URLs:
 - Track API: `https://<server>/api/v9`
 - Reports API: `https://<server>/reports/api/v3`
 
-Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email>:<password>`. Failures return 403.
+Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email>:<password>`. Failures return 403. After too many failed password attempts the server returns 429 with a `Retry-After` header (section 8.4).
 
 ### 6.2 Endpoints
 
 | Area | Endpoints | Status |
 |---|---|---|
-| Me | `GET/PUT /me` (incl. `with_related_data`), `POST /me/reset_token`, `GET/POST /me/preferences[/{client}]`, `GET /me/workspaces`, `/me/organizations`, `/me/features`, `/me/projects`, `/me/clients`, `/me/tags`, `/me/tasks` | Done |
+| Me | `GET/PUT /me` (incl. `with_related_data`; the response adds Tokkl's own `role` field), `POST /me/reset_token`, `GET/POST /me/preferences[/{client}]`, `GET /me/workspaces`, `/me/organizations`, `/me/features`, `/me/projects`, `/me/clients`, `/me/tags`, `/me/tasks` | Done |
 | Time entries (read) | `GET /me/time_entries` with `since` (includes deleted entries with `server_deleted_at`), `before`, `start_date`/`end_date`, `meta`; `GET /me/time_entries/current`; `GET /me/time_entries/{id}` | Done |
 | Time entries (write) | `POST /workspaces/{wid}/time_entries`, `PUT .../{id}`, `PATCH .../{id}/stop`, `PATCH .../{ids}` (bulk JSON Patch, partial success), `DELETE .../{id}` | Done |
 | Workspace | `GET/PUT /workspaces/{wid}`, `GET /workspaces/{wid}/users` (lists the workspace's members) | Done |
@@ -226,6 +226,7 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 | Reports v2 (legacy) | `details`, `summary`, `weekly` | Planned. Several older clients still call v2. |
 | Webhooks | n/a | WON'T (v1) |
 | Organizations, groups, invitations, approvals, SSO, billing | n/a | WON'T. The app has its own admin invite links (A10), outside the Toggl API. |
+| Instance administration (Tokkl only) | `GET/PATCH/DELETE /api/app/admin/users[/{id}]`, `POST .../users/{id}/sessions/revoke`, `POST .../users/{id}/password-reset`, `GET/POST /api/app/admin/invites`, `DELETE .../invites/{id}`, `GET/PUT /api/app/admin/settings`. Active admins only, outside the Toggl API. | Done |
 
 ### 6.3 Behavior details that clients depend on
 
@@ -278,7 +279,9 @@ The Raycast extension, the Obsidian plugin, both `toggl-cli` projects, the Alfre
  |  Express 5 HTTP server                                                |
  |   /api/v9/*            Toggl Track API v9 subset                      |
  |   /reports/api/v3/*    Toggl Reports API v3 subset                    |
- |   /api/app/*           setup, login, trash, report, import, export    |
+ |   /api/app/*           setup, login, invites, password resets, trash, |
+ |                        report, import, export                         |
+ |   /api/app/admin/*     accounts, invites, instance settings (admins)  |
  |   /*                   built React app (static files)                 |
  |  services: time entries, reports engine, CSV import/export            |
  |  node:sqlite  -->  <data dir>/tokkl.sqlite (WAL)                      |
@@ -303,6 +306,8 @@ All instants are UTC ISO 8601 strings with second precision; calendar days are c
 
 - `users`: email, name, scrypt password hash, API token, timezone, first day of week, preferences JSON (Toggl preference keys plus favorites), `role` (`admin` or `user`, default `user`), `disabled_at` (null while the account is active).
 - `sessions`: SHA-256 of the session token, expiry. The raw token exists only in the cookie.
+- `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`), with who changed them. A key with no row uses its default.
+- `account_tokens`: one-time invite and password-reset links. Only the SHA-256 of the token is stored, with its kind, the invited role or the target account, the creator, expiry and use time.
 - `workspaces`: one private workspace per account. Default currency, default rate, report rounding.
 - `workspace_users`: workspace and user, with a `role` of `owner` or `member`. The primary key is the pair. Workspace settings stay with the owner.
 - `clients`, `projects`, `tasks`, `tags`: unique names per scope, case-insensitive.
@@ -315,12 +320,14 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 
 - Passwords: scrypt (N=2^15, r=8, p=1), constant-time comparison.
 - API token: 128 random bits, shown in settings, resettable.
-- Sessions: 256-bit random token, only its hash stored, 30-day expiry, HttpOnly and SameSite=Lax cookie, `Secure` when served over HTTPS.
-- CSRF: cookie-authenticated writes must send `X-Tokkl-CSRF: 1` (the pre-rename `X-Timetrack-CSRF: 1` is still accepted), which a cross-site form cannot set and which needs a CORS preflight this server never grants.
-- Brute force: failed password attempts are counted over 15 minutes, across the login form, Basic auth and password change. The limits are 10 failures per account and client address, 50 per account and 100 per client address. A successful login resets the account-and-address and account counters, never the address counter. Setup code attempts keep their own per-address counter, limited to 10. Behind a trusted proxy the address is the last `X-Forwarded-For` hop, which the client cannot forge. Unknown emails still run a scrypt check, so response time does not reveal whether an account exists.
+- Sessions: 256-bit random token, only its hash stored, 30-day default expiry (an admin can change it, A14), HttpOnly and SameSite=Lax cookie, `Secure` when served over HTTPS.
+- CSRF: cookie-authenticated writes must send `X-Tokkl-CSRF: 1` (the pre-rename `X-Timetrack-CSRF: 1` is still accepted), which a cross-site form cannot set and which needs a CORS preflight this server never grants. Login, setup, invite acceptance and password-reset acceptance need it too, because they set or change credentials without a session. Logout needs it only when a session is active. Requests with HTTP Basic auth are exempt.
+- Brute force: failed password attempts are counted over 15 minutes, across the login form, Basic auth and password change. The limits are 10 failures per account and client address, 50 per account and 100 per client address. A successful login resets the account-and-address and account counters, never the address counter. Setup code attempts keep their own per-address counter, limited to 10. Behind a trusted proxy the address is the last `X-Forwarded-For` hop, which the client cannot forge. Invite and password-reset links share the per-address counter: each unknown, expired, used or revoked token counts as a failure, and a blocked address gets 429 before the lookup, so tokens cannot be guessed at speed. Using a reset link also clears the account's earlier failures. Unknown emails still run a scrypt check, so response time does not reveal whether an account exists. A disabled account fails like a wrong password.
 - Headers: strict Content Security Policy (`default-src 'self'`), `frame-ancestors 'none'`, `nosniff`, no-store on API responses. Hashed assets are cached for a year; a missing asset is a 404, never the HTML page.
 - Input: request bodies capped at 1 MB (50 MB for imports), id lists in report filters capped at 1000; every field validated with Toggl-style error messages.
 - First run: the setup code from the server log creates only the first admin. Later accounts come from invite links that an admin creates.
+- Account links: invite and reset tokens are 256 random bits, shown once when an admin creates them, and stored only as a hash. An unknown, expired, used or revoked link gets one identical 404.
+- Admin routes: every `/api/app/admin` route needs an active admin and returns 403 to everyone else, including a disabled admin. They return account fields only, never API tokens, password hashes, preferences or time data.
 - Exports never contain the password hash or API token.
 
 ## 9. Non-functional requirements

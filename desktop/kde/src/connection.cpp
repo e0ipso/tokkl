@@ -208,6 +208,11 @@ QList<Project> Connection::projects() const
     return m_projects;
 }
 
+bool Connection::projectsIncomplete() const
+{
+    return m_projectsIncomplete;
+}
+
 QVariantList Connection::projectList() const
 {
     QVariantList list;
@@ -479,11 +484,12 @@ void Connection::resetAccount()
 void Connection::clearAccountData()
 {
     const bool hadAccount = m_context.has_value();
-    const bool hadProjects = !m_projects.isEmpty();
+    const bool hadProjects = !m_projects.isEmpty() || m_projectsIncomplete;
     const bool hadEntry = m_currentEntry.has_value();
     const bool hadChoices = m_nextProjectId.has_value() || m_nextBillable;
     m_context.reset();
     m_projects.clear();
+    m_projectsIncomplete = false;
     m_currentEntry.reset();
     m_nextProjectId.reset();
     m_nextBillable = false;
@@ -731,12 +737,15 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
             }
             // A full page may have a next one. A page with nothing new means
             // the server ignored the paging parameters.
-            if (result.value->size() >= projectPageSize && added && pages->page < maxProjectPages) {
+            const bool more = result.value->size() >= projectPageSize && added;
+            if (more && pages->page < maxProjectPages) {
                 ++pages->page;
                 fetchProjectPage(pages);
                 return;
             }
+            // Still more after the last page read: the list is cut short.
             m_projects = pages->projects;
+            m_projectsIncomplete = more;
             Q_EMIT projectsChanged();
             if (pages->done) {
                 pages->done(ApiResult<QList<Project>>::success(pages->projects));

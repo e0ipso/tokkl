@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { EMAIL, PASSWORD, SETUP_CODE } from './fixtures.ts';
+import { EMAIL, PASSWORD, SETUP_CODE, type Account } from './fixtures.ts';
 
 export async function login(page: Page) {
   await page.goto('/');
@@ -17,6 +17,19 @@ export async function login(page: Page) {
     await page.getByLabel('Password').fill(PASSWORD);
     await page.getByRole('button', { name: 'Log in' }).click();
   }
+  await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
+}
+
+/**
+ * Logs in through the form as an account that already exists, such as one from the `users`
+ * fixture: `await loginAs(page, user.account)`.
+ */
+export async function loginAs(page: Page, account: Pick<Account, 'email' | 'password'>) {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  await page.getByLabel('Email').fill(account.email);
+  await page.getByLabel('Password').fill(account.password);
+  await page.getByRole('button', { name: 'Log in' }).click();
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
 }
 
