@@ -175,6 +175,23 @@ export async function createInvite(baseURL: string, apiToken: string, role: 'adm
   });
 }
 
+/**
+ * Issues a password reset link for the account with `email`, as an admin through the API, and
+ * returns its /reset/<token> path.
+ */
+export async function createPasswordReset(baseURL: string, apiToken: string, email: string): Promise<string> {
+  return withAuth(baseURL, basic(apiToken, 'api_token'), async (api) => {
+    const users = await (await api.get('/api/app/admin/users')).json() as Array<{ id: number; email: string }>;
+    const user = users.find((account) => account.email === email);
+    expect(user, `an account for ${email}`).toBeDefined();
+    const response = await api.post(`/api/app/admin/users/${user!.id}/password-reset`);
+    expect(response.status()).toBe(200);
+    const { url } = await response.json() as { url: string };
+    expect(url).toMatch(/^\/reset\/[\w-]+$/);
+    return url;
+  });
+}
+
 /** The API path behind an /invite/<token> link: GET looks the invite up, POST accepts it. */
 export function inviteApiPath(invite: string): string {
   return invite.replace(/^\/invite\//, '/api/app/invites/');

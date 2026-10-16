@@ -278,7 +278,7 @@ test('an owner with a password over the cap can still log in and rotate it', asy
 
   const newTooLong = await put({ current_password: legacy, password: 'n'.repeat(MAX_PASSWORD_LENGTH + 1) });
   assert.equal(newTooLong.status, 400);
-  assert.equal(await newTooLong.json(), `password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+  assert.equal(await newTooLong.json(), `Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
 
   assert.equal((await put({ current_password: legacy, password: 'new password 1' })).status, 200);
   assert.equal((await app.request('/api/v9/me', { headers: { authorization: basic('me@example.com', legacy) } })).status, 403);

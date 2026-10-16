@@ -183,7 +183,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: *
 | A10 | Admins create invite links and share them by hand. Opening a link lets one person create an account with a private workspace. The server sends no email. | MUST | Planned |
 | A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, and its data stays. | SHOULD | Planned |
 | A12 | Admins delete an account together with its workspace and everything in it. | SHOULD | Planned |
-| A13 | Admins create password-reset links for an account and share them by hand. | SHOULD | Planned |
+| A13 | Admins create password-reset links for an account and share them by hand. | SHOULD | Done |
 | A14 | Admins edit instance settings: session lifetime and invite lifetime. | COULD | Planned |
 | A15 | Admins manage accounts only and cannot read other users' time data. | MUST | Planned |
 

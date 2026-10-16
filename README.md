@@ -66,7 +66,7 @@ On first start the log prints a setup code:
 No admin account yet. Open the web UI and use this setup code to create it: ABCD-EFGH-JKLM
 ```
 
-Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link on the Admin page and shares it by hand, and the server sends no email. The Admin page also changes roles, disables, signs out and deletes accounts, and sets how long sessions and invite links last.
+Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link on the Admin page and shares it by hand, and the server sends no email. The Admin page also changes roles, disables, signs out and deletes accounts, creates one-time password reset links (shared by hand, valid for 24 hours), and sets how long sessions and invite links last.
 
 All data is in `tokkl.sqlite` (plus its `-wal` and `-shm` files) inside the data folder. Settings → Data also exports everything as JSON and all entries as CSV, and restores the JSON export.
 

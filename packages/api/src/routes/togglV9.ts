@@ -1,6 +1,6 @@
 import express, { type Request, type Response, type Router } from 'express';
 import { nowIso, transaction, type Db } from '../db/index.ts';
-import { generateApiToken, hashPassword, MAX_PASSWORD_LENGTH, verifyPassword } from '../auth/crypto.ts';
+import { generateApiToken, hashPassword, readNewPassword, verifyPassword } from '../auth/crypto.ts';
 import { requireAuth } from '../auth/middleware.ts';
 import { passwordCounters } from '../auth/rateLimit.ts';
 import { deleteOtherSessions } from '../auth/sessions.ts';
@@ -148,7 +148,7 @@ export function togglV9Routes(deps: Deps): Router {
 
     let passwordHash = user.password_hash;
     if (body.password !== undefined) {
-      const password = optionalString(body.password, 'password', MAX_PASSWORD_LENGTH) ?? '';
+      const password = readNewPassword(body.password);
       // No length cap on the current password, so an owner whose older setup accepted a longer one can
       // still rotate it. Login and Basic auth do the same; the request body limit bounds it.
       const current = optionalString(body.current_password, 'current_password', Number.POSITIVE_INFINITY) ?? '';
@@ -156,7 +156,6 @@ export function togglV9Routes(deps: Deps): Router {
       const valid = await loginLimiter.attempt(counters, () => verifyPassword(current, user.password_hash));
       if (valid === null) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counters));
       if (!valid) throw badRequest('Current password is not valid');
-      if (password.length < 8) throw badRequest('Password must be at least 8 characters');
       passwordHash = await hashPassword(password);
     }
 

@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { keys, useMe } from '../api/hooks.ts';
-import type { AdminAccount, InstanceSettings, Invite, UserRole } from '../api/types.ts';
+import type { AdminAccount, InstanceSettings, Invite, PasswordResetLink, UserRole } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -56,11 +56,17 @@ function roleLabel(role: UserRole): string {
   return role === 'admin' ? 'an admin' : 'a regular user';
 }
 
-function UserRow({ user, self, settings, onDelete }: {
+/** A server path such as /invite/<token> as a full link to share. */
+function absoluteLink(path: string): string {
+  return new URL(path, window.location.origin).href;
+}
+
+function UserRow({ user, self, settings, onDelete, onResetLink }: {
   user: AdminAccount;
   self: boolean;
   settings: Settings;
   onDelete: (user: AdminAccount) => void;
+  onResetLink: (user: AdminAccount, link: string) => void;
 }) {
   const fields = useFieldErrors<'role' | 'status'>();
   const disabled = user.disabled_at !== null;
@@ -77,6 +83,10 @@ function UserRow({ user, self, settings, onDelete }: {
   const revoke = useAction({
     mutationFn: () => api.post(`${ADMIN}/users/${user.id}/sessions/revoke`),
     success: `Signed ${user.email} out of every browser. Their API token still works.`,
+  });
+  const reset = useAction<void, PasswordResetLink>({
+    mutationFn: () => api.post<PasswordResetLink>(`${ADMIN}/users/${user.id}/password-reset`),
+    onSuccess: (created) => onResetLink(user, absoluteLink(created.url)),
   });
 
   // The controls stay enabled while a change is pending, so the one that failed keeps focus and
@@ -133,6 +143,16 @@ function UserRow({ user, self, settings, onDelete }: {
               onClick={() => revoke.mutate()}
             >
               <Icon name="logout" size={16} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={`Reset password of ${user.email}`}
+              title="Reset password: create a one-time link to set a new password"
+              disabled={reset.isPending}
+              onClick={() => reset.mutate()}
+            >
+              <Icon name="key" size={16} />
             </button>
             <button
               type="button"
@@ -198,6 +218,7 @@ function DeleteUserModal({ user, onClose }: { user: AdminAccount; onClose: () =>
 
 function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: number | undefined; settings: Settings }) {
   const [deleting, setDeleting] = useState<AdminAccount | null>(null);
+  const [reset, setReset] = useState<{ email: string; link: string } | null>(null);
   return (
     <SettingsCard
       id="users"
@@ -217,28 +238,56 @@ function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: 
           </thead>
           <tbody>
             {users.map((user) => (
-              <UserRow key={user.id} user={user} self={user.id === meId} settings={settings} onDelete={setDeleting} />
+              <UserRow
+                key={user.id}
+                user={user}
+                self={user.id === meId}
+                settings={settings}
+                onDelete={setDeleting}
+                onResetLink={(account, link) => setReset({ email: account.email, link })}
+              />
             ))}
           </tbody>
         </table>
       </div>
+      {reset ? (
+        <NewLink
+          key={reset.link}
+          link={reset.link}
+          label={`Password reset link for ${reset.email}`}
+          copied="Reset link copied"
+          onDone={() => setReset(null)}
+        >
+          <strong>Password reset link for {reset.email} created.</strong> Copy it now: it is shown only once. Send it to
+          them; it works once, for 24 hours, and replaces any earlier link. Using it signs the account out everywhere.
+        </NewLink>
+      ) : null}
       {deleting ? <DeleteUserModal key={deleting.id} user={deleting} onClose={() => setDeleting(null)} /> : null}
     </SettingsCard>
   );
 }
 
-/** The link of a new invite. The server returns it only once, so it is gone after a reload. */
-function NewInviteLink({ link, onDone }: { link: string; onDone: () => void }) {
+/**
+ * A new one-time link, such as an invite or a password reset link. The server returns it only once,
+ * so it is gone after a reload.
+ */
+function NewLink({ link, label, copied, onDone, children }: {
+  link: string;
+  label: string;
+  copied: string;
+  onDone: () => void;
+  children: ReactNode;
+}) {
   const toast = useToast();
   const copy = () => {
     copyText(link, 'Could not copy. Select the link and copy it by hand.')
-      .then(() => toast.show('Invite link copied'), (error: unknown) => toast.error(error));
+      .then(() => toast.show(copied), (error: unknown) => toast.error(error));
   };
   return (
-    <div className="settings-notice admin-new-invite" role="status">
-      <div className="admin-new-invite-text">
-        <p><strong>Invite link created.</strong> Copy it now: it is shown only once. Send it to the person you invite.</p>
-        <code className="token-value" aria-label="Invite link">{link}</code>
+    <div className="settings-notice admin-new-link" role="status">
+      <div className="admin-new-link-text">
+        <p>{children}</p>
+        <code className="token-value" aria-label={label}>{link}</code>
       </div>
       <div className="inline-controls">
         <button type="button" className="button button-ghost" onClick={copy}>
@@ -289,7 +338,7 @@ function InvitesSection({ settings }: { settings: Settings }) {
     mutationFn: (body) => api.post<Invite & { url: string }>(`${ADMIN}/invites`, body),
     invalidate: [adminKeys.invites],
     onSuccess: (invite) => {
-      setLink(new URL(invite.url, window.location.origin).href);
+      setLink(absoluteLink(invite.url));
       setNote('');
     },
     onError: (error) => fields.validate([[/role/i.test(error.message) ? 'role' : 'note', error.message]]),
@@ -332,7 +381,11 @@ function InvitesSection({ settings }: { settings: Settings }) {
           </button>
         </div>
       </form>
-      {link ? <NewInviteLink link={link} onDone={() => setLink(null)} /> : null}
+      {link ? (
+        <NewLink link={link} label="Invite link" copied="Invite link copied" onDone={() => setLink(null)}>
+          <strong>Invite link created.</strong> Copy it now: it is shown only once. Send it to the person you invite.
+        </NewLink>
+      ) : null}
 
       <h3 className="settings-subheading">Pending invites</h3>
       {invites.error ? (

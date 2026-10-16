@@ -39,6 +39,15 @@ export interface Invite {
   expires_at: string;
 }
 
+/**
+ * A new password reset link from POST /api/app/admin/users/:id/password-reset. This response is the
+ * only place the token appears.
+ */
+export interface PasswordResetLink {
+  url: string;
+  expires_at: string;
+}
+
 /** Settings an admin changes at runtime, from /api/app/admin/settings. */
 export interface InstanceSettings {
   session_days: number;

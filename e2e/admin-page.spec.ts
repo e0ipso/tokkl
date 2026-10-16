@@ -108,6 +108,36 @@ test('an admin creates an invite, sees its link once, and revokes it', async ({ 
   expect(await data.inviteList()).toEqual([]);
 });
 
+// TT-0143: the admin gets a one-time link and passes it on; the admin never sees or sets the password.
+test('an admin issues a password reset link, sees it once, and a new one replaces it', async ({ page, data, users }) => {
+  const rita = await users.create({ fullname: 'Regular Rita' });
+  await login(page);
+  await openAdmin(page);
+  await expect(userRow(page, EMAIL).getByRole('button', { name: /^Reset password of / })).toHaveCount(0);
+
+  const reset = userRow(page, rita.account.email).getByRole('button', { name: `Reset password of ${rita.account.email}` });
+  const linkOf = page.getByLabel(`Password reset link for ${rita.account.email}`, { exact: true });
+  await reset.click();
+  await expect(linkOf).toHaveText(/^http:\/\/127\.0\.0\.1:\d+\/reset\/[\w-]+$/);
+  await expect(page.locator('#users')).toContainText('works once, for 24 hours');
+  const first = (await linkOf.textContent())!.split('/reset/')[1]!;
+  const check = (token: string) => page.request.get(`/api/app/password-resets/${token}`);
+  expect(await (await check(first)).json()).toEqual({ email: rita.account.email });
+  expect(JSON.stringify(await data.listUsers())).not.toContain(first);
+
+  // A second link replaces the first, which stops working.
+  await reset.click();
+  await expect(linkOf).not.toHaveText(new RegExp(first));
+  const second = (await linkOf.textContent())!.split('/reset/')[1]!;
+  expect((await check(first)).status()).toBe(404);
+  expect((await check(second)).status()).toBe(200);
+
+  await page.reload();
+  await expect(userRow(page, rita.account.email)).toBeVisible();
+  await expect(linkOf).toHaveCount(0);
+  expect(await page.content()).not.toContain(second);
+});
+
 test('an admin updates the instance settings, and an out-of-range value shows the server error on its field', async ({ page, data, runtimeErrors }) => {
   await login(page);
   await openAdmin(page);

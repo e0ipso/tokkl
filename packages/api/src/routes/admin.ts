@@ -6,13 +6,14 @@ import { deleteOtherSessions } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { readJson } from '../http/context.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
-import { optionalBool, optionalString, parseId } from '../lib/values.ts';
+import { optionalBool, optionalString, parseId, togglTime } from '../lib/values.ts';
 import {
-  createInvite, listPendingInvites, MAX_INVITE_NOTE_LENGTH, revokeInvite, revokeInvitesCreatedBy, serializeInvite,
+  createInvite, createPasswordReset, listPendingInvites, MAX_INVITE_NOTE_LENGTH, revokeInvite, revokeInvitesCreatedBy,
+  serializeInvite,
 } from '../models/accountTokens.ts';
 import { deleteSoleMemberWorkspaces } from '../models/workspaces.ts';
 import {
-  countActiveAdmins, getUser, isActiveAdmin, listUsers, serializeAccount, type UserRole,
+  countActiveAdmins, getUser, isActiveAdmin, isActiveUser, listUsers, serializeAccount, type UserRole,
 } from '../models/users.ts';
 import { getInstanceSettings, readSettingChanges, updateInstanceSettings } from '../models/settings.ts';
 
@@ -91,6 +92,22 @@ export function adminRoutes(deps: Deps): Router {
     if (!getUser(db, id)) throw notFound('User not found');
     deleteOtherSessions(db, id);
     return res.json({ ok: true });
+  });
+
+  /**
+   * Issues a one-time link that lets the account set a new password, and revokes its earlier unused
+   * links. The admin never sees or chooses the password.
+   */
+  api.post('/users/:id/password-reset', (req, res) => {
+    const id = parseId(req.params.id);
+    const { token, reset } = transaction(db, () => {
+      const user = getUser(db, id);
+      if (!user) throw notFound('User not found');
+      if (!isActiveUser(user)) throw badRequest('Enable the account before resetting its password');
+      return createPasswordReset(db, { userId: id, createdBy: res.locals.user.id });
+    });
+    // The only response that ever carries the token.
+    return res.json({ url: `/reset/${token}`, expires_at: togglTime(reset.expires_at) });
   });
 
   api.post('/invites', (req, res) => {

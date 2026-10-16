@@ -1,9 +1,10 @@
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
 import { generateSessionToken, sha256 } from '../auth/crypto.ts';
+import { deleteOtherSessions } from '../auth/sessions.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import { togglTime } from '../lib/values.ts';
-import { findUserByEmail, insertAccount, type NewAccount, type UserRole, type UserRow } from './users.ts';
+import { findUserByEmail, getUser, insertAccount, isActiveUser, type NewAccount, type UserRole, type UserRow } from './users.ts';
 
 export interface AccountTokenRow {
   id: number;
@@ -22,6 +23,15 @@ export interface AccountTokenRow {
 export const INVITE_NOT_FOUND = 'This invite link is not valid. Ask your admin for a new one.';
 
 export const MAX_INVITE_NOTE_LENGTH = 255;
+
+/**
+ * The one answer for an unknown, expired, used or revoked reset link, or one for a disabled account,
+ * so a caller cannot tell them apart.
+ */
+export const RESET_NOT_FOUND = 'This password reset link is not valid. Ask your admin for a new one.';
+
+/** How long a password reset link works. */
+export const PASSWORD_RESET_HOURS = 24;
 
 /**
  * Creates an invite that expires after `days` and returns the token. The token is 256 random bits,
@@ -94,4 +104,51 @@ export function serializeInvite(invite: AccountTokenRow) {
     created_at: togglTime(invite.created_at),
     expires_at: togglTime(invite.expires_at),
   };
+}
+
+/**
+ * Creates a password reset link for `userId` that expires after PASSWORD_RESET_HOURS and returns
+ * the token. The user's earlier unused links are deleted in the same transaction, so only the newest
+ * one works. Like an invite, only the token's hash is stored.
+ */
+export function createPasswordReset(db: Db, input: { userId: number; createdBy: number }): { token: string; reset: AccountTokenRow } {
+  const token = generateSessionToken();
+  const now = new Date();
+  const expires = new Date(now.getTime() + PASSWORD_RESET_HOURS * 3_600_000);
+  return transaction(db, () => {
+    db.prepare("DELETE FROM account_tokens WHERE user_id = ? AND kind = 'password_reset' AND used_at IS NULL").run(input.userId);
+    const result = db.prepare(`
+      INSERT INTO account_tokens (token_hash, kind, user_id, created_by, created_at, expires_at)
+      VALUES (?, 'password_reset', ?, ?, ?, ?)
+    `).run(sha256(token), input.userId, input.createdBy, now.toISOString(), expires.toISOString());
+    const reset = db.prepare('SELECT * FROM account_tokens WHERE id = ?').get(Number(result.lastInsertRowid)) as unknown as AccountTokenRow;
+    return { token, reset };
+  });
+}
+
+/** The account a reset `token` belongs to, when the link is unused and unexpired and the account is not disabled. */
+export function findResetUser(db: Db, token: string): UserRow | undefined {
+  const reset = db.prepare(`
+    SELECT user_id FROM account_tokens
+    WHERE token_hash = ? AND kind = 'password_reset' AND used_at IS NULL AND expires_at > ?
+  `).get(sha256(token), nowIso()) as { user_id: number | null } | undefined;
+  const user = reset?.user_id ? getUser(db, reset.user_id) : undefined;
+  return user && isActiveUser(user) ? user : undefined;
+}
+
+/**
+ * Sets the password of the account behind a reset `token`, marks the token used and deletes every
+ * session of the account, in one transaction. The token and the account are checked again inside it,
+ * so two requests cannot both use one link, and an account disabled meanwhile is refused.
+ */
+export function resetPassword(db: Db, token: string, passwordHash: string): UserRow {
+  return transaction(db, () => {
+    const user = findResetUser(db, token);
+    if (!user) throw notFound(RESET_NOT_FOUND);
+    const now = nowIso();
+    db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(passwordHash, now, user.id);
+    db.prepare('UPDATE account_tokens SET used_at = ? WHERE token_hash = ?').run(now, sha256(token));
+    deleteOtherSessions(db, user.id);
+    return user;
+  });
 }

@@ -15,6 +15,7 @@ import { applyTheme } from './lib/theme.ts';
 import { AdminPage } from './pages/AdminPage.tsx';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { InvitePage } from './pages/InvitePage.tsx';
+import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx';
 import { ClientsPage } from './pages/ClientsPage.tsx';
 import { ProjectsPage } from './pages/ProjectsPage.tsx';
 import { ReportsPage } from './pages/ReportsPage.tsx';
@@ -296,9 +297,12 @@ export function App() {
   const forbidden = me.error instanceof ApiError && me.error.status === 403;
   useEndSessionOnForbidden(forbidden, me.isSuccess);
   const [isInvite, invite] = useRoute('/invite/:token');
+  const [isReset, reset] = useRoute('/reset/:token');
 
   // Reachable signed in or not: accepting an invite starts the new account's session.
   if (isInvite) return <InvitePage key={invite.token} token={invite.token} />;
+  // Reachable signed in or not: the person resetting has usually lost access to the account.
+  if (isReset) return <ResetPasswordPage key={reset.token} token={reset.token} />;
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
     return <div className="splash"><Brand size="lg" /><Loading /></div>;
   }
