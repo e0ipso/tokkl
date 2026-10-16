@@ -21,7 +21,9 @@ import {
   createTimeEntry, deleteTimeEntry, getRunningEntry, getTimeEntry, listTimeEntries, patchTimeEntries,
   serializeTimeEntry, stopTimeEntry, updateTimeEntry, type TimeEntryFilter,
 } from '../models/timeEntries.ts';
-import { getPreferences, getUser, serializeUser, type UserRow, validatePreferenceChanges } from '../models/users.ts';
+import {
+  findUserByEmail, getPreferences, getUser, serializeUser, type UserRow, validatePreferenceChanges,
+} from '../models/users.ts';
 import { getWorkspace, listWorkspaces, serializeWorkspace, type WorkspaceRow } from '../models/workspaces.ts';
 
 /** Without filters Toggl returns entries that started in the last 9 days. */
@@ -146,6 +148,13 @@ export function togglV9Routes(deps: Deps): Router {
       if (!valid) throw badRequest('Current password is not valid');
       if (password.length < 8) throw badRequest('Password must be at least 8 characters');
       passwordHash = await hashPassword(password);
+    }
+
+    // Checked after the last await, so no other request can take the address before the UPDATE.
+    // findUserByEmail matches case-insensitively, like the column's UNIQUE constraint.
+    if (email !== undefined) {
+      const owner = findUserByEmail(db, email);
+      if (owner && owner.id !== user.id) throw badRequest('Email already in use');
     }
 
     db.prepare(`

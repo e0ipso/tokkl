@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.ts';
-import { MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
+import { generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
 import { FailureLimiter } from '../src/auth/rateLimit.ts';
-import { openDatabase } from '../src/db/index.ts';
-import { createOwner } from '../src/models/users.ts';
+import { openDatabase, type Db } from '../src/db/index.ts';
+import { createOwner, getUser, type UserRow } from '../src/models/users.ts';
 import { PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
 test('API token Basic auth works and wrong credentials get 403', async () => {
@@ -113,6 +113,38 @@ test('PUT /me changes the password only with the current one', async () => {
     authorization: `Basic ${Buffer.from('me@example.com:new password 1').toString('base64')}`,
   });
   assert.equal(login.status, 200);
+});
+
+/** createOwner refuses a second account, so tests that need one insert it directly. */
+function insertSecondUser(db: Db, owner: UserRow, email: string): UserRow {
+  const result = db.prepare(`
+    INSERT INTO users (email, fullname, password_hash, api_token, timezone, default_workspace_id, preferences, created_at, updated_at)
+    VALUES (?, '', ?, ?, 'UTC', ?, '{}', ?, ?)
+  `).run(email, owner.password_hash, generateApiToken(), owner.default_workspace_id, owner.created_at, owner.created_at);
+  return getUser(db, Number(result.lastInsertRowid))!;
+}
+
+test('PUT /me refuses an email another user has, in any case, and allows recasing your own', async () => {
+  const ctx = await setup();
+  const other = insertSecondUser(ctx.db, ctx.user, 'b@example.com');
+  const putAs = async (user: UserRow, body: unknown) => {
+    const response = await ctx.request('PUT', '/api/v9/me', body, { authorization: basic(user.api_token, 'api_token') });
+    return { status: response.status, body: await response.json() as any };
+  };
+
+  for (const email of ['me@example.com', 'ME@EXAMPLE.COM', '  Me@Example.com  ']) {
+    const taken = await putAs(other, { email, fullname: 'Renamed' });
+    assert.equal(taken.status, 400, email);
+    assert.equal(taken.body, 'Email already in use');
+    assert.equal(getUser(ctx.db, other.id)!.email, 'b@example.com', 'the email is unchanged');
+    assert.equal(getUser(ctx.db, other.id)!.fullname, '', 'nothing else is written either');
+  }
+
+  const recased = await putAs(ctx.user, { email: 'Me@Example.COM' });
+  assert.equal(recased.status, 200);
+  assert.equal(recased.body.email, 'Me@Example.COM');
+  assert.equal(getUser(ctx.db, ctx.user.id)!.email, 'Me@Example.COM');
+  assert.equal((await putAs(other, { email: 'b@example.com' })).status, 200, 'resending your own email is fine');
 });
 
 test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop', async () => {
