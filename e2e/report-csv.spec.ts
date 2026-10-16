@@ -1,4 +1,5 @@
 import type { Page, Request } from '@playwright/test';
+import { currentAccount } from './fixtures.ts';
 import { cellTexts, downloadCsv, expect, hms, parseCsv, test, toSeconds } from './report-tests-helpers.ts';
 import { login } from './helpers.ts';
 
@@ -90,11 +91,12 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
   expect(detailed.filename).toBe('tokkl-detailed-2024-06-01-to-2026-01-31.csv');
   expect(detailed.rows[0]).toEqual(DETAILED_HEADER);
   expect(exported(detailed.rows)).toEqual(byDate);
+  const { fullname, email } = currentAccount();
   expect(detailed.rows.slice(1).map((row) => [row[0], row[1], row[8], row[10]])).toEqual([
-    ['E2E User', 'e2e@example.com', '11:00:00', '13:44:30'],
-    ['E2E User', 'e2e@example.com', '11:00:00', '11:29:00'],
-    ['E2E User', 'e2e@example.com', '12:00:00', '12:01:00'],
-    ['E2E User', 'e2e@example.com', '10:00:00', '10:07:00'],
+    [fullname, email, '11:00:00', '13:44:30'],
+    [fullname, email, '11:00:00', '11:29:00'],
+    [fullname, email, '12:00:00', '12:01:00'],
+    [fullname, email, '10:00:00', '10:07:00'],
   ]);
   expect(hms(detailed.rows.slice(1).reduce((sum, row) => sum + toSeconds(row[11]!), 0))).toBe('3:45:00');
 

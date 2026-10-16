@@ -1,5 +1,5 @@
 import { request, type Browser, type Locator, type Page, type Route } from '@playwright/test';
-import { EMAIL, PASSWORD, expect, test } from './fixtures.ts';
+import { currentAccount, expect, test } from './fixtures.ts';
 import { meWithSession, sessionCookie } from './auth-tests-helpers.ts';
 import { login } from './helpers.ts';
 
@@ -54,7 +54,8 @@ test.use({ colorScheme: 'light' });
 test.afterEach(async ({ baseURL }) => {
   const api = await request.newContext({ baseURL });
   try {
-    expect((await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } })).ok()).toBe(true);
+    const { email, password } = currentAccount();
+    expect((await api.post('/api/app/login', { headers: CSRF, data: { email, password } })).ok()).toBe(true);
     expect((await api.post('/api/v9/me/preferences', { headers: CSRF, data: { theme: 'system' } })).ok()).toBe(true);
     await api.post('/api/app/logout', { headers: CSRF });
   } finally {
@@ -301,8 +302,8 @@ test('an expired session clears the cached theme once, and the login page follow
   expect(meRequests).toHaveLength(3);
 
   // Logging in on that same page works, and the saved theme comes back.
-  await page.getByLabel('Email').fill(EMAIL);
-  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByLabel('Email').fill(currentAccount().email);
+  await page.getByLabel('Password').fill(currentAccount().password);
   await page.getByRole('button', { name: 'Log in' }).click();
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');

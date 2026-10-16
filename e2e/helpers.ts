@@ -1,6 +1,10 @@
 import { expect, type Page } from '@playwright/test';
-import { EMAIL, PASSWORD, SETUP_CODE, type Account } from './fixtures.ts';
+import { EMAIL, PASSWORD, SETUP_CODE, currentAccount, type Account } from './fixtures.ts';
 
+/**
+ * Logs in through the form as this worker's account (`currentAccount()`). On a server with no
+ * account yet it creates the setup admin instead.
+ */
 export async function login(page: Page) {
   await page.goto('/');
   const setup = page.getByRole('heading', { name: 'Create the first admin' });
@@ -13,8 +17,9 @@ export async function login(page: Page) {
     await page.getByLabel('Password').fill(PASSWORD);
     await page.getByRole('button', { name: 'Create admin account' }).click();
   } else {
-    await page.getByLabel('Email').fill(EMAIL);
-    await page.getByLabel('Password').fill(PASSWORD);
+    const account = currentAccount();
+    await page.getByLabel('Email').fill(account.email);
+    await page.getByLabel('Password').fill(account.password);
     await page.getByRole('button', { name: 'Log in' }).click();
   }
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
