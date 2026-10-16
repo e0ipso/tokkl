@@ -128,6 +128,40 @@ test('archiving or deleting a project by keyboard keeps focus in the projects li
   await expect(rowMenu(page, 'Beta')).toBeFocused();
 });
 
+// TT-0200: focus moves past a leaving row only when it would otherwise be lost. A user who moves to
+// another control while the archive request runs keeps focus there.
+test('archiving a project leaves focus alone when the user moved it while the request ran', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  await api.createProject({ name: 'Alpha' });
+  const beta = await api.createProject({ name: 'Beta' });
+  await api.createProject({ name: 'Gamma' });
+  await page.getByRole('link', { name: 'Projects' }).click();
+
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => { release = resolve; });
+  let held!: () => void;
+  const archiveHeld = new Promise<void>((resolve) => { held = resolve; });
+  await page.route(`**/api/v9/workspaces/*/projects/${beta.id}`, async (route) => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    held();
+    await released;
+    await route.continue();
+  });
+
+  await rowActionByKeyboard(page, 'Beta', 'Archive');
+  await archiveHeld;
+  const search = page.getByRole('searchbox', { name: 'Search projects' });
+  await search.click();
+  await expect(search).toBeFocused();
+  release();
+
+  await expect(page.getByText('Archived Beta')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit Beta', exact: true })).toHaveCount(0);
+  await expect(search).toBeFocused();
+  expect((await api.project(beta.id)).active).toBe(false);
+});
+
 // TT-0200: restoring a project under the Archived filter takes its row, and the focused menu button,
 // out of the list, so focus moves to another row's menu, else the page heading.
 test('restoring archived projects by keyboard keeps focus in the projects list', async ({ page }) => {
