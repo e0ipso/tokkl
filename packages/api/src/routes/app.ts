@@ -5,7 +5,7 @@ import { hasCsrfHeader, requireAuth, sessionTokens, verifyAccountPassword } from
 import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, query, readJson, readText } from '../http/context.ts';
-import { HttpError, badRequest, forbidden, notFound } from '../lib/errors.ts';
+import { badRequest, forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey, isValidTimeZone } from '@tokkl/common/time';
 import {
@@ -44,7 +44,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.post('/setup', async (req, res) => {
     if (countUsers(db) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
     const address = clientAddress(req);
-    if (setupLimiter.isBlocked(address)) throw new HttpError(429, 'Too many failed attempts, try again later');
+    if (setupLimiter.isBlocked(address)) throw tooManyRequests('Too many failed attempts, try again later', setupLimiter.retryAfterSeconds(address));
     const body = readJson(req);
     if (typeof body.setup_code !== 'string' || !safeEqual(body.setup_code.trim(), setup.code)) {
       setupLimiter.recordFailure(address);
@@ -69,8 +69,9 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const user = findUserByEmail(db, email);
-    const valid = await loginLimiter.attempt(passwordCounters(email, address), () => verifyAccountPassword(user, password));
-    if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');
+    const counters = passwordCounters(email, address);
+    const valid = await loginLimiter.attempt(counters, () => verifyAccountPassword(user, password));
+    if (valid === null) throw tooManyRequests('Too many failed login attempts, try again later', loginLimiter.retryAfterSeconds(counters));
     if (!user || !valid) throw forbidden('Incorrect email or password');
     // The address counter is left alone, so one account's success cannot clear failures against another.
     loginLimiter.reset(accountCounters(email, address));

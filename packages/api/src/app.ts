@@ -52,7 +52,7 @@ const textBody = (limit: string) => express.text({ type: () => true, limit });
 
 const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   if (res.headersSent) return next(error);
-  if (error instanceof HttpError) return res.status(error.status).json(error.message);
+  if (error instanceof HttpError) return res.status(error.status).set(error.headers).json(error.message);
   // Date helpers throw RangeError on impossible input; that is the caller's mistake, not ours.
   if (error instanceof RangeError) return res.status(400).json(error.message);
   const type = (error as { type?: string }).type;

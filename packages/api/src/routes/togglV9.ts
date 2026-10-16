@@ -6,7 +6,7 @@ import { passwordCounters } from '../auth/rateLimit.ts';
 import { deleteOtherSessions } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
-import { HttpError, badRequest } from '../lib/errors.ts';
+import { badRequest, tooManyRequests } from '../lib/errors.ts';
 import { optionalId, optionalRate, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
 import { isValidTimeZone, startOfDay } from '@tokkl/common/time';
 import {
@@ -152,7 +152,7 @@ export function togglV9Routes(deps: Deps): Router {
       const current = optionalString(body.current_password, 'current_password', Number.POSITIVE_INFINITY) ?? '';
       const counters = passwordCounters(user.email, clientAddress(req));
       const valid = await loginLimiter.attempt(counters, () => verifyPassword(current, user.password_hash));
-      if (valid === null) throw new HttpError(429, 'Too many failed attempts, try again later');
+      if (valid === null) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counters));
       if (!valid) throw badRequest('Current password is not valid');
       if (password.length < 8) throw badRequest('Password must be at least 8 characters');
       passwordHash = await hashPassword(password);

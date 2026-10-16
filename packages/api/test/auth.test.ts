@@ -352,7 +352,7 @@ async function multiUserApp(count: number, names = Array.from({ length: count },
     headers: { 'content-type': 'application/json', 'x-forwarded-for': address, authorization: basic(user.api_token, 'api_token') },
     body: JSON.stringify({ current_password: current, password: 'new password 1' }),
   })).status;
-  return { db, users, emails, login, changePassword };
+  return { app, db, users, emails, login, changePassword };
 }
 
 test('one account signing in from an address does not reset failures against another', async () => {
@@ -502,4 +502,117 @@ test('the tt_session cookie and X-Timetrack-CSRF header from before the rename s
   assert.ok(cleared.some((cookie) => cookie.startsWith('tokkl_session=;')));
   assert.ok(cleared.some((cookie) => cookie.startsWith('tt_session=;')));
   assert.equal((await call('GET', '/api/v9/me', { cookie: legacy })).status, 403, 'logout ended the session');
+});
+
+const WINDOW_SECONDS = 15 * 60;
+const retryAfter = (response: Response) => response.headers.get('retry-after');
+
+test('FailureLimiter.retryAfterSeconds rounds up, uses the earliest full counter and stays within the window', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const limiter = new FailureLimiter(100, 15 * 60 * 1000);
+  const early = { key: 'early', limit: 2 };
+  const late = { key: 'late', limit: 2 };
+  const fail = async () => false;
+
+  await limiter.attempt([early], fail);
+  t.mock.timers.tick(100_000);
+  await limiter.attempt([early, late], fail);
+  await limiter.attempt([late], fail);
+  assert.equal(limiter.isBlocked([early]), true);
+  assert.equal(limiter.isBlocked([late]), true);
+
+  assert.equal(limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100);
+  assert.equal(limiter.retryAfterSeconds([late]), WINDOW_SECONDS);
+  assert.equal(limiter.retryAfterSeconds([late, early]), WINDOW_SECONDS - 100, 'the earliest full counter, whatever the order');
+  assert.equal(limiter.retryAfterSeconds([{ key: 'free', limit: 2 }, late]), WINDOW_SECONDS);
+
+  t.mock.timers.tick(1);
+  assert.equal(limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100, 'a partial second rounds up');
+  t.mock.timers.tick(WINDOW_SECONDS * 1000 - 100_001 - 1);
+  assert.equal(limiter.retryAfterSeconds([early]), 1, 'never below one second');
+
+  t.mock.timers.tick(1);
+  assert.equal(await limiter.attempt([early], async () => true), true, 'the wait frees the counter');
+});
+
+test('FailureLimiter gives one second to an attempt refused only because the waiting queue is full', async () => {
+  const limiter = new FailureLimiter(2, 15 * 60 * 1000);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const slow = async () => { await held; return false; };
+  const queued = Array.from({ length: 5 }, () => limiter.attempt('addr', slow));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(limiter.isBlocked('addr'), false);
+  assert.equal(limiter.retryAfterSeconds('addr'), 1);
+  release();
+  await Promise.all(queued);
+});
+
+test('login, Basic auth and password-change 429s carry Retry-After, and waiting that long frees the counter', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const { app, users, login } = await multiUserApp(1);
+  const [owner] = users as [UserRow];
+  const loginResponse = () => app.request('/api/app/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    body: JSON.stringify({ email: owner.email, password: PASSWORD }),
+  });
+  const basicResponse = () => app.request('/api/v9/me', {
+    headers: { 'x-forwarded-for': '10.0.0.1', authorization: basic(owner.email, PASSWORD) },
+  });
+  const changeResponse = () => app.request('/api/v9/me', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1', authorization: basic(owner.api_token, 'api_token') },
+    body: JSON.stringify({ current_password: PASSWORD, password: 'new password 1' }),
+  });
+
+  for (let i = 0; i < 10; i++) assert.equal(await login(owner.email, 'wrong'), 403);
+  t.mock.timers.tick(1_500);
+
+  for (const [name, send] of [['login', loginResponse], ['basic', basicResponse], ['change', changeResponse]] as const) {
+    const response = await send();
+    assert.equal(response.status, 429, name);
+    assert.equal(retryAfter(response), String(WINDOW_SECONDS - 1), `${name}: 898.5 seconds left, rounded up`);
+    assert.match(await response.text(), /Too many failed/, `${name}: the body is unchanged`);
+  }
+
+  t.mock.timers.tick((WINDOW_SECONDS - 1) * 1000);
+  assert.equal((await basicResponse()).status, 200, 'the counter is free after the advertised wait');
+  assert.equal((await loginResponse()).status, 200);
+});
+
+test('a 429 from the address counter carries Retry-After for the earliest full counter', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const { app, login } = await multiUserApp(1);
+  // One hundred failures across accounts fill only the address counter.
+  await Promise.all(Array.from({ length: 100 }, (_, i) => login(`nobody${Math.floor(i / 5)}@example.com`, 'wrong')));
+  t.mock.timers.tick(30_000);
+  const response = await app.request('/api/app/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    body: JSON.stringify({ email: 'user0@example.com', password: PASSWORD }),
+  });
+  assert.equal(response.status, 429);
+  assert.equal(retryAfter(response), String(WINDOW_SECONDS - 30));
+});
+
+test('setup 429s carry Retry-After, and waiting that long allows another code', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const db = openDatabase(':memory:');
+  const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const post = (setupCode: string) => app.request('/api/app/setup', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    body: JSON.stringify({ email: 'owner@example.com', password: 'long enough', setup_code: setupCode }),
+  });
+
+  for (let i = 0; i < 10; i++) assert.equal((await post('WRONG')).status, 403);
+  t.mock.timers.tick(250);
+  const refused = await post('ABCD-EFGH-JKLM');
+  assert.equal(refused.status, 429);
+  assert.equal(retryAfter(refused), String(WINDOW_SECONDS));
+  assert.match(await refused.text(), /Too many failed/);
+
+  t.mock.timers.tick(WINDOW_SECONDS * 1000 - 250);
+  assert.equal((await post('ABCD-EFGH-JKLM')).status, 200);
 });

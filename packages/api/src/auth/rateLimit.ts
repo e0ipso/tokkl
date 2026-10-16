@@ -112,6 +112,22 @@ export class FailureLimiter {
     }
   }
 
+  /**
+   * Whole seconds, rounded up, until the counter that frees a slot first does so. Call it after
+   * `attempt` returned null or `isBlocked` returned true. It is never below 1 or above the window.
+   * An attempt refused only because the queue behind a running check was full has no counter at its
+   * limit, and gets 1 second. The result does not say which counter is full.
+   */
+  retryAfterSeconds(keys: Keys, now = Date.now()): number {
+    const resets = this.counters(keys).flatMap(({ key, limit }) => {
+      const entry = this.current(key, now);
+      return entry && entry.failures >= limit ? [entry.resetAt] : [];
+    });
+    if (resets.length === 0) return 1;
+    const seconds = Math.ceil((Math.min(...resets) - now) / 1000);
+    return Math.min(Math.max(seconds, 1), Math.ceil(this.windowMs / 1000));
+  }
+
   private counters(keys: Keys): readonly Counter[] {
     return typeof keys === 'string' ? [{ key: keys, limit: this.maxFailures }] : keys;
   }

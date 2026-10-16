@@ -1,7 +1,7 @@
 import type { Request, RequestHandler } from 'express';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
-import { HttpError, forbidden } from '../lib/errors.ts';
+import { forbidden, tooManyRequests } from '../lib/errors.ts';
 import { findUserByApiToken, findUserByEmail, isActiveAdmin, isActiveUser, type UserRow } from '../models/users.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from './crypto.ts';
 import { passwordCounters } from './rateLimit.ts';
@@ -62,7 +62,7 @@ async function userFromBasic(deps: Deps, req: Request, header: string): Promise<
   const candidate = findUserByEmail(deps.db, credentials.username);
   const counters = passwordCounters(credentials.username, clientAddress(req));
   const valid = await deps.loginLimiter.attempt(counters, () => verifyAccountPassword(candidate, credentials.password));
-  if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');
+  if (valid === null) throw tooManyRequests('Too many failed login attempts, try again later', deps.loginLimiter.retryAfterSeconds(counters));
   if (candidate && valid) return candidate;
   throw forbidden('Incorrect username and/or password');
 }
