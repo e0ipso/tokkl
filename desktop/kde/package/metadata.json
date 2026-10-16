@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Tokkl contributors"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "Start and stop the Tokkl timer from the panel",
+        "FormFactors": [
+            "desktop"
+        ],
+        "Icon": "chronometer",
+        "Id": "com.github.e0ipso.tokkl",
+        "Name": "Tokkl",
+        "Website": "https://github.com/e0ipso/tokkl"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

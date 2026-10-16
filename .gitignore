@@ -17,3 +17,4 @@ data/
 *.pfx
 coverage/
 test-results/
+/desktop/kde/build/
