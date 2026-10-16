@@ -23,6 +23,6 @@ Form login (`routes/app.ts`), HTTP Basic auth (`auth/middleware.ts`) and the pas
 
 Accounts are keyed by `normalizeEmail`: trim, then lowercase ASCII A-Z only. That matches SQLite `COLLATE NOCASE` on `users.email`. Do not use `toLowerCase`, which also folds letters such as Ä and would merge distinct users (`Ä@` and `ä@`) into one counter.
 
-New passwords (owner setup and password change) are capped at `MAX_PASSWORD_LENGTH` (1024, `packages/api/src/auth/crypto.ts`). Current passwords are not capped on login, Basic auth or rotation, so an owner with an older, longer password can still sign in and change it.
+New passwords (first-admin setup and password change) are capped at `MAX_PASSWORD_LENGTH` (1024, `packages/api/src/auth/crypto.ts`). Current passwords are not capped on login, Basic auth or rotation, so an owner with an older, longer password can still sign in and change it.
 
 Cookie-authenticated requests other than GET, HEAD and OPTIONS must send `X-Tokkl-CSRF: 1` (`hasCsrfHeader` in `packages/api/src/auth/middleware.ts`, which also accepts the pre-rename `X-Timetrack-CSRF: 1`); `packages/web/src/api/client.ts` always sends `X-Tokkl-CSRF`. `POST /logout` requires it when a session is active and stays idempotent without one.

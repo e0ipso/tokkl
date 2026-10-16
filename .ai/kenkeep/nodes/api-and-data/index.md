@@ -22,7 +22,7 @@ _None._
 
 ## Components (what exists)
 - Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) to learn about: Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings. #server #reports #api #web
-- Open [**Users, roles and workspace membership (migration 3)**](map-users-roles-and-workspace-membership.md) to learn about: users.role, users.disabled_at and workspace_users come from migration 3; helpers live in models/workspaces.ts. #server #database #migrations #auth #workspaces
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) to learn about: Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers. #server #database #migrations #auth #workspaces
 
 ## By topic
 
@@ -40,17 +40,17 @@ _None._
 - Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 ### #auth
 - Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1.
-- Open [**Users, roles and workspace membership (migration 3)**](map-users-roles-and-workspace-membership.md) — users.role, users.disabled_at and workspace_users come from migration 3; helpers live in models/workspaces.ts.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
 - Open [**End web sessions through endSession and logOut in lib/session.ts**](../web-ui-behaviour/practice-end-sessions-through-lib-session.md) — Logout clears the Query cache and cached theme even on failure, then reloads; a 403 from /me ends the session once per sign-in.
 ### #database
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
-- Open [**Users, roles and workspace membership (migration 3)**](map-users-roles-and-workspace-membership.md) — users.role, users.disabled_at and workspace_users come from migration 3; helpers live in models/workspaces.ts.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
 ### #import
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.
 - Open [**Toggl CSV import: choose team-export users by opaque key**](practice-toggl-csv-import-selects-users-by-opaque-key.md) — Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400.
 ### #migrations
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
-- Open [**Users, roles and workspace membership (migration 3)**](map-users-roles-and-workspace-membership.md) — users.role, users.disabled_at and workspace_users come from migration 3; helpers live in models/workspaces.ts.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
 ### #performance
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](practice-write-paths-validate-refs-not-totals.md) — Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals.
@@ -90,4 +90,4 @@ _None._
 - Open [**Week calendar hour height lives in three places**](../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
 ### #workspaces
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](../tooling-and-project/map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
-- Open [**Users, roles and workspace membership (migration 3)**](map-users-roles-and-workspace-membership.md) — users.role, users.disabled_at and workspace_users come from migration 3; helpers live in models/workspaces.ts.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.

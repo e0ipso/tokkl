@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:2d4d923cfce4810c377da4894cd5f9290ee25d4aa5d7d74fdf42a11ed56a4575'
-node_count: 37
+nodes_hash: 'sha256:9b5f22da0724d791b4c804dcd25182c8c8ba084037d7c7f8bc6de89e5520438c'
+node_count: 38
 ---
 # kenkeep Graph
 
-Total nodes: 37
+Total nodes: 38
 
 ## map-app-icons-script
 
@@ -44,7 +44,7 @@ Total nodes: 37
 - **title:** KDE Plasma companion in desktop/kde
 - **path:** tooling-and-project/map-kde-plasma-companion-desktop-kde.md
 - **tags:** tooling, kde, desktop, testing
-- **relates_to:** map-npm-workspaces-package-layout, map-test-and-static-analysis-layout
+- **relates_to:** practice-kde-companion-connection-and-configure-page-rules, map-npm-workspaces-package-layout, map-test-and-static-analysis-layout
 
 ## map-npm-workspaces-package-layout
 
@@ -89,7 +89,7 @@ Total nodes: 37
 ## map-users-roles-and-workspace-membership
 
 - **kind:** map
-- **title:** Users, roles and workspace membership (migration 3)
+- **title:** Users, roles and workspace membership
 - **path:** api-and-data/map-users-roles-and-workspace-membership.md
 - **tags:** server, database, migrations, auth, workspaces
 - **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-and-csrf-rules
@@ -170,6 +170,14 @@ Total nodes: 37
 - **path:** api-and-data/practice-json-restore-rules.md
 - **tags:** server, import, restore, backup
 - **relates_to:** practice-write-paths-validate-refs-not-totals, practice-parse-api-timestamps-with-parseinstant
+
+## practice-kde-companion-connection-and-configure-page-rules
+
+- **kind:** practice
+- **title:** KDE companion: connection errors, settings generations and the Configure page
+- **path:** tooling-and-project/practice-kde-companion-connection-and-configure-page-rules.md
+- **tags:** kde, desktop, auth, configuration
+- **relates_to:** map-kde-plasma-companion-desktop-kde, practice-password-checks-and-csrf-rules
 
 ## practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows
 

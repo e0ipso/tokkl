@@ -41,7 +41,7 @@ _None._
 - Open [**Parse incoming timestamps with parseInstant**](../api-and-data/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
 ### #auth
 - Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](../api-and-data/practice-password-checks-and-csrf-rules.md) — Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1.
-- Open [**Users, roles and workspace membership (migration 3)**](../api-and-data/map-users-roles-and-workspace-membership.md) — users.role, users.disabled_at and workspace_users come from migration 3; helpers live in models/workspaces.ts.
+- Open [**Users, roles and workspace membership**](../api-and-data/map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
 - Open [**End web sessions through endSession and logOut in lib/session.ts**](practice-end-sessions-through-lib-session.md) — Logout clears the Query cache and cached theme even on failure, then reloads; a 403 from /me ends the session once per sign-in.
 ### #calendar
 - Open [**UI time math uses account-local wall-clock helpers**](practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
