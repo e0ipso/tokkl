@@ -402,6 +402,12 @@ cmake --build desktop/core/build -j"$(nproc)"
 ctest --test-dir desktop/core/build --output-on-failure
 ```
 
+`desktop/core/ci/check.sh` does the same in a throwaway Fedora 44 container
+with only the Qt base development packages, after removing the Qt Gui runtime.
+It fails when the core needs Qt Gui, a KDE library or any Qt library other
+than Core, Network and Test. It needs Docker, or another engine set in
+`CONTAINER_ENGINE`.
+
 ## Staged install
 
 ```sh
@@ -524,8 +530,9 @@ The scripts it runs work on their own, for a prepared machine:
 The `kde` job in `.github/workflows/ci.yml` runs once per target, TUXEDO OS
 24.04 (DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
 `scripts/container-check.sh` for the version in `package.json`, then
-`ci/realserver.sh`. The release job needs both targets and the server and
-web checks to pass.
+`ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`. The
+release job needs both targets, the `core` job and the server and web checks
+to pass.
 
 The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
 images pinned by digest, the TUXEDO OS repositories, and the build and test

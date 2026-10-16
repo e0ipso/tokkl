@@ -85,8 +85,21 @@ jobs:
           OUTPUT: ${{ runner.temp }}/kde
         run: desktop/kde/ci/realserver.sh --format "$FORMAT" --output "$OUTPUT"
 
+  # desktop/core on its own in a pinned Fedora 44 container with only the
+  # Qt base development packages and no Qt Gui runtime, so a Gui or KDE
+  # dependency in the shared core fails here.
+  core:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: desktop/core/ci/check.sh
+
   release:
-    needs: [test, kde]
+    needs: [test, kde, core]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency: release
