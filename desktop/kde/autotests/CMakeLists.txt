@@ -7,6 +7,16 @@ add_test(NAME version
         -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/version
         -P ${CMAKE_CURRENT_SOURCE_DIR}/versiontest.cmake)
 
+# A source file removed from package/contents/ must leave the package.
+add_test(NAME prune-package
+    COMMAND ${CMAKE_COMMAND}
+        -DTOKKL_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/prune
+        -DECM_DIR=${ECM_DIR}
+        -DPlasma_DIR=${Plasma_DIR}
+        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/prunetest.cmake)
+
 # Stage the install under the build tree with DESTDIR. The prefix stays as
 # configured, so the layout matches a real install.
 set(_stage_dir "${CMAKE_CURRENT_BINARY_DIR}/stage")

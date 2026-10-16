@@ -12,7 +12,9 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/metadata.json")
 
 # configure_file() re-runs configure when a source changes; the glob picks up
-# added or removed files.
+# added or removed files. Start from an empty contents/ so a removed or renamed
+# source file does not leave its earlier copy in the package.
+file(REMOVE_RECURSE "${_build_dir}/contents")
 file(GLOB_RECURSE _contents CONFIGURE_DEPENDS
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/contents/*")

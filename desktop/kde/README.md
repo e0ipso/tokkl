@@ -40,6 +40,9 @@ ctest --test-dir desktop/kde/build --output-on-failure
 CTest runs these checks:
 
 - `version`: version resolution and metadata stamping.
+- `prune-package`: a source file removed from `package/contents/` leaves the
+  assembled package and the staged install after a rebuild in the same build
+  directory.
 - `stage-install`, `smokeload`, `stage-cleanup`: install into
   `<build>/autotests/stage` with `DESTDIR`, then load the widget and the backend
   from there in an offscreen Plasma session. The test uses its own XDG
