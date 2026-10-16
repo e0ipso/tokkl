@@ -177,6 +177,11 @@ QVariantList TimerController::projects() const
     return list;
 }
 
+bool TimerController::projectsIncomplete() const
+{
+    return m_projectsIncomplete;
+}
+
 QVariant TimerController::selectedProjectId() const
 {
     return m_connection ? m_connection->nextProjectIdVariant() : QVariant::fromValue(nullptr);
@@ -434,8 +439,9 @@ void TimerController::loseWorkspace(const ApiError &error)
     m_error = tr("Tokkl cannot use this workspace any more (%1). Check your membership, then reconnect.").arg(error.message);
     applyEntry(std::nullopt);
     m_projectsKnown = false;
-    if (!m_projects.isEmpty()) {
+    if (!m_projects.isEmpty() || m_projectsIncomplete) {
         m_projects.clear();
+        m_projectsIncomplete = false;
         Q_EMIT projectsChanged();
     }
     if (m_connection) {
@@ -553,6 +559,7 @@ void TimerController::fetchProjects()
         }
         if (result.ok()) {
             self->m_projects = *result.value;
+            self->m_projectsIncomplete = self->m_connection && self->m_connection->projectsIncomplete();
             self->m_projectsKnown = true;
             Q_EMIT self->projectsChanged();
             self->resolveEntryProject();
@@ -704,8 +711,9 @@ void TimerController::reset()
         Q_EMIT currentEntryChanged();
     }
     updateElapsed();
-    if (!m_projects.isEmpty()) {
+    if (!m_projects.isEmpty() || m_projectsIncomplete) {
         m_projects.clear();
+        m_projectsIncomplete = false;
         Q_EMIT projectsChanged();
     }
     setEntryProject(std::nullopt);

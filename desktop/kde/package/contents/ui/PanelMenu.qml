@@ -99,6 +99,20 @@ PlasmaComponents.Menu {
             onObjectRemoved: (index, object) => projectMenu.removeItem(object)
         }
 
+        // The projects read are fewer than the workspace has: say so and point
+        // to the web app. Placed before the projects so a long list does not
+        // bury it.
+        Instantiator {
+            model: menu.timer.projectsIncomplete ? [true] : []
+            delegate: PlasmaComponents.MenuItem {
+                enabled: false
+                text: i18nc("@item:inmenu", "Project list cut short. Use Open Tokkl for the others.")
+                Accessible.description: i18nc("@info:whatsthis", "The workspace has more active projects than this menu can list. Open Tokkl in the web app to choose the others.")
+            }
+            onObjectAdded: (index, object) => projectMenu.insertItem(projectMenu.fixedCount + index, object)
+            onObjectRemoved: (index, object) => projectMenu.removeItem(object)
+        }
+
         Instantiator {
             model: menu.timer.projects
             delegate: ChoiceItem {
@@ -109,7 +123,7 @@ PlasmaComponents.Menu {
                 enabled: menu.timer.canWrite
                 onTriggered: menu.timer.chooseProject(modelData.id)
             }
-            onObjectAdded: (index, object) => projectMenu.insertItem(projectMenu.fixedCount + index, object)
+            onObjectAdded: (index, object) => projectMenu.insertItem(projectMenu.fixedCount + (menu.timer.projectsIncomplete ? 1 : 0) + index, object)
             onObjectRemoved: (index, object) => projectMenu.removeItem(object)
         }
     }

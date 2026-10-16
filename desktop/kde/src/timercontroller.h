@@ -92,6 +92,9 @@ private:
     Q_PROPERTY(QString elapsedText READ elapsedText NOTIFY elapsedChanged)
 
     Q_PROPERTY(QVariantList projects READ projects NOTIFY projectsChanged)
+    // The connection could not read every active project: projects is a
+    // prefix of them. Cleared with the projects.
+    Q_PROPERTY(bool projectsIncomplete READ projectsIncomplete NOTIFY projectsChanged)
     // Choices for the next start, kept by the connection for its account:
     // null or a project id, and the billable flag.
     Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId WRITE setSelectedProjectId NOTIFY selectionChanged)
@@ -138,6 +141,7 @@ public:
     QString elapsedText() const;
 
     QVariantList projects() const;
+    bool projectsIncomplete() const;
     QVariant selectedProjectId() const;
     void setSelectedProjectId(const QVariant &projectId);
     bool billable() const;
@@ -211,6 +215,7 @@ private:
 
     std::optional<TimeEntry> m_entry;
     QList<Project> m_projects;
+    bool m_projectsIncomplete = false;
     // The project list of this context was read at least once.
     bool m_projectsKnown = false;
     std::optional<Project> m_entryProject;
