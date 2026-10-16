@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# The shared Tokkl release version (semver, for example 1.2.0 or 1.2.0-rc.1).
+# scripts/package-release.sh sets it and writes debian/changelog to match.
+ifeq ($(strip $(TOKKL_VERSION)),)
+$(error TOKKL_VERSION is not set; build with scripts/package-release.sh)
+endif
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DTOKKL_VERSION=$(TOKKL_VERSION) -DBUILD_TESTING=OFF
+
+# The tests need an offscreen Plasma session and run in CI, not in package
+# builds.
+override_dh_auto_test:

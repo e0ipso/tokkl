@@ -24,9 +24,9 @@ server image do not build or ship it.
 | Plasma: libplasma, PlasmaQuick                              | 6.6     |
 
 The minimums cover the two supported targets: TUXEDO OS 24.04 (Qt 6.10.2, KDE
-Frameworks 6.24.0, Plasma 6.6.6) and Fedora KDE 44 (Qt 6.11.2, KDE Frameworks
-6.25.0 and libplasma 6.6.4 in October 2026). Older Plasma 6 releases are not
-supported.
+Frameworks 6.24.0, Plasma 6.6.6) and Fedora KDE 44 (released with Qt 6.10.2,
+KDE Frameworks 6.25.0 and libplasma 6.6.4; see [Packages](#packages) for the
+versions its updates bring). Older Plasma 6 releases are not supported.
 
 Packages on TUXEDO OS 24.04: `cmake extra-cmake-modules qt6-base-dev
 qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
@@ -218,3 +218,85 @@ With `CMAKE_INSTALL_PREFIX=/usr` the staged tree uses the standard paths:
 
 The backend goes to Qt's own QML directory (`KDE_INSTALL_QMLDIR`), so the
 path follows the distribution's Qt layout.
+
+## Packages
+
+Two native packages, both named `tokkl-kde`, ship the widget and the compiled
+backend at the paths above:
+
+| Package | Target                     | Architecture | Built against                                       |
+| ------- | -------------------------- | ------------ | --------------------------------------------------- |
+| `.deb`  | TUXEDO OS 24.04            | amd64        | Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.6      |
+| `.rpm`  | Fedora KDE 44 with updates | x86_64       | Qt 6.11.2, KDE Frameworks 6.31.0, Plasma 6.7.5      |
+
+The Fedora column is what the Fedora 44 repositories held on 2026-10-16; a
+later build uses whatever its updates hold then. The RPM depends on the Qt it
+was built with, so it needs an updated Fedora 44, not the release media alone.
+These are the only tested targets. Other Ubuntu or Debian releases, other
+Fedora releases, other RPM distributions and other architectures are not
+supported. Stock Ubuntu 24.04 has no KDE Frameworks 6 or Plasma 6, so the
+`.deb` does not install there.
+
+The package version is the shared Tokkl version from the root `package.json`;
+there is no separate companion version. The widget metadata carries it
+unchanged. The package version uses `~` in place of a pre-release dash, so
+`1.2.0-rc.1` becomes `1.2.0~rc.1` and sorts before `1.2.0`. The RPM release is
+always `1`.
+
+Dependencies:
+
+- Libraries (KF6 Wallet, Qt Core, Network and Qml) come from
+  `dpkg-shlibdeps` and rpm's own scan.
+- The QML modules the widget imports at run time are declared by hand, since
+  no tool can see them: `org.kde.plasma.*` (in `plasma-desktoptheme` on TUXEDO
+  OS, `libplasma` on Fedora), Kirigami, KCMUtils and Qt Quick, Controls,
+  Layouts and Templates. Floors follow the CMake minimums.
+- The KDE Wallet daemon is recommended (`kwallet6`, `kf6-kwallet`). Without a
+  working wallet the widget shows a KDE Wallet error and keeps no secret
+  anywhere else.
+
+Neither package has maintainer scripts or files outside `/usr`. Removing or
+purging one leaves each user's widget settings (in the Plasma applet
+configuration) and the KDE Wallet entries untouched.
+
+### Build and check
+
+`scripts/container-check.sh` builds both packages and checks them in
+throwaway containers, `ubuntu:24.04` with the TUXEDO OS repositories added and
+`fedora:44`, so nothing is installed on the host. It needs Docker, or another
+engine set in `CONTAINER_ENGINE`. Run it from the repository root with the
+version from `package.json`:
+
+```sh
+version="$(node -p 'require("./package.json").version')"
+desktop/kde/scripts/container-check.sh --version "$version" --output "$(mktemp -d)"
+```
+
+The output directory gets `tokkl-kde_<version>_amd64.deb` and
+`tokkl-kde-<version>-1.fc44.x86_64.rpm`, plus a `previous/` directory with
+version 0.0.0 builds of the same source that the upgrade check starts from.
+`--format deb` or `--format rpm` builds one; `--previous-version` changes the
+older version. `TOKKL_DEB_IMAGE` and `TOKKL_RPM_IMAGE` replace the images, for
+example with pinned digests.
+
+The scripts it runs work on their own, for CI or a prepared machine:
+
+- `scripts/prepare-target.sh --format deb|rpm [--build-deps]`: adds the TUXEDO
+  OS repositories on Ubuntu 24.04 (the key fingerprint is checked) and, with
+  `--build-deps`, installs the build dependencies from `debian/control` or
+  `packaging/rpm/tokkl-kde.spec`. Run it as root, only in a container.
+- `scripts/package-release.sh --version <version> --format deb|rpm --output
+  <dir>`: builds one package with `dpkg-buildpackage` or `rpmbuild` from a
+  copy of the source, without the tests, and prints its path. The version is
+  required; `debian/changelog` is written from it at build time.
+- `scripts/check-package.sh --version <version> --package <file> [--previous
+  <file>]`: inspects the package (name, version, architecture, widget and
+  backend paths, dependencies, no maintainer scripts), installs it on a clean
+  system, checks the stamped widget version, the backend's libraries and the
+  package manager's verify, removes it, then installs the previous package,
+  upgrades and removes again (purging on Debian). Settings and wallet files in
+  a test home directory must not change. It installs packages, so run it as
+  root in a container.
+
+The checks do not load the widget in Plasma; the CTest `smokeload` test does
+that from a staged install.
