@@ -25,7 +25,10 @@ import {
 import {
   findUserByEmail, getPreferences, getUser, serializeUser, type UserRow, validatePreferenceChanges,
 } from '../models/users.ts';
-import { getWorkspace, listWorkspaces, serializeWorkspace, type WorkspaceRow } from '../models/workspaces.ts';
+import {
+  countWorkspaceMembers, getWorkspace, getWorkspaceRole, isWorkspaceMember, listWorkspaceMembers, listWorkspaces,
+  listWorkspacesForUser, serializeWorkspace, type WorkspaceRow,
+} from '../models/workspaces.ts';
 
 /** Without filters Toggl returns entries that started in the last 9 days. */
 const DEFAULT_LIST_DAYS = 9;
@@ -35,6 +38,11 @@ function workspaceFor(db: Db, req: Request): WorkspaceRow {
   const workspace = getWorkspace(db, wid);
   if (!workspace) throw forbidden('User does not have access to this resource.');
   return workspace;
+}
+
+/** `ws` in Toggl's shape, with its admin flag and role taken from `user`'s membership. */
+function serializeWorkspaceFor(db: Db, user: UserRow, ws: WorkspaceRow) {
+  return serializeWorkspace(ws, getWorkspaceRole(db, user.id, ws.id));
 }
 
 function boundary(value: string, field: string, user: UserRow): Date {
@@ -109,7 +117,7 @@ export function togglV9Routes(deps: Deps): Router {
     const body: Record<string, unknown> = serializeUser(user, { includeToken: true });
     if (queryFlag(req, 'with_related_data')) {
       const workspaces = listWorkspaces(db);
-      body.workspaces = workspaces.map(serializeWorkspace);
+      body.workspaces = workspaces.map((ws) => serializeWorkspaceFor(db, user, ws));
       body.clients = workspaces.flatMap((ws) => listClients(db, ws.id).map(serializeClient));
       body.projects = workspaces.flatMap((ws) => listProjects(db, ws.id).map((p) => serializeProject(p, ws.default_currency)));
       body.tags = workspaces.flatMap((ws) => listTags(db, ws.id).map(serializeTag));
@@ -194,27 +202,30 @@ export function togglV9Routes(deps: Deps): Router {
   api.post('/me/preferences', savePreferences);
   api.post('/me/preferences/:client', savePreferences);
 
-  api.get('/me/workspaces', (req, res) => res.json(listWorkspaces(db).map(serializeWorkspace)));
+  api.get('/me/workspaces', (req, res) => res.json(listWorkspaces(db).map((ws) => serializeWorkspaceFor(db, res.locals.user, ws))));
 
-  api.get('/me/organizations', (req, res) => res.json(listWorkspaces(db).map((ws) => ({
-    id: ws.id,
-    name: ws.name,
-    pricing_plan_id: 0,
-    pricing_plan_name: 'Self-hosted',
-    created_at: togglTime(ws.created_at),
-    at: togglTime(ws.updated_at),
-    server_deleted_at: null,
-    is_multi_workspace_enabled: false,
-    suspended_at: null,
-    user_count: 1,
-    trial_info: null,
-    is_chargify: false,
-    is_unified: false,
-    max_workspaces: 1,
-    admin: true,
-    owner: true,
-    permissions: null,
-  }))));
+  api.get('/me/organizations', (req, res) => res.json(listWorkspacesForUser(db, res.locals.user.id).map((ws) => {
+    const owner = getWorkspaceRole(db, res.locals.user.id, ws.id) === 'owner';
+    return {
+      id: ws.id,
+      name: ws.name,
+      pricing_plan_id: 0,
+      pricing_plan_name: 'Self-hosted',
+      created_at: togglTime(ws.created_at),
+      at: togglTime(ws.updated_at),
+      server_deleted_at: null,
+      is_multi_workspace_enabled: false,
+      suspended_at: null,
+      user_count: countWorkspaceMembers(db, ws.id),
+      trial_info: null,
+      is_chargify: false,
+      is_unified: false,
+      max_workspaces: 1,
+      admin: owner,
+      owner,
+      permissions: null,
+    };
+  })));
 
   api.get('/me/features', (req, res) => res.json(listWorkspaces(db).map((ws) => ({ workspace_id: ws.id, features: [] }))));
 
@@ -256,7 +267,7 @@ export function togglV9Routes(deps: Deps): Router {
   });
 
   // ----- workspaces -----------------------------------------------------------------------------
-  api.get('/workspaces/:wid', (req, res) => res.json(serializeWorkspace(workspaceFor(db, req))));
+  api.get('/workspaces/:wid', (req, res) => res.json(serializeWorkspaceFor(db, res.locals.user, workspaceFor(db, req))));
 
   api.put('/workspaces/:wid', async (req, res) => {
     const ws = workspaceFor(db, req);
@@ -283,12 +294,17 @@ export function togglV9Routes(deps: Deps): Router {
       UPDATE workspaces SET name = ?, default_currency = ?, default_hourly_rate = ?, rounding = ?, rounding_minutes = ?,
         updated_at = ? WHERE id = ?
     `).run(name, (currency ?? ws.default_currency).toUpperCase(), rate, rounding, roundingMinutes, nowIso(), ws.id);
-    return res.json(serializeWorkspace(getWorkspace(db, ws.id)!));
+    return res.json(serializeWorkspaceFor(db, res.locals.user, getWorkspace(db, ws.id)!));
   });
 
   api.get('/workspaces/:wid/users', (req, res) => {
-    const user = res.locals.user;
-    return res.json([{ id: user.id, email: user.email, fullname: user.fullname, timezone: user.timezone, admin: true, inactive: false }]);
+    const wid = parseId(req.params.wid);
+    // TT-0135 moves this into the shared workspace resolver; without it any account could list other accounts' emails.
+    if (!isWorkspaceMember(db, res.locals.user.id, wid)) throw forbidden('User does not have access to this resource.');
+    return res.json(listWorkspaceMembers(db, wid).map((member) => ({
+      id: member.id, email: member.email, fullname: member.fullname, timezone: member.timezone,
+      admin: member.role === 'owner', inactive: false,
+    })));
   });
 
   // Time entries

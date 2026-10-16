@@ -36,7 +36,37 @@ export function addWorkspaceMember(db: Db, wid: number, userId: number, role: Wo
 }
 
 export function isWorkspaceMember(db: Db, userId: number, wid: number): boolean {
-  return db.prepare('SELECT 1 FROM workspace_users WHERE user_id = ? AND workspace_id = ?').get(userId, wid) !== undefined;
+  return getWorkspaceRole(db, userId, wid) !== undefined;
+}
+
+/** `userId`'s role in workspace `wid`, or undefined when the user is not a member. */
+export function getWorkspaceRole(db: Db, userId: number, wid: number): WorkspaceMemberRole | undefined {
+  const row = db.prepare('SELECT role FROM workspace_users WHERE user_id = ? AND workspace_id = ?').get(userId, wid) as
+    { role: WorkspaceMemberRole } | undefined;
+  return row?.role;
+}
+
+export function countWorkspaceMembers(db: Db, wid: number): number {
+  return (db.prepare('SELECT COUNT(*) AS n FROM workspace_users WHERE workspace_id = ?').get(wid) as { n: number }).n;
+}
+
+export interface WorkspaceMember {
+  id: number;
+  email: string;
+  fullname: string;
+  timezone: string;
+  /** The membership role, never the instance role in users.role. */
+  role: WorkspaceMemberRole;
+}
+
+/** The members of workspace `wid`, ordered by user id. */
+export function listWorkspaceMembers(db: Db, wid: number): WorkspaceMember[] {
+  return db.prepare(`
+    SELECT users.id, users.email, users.fullname, users.timezone, workspace_users.role FROM workspace_users
+    JOIN users ON users.id = workspace_users.user_id
+    WHERE workspace_users.workspace_id = ?
+    ORDER BY users.id
+  `).all(wid) as unknown as WorkspaceMember[];
 }
 
 /** The workspaces `userId` belongs to, in any role, ordered by id. */
@@ -49,15 +79,20 @@ export function listWorkspacesForUser(db: Db, userId: number): WorkspaceRow[] {
   `).all(userId) as unknown as WorkspaceRow[];
 }
 
-export function serializeWorkspace(ws: WorkspaceRow) {
+/**
+ * A workspace in Toggl's shape, with `admin` and `role` describing the caller's membership.
+ * Owners are Toggl workspace admins; members and non-members get Toggl's non-admin role.
+ */
+export function serializeWorkspace(ws: WorkspaceRow, membership: WorkspaceMemberRole | undefined) {
+  const admin = membership === 'owner';
   return {
     id: ws.id,
     organization_id: ws.id,
     name: ws.name,
     premium: true,
     business_ws: true,
-    admin: true,
-    role: 'admin',
+    admin,
+    role: admin ? 'admin' : 'user',
     suspended_at: null,
     server_deleted_at: null,
     default_hourly_rate: ws.default_hourly_rate,
