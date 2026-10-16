@@ -64,6 +64,10 @@ CTest runs these checks:
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
 - `version`: version resolution and metadata stamping.
+- `native-version`: the versions `scripts/native-version.sh` accepts, what it
+  maps them to and the ones it refuses. dpkg and rpm then check that the
+  mapped versions sort in SemVer order; either tool is skipped, with a
+  message, when it is not installed.
 - `prune-package`: a source file removed from `package/contents/` leaves the
   assembled package and the staged install after a rebuild in the same build
   directory.
