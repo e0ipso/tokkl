@@ -8,8 +8,8 @@
 # For each format it builds the images of ci/Dockerfile (deb) or
 # ci/fedora.Dockerfile (rpm), tagged <image>:<format>-target, -build and
 # -test, then runs three containers, all removed afterwards:
-#   1. test: configure and build the project with the version, run CTest
-#      under Xvfb and a DBus session, and copy the smokeload and
+#   1. test: configure and build the project, with desktop/core, for the
+#      version, run CTest under Xvfb and a DBus session, and copy the smokeload and
 #      realservertest binaries to <dir>/tests/<format>/, with the packages
 #      the load check needs in packages.txt.
 #   2. build: scripts/package-release.sh for --previous-version (into
@@ -54,13 +54,16 @@ done
 [ -n "$version" ] && [ -n "$output" ] || usage
 
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The containers get desktop/ at /desktop: the companion and the desktop
+# core it builds on.
+desktop_dir="$(cd "$source_dir/.." && pwd)"
 native_version="$("$source_dir/scripts/native-version.sh" "$version")" || exit 2
 native_previous="$("$source_dir/scripts/native-version.sh" "$previous_version")" || exit 2
 if [ "$previous_version" = "$version" ]; then
     echo "error: --previous-version must be older than --version" >&2
     exit 2
 fi
-# The containers only see desktop/kde, so it keeps its own copy of the
+# The containers only see desktop/, so desktop/kde keeps its own copy of the
 # repository's LICENSE for the RPM. Refuse a copy that has drifted.
 if [ -f "$source_dir/../../LICENSE" ] && ! cmp -s "$source_dir/LICENSE" "$source_dir/../../LICENSE"; then
     echo "error: desktop/kde/LICENSE differs from the repository's LICENSE; copy it again" >&2
@@ -99,9 +102,9 @@ for format in $formats; do
     mkdir -p "$output/tests/$format"
     # shellcheck disable=SC2016
     "$engine" run --rm \
-        -v "$source_dir:/src:ro" -v "$output/tests/$format:/tests" \
+        -v "$desktop_dir:/desktop:ro" -v "$output/tests/$format:/tests" \
         "$image:$format-test" bash -euc '
-            cmake -S /src -B /tmp/build -DTOKKL_VERSION="$1" -DCMAKE_INSTALL_PREFIX=/usr
+            cmake -S /desktop/kde -B /tmp/build -DTOKKL_VERSION="$1" -DCMAKE_INSTALL_PREFIX=/usr
             cmake --build /tmp/build -j"$(nproc)"
             dbus-run-session -- xvfb-run -a ctest --test-dir /tmp/build --output-on-failure
             cp /tmp/build/autotests/smokeload /tmp/build/tests/realservertest /tests/
@@ -120,20 +123,20 @@ for format in $formats; do
     echo "== $format: package $previous_version and $version"
     # shellcheck disable=SC2016
     "$engine" run --rm \
-        -v "$source_dir:/src:ro" -v "$output:/out" \
+        -v "$desktop_dir:/desktop:ro" -v "$output:/out" \
         "${build_env[@]}" \
         "$image:$format-build" bash -euc '
-            /src/scripts/package-release.sh --version "$2" --format "$1" --output /out/previous
-            /src/scripts/package-release.sh --version "$3" --format "$1" --output /out
+            /desktop/kde/scripts/package-release.sh --version "$2" --format "$1" --output /out/previous
+            /desktop/kde/scripts/package-release.sh --version "$3" --format "$1" --output /out
         ' bash "$format" "$previous_version" "$version"
 
     echo "== $format: install, load, upgrade and remove in a clean target"
     # The globs only match the release suffix of the RPM file name.
     # shellcheck disable=SC2016
     "$engine" run --rm \
-        -v "$source_dir:/src:ro" -v "$output:/out:ro" \
+        -v "$desktop_dir:/desktop:ro" -v "$output:/out:ro" \
         "$image:$format-target" bash -euc '
-            /src/scripts/check-package.sh --version "$1" --package '"$new"' --previous '"$old"' \
+            /desktop/kde/scripts/check-package.sh --version "$1" --package '"$new"' --previous '"$old"' \
                 --load-test "/out/tests/$2"
         ' bash "$version" "$format"
 done

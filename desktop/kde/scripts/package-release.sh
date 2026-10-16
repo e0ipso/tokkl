@@ -9,8 +9,8 @@
 # It goes into the widget metadata unchanged; scripts/native-version.sh gives
 # the package version (1.2.0~rc1) and lists the forms that can be packaged.
 #
-# The source tree is copied to a temporary directory, so the checkout is only
-# read. Only the binary package is written to the output directory, and its
+# The source tree and desktop/core are copied to a temporary directory, so
+# the checkout is only read. Only the binary package is written to the output directory, and its
 # path is printed on the last line.
 
 set -euo pipefail
@@ -34,6 +34,8 @@ done
 [ -n "$version" ] && [ -n "$format" ] && [ -n "$output" ] || usage
 
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The shared desktop core the companion builds on.
+core_dir="$(cd "$source_dir/../core" && pwd)"
 # Refuses, with status 2, versions that dpkg or rpm would order differently.
 native_version="$("$source_dir/scripts/native-version.sh" "$version")" || exit 2
 mkdir -p "$output"
@@ -41,11 +43,14 @@ output="$(cd "$output" && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# The files the build needs. The tests and any build directory stay behind.
+# The files the build needs, with the desktop core in core/; debian/rules
+# and the RPM spec point TOKKL_CORE_DIR at it. The tests and any build
+# directory stay behind.
 copy_source() {
-    mkdir -p "$1"
+    mkdir -p "$1/core"
     cp -a "$source_dir/CMakeLists.txt" "$source_dir/LICENSE" "$source_dir/README.md" \
         "$source_dir/cmake" "$source_dir/package" "$source_dir/src" "$1/"
+    cp -a "$core_dir/CMakeLists.txt" "$core_dir/cmake" "$core_dir/src" "$1/core/"
 }
 
 build_deb() {

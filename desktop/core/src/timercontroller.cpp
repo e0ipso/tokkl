@@ -240,7 +240,7 @@ TimerController::IndicatorState TimerController::indicatorState() const
     return m_indicatorState;
 }
 
-QColor TimerController::indicatorColor() const
+QString TimerController::indicatorColor() const
 {
     return m_indicatorColor;
 }
@@ -810,7 +810,7 @@ void TimerController::resolveProject()
 void TimerController::updateIndicator()
 {
     IndicatorState state = IndicatorState::None;
-    QColor color;
+    QString color;
     if (const std::optional<qint64> id = chosenProject()) {
         bool gone = false;
         const std::optional<Project> project = knownProject(*id, &gone);
@@ -821,7 +821,7 @@ void TimerController::updateIndicator()
             // The rule of isHexColor in packages/common/colors.ts.
             static const QRegularExpression hex(QStringLiteral("^#[0-9a-f]{6}$"), QRegularExpression::CaseInsensitiveOption);
             if (hex.match(project->color).hasMatch()) {
-                color = QColor::fromString(project->color);
+                color = project->color.toLower();
             }
         }
     }

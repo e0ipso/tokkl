@@ -1,6 +1,8 @@
-# Usage: cmake -DTOKKL_SOURCE_DIR=<desktop/kde> -DWORK_DIR=<dir> -P versiontest.cmake
+# Usage: cmake -DTOKKL_SOURCE_DIR=<desktop/kde> -DTOKKL_CORE_DIR=<desktop/core>
+#              -DWORK_DIR=<dir> -P versiontest.cmake
 cmake_minimum_required(VERSION 3.27...3.31)
-include(${TOKKL_SOURCE_DIR}/cmake/TokklVersion.cmake)
+include(${TOKKL_CORE_DIR}/cmake/TokklVersion.cmake)
+include(${TOKKL_SOURCE_DIR}/cmake/TokklMetadata.cmake)
 
 file(REMOVE_RECURSE "${WORK_DIR}")
 file(MAKE_DIRECTORY "${WORK_DIR}")
@@ -17,7 +19,8 @@ function(expect_failure pattern what snippet)
     set(script "${WORK_DIR}/failure.cmake")
     file(WRITE "${script}"
         "cmake_minimum_required(VERSION 3.27...3.31)\n"
-        "include(\"${TOKKL_SOURCE_DIR}/cmake/TokklVersion.cmake\")\n"
+        "include(\"${TOKKL_CORE_DIR}/cmake/TokklVersion.cmake\")\n"
+        "include(\"${TOKKL_SOURCE_DIR}/cmake/TokklMetadata.cmake\")\n"
         "${snippet}\n")
     execute_process(COMMAND ${CMAKE_COMMAND} -P "${script}"
         RESULT_VARIABLE result ERROR_VARIABLE stderr OUTPUT_QUIET)

@@ -46,9 +46,10 @@ jobs:
       - run: npm run test:e2e
 
   # The KDE companion on each supported target, in the pinned images of
-  # desktop/kde/ci: CTest, the DEB or RPM with installation, loading,
-  # upgrade and removal checks, then the real-server test. The version is
-  # the one in package.json; the release job builds its own packages.
+  # desktop/kde/ci: CTest (desktop/core's tests included), the DEB or RPM
+  # with installation, loading, upgrade and removal checks, then the
+  # real-server test. The version is the one in package.json; the release
+  # job builds its own packages.
   kde:
     name: kde (${{ matrix.target }})
     runs-on: ubuntu-latest

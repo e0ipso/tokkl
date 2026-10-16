@@ -15,7 +15,7 @@ file(COPY "${TOKKL_SOURCE_DIR}/package" "${TOKKL_SOURCE_DIR}/cmake" DESTINATION 
 file(WRITE "${src}/package/contents/ui/Extra.qml" "import QtQuick\nItem {}\n")
 file(WRITE "${src}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.27...3.31)
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/TokklVersion.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/TokklMetadata.cmake)
 project(prune-fixture LANGUAGES CXX)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/package/metadata.json" _metadata)
 string(JSON TOKKL_PLASMOID_ID GET "${_metadata}" KPlugin Id)

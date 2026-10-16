@@ -1,8 +1,9 @@
-# Version resolution and metadata stamping for the KDE companion.
+# Version resolution for the Tokkl desktop projects.
 #
-# The companion ships with the Tokkl release it belongs to, so it has no
-# version of its own: the default comes from the root package.json and a
-# release build passes the resolved shared version explicitly.
+# The desktop companions and their shared core ship with the Tokkl release
+# they belong to, so they have no version of their own: the default comes
+# from the root package.json and a release build passes the resolved shared
+# version explicitly.
 #
 # Works in project mode and in script mode (cmake -P), so the tests can call
 # these functions without configuring a project.
@@ -52,31 +53,4 @@ function(tokkl_version_core out_var version)
         message(FATAL_ERROR "\"${version}\" is not a semantic version.")
     endif()
     set(${out_var} "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}.${CMAKE_MATCH_3}" PARENT_SCOPE)
-endfunction()
-
-# tokkl_stamp_metadata(INPUT <metadata.json> OUTPUT <metadata.json> VERSION <version>)
-#
-# Copies the widget metadata with KPlugin.Version set to VERSION. The source
-# metadata carries no version, so there is nothing to keep in sync by hand.
-function(tokkl_stamp_metadata)
-    cmake_parse_arguments(PARSE_ARGV 0 ARG "" "INPUT;OUTPUT;VERSION" "")
-
-    file(READ "${ARG_INPUT}" metadata)
-    string(JSON existing ERROR_VARIABLE missing GET "${metadata}" KPlugin Version)
-    if(NOT missing)
-        message(FATAL_ERROR
-            "${ARG_INPUT} sets KPlugin.Version to \"${existing}\". Remove it: "
-            "the build stamps the Tokkl version.")
-    endif()
-    string(JSON metadata SET "${metadata}" KPlugin Version "\"${ARG_VERSION}\"")
-    string(APPEND metadata "\n")
-
-    # Rewrite only on change so a reconfigure does not reinstall the package.
-    if(EXISTS "${ARG_OUTPUT}")
-        file(READ "${ARG_OUTPUT}" current)
-        if(current STREQUAL metadata)
-            return()
-        endif()
-    endif()
-    file(WRITE "${ARG_OUTPUT}" "${metadata}")
 endfunction()

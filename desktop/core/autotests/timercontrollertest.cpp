@@ -1280,7 +1280,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
-        QVERIFY(!f.timer.indicatorColor().isValid());
+        QVERIFY(f.timer.indicatorColor().isEmpty());
         QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
 
         f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
@@ -1292,18 +1292,18 @@ private Q_SLOTS:
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
         // The project is not known until the project list answers.
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
-        QVERIFY(!f.timer.indicatorColor().isValid());
+        QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(indicator.count(), 1);
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
-        QCOMPARE(f.timer.indicatorColor(), QColor(0x06, 0xaa, 0xf5));
+        QCOMPARE(f.timer.indicatorColor(), QStringLiteral("#06aaf5"));
         QCOMPARE(indicator.count(), 2);
 
         // An entry without a project shows nothing.
         poll(f);
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
-        QVERIFY(!f.timer.indicatorColor().isValid());
+        QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(indicator.count(), 3);
     }
 
@@ -1331,7 +1331,7 @@ private Q_SLOTS:
         QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
         f.respond(archived, FakeTransport::answer(200, json(projectObject(33, 7, QStringLiteral("#9E5BD9"), false))));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
-        QCOMPARE(f.timer.indicatorColor(), QColor(0x9e, 0x5b, 0xd9));
+        QCOMPARE(f.timer.indicatorColor(), QStringLiteral("#9e5bd9"));
         QCOMPARE(indicator.count(), 1);
 
         // Deleted on the server: 404 gives None.
@@ -1344,7 +1344,7 @@ private Q_SLOTS:
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
         f.respond(f.last("GET", "/projects/44"), FakeTransport::answer(404, "\"Project not found\""));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
-        QVERIFY(!f.timer.indicatorColor().isValid());
+        QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(indicator.count(), 3);
         if (running) {
             // entryProject keeps the id without a name, as before.
@@ -1411,7 +1411,7 @@ private Q_SLOTS:
         // and checked once more (TT-0215).
         f.respond(again, FakeTransport::answer(404, "\"Project not found\""));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
-        QVERIFY(!f.timer.indicatorColor().isValid());
+        QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(f.find("GET", "/projects/33").size(), 3);
         f.respond(f.last("GET", "/projects/33"), FakeTransport::answer(404, "\"Project not found\""));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
@@ -1490,7 +1490,7 @@ private Q_SLOTS:
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(12, 7, color)) + "]"));
         QVERIFY(f.timer.chooseProject(12));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
-        QVERIFY(!f.timer.indicatorColor().isValid());
+        QVERIFY(f.timer.indicatorColor().isEmpty());
     }
 
     void indicatorChangesAreSignalled()
@@ -1526,13 +1526,13 @@ private Q_SLOTS:
         // A projects reload with a new colour.
         f.timer.refresh();
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(11, 7, QStringLiteral("#d92b2b"))) + "]"));
-        QCOMPARE(f.timer.indicatorColor(), QColor(0xd9, 0x2b, 0x2b));
+        QCOMPARE(f.timer.indicatorColor(), QStringLiteral("#d92b2b"));
         QCOMPARE(indicator.count(), 4);
 
         // A new generation clears it.
         f.connection.setInstanceUrl(instanceB);
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
-        QVERIFY(!f.timer.indicatorColor().isValid());
+        QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(indicator.count(), 5);
     }
 

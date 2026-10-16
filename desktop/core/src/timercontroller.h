@@ -4,7 +4,6 @@
 #include "clock.h"
 #include "connection.h"
 
-#include <QColor>
 #include <QDateTime>
 #include <QObject>
 #include <QPointer>
@@ -130,10 +129,10 @@ private:
     // project the instance no longer has is a map with an empty name.
     Q_PROPERTY(QVariant entryProject READ entryProjectVariant NOTIFY entryProjectChanged)
     // The project behind chosenProjectId for the panel indicator, and its
-    // colour. The colour is valid only in the Project state and for a
-    // #rrggbb value.
+    // colour as lowercase #rrggbb. The colour is empty outside the Project
+    // state and for any other value. A string keeps the core free of Qt Gui.
     Q_PROPERTY(IndicatorState indicatorState READ indicatorState NOTIFY indicatorChanged)
-    Q_PROPERTY(QColor indicatorColor READ indicatorColor NOTIFY indicatorChanged)
+    Q_PROPERTY(QString indicatorColor READ indicatorColor NOTIFY indicatorChanged)
 
 public:
     static constexpr int pollIntervalMs = 30000;
@@ -177,7 +176,7 @@ public:
     std::optional<Project> entryProject() const;
     QVariant entryProjectVariant() const;
     IndicatorState indicatorState() const;
-    QColor indicatorColor() const;
+    QString indicatorColor() const;
 
     static QString formatElapsed(qint64 seconds);
 
@@ -275,7 +274,7 @@ private:
     quint64 m_projectsRevision = 0;
     QSet<qint64> m_lookupsPending; // ids of the project reads in flight
     IndicatorState m_indicatorState = IndicatorState::None;
-    QColor m_indicatorColor;
+    QString m_indicatorColor;
     qint64 m_elapsed = 0;
     QString m_error;
 

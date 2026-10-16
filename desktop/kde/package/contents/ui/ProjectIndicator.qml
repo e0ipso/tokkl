@@ -32,7 +32,7 @@ Item {
     readonly property bool filled: timer.indicatorState === TokklTimer.IndicatorState.Project
     readonly property bool dashed: timer.indicatorState === TokklTimer.IndicatorState.None
     readonly property bool round: timer.running
-    readonly property color fillColor: timer.indicatorColor.valid ? timer.indicatorColor : Kirigami.Theme.textColor
+    readonly property color fillColor: timer.indicatorColor !== "" ? timer.indicatorColor : Kirigami.Theme.textColor
     readonly property color ringColor: Kirigami.Theme.textColor
     readonly property bool pulsing: pulse.running
     readonly property alias fillOpacity: fill.opacity

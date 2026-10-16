@@ -1,6 +1,7 @@
 # Tokkl KDE companion: a Plasma 6 panel widget (QML package) and the Qt/C++
-# QML module it imports. Standalone project; the npm workspaces and the server
-# image do not build or ship anything from this directory.
+# QML module it imports, built on the shared core in desktop/core.
+# Standalone project; the npm workspaces and the server image do not build or
+# ship anything from this directory.
 
 cmake_minimum_required(VERSION 3.27...3.31)
 
@@ -12,7 +13,13 @@ set(TOKKL_QT_MIN_VERSION "6.10.0")
 set(TOKKL_KF_MIN_VERSION "6.24.0")
 set(TOKKL_PLASMA_MIN_VERSION "6.6.0")
 
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/TokklVersion.cmake)
+# The shared desktop core (tokklcore and its tests). Package builds point
+# this at the copy next to their source tree.
+set(TOKKL_CORE_DIR "${CMAKE_CURRENT_LIST_DIR}/../core"
+    CACHE PATH "Source directory of the Tokkl desktop core")
+
+include(${TOKKL_CORE_DIR}/cmake/TokklVersion.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/TokklMetadata.cmake)
 
 # Empty by default: the version comes from the root package.json. Release
 # builds pass the resolved shared Tokkl version, for example -DTOKKL_VERSION=1.2.0.
@@ -60,6 +67,7 @@ ecm_find_qmlmodule(org.kde.kcmutils)
 
 message(STATUS "Tokkl KDE companion version: ${TOKKL_RESOLVED_VERSION}")
 
+add_subdirectory("${TOKKL_CORE_DIR}" core)
 add_subdirectory(src)
 add_subdirectory(package)
 

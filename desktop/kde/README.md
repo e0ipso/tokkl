@@ -13,11 +13,15 @@ It has two parts:
   `PanelButton.qml` (with its project indicator, `ProjectIndicator.qml`) and
   `PanelMenu.qml`.
 - `src/`: the backend, a Qt/C++ QML module imported as `com.github.e0ipso.tokkl.backend`.
-  The API client, the credential store interface, connection state and timer
-  controller are in the `tokklcore` static library, which the module and the
-  tests link. It does not use KDE Frameworks. The KDE Wallet store and the
-  connection types the widget creates from QML, which pass that store in, are
-  in the `tokklkde` static library.
+  The KDE Wallet store and the connection types the widget creates from QML,
+  which pass that store in, are in the `tokklkde` static library.
+
+The API client, the credential store interface, connection state and timer
+controller are the `tokklcore` static library in `desktop/core`, a separate
+CMake project that needs only Qt Core and Network (and Qt Test for its
+tests). This project adds it with `add_subdirectory`, so the module and the
+tests link it and its tests run in this project's CTest. `TOKKL_CORE_DIR`
+names its source directory; the default is `../core`.
 
 This is a standalone CMake project. The npm workspaces, `npm run build` and the
 server image do not build or ship it.
@@ -126,7 +130,8 @@ cmake --build desktop/kde/build -j"$(nproc)"
 ctest --test-dir desktop/kde/build --output-on-failure
 ```
 
-CTest runs these checks:
+CTest runs these checks. `api`, `connection`, `timer` and `networktransport`
+come from `desktop/core`.
 
 - `api`: instance URL parsing, Basic credentials and decoding of the API's
   bare JSON objects, arrays, `null` and error strings.
@@ -327,7 +332,7 @@ hand; the tests run offscreen.
 
 ## Timer
 
-`TokklTimer` (`src/timercontroller.h`) drives the timer for the widget. QML
+`TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget. QML
 sets its `connection` to the widget's `TokklConnection`.
 
 - The elapsed time (`elapsedText`, `H:MM:SS`) is recomputed every second from
@@ -342,8 +347,8 @@ sets its `connection` to the widget's `TokklConnection`.
 - `indicatorState` says what the panel can show for that project: `None`
   without a project or when the read answered 404, `Pending` while its
   details are still unknown, and `Project` once they are, archived projects
-  included. `indicatorColor` is the project's colour in the `Project` state
-  when it is `#rrggbb`, and an invalid colour otherwise. `indicatorChanged`
+  included. `indicatorColor` is the project's colour as lowercase `#rrggbb`
+  in the `Project` state when it has that form, and an empty string otherwise. `indicatorChanged`
   fires whenever either changes. The panel's project indicator draws it.
 - Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
   `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
@@ -383,7 +388,19 @@ cmake -S desktop/kde -B desktop/kde/build -DTOKKL_VERSION=1.2.0
 
 `package/metadata.json` has no `Version` key. The build writes the version into
 the copy it installs, and configuring fails if the source file has one.
-Building outside the Tokkl checkout requires `-DTOKKL_VERSION`.
+Building outside the Tokkl checkout requires `-DTOKKL_VERSION`. `desktop/core`
+reads its version the same way, from `TOKKL_VERSION` or the root
+`package.json`; inside this build it uses the same cache entries. Both print
+the version while configuring (`Tokkl KDE companion version` and `Tokkl
+desktop core version`).
+
+To build and test `desktop/core` on its own:
+
+```sh
+cmake -S desktop/core -B desktop/core/build
+cmake --build desktop/core/build -j"$(nproc)"
+ctest --test-dir desktop/core/build --output-on-failure
+```
 
 ## Staged install
 
@@ -459,7 +476,8 @@ desktop/kde/scripts/container-check.sh --version "$version" --output "$(mktemp -
 
 For each format it builds the three stages of `ci/Dockerfile` (TUXEDO OS) or
 `ci/fedora.Dockerfile` (Fedora) as `tokkl-kde-ci:<format>-target`, `-build`
-and `-test` (`TOKKL_KDE_CI_IMAGE` changes the name), then:
+and `-test` (`TOKKL_KDE_CI_IMAGE` changes the name). The containers see
+`desktop/` read-only at `/desktop`, so the build finds `desktop/core`. Then:
 
 1. In the test image, configures and builds the project with the version and
    runs CTest under Xvfb and a DBus session. The `smokeload` and
@@ -484,7 +502,8 @@ The scripts it runs work on their own, for a prepared machine:
   Run it as root, only in a container.
 - `scripts/package-release.sh --version <version> --format deb|rpm --output
   <dir>`: builds one package with `dpkg-buildpackage` or `rpmbuild` from a
-  copy of the source, without the tests, and prints its path. The version is
+  copy of the source with `desktop/core` in `core/`, without the tests, and
+  prints its path. The version is
   required; `debian/changelog` is written from it at build time.
 - `scripts/check-package.sh --version <version> --package <file> [--previous
   <file>] [--load-test <dir>]`: inspects the package (name, version,
