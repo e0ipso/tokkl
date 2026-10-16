@@ -634,6 +634,7 @@ void TimerController::fetchProjects()
             self->m_projectsIncomplete = self->m_connection && self->m_connection->projectsIncomplete();
             self->m_projectsKnown = true;
             self->m_lookedUpStale = self->m_lookedUp.has_value();
+            ++self->m_projectsRevision;
             Q_EMIT self->projectsChanged();
             self->applyStopDefault();
             self->resolveProject();
@@ -766,8 +767,9 @@ void TimerController::resolveProject()
 
         QPointer<TimerController> self(this);
         const quint64 epoch = m_epoch;
+        const quint64 revision = m_projectsRevision;
         const qint64 projectId = *id;
-        m_connection->fetchProject(projectId, [self, epoch, projectId](const ApiResult<Project> &result) {
+        m_connection->fetchProject(projectId, [self, epoch, revision, projectId](const ApiResult<Project> &result) {
             if (!self || epoch != self->m_epoch) {
                 return;
             }
@@ -775,10 +777,13 @@ void TimerController::resolveProject()
             if (self->m_workspaceLost || self->chosenProject() != projectId) {
                 return;
             }
+            // Asked before the latest project list: show the answer for now
+            // and read the project once more.
+            const bool stale = revision != self->m_projectsRevision;
             if (result.ok()) {
                 self->m_lookedUp = *result.value;
                 self->m_lookedUpGone = false;
-                self->m_lookedUpStale = false;
+                self->m_lookedUpStale = stale;
             } else if (result.error.kind == ApiError::Kind::Forbidden) {
                 self->loseWorkspace(result.error);
                 return;
@@ -790,7 +795,7 @@ void TimerController::resolveProject()
                 gone.active = false;
                 self->m_lookedUp = gone;
                 self->m_lookedUpGone = true;
-                self->m_lookedUpStale = false;
+                self->m_lookedUpStale = stale;
             } else {
                 return; // read again on the next resolve
             }
