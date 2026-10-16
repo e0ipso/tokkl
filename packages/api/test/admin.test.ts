@@ -1,5 +1,6 @@
-import { test } from 'node:test';
+import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
+import { FailureLimiter, type Keys } from '../src/auth/rateLimit.ts';
 import { PASSWORD, addUser, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const basicPassword = (email: string, password = PASSWORD) =>
@@ -227,4 +228,64 @@ test('a disabled admin gets 403 from every admin route', async () => {
     }
   }
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[0].role, 'admin');
+});
+
+/**
+ * Runs `during` once, after the next password check has passed and before the request goes on,
+ * as if an admin acted while scrypt ran. Requests signed in by API token run no check.
+ */
+function duringPasswordCheck(t: NodeTestContext, during: () => Promise<unknown>): void {
+  const attempt = FailureLimiter.prototype.attempt;
+  let pending = true;
+  t.mock.method(FailureLimiter.prototype, 'attempt', function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>) {
+    return attempt.call(this, keys, async () => {
+      const valid = await check();
+      if (pending) {
+        pending = false;
+        await during();
+      }
+      return valid;
+    });
+  });
+}
+
+test('an admin demoted during their Basic password check is refused and stays demoted', async (t) => {
+  const admin = await setup();
+  const carol = await addUser(admin, { email: 'carol@example.com', role: 'admin' });
+  duringPasswordCheck(t, async () => {
+    assert.equal((await admin.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { role: 'user' })).status, 200);
+  });
+
+  const response = await carol.request('PATCH', `/api/app/admin/users/${carol.user.id}`, { role: 'admin' }, {
+    authorization: basicPassword('carol@example.com'),
+  });
+  assert.equal(response.status, 403);
+  assert.equal(await response.json(), 'Admin access required');
+  assert.equal((await admin.json('GET', '/api/app/admin/users')).body[1].role, 'user');
+});
+
+test('an account disabled during its Basic password check is refused', async (t) => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  duringPasswordCheck(t, async () => {
+    assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true })).status, 200);
+  });
+
+  const response = await bob.request('GET', '/api/v9/me', undefined, { authorization: basicPassword('bob@example.com') });
+  assert.equal(response.status, 403);
+  assert.equal(await response.json(), 'Incorrect username and/or password');
+});
+
+test('a form login whose account is disabled during the password check creates no session', async (t) => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  duringPasswordCheck(t, async () => {
+    assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true })).status, 200);
+  });
+
+  const response = await login(bob, 'bob@example.com');
+  assert.equal(response.status, 403);
+  assert.equal(await response.json(), 'Incorrect email or password');
+  assert.equal(response.headers.get('set-cookie'), null);
+  assert.equal(sessionCount(admin, bob.user.id), 0);
 });

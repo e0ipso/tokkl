@@ -1,7 +1,7 @@
 import express, { type Request, type Response, type Router } from 'express';
 import { MAX_PASSWORD_LENGTH, safeEqual } from '../auth/crypto.ts';
 import { accountCounters, passwordCounters } from '../auth/rateLimit.ts';
-import { hasCsrfHeader, requireAuth, sessionTokens, verifyAccountPassword } from '../auth/middleware.ts';
+import { currentActiveUser, hasCsrfHeader, requireAuth, sessionTokens, verifyAccountPassword } from '../auth/middleware.ts';
 import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, query, readJson, readText } from '../http/context.ts';
@@ -72,10 +72,11 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const counters = passwordCounters(email, address);
     const valid = await loginLimiter.attempt(counters, () => verifyAccountPassword(user, password));
     if (valid === null) throw tooManyRequests('Too many failed login attempts, try again later', loginLimiter.retryAfterSeconds(counters));
-    if (!user || !valid) throw forbidden('Incorrect email or password');
+    const account = user && valid ? currentActiveUser(db, user) : undefined;
+    if (!account) throw forbidden('Incorrect email or password');
     // The address counter is left alone, so one account's success cannot clear failures against another.
     loginLimiter.reset(accountCounters(email, address));
-    startSession(deps, req, res, user.id);
+    startSession(deps, req, res, account.id);
     return res.json({ ok: true });
   });
 

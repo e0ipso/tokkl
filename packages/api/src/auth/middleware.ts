@@ -2,7 +2,7 @@ import type { Request, RequestHandler } from 'express';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
 import { forbidden, tooManyRequests } from '../lib/errors.ts';
-import { findUserByApiToken, findUserByEmail, isActiveAdmin, isActiveUser, type UserRow } from '../models/users.ts';
+import { findUserByApiToken, findUserByEmail, getUser, isActiveAdmin, isActiveUser, type UserRow } from '../models/users.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from './crypto.ts';
 import { passwordCounters } from './rateLimit.ts';
 import { findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from './sessions.ts';
@@ -48,6 +48,16 @@ export async function verifyAccountPassword(user: UserRow | undefined, password:
   return (await verifyPassword(password, user.password_hash)) && isActiveUser(user);
 }
 
+/**
+ * The account as stored now, once its password check has passed, or undefined when it was deleted or
+ * suspended while scrypt ran. Authorize with this row, not the one read before the check, so a
+ * demotion or suspension made during the check applies to the request.
+ */
+export function currentActiveUser(db: Deps['db'], user: UserRow): UserRow | undefined {
+  const current = getUser(db, user.id);
+  return current && isActiveUser(current) ? current : undefined;
+}
+
 async function userFromBasic(deps: Deps, req: Request, header: string): Promise<UserRow> {
   const credentials = decodeBasic(header);
   if (!credentials) throw forbidden('Incorrect username and/or password');
@@ -63,7 +73,8 @@ async function userFromBasic(deps: Deps, req: Request, header: string): Promise<
   const counters = passwordCounters(credentials.username, clientAddress(req));
   const valid = await deps.loginLimiter.attempt(counters, () => verifyAccountPassword(candidate, credentials.password));
   if (valid === null) throw tooManyRequests('Too many failed login attempts, try again later', deps.loginLimiter.retryAfterSeconds(counters));
-  if (candidate && valid) return candidate;
+  const account = candidate && valid ? currentActiveUser(deps.db, candidate) : undefined;
+  if (account) return account;
   throw forbidden('Incorrect username and/or password');
 }
 
