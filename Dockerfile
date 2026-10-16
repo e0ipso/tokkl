@@ -38,7 +38,8 @@ RUN find packages -name '*.test.ts' -delete && rm packages/*/tsconfig.json && mk
 FROM ${NODE_IMAGE}
 LABEL org.opencontainers.image.title="Tokkl" \
       org.opencontainers.image.description="Self-hosted time tracker with a Toggl Track compatible API" \
-      org.opencontainers.image.source="https://github.com/e0ipso/tokkl"
+      org.opencontainers.image.source="https://github.com/e0ipso/tokkl" \
+      org.opencontainers.image.licenses="MIT"
 ENV NODE_ENV=production \
     TOKKL_DATA_DIR=/data
 WORKDIR /app

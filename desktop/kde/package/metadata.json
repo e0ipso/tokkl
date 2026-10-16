@@ -13,6 +13,7 @@
         ],
         "Icon": "chronometer",
         "Id": "com.github.e0ipso.tokkl",
+        "License": "MIT",
         "Name": "Tokkl",
         "Website": "https://github.com/e0ipso/tokkl"
     },

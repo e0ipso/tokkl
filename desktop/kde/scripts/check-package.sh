@@ -10,9 +10,9 @@
 # the system's packages, so never run it on a real desktop.
 #
 # Steps:
-#   1. Inspect the file: name, native version, architecture, the widget and
-#      backend paths, the declared library and QML dependencies, no files
-#      outside /usr and no maintainer scripts.
+#   1. Inspect the file: name, native version, architecture, the MIT license
+#      and its text, the widget and backend paths, the declared library and
+#      QML dependencies, no files outside /usr and no maintainer scripts.
 #   2. Clean install: the widget metadata carries the Tokkl version, the
 #      backend's libraries resolve and the package manager's verify is clean.
 #      With --load-test, the installed widget and backend then load through
@@ -62,6 +62,7 @@ case "$package" in
         format=deb
         backend_dir="/usr/lib/x86_64-linux-gnu/qt6/qml/com/github/e0ipso/tokkl/backend"
         expected_arch=amd64
+        license_file=/usr/share/doc/tokkl-kde/copyright
         # dpkg-shlibdeps adds the libraries; debian/control adds the QML modules.
         expected_deps="libkf6wallet6 libqt6core6t64 libqt6network6 libqt6qml6
             plasma-desktoptheme qml6-module-org-kde-kcmutils qml6-module-org-kde-kirigami
@@ -72,6 +73,7 @@ case "$package" in
         format=rpm
         backend_dir="/usr/lib64/qt6/qml/com/github/e0ipso/tokkl/backend"
         expected_arch=x86_64
+        license_file=/usr/share/licenses/tokkl-kde/LICENSE
         # rpm finds the libraries; the spec adds the QML modules and floors.
         expected_deps="libKF6Wallet.so.6()(64bit) libQt6Core.so.6()(64bit)
             libQt6Network.so.6()(64bit) libQt6Qml.so.6()(64bit) libplasma(x86-64)
@@ -90,7 +92,8 @@ $widget_dir/contents/ui/main.qml
 $widget_dir/contents/config/main.xml
 $backend_dir/qmldir
 $backend_dir/libtokklbackend.so
-$backend_dir/tokklbackend.qmltypes"
+$backend_dir/tokklbackend.qmltypes
+$license_file"
 
 failures=0
 pass() { echo "ok: $*"; }
@@ -112,6 +115,14 @@ pkg_field() { # <file> <Package|Version|Architecture>
             Version) rpm -qp --qf '%{VERSION}' "$1" ;;
             Architecture) rpm -qp --qf '%{ARCH}' "$1" ;;
         esac
+    fi
+}
+pkg_license() { # <file>: the declared license
+    if [ "$format" = deb ]; then
+        dpkg-deb --fsys-tarfile "$1" | tar -xO ".$license_file" \
+            | sed -n 's/^License: *//p' | sort -u
+    else
+        rpm -qp --qf '%{LICENSE}' "$1"
     fi
 }
 pkg_files() { # <file>: regular files and symlinks, one absolute path a line
@@ -197,6 +208,8 @@ inspect() { # <file> <native version>
     expect "version $want" "version is $got, expected $want" [ "$got" = "$want" ]
     got="$(pkg_field "$file" Architecture)"
     expect "architecture $expected_arch" "architecture is $got" [ "$got" = "$expected_arch" ]
+    got="$(pkg_license "$file")"
+    expect "license MIT" "license is '$got'" [ "$got" = MIT ]
 
     local files deps
     files="$(pkg_files "$file")"

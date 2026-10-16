@@ -70,8 +70,9 @@ widget settings and KDE Wallet entries in place; a later install finds them
 again. Delete the `Tokkl` folder in KDE Wallet by hand to drop the saved
 secrets.
 
-The packages are published without a declared license, because the
-repository has none yet (`License: NOASSERTION` in both).
+The packages are under the MIT license (`License: MIT` in both). The DEB has
+the text in `/usr/share/doc/tokkl-kde/copyright`, the RPM in
+`/usr/share/licenses/tokkl-kde/LICENSE`.
 
 The Tokkl server needs no change. The Docker image does not contain the
 companion, which uses only the instance's public API.
@@ -487,8 +488,8 @@ The scripts it runs work on their own, for a prepared machine:
   required; `debian/changelog` is written from it at build time.
 - `scripts/check-package.sh --version <version> --package <file> [--previous
   <file>] [--load-test <dir>]`: inspects the package (name, version,
-  architecture, widget and backend paths, dependencies, no maintainer
-  scripts), installs it on a clean system, checks the stamped widget version,
+  architecture, MIT license, widget and backend paths, dependencies, no
+  maintainer scripts), installs it on a clean system, checks the stamped widget version,
   the backend's libraries and the package manager's verify, removes it, then
   installs the previous package, upgrades and removes again (purging on
   Debian). Settings and wallet files in a test home directory must not
@@ -723,6 +724,3 @@ Packages:
 Write down the date, target, versions, package file name and any step that
 failed. A failed step blocks a release that changes the widget, its
 packaging or the wallet code.
-
-The packages declare `License: NOASSERTION`, because the repository has no
-license yet. They are published without a declared license until it has one.
