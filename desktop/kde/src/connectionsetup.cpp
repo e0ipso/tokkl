@@ -31,13 +31,6 @@ QString accountKey(const QString &url, const QString &authMode, const QString &e
 }
 }
 
-ConnectionSetup::ConnectionSetup(QObject *parent)
-    : ConnectionSetup(nullptr, nullptr, parent)
-{
-    m_transport = new NetworkTransport(this);
-    m_store = KWalletCredentialStore::shared();
-}
-
 ConnectionSetup::ConnectionSetup(Transport *transport, CredentialStore *store, QObject *parent)
     : QObject(parent)
     , m_transport(transport)
@@ -127,6 +120,12 @@ void ConnectionSetup::setWalletError(const QString &message)
     }
 }
 
+// The store's own wording, or the platform-neutral text once the store is gone.
+QString ConnectionSetup::credentialMessage(const CredentialResult &result) const
+{
+    return m_store ? m_store->message(result) : result.message();
+}
+
 void ConnectionSetup::setAccount(const QString &url, const QString &authMode, const QString &email)
 {
     m_url = url;
@@ -161,7 +160,7 @@ void ConnectionSetup::loadSecret()
             return; // the page shows another account now
         }
         if (!result.ok() && result.status != CredentialResult::Status::NotFound) {
-            setWalletError(result.message());
+            setWalletError(credentialMessage(result));
             return;
         }
         setWalletError(QString());
@@ -197,7 +196,7 @@ void ConnectionSetup::saveSecret()
             m_storedKey = key;
             m_storedSecret = submitted;
         } else {
-            setWalletError(result.message());
+            setWalletError(credentialMessage(result));
         }
     });
 }

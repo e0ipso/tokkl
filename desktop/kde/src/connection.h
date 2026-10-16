@@ -80,8 +80,6 @@ public:
     template<typename T>
     using Callback = std::function<void(const ApiResult<T> &)>;
 
-    // Uses KDE Wallet and the network.
-    explicit Connection(QObject *parent = nullptr);
     // Uses the given transport and store; the connection does not own them.
     Connection(Transport *transport, CredentialStore *store, QObject *parent = nullptr);
     ~Connection() override;
@@ -191,6 +189,7 @@ private:
     bool coolingDown() const;
     bool hasContext() const;
     QString currentCredentialKey() const;
+    QString credentialMessage(const CredentialResult &result) const;
 
     using ResponseHandler = std::function<void(const HttpResponse &)>;
     void send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler);

@@ -13,8 +13,11 @@ It has two parts:
   `PanelButton.qml` (with its project indicator, `ProjectIndicator.qml`) and
   `PanelMenu.qml`.
 - `src/`: the backend, a Qt/C++ QML module imported as `com.github.e0ipso.tokkl.backend`.
-  The API client, credential storage, connection state and timer controller are
-  in the `tokklcore` static library, which the module and the tests link.
+  The API client, the credential store interface, connection state and timer
+  controller are in the `tokklcore` static library, which the module and the
+  tests link. It does not use KDE Frameworks. The KDE Wallet store and the
+  connection types the widget creates from QML, which pass that store in, are
+  in the `tokklkde` static library.
 
 This is a standalone CMake project. The npm workspaces, `npm run build` and the
 server image do not build or ship it.

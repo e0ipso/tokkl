@@ -46,14 +46,6 @@ qint64 retryAfterMs(const QByteArray &header)
 }
 }
 
-Connection::Connection(QObject *parent)
-    : Connection(nullptr, nullptr, parent)
-{
-    m_transport = new NetworkTransport(this);
-    m_store = KWalletCredentialStore::shared();
-    connect(m_store, &CredentialStore::secretChanged, this, &Connection::onSecretChanged);
-}
-
 Connection::Connection(Transport *transport, CredentialStore *store, QObject *parent)
     : QObject(parent)
     , m_transport(transport)
@@ -306,6 +298,12 @@ QString Connection::currentCredentialKey() const
     return credentialKey(m_instance, m_authMode, m_email);
 }
 
+// The store's own wording, or the platform-neutral text once the store is gone.
+QString Connection::credentialMessage(const CredentialResult &result) const
+{
+    return m_store ? m_store->message(result) : result.message();
+}
+
 void Connection::reload()
 {
     m_reloadScheduled = false;
@@ -346,7 +344,7 @@ void Connection::reload()
             m_hasSecret = false;
             m_secret.clear();
             m_authorization.clear();
-            setState(result.status == CredentialResult::Status::NotFound ? CredentialsMissing : WalletError, result.message());
+            setState(result.status == CredentialResult::Status::NotFound ? CredentialsMissing : WalletError, credentialMessage(result));
             return;
         }
         if (m_hasSecret && result.secret != m_secret) {

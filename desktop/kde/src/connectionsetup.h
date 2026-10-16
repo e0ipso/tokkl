@@ -38,7 +38,7 @@ public:
     };
     Q_ENUM(TestResult)
 
-    explicit ConnectionSetup(QObject *parent = nullptr);
+    // Uses the given transport and store; the page does not own them.
     ConnectionSetup(Transport *transport, CredentialStore *store, QObject *parent = nullptr);
     ~ConnectionSetup() override;
 
@@ -88,6 +88,7 @@ private:
     void setBusy(int delta);
     void setSecret(const QString &secret, const QString &owner);
     void setWalletError(const QString &message);
+    QString credentialMessage(const CredentialResult &result) const;
     void finishTest(TestResult result, const QString &message);
 
     QPointer<Transport> m_transport;
