@@ -13,7 +13,7 @@ const CSRF = { 'X-Tokkl-CSRF': '1' };
 async function loginStatus(baseURL: string, password: string): Promise<number> {
   const api = await request.newContext({ baseURL });
   try {
-    return (await api.post('/api/app/login', { data: { email: ACCOUNT.email, password } })).status();
+    return (await api.post('/api/app/login', { headers: CSRF, data: { email: ACCOUNT.email, password } })).status();
   } finally {
     await api.dispose();
   }
@@ -109,7 +109,7 @@ test('a session cookie stops working after the 30-day lifetime', async ({ server
   const api = await request.newContext({ baseURL: first.baseURL });
   let session: string;
   try {
-    const login = await api.post('/api/app/login', { data: { email: ACCOUNT.email, password: ACCOUNT.password } });
+    const login = await api.post('/api/app/login', { headers: CSRF, data: { email: ACCOUNT.email, password: ACCOUNT.password } });
     expect(login.status()).toBe(200);
     const cookie = (await api.storageState()).cookies.find((c) => c.name === 'tokkl_session')!;
     session = cookie.value;

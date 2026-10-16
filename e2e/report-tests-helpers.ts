@@ -40,7 +40,7 @@ export class ReportApi {
 
   static async open(baseURL: string): Promise<ReportApi> {
     const api = await request.newContext({ baseURL });
-    await ok(await api.post('/api/app/login', { data: { email: EMAIL, password: PASSWORD } }));
+    await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } }));
     const me = await (await ok(await api.get('/api/v9/me'))).json() as { default_workspace_id: number };
     return new ReportApi(api, me.default_workspace_id);
   }

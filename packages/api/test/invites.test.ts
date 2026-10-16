@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
 import { INVITE_NOT_FOUND } from '../src/models/accountTokens.ts';
-import { addUser, setup, type TestContext } from './helpers.ts';
+import { addUser, CSRF, setup, type TestContext } from './helpers.ts';
 
 const DAY_MS = 86_400_000;
 const NEW_PASSWORD = 'invited person 1';
@@ -20,7 +20,7 @@ const anonymous = (ctx: TestContext, method: string, path: string, body?: unknow
   ctx.request(method, path, body, { authorization: '', ...headers });
 
 const accept = (ctx: TestContext, token: string, account: Record<string, unknown>) =>
-  anonymous(ctx, 'POST', `/api/app/invites/${token}`, { password: NEW_PASSWORD, timezone: 'Europe/Madrid', ...account });
+  anonymous(ctx, 'POST', `/api/app/invites/${token}`, { password: NEW_PASSWORD, timezone: 'Europe/Madrid', ...account }, CSRF);
 
 const counts = (ctx: TestContext) => ({
   ...(ctx.db.prepare(`
@@ -156,6 +156,36 @@ test('a failure inside the acceptance leaves no account, workspace, membership o
   assert.equal((await accept(admin, created.token, { email: 'ana@example.com' })).status, 200, 'the invite stayed usable');
 });
 
+test('accepting an invite without the CSRF header is refused before the token lookup', async () => {
+  const admin = await setup();
+  const first = await invite(admin);
+  const second = await invite(admin);
+  const before = counts(admin);
+  // A cross-site form with enctype="text/plain" can post a JSON body, but it cannot set a CSRF header.
+  const textPlain = (token: string, email: string, headers: Record<string, string> = {}) => anonymous(
+    admin, 'POST', `/api/app/invites/${token}`, JSON.stringify({ email, password: NEW_PASSWORD }),
+    { 'content-type': 'text/plain', ...headers },
+  );
+
+  const refused = await textPlain(first.token, 'ana@example.com');
+  assert.equal(refused.status, 403);
+  assert.equal(await refused.json(), 'Missing CSRF header');
+  assert.equal(refused.headers.get('set-cookie'), null);
+  assert.deepEqual(counts(admin), before);
+  // More than the address allowance: if any of these bad tokens were looked up, the address would be blocked.
+  for (let i = 0; i <= ADDRESS_LIMIT; i++) assert.equal((await textPlain(`bad-${i}`, 'x@example.com')).status, 403);
+  assert.equal((await anonymous(admin, 'GET', `/api/app/invites/${first.token}`)).status, 200, 'the invite is still usable');
+
+  for (const [token, email, header] of [
+    [first.token, 'ana@example.com', 'x-tokkl-csrf'], [second.token, 'bea@example.com', 'x-timetrack-csrf'],
+  ] as const) {
+    const accepted = await textPlain(token, email, { [header]: '1' });
+    assert.equal(accepted.status, 200, header);
+    assert.match(accepted.headers.get('set-cookie') ?? '', /tokkl_session=/, header);
+  }
+  assert.equal(counts(admin).users, before.users! + 2);
+});
+
 test('a used token cannot be accepted again', async () => {
   const admin = await setup();
   const created = await invite(admin);
@@ -229,6 +259,6 @@ test('repeated bad tokens from one address hit the limiter, which then refuses g
   }
   assert.equal(counts(admin).users, 1, 'the blocked acceptance created nothing');
   // Token guesses share the address counter with passwords, so the login form is blocked too.
-  const login = await anonymous(admin, 'POST', '/api/app/login', { email: 'me@example.com', password: 'whatever' });
+  const login = await anonymous(admin, 'POST', '/api/app/login', { email: 'me@example.com', password: 'whatever' }, CSRF);
   assert.equal(login.status, 429);
 });

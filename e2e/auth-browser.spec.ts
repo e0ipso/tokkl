@@ -2,8 +2,8 @@ import type { Page } from '@playwright/test';
 import { EMAIL, PASSWORD } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  ACCOUNT, LIMIT_WINDOW_SECONDS, SETUP_CODE, basic, createAccount, expect, logInThroughForm, meWithSession, retryAfter,
-  sessionCookie, test,
+  ACCOUNT, CSRF, LIMIT_WINDOW_SECONDS, SETUP_CODE, basic, createAccount, expect, logInThroughForm, meWithSession,
+  retryAfter, sessionCookie, test,
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
@@ -56,7 +56,7 @@ test('ten wrong setup codes lock setup on this address, and the setup form says 
   const server = await servers.start({ slot: 0 });
   runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/setup$/, reason: 'this address sent ten wrong setup codes' });
   for (let i = 0; i < 10; i++) {
-    const wrong = await page.request.post(`${server.baseURL}/api/app/setup`, { data: { setup_code: 'WRONG-CODE', ...ACCOUNT } });
+    const wrong = await page.request.post(`${server.baseURL}/api/app/setup`, { headers: CSRF, data: { setup_code: 'WRONG-CODE', ...ACCOUNT } });
     expect(wrong.status()).toBe(403);
   }
 
@@ -149,7 +149,7 @@ test('ten wrong passwords lock the account on this address, and the login form s
   runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/login$/, reason: 'the account has ten failed logins from this address' });
   runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/login$/, reason: 'an unknown email still gets the usual answer' });
   const attempt = async (email: string, password: string) =>
-    (await page.request.post(`${server.baseURL}/api/app/login`, { data: { email, password } })).status();
+    (await page.request.post(`${server.baseURL}/api/app/login`, { headers: CSRF, data: { email, password } })).status();
 
   // Failed logins before the account exists leave the setup code's attempts alone.
   for (let i = 0; i < 10; i++) expect(await attempt('nobody@auth.example', 'wrong password')).toBe(403);

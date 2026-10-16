@@ -31,6 +31,7 @@ function savePreferences(preferences: Record<string, unknown>): Promise<unknown>
 test.beforeAll(async ({ baseURL }) => {
   api = await request.newContext({ baseURL });
   await ok(api.post('/api/app/setup', {
+    headers: CSRF,
     data: { setup_code: 'SCREENSHOTS-SETUP-CODE', email: 'demo@example.com', password: 'screenshots password', fullname: 'Demo User', timezone: TIME_ZONE },
   }));
   const result = await ok<{ errors: unknown[]; time_entries: number }>(api.post('/api/app/import/json', {

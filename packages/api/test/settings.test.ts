@@ -7,7 +7,7 @@ import { createApp } from '../src/app.ts';
 import { sha256 } from '../src/auth/crypto.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
 import { createFirstAdmin, type UserRow } from '../src/models/users.ts';
-import { PASSWORD, addUser, sessionCookie, setup, testConfig, testServer } from './helpers.ts';
+import { CSRF, PASSWORD, addUser, sessionCookie, setup, testConfig, testServer } from './helpers.ts';
 
 const DAY_MS = 86_400_000;
 
@@ -119,7 +119,7 @@ test('a new login uses the stored session_days, and earlier sessions keep their 
   assert.equal(expiryOf(before), 30 * DAY_MS);
 
   assert.equal((await admin.json('PUT', '/api/app/admin/settings', { session_days: 2 })).status, 200);
-  const login = await admin.request('POST', '/api/app/login', { email: admin.user.email, password: PASSWORD }, { authorization: '' });
+  const login = await admin.request('POST', '/api/app/login', { email: admin.user.email, password: PASSWORD }, { authorization: '', ...CSRF });
   assert.equal(login.status, 200);
   const after = login.headers.get('set-cookie')!;
   const cookieExpires = Date.parse(/expires=([^;]+)/i.exec(after)![1]!);

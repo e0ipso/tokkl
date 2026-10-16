@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Db } from '../src/db/index.ts';
-import { addUser, sessionCookie, setup, type TestContext } from './helpers.ts';
+import { addUser, CSRF, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 /** Gives the account a client, a project with a task, a tag and a tagged entry in its own workspace. */
 async function seed(ctx: TestContext): Promise<void> {
@@ -131,7 +131,7 @@ test('a deleted admin\'s pending invites stop working; their used invites and se
   };
   const pending = await createInvite();
   const used = await createInvite();
-  const accepted = await second.request('POST', `/api/app/invites/${used}`, { email: 'dana@example.com', password: 'dana password' }, { authorization: '' });
+  const accepted = await second.request('POST', `/api/app/invites/${used}`, { email: 'dana@example.com', password: 'dana password' }, { authorization: '', ...CSRF });
   assert.equal(accepted.status, 200);
   assert.equal((await second.json('PUT', '/api/app/admin/settings', { invite_days: 4 })).status, 200);
 

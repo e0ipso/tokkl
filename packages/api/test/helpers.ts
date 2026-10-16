@@ -20,6 +20,8 @@ export interface TestContext {
 }
 
 export const PASSWORD = 'correct horse battery';
+/** The header the web client sends on every request; session-starting and cookie-authenticated writes need it. */
+export const CSRF = { 'x-tokkl-csrf': '1' };
 
 export interface TestServer {
   request: (path: string, init?: RequestInit) => Promise<Response>;
@@ -84,7 +86,7 @@ export async function addUser(
  * pair to send as a cookie. Pass `authorization: ''` with it, or the API token still signs the request in.
  */
 export async function sessionCookie(ctx: TestContext): Promise<string> {
-  const response = await ctx.request('POST', '/api/app/login', { email: ctx.user.email, password: PASSWORD }, { authorization: '' });
+  const response = await ctx.request('POST', '/api/app/login', { email: ctx.user.email, password: PASSWORD }, { authorization: '', ...CSRF });
   if (response.status !== 200) throw new Error(`Login as ${ctx.user.email} failed with ${response.status}`);
   return response.headers.get('set-cookie')!.split(';')[0]!;
 }

@@ -37,6 +37,15 @@ function startSession(deps: Deps, req: Request, res: Response, userId: number): 
   res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
 }
 
+/**
+ * Bodies are parsed as JSON whatever their Content-Type, so a cross-site form posting text/plain could
+ * otherwise sign the browser into an account the attacker controls. Runs before any lookup, hashing
+ * or limiter charge.
+ */
+function requireCsrfHeader(req: Request): void {
+  if (!hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
+}
+
 /** Reads and checks the account fields of the setup and invite forms. Bad input is a 400. */
 function readNewAccount(body: Record<string, unknown>): NewAccount {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
@@ -57,6 +66,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.get('/status', (req, res) => res.json({ setup_required: countUsers(db) === 0 }));
 
   app.post('/setup', async (req, res) => {
+    requireCsrfHeader(req);
     if (countUsers(db) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
     const address = clientAddress(req);
     if (setupLimiter.isBlocked(address)) throw tooManyRequests('Too many failed attempts, try again later', setupLimiter.retryAfterSeconds(address));
@@ -91,6 +101,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.get('/invites/:token', (req, res) => res.json({ role: inviteFor(req).role }));
 
   app.post('/invites/:token', async (req, res) => {
+    requireCsrfHeader(req);
     const { token } = inviteFor(req);
     const { password, ...account } = readNewAccount(readJson(req));
     // scrypt runs before the transaction, which checks the invite again.
@@ -101,6 +112,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
 
   app.post('/login', async (req, res) => {
+    requireCsrfHeader(req);
     const address = clientAddress(req);
     const body = readJson(req);
     const email = typeof body.email === 'string' ? body.email.trim() : '';

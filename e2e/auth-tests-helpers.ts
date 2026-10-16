@@ -12,6 +12,8 @@ const FIRST_PORT = Number(process.env.E2E_PORT ?? 8095) + 50;
 const DAY_MS = 86_400_000;
 
 export const SETUP_CODE = 'AUTH-TESTS-SETUP';
+/** The header the web client sends; login, setup and invite acceptance refuse requests without it. */
+export const CSRF = { 'X-Tokkl-CSRF': '1' };
 export const ACCOUNT = { email: 'owner@auth.example', password: 'first password 1', fullname: 'Auth Owner' };
 
 export interface ServerOptions {
@@ -142,7 +144,7 @@ export function basic(username: string, password: string): string {
 export async function createAccount(baseURL: string): Promise<{ apiToken: string }> {
   const api = await request.newContext({ baseURL });
   try {
-    const setup = await api.post('/api/app/setup', { data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' } });
+    const setup = await api.post('/api/app/setup', { headers: CSRF, data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' } });
     expect(setup.status()).toBe(200);
     const me = await api.get('/api/v9/me');
     expect(me.status()).toBe(200);

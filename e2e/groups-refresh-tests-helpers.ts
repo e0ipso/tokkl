@@ -46,7 +46,7 @@ export class OtherDevice {
 
   static async open(baseURL: string): Promise<OtherDevice> {
     const api = await request.newContext({ baseURL });
-    await ok(await api.post('/api/app/login', { data: { email: EMAIL, password: PASSWORD } }));
+    await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } }));
     const me = await json<{ default_workspace_id: number }>(api.get('/api/v9/me'));
     return new OtherDevice(api, me.default_workspace_id);
   }

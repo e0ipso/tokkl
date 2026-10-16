@@ -13,7 +13,7 @@ import { createFirstAdmin, getUser } from '../src/models/users.ts';
 import {
   addWorkspaceMember, createWorkspace, isWorkspaceMember, listWorkspacesForUser,
 } from '../src/models/workspaces.ts';
-import { addUser, PASSWORD, sessionCookie, setup, testConfig, testServer, type TestContext } from './helpers.ts';
+import { addUser, CSRF, PASSWORD, sessionCookie, setup, testConfig, testServer, type TestContext } from './helpers.ts';
 
 /** The schema version shipped before roles and workspace membership. */
 const PREVIOUS_VERSION = 2;
@@ -123,7 +123,7 @@ test('a fresh database has no memberships until setup creates the first admin, w
   const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const response = await app.request('/api/app/setup', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...CSRF, 'content-type': 'application/json' },
     body: JSON.stringify({ email: 'owner@example.com', password: PASSWORD, fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' }),
   });
   assert.equal(response.status, 200);

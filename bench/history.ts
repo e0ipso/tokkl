@@ -220,7 +220,7 @@ class Client {
   static async create(server: Server): Promise<Client> {
     const setup = await fetch(`${server.base}/api/app/setup`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Tokkl-CSRF': '1' },
       body: JSON.stringify({ setup_code: SETUP_CODE, email: 'bench@example.com', password: 'bench password', fullname: 'Bench', timezone: TIMEZONE }),
     });
     check(setup.ok, `account setup answered ${setup.status}`);
@@ -498,7 +498,9 @@ async function browserTimings(server: Server, expected: Expected, spec: FixtureS
   try {
     const context = await browser.newContext({ baseURL: server.base, timezoneId: TIMEZONE });
     const page = await context.newPage();
-    const login = await page.request.post('/api/app/login', { data: { email: 'bench@example.com', password: 'bench password' } });
+    const login = await page.request.post('/api/app/login', {
+      headers: { 'X-Tokkl-CSRF': '1' }, data: { email: 'bench@example.com', password: 'bench password' },
+    });
     check(login.ok(), `${spec.name}: browser login`);
     const timer: number[] = [];
     const reports: number[] = [];
