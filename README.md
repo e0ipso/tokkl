@@ -15,6 +15,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 - Summary, detailed and weekly reports with filters, billable amounts, rounding, CSV export, and bookmarkable URLs.
 - Import of Toggl Track's detailed CSV export (safe to repeat), CSV and JSON export, and restore from the JSON export.
 - Works on phones; installable as a PWA.
+- A KDE Plasma panel widget starts and stops the timer from the desktop. See [KDE panel companion](#kde-panel-companion).
 
 ## Screenshots
 
@@ -133,6 +134,12 @@ curl -u "$TOKEN:api_token" -H 'Content-Type: application/json' \
 
 Most Toggl apps hardcode `api.track.toggl.com` and cannot be redirected (Raycast, Obsidian, `toggl-cli`, Timery, Toggl's own apps). Libraries that accept a base URL work, for example `toggl-client` (`TOGGL_BASE_URL`), `toggl-track` (`baseURL`), `toggl-api` (`apiUrl`) and `toggl_python` (`base_url`). The PRD lists implemented endpoints and the behavior decisions in [section 6](docs/PRD.md#6-toggl-api-compatibility).
 
+## KDE panel companion
+
+A Plasma 6 panel widget for TUXEDO OS 24.04 (amd64) and Fedora KDE 44 (x86_64). It shows the running timer in the panel, starts and stops it with a click, and sets the project and billable flag. It signs in to one account with the API token, or an email and password, and keeps the secret in KDE Wallet. It talks only to your server and sees only that account's workspace.
+
+It ships as a DEB and an RPM attached to each GitHub release that includes it, under the same version as the server and the Docker image. The Docker image does not contain it. As of 2026-10-16 no release has carried the packages; the guide says how to build them. The packages declare no license, because the repository has none yet. Installation, setup, behavior, the build and a manual Plasma checklist are in [desktop/kde/README.md](desktop/kde/README.md).
+
 ## Development
 
 Requires Node.js 24 or newer.
@@ -142,12 +149,14 @@ npm install
 npm run dev        # API server on :8080, restarts on change
 npm run dev:web    # Vite dev server on :5173, proxies /api and /reports to :8080
 npm test           # unit and API tests (node --test)
-npm run typecheck  # tsc over every package, e2e, scripts and bench
+npm run typecheck  # tsc over every package, e2e, scripts, bench and the KDE tests
 npm run build      # builds the web app into dist/web
 npm run test:e2e   # builds, then runs the Playwright browser tests
 npm run screenshots  # builds, then rewrites docs/screenshots/*.png
 npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
+
+The KDE companion is a separate CMake project that no npm script builds. To build and test it, run `cmake -S desktop/kde -B desktop/kde/build`, `cmake --build desktop/kde/build` and `ctest --test-dir desktop/kde/build` (needs Qt 6.10 and KDE Frameworks 6.24; [details](desktop/kde/README.md#configure-build-and-test)).
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)) and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
 
@@ -159,6 +168,7 @@ packages/web     @tokkl/web: React app, built by Vite into dist/web
 packages/common  @tokkl/common: duration, time-of-day and timezone helpers used by the API and the web app
 packages/types   @tokkl/types: type declarations for the JSON the API and the web app exchange
 e2e/             Playwright tests
+desktop/kde/     KDE Plasma panel companion: widget, Qt backend, DEB and RPM packaging, CI images and tests (its own CMake project)
 scripts/         README screenshot and app icon generators
 bench/           history-scale measurements
 docs/            PRD.md (product requirements), brand/ and screenshots/
