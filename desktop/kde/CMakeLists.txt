@@ -64,7 +64,7 @@ add_subdirectory(src)
 add_subdirectory(package)
 
 if(BUILD_TESTING)
-    find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Test QuickTest)
+    find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS DBus Test QuickTest)
     # The smoke test loads the widget through libplasma, whose CMake package
     # does not pull in KF6Config itself, and translates the Configure page
     # with KI18n as Plasma does.

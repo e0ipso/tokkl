@@ -154,14 +154,16 @@ public:
     QList<std::shared_ptr<Exchange>> log;
 
 private:
-    NetworkTransport m_inner;
+    NetworkTransport m_inner{QStringLiteral("tokkl-kde")};
 };
 
 // The companion as the widget assembles it, with the fake store and clock.
+// It sends the widget's client name, which realserver.test.ts checks in
+// created_with.
 struct Session {
     FakeCredentialStore store;
     RecordingTransport transport;
-    Connection connection{&transport, &store};
+    Connection connection{&transport, &store, QStringLiteral("tokkl-kde")};
     FakeClock clock;
     TimerController timer{&clock};
 
@@ -265,7 +267,7 @@ bool release(const QString &instance)
 // A request outside the companion's own flow, with its encoders and transport.
 HttpResponse sendRaw(const QByteArray &method, const User &user, const QByteArray &authorization, const QString &path, const QByteArray &body = {})
 {
-    NetworkTransport transport;
+    NetworkTransport transport(QStringLiteral("tokkl-kde"));
     PendingReply *reply = transport.send(HttpRequest{method, parseInstanceUrl(user.url).api(path), authorization, body});
     HttpResponse answer;
     QEventLoop loop;
@@ -379,7 +381,7 @@ private Q_SLOTS:
         const QByteArray auth = tokenAuthorization(u);
         const QString foreign = QStringLiteral("/workspaces/%1/time_entries").arg(admin.workspaceId);
         const QList<std::tuple<QByteArray, QString, QByteArray>> attempts = {
-            {"POST", foreign, encodeStartEntry(StartEntry{QDateTime::currentDateTimeUtc(), QString(), std::nullopt, false}, admin.workspaceId)},
+            {"POST", foreign, encodeStartEntry(StartEntry{QDateTime::currentDateTimeUtc(), QString(), std::nullopt, false}, admin.workspaceId, QStringLiteral("tokkl-kde"))},
             {"PATCH", foreign + QStringLiteral("/%1/stop").arg(admin.running->id), QByteArray()},
             {"PUT", foreign + QStringLiteral("/%1").arg(admin.running->id), encodeTimeEntryUpdate(TimeEntryUpdate{QStringLiteral("changed by another user"), {}, {}, true, {}})},
         };

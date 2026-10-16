@@ -44,7 +44,7 @@ trap 'rm -rf "$work"' EXIT
 # The files the build needs. The tests and any build directory stay behind.
 copy_source() {
     mkdir -p "$1"
-    cp -a "$source_dir/CMakeLists.txt" "$source_dir/README.md" \
+    cp -a "$source_dir/CMakeLists.txt" "$source_dir/LICENSE" "$source_dir/README.md" \
         "$source_dir/cmake" "$source_dir/package" "$source_dir/src" "$1/"
 }
 

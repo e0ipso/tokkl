@@ -15,6 +15,10 @@ using namespace Tokkl;
 
 namespace
 {
+// Not the KDE widget's "tokkl-kde", so the User-Agent shows the name is
+// passed in.
+const QString clientName = QStringLiteral("tokkl-test");
+
 // Answers each request with a canned response, or not at all.
 class LoopbackServer : public QObject
 {
@@ -88,7 +92,7 @@ private Q_SLOTS:
     {
         LoopbackServer server;
         server.response = httpResponse("200 OK", "Set-Cookie: tokkl_session=abc\r\n", "null");
-        NetworkTransport transport;
+        NetworkTransport transport(clientName);
         const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/prefix/api/v9/me/time_entries/current")), "Basic dDphcGlfdG9rZW4=", {}});
         QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
         QCOMPARE(response.status, 200);
@@ -99,6 +103,7 @@ private Q_SLOTS:
         QVERIFY(request.startsWith("GET /prefix/api/v9/me/time_entries/current HTTP/1.1\r\n"));
         QVERIFY(request.contains("\r\nAuthorization: Basic dDphcGlfdG9rZW4=\r\n"));
         QVERIFY(request.contains("\r\nAccept: application/json\r\n"));
+        QVERIFY2(request.contains("\r\nUser-Agent: tokkl-test/" TOKKL_VERSION_STRING "\r\n"), request.constData());
 
         // A cookie the server set is not sent back.
         sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
@@ -110,7 +115,7 @@ private Q_SLOTS:
     {
         LoopbackServer server;
         server.response = httpResponse("200 OK", "", "{}");
-        NetworkTransport transport;
+        NetworkTransport transport(clientName);
         sendAndWait(transport, HttpRequest{"POST", server.url(QStringLiteral("/api/v9/workspaces/7/time_entries")), "Basic eA==", "{\"duration\":-1}"});
         QCOMPARE(server.requests.size(), 1);
         QVERIFY(server.requests.first().startsWith("POST /api/v9/workspaces/7/time_entries "));
@@ -123,7 +128,7 @@ private Q_SLOTS:
         target.response = httpResponse("200 OK", "", "{}");
         LoopbackServer server;
         server.response = httpResponse("302 Found", "Location: " + target.url(QStringLiteral("/steal")).toEncoded() + "\r\n", "");
-        NetworkTransport transport;
+        NetworkTransport transport(clientName);
         const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic c2VjcmV0", {}});
         QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
         QCOMPARE(response.status, 302);
@@ -137,7 +142,7 @@ private Q_SLOTS:
     {
         LoopbackServer server;
         server.response = httpResponse("429 Too Many Requests", "Retry-After: 120\r\n", "\"Too many failed login attempts, try again later\"");
-        NetworkTransport transport;
+        NetworkTransport transport(clientName);
         const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QCOMPARE(response.status, 429);
         QCOMPARE(response.retryAfter, QByteArray("120"));
@@ -146,7 +151,7 @@ private Q_SLOTS:
     void timeout()
     {
         LoopbackServer server; // reads the request, never answers
-        NetworkTransport transport;
+        NetworkTransport transport(clientName);
         transport.setTimeout(300);
         const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QVERIFY(response.outcome == HttpResponse::Outcome::Timeout);
@@ -161,7 +166,7 @@ private Q_SLOTS:
             QVERIFY(probe.listen(QHostAddress::LocalHost));
             port = probe.serverPort();
         }
-        NetworkTransport transport;
+        NetworkTransport transport(clientName);
         const HttpResponse response =
             sendAndWait(transport, HttpRequest{"GET", QUrl(QStringLiteral("http://127.0.0.1:%1/api/v9/me").arg(port)), "Basic c2VjcmV0", {}});
         QVERIFY(response.outcome == HttpResponse::Outcome::NetworkError);
@@ -172,7 +177,7 @@ private Q_SLOTS:
     void abort()
     {
         LoopbackServer server;
-        NetworkTransport transport;
+        NetworkTransport transport(clientName);
         std::optional<HttpResponse> result;
         PendingReply *reply = transport.send(HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         connect(reply, &PendingReply::finished, reply, [&result](const HttpResponse &response) {

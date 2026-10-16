@@ -60,6 +60,12 @@ if [ "$previous_version" = "$version" ]; then
     echo "error: --previous-version must be older than --version" >&2
     exit 2
 fi
+# The containers only see desktop/kde, so it keeps its own copy of the
+# repository's LICENSE for the RPM. Refuse a copy that has drifted.
+if [ -f "$source_dir/../../LICENSE" ] && ! cmp -s "$source_dir/LICENSE" "$source_dir/../../LICENSE"; then
+    echo "error: desktop/kde/LICENSE differs from the repository's LICENSE; copy it again" >&2
+    exit 1
+fi
 
 engine="${CONTAINER_ENGINE:-docker}"
 image="${TOKKL_KDE_CI_IMAGE:-tokkl-kde-ci}"

@@ -41,7 +41,7 @@ QString authModeToString(AuthMode mode);
 // Trim and lowercase ASCII A-Z only, the way the server keys accounts.
 QString normalizeEmail(const QString &email);
 
-// The KWallet entry name for one instance and account. It holds no secret.
+// The credential store key for one instance and account. It holds no secret.
 QString credentialKey(const InstanceUrl &instance, AuthMode mode, const QString &email);
 
 // The value of an HTTP Basic Authorization header: "<token>:api_token" or

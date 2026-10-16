@@ -1,7 +1,8 @@
-# The backend QML module the widget imports. The API client, credential
-# storage, connection state and timer controller live in the tokklcore
-# library, which the module and the tests link; qmltypes.h gives its classes
-# their QML names.
+# The backend QML module the widget imports. The API client, the credential
+# store interface, connection state and timer controller live in the
+# tokklcore library, which the module and the tests link. It has no KDE
+# dependency. The tokklkde library adds KDE Wallet and the types QML creates;
+# qmltypes.h gives the classes their QML names.
 
 add_library(tokklcore STATIC
     apitypes.cpp
@@ -31,11 +32,26 @@ target_link_libraries(tokklcore
         Qt6::Core
         Qt6::Gui
         Qt6::Network
-    PRIVATE
-        KF6::Wallet
 )
 # The QML module's type registrar reads these for the QML_FOREIGN types.
 qt6_extract_metatypes(tokklcore)
+
+# The KDE side: the KDE Wallet store and the connection types the widget
+# creates from QML, which inject it.
+add_library(tokklkde STATIC
+    kdeconnection.cpp
+    kdeconnection.h
+    kwalletcredentialstore.cpp
+    kwalletcredentialstore.h
+)
+set_target_properties(tokklkde PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(tokklkde
+    PUBLIC
+        tokklcore
+    PRIVATE
+        KF6::Wallet
+)
+qt6_extract_metatypes(tokklkde)
 
 # QtQuick declares the color type of TokklTimer.indicatorColor for qmllint.
 ecm_add_qml_module(tokklbackend
@@ -56,6 +72,7 @@ target_compile_definitions(tokklbackend PRIVATE
 
 target_link_libraries(tokklbackend PRIVATE
     tokklcore
+    tokklkde
     Qt6::Core
     Qt6::Network
     Qt6::Qml

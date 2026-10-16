@@ -27,7 +27,7 @@ kk_confidence: high
 - No API removes a workspace member, so the membership-loss scenario has the script delete the `workspace_users` row directly (`/remove-membership` in `realserver.test.ts`).
 - `desktop/kde/ci/semantic-release.js` is a plugin listed in `.releaserc.json` before `@semantic-release/git`. Its `prepare` step builds and checks both packages for `nextRelease.version` into `dist/kde`, so a package failure stops the release before anything is pushed. `@semantic-release/github` then attaches `dist/kde/tokkl-kde_*_amd64.deb` and `dist/kde/tokkl-kde-*.x86_64.rpm` to the same release. The Docker publish step is unchanged. The release runner needs a working container engine (`CONTAINER_ENGINE`, default docker).
 - Not covered by CI, so check by hand on both targets before a release that changes the widget, packaging or wallet code: a real Plasma Wayland session (panel placement, focus, popups, scaling) and KWallet. The list is in `desktop/kde/README.md` under "What CI does not cover".
-- The packages say `License: NOASSERTION` until the owner chooses a license (TT-0177). Publication beyond the GitHub release should wait for it.
+- The packages declare `License: MIT`. `check-package.sh` fails a package with another declared license or a missing license file, and `container-check.sh` fails when `desktop/kde/LICENSE` differs from the root `LICENSE`; see [map-kde-native-packaging](map-kde-native-packaging.md).
 
 <!-- kk:related:start -->
 # Related

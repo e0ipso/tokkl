@@ -79,7 +79,7 @@ class ConnectionTest : public QObject
     struct Fixture {
         FakeTransport transport;
         FakeCredentialStore store;
-        Connection connection{&transport, &store};
+        Connection connection{&transport, &store, testClientName()};
     };
 
     static QString tokenKey(const QString &url = instance)

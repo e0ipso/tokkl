@@ -13,8 +13,11 @@ It has two parts:
   `PanelButton.qml` (with its project indicator, `ProjectIndicator.qml`) and
   `PanelMenu.qml`.
 - `src/`: the backend, a Qt/C++ QML module imported as `com.github.e0ipso.tokkl.backend`.
-  The API client, credential storage, connection state and timer controller are
-  in the `tokklcore` static library, which the module and the tests link.
+  The API client, the credential store interface, connection state and timer
+  controller are in the `tokklcore` static library, which the module and the
+  tests link. It does not use KDE Frameworks. The KDE Wallet store and the
+  connection types the widget creates from QML, which pass that store in, are
+  in the `tokklkde` static library.
 
 This is a standalone CMake project. The npm workspaces, `npm run build` and the
 server image do not build or ship it.
@@ -67,8 +70,9 @@ widget settings and KDE Wallet entries in place; a later install finds them
 again. Delete the `Tokkl` folder in KDE Wallet by hand to drop the saved
 secrets.
 
-The packages are published without a declared license, because the
-repository has none yet (`License: NOASSERTION` in both).
+The packages are under the MIT license (`License: MIT` in both). The DEB has
+the text in `/usr/share/doc/tokkl-kde/copyright`, the RPM in
+`/usr/share/licenses/tokkl-kde/LICENSE`.
 
 The Tokkl server needs no change. The Docker image does not contain the
 companion, which uses only the instance's public API.
@@ -89,14 +93,14 @@ before a release.
 
 ## Requirements
 
-| Dependency                                                  | Minimum |
-| ----------------------------------------------------------- | ------- |
-| CMake                                                       | 3.27    |
-| Qt 6: Core, Network, Qml, Quick (Test, QuickTest for tests) | 6.10    |
-| Extra CMake Modules; KF6 Wallet, Package, Config            | 6.24    |
-| KF6 I18n with I18nQml (tests only)                          | 6.24    |
-| QML modules: Kirigami, KCMUtils                             | 6.24    |
-| Plasma: libplasma, PlasmaQuick                              | 6.6     |
+| Dependency                                                        | Minimum |
+| ----------------------------------------------------------------- | ------- |
+| CMake                                                             | 3.27    |
+| Qt 6: Core, Network, Qml, Quick (DBus, Test, QuickTest for tests) | 6.10    |
+| Extra CMake Modules; KF6 Wallet, Package, Config                  | 6.24    |
+| KF6 I18n with I18nQml (tests only)                                | 6.24    |
+| QML modules: Kirigami, KCMUtils                                   | 6.24    |
+| Plasma: libplasma, PlasmaQuick                                    | 6.6     |
 
 The minimums cover the two supported targets: TUXEDO OS 24.04 (Qt 6.10.2, KDE
 Frameworks 6.24.0, Plasma 6.6.6) and Fedora KDE 44 (released with Qt 6.10.2,
@@ -106,7 +110,8 @@ versions its updates bring). Older Plasma 6 releases are not supported.
 Packages on TUXEDO OS 24.04: `cmake extra-cmake-modules qt6-base-dev
 qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and for the tests
-`qml6-module-qttest` and `plasma-desktoptheme` (Plasma's QML components).
+`qml6-module-qttest`, `plasma-desktoptheme` (Plasma's QML components) and
+`dbus-daemon`.
 The CI images in `ci/` hold the complete lists for both targets (see
 [CI and releases](#ci-and-releases)).
 
@@ -140,6 +145,17 @@ CTest runs these checks:
   projects, every state, disabled controls and account switches.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
+- `kdeconnection`: the connection and Configure page types the widget creates
+  (`TokklConnection`, `TokklConnectionSetup`) with the real KDE Wallet client
+  and transport. A fake kwalletd answers on a private `dbus-daemon` the test
+  starts, and an in-process server on 127.0.0.1 plays Tokkl, so neither your
+  wallet nor your session bus is touched. It checks the KDE Wallet message for
+  each wallet status, that both types share one wallet store, that each owns
+  its transport, and the `tokkl-kde` client name in `created_with` and the
+  User-Agent.
+- `kdewallet-disabled`: the same types with KDE Wallet turned off in a
+  temporary `kwalletrc`. KDE Wallet reads that setting once per process, so
+  this is a test of its own.
 - `version`: version resolution and metadata stamping.
 - `native-version`: the versions `scripts/native-version.sh` accepts, what it
   maps them to and the ones it refuses. dpkg and rpm then check that the
@@ -472,8 +488,8 @@ The scripts it runs work on their own, for a prepared machine:
   required; `debian/changelog` is written from it at build time.
 - `scripts/check-package.sh --version <version> --package <file> [--previous
   <file>] [--load-test <dir>]`: inspects the package (name, version,
-  architecture, widget and backend paths, dependencies, no maintainer
-  scripts), installs it on a clean system, checks the stamped widget version,
+  architecture, MIT license, widget and backend paths, dependencies, no
+  maintainer scripts), installs it on a clean system, checks the stamped widget version,
   the backend's libraries and the package manager's verify, removes it, then
   installs the previous package, upgrades and removes again (purging on
   Debian). Settings and wallet files in a test home directory must not
@@ -708,6 +724,3 @@ Packages:
 Write down the date, target, versions, package file name and any step that
 failed. A failed step blocks a release that changes the widget, its
 packaging or the wallet code.
-
-The packages declare `License: NOASSERTION`, because the repository has no
-license yet. They are published without a declared license until it has one.

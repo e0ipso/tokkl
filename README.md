@@ -138,7 +138,7 @@ Most Toggl apps hardcode `api.track.toggl.com` and cannot be redirected (Raycast
 
 A Plasma 6 panel widget for TUXEDO OS 24.04 (amd64) and Fedora KDE 44 (x86_64). It shows the running timer in the panel, starts and stops it with a click, and sets the project and billable flag. It signs in to one account with the API token, or an email and password, and keeps the secret in KDE Wallet. It talks only to your server and sees only that account's workspace.
 
-It ships as a DEB and an RPM attached to each GitHub release that includes it, under the same version as the server and the Docker image. The Docker image does not contain it. As of 2026-10-16 no release has carried the packages; the guide says how to build them. The packages declare no license, because the repository has none yet. Installation, setup, behavior, the build and a manual Plasma checklist are in [desktop/kde/README.md](desktop/kde/README.md).
+It ships as a DEB and an RPM attached to each GitHub release that includes it, under the same version as the server and the Docker image. The Docker image does not contain it. As of 2026-10-16 no release has carried the packages; the guide says how to build them. The packages are under the MIT license, like the rest of Tokkl. Installation, setup, behavior, the build and a manual Plasma checklist are in [desktop/kde/README.md](desktop/kde/README.md).
 
 ## Development
 
@@ -174,3 +174,6 @@ bench/           history-scale measurements
 docs/            PRD.md (product requirements), brand/ and screenshots/
 ```
 
+## License
+
+MIT. See [LICENSE](LICENSE).

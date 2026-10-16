@@ -17,8 +17,7 @@ Name:           tokkl-kde
 Version:        %{tokkl_native_version}
 Release:        1%{?dist}
 Summary:        Tokkl timer widget for the Plasma panel
-# The Tokkl repository does not declare a license yet.
-License:        NOASSERTION
+License:        MIT
 URL:            https://github.com/e0ipso/tokkl
 Source0:        %{name}-%{version}.tar.gz
 
@@ -82,6 +81,7 @@ The token or password is stored in KDE Wallet. Built for Fedora KDE 44 x86_64.
 %cmake_install
 
 %files
+%license LICENSE
 %{_kf6_datadir}/plasma/plasmoids/%{plasmoid_id}/
 %dir %{_qt6_qmldir}/com
 %dir %{_qt6_qmldir}/com/github
