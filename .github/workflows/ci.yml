@@ -99,6 +99,49 @@ jobs:
           persist-credentials: false
       - run: desktop/core/ci/check.sh
 
+  # The macOS menu bar app with Qt and QtKeychain from Homebrew: build
+  # Tokkl.app, run CTest (desktop/core's tests included), check the bundle's
+  # Info.plist, and start the app once to see that it stays up. The release
+  # does not wait for it or ship the app.
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Qt and QtKeychain
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: brew install qt qtkeychain
+      - name: Build
+        env:
+          BUILD: ${{ runner.temp }}/macos
+        run: |
+          cmake -S desktop/macos -B "$BUILD" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+          cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)"
+      - name: Test
+        env:
+          BUILD: ${{ runner.temp }}/macos
+        run: ctest --test-dir "$BUILD" --output-on-failure
+      - name: Check the bundle
+        env:
+          BUILD: ${{ runner.temp }}/macos
+        run: |
+          app="$BUILD/src/Tokkl.app"
+          plutil -lint "$app/Contents/Info.plist"
+          test "$(plutil -extract LSUIElement raw "$app/Contents/Info.plist")" = true
+          codesign --verify --verbose "$app"
+          # Starts with no settings, so it opens its settings window and
+          # touches no keychain item. It must still be running after a while.
+          "$app/Contents/MacOS/Tokkl" &
+          pid=$!
+          sleep 10
+          kill -0 "$pid"
+          kill "$pid"
+
   release:
     needs: [test, kde, core]
     if: github.event_name == 'push'
