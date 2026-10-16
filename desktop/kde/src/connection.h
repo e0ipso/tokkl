@@ -176,7 +176,7 @@ private:
     enum class Access {
         Read,
         Write, // needs canWrite()
-        Account, // validates the credentials, like refreshAccount()
+        Account, // validates the credentials, like refreshAccount(); /me and the current entry
     };
     template<typename T>
     void call(const QByteArray &method,

@@ -463,6 +463,58 @@ private Q_SLOTS:
         verifyCleared(f.connection);
     }
 
+    // The current entry request validates the account like /me: the
+    // middleware answers 403 or 401 there for refused credentials.
+    void currentEntryRefusedPausesAuthentication_data()
+    {
+        QTest::addColumn<int>("status");
+        QTest::addColumn<QByteArray>("body");
+        QTest::newRow("403") << 403 << QByteArray("\"Incorrect username and/or password\"");
+        QTest::newRow("401") << 401 << QByteArray("\"Invalid credentials\"");
+    }
+
+    void currentEntryRefusedPausesAuthentication()
+    {
+        QFETCH(int, status);
+        QFETCH(QByteArray, body);
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(populate(f));
+        QSignalSpy accountChanged(&f.connection, &Connection::accountChanged);
+
+        bool answered = false;
+        f.connection.fetchCurrentEntry([&](const auto &) {
+            answered = true;
+        });
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/time_entries/current"));
+        f.transport.respondLast(FakeTransport::answer(status, body));
+        QCOMPARE(f.connection.state(), Connection::AuthenticationFailed);
+        QVERIFY(f.connection.errorString().contains(QString::fromUtf8(body).remove(QLatin1Char('"'))));
+        verifyCleared(f.connection);
+        QVERIFY(accountChanged.count() >= 1);
+        // The request belonged to the account that is gone.
+        QVERIFY(!answered);
+
+        // Writes are blocked and automatic retries do nothing.
+        const qsizetype sent = f.transport.requests.size();
+        std::optional<ApiResult<TimeEntry>> write;
+        f.connection.stopEntry(5, [&](const auto &r) {
+            write = r;
+        });
+        QTRY_VERIFY(write.has_value());
+        QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
+        f.connection.refreshAccount();
+        QTest::qWait(20);
+        QCOMPARE(f.transport.requests.size(), sent);
+
+        // An explicit reconnect validates again.
+        f.connection.reconnect();
+        QTRY_COMPARE(f.transport.requests.size(), sent + 1);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+    }
+
     void rateLimitCooldown()
     {
         Fixture f;

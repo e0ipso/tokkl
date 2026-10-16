@@ -657,7 +657,7 @@ void Connection::fetchCurrentEntry(Callback<std::optional<TimeEntry>> done)
         "GET",
         QStringLiteral("/me/time_entries/current"),
         QByteArray(),
-        Access::Read,
+        Access::Account,
         &decodeCurrentEntry,
         [this](const std::optional<TimeEntry> &entry) {
             const bool changed = entry.has_value() != m_currentEntry.has_value() || (entry && entry->toVariantMap() != m_currentEntry->toVariantMap());

@@ -94,9 +94,9 @@ access, the page and the widget say so and nothing is saved elsewhere.
 The widget validates the account with `GET /api/v9/me` and uses its
 `default_workspace_id` for every request. Changing the address, sign-in method,
 email or secret clears the account data and ignores answers to requests made
-before the change. When `/me` answers 403 the widget clears the account and
-stops retrying until you choose Reconnect from its context menu or change the
-settings; the saved secret stays in the wallet so you can correct it. A 429
+before the change. When `/me` or `/me/time_entries/current` answers 403 the widget clears the
+account and stops retrying until you choose Reconnect from its context menu or
+change the settings; the saved secret stays in the wallet so you can correct it. A 429
 answer pauses requests for the `Retry-After` time (60 seconds when the server
 sends none). Connection failures, timeouts and 5xx answers keep the last account
 data, marked stale. Redirects are not followed, so the credentials never go to
