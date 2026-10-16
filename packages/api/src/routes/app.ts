@@ -11,6 +11,7 @@ import { dateKey, isValidTimeZone } from '@tokkl/common/time';
 import {
   listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
 } from '../models/timeEntries.ts';
+import { getInstanceSettings } from '../models/settings.ts';
 import { countUsers, createFirstAdmin, findUserByEmail } from '../models/users.ts';
 import { buildCsvExport, buildJsonExport } from '../services/export.ts';
 import { importTogglCsv } from '../services/importCsv.ts';
@@ -22,7 +23,8 @@ export interface SetupState {
 }
 
 function startSession(deps: Deps, req: Request, res: Response, userId: number): void {
-  const { token, expires } = createSession(deps.db, userId, deps.config.sessionDays, req.get('user-agent') ?? '');
+  const days = getInstanceSettings(deps.db, deps.config).session_days;
+  const { token, expires } = createSession(deps.db, userId, days, req.get('user-agent') ?? '');
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',

@@ -150,4 +150,14 @@ export const MIGRATIONS: string[] = [
     FROM workspaces, (SELECT MIN(id) AS id FROM users) AS owner
     WHERE owner.id IS NOT NULL;
   `,
+  // Instance settings an admin can change at runtime. Each value is JSON. A key with no row uses its
+  // default (models/settings.ts). Deleting the admin who last changed a setting keeps the setting.
+  `
+  CREATE TABLE instance_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+  );
+  `,
 ];

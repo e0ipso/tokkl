@@ -9,6 +9,7 @@ import { optionalBool, parseId } from '../lib/values.ts';
 import {
   countActiveAdmins, getUser, isActiveAdmin, listUsers, serializeAccount, type UserRole,
 } from '../models/users.ts';
+import { getInstanceSettings, readSettingChanges, updateInstanceSettings } from '../models/settings.ts';
 
 interface AccountChanges {
   role?: UserRole;
@@ -26,7 +27,7 @@ function readAccountChanges(body: Record<string, unknown>): AccountChanges {
 
 /** Instance administration. Every route needs an active admin, signed in like any other API call. */
 export function adminRoutes(deps: Deps): Router {
-  const { db } = deps;
+  const { db, config } = deps;
   const api = express.Router();
   api.use(requireAuth(deps), requireAdmin);
 
@@ -62,6 +63,13 @@ export function adminRoutes(deps: Deps): Router {
     if (!getUser(db, id)) throw notFound('User not found');
     deleteOtherSessions(db, id);
     return res.json({ ok: true });
+  });
+
+  api.get('/settings', (req, res) => res.json(getInstanceSettings(db, config)));
+
+  api.put('/settings', (req, res) => {
+    updateInstanceSettings(db, readSettingChanges(readJson(req)), res.locals.user.id);
+    return res.json(getInstanceSettings(db, config));
   });
 
   return api;
