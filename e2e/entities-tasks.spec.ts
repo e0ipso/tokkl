@@ -135,3 +135,29 @@ test('deleting tasks by keyboard keeps focus in the task list', async ({ page })
   await expect(editor).toBeVisible();
   expect(await api.tasks(project.id)).toEqual([]);
 });
+
+// TT-0206: an archived project's editor has no new task field, so deleting its last task moves focus
+// to the Tasks heading instead.
+test('deleting the last task of an archived project moves focus to the Tasks heading', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  const project = await api.createProject({ name: 'Legacy' });
+  await api.createTask(project.id, 'Wrap up');
+  await api.archiveProject(project.id);
+  await page.getByRole('link', { name: 'Projects' }).click();
+  await page.getByRole('group', { name: 'Project status' }).getByRole('button', { name: 'Archived' }).click();
+  await page.getByRole('button', { name: 'Edit Legacy', exact: true }).click();
+  const tasks = page.getByRole('dialog', { name: 'Edit project' }).getByRole('region', { name: 'Tasks' });
+  await expect(tasks.getByText('Restore the project to add tasks.')).toBeVisible();
+  await expect(tasks.getByRole('textbox', { name: 'New task name' })).toHaveCount(0);
+
+  await tasks.getByRole('button', { name: 'Delete task Wrap up', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(tasks.getByRole('button', { name: 'Keep', exact: true })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Enter');
+
+  await expect(tasks.getByText('No tasks yet.')).toBeVisible();
+  await expect(tasks.getByRole('heading', { level: 3, name: 'Tasks' })).toBeFocused();
+  expect(await api.tasks(project.id)).toEqual([]);
+});
