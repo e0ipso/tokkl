@@ -13,21 +13,22 @@ test('a wrong setup code shows an error, and a retry with the right code creates
   runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/setup$/, reason: 'the first attempt sends a wrong setup code' });
 
   await page.goto(server.baseURL);
-  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
+  await expect(page.getByText("This creates the server's first administrator. You can invite more people afterwards.")).toBeVisible();
   await page.getByLabel('Setup code').fill('WRONG-CODE');
   await page.getByLabel('Name').fill(ACCOUNT.fullname);
   await page.getByLabel('Email').fill(ACCOUNT.email);
   await page.getByLabel('Password').fill(ACCOUNT.password);
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.getByRole('button', { name: 'Create admin account' }).click();
 
   await expect(page.getByRole('alert')).toHaveText('Invalid setup code. It is printed in the server log on startup.');
-  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
   expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual({ setup_required: true });
   expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tokkl_session')).toBe(false);
 
   // The form keeps what was typed, so only the code needs fixing.
   await page.getByLabel('Setup code').fill(SETUP_CODE);
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.getByRole('button', { name: 'Create admin account' }).click();
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   const me = await page.request.get(`${server.baseURL}/api/v9/me`);
@@ -198,8 +199,8 @@ test.describe('on a phone', () => {
   test('the setup and login cards fit a phone in light and dark', async ({ page, runtimeErrors, servers }) => {
     const server = await servers.start({ slot: 0 });
     await page.goto(server.baseURL);
-    await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
-    await expectCardFits(page, ['Setup code', 'Name', 'Email', 'Password'], 'Create account');
+    await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
+    await expectCardFits(page, ['Setup code', 'Name', 'Email', 'Password'], 'Create admin account');
 
     runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/login$/, reason: 'a wrong password shows the login error' });
     await page.goto('/');

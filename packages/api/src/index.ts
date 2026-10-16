@@ -20,7 +20,7 @@ const app = createApp({ db, config, setup });
 const server = app.listen(config.port, config.host, () => {
   console.log(`tokkl listening on http://${config.host}:${config.port} (database: ${config.databasePath})`);
   if (setup.code) {
-    console.log(`No account yet. Open the web UI and use this setup code to create it: ${setup.code}`);
+    console.log(`No admin account yet. Open the web UI and use this setup code to create it: ${setup.code}`);
   }
 });
 server.on('error', (error) => {

@@ -7,12 +7,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../../src/app.ts';
 import { openDatabase } from '../../src/db/index.ts';
-import { createOwner } from '../../src/models/users.ts';
+import { createFirstAdmin } from '../../src/models/users.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'tokkl-test-'));
 const databasePath = join(dir, 'tokkl.db');
 const db = openDatabase(databasePath);
-const user = await createOwner(db, { email: 'me@example.com', password: 'correct horse battery', fullname: 'Test User', timezone: 'UTC' });
+const user = await createFirstAdmin(db, { email: 'me@example.com', password: 'correct horse battery', fullname: 'Test User', timezone: 'UTC' });
 const config = {
   port: 0, host: '127.0.0.1', dataDir: dir, databasePath, webRoot: '/nonexistent', trustProxy: false, sessionDays: 30, setupCode: undefined,
 };

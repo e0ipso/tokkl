@@ -4,7 +4,7 @@ import { createApp } from '../src/app.ts';
 import { generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
 import { accountCounters, FailureLimiter, normalizeEmail, passwordCounters } from '../src/auth/rateLimit.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
-import { createOwner, getUser, type UserRow } from '../src/models/users.ts';
+import { createFirstAdmin, getUser, type UserRow } from '../src/models/users.ts';
 import { PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
 test('API token Basic auth works and wrong credentials get 403', async () => {
@@ -115,7 +115,7 @@ test('PUT /me changes the password only with the current one', async () => {
   assert.equal(login.status, 200);
 });
 
-/** createOwner refuses a second account, so tests that need one insert it directly. */
+/** createFirstAdmin refuses a second account, so tests that need one insert it directly. */
 function insertSecondUser(db: Db, owner: UserRow, email: string): UserRow {
   const result = db.prepare(`
     INSERT INTO users (email, fullname, password_hash, api_token, timezone, default_workspace_id, preferences, created_at, updated_at)
@@ -150,9 +150,9 @@ test('PUT /me refuses an email another user has, in any case, and allows recasin
 test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop', async () => {
   const { createApp: create } = await import('../src/app.ts');
   const { openDatabase: open } = await import('../src/db/index.ts');
-  const { createOwner } = await import('../src/models/users.ts');
+  const { createFirstAdmin } = await import('../src/models/users.ts');
   const db = open(':memory:');
-  await createOwner(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
+  await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
   const app = testServer(create({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
   let last = 0;
   for (let i = 0; i < 12; i++) {
@@ -204,7 +204,7 @@ test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => 
 test('an owner with a password over the cap can still log in and rotate it', async () => {
   const db = openDatabase(':memory:');
   const legacy = 'L'.repeat(MAX_PASSWORD_LENGTH * 2);
-  const user = await createOwner(db, { email: 'me@example.com', password: legacy, fullname: '', timezone: 'UTC' });
+  const user = await createFirstAdmin(db, { email: 'me@example.com', password: legacy, fullname: '', timezone: 'UTC' });
   const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
   const put = (body: unknown) => app.request('/api/v9/me', {
     method: 'PUT',
@@ -337,7 +337,7 @@ test('normalizeEmail and passwordCounters key accounts by trimmed, ASCII-lowerca
 /** An app behind a trusted proxy, so each request can pick its client address. */
 async function multiUserApp(count: number, names = Array.from({ length: count }, (_, i) => `user${i}@example.com`)) {
   const db = openDatabase(':memory:');
-  const owner = await createOwner(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' });
+  const owner = await createFirstAdmin(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' });
   const users = [owner, ...names.slice(1).map((name) => insertSecondUser(db, owner, name))];
   const emails = users.map((user) => user.email);
   const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));

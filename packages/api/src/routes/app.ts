@@ -11,13 +11,13 @@ import { dateKey, isValidTimeZone } from '@tokkl/common/time';
 import {
   listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
 } from '../models/timeEntries.ts';
-import { countUsers, createOwner, findUserByEmail } from '../models/users.ts';
+import { countUsers, createFirstAdmin, findUserByEmail } from '../models/users.ts';
 import { buildCsvExport, buildJsonExport } from '../services/export.ts';
 import { importTogglCsv } from '../services/importCsv.ts';
 import { importJsonExport } from '../services/importJson.ts';
 
 export interface SetupState {
-  /** Code required to create the account; null once an account exists. */
+  /** Code that creates the first admin; null once any account exists. */
   code: string | null;
 }
 
@@ -57,7 +57,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
     if (password.length < 8) throw badRequest('Password must be at least 8 characters');
     if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
-    const user = await createOwner(db, { email, password, fullname, timezone });
+    const user = await createFirstAdmin(db, { email, password, fullname, timezone });
     setup.code = null;
     startSession(deps, req, res, user.id);
     return res.json({ ok: true });

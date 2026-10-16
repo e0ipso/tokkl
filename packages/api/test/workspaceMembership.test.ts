@@ -9,7 +9,7 @@ import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
 import { createSession } from '../src/auth/sessions.ts';
 import { openDatabase } from '../src/db/index.ts';
 import { MIGRATIONS } from '../src/db/migrations.ts';
-import { createOwner, getUser } from '../src/models/users.ts';
+import { createFirstAdmin, getUser } from '../src/models/users.ts';
 import {
   addWorkspaceMember, createWorkspace, isWorkspaceMember, listWorkspacesForUser,
 } from '../src/models/workspaces.ts';
@@ -115,7 +115,7 @@ test('the upgrade gives every workspace to the lowest-id user', async () => {
   });
 });
 
-test('a fresh database has no memberships until setup creates the owner', async () => {
+test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = openDatabase(':memory:');
   assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
   assert.deepEqual(memberships(db), []);
@@ -127,13 +127,14 @@ test('a fresh database has no memberships until setup creates the owner', async 
     body: JSON.stringify({ email: 'owner@example.com', password: PASSWORD, fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' }),
   });
   assert.equal(response.status, 200);
-  const user = db.prepare('SELECT id, default_workspace_id FROM users').get() as { id: number; default_workspace_id: number };
+  const user = db.prepare('SELECT id, default_workspace_id, role FROM users').get() as { id: number; default_workspace_id: number; role: string };
+  assert.equal(user.role, 'admin');
   assert.deepEqual(memberships(db), [{ workspace_id: user.default_workspace_id, user_id: user.id, role: 'owner' }]);
 });
 
-test('createOwner makes an admin who owns the new workspace', async () => {
+test('createFirstAdmin makes an admin who owns the new workspace', async () => {
   const db = openDatabase(':memory:');
-  const user = await createOwner(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
+  const user = await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
   assert.equal(user.role, 'admin');
   assert.equal(user.disabled_at, null);
   assert.deepEqual(memberships(db), [{ workspace_id: user.default_workspace_id, user_id: user.id, role: 'owner' }]);
@@ -142,7 +143,7 @@ test('createOwner makes an admin who owns the new workspace', async () => {
 
 test('isWorkspaceMember and listWorkspacesForUser see only the workspaces a user belongs to', async () => {
   const db = openDatabase(':memory:');
-  const owner = await createOwner(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
+  const owner = await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
   const shared = createWorkspace(db, 'Shared').id;
   const memberId = Number(db.prepare(`
     INSERT INTO users (email, password_hash, api_token, default_workspace_id, created_at, updated_at)

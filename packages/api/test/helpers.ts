@@ -9,7 +9,7 @@ import { createApp } from '../src/app.ts';
 import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
 import type { Config } from '../src/config.ts';
 import { nowIso, openDatabase, transaction, type Db } from '../src/db/index.ts';
-import { createOwner, DEFAULT_PREFERENCES, getUser, type UserRole, type UserRow } from '../src/models/users.ts';
+import { createFirstAdmin, DEFAULT_PREFERENCES, getUser, type UserRole, type UserRow } from '../src/models/users.ts';
 import { addWorkspaceMember, createWorkspace } from '../src/models/workspaces.ts';
 
 export interface TestContext {
@@ -53,7 +53,7 @@ export function testConfig(): Config {
 
 export async function setup(options: { timezone?: string } = {}): Promise<TestContext> {
   const db = openDatabase(':memory:');
-  const user = await createOwner(db, {
+  const user = await createFirstAdmin(db, {
     email: 'me@example.com', password: PASSWORD, fullname: 'Test User', timezone: options.timezone ?? 'UTC',
   });
   return serve(db, user);

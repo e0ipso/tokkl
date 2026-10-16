@@ -119,7 +119,8 @@ export function findUserByApiToken(db: Db, token: string): UserRow | undefined {
   return db.prepare('SELECT * FROM users WHERE api_token = ?').get(token) as UserRow | undefined;
 }
 
-export async function createOwner(
+/** Creates the first admin and the workspace it owns in one transaction. Refuses once any user exists. */
+export async function createFirstAdmin(
   db: Db,
   input: { email: string; password: string; fullname: string; timezone: string },
 ): Promise<UserRow> {
