@@ -13,7 +13,7 @@ import { createOwner, getUser } from '../src/models/users.ts';
 import {
   addWorkspaceMember, createWorkspace, isWorkspaceMember, listWorkspacesForUser,
 } from '../src/models/workspaces.ts';
-import { PASSWORD, testConfig, testServer } from './helpers.ts';
+import { addUser, PASSWORD, sessionCookie, setup, testConfig, testServer } from './helpers.ts';
 
 /** The schema version shipped before roles and workspace membership. */
 const PREVIOUS_VERSION = 2;
@@ -164,4 +164,32 @@ test('isWorkspaceMember and listWorkspacesForUser see only the workspaces a user
   assert.deepEqual(listWorkspacesForUser(db, memberId).map((ws) => ws.name), ['Shared']);
   assert.deepEqual(listWorkspacesForUser(db, outsiderId), []);
   assert.equal(getUser(db, memberId)!.role, 'user');
+});
+
+test('addUser signs a second account in on the same app with its own workspace', async () => {
+  const first = await setup();
+  const second = await addUser(first, { email: 'second@example.com', role: 'user' });
+  const admin = await addUser(first, { email: 'admin@example.com', role: 'admin' });
+
+  assert.equal(second.db, first.db);
+  assert.deepEqual([first.user.role, second.user.role, admin.user.role], ['admin', 'user', 'admin']);
+  assert.equal(new Set([first.wid, second.wid, admin.wid]).size, 3, 'each account has its own workspace');
+  assert.deepEqual(memberships(first.db).filter((row) => row.user_id !== first.user.id), [
+    { workspace_id: second.wid, user_id: second.user.id, role: 'owner' },
+    { workspace_id: admin.wid, user_id: admin.user.id, role: 'owner' },
+  ]);
+
+  for (const ctx of [first, second, admin]) {
+    const byToken = await ctx.json('GET', '/api/v9/me');
+    assert.equal(byToken.status, 200);
+    assert.equal(byToken.body.id, ctx.user.id);
+    assert.equal(byToken.body.default_workspace_id, ctx.wid);
+
+    const cookie = await sessionCookie(ctx);
+    const byCookie = await first.request('GET', '/api/v9/me', undefined, { authorization: '', cookie });
+    assert.equal(byCookie.status, 200);
+    const me = await byCookie.json() as { email: string; default_workspace_id: number };
+    assert.equal(me.email, ctx.user.email);
+    assert.equal(me.default_workspace_id, ctx.wid);
+  }
 });
