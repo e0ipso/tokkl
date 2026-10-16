@@ -26,6 +26,8 @@ export interface ServerOptions {
 export interface DisposableServer {
   baseURL: string;
   dataDir: string;
+  /** Everything the server process has written to stdout and stderr so far. */
+  output: () => string;
   stop: () => Promise<void>;
 }
 
@@ -81,7 +83,7 @@ async function startServer(options: ServerOptions): Promise<DisposableServer> {
     await stop();
     throw error;
   }
-  return { baseURL, dataDir, stop };
+  return { baseURL, dataDir, output: () => output, stop };
 }
 
 /** Starts disposable servers for one scenario; stops them and deletes their data afterwards. */

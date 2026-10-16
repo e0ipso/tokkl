@@ -41,9 +41,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
       <form className="auth-card" onSubmit={submit}>
         {mode === 'setup' ? (
           <>
-            <h1>Create your account</h1>
+            <h1>Create the first admin</h1>
             <p className="muted">
-              This server has no account yet. The setup code is printed in the server log.
+              This creates the server's first administrator. You can invite more people afterwards.
+              The setup code is printed in the server log.
             </p>
             <label className="field">
               <span>Setup code</span>
@@ -77,7 +78,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
           </div>
         ) : null}
         <button type="submit" className="button button-primary button-block" disabled={busy}>
-          {mode === 'setup' ? 'Create account' : 'Log in'}
+          {mode === 'setup' ? 'Create admin account' : 'Log in'}
         </button>
       </form>
     </div>

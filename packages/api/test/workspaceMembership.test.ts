@@ -9,11 +9,11 @@ import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
 import { createSession } from '../src/auth/sessions.ts';
 import { openDatabase } from '../src/db/index.ts';
 import { MIGRATIONS } from '../src/db/migrations.ts';
-import { createOwner, getUser } from '../src/models/users.ts';
+import { createFirstAdmin, getUser } from '../src/models/users.ts';
 import {
   addWorkspaceMember, createWorkspace, isWorkspaceMember, listWorkspacesForUser,
 } from '../src/models/workspaces.ts';
-import { PASSWORD, testConfig, testServer } from './helpers.ts';
+import { addUser, PASSWORD, sessionCookie, setup, testConfig, testServer } from './helpers.ts';
 
 /** The schema version shipped before roles and workspace membership. */
 const PREVIOUS_VERSION = 2;
@@ -115,7 +115,7 @@ test('the upgrade gives every workspace to the lowest-id user', async () => {
   });
 });
 
-test('a fresh database has no memberships until setup creates the owner', async () => {
+test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = openDatabase(':memory:');
   assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
   assert.deepEqual(memberships(db), []);
@@ -127,13 +127,14 @@ test('a fresh database has no memberships until setup creates the owner', async 
     body: JSON.stringify({ email: 'owner@example.com', password: PASSWORD, fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' }),
   });
   assert.equal(response.status, 200);
-  const user = db.prepare('SELECT id, default_workspace_id FROM users').get() as { id: number; default_workspace_id: number };
+  const user = db.prepare('SELECT id, default_workspace_id, role FROM users').get() as { id: number; default_workspace_id: number; role: string };
+  assert.equal(user.role, 'admin');
   assert.deepEqual(memberships(db), [{ workspace_id: user.default_workspace_id, user_id: user.id, role: 'owner' }]);
 });
 
-test('createOwner makes an admin who owns the new workspace', async () => {
+test('createFirstAdmin makes an admin who owns the new workspace', async () => {
   const db = openDatabase(':memory:');
-  const user = await createOwner(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
+  const user = await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
   assert.equal(user.role, 'admin');
   assert.equal(user.disabled_at, null);
   assert.deepEqual(memberships(db), [{ workspace_id: user.default_workspace_id, user_id: user.id, role: 'owner' }]);
@@ -142,7 +143,7 @@ test('createOwner makes an admin who owns the new workspace', async () => {
 
 test('isWorkspaceMember and listWorkspacesForUser see only the workspaces a user belongs to', async () => {
   const db = openDatabase(':memory:');
-  const owner = await createOwner(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
+  const owner = await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
   const shared = createWorkspace(db, 'Shared').id;
   const memberId = Number(db.prepare(`
     INSERT INTO users (email, password_hash, api_token, default_workspace_id, created_at, updated_at)
@@ -164,4 +165,96 @@ test('isWorkspaceMember and listWorkspacesForUser see only the workspaces a user
   assert.deepEqual(listWorkspacesForUser(db, memberId).map((ws) => ws.name), ['Shared']);
   assert.deepEqual(listWorkspacesForUser(db, outsiderId), []);
   assert.equal(getUser(db, memberId)!.role, 'user');
+});
+
+test('addUser signs a second account in on the same app with its own workspace', async () => {
+  const first = await setup();
+  const second = await addUser(first, { email: 'second@example.com', role: 'user' });
+  const admin = await addUser(first, { email: 'admin@example.com', role: 'admin' });
+
+  assert.equal(second.db, first.db);
+  assert.deepEqual([first.user.role, second.user.role, admin.user.role], ['admin', 'user', 'admin']);
+  assert.equal(new Set([first.wid, second.wid, admin.wid]).size, 3, 'each account has its own workspace');
+  assert.deepEqual(memberships(first.db).filter((row) => row.user_id !== first.user.id), [
+    { workspace_id: second.wid, user_id: second.user.id, role: 'owner' },
+    { workspace_id: admin.wid, user_id: admin.user.id, role: 'owner' },
+  ]);
+
+  for (const ctx of [first, second, admin]) {
+    const byToken = await ctx.json('GET', '/api/v9/me');
+    assert.equal(byToken.status, 200);
+    assert.equal(byToken.body.id, ctx.user.id);
+    assert.equal(byToken.body.default_workspace_id, ctx.wid);
+
+    const cookie = await sessionCookie(ctx);
+    const byCookie = await first.request('GET', '/api/v9/me', undefined, { authorization: '', cookie });
+    assert.equal(byCookie.status, 200);
+    const me = await byCookie.json() as { email: string; default_workspace_id: number };
+    assert.equal(me.email, ctx.user.email);
+    assert.equal(me.default_workspace_id, ctx.wid);
+  }
+});
+
+const ORGANIZATION_FIELDS = [
+  'id', 'name', 'pricing_plan_id', 'pricing_plan_name', 'created_at', 'at', 'server_deleted_at', 'is_multi_workspace_enabled',
+  'suspended_at', 'user_count', 'trial_info', 'is_chargify', 'is_unified', 'max_workspaces', 'admin', 'owner', 'permissions',
+];
+const MEMBER_FIELDS = ['id', 'email', 'fullname', 'timezone', 'admin', 'inactive'];
+
+test('workspace and organization flags come from the caller\'s membership, not users.role', async () => {
+  const owner = await setup();
+  // An instance admin who joins as a member is not a workspace admin; a plain user who owns a workspace is.
+  const member = await addUser(owner, { email: 'member@example.com', role: 'admin', fullname: 'Member' });
+  const outsider = await addUser(owner, { email: 'outsider@example.com', role: 'user' });
+  addWorkspaceMember(owner.db, owner.wid, member.user.id, 'member');
+
+  const ownerOrgs = await owner.json('GET', '/api/v9/me/organizations');
+  assert.equal(ownerOrgs.status, 200);
+  assert.deepEqual(ownerOrgs.body.map((org: any) => [org.id, org.admin, org.owner, org.user_count]), [[owner.wid, true, true, 2]]);
+  assert.deepEqual(Object.keys(ownerOrgs.body[0]), ORGANIZATION_FIELDS);
+
+  const memberOrgs = await member.json('GET', '/api/v9/me/organizations');
+  assert.deepEqual(memberOrgs.body.map((org: any) => [org.id, org.admin, org.owner, org.user_count]),
+    [[owner.wid, false, false, 2], [member.wid, true, true, 1]]);
+  const outsiderOrgs = await outsider.json('GET', '/api/v9/me/organizations');
+  assert.deepEqual(outsiderOrgs.body.map((org: any) => [org.id, org.admin, org.owner, org.user_count]), [[outsider.wid, true, true, 1]],
+    'a plain user owns its workspace and does not see the others');
+
+  const flags = (body: any) => ({ admin: body.admin, role: body.role });
+  assert.deepEqual(flags((await owner.json('GET', `/api/v9/workspaces/${owner.wid}`)).body), { admin: true, role: 'admin' });
+  assert.deepEqual(flags((await member.json('GET', `/api/v9/workspaces/${owner.wid}`)).body), { admin: false, role: 'user' });
+  assert.deepEqual(flags((await outsider.json('GET', `/api/v9/workspaces/${outsider.wid}`)).body), { admin: true, role: 'admin' });
+  assert.deepEqual(flags((await owner.json('PUT', `/api/v9/workspaces/${owner.wid}`, { name: 'Renamed' })).body),
+    { admin: true, role: 'admin' });
+  const related = await member.json('GET', '/api/v9/me?with_related_data=true');
+  assert.deepEqual(related.body.workspaces.filter((ws: any) => ws.id !== outsider.wid).map((ws: any) => [ws.id, ws.admin, ws.role]),
+    [[owner.wid, false, 'user'], [member.wid, true, 'admin']]);
+  const exported = await member.json('GET', '/api/app/export.json');
+  assert.equal(exported.status, 200);
+  assert.equal(exported.body.workspaces.find((ws: any) => ws.id === owner.wid).admin, false);
+});
+
+test('GET /workspaces/:wid/users lists the workspace members and refuses non-members', async () => {
+  const owner = await setup();
+  const member = await addUser(owner, { email: 'member@example.com', role: 'admin', fullname: 'Member', timezone: 'Europe/Madrid' });
+  const outsider = await addUser(owner, { email: 'outsider@example.com', role: 'user' });
+  addWorkspaceMember(owner.db, owner.wid, member.user.id, 'member');
+
+  for (const ctx of [owner, member]) {
+    const users = await ctx.json('GET', `/api/v9/workspaces/${owner.wid}/users`);
+    assert.equal(users.status, 200);
+    assert.deepEqual(users.body, [
+      { id: owner.user.id, email: 'me@example.com', fullname: 'Test User', timezone: 'UTC', admin: true, inactive: false },
+      { id: member.user.id, email: 'member@example.com', fullname: 'Member', timezone: 'Europe/Madrid', admin: false, inactive: false },
+    ]);
+    assert.deepEqual(Object.keys(users.body[0]!), MEMBER_FIELDS);
+  }
+
+  for (const wid of [owner.wid, 999]) {
+    const refused = await outsider.json('GET', `/api/v9/workspaces/${wid}/users`);
+    assert.equal(refused.status, 403);
+    assert.equal(refused.body, 'User does not have access to this resource.');
+  }
+  const own = await outsider.json('GET', `/api/v9/workspaces/${outsider.wid}/users`);
+  assert.deepEqual(own.body.map((user: any) => [user.email, user.admin]), [['outsider@example.com', true]]);
 });

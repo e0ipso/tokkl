@@ -10,7 +10,7 @@ import { listTags, serializeTag } from '../models/tags.ts';
 import { listTasks, serializeTask } from '../models/tasks.ts';
 import { listTimeEntries, serializeTimeEntry, type TimeEntryWithMeta } from '../models/timeEntries.ts';
 import { getPreferences, serializeUser, type UserRow } from '../models/users.ts';
-import { listWorkspaces, serializeWorkspace } from '../models/workspaces.ts';
+import { getWorkspaceRole, listWorkspaces, serializeWorkspace } from '../models/workspaces.ts';
 
 export const EXPORT_FORMAT = 'tokkl-export';
 /** Format name written before the rename to Tokkl. Restore still accepts it. */
@@ -26,7 +26,7 @@ export function buildJsonExport(db: Db, user: UserRow) {
     exported_at: new Date().toISOString(),
     user: serializeUser(user, { includeToken: false }),
     preferences: getPreferences(user),
-    workspaces: workspaces.map(serializeWorkspace),
+    workspaces: workspaces.map((ws) => serializeWorkspace(ws, getWorkspaceRole(db, user.id, ws.id))),
     clients: workspaces.flatMap((ws) => listClients(db, ws.id).map(serializeClient)),
     projects: workspaces.flatMap((ws) => listProjects(db, ws.id).map((p) => serializeProject(p, ws.default_currency))),
     tasks: workspaces.flatMap((ws) => listTasks(db, ws.id).map(serializeTask)),

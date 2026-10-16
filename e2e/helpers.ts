@@ -3,7 +3,7 @@ import { EMAIL, PASSWORD, SETUP_CODE } from './fixtures.ts';
 
 export async function login(page: Page) {
   await page.goto('/');
-  const setup = page.getByRole('heading', { name: 'Create your account' });
+  const setup = page.getByRole('heading', { name: 'Create the first admin' });
   const loginHeading = page.getByRole('heading', { name: 'Log in' });
   await expect(setup.or(loginHeading)).toBeVisible();
   if (await setup.isVisible()) {
@@ -11,7 +11,7 @@ export async function login(page: Page) {
     await page.getByLabel('Name').fill('E2E User');
     await page.getByLabel('Email').fill(EMAIL);
     await page.getByLabel('Password').fill(PASSWORD);
-    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.getByRole('button', { name: 'Create admin account' }).click();
   } else {
     await page.getByLabel('Email').fill(EMAIL);
     await page.getByLabel('Password').fill(PASSWORD);

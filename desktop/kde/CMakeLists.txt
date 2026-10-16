@@ -51,9 +51,12 @@ find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Network Qml Qu
 find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Wallet Package)
 find_package(Plasma ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
 
-# QML modules the widget imports at runtime.
+# QML modules the widget and its Configure page import at runtime.
 ecm_find_qmlmodule(org.kde.plasma.plasmoid)
 ecm_find_qmlmodule(org.kde.plasma.components)
+ecm_find_qmlmodule(org.kde.plasma.configuration)
+ecm_find_qmlmodule(org.kde.kirigami)
+ecm_find_qmlmodule(org.kde.kcmutils)
 
 message(STATUS "Tokkl KDE companion version: ${TOKKL_RESOLVED_VERSION}")
 
@@ -63,8 +66,9 @@ add_subdirectory(package)
 if(BUILD_TESTING)
     find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Test)
     # The smoke test loads the widget through libplasma, whose CMake package
-    # does not pull in KF6Config itself.
-    find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Config)
+    # does not pull in KF6Config itself, and translates the Configure page
+    # with KI18n as Plasma does.
+    find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Config I18n)
     find_package(PlasmaQuick ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
     add_subdirectory(autotests)
 endif()

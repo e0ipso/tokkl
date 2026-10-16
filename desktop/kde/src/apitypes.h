@@ -1,0 +1,150 @@
+#pragma once
+
+#include <QDateTime>
+#include <QJsonValue>
+#include <QList>
+#include <QString>
+#include <QStringList>
+#include <QVariantMap>
+
+#include <optional>
+
+namespace Tokkl
+{
+
+struct HttpResponse;
+
+// GET /api/v9/me. The response also carries api_token, which is a credential
+// and is deliberately not decoded.
+struct Me {
+    qint64 id = 0;
+    QString email;
+    QString fullname;
+    QString timezone;
+    qint64 defaultWorkspaceId = 0;
+    int beginningOfWeek = 1;
+
+    QVariantMap toVariantMap() const;
+};
+
+struct Project {
+    qint64 id = 0;
+    qint64 workspaceId = 0;
+    std::optional<qint64> clientId;
+    QString clientName;
+    QString name;
+    QString color;
+    bool active = true;
+    bool billable = false;
+
+    QVariantMap toVariantMap() const;
+};
+
+struct TimeEntry {
+    qint64 id = 0;
+    qint64 workspaceId = 0;
+    std::optional<qint64> projectId;
+    std::optional<qint64> taskId;
+    bool billable = false;
+    QDateTime start;
+    std::optional<QDateTime> stop; // empty while running
+    qint64 duration = 0; // negative while running, as in Toggl
+    QString description;
+    QStringList tags;
+
+    bool isRunning() const
+    {
+        return !stop.has_value();
+    }
+
+    QVariantMap toVariantMap() const;
+};
+
+// Body of POST /workspaces/{wid}/time_entries for a running entry.
+struct StartEntry {
+    QDateTime start; // sent in UTC
+    QString description;
+    std::optional<qint64> projectId;
+    std::optional<bool> billable;
+};
+
+// Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields
+// are left out of the request. A project of std::nullopt inside the outer
+// optional clears the project.
+struct TimeEntryUpdate {
+    std::optional<QString> description;
+    std::optional<std::optional<qint64>> projectId;
+    std::optional<bool> billable;
+    std::optional<QDateTime> start;
+};
+
+struct ApiError {
+    enum class Kind {
+        None,
+        Network, // no HTTP answer
+        Timeout,
+        Server, // 5xx
+        RateLimited, // 429, or a cooldown from an earlier 429
+        Forbidden, // 403
+        Unauthorized, // 401
+        Redirect, // 3xx; redirects are not followed
+        Client, // other 4xx
+        InvalidResponse, // the body did not have the expected shape
+        NotConnected, // no validated account for this request
+        AuthenticationPaused, // an earlier /me 403 paused authentication
+    };
+
+    Kind kind = Kind::None;
+    int status = 0;
+    QString message; // for the user; never contains credentials
+
+    // Connectivity problems, timeouts and server errors: the account may be
+    // fine and cached data is only stale.
+    bool isTransient() const
+    {
+        return kind == Kind::Network || kind == Kind::Timeout || kind == Kind::Server;
+    }
+};
+
+template<typename T>
+struct ApiResult {
+    std::optional<T> value;
+    ApiError error;
+
+    bool ok() const
+    {
+        return value.has_value();
+    }
+
+    static ApiResult success(T v)
+    {
+        return ApiResult{std::move(v), ApiError()};
+    }
+
+    static ApiResult failure(ApiError e)
+    {
+        return ApiResult{std::nullopt, std::move(e)};
+    }
+};
+
+// Decoders for the API's bare JSON bodies. Each returns nullopt when the
+// value does not have the expected shape.
+std::optional<Me> decodeMe(const QJsonValue &value);
+std::optional<Project> decodeProject(const QJsonValue &value);
+std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
+std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
+// null for no running entry.
+std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value);
+
+// Parses a whole body as one JSON value, including bare null, strings and
+// numbers that QJsonDocument alone rejects.
+std::optional<QJsonValue> parseJsonBody(const QByteArray &body);
+
+// The error a non-2xx or failed response stands for. The API sends errors as
+// a bare JSON string.
+ApiError errorFromResponse(const HttpResponse &response);
+
+QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId);
+QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
+
+}

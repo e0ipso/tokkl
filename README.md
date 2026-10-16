@@ -63,7 +63,7 @@ npm start
 On first start the log prints a setup code:
 
 ```
-No account yet. Open the web UI and use this setup code to create it: ABCD-EFGH-JKLM
+No admin account yet. Open the web UI and use this setup code to create it: ABCD-EFGH-JKLM
 ```
 
 Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link and shares it by hand, and the server sends no email.

@@ -1,5 +1,22 @@
 include(ECMAddTests)
 
+# Unit tests of the API client and connection state, against the scripted
+# transport and credential store in fakes.h, and of the real transport
+# against an in-process loopback server. They never reach KDE Wallet, another
+# host or real configuration; private XDG dirs make sure of the last.
+set(_unit_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-unit")
+ecm_add_test(apitest.cpp
+    TEST_NAME api
+    LINK_LIBRARIES tokklcore Qt6::Test)
+ecm_add_test(connectiontest.cpp fakes.h
+    TEST_NAME connection
+    LINK_LIBRARIES tokklcore Qt6::Test)
+ecm_add_test(networktransporttest.cpp
+    TEST_NAME networktransport
+    LINK_LIBRARIES tokklcore Qt6::Test)
+set_tests_properties(api connection networktransport PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")
+
 # Version resolution and metadata stamping, in script mode.
 add_test(NAME version
     COMMAND ${CMAKE_COMMAND}
@@ -36,7 +53,7 @@ set(_staged_qmldir "${_stage_dir}${KDE_INSTALL_FULL_QMLDIR}")
 
 ecm_add_test(smokeloadtest.cpp
     TEST_NAME smokeload
-    LINK_LIBRARIES Qt6::Test Qt6::Qml Qt6::Quick KF6::Package Plasma::Plasma Plasma::PlasmaQuick)
+    LINK_LIBRARIES Qt6::Test Qt6::Qml Qt6::Quick KF6::ConfigGui KF6::I18n KF6::Package Plasma::Plasma Plasma::PlasmaQuick)
 # Keep the test out of bin/: Qt imports QML modules from the executable's
 # directory, where the build-tree backend lives.
 set_target_properties(smokeload PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
