@@ -158,7 +158,8 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(sheet).toBeVisible();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
   await expect(sheet.getByRole('link', { name: 'Clients', exact: true })).toBeFocused();
-  for (const name of ['Tags', 'Trash']) {
+  // The setup account is an admin, so its sheet also holds Admin (TT-0141).
+  for (const name of ['Tags', 'Trash', 'Admin']) {
     await page.keyboard.press('Tab');
     await expect(sheet.getByRole('link', { name, exact: true })).toBeFocused();
   }

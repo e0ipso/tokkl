@@ -122,9 +122,9 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
   );
 }
 
-/** Status pill for active and archived rows. */
-export function StatusBadge({ archived }: { archived: boolean }) {
-  return <span className={`manage-status${archived ? ' is-archived' : ''}`}>{archived ? 'Archived' : 'Active'}</span>;
+/** Status pill for active and archived rows. `label` replaces the text, as in Disabled for accounts. */
+export function StatusBadge({ archived, label }: { archived: boolean; label?: string }) {
+  return <span className={`manage-status${archived ? ' is-archived' : ''}`}>{label ?? (archived ? 'Archived' : 'Active')}</span>;
 }
 
 export type StatusFilter = 'active' | 'archived' | 'all';

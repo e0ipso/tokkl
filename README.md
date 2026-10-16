@@ -20,7 +20,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 
 The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as [README screenshots](#readme-screenshots) explains.
 
-**Timer.** The running entry is at the top and history is grouped by day. Favorites are bold numbered pills under the timer, and the sidebar lists Timer, Reports, Projects, Clients, Tags, Trash and Settings.
+**Timer.** The running entry is at the top and history is grouped by day. Favorites are bold numbered pills under the timer, and the sidebar lists Timer, Reports, Projects, Clients, Tags, Trash and Settings, plus Admin for admins.
 
 ![Timer with a running entry and day-grouped history](docs/screenshots/desktop-timer.png)
 
@@ -66,7 +66,7 @@ On first start the log prints a setup code:
 No admin account yet. Open the web UI and use this setup code to create it: ABCD-EFGH-JKLM
 ```
 
-Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link and shares it by hand, and the server sends no email.
+Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link on the Admin page and shares it by hand, and the server sends no email. The Admin page also changes roles, disables, signs out and deletes accounts, and sets how long sessions and invite links last.
 
 All data is in `tokkl.sqlite` (plus its `-wal` and `-shm` files) inside the data folder. Settings → Data also exports everything as JSON and all entries as CSV, and restores the JSON export.
 

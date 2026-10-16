@@ -112,7 +112,9 @@ export function togglV9Routes(deps: Deps): Router {
   // ----- /me ------------------------------------------------------------------------------------
   api.get('/me', (req, res) => {
     const user = res.locals.user;
-    const body: Record<string, unknown> = serializeUser(user, { includeToken: true });
+    // role is Tokkl's own field, the instance role the web app needs to show the admin area.
+    // Every Toggl field keeps its name, type and meaning.
+    const body: Record<string, unknown> = { ...serializeUser(user, { includeToken: true }), role: user.role };
     if (queryFlag(req, 'with_related_data')) {
       const workspaces = listWorkspacesForUser(db, user.id);
       body.workspaces = workspaces.map((ws) => serializeWorkspaceFor(db, user, ws));

@@ -16,6 +16,11 @@ export interface Account {
 /** The setup account: the only admin of the e2e server, and the account `data` signs in as. */
 export const ADMIN_ACCOUNT: Account = { email: EMAIL, password: PASSWORD, fullname: 'E2E User' };
 
+export interface InstanceSettings {
+  session_days: number;
+  invite_days: number;
+}
+
 export interface NewUser {
   role?: 'admin' | 'user';
   /** Defaults to a unique address, so leftovers from a failed run never collide. */
@@ -123,8 +128,22 @@ export class TestData {
   }
 
   /** Every account on the server, as an admin sees them. */
-  async listUsers(): Promise<Array<{ id: number; email: string }>> {
+  async listUsers(): Promise<Array<{ id: number; email: string; role: 'admin' | 'user'; disabled_at: string | null }>> {
     return json(this.api.get('/api/app/admin/users'));
+  }
+
+  /** The instance settings, as an admin sees them. */
+  async instanceSettings(): Promise<InstanceSettings> {
+    return json(this.api.get('/api/app/admin/settings'));
+  }
+
+  async saveInstanceSettings(settings: InstanceSettings): Promise<void> {
+    await ok(await this.api.put('/api/app/admin/settings', { headers: CSRF, data: settings }));
+  }
+
+  /** Creates an invite as an admin, through the API, and returns its id. The link is not kept. */
+  async createInvite(invite: { role: 'admin' | 'user'; note?: string }): Promise<number> {
+    return (await json<{ id: number }>(this.api.post('/api/app/admin/invites', { headers: CSRF, data: invite }))).id;
   }
 
   /** Deletes another account and its workspace, as an admin. */
@@ -132,9 +151,14 @@ export class TestData {
     await ok(await this.api.delete(`/api/app/admin/users/${user.id}`, { headers: CSRF, data: { email: user.email } }));
   }
 
+  /** Pending invites, as an admin sees them. */
+  async inviteList(): Promise<Array<{ id: number; role: 'admin' | 'user'; note: string | null }>> {
+    return json(this.api.get('/api/app/admin/invites'));
+  }
+
   /** Revokes every invite nobody has accepted yet, as an admin. */
   async revokeInvites(): Promise<void> {
-    for (const invite of await json<Array<{ id: number }>>(this.api.get('/api/app/admin/invites'))) {
+    for (const invite of await this.inviteList()) {
       await ok(await this.api.delete(`/api/app/admin/invites/${invite.id}`, { headers: CSRF }));
     }
   }

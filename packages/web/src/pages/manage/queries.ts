@@ -26,11 +26,13 @@ interface ActionOptions<TVars, TResult> {
   /** Toast shown after success. */
   success?: string | ((result: TResult, vars: TVars) => string);
   onSuccess?: (result: TResult, vars: TVars) => void;
+  /** Shows a server error somewhere else, such as next to the field that caused it, instead of a toast. */
+  onError?: (error: Error, vars: TVars) => void;
 }
 
 /**
  * A mutation that refreshes the given queries, shows a success toast and reports server errors
- * through `toast.error`, so callers only describe what the action does.
+ * through `toast.error` (or `onError`), so callers only describe what the action does.
  */
 export function useAction<TVars = void, TResult = unknown>(options: ActionOptions<TVars, TResult>) {
   const toast = useToast();
@@ -43,7 +45,7 @@ export function useAction<TVars = void, TResult = unknown>(options: ActionOption
       if (message) toast.show(message);
       options.onSuccess?.(result, vars);
     },
-    onError: (error) => toast.error(error),
+    onError: (error, vars) => (options.onError ? options.onError(error, vars) : toast.error(error)),
   });
 }
 

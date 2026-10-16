@@ -158,3 +158,22 @@
 @media (max-width: 760px) {
   .manage-actions .button { min-height: 44px; }
 }
+
+/* Admin page. The users and invites tables scroll sideways inside .table-wrap on a phone, so the
+   page itself stays within the screen. */
+.admin-table td { white-space: nowrap; }
+.admin-account-name { display: block; font-weight: 600; }
+.admin-account-email { display: block; color: var(--muted); font-size: var(--text-sm); }
+.admin-status { display: flex; align-items: center; gap: 8px; }
+.admin-table .field-error { max-width: 260px; white-space: normal; margin-top: 4px; }
+.admin-table .button { min-height: 32px; padding: 2px 12px; }
+.admin-invite-form .settings-actions { margin-top: 0; }
+.admin-new-invite { margin-top: 12px; }
+.admin-new-invite-text { min-width: 0; flex: 1 1 260px; }
+.admin-new-invite-text p { margin: 0 0 6px; }
+.admin-new-invite .token-value { display: block; }
+@media (max-width: 760px) {
+  .admin-table .button { min-height: 44px; }
+  .admin-table select { min-height: 44px; }
+  .admin-table .icon-button { min-width: 44px; height: 44px; }
+}

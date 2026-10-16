@@ -26,6 +26,38 @@ test('a regular user gets 403 from every admin route', async () => {
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[1].role, 'user');
 });
 
+// TT-0141: the web app shows the admin area from GET /api/v9/me. role is a Tokkl-only field; the
+// Toggl fields keep their names, and the other user-shaped responses stay Toggl-only.
+test('GET /api/v9/me carries the instance role next to the unchanged Toggl fields', async () => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const TOGGL_FIELDS = [
+    '2fa_enabled', 'api_token', 'at', 'authorization_updated_at', 'beginning_of_week', 'country_id', 'created_at',
+    'default_workspace_id', 'email', 'fullname', 'has_password', 'id', 'image_url', 'oauth_providers', 'openid_email',
+    'openid_enabled', 'timezone', 'toggl_accounts_id', 'updated_at',
+  ];
+
+  const adminMe = await admin.json('GET', '/api/v9/me');
+  assert.equal(adminMe.status, 200);
+  assert.equal(adminMe.body.role, 'admin');
+  assert.deepEqual(Object.keys(adminMe.body).sort(), [...TOGGL_FIELDS, 'role'].sort());
+  assert.equal(adminMe.body.email, 'me@example.com');
+  assert.equal(adminMe.body.default_workspace_id, admin.wid);
+
+  const bobMe = await bob.json('GET', '/api/v9/me');
+  assert.equal(bobMe.body.role, 'user');
+  const related = await bob.json('GET', '/api/v9/me?with_related_data=true');
+  assert.equal(related.body.role, 'user');
+
+  // A role change shows on the next read.
+  assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { role: 'admin' })).status, 200);
+  assert.equal((await bob.json('GET', '/api/v9/me')).body.role, 'admin');
+
+  const updated = await bob.json('PUT', '/api/v9/me', { fullname: 'Bob' });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.role, undefined, 'PUT /me answers in the Toggl shape');
+});
+
 test('an admin lists every account with only the account fields, ordered by id', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user', fullname: 'Bob' });
