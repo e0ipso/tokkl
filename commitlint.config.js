@@ -30,6 +30,8 @@ const forbiddenPatterns = [
   new RegExp(`(?:Generated|Made) (?:with|by|using)\\b.*${tool}`, 'iu'),
 ];
 
+const ticketIdInHeader = /\bTT-\d+\b/;
+
 export default {
   extends: ['@commitlint/config-conventional'],
   plugins: [
@@ -41,6 +43,17 @@ export default {
             if (match) {
               return [false, `Commit message contains forbidden AI-generated content: "${match[0]}"`];
             }
+          }
+
+          return [true, ''];
+        },
+        'no-ticket-id-in-header': parsed => {
+          const match = (parsed.header ?? '').match(ticketIdInHeader);
+          if (match) {
+            return [
+              false,
+              `Commit header contains ticket ID "${match[0]}". Move it to a "Refs: ${match[0]}" trailer in the body.`,
+            ];
           }
 
           return [true, ''];
@@ -83,6 +96,8 @@ export default {
     ],
     // Custom rule to block AI-generated strings
     'no-ai-generated': [2, 'always'],
+    // Custom rule to keep internal ticket IDs out of release notes and the CHANGELOG
+    'no-ticket-id-in-header': [2, 'always'],
   },
   helpUrl: 'https://github.com/conventional-changelog/commitlint/#what-is-commitlint',
 };
