@@ -37,7 +37,7 @@ function runningCount(ctx: TestContext): number {
   return (ctx.db.prepare('SELECT COUNT(*) AS n FROM time_entries WHERE stop IS NULL AND deleted_at IS NULL').get() as { n: number }).n;
 }
 
-// TT-0001: Continue and favorites (web `start(from, { replace: true })`) post a plain running entry;
+// Continue and favorites (web `start(from, { replace: true })`) post a plain running entry;
 // the server stops whatever runs at the new entry's start.
 test('starting a second timer stops the first one exactly at the new start', async () => {
   const ctx = await setup();
@@ -82,7 +82,7 @@ test('concurrent timer starts leave exactly one running entry', async () => {
   for (const row of rows) if (row.stop !== null) assert.ok(row.stop >= row.start, `${row.stop} >= ${row.start}`);
 });
 
-// TT-0009: timestamps must be RFC 3339 strings with a zone and a real calendar date.
+// Timestamps must be RFC 3339 strings with a zone and a real calendar date.
 test('zone-free, impossible and non-string timestamps are rejected without side effects', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
@@ -162,7 +162,7 @@ test('list start_date and end_date accept zoned instants and reject zone-free or
   }
 });
 
-// TT-0014: references are validated through the lightweight project/task lookups.
+// References are validated through the lightweight project/task lookups.
 test('entry project and task references are validated on create and update', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
@@ -170,7 +170,7 @@ test('entry project and task references are validated on create and update', asy
   const billable = await ctx.json('POST', `${base}/projects`, { name: 'Billable', billable: true });
   const plain = await ctx.json('POST', `${base}/projects`, { name: 'Plain' });
   const task = await ctx.json('POST', `${base}/projects/${billable.body.id}/tasks`, { name: 'Design' });
-  // The caller must belong to a workspace to write to it (TT-0135).
+  // The caller must belong to a workspace to write to it.
   const otherWid = createWorkspace(ctx.db, 'Other').id;
   addWorkspaceMember(ctx.db, otherWid, ctx.user.id, 'member');
   const foreignProject = await ctx.json('POST', `/api/v9/workspaces/${otherWid}/projects`, { name: 'Foreign' });

@@ -25,7 +25,7 @@ test('a regular user gets 403 from every admin route', async () => {
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[1].role, 'user');
 });
 
-// TT-0141: the web app shows the admin area from GET /api/v9/me. role is a Tokkl-only field; the
+// The web app shows the admin area from GET /api/v9/me. role is a Tokkl-only field; the
 // Toggl fields keep their names, and the other user-shaped responses stay Toggl-only.
 test('GET /api/v9/me carries the instance role next to the unchanged Toggl fields', async () => {
   const admin = await setup();

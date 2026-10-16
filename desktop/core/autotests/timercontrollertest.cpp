@@ -1408,7 +1408,7 @@ private Q_SLOTS:
         QCOMPARE(f.find("GET", "/projects/33").size(), 2);
 
         // That read began before the second reload, so its answer is shown
-        // and checked once more (TT-0215).
+        // and checked once more.
         f.respond(again, FakeTransport::answer(404, "\"Project not found\""));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         QVERIFY(f.timer.indicatorColor().isEmpty());
