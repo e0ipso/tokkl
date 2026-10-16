@@ -25,5 +25,5 @@ The local rules also cap the subject (the text after `type(scope): `) at 72 char
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-test-and-static-analysis-layout](map-test-and-static-analysis-layout.md)
+- Related: [map-test-and-static-analysis-layout](../testing/map-test-and-static-analysis-layout.md)
 <!-- kk:related:end -->

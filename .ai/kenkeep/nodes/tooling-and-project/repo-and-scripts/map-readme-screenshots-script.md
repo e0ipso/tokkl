@@ -13,7 +13,7 @@ kk_schema_version: 3
 kk_id: map-readme-screenshots-script
 kk_derived_from: []
 kk_relates_to:
-  - practice-e2e-test-workflow
+  - practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
   - map-test-and-static-analysis-layout
 kk_depends_on: []
 kk_confidence: high
@@ -31,6 +31,6 @@ The data is `e2e/fixtures-data/transfer/restore-full.json` plus the extra record
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
-- Related: [map-test-and-static-analysis-layout](map-test-and-static-analysis-layout.md)
+- Related: [practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory](../testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md)
+- Related: [map-test-and-static-analysis-layout](../testing/map-test-and-static-analysis-layout.md)
 <!-- kk:related:end -->

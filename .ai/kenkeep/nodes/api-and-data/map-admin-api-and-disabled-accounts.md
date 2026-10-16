@@ -15,7 +15,7 @@ kk_id: map-admin-api-and-disabled-accounts
 kk_derived_from: []
 kk_relates_to:
   - map-users-roles-and-workspace-membership
-  - practice-password-checks-and-csrf-rules
+  - practice-password-checks-go-through-failurelimiter-attempt
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -41,5 +41,5 @@ A disabled account is refused on every sign-in path with the same answer as bad 
 # Related
 
 - Related: [map-users-roles-and-workspace-membership](map-users-roles-and-workspace-membership.md)
-- Related: [practice-password-checks-and-csrf-rules](practice-password-checks-and-csrf-rules.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt](password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
 <!-- kk:related:end -->

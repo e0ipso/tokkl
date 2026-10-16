@@ -27,6 +27,6 @@ Fixtures: `year` (3,000 entries over 365 days) and `decade` (30,000 entries over
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-app-report-endpoints](../api-and-data/map-app-report-endpoints.md)
-- Related: [practice-live-entry-indexes-back-project-and-task-totals](../api-and-data/practice-live-entry-indexes-back-project-and-task-totals.md)
+- Related: [map-app-report-endpoints](../../api-and-data/map-app-report-endpoints.md)
+- Related: [practice-live-entry-indexes-back-project-and-task-totals](../../api-and-data/practice-live-entry-indexes-back-project-and-task-totals.md)
 <!-- kk:related:end -->

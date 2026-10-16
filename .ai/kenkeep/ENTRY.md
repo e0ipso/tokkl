@@ -1,7 +1,7 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:3f4f34aa023a35dc63ca96055741352f39268135102fbbf36a1e0905eeb04e14'
-node_count: 43
+nodes_hash: 'sha256:c7b4cf90edc2f73339516939af8f9ca0475e6bb4c6c0b0d85b778894b63f12db'
+node_count: 50
 ---
 # kenkeep
 
@@ -9,6 +9,6 @@ node_count: 43
 
 ## Branches
 - Load [`api-and-data/`](nodes/api-and-data/index.md) for more information on the API's data rules: reports, writes, restore, auth and timestamps; read before changing a route, model, migration or import.
-- Load [`tooling-and-project/`](nodes/tooling-and-project/index.md) for more information on workspace layout, the Tokkl rename fallbacks, test and typecheck setup, e2e, bench and generated assets; read before adding a package, script or test, or running a check.
+- Load [`tooling-and-project/`](nodes/tooling-and-project/index.md) for more information on workspace layout, commit and tracker-reference rules, the Tokkl rename fallbacks, tests, e2e, bench, generated assets and the KDE desktop companion; read before adding a package, script or test, committing, running a check or changing desktop/.
 - Load [`web-ui-behaviour/`](nodes/web-ui-behaviour/index.md) for more information on web UI logic: page states, keyboard focus, time entry parsing, wall-clock math, refetch handling and clipboard; read before changing components or client-side helpers.
 - Load [`web-ui-styling-and-layout/`](nodes/web-ui-styling-and-layout/index.md) for more information on app shell, styles.css tokens, themes, contrast and phone and calendar layout; read before changing CSS, colours or page layout.

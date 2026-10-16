@@ -16,7 +16,7 @@ kk_id: map-web-page-state-and-field-error-components
 kk_derived_from: []
 kk_relates_to:
   - map-shared-list-controls-in-manage-ui
-  - practice-e2e-test-workflow
+  - practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -32,5 +32,5 @@ Error toasts in `Toast.tsx` are `role=alert` as well. In e2e specs, scope `getBy
 # Related
 
 - Related: [map-shared-list-controls-in-manage-ui](../web-ui-styling-and-layout/map-shared-list-controls-in-manage-ui.md)
-- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
+- Related: [practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard](../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md)
 <!-- kk:related:end -->

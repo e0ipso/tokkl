@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:3f4f34aa023a35dc63ca96055741352f39268135102fbbf36a1e0905eeb04e14'
-node_count: 43
+nodes_hash: 'sha256:c7b4cf90edc2f73339516939af8f9ca0475e6bb4c6c0b0d85b778894b63f12db'
+node_count: 50
 ---
 # kenkeep Graph
 
-Total nodes: 43
+Total nodes: 50
 
 ## map-admin-api-and-disabled-accounts
 
@@ -13,15 +13,15 @@ Total nodes: 43
 - **title:** Admin API and disabled accounts
 - **path:** api-and-data/map-admin-api-and-disabled-accounts.md
 - **tags:** server, auth, admin, invites, settings
-- **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-and-csrf-rules
+- **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-go-through-failurelimiter-attempt
 
 ## map-app-icons-script
 
 - **kind:** map
 - **title:** Brand images: npm run icons derives every served file from docs/brand
-- **path:** tooling-and-project/map-app-icons-script.md
+- **path:** tooling-and-project/repo-and-scripts/map-app-icons-script.md
 - **tags:** tooling, pwa, icons, imagemagick, maskable, web
-- **relates_to:** map-readme-screenshots-script, practice-e2e-test-workflow
+- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs
 
 ## map-app-report-endpoints
 
@@ -36,13 +36,21 @@ Total nodes: 43
 - **title:** App shell: Brand.tsx, the wordmark image and the NAV list
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile
-- **relates_to:** practice-e2e-test-workflow, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
+
+## map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+
+- **kind:** map
+- **title:** desktop/core and desktop/kde: CMake projects, libraries and QML types
+- **path:** tooling-and-project/kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md
+- **tags:** kde, desktop, tooling
+- **relates_to:** practice-kde-companion-connection-and-configure-page-rules, map-npm-workspaces-package-layout, map-kde-native-packaging
 
 ## map-history-scale-bench
 
 - **kind:** map
 - **title:** History-scale bench: npm run bench:history
-- **path:** tooling-and-project/map-history-scale-bench.md
+- **path:** tooling-and-project/testing/map-history-scale-bench.md
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
 
@@ -50,31 +58,39 @@ Total nodes: 43
 
 - **kind:** map
 - **title:** KDE CI job and release: kde matrix, real-server test, semantic-release plugin
-- **path:** tooling-and-project/map-kde-ci-and-release-pipeline.md
+- **path:** tooling-and-project/kde-companion/map-kde-ci-and-release-pipeline.md
 - **tags:** tooling, kde, ci, release
-- **relates_to:** map-kde-native-packaging, map-kde-plasma-companion-desktop-kde, map-test-and-static-analysis-layout
+- **relates_to:** map-kde-native-packaging, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-test-and-static-analysis-layout
+
+## map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
+
+- **kind:** map
+- **title:** KDE companion tests: build commands, the CTest suite and its fakes
+- **path:** tooling-and-project/kde-companion/plasma-companion/map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes.md
+- **tags:** kde, testing
+- **relates_to:** map-test-and-static-analysis-layout, map-kde-ci-and-release-pipeline, map-kde-native-packaging
 
 ## map-kde-native-packaging
 
 - **kind:** map
 - **title:** KDE native packaging: DEB, RPM and the version mapping
-- **path:** tooling-and-project/map-kde-native-packaging.md
+- **path:** tooling-and-project/kde-companion/map-kde-native-packaging.md
 - **tags:** tooling, kde, packaging, release
-- **relates_to:** map-kde-plasma-companion-desktop-kde, map-kde-ci-and-release-pipeline
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline
 
-## map-kde-plasma-companion-desktop-kde
+## map-kde-panel-button-menu-and-project-indicator
 
 - **kind:** map
-- **title:** KDE Plasma companion in desktop/kde
-- **path:** tooling-and-project/map-kde-plasma-companion-desktop-kde.md
-- **tags:** tooling, kde, desktop, testing
-- **relates_to:** practice-kde-companion-connection-and-configure-page-rules, map-npm-workspaces-package-layout, map-test-and-static-analysis-layout
+- **title:** KDE panel: button, menu and project indicator
+- **path:** tooling-and-project/kde-companion/plasma-companion/map-kde-panel-button-menu-and-project-indicator.md
+- **tags:** kde, desktop
+- **relates_to:** practice-kde-timer-controller-rules
 
 ## map-npm-workspaces-package-layout
 
 - **kind:** map
 - **title:** npm workspaces: packages/common, packages/api, packages/web, packages/types
-- **path:** tooling-and-project/map-npm-workspaces-package-layout.md
+- **path:** tooling-and-project/repo-and-scripts/map-npm-workspaces-package-layout.md
 - **tags:** monorepo, workspaces, layout, tooling, common, api, web, types
 - **relates_to:** map-test-and-static-analysis-layout
 
@@ -82,9 +98,9 @@ Total nodes: 43
 
 - **kind:** map
 - **title:** README screenshots: npm run screenshots
-- **path:** tooling-and-project/map-readme-screenshots-script.md
+- **path:** tooling-and-project/repo-and-scripts/map-readme-screenshots-script.md
 - **tags:** tooling, docs, screenshots, playwright
-- **relates_to:** practice-e2e-test-workflow, map-test-and-static-analysis-layout
+- **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-test-and-static-analysis-layout
 
 ## map-shared-list-controls-in-manage-ui
 
@@ -98,17 +114,17 @@ Total nodes: 43
 
 - **kind:** map
 - **title:** What npm test and npm run typecheck cover
-- **path:** tooling-and-project/map-test-and-static-analysis-layout.md
+- **path:** tooling-and-project/testing/map-test-and-static-analysis-layout.md
 - **tags:** testing, typecheck, tooling, workflow
-- **relates_to:** practice-e2e-test-workflow, map-npm-workspaces-package-layout
+- **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-npm-workspaces-package-layout
 
 ## map-tokkl-rename-legacy-name-fallbacks
 
 - **kind:** map
 - **title:** Old Timetrack names still accepted after the Tokkl rename
-- **path:** tooling-and-project/map-tokkl-rename-legacy-name-fallbacks.md
+- **path:** tooling-and-project/repo-and-scripts/map-tokkl-rename-legacy-name-fallbacks.md
 - **tags:** server, web, config, rename
-- **relates_to:** practice-password-checks-and-csrf-rules, practice-theme-tokens-data-theme-and-cached-theme, practice-json-restore-rules, map-npm-workspaces-package-layout
+- **relates_to:** practice-cookie-writes-and-session-starting-routes-need-the-csrf-header, practice-theme-tokens-data-theme-and-cached-theme, practice-json-restore-rules, map-npm-workspaces-package-layout
 
 ## map-users-roles-and-workspace-membership
 
@@ -116,7 +132,7 @@ Total nodes: 43
 - **title:** Users, roles and workspace membership
 - **path:** api-and-data/map-users-roles-and-workspace-membership.md
 - **tags:** server, database, migrations, auth, workspaces
-- **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-and-csrf-rules, map-admin-api-and-disabled-accounts
+- **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-go-through-failurelimiter-attempt, map-admin-api-and-disabled-accounts
 
 ## map-web-page-state-and-field-error-components
 
@@ -124,7 +140,7 @@ Total nodes: 43
 - **title:** Loading, error, empty and field-error states use the shared components
 - **path:** web-ui-behaviour/map-web-page-state-and-field-error-components.md
 - **tags:** web, a11y, react, components, forms, e2e
-- **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-test-workflow
+- **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 
 ## practice-client-deletion-keeps-projects
 
@@ -144,7 +160,7 @@ Total nodes: 43
 
 - **kind:** practice
 - **title:** Commit messages: Conventional Commits, no co-author or AI trailers
-- **path:** tooling-and-project/practice-commit-messages-pass-commitlint-no-ai-generated.md
+- **path:** tooling-and-project/repo-and-scripts/practice-commit-messages-pass-commitlint-no-ai-generated.md
 - **tags:** tooling, workflow, git
 - **relates_to:** map-test-and-static-analysis-layout
 
@@ -156,6 +172,13 @@ Total nodes: 43
 - **tags:** web, css, accessibility, contrast, projects
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme
 
+## practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
+
+- **kind:** practice
+- **title:** Cookie writes and session-starting routes need the CSRF header
+- **path:** api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md
+- **tags:** server, auth, csrf
+
 ## practice-display-font-and-reduced-motion
 
 - **kind:** practice
@@ -164,13 +187,12 @@ Total nodes: 43
 - **tags:** web, css, fonts, motion, accessibility
 - **relates_to:** practice-contrast-tables-and-project-colours
 
-## practice-e2e-test-workflow
+## practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 
 - **kind:** practice
-- **title:** Running the Playwright e2e suite
-- **path:** tooling-and-project/practice-e2e-test-workflow.md
-- **tags:** testing, e2e, playwright, workflow
-- **relates_to:** practice-visual-screenshot-baselines
+- **title:** E2E isolation: worker accounts, the reset fixture and the error guard
+- **path:** tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md
+- **tags:** testing, e2e
 
 ## practice-end-sessions-through-lib-session
 
@@ -178,7 +200,7 @@ Total nodes: 43
 - **title:** End web sessions through endSession and logOut in lib/session.ts
 - **path:** web-ui-behaviour/practice-end-sessions-through-lib-session.md
 - **tags:** web, auth, react-query, theme
-- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-password-checks-and-csrf-rules
+- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 
 ## practice-hourly-rates-go-through-optionalrate
 
@@ -199,17 +221,25 @@ Total nodes: 43
 
 - **kind:** practice
 - **title:** KDE companion: connection errors, settings generations and the Configure page
-- **path:** tooling-and-project/practice-kde-companion-connection-and-configure-page-rules.md
+- **path:** tooling-and-project/kde-companion/practice-kde-companion-connection-and-configure-page-rules.md
 - **tags:** kde, desktop, auth, configuration
-- **relates_to:** map-kde-plasma-companion-desktop-kde, practice-password-checks-and-csrf-rules
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, practice-password-checks-go-through-failurelimiter-attempt
 
 ## practice-kde-timer-controller-rules
 
 - **kind:** practice
 - **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
-- **path:** tooling-and-project/practice-kde-timer-controller-rules.md
+- **path:** tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md
 - **tags:** kde, desktop
-- **relates_to:** map-kde-plasma-companion-desktop-kde, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership
+
+## practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
+
+- **kind:** practice
+- **title:** Keep Sift ticket IDs and Strikethroo plans out of code and public docs
+- **path:** tooling-and-project/repo-and-scripts/practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs.md
+- **tags:** tooling, docs, comments, commits, sift, strikethroo
+- **relates_to:** practice-commit-messages-pass-commitlint-no-ai-generated
 
 ## practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows
 
@@ -233,12 +263,12 @@ Total nodes: 43
 - **path:** api-and-data/practice-parse-api-timestamps-with-parseinstant.md
 - **tags:** server, validation, time, api
 
-## practice-password-checks-and-csrf-rules
+## practice-password-checks-go-through-failurelimiter-attempt
 
 - **kind:** practice
-- **title:** Password checks go through FailureLimiter.attempt; writes need the CSRF header
-- **path:** api-and-data/practice-password-checks-and-csrf-rules.md
-- **tags:** server, auth, security, rate-limit, csrf
+- **title:** Password checks go through FailureLimiter.attempt
+- **path:** api-and-data/password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md
+- **tags:** server, auth, rate-limit
 
 ## practice-phone-layout-css-gotchas
 
@@ -246,7 +276,14 @@ Total nodes: 43
 - **title:** Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells
 - **path:** web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md
 - **tags:** web, css, mobile, layout
-- **relates_to:** practice-e2e-test-workflow
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs
+
+## practice-playwright-gotchas-in-the-e2e-specs
+
+- **kind:** practice
+- **title:** Playwright gotchas in the e2e specs
+- **path:** tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md
+- **tags:** testing, playwright
 
 ## practice-preferences-validated-by-known-key
 
@@ -254,6 +291,14 @@ Total nodes: 43
 - **title:** Preferences: known keys validated, unknown keys stored verbatim
 - **path:** api-and-data/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
+
+## practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
+
+- **kind:** practice
+- **title:** Running the e2e suite: build, Chromium, ports and the data directory
+- **path:** tooling-and-project/testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md
+- **tags:** testing, e2e, workflow
+- **relates_to:** practice-visual-screenshot-baselines
 
 ## practice-styles-css-loads-last-and-owns-colour-tokens
 
@@ -269,7 +314,7 @@ Total nodes: 43
 - **title:** Theme: light-dark() tokens, data-theme and the cached theme
 - **path:** web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md
 - **tags:** web, css, theme, dark-mode, e2e
-- **relates_to:** practice-contrast-tables-and-project-colours, practice-e2e-test-workflow, practice-end-sessions-through-lib-session
+- **relates_to:** practice-contrast-tables-and-project-colours, practice-playwright-gotchas-in-the-e2e-specs, practice-end-sessions-through-lib-session
 
 ## practice-timer-bar-height-drives-sticky-bulk-bar
 
@@ -314,9 +359,9 @@ Total nodes: 43
 
 - **kind:** practice
 - **title:** Visual baselines: e2e/visual.spec.ts and how to refresh them
-- **path:** tooling-and-project/practice-visual-screenshot-baselines.md
+- **path:** tooling-and-project/testing/practice-visual-screenshot-baselines.md
 - **tags:** testing, e2e, playwright, visual
-- **relates_to:** practice-e2e-test-workflow, map-app-icons-script, map-readme-screenshots-script
+- **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-app-icons-script, map-readme-screenshots-script
 
 ## practice-web-ui-survives-background-refetches
 
@@ -339,3 +384,10 @@ Total nodes: 43
 - **title:** Validate write-path references with getProjectRef and getTaskRef
 - **path:** api-and-data/practice-write-paths-validate-refs-not-totals.md
 - **tags:** server, models, performance, validation
+
+## practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts
+
+- **kind:** practice
+- **title:** Writing e2e specs: areas, shared helpers and extra accounts
+- **path:** tooling-and-project/testing/e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md
+- **tags:** testing, e2e

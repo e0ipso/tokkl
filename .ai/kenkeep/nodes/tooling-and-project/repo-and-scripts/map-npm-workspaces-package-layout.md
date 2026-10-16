@@ -35,5 +35,5 @@ A fresh git worktree has no `node_modules`, so run `npm install` inside it befor
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-test-and-static-analysis-layout](map-test-and-static-analysis-layout.md)
+- Related: [map-test-and-static-analysis-layout](../testing/map-test-and-static-analysis-layout.md)
 <!-- kk:related:end -->

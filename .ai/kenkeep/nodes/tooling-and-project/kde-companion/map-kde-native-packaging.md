@@ -13,7 +13,7 @@ kk_schema_version: 3
 kk_id: map-kde-native-packaging
 kk_derived_from: []
 kk_relates_to:
-  - map-kde-plasma-companion-desktop-kde
+  - map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
   - map-kde-ci-and-release-pipeline
 kk_depends_on: []
 kk_confidence: high
@@ -29,6 +29,6 @@ Runtime dependencies that no tool can see are declared by hand: the `org.kde.pla
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-kde-plasma-companion-desktop-kde](map-kde-plasma-companion-desktop-kde.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
 - Related: [map-kde-ci-and-release-pipeline](map-kde-ci-and-release-pipeline.md)
 <!-- kk:related:end -->

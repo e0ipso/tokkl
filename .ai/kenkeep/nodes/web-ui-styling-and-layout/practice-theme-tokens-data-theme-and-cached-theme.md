@@ -14,7 +14,7 @@ kk_id: practice-theme-tokens-data-theme-and-cached-theme
 kk_derived_from: []
 kk_relates_to:
   - practice-contrast-tables-and-project-colours
-  - practice-e2e-test-workflow
+  - practice-playwright-gotchas-in-the-e2e-specs
   - practice-end-sessions-through-lib-session
 kk_depends_on: []
 kk_confidence: high
@@ -31,6 +31,6 @@ The cached theme lives in localStorage under `tokkl.theme`. A value left under t
 # Related
 
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
-- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 - Related: [practice-end-sessions-through-lib-session](../web-ui-behaviour/practice-end-sessions-through-lib-session.md)
 <!-- kk:related:end -->

@@ -13,8 +13,9 @@ kk_schema_version: 3
 kk_id: practice-kde-companion-connection-and-configure-page-rules
 kk_derived_from: []
 kk_relates_to:
-  - map-kde-plasma-companion-desktop-kde
-  - practice-password-checks-and-csrf-rules
+  - map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+  - map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
+  - practice-password-checks-go-through-failurelimiter-attempt
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -26,11 +27,12 @@ Changing a setting or the stored secret starts a new generation. Account data cl
 
 Plasma saves every `cfg_*` property on Apply, separately from the page's own `saveConfig()`. A `cfg_*` property that must hold a validated value cannot be an alias of the text field. `cfg_instanceUrl` in `package/contents/ui/configGeneral.qml` is a plain property set from `TokklConnectionSetup.persistedUrl(text)`. That returns the normalized address with its path prefix, or an empty string when the address is invalid or has user info, a query or a fragment, so no credential reaches the config file. `cfg_email` can stay an alias because any text is a valid value.
 
-Secrets live only in KWallet, through `KWalletCredentialStore`. When the store fails there is no plaintext fallback. The core `Connection` and `ConnectionSetup` are handed a `CredentialStore` and never pick one; only `KdeConnection` and `KdeConnectionSetup` (library `tokklkde`) pass the process-wide KWallet store, and QML creates those as `TokklConnection` and `TokklConnectionSetup`. User-facing wording comes from the virtual `CredentialStore::message(result)`: the base text names no platform, and `KWalletCredentialStore` keeps the KDE Wallet and System Settings wording. Once the store has been destroyed, `Connection` shows the neutral text. Route new store failures through `message()` so no platform name enters `tokklcore`. The client name is likewise a constructor argument of `NetworkTransport` and `Connection`: it fills `created_with` and the User-Agent `<name>/<version>`, and the KDE types pass `tokkl-kde`; no `tokkl-kde` literal belongs in `tokklcore`. `TokklConnectionSetup` owns the secret field and tracks which account a loaded or saved secret belongs to. It clears that secret when the URL, auth mode or email changes, so the secret is never tested against or saved under another account; a secret the user typed stays until saved. Core tests inject `FakeTransport` and `FakeCredentialStore` (`desktop/core/autotests/fakes.h`) and never use the real wallet; the real KDE Wallet client is tested only against the private-bus fake in `kdeconnection` (see [map-kde-plasma-companion-desktop-kde](map-kde-plasma-companion-desktop-kde.md)).
+Secrets live only in KWallet, through `KWalletCredentialStore`. When the store fails there is no plaintext fallback. The core `Connection` and `ConnectionSetup` are handed a `CredentialStore` and never pick one; only `KdeConnection` and `KdeConnectionSetup` (library `tokklkde`) pass the process-wide KWallet store, and QML creates those as `TokklConnection` and `TokklConnectionSetup`. User-facing wording comes from the virtual `CredentialStore::message(result)`: the base text names no platform, and `KWalletCredentialStore` keeps the KDE Wallet and System Settings wording. Once the store has been destroyed, `Connection` shows the neutral text. Route new store failures through `message()` so no platform name enters `tokklcore`. The client name is likewise a constructor argument of `NetworkTransport` and `Connection`: it fills `created_with` and the User-Agent `<name>/<version>`, and the KDE types pass `tokkl-kde`; no `tokkl-kde` literal belongs in `tokklcore`. `TokklConnectionSetup` owns the secret field and tracks which account a loaded or saved secret belongs to. It clears that secret when the URL, auth mode or email changes, so the secret is never tested against or saved under another account; a secret the user typed stays until saved. Core tests inject `FakeTransport` and `FakeCredentialStore` (`desktop/core/autotests/fakes.h`) and never use the real wallet; the real KDE Wallet client is tested only against the private-bus fake in `kdeconnection` (see [map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes](plasma-companion/map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes.md)).
 
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-kde-plasma-companion-desktop-kde](map-kde-plasma-companion-desktop-kde.md)
-- Related: [practice-password-checks-and-csrf-rules](../api-and-data/practice-password-checks-and-csrf-rules.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
+- Related: [map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes](plasma-companion/map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt](../../api-and-data/password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
 <!-- kk:related:end -->

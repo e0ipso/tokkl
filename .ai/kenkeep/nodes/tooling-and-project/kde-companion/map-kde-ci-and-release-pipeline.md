@@ -14,7 +14,7 @@ kk_id: map-kde-ci-and-release-pipeline
 kk_derived_from: []
 kk_relates_to:
   - map-kde-native-packaging
-  - map-kde-plasma-companion-desktop-kde
+  - map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
   - map-test-and-static-analysis-layout
 kk_depends_on: []
 kk_confidence: high
@@ -35,6 +35,6 @@ The `core` job runs `desktop/core/ci/check.sh` in the digest-pinned `fedora:44` 
 # Related
 
 - Related: [map-kde-native-packaging](map-kde-native-packaging.md)
-- Related: [map-kde-plasma-companion-desktop-kde](map-kde-plasma-companion-desktop-kde.md)
-- Related: [map-test-and-static-analysis-layout](map-test-and-static-analysis-layout.md)
+- Related: [map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes](plasma-companion/map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes.md)
+- Related: [map-test-and-static-analysis-layout](../testing/map-test-and-static-analysis-layout.md)
 <!-- kk:related:end -->

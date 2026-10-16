@@ -15,7 +15,7 @@ kk_derived_from: []
 kk_relates_to:
   - practice-theme-tokens-data-theme-and-cached-theme
   - practice-web-ui-survives-background-refetches
-  - practice-password-checks-and-csrf-rules
+  - practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -32,5 +32,5 @@ kk_confidence: high
 
 - Related: [practice-theme-tokens-data-theme-and-cached-theme](../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md)
 - Related: [practice-web-ui-survives-background-refetches](practice-web-ui-survives-background-refetches.md)
-- Related: [practice-password-checks-and-csrf-rules](../api-and-data/practice-password-checks-and-csrf-rules.md)
+- Related: [practice-cookie-writes-and-session-starting-routes-need-the-csrf-header](../api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md)
 <!-- kk:related:end -->

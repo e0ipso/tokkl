@@ -15,7 +15,7 @@ kk_id: map-users-roles-and-workspace-membership
 kk_derived_from: []
 kk_relates_to:
   - practice-live-entry-indexes-back-project-and-task-totals
-  - practice-password-checks-and-csrf-rules
+  - practice-password-checks-go-through-failurelimiter-attempt
   - map-admin-api-and-disabled-accounts
 kk_depends_on: []
 kk_confidence: high
@@ -47,6 +47,6 @@ For multi-user API tests, `addUser(ctx, { email, role })` in `packages/api/test/
 # Related
 
 - Related: [practice-live-entry-indexes-back-project-and-task-totals](practice-live-entry-indexes-back-project-and-task-totals.md)
-- Related: [practice-password-checks-and-csrf-rules](practice-password-checks-and-csrf-rules.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt](password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
 - Related: [map-admin-api-and-disabled-accounts](map-admin-api-and-disabled-accounts.md)
 <!-- kk:related:end -->

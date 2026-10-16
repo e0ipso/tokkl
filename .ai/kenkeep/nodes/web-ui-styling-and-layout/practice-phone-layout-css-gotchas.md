@@ -14,7 +14,7 @@ kk_schema_version: 3
 kk_id: practice-phone-layout-css-gotchas
 kk_derived_from: []
 kk_relates_to:
-  - practice-e2e-test-workflow
+  - practice-playwright-gotchas-in-the-e2e-specs
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -27,5 +27,5 @@ Three CSS rules keep pages within a 390 px phone screen. The phone e2e specs cat
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 <!-- kk:related:end -->

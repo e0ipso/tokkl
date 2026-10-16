@@ -13,7 +13,7 @@ kk_schema_version: 3
 kk_id: practice-visual-screenshot-baselines
 kk_derived_from: []
 kk_relates_to:
-  - practice-e2e-test-workflow
+  - practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
   - map-app-icons-script
   - map-readme-screenshots-script
 kk_depends_on: []
@@ -28,7 +28,7 @@ Because the threshold is a ratio of the whole page, a small element can break wi
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
-- Related: [map-app-icons-script](map-app-icons-script.md)
-- Related: [map-readme-screenshots-script](map-readme-screenshots-script.md)
+- Related: [practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory](e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md)
+- Related: [map-app-icons-script](../repo-and-scripts/map-app-icons-script.md)
+- Related: [map-readme-screenshots-script](../repo-and-scripts/map-readme-screenshots-script.md)
 <!-- kk:related:end -->

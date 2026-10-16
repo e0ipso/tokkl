@@ -12,7 +12,8 @@ kk_schema_version: 3
 kk_id: practice-kde-timer-controller-rules
 kk_derived_from: []
 kk_relates_to:
-  - map-kde-plasma-companion-desktop-kde
+  - map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+  - map-kde-panel-button-menu-and-project-indicator
   - practice-kde-companion-connection-and-configure-page-rules
   - map-users-roles-and-workspace-membership
 kk_depends_on: []
@@ -44,7 +45,8 @@ Panel indicator. `TokklTimer` exposes `indicatorState` and `indicatorColor` with
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-kde-plasma-companion-desktop-kde](map-kde-plasma-companion-desktop-kde.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
+- Related: [map-kde-panel-button-menu-and-project-indicator](plasma-companion/map-kde-panel-button-menu-and-project-indicator.md)
 - Related: [practice-kde-companion-connection-and-configure-page-rules](practice-kde-companion-connection-and-configure-page-rules.md)
-- Related: [map-users-roles-and-workspace-membership](../api-and-data/map-users-roles-and-workspace-membership.md)
+- Related: [map-users-roles-and-workspace-membership](../../api-and-data/map-users-roles-and-workspace-membership.md)
 <!-- kk:related:end -->

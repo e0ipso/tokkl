@@ -11,7 +11,7 @@ kk_schema_version: 3
 kk_id: map-tokkl-rename-legacy-name-fallbacks
 kk_derived_from: []
 kk_relates_to:
-  - practice-password-checks-and-csrf-rules
+  - practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
   - practice-theme-tokens-data-theme-and-cached-theme
   - practice-json-restore-rules
   - map-npm-workspaces-package-layout
@@ -32,8 +32,8 @@ Dev and test variables have no fallback: `TOKKL_BACKEND` (Vite proxy target in `
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-password-checks-and-csrf-rules](../api-and-data/practice-password-checks-and-csrf-rules.md)
-- Related: [practice-theme-tokens-data-theme-and-cached-theme](../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md)
-- Related: [practice-json-restore-rules](../api-and-data/practice-json-restore-rules.md)
+- Related: [practice-cookie-writes-and-session-starting-routes-need-the-csrf-header](../../api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md)
+- Related: [practice-theme-tokens-data-theme-and-cached-theme](../../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md)
+- Related: [practice-json-restore-rules](../../api-and-data/practice-json-restore-rules.md)
 - Related: [map-npm-workspaces-package-layout](map-npm-workspaces-package-layout.md)
 <!-- kk:related:end -->

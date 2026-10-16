@@ -16,7 +16,7 @@ kk_id: map-app-icons-script
 kk_derived_from: []
 kk_relates_to:
   - map-readme-screenshots-script
-  - practice-e2e-test-workflow
+  - practice-playwright-gotchas-in-the-e2e-specs
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -30,5 +30,5 @@ The manifest keeps `icon-192.png` and `icon-512.png` as general-purpose icons an
 # Related
 
 - Related: [map-readme-screenshots-script](map-readme-screenshots-script.md)
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 <!-- kk:related:end -->

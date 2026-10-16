@@ -11,7 +11,7 @@ kk_schema_version: 3
 kk_id: map-test-and-static-analysis-layout
 kk_derived_from: []
 kk_relates_to:
-  - practice-e2e-test-workflow
+  - practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
   - map-npm-workspaces-package-layout
 kk_depends_on: []
 kk_confidence: high
@@ -29,6 +29,6 @@ Every config inherits `erasableSyntaxOnly` because Node runs `.ts` files by stri
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-e2e-test-workflow](practice-e2e-test-workflow.md)
-- Related: [map-npm-workspaces-package-layout](map-npm-workspaces-package-layout.md)
+- Related: [practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory](e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md)
+- Related: [map-npm-workspaces-package-layout](../repo-and-scripts/map-npm-workspaces-package-layout.md)
 <!-- kk:related:end -->
