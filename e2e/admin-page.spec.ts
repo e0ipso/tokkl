@@ -315,7 +315,36 @@ test('deleting users by keyboard keeps focus in the users section', async ({ pag
   await expect(page.locator('#users').getByRole('heading', { name: 'Users' })).toBeFocused();
 });
 
-test('every admin control is reachable by keyboard and shows a focus ring', async ({ page, data, users }) => {
+// TT-0198: a dialog closed without acting gives focus back to the control that opened it.
+test('closing the delete dialog without deleting returns focus to its Delete button', async ({ page, users }) => {
+  const rita = await users.create({ fullname: 'Regular Rita' });
+  await login(page);
+  await openAdmin(page);
+  const email = rita.account.email;
+  const remove = userRow(page, email).getByRole('button', { name: `Delete ${email}` });
+  const dialog = page.getByRole('dialog', { name: `Delete ${email}?` });
+  const pressButton = async (name: string) => {
+    await dialog.getByRole('button', { name, exact: true }).focus();
+    await page.keyboard.press('Enter');
+  };
+  const closers: Array<[string, () => Promise<void>]> = [
+    ['Escape', () => page.keyboard.press('Escape')],
+    ['Cancel', () => pressButton('Cancel')],
+    ['Close', () => pressButton('Close')],
+    // A press on the backdrop must not leave focus on the page behind it.
+    ['a backdrop click', () => page.mouse.click(5, 5)],
+  ];
+  for (const [how, close] of closers) {
+    await remove.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog.getByLabel(`Type ${email} to confirm`)).toBeFocused();
+    await close();
+    await expect(dialog).toBeHidden();
+    await expect(remove, `focus after ${how}`).toBeFocused();
+  }
+});
+
+test('every admin control is reachable by keyboard and shows a focus ring',async ({ page, data, users }) => {
   await users.create();
   await data.createInvite({ role: 'user', note: 'Keyboard check' });
   await login(page);

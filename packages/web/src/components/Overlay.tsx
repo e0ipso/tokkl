@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 function useDismiss(ref: React.RefObject<HTMLElement | null>, onClose: () => void, anchor?: HTMLElement | null) {
@@ -59,6 +59,8 @@ export function Modal({ title, onClose, children, footer, wide }: {
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Read on the first render, before anything inside the modal can take focus.
+  const [opener] = useState(() => document.activeElement);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !document.querySelector('.popover')) onClose();
@@ -67,11 +69,27 @@ export function Modal({ title, onClose, children, footer, wide }: {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
   useEffect(() => {
-    const first = ref.current?.querySelector<HTMLElement>('input, select, textarea, button:not(.modal-close)');
+    const dialog = ref.current;
+    const first = dialog?.querySelector<HTMLElement>('input, select, textarea, button:not(.modal-close)');
     first?.focus();
-  }, []);
+    return () => {
+      // Give focus back to the opener when closing would otherwise drop it, unless the caller has
+      // already moved it elsewhere, as after deleting the row the opener sat in.
+      const active = document.activeElement;
+      const dropped = !active || active === document.body || dialog?.contains(active);
+      if (dropped && opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus();
+    };
+  }, [opener]);
   return createPortal(
-    <div className="modal-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div
+      className="modal-backdrop"
+      onPointerDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        // Stops the press from focusing the page behind once the backdrop is gone.
+        event.preventDefault();
+        onClose();
+      }}
+    >
       <div ref={ref} className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className="modal-header">
           <h2>{title}</h2>
