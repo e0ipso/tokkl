@@ -13,6 +13,13 @@
 #include <QList>
 #include <QPointer>
 
+// The client name the tests give a connection. It is not the KDE widget's
+// "tokkl-kde", so finding it in a request shows the name is passed in.
+inline QString testClientName()
+{
+    return QStringLiteral("tokkl-test");
+}
+
 class FakeReply : public Tokkl::PendingReply
 {
     Q_OBJECT

@@ -65,9 +65,10 @@ private:
 };
 }
 
-NetworkTransport::NetworkTransport(QObject *parent)
+NetworkTransport::NetworkTransport(const QString &clientName, QObject *parent)
     : Transport(parent)
     , m_manager(new QNetworkAccessManager(this))
+    , m_userAgent(clientName.toUtf8() + QByteArrayLiteral("/" TOKKL_VERSION_STRING))
 {
     // A redirect could carry the Authorization header to another origin.
     // The client reports redirects instead of following them.
@@ -79,7 +80,7 @@ PendingReply *NetworkTransport::send(const HttpRequest &request)
     QNetworkRequest networkRequest(request.url);
     networkRequest.setRawHeader("Authorization", request.authorization);
     networkRequest.setRawHeader("Accept", "application/json");
-    networkRequest.setHeader(QNetworkRequest::UserAgentHeader, QByteArrayLiteral("tokkl-kde/" TOKKL_VERSION_STRING));
+    networkRequest.setHeader(QNetworkRequest::UserAgentHeader, m_userAgent);
     networkRequest.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
     networkRequest.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
     networkRequest.setAttribute(QNetworkRequest::AuthenticationReuseAttribute, QNetworkRequest::Manual);

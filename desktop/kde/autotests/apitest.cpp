@@ -219,10 +219,10 @@ private Q_SLOTS:
         entry.start = QDateTime(QDate(2026, 10, 16), QTime(8, 0), QTimeZone::fromSecondsAheadOfUtc(7200));
         entry.projectId = 4;
         entry.billable = true;
-        const QJsonObject body = QJsonDocument::fromJson(encodeStartEntry(entry, 9)).object();
+        const QJsonObject body = QJsonDocument::fromJson(encodeStartEntry(entry, 9, QStringLiteral("tokkl-test"))).object();
         QCOMPARE(body.value(QLatin1String("workspace_id")).toInteger(), 9);
         QCOMPARE(body.value(QLatin1String("duration")).toInteger(), -1);
-        QCOMPARE(body.value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-kde"));
+        QCOMPARE(body.value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-test"));
         QCOMPARE(body.value(QLatin1String("start")).toString(), QStringLiteral("2026-10-16T06:00:00Z"));
         QCOMPARE(body.value(QLatin1String("project_id")).toInteger(), 4);
         QCOMPARE(body.value(QLatin1String("billable")).toBool(), true);
@@ -230,7 +230,7 @@ private Q_SLOTS:
 
         StartEntry bare;
         bare.start = QDateTime::currentDateTimeUtc();
-        const QJsonObject bareBody = QJsonDocument::fromJson(encodeStartEntry(bare, 9)).object();
+        const QJsonObject bareBody = QJsonDocument::fromJson(encodeStartEntry(bare, 9, QStringLiteral("tokkl-test"))).object();
         QVERIFY(bareBody.value(QLatin1String("project_id")).isNull());
         QVERIFY(!bareBody.contains(QLatin1String("billable")));
     }

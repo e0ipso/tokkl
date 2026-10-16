@@ -154,7 +154,8 @@ std::optional<QJsonValue> parseJsonBody(const QByteArray &body);
 // a bare JSON string.
 ApiError errorFromResponse(const HttpResponse &response);
 
-QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId);
+// createdWith names the client that starts the entry.
+QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 
 }

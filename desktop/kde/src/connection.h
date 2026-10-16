@@ -81,7 +81,8 @@ public:
     using Callback = std::function<void(const ApiResult<T> &)>;
 
     // Uses the given transport and store; the connection does not own them.
-    Connection(Transport *transport, CredentialStore *store, QObject *parent = nullptr);
+    // clientName goes into the created_with field of the entries it starts.
+    Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent = nullptr);
     ~Connection() override;
 
     QString instanceUrl() const;
@@ -213,6 +214,7 @@ private:
 
     QPointer<Transport> m_transport;
     QPointer<CredentialStore> m_store;
+    const QString m_clientName;
 
     QString m_instanceText;
     AuthMode m_authMode = AuthMode::Token;

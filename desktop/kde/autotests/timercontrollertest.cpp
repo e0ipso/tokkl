@@ -115,7 +115,7 @@ class TimerControllerTest : public QObject
         FakeTransport transport;
         FakeCredentialStore store;
         FakeClock clock;
-        Connection connection{&transport, &store};
+        Connection connection{&transport, &store, testClientName()};
         TimerController timer{&clock};
 
         Fixture()
@@ -404,7 +404,7 @@ private Q_SLOTS:
         const QJsonObject body = QJsonDocument::fromJson(request.body).object();
         QCOMPARE(body.value(QStringLiteral("duration")).toInt(), -1);
         QCOMPARE(body.value(QStringLiteral("start")).toString(), QStringLiteral("2026-10-16T07:15:30Z"));
-        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-kde"));
+        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), testClientName());
         QVERIFY(body.value(QStringLiteral("description")).isString());
         QCOMPARE(body.value(QStringLiteral("description")).toString(), QString());
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
@@ -1601,7 +1601,7 @@ private Q_SLOTS:
 
         FakeTransport otherTransport;
         FakeCredentialStore otherStore;
-        Connection other(&otherTransport, &otherStore);
+        Connection other(&otherTransport, &otherStore, testClientName());
         f.timer.setConnection(&other);
         QVERIFY(!f.timer.isRunning());
         QVERIFY(!f.timer.isConnected());

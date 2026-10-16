@@ -15,6 +15,9 @@ ecm_add_test(connectiontest.cpp fakes.h
 ecm_add_test(networktransporttest.cpp
     TEST_NAME networktransport
     LINK_LIBRARIES tokklcore Qt6::Test)
+# The User-Agent check needs the version the transport sends.
+target_compile_definitions(networktransport PRIVATE
+    TOKKL_VERSION_STRING="${TOKKL_RESOLVED_VERSION}")
 ecm_add_test(timercontrollertest.cpp fakes.h
     TEST_NAME timer
     LINK_LIBRARIES tokklcore Qt6::Test)

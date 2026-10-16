@@ -67,7 +67,8 @@ class NetworkTransport : public Transport
     Q_OBJECT
 
 public:
-    explicit NetworkTransport(QObject *parent = nullptr);
+    // Requests send the User-Agent "<clientName>/<Tokkl version>".
+    explicit NetworkTransport(const QString &clientName, QObject *parent = nullptr);
 
     PendingReply *send(const HttpRequest &request) override;
 
@@ -77,6 +78,7 @@ public:
 
 private:
     QNetworkAccessManager *m_manager;
+    QByteArray m_userAgent;
     int m_timeoutMs = 15000;
 };
 

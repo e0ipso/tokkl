@@ -46,10 +46,11 @@ qint64 retryAfterMs(const QByteArray &header)
 }
 }
 
-Connection::Connection(Transport *transport, CredentialStore *store, QObject *parent)
+Connection::Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent)
     : QObject(parent)
     , m_transport(transport)
     , m_store(store)
+    , m_clientName(clientName)
 {
     m_cooldownTimer.setSingleShot(true);
     connect(&m_cooldownTimer, &QTimer::timeout, this, &Connection::onCooldownEnded);
@@ -783,7 +784,7 @@ void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
     call<TimeEntry>(
         "POST",
         QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
-        encodeStartEntry(entry, workspace),
+        encodeStartEntry(entry, workspace, m_clientName),
         Access::Write,
         &decodeTimeEntry,
         [this](const TimeEntry &started) {

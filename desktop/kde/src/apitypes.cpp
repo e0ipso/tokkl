@@ -377,10 +377,10 @@ ApiError errorFromResponse(const HttpResponse &response)
     return error;
 }
 
-QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId)
+QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
 {
     QJsonObject object{
-        {QStringLiteral("created_with"), QStringLiteral("tokkl-kde")},
+        {QStringLiteral("created_with"), createdWith},
         {QStringLiteral("description"), entry.description},
         {QStringLiteral("duration"), -1},
         {QStringLiteral("start"), utcTimestamp(entry.start)},

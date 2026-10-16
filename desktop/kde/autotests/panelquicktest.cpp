@@ -142,7 +142,7 @@ private:
     FakeTransport m_transport;
     FakeCredentialStore m_store;
     FakeClock m_clock;
-    Connection m_connection{&m_transport, &m_store};
+    Connection m_connection{&m_transport, &m_store, testClientName()};
     TimerController m_timer{&m_clock};
     QSet<qsizetype> m_answered;
 };
