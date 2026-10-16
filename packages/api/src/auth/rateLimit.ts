@@ -113,8 +113,9 @@ export class FailureLimiter {
   }
 
   /**
-   * Whole seconds, rounded up, until the counter that frees a slot first does so. Call it after
-   * `attempt` returned null or `isBlocked` returned true. It is never below 1 or above the window.
+   * Whole seconds, rounded up, until every counter now at its limit has reset. An attempt is refused
+   * while any counter is full, so waiting for only the first to reset could still get a refusal. Call
+   * it after `attempt` returned null or `isBlocked` returned true. It is never below 1 or above the window.
    * An attempt refused only because the queue behind a running check was full has no counter at its
    * limit, and gets 1 second. The result does not say which counter is full.
    */
@@ -124,7 +125,7 @@ export class FailureLimiter {
       return entry && entry.failures >= limit ? [entry.resetAt] : [];
     });
     if (resets.length === 0) return 1;
-    const seconds = Math.ceil((Math.min(...resets) - now) / 1000);
+    const seconds = Math.ceil((Math.max(...resets) - now) / 1000);
     return Math.min(Math.max(seconds, 1), Math.ceil(this.windowMs / 1000));
   }
 

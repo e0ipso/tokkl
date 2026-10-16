@@ -29,9 +29,10 @@ test('a regular user gets 403 from every admin route', async () => {
 test('an admin lists every account with only the account fields, ordered by id', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user', fullname: 'Bob' });
-  await admin.json('POST', `/api/v9/workspaces/${bob.wid}/time_entries`, {
-    start: new Date().toISOString(), duration: 60, created_with: 'test',
+  const seeded = await bob.json('POST', `/api/v9/workspaces/${bob.wid}/time_entries`, {
+    start: new Date().toISOString(), duration: 60, description: 'Bob private work', created_with: 'test',
   });
+  assert.equal(seeded.status, 200);
 
   const response = await admin.request('GET', '/api/app/admin/users');
   assert.equal(response.status, 200);
@@ -45,6 +46,7 @@ test('an admin lists every account with only the account fields, ordered by id',
     id: bob.user.id, email: 'bob@example.com', fullname: 'Bob', role: 'user',
     created_at: `${bob.user.created_at.slice(0, 19)}+00:00`, disabled_at: null,
   });
+  assert.ok(!text.includes('Bob private work'), 'no time data');
   for (const secret of [admin.user.api_token, bob.user.api_token, admin.user.password_hash, bob.user.password_hash]) {
     assert.ok(!text.includes(secret));
   }

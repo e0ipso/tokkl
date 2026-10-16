@@ -507,7 +507,7 @@ test('the tt_session cookie and X-Timetrack-CSRF header from before the rename s
 const WINDOW_SECONDS = 15 * 60;
 const retryAfter = (response: Response) => response.headers.get('retry-after');
 
-test('FailureLimiter.retryAfterSeconds rounds up, uses the earliest full counter and stays within the window', async (t) => {
+test('FailureLimiter.retryAfterSeconds rounds up, uses the latest full counter and stays within the window', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const limiter = new FailureLimiter(100, 15 * 60 * 1000);
   const early = { key: 'early', limit: 2 };
@@ -523,7 +523,8 @@ test('FailureLimiter.retryAfterSeconds rounds up, uses the earliest full counter
 
   assert.equal(limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100);
   assert.equal(limiter.retryAfterSeconds([late]), WINDOW_SECONDS);
-  assert.equal(limiter.retryAfterSeconds([late, early]), WINDOW_SECONDS - 100, 'the earliest full counter, whatever the order');
+  assert.equal(limiter.retryAfterSeconds([late, early]), WINDOW_SECONDS, 'the latest full counter');
+  assert.equal(limiter.retryAfterSeconds([early, late]), WINDOW_SECONDS, 'whatever the order');
   assert.equal(limiter.retryAfterSeconds([{ key: 'free', limit: 2 }, late]), WINDOW_SECONDS);
 
   t.mock.timers.tick(1);
@@ -581,7 +582,7 @@ test('login, Basic auth and password-change 429s carry Retry-After, and waiting 
   assert.equal((await loginResponse()).status, 200);
 });
 
-test('a 429 from the address counter carries Retry-After for the earliest full counter', async (t) => {
+test('a 429 from the address counter alone carries Retry-After for that counter', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const { app, login } = await multiUserApp(1);
   // One hundred failures across accounts fill only the address counter.
@@ -594,6 +595,32 @@ test('a 429 from the address counter carries Retry-After for the earliest full c
   });
   assert.equal(response.status, 429);
   assert.equal(retryAfter(response), String(WINDOW_SECONDS - 30));
+});
+
+test('with two full counters, waiting the advertised Retry-After lets the next login through', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  const { app, login } = await multiUserApp(1);
+  // Nine failures each for ten unknown accounts start the address counter without filling any account counter.
+  const early = await Promise.all(Array.from({ length: 90 }, (_, i) => login(`nobody${i % 10}@example.com`, 'wrong')));
+  assert.deepEqual(new Set(early), new Set([403]));
+  t.mock.timers.tick(60_000);
+  // A minute later, ten failures for user0 fill its account+address counter and the address counter.
+  const late = await Promise.all(Array.from({ length: 10 }, () => login('user0@example.com', 'wrong')));
+  assert.deepEqual(new Set(late), new Set([403]));
+  const send = () => app.request('/api/app/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+    body: JSON.stringify({ email: 'user0@example.com', password: PASSWORD }),
+  });
+
+  const refused = await send();
+  assert.equal(refused.status, 429);
+  const wait = Number(retryAfter(refused));
+  assert.equal(wait, WINDOW_SECONDS, 'until the account+address counter, which resets a minute after the address counter');
+  t.mock.timers.tick((wait - 60) * 1000);
+  assert.equal((await send()).status, 429, 'the address counter alone has room by now');
+  t.mock.timers.tick(60_000);
+  assert.equal((await send()).status, 200, 'the advertised wait frees every counter');
 });
 
 test('setup 429s carry Retry-After, and waiting that long allows another code', async (t) => {
