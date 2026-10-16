@@ -409,6 +409,42 @@ private Q_SLOTS:
         QVERIFY(f.unanswered(f.last("GET", currentPath)));
     }
 
+    void projectIsLockedWhileRunning()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(f.timer.canWrite());
+        const QVariantMap before = f.timer.currentEntryVariant().toMap();
+        const qsizetype requests = f.transport.requests.size();
+        QSignalSpy selection(&f.timer, &TimerController::selectionChanged);
+
+        QVERIFY(!f.timer.chooseProject(11));
+        QVERIFY(!f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QCOMPARE(f.transport.requests.size(), requests);
+        QCOMPARE(f.timer.currentEntryVariant().toMap(), before);
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(!f.timer.billable());
+        QCOMPARE(selection.count(), 0);
+        QVERIFY(!f.timer.isBusy());
+
+        // Billable still edits the running entry, with billable alone.
+        QVERIFY(f.timer.chooseBillable(true));
+        const qsizetype put = f.last("PUT", "/time_entries/5");
+        QVERIFY(f.unanswered(put));
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(put).body).object(), QJsonObject({{QStringLiteral("billable"), true}}));
+
+        // Stopped, the project is a choice again.
+        f.respond(put, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.timer.chooseProject(11));
+        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
+    }
+
     void stoppedConflictReconciles_data()
     {
         QTest::addColumn<int>("status");

@@ -439,38 +439,39 @@ TestCase {
         verify(!button.timer.chooseProject(33), "an archived project is refused");
         compare(fixture.pending("PUT", "/time_entries/5"), -1);
         verify(button.timer.projects.every(p => p.id !== 33), "not among the active projects");
-
-        // Moving the entry to an active project drops the archived line.
-        chooseProjectWithKeyboard("Alpha");
-        const put = waitFor("PUT", "/time_entries/5");
-        fixture.respond(put, 200, JSON.stringify(entry(5, 7, 11, true, {
-            task_id: null
-        })));
-        tryCompare(menu, "count", 2);
-        verify(!projectItem("Legacy (archived)"));
+        verify(!projectItem("Alpha").enabled, "the running entry's project is locked");
+        verify(!button.timer.chooseProject(11), "no move to an active project while running");
+        compare(fixture.pending("PUT", "/time_entries/5"), -1);
     }
 
-    function test_runningChangesEditTheWholeEntry() {
+    function test_projectIsLockedWhileRunning() {
         connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
         const before = fixture.requestCount;
+        const menu = button.menu;
+        compare(menu.projectMenu.title, "Project: Beta", "the title names the running entry's project");
+        verify(!menu.projectMenu.enabled, "Project is locked while an entry runs");
+        verify(!menu.noProjectItem.enabled);
+        verify(!projectItem("Alpha").enabled);
+        verify(!projectItem("Beta").enabled);
+        verify(projectItem("Beta").checked);
+        verify(menu.billableItem.enabled, "Billable stays editable");
 
-        chooseProjectWithKeyboard("Alpha");
+        verify(!button.timer.chooseProject(11), "a direct call is refused too");
+        verify(!button.timer.chooseProject(null));
+        compare(fixture.pending("PUT", "/time_entries/5"), -1, "no edit sent");
+        compare(button.timer.chosenProjectId, 12);
+
+        // Billable edits the running entry with billable alone.
+        toggleBillableWithKeyboard();
         const put = waitFor("PUT", "/workspaces/7/time_entries/5");
-        const body = fixture.request(put).body;
-        compare(Object.keys(body).sort(), ["billable", "project_id", "task_id"], "only the changed fields travel");
-        compare(body.project_id, 11);
-        compare(body.billable, true, "Alpha's default");
-        compare(body.task_id, null);
+        compare(fixture.request(put).body, {
+            billable: true
+        }, "a billable change sends only billable");
         compare(button.timer.status, TokklTimer.Busy);
-        verify(!button.menu.billableItem.enabled, "no second edit while one runs");
 
         // The server keeps everything else; the same entry keeps running.
-        fixture.respond(put, 200, JSON.stringify(entry(5, 7, 11, true, {
-            task_id: null
-        })));
-        answer("GET", "/me/time_entries/current", 200, entry(5, 7, 11, true, {
-            task_id: null
-        }));
+        fixture.respond(put, 200, JSON.stringify(entry(5, 7, 12, true)));
+        answer("GET", "/me/time_entries/current", 200, entry(5, 7, 12, true));
         tryCompare(button.timer, "canWrite", true);
         const current = button.timer.currentEntry;
         compare(current.id, 5);
@@ -478,19 +479,29 @@ TestCase {
         compare(current.tags, ["deep work", "q4"]);
         verify(current.running);
         compare(button.timer.elapsedText, "0:01:05", "not split: the start is unchanged");
-        compare(fixture.pending("POST", "/time_entries"), -1, "no new entry");
-        compare(fixture.pending("PATCH", "/stop"), -1, "no stop");
-        verify(button.menu.billableItem.checked);
-
-        toggleBillableWithKeyboard();
-        const billablePut = waitFor("PUT", "/workspaces/7/time_entries/5");
-        compare(fixture.request(billablePut).body, {
-            billable: false
-        }, "a billable change sends only billable");
+        verify(menu.billableItem.checked);
+        verify(!menu.projectMenu.enabled, "still locked after the edit");
         for (let i = before; i < fixture.requestCount; ++i) {
             const request = fixture.request(i);
             verify(request.method === "GET" || request.method === "PUT", request.method + " " + request.path);
         }
+
+        // Stopped, Project is a choice again.
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, true, {
+            stop: fixture.clockIso(),
+            duration: 65
+        })));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        tryCompare(button.timer, "canWrite", true);
+        verify(!button.timer.running);
+        verify(menu.projectMenu.enabled);
+        verify(menu.noProjectItem.enabled);
+        verify(projectItem("Alpha").enabled);
+        verify(projectItem("Beta").enabled);
+        verify(button.timer.chooseProject(11));
+        compare(button.timer.chosenProjectId, 11);
+        compare(fixture.pending("PUT", "/time_entries/5"), -1, "a stopped choice sends nothing");
     }
 
     // ----- states and disabled controls -----------------------------------

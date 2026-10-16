@@ -37,10 +37,13 @@ namespace Tokkl
 // reconnect, until its reply arrives and a read reconciles the state.
 //
 // The panel menu edits the choices through chooseProject() and
-// chooseBillable(). They set the choices for the next start and, while an
-// entry runs, change that whole entry in place with one PUT, so the entry is
-// never split. Choosing a project applies its billable default (false for no
-// project); a later billable choice overrides it.
+// chooseBillable(). chooseProject() sets only the project of the next start
+// and is refused while an entry runs: the project of a running entry is fixed,
+// and changing it means stopping and starting a new entry. chooseBillable()
+// sets the next start too and, while an entry runs, edits that entry in place
+// with one PUT carrying only billable, so the entry is never split. Choosing a
+// project applies its billable default (false for no project); a later
+// billable choice overrides it.
 //
 // Everything is tied to the connection's generation. A new instance, account
 // or secret clears the entry, projects, busy state and errors at once, and
@@ -159,7 +162,7 @@ public:
     // Stops a running entry, otherwise starts one.
     Q_INVOKABLE bool toggle();
     // Null, 0 or an active project's id. Returns false when refused: no
-    // write possible now, or not an active project.
+    // write possible now, an entry runs, or not an active project.
     Q_INVOKABLE bool chooseProject(const QVariant &projectId);
     Q_INVOKABLE bool chooseBillable(bool billable);
 

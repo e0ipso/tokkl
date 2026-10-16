@@ -136,17 +136,18 @@ Saving, Offline (the last known state), Sign-in refused and Error.
   Right opens Project, Return or Space chooses and Escape closes.
 - Project lists No project and every active project of the workspace. The
   running entry's archived project is shown, checked and disabled, but is
-  never offered for new work.
+  never offered for new work. Project is disabled while an entry runs: its
+  project stays fixed, and changing it means stopping and starting a new
+  entry.
 - Choosing a project applies its billable default, or nonbillable for No
   project; changing Billable afterwards overrides it. The choices start as No
   project and nonbillable, apply to the next start and belong to the
   validated instance and account: any change of instance, account or secret
   resets them and closes the menu.
-- While an entry runs, a choice also changes that entry in place with
-  `PUT /api/v9/workspaces/{wid}/time_entries/{id}`. A project change sends
-  exactly `project_id`, `billable` and `task_id: null`; a billable change sends
-  only `billable`. The description, tags, start and the rest stay as they are,
-  and the entry is not split.
+- While an entry runs, Billable also changes that entry in place with
+  `PUT /api/v9/workspaces/{wid}/time_entries/{id}`, sending only `billable`.
+  The description, tags, start and the rest stay as they are, and the entry
+  is not split.
 - Project and Billable are disabled whenever the timer cannot write: not
   configured, loading, busy, offline before the entry is known, refused
   credentials, a lost workspace or a cooldown.

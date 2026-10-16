@@ -294,7 +294,8 @@ bool TimerController::toggle()
 
 bool TimerController::chooseProject(const QVariant &projectId)
 {
-    if (!canWrite()) {
+    // The project of a running entry is fixed until it stops.
+    if (!canWrite() || m_entry) {
         return false;
     }
     std::optional<qint64> project;
@@ -320,16 +321,7 @@ bool TimerController::chooseProject(const QVariant &projectId)
     }
     m_connection->setNextProjectId(project);
     m_connection->setNextBillable(billable);
-    if (!m_entry || (m_entry->projectId == project && m_entry->billable == billable)) {
-        return true;
-    }
-    // The API clears a task only when told to; the task may belong to the
-    // previous project.
-    TimeEntryUpdate update;
-    update.projectId = project;
-    update.billable = billable;
-    update.taskId = std::optional<qint64>();
-    return updateEntry(update);
+    return true;
 }
 
 bool TimerController::chooseBillable(bool billable)
