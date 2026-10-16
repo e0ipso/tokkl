@@ -28,6 +28,28 @@ function savePreferences(preferences: Record<string, unknown>): Promise<unknown>
   return ok(api.post('/api/v9/me/preferences', { headers: CSRF, data: preferences }));
 }
 
+const INVITED = [
+  { email: 'marta@example.com', fullname: 'Marta Puig', role: 'admin', note: 'Operations lead' },
+  { email: 'joan@example.com', fullname: 'Joan Serra', role: 'user', note: 'Contractor' },
+];
+
+/**
+ * Creates the invited accounts. The demo admin issues each invite and a separate request context
+ * accepts it, so the demo session cookie stays untouched. The one-time link only passes through
+ * this function and is never written to a page or an image.
+ */
+async function inviteUsers(baseURL: string | undefined): Promise<void> {
+  for (const { email, fullname, role, note } of INVITED) {
+    const invite = await ok<{ url: string }>(api.post('/api/app/admin/invites', { headers: CSRF, data: { role, note } }));
+    const guest = await request.newContext({ baseURL });
+    await ok(guest.post(`/api/app${invite.url.replace('/invite/', '/invites/')}`, {
+      headers: CSRF,
+      data: { email, password: 'screenshots password', fullname, timezone: TIME_ZONE },
+    }));
+    await guest.dispose();
+  }
+}
+
 test.beforeAll(async ({ baseURL }) => {
   api = await request.newContext({ baseURL });
   await ok(api.post('/api/app/setup', {
@@ -39,6 +61,7 @@ test.beforeAll(async ({ baseURL }) => {
     data: JSON.stringify(screenshotExport()),
   }));
   expect(result.errors, 'the screenshot data restores without errors').toEqual([]);
+  await inviteUsers(baseURL);
 
   const me = await ok<{ default_workspace_id: number }>(api.get('/api/v9/me'));
   const projects = await ok<Array<{ id: number; name: string }>>(api.get(`/api/v9/workspaces/${me.default_workspace_id}/projects`));
@@ -81,6 +104,7 @@ const calendar = (page: Page) => page.locator('.calendar-grid').getByText('Relea
 const summary = (page: Page) => page.getByRole('region', { name: 'Breakdown' }).getByText('Billing API').first();
 const detailed = (page: Page) => page.getByRole('tabpanel').getByText('Webhook retries').first();
 const weekly = (page: Page) => page.getByRole('tabpanel').getByText('Mobile app').first();
+const adminUsers = (page: Page) => page.getByRole('main').getByText('joan@example.com').first();
 const projectsList = (page: Page) => page.getByRole('main').getByText('Billing API').first();
 
 test('desktop', async ({ browser }, testInfo) => {
@@ -92,6 +116,7 @@ test('desktop', async ({ browser }, testInfo) => {
   await capture(page, '/reports?range=last_30', 'desktop-reports-summary', summary);
   await capture(page, '/reports?range=last_30&tab=detailed', 'desktop-reports-detailed', detailed);
   await capture(page, '/reports?range=last_30&tab=weekly', 'desktop-reports-weekly', weekly);
+  await capture(page, '/admin', 'desktop-admin', adminUsers);
   await errors.verify(testInfo);
   await page.context().close();
 });

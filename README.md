@@ -50,6 +50,10 @@ The data is synthetic: three clients, five projects and five weeks of weekday en
   <img src="docs/screenshots/mobile-reports.png" alt="Summary report on a phone" width="260">
 </p>
 
+**Admin.** The demo instance has one admin, `demo@example.com`, who owns the data above, and two accounts created from invite links: another admin and a regular user. Admins manage accounts, invites and instance settings here.
+
+![Admin page listing three accounts](docs/screenshots/desktop-admin.png)
+
 ## Running
 
 Requires Node.js 24 or newer. The server is one process that serves the API and the web app and keeps its data in one SQLite file.
