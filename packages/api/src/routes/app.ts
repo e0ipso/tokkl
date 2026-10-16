@@ -138,7 +138,11 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const text = readText(req);
     if (!text.trim()) throw badRequest('The file is empty');
     const dryRun = query(req, 'dry_run') === 'true';
-    return res.json(importTogglCsv(db, res.locals.user, text, { dryRun }));
+    // Repeat `user` once per selected Toggl user; keys can hold commas, so no comma list.
+    const selected = req.query.user;
+    const users = selected === undefined ? undefined : [selected].flat().filter((key) => typeof key === 'string');
+    if (users?.length === 0) throw badRequest('Invalid user selection');
+    return res.json(importTogglCsv(db, res.locals.user, text, { dryRun, users }));
   });
 
   app.post('/import/json', auth, async (req, res) => {

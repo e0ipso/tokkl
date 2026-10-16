@@ -8,9 +8,11 @@ import { createProject } from '../models/projects.ts';
 import { createTask } from '../models/tasks.ts';
 import { createTimeEntry } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
-import type { ImportResult } from '@tokkl/types';
+import type { ImportResult, ImportUser } from '@tokkl/types';
 
 const HEADER_ALIASES: Record<string, string[]> = {
+  user: ['user'],
+  email: ['email'],
   client: ['client'],
   project: ['project'],
   task: ['task'],
@@ -85,12 +87,28 @@ function unescapeCell(value: string): string {
 
 class Rollback extends Error {}
 
+/** How a selection names a Toggl user: "Name <email>", or whichever of the two the row has. */
+function userKey(name: string, email: string): string {
+  return name && email ? `${name} <${email}>` : name || email;
+}
+
+/** Rows a selection leaves out, with the reason the import reports for them. */
+function skippedReason(key: string): string {
+  return key ? `Rows from ${key} were not selected` : 'Rows without a Toggl user were not selected';
+}
+
 /**
  * Imports a Toggl Track detailed-report CSV export. Times are read in the account's timezone.
  * Missing clients, projects, tasks and tags are created. Rows matching an existing entry
  * (same start, stop, description and project) are skipped, so re-importing a file is safe.
+ *
+ * A team export holds several people's rows. `users` lists the `ImportUser.key`s whose rows to
+ * import; the rest are skipped. Without it every row is imported, which a real import refuses
+ * when the file has more than one Toggl user. Rows always go to `user`'s account.
  */
-export function importTogglCsv(db: Db, user: UserRow, text: string, options: { dryRun: boolean }): ImportResult {
+export function importTogglCsv(
+  db: Db, user: UserRow, text: string, options: { dryRun: boolean; users?: string[] },
+): ImportResult {
   const rows = parseCsv(text);
   const header = rows.shift();
   if (!header) throw badRequest('The file is empty');
@@ -103,14 +121,37 @@ export function importTogglCsv(db: Db, user: UserRow, text: string, options: { d
     throw badRequest('Missing "End date"/"End time" or "Duration" columns.');
   }
 
+  const cell = (row: string[], key: string): string => {
+    const position = col[key];
+    return position === undefined ? '' : unescapeCell((row[position] ?? '').trim());
+  };
+  const hasUsers = col.user !== undefined || col.email !== undefined;
+  const rowUsers = rows.map((row) => (hasUsers ? userKey(cell(row, 'user'), cell(row, 'email')) : ''));
+  const users = new Map<string, ImportUser>();
+  if (hasUsers) {
+    rows.forEach((row, index) => {
+      const key = rowUsers[index]!;
+      const found = users.get(key);
+      if (found) found.rows++;
+      else users.set(key, { key, user: cell(row, 'user'), email: cell(row, 'email'), rows: 1 });
+    });
+  }
+  const selected = options.users ? new Set(options.users) : null;
+  for (const key of selected ?? []) {
+    if (!users.has(key)) throw badRequest(`No rows in the file belong to the Toggl user "${key}"`);
+  }
+  if (!selected && users.size > 1 && !options.dryRun) {
+    throw badRequest(`The file has rows from ${users.size} Toggl users. Choose whose rows to import.`);
+  }
+
   const wid = user.default_workspace_id;
   const result: ImportResult = {
     dry_run: options.dryRun, rows: rows.length, created: 0, skipped_duplicates: 0,
     created_projects: [], created_clients: [], errors: [],
-  };
-  const cell = (row: string[], key: string): string => {
-    const position = col[key];
-    return position === undefined ? '' : unescapeCell((row[position] ?? '').trim());
+    users: [...users.values()],
+    skipped: [...users.values()]
+      .filter((found) => selected && !selected.has(found.key))
+      .map((found) => ({ rows: found.rows, reason: skippedReason(found.key) })),
   };
   const clientIds = new Map<string, number>();
   const projectIds = new Map<string, number>();
@@ -169,6 +210,7 @@ export function importTogglCsv(db: Db, user: UserRow, text: string, options: { d
 
   const run = () => {
     rows.forEach((row, index) => {
+      if (selected && !selected.has(rowUsers[index]!)) return;
       const rowNumber = index + 2;
       const createdProjects = result.created_projects.length;
       const createdClients = result.created_clients.length;

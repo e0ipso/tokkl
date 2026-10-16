@@ -178,6 +178,15 @@ export interface ReportQuery {
   description?: string;
 }
 
+/** One distinct Toggl user found in a CSV's User and Email columns. */
+export interface ImportUser {
+  /** Pass this back as a `user` query parameter to import this user's rows. */
+  key: string;
+  user: string;
+  email: string;
+  rows: number;
+}
+
 export interface ImportResult {
   dry_run: boolean;
   rows: number;
@@ -186,6 +195,10 @@ export interface ImportResult {
   created_projects: string[];
   created_clients: string[];
   errors: Array<{ row: number; message: string }>;
+  /** Toggl users in the file, in order of first appearance; empty when it has no User or Email column. */
+  users: ImportUser[];
+  /** Rows left out because their Toggl user was not selected, one item per user. */
+  skipped: Array<{ rows: number; reason: string }>;
 }
 
 /** Calendar and clock fields of an instant in an IANA timezone. */
