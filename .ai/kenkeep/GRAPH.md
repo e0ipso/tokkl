@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:b7fc05c92a1e99c11d59d375bdc33e6ea1e0c008ad5c0d8fb5e89697d722b0a2'
-node_count: 32
+nodes_hash: 'sha256:2d4d923cfce4810c377da4894cd5f9290ee25d4aa5d7d74fdf42a11ed56a4575'
+node_count: 37
 ---
 # kenkeep Graph
 
-Total nodes: 32
+Total nodes: 37
 
 ## map-app-icons-script
 
@@ -37,6 +37,14 @@ Total nodes: 32
 - **path:** tooling-and-project/map-history-scale-bench.md
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
+
+## map-kde-plasma-companion-desktop-kde
+
+- **kind:** map
+- **title:** KDE Plasma companion in desktop/kde
+- **path:** tooling-and-project/map-kde-plasma-companion-desktop-kde.md
+- **tags:** tooling, kde, desktop, testing
+- **relates_to:** map-npm-workspaces-package-layout, map-test-and-static-analysis-layout
 
 ## map-npm-workspaces-package-layout
 
@@ -78,6 +86,14 @@ Total nodes: 32
 - **tags:** server, web, config, rename
 - **relates_to:** practice-password-checks-and-csrf-rules, practice-theme-tokens-data-theme-and-cached-theme, practice-json-restore-rules, map-npm-workspaces-package-layout
 
+## map-users-roles-and-workspace-membership
+
+- **kind:** map
+- **title:** Users, roles and workspace membership (migration 3)
+- **path:** api-and-data/map-users-roles-and-workspace-membership.md
+- **tags:** server, database, migrations, auth, workspaces
+- **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-and-csrf-rules
+
 ## map-web-page-state-and-field-error-components
 
 - **kind:** map
@@ -99,6 +115,14 @@ Total nodes: 32
 - **title:** Clipboard copy needs a fallback on plain HTTP
 - **path:** web-ui-behaviour/practice-clipboard-copy-needs-http-fallback.md
 - **tags:** web, clipboard, self-hosting
+
+## practice-commit-messages-pass-commitlint-no-ai-generated
+
+- **kind:** practice
+- **title:** Commit messages: Conventional Commits, no co-author or AI trailers
+- **path:** tooling-and-project/practice-commit-messages-pass-commitlint-no-ai-generated.md
+- **tags:** tooling, workflow, git
+- **relates_to:** map-test-and-static-analysis-layout
 
 ## practice-contrast-tables-and-project-colours
 
@@ -123,6 +147,14 @@ Total nodes: 32
 - **path:** tooling-and-project/practice-e2e-test-workflow.md
 - **tags:** testing, e2e, playwright, workflow
 - **relates_to:** practice-visual-screenshot-baselines
+
+## practice-end-sessions-through-lib-session
+
+- **kind:** practice
+- **title:** End web sessions through endSession and logOut in lib/session.ts
+- **path:** web-ui-behaviour/practice-end-sessions-through-lib-session.md
+- **tags:** web, auth, react-query, theme
+- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-password-checks-and-csrf-rules
 
 ## practice-hourly-rates-go-through-optionalrate
 
@@ -197,7 +229,7 @@ Total nodes: 32
 - **title:** Theme: light-dark() tokens, data-theme and the cached theme
 - **path:** web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md
 - **tags:** web, css, theme, dark-mode, e2e
-- **relates_to:** practice-contrast-tables-and-project-colours, practice-e2e-test-workflow
+- **relates_to:** practice-contrast-tables-and-project-colours, practice-e2e-test-workflow, practice-end-sessions-through-lib-session
 
 ## practice-timer-bar-height-drives-sticky-bulk-bar
 
@@ -206,6 +238,14 @@ Total nodes: 32
 - **path:** web-ui-styling-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md
 - **tags:** web, css, timer, mobile
 - **relates_to:** practice-phone-layout-css-gotchas, practice-web-ui-survives-background-refetches
+
+## practice-toggl-csv-import-selects-users-by-opaque-key
+
+- **kind:** practice
+- **title:** Toggl CSV import: choose team-export users by opaque key
+- **path:** api-and-data/practice-toggl-csv-import-selects-users-by-opaque-key.md
+- **tags:** server, api, import, validation
+- **relates_to:** practice-json-restore-rules
 
 ## practice-twelve-hour-time-entry-parsing-rules
 
