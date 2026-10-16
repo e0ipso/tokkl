@@ -4,7 +4,7 @@ import {
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
-// TT-0143: an admin's password reset link opens /reset/:token, where a logged-out person sets a
+// An admin's password reset link opens /reset/:token, where a logged-out person sets a
 // new password and then logs in with it. The page fits a phone.
 
 test.use(PHONE);
@@ -53,7 +53,7 @@ test('a reset link sets a new password, ends old sessions, and the new password 
   await expect(page.getByLabel('New password')).toHaveCount(0);
 });
 
-// TT-0179: the server's password rules show on the password field, which gets focus, like the
+// The server's password rules show on the password field, which gets focus, like the
 // other password forms.
 test('a password the server rejects shows its error on the password field', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });
@@ -86,7 +86,7 @@ test('a password the server rejects shows its error on the password field', asyn
   await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
 });
 
-// TT-0143 and TT-0179: a link spent after the form loaded gets the same 404 as any bad link. That
+// A link spent after the form loaded gets the same 404 as any bad link. That
 // is about the link, not the password, so it shows under the form and the field stays valid.
 test('a link used elsewhere while the form is open shows the 404 under the form', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });

@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { contrast, login } from './helpers.ts';
 
-// TT-0071: keyboard focus shows a 2px ring on the timer description, the "Project" button of an
+// Keyboard focus shows a 2px ring on the timer description, the "Project" button of an
 // entry without a project, and the reports description search, with 3:1 contrast in both themes.
 
 /** Presses Tab until the target has focus, so :focus-visible comes from real keyboard use. */

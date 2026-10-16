@@ -3,7 +3,7 @@ import { expect, test } from './fixtures.ts';
 import { contrast, login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 
-// TT-0110: the colour radiogroup, the date range presets and the project picker each take one Tab
+// The colour radiogroup, the date range presets and the project picker each take one Tab
 // stop, and arrows, Home and End move through their options. Each scenario drives its widget with
 // the keyboard only.
 
@@ -45,7 +45,7 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   expect(await tabStops(group)).toBe(1);
   const startIndex = await radios.evaluateAll((nodes) => nodes.findIndex((node) => node.getAttribute('aria-checked') === 'true'));
   expect(startIndex).toBeGreaterThanOrEqual(0);
-  // TT-0082: every swatch has its own colour name, and only the checked one draws a check mark.
+  // Every swatch has its own colour name, and only the checked one draws a check mark.
   const names = await radios.evaluateAll((nodes) => nodes.map((node) => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim()));
   expect(new Set(names).size).toBe(count);
   for (const name of names) expect(name).not.toMatch(/^(Color \d+)?$/);
@@ -106,7 +106,7 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   }, saved.color)).toBe(chosen);
 });
 
-// TT-0100: each swatch picks the check colour that reads best on it, at 3:1 or more.
+// Each swatch picks the check colour that reads best on it, at 3:1 or more.
 test('every colour swatch draws its check mark at 3:1 or more against the swatch', async ({ page }) => {
   await login(page);
   await (await EntityApi.open(page)).createProject({ name: 'Palette' });
@@ -250,7 +250,7 @@ function optionLook(option: Locator) {
   });
 }
 
-// TT-0111: the option the arrows make active shows a 2px primary outline on the row, at 3:1 against
+// The option the arrows make active shows a 2px primary outline on the row, at 3:1 against
 // the row in both themes, and looks different from the selected option's tint and left bar.
 for (const scheme of ['light', 'dark'] as const) {
   test(`the arrowed-to project picker option shows a visible indicator in the ${scheme} theme`, async ({ page }) => {

@@ -8,9 +8,9 @@ interface ManifestIcon {
   purpose?: string;
 }
 
-// TT-0122: every served icon is sized for its use and stays under this budget.
+// Every served icon is sized for its use and stays under this budget.
 const MAX_ICON_BYTES = 100 * 1024;
-// TT-0124: the owner's maskable icons are final art, served as supplied. The 512 is about 115 KB and
+// The owner's maskable icons are final art, served as supplied. The 512 is about 115 KB and
 // loads only when the app is installed, so maskable manifest icons get a larger budget.
 const MAX_MASKABLE_ICON_BYTES = 128 * 1024;
 
@@ -68,12 +68,12 @@ test('the built app links a local manifest whose icons are real images of the de
   expect(scope.origin).toBe(origin);
   expect(startUrl.href.startsWith(scope.href)).toBe(true);
 
-  // TT-0080: an installed app opens in the light theme's --bg, the colour the light theme-color meta holds.
+  // An installed app opens in the light theme's --bg, the colour the light theme-color meta holds.
   const lightThemeColor = await page.locator('meta[name="theme-color"][media="(prefers-color-scheme: light)"]').getAttribute('content');
   expect(lightThemeColor).toMatch(/^#[0-9a-f]{6}$/i);
   expect([manifest.theme_color, manifest.background_color]).toEqual([lightThemeColor, lightThemeColor]);
 
-  // TT-0122: the owner's stopwatch artwork is raster, so the manifest lists only PNG sizes. TT-0124: the
+  // The owner's stopwatch artwork is raster, so the manifest lists only PNG sizes. The
   // general-purpose icons are followed by the owner's maskable pair.
   expect(manifest.icons?.map((icon) => [icon.src, icon.sizes, icon.type, icon.purpose ?? 'any'])).toEqual([
     ['/icon-192.png', '192x192', 'image/png', 'any'],
@@ -105,9 +105,9 @@ test('the built app links a local manifest whose icons are real images of the de
   }
 });
 
-// TT-0079: the favicon and the apple-touch-icon in index.html point at real images, not the app shell.
-// TT-0122: they are PNGs of the declared size, and the apple-touch-icon is opaque, because iOS paints
-// transparent corners black. TT-0124: it is the owner's navy icon.
+// The favicon and the apple-touch-icon in index.html point at real images, not the app shell.
+// They are PNGs of the declared size, and the apple-touch-icon is opaque, because iOS paints
+// transparent corners black. The apple-touch-icon is also the owner's navy icon.
 test('the favicon and apple-touch-icon links resolve to images', async ({ page }) => {
   await page.goto('/');
   const origin = new URL(page.url()).origin;

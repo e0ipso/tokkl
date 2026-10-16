@@ -5,7 +5,7 @@ import {
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
-// TT-0138: an admin's invite link opens /invite/:token, where a logged-out person creates their
+// An admin's invite link opens /invite/:token, where a logged-out person creates their
 // account and lands on the timer. The page fits a phone and every control shows its focus ring.
 
 test.use(PHONE);
@@ -80,7 +80,7 @@ test('a bad invite link says so and offers the login page', async ({ page, runti
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 });
 
-// TT-0138: each invited account is a second, separate account: its own private workspace, the role
+// Each invited account is a second, separate account: its own private workspace, the role
 // the invite named, no access to the admin's data. Pending invites are listed and can be revoked.
 test('an invite adds a separate account in its own workspace, and a revoked link stops working', async ({ servers }) => {
   const server = await servers.start({ slot: 0 });
@@ -129,7 +129,7 @@ test('an invite adds a separate account in its own workspace, and a revoked link
   }
 });
 
-// TT-0138: wrong tokens charge the per-address counter that password checks share, so a hundred
+// Wrong tokens charge the per-address counter that password checks share, so a hundred
 // misses lock this address out of invite links and the login form alike.
 test('a hundred wrong invite tokens lock this address out of invites and logins', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });

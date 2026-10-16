@@ -145,8 +145,8 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
   expect((await readAccount(page, data.workspaceId)).entries).toHaveLength(2);
 });
 
-// TT-0131: a team export lists its Toggl users, needs a choice, and imports only the chosen rows.
-// TT-0154: User "Alice <alice@example.com>" with no Email and User "Alice" with that Email are two users.
+// A team export lists its Toggl users, needs a choice, and imports only the chosen rows.
+// User "Alice <alice@example.com>" with no Email and User "Alice" with that Email are two users.
 test('a Toggl CSV from several users imports only the users picked in the preview', async ({ page, data }) => {
   await login(page);
   await openSettings(page);

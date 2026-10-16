@@ -3,7 +3,7 @@ import { expect, test } from './fixtures.ts';
 import { contrast, login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 
-// TT-0084: form validation errors appear under the field instead of in a toast. The field gets
+// Form validation errors appear under the field instead of in a toast. The field gets
 // aria-invalid, a danger border and aria-describedby pointing at a role=alert message, and submit
 // moves focus to the first invalid field.
 

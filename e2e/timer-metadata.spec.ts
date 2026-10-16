@@ -28,7 +28,7 @@ test('autocomplete copies project, task, tags and billable into a new running en
 
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Design');
-  // TT-0082: the suggestion the arrows reach is selected and has a 3px bar as well as the tint.
+  // The suggestion the arrows reach is selected and has a 3px bar as well as the tint.
   await timer.getByLabel('Description').press('ArrowDown');
   const highlighted = page.locator('.suggestions').getByRole('option', { selected: true });
   await expect(highlighted).toContainText('Design review');
@@ -69,7 +69,7 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   expect(metadataOf(continued)).toEqual(metadataOf(review));
   await expect(timer.getByLabel('Description')).toHaveValue('Design review');
 
-  // TT-0076: the chip shows the project after the description and is named by both.
+  // The chip shows the project after the description and is named by both.
   const chip = page.locator('.favorites').getByRole('button', { name: 'Standup, Operations', exact: true });
   await expect(chip.locator('.favorite-project')).toHaveText('Operations');
   await chip.click();

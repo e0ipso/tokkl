@@ -1,6 +1,6 @@
 import { EMAIL, expect, test } from './fixtures.ts';
 
-// TT-0210: global setup deletes the worker accounts an earlier run left on a reused data directory,
+// Global setup deletes the worker accounts an earlier run left on a reused data directory,
 // in the current worker-<run id>-<n> format and the older worker-<n> one, and no other account.
 // It lists every account on the server, so it runs in the instance project.
 test('deleting leftover worker accounts removes both address formats and keeps every other account', async ({ data, users }) => {

@@ -131,7 +131,7 @@ test('deleting a client keeps project IDs and entry metadata and numbers collidi
   expect((await api.project(third.id)).client_id).toBeNull();
 });
 
-// TT-0200: a client row that leaves the list after a confirm dialog from its menu takes the menu
+// A client row that leaves the list after a confirm dialog from its menu takes the menu
 // button the dialog would return to, so focus moves to the next row, else the previous one, else the
 // page heading.
 test('deleting or archiving a client by keyboard keeps focus in the clients list', async ({ page }) => {
@@ -164,7 +164,7 @@ test('deleting or archiving a client by keyboard keeps focus in the clients list
   expect((await api.clients()).map((client) => client.name)).toEqual(['Initech']);
 });
 
-// TT-0200: restoring a client under the Archived filter takes its row, and the focused menu button,
+// Restoring a client under the Archived filter takes its row, and the focused menu button,
 // out of the list, so focus moves to another row's menu, else the page heading.
 test('restoring archived clients by keyboard keeps focus in the clients list', async ({ page }) => {
   await login(page);

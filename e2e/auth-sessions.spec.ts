@@ -5,7 +5,7 @@ import {
   meWithSession, sessionCookie, test, withAuth,
 } from './auth-tests-helpers.ts';
 
-// TT-0029: password changes revoke other sessions, and session cookies expire. Each scenario runs
+// Password changes revoke other sessions, and session cookies expire. Each scenario runs
 // its own disposable server, so the shared e2e account keeps its password.
 
 const NEW_PASSWORD = 'second password 2';
@@ -138,7 +138,7 @@ test('a session cookie stops working after the 30-day lifetime', async ({ server
   expect(await loginStatus(expired.baseURL, ACCOUNT.password)).toBe(200);
 });
 
-// TT-0139: an admin's session_days and invite_days apply to sessions and invites created after the
+// An admin's session_days and invite_days apply to sessions and invites created after the
 // change. They are stored with the data, so a restart keeps them; earlier sessions keep their expiry.
 test('stored session and invite lifetimes apply to new sessions and invites, across a restart', async ({ servers }) => {
   const first = await servers.start({ slot: 3 });

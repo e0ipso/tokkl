@@ -225,7 +225,7 @@ test('"Is not" chosen before any client or tag option stays negated and excludes
   }
 });
 
-// TT-0070: the reports description search is the shared SearchBox; typing still filters the
+// The reports description search is the shared SearchBox; typing still filters the
 // report through the URL, and clearing it brings every entry back.
 test('typing in the description search filters the report and the URL, and clearing it restores both', async ({ page, api }) => {
   await api.entry({ description: 'Design review', start: '2025-12-29T10:00:00Z', stop: '2025-12-29T11:00:00Z' });

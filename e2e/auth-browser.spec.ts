@@ -7,7 +7,7 @@ import {
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
-// TT-0028: failed setup and login in the browser, and what logout leaves behind.
+// Failed setup and login in the browser, and what logout leaves behind.
 
 test('a wrong setup code shows an error, and a retry with the right code creates the account', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });
@@ -37,7 +37,7 @@ test('a wrong setup code shows an error, and a retry with the right code creates
   expect((await me.json()).email).toBe(ACCOUNT.email);
 });
 
-// TT-0133: the setup error points at the server log, so the log must carry the code until the first admin exists.
+// The setup error points at the server log, so the log must carry the code until the first admin exists.
 test('the startup log prints the setup code until the first admin exists', async ({ servers }) => {
   const SETUP_LINE = `No admin account yet. Open the web UI and use this setup code to create it: ${SETUP_CODE}`;
   const fresh = await servers.start({ slot: 0 });
@@ -51,7 +51,7 @@ test('the startup log prints the setup code until the first admin exists', async
   expect(restarted.output()).not.toContain('No admin account yet');
 });
 
-// TT-0160: ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.
+// Ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.
 test('ten wrong setup codes lock setup on this address, and the setup form says so', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });
   runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/setup$/, reason: 'this address sent ten wrong setup codes' });
@@ -140,10 +140,10 @@ test('after logout the old session is refused, and reload or back shows no priva
   await expectNoPrivateData();
 });
 
-// TT-0128: wrong passwords count per account and address, so ten lock that account here while
+// Wrong passwords count per account and address, so ten lock that account here while
 // other emails from the same address still get the usual answer. Setup codes have their own count.
-// TT-0153: an email that differs only in ASCII case is the same account and shares its count.
-// TT-0160: every 429 says when to retry; the account's window opened seconds ago, so nearly all of it is left.
+// An email that differs only in ASCII case is the same account and shares its count.
+// Every 429 says when to retry; the account's window opened seconds ago, so nearly all of it is left.
 test('ten wrong passwords lock the account on this address, and the login form says so', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });
   runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/login$/, reason: 'the account has ten failed logins from this address' });
@@ -189,7 +189,7 @@ test('ten wrong passwords lock the account on this address, and the login form s
   await expect(alert).toHaveText('Incorrect email or password');
 });
 
-// TT-0171: login, setup and invite acceptance refuse a request without X-Tokkl-CSRF before doing
+// Login, setup and invite acceptance refuse a request without X-Tokkl-CSRF before doing
 // anything else: 403, no cookie, nothing charged to a limiter, and the invite stays usable.
 test('login, setup and invite acceptance without the CSRF header are refused and charge nothing', async ({ servers }) => {
   const server = await servers.start({ slot: 0 });
@@ -222,7 +222,7 @@ test('login, setup and invite acceptance without the CSRF header are refused and
   }
 });
 
-// TT-0171: a cross-site form can post a JSON-shaped text/plain body, which the server parses, but
+// A cross-site form can post a JSON-shaped text/plain body, which the server parses, but
 // it cannot add the header, so it cannot sign the browser into the account it names.
 test('a cross-site form that posts valid credentials does not sign the browser in', async ({ page, servers }) => {
   const server = await servers.start({ slot: 0 });
@@ -245,8 +245,8 @@ test('a cross-site form that posts valid credentials does not sign the browser i
   expect(withHeader.status()).toBe(200);
 });
 
-// TT-0130: the sidebar shows who is signed in above Log out, one line each, with the full value in title.
-// TT-0127: changing only the case of one's own email is not "already in use".
+// The sidebar shows who is signed in above Log out, one line each, with the full value in title.
+// Changing only the case of one's own email is not "already in use".
 test('the sidebar names the signed-in user and follows profile changes', async ({ page, servers }) => {
   const server = await servers.start({ slot: 0 });
   await createAccount(server.baseURL);
@@ -289,7 +289,7 @@ test('the sidebar names the signed-in user and follows profile changes', async (
   expect(await (await page.request.get(`${server.baseURL}/api/v9/me`)).json()).toMatchObject({ fullname: '', email: recased });
 });
 
-// TT-0088: on a phone the setup and login cards, their fields, buttons and error fit the screen
+// On a phone the setup and login cards, their fields, buttons and error fit the screen
 // without sideways scrolling, in light and dark.
 test.describe('on a phone', () => {
   test.use(PHONE);

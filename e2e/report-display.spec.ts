@@ -96,8 +96,8 @@ test('summary totals, groups, chart and weekly grid reconcile with known data an
   await expect.poll(() => cellTexts(breakdown.locator('tbody tr'))).toEqual([['Beta', '1:30:00', '100.0%', euros]]);
 });
 
-// TT-0093: non-billable bars are striped as well as coloured, the legend is read out, and the
-// chart takes its size from the --chart-* properties. TT-0101: the column the arrows reach gets a
+// Non-billable bars are striped as well as coloured, the legend is read out, and the
+// chart takes its size from the --chart-* properties. The column the arrows reach gets a
 // band and an axis strip.
 test('the summary chart stripes non-billable bars, reads out its legend and sizes itself from CSS', async ({ page, api }) => {
   await seedMixedWeek(api);
@@ -150,7 +150,7 @@ test('the summary chart stripes non-billable bars, reads out its legend and size
   await expect(page.getByRole('status').filter({ hasText: 'Mon, 5 Jan 2026' })).toContainText('Billable 2:00:00');
 });
 
-// TT-0115: the chart is an SVG element marked data-own-arrows, so its arrow keys move the active
+// The chart is an SVG element marked data-own-arrows, so its arrow keys move the active
 // column and never reach the page's range shortcut. Once focus leaves the chart, the shortcut
 // moves the range again.
 test('arrow keys on the summary chart move its column and leave the report range alone', async ({ page, api }) => {

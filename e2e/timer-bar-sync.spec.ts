@@ -3,8 +3,14 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { metadataOf, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
-// The timer bar mirrors the running entry. These scenarios pin the races behind TT-0061 and
-// TT-0062 so they fail every time instead of only under load.
+// The timer bar mirrors the running entry. These scenarios pin two races and force them on every
+// run, so they fail every time instead of only under load.
+// Same-second edit: the server reports `at` with whole-second precision. An edit to the running
+// entry saved in the same second as its previous write leaves `at` unchanged, so the timer bar used
+// to keep the old project, tags or billable flag.
+// Typing before the first load: text typed into the description after Start but before the running
+// entry's first load had no entry for the blur handler to patch, and the first load then replaced
+// the draft with the description sent at start.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const CURRENT = /\/api\/v9\/me\/time_entries\/current/;

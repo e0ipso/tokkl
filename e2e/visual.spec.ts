@@ -15,7 +15,7 @@ import { transferFixture } from './transfer-tests-helpers.ts';
 // is fixed: the server keeps real time, which nothing on these pages shows except the admin
 // page's created and expiry dates, which the shot masks.
 //
-// Settings is shot as a regular account (TT-0141), whose page has no Admin link; every other page
+// Settings is shot as a regular account, whose page has no Admin link; every other page
 // is shot as the setup admin.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };

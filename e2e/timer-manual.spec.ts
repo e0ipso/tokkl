@@ -59,11 +59,11 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
 
   await page.reload();
   await expect(timer.getByLabel('Date')).toBeVisible();
-  // TT-0081: the mode buttons expose which mode is on, not only through the fill.
+  // The mode buttons expose which mode is on, not only through the fill.
   await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
   await expect(timer.getByRole('button', { name: 'Timer mode' })).toHaveAttribute('aria-pressed', 'false');
   await expect(timer.getByRole('button', { name: 'Start timer' })).toHaveCount(0);
-  // TT-0089: the two mode buttons form a labelled group, each at least 24px each way.
+  // The two mode buttons form a labelled group, each at least 24px each way.
   const modes = timer.getByRole('group', { name: 'Entry mode' }).getByRole('button');
   await expect(modes).toHaveCount(2);
   expect(await modes.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Timer mode', 'Manual mode']);

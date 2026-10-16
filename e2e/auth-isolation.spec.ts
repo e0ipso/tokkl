@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test, type TestData } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 
-// TT-0142: two accounts on one server and one browser. User A (the setup admin) leaves data,
+// Two accounts on one server and one browser. User A (the setup admin) leaves data,
 // settings and a theme behind; after A logs out, user B logs in on the same browser context and
 // must find none of it, and A's workspace stays closed to B's session by URL and by API.
 

@@ -18,7 +18,7 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   const row = page.locator('.entry-line', { has: page.locator('input[value="Phone edit"]') });
   await expect(row).toBeVisible();
   await expectNoPageOverflow(page);
-  // TT-0089: the idle timer bar and each of its controls fit the phone screen.
+  // The idle timer bar and each of its controls fit the phone screen.
   const timer = page.getByRole('region', { name: 'Timer' });
   await expectFits(timer);
   const controls = timer.locator('input, button').filter({ visible: true });
@@ -82,7 +82,7 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await expectNoPageOverflow(page);
 });
 
-// TT-0076: the seven day columns share the phone width, so long names truncate inside them.
+// The seven day columns share the phone width, so long names truncate inside them.
 test('the week calendar fits a phone screen with long block and favourite names', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
   await login(page);
@@ -99,7 +99,7 @@ test('the week calendar fits a phone screen with long block and favourite names'
   await tap(page.getByRole('button', { name: 'Calendar' }));
   await expect(page.locator('.calendar-column.today')).toBeVisible();
   await expectNoPageOverflow(page);
-  // TT-0091: the toolbar and the scrolling calendar body fit the screen. scrollIntoViewIfNeeded
+  // The toolbar and the scrolling calendar body fit the screen. scrollIntoViewIfNeeded
   // stops about a pixel short of the body's bottom edge, so centre the body first.
   await expectFits(page.locator('.calendar-toolbar'));
   const body = page.locator('.calendar-body');
@@ -111,7 +111,7 @@ test('the week calendar fits a phone screen with long block and favourite names'
   for (const block of await blocks.all()) await expectFits(block);
 });
 
-// TT-0082: on a phone the bulk bar sticks to the top of the screen, with its count, while the
+// On a phone the bulk bar sticks to the top of the screen, with its count, while the
 // selected list scrolls under it; the timer bar scrolls away instead of covering it.
 test('the bulk bar and its count stay on screen while a long selection scrolls', async ({ page }) => {
   await login(page);

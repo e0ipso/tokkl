@@ -78,7 +78,7 @@ for (const change of CLOCK_CHANGES) {
   });
 }
 
-// TT-0076: every block is a group named "description, project, duration", and a block under 45
+// Every block is a group named "description, project, duration", and a block under 45
 // minutes shows the project after the description on its one line.
 test('calendar blocks are named by description, project and duration, and short blocks show the project', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
@@ -105,7 +105,7 @@ test('calendar blocks are named by description, project and duration, and short 
   await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
 });
 
-// TT-0091: the running block and the now line use --state-running, the running block is dashed so
+// The running block and the now line use --state-running, the running block is dashed so
 // colour is not its only mark, and only today's day head is a filled badge.
 test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {
   await login(page);

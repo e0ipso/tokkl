@@ -126,7 +126,7 @@ export function days(count: number): number {
 /** Password and setup code counters run over a 15-minute window (packages/api/src/auth/rateLimit.ts). */
 export const LIMIT_WINDOW_SECONDS = 15 * 60;
 
-/** The whole seconds a limiter 429 says to wait (TT-0160): an integer from 1 to the window. */
+/** The whole seconds a limiter 429 says to wait: an integer from 1 to the window. */
 export function retryAfter(response: { headers(): Record<string, string> }): number {
   const value = response.headers()['retry-after'];
   expect(value, 'a 429 carries Retry-After').toMatch(/^\d+$/);
