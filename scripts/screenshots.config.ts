@@ -34,7 +34,8 @@ function frozenClockImport(now: string): string {
 export default defineConfig({
   testDir: '.',
   testMatch: 'screenshots.ts',
-  globalSetup: '../e2e/global-setup.ts',
+  // Only the Chromium check: scripts/screenshots.ts creates its own admin through setup.
+  globalSetup: '../e2e/chromium-check.ts',
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
