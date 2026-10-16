@@ -5,6 +5,7 @@
 
 #include "connection.h"
 #include "connectionsetup.h"
+#include "timercontroller.h"
 
 #include <QtQml/qqmlregistration.h>
 
@@ -18,4 +19,10 @@ struct TokklConnectionSetupForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::ConnectionSetup)
     QML_NAMED_ELEMENT(TokklConnectionSetup)
+};
+
+struct TokklTimerForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::TimerController)
+    QML_NAMED_ELEMENT(TokklTimer)
 };

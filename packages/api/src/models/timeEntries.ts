@@ -8,6 +8,7 @@ import { getProjectRef, type ProjectRef } from './projects.ts';
 import { getTag, resolveTagNames } from './tags.ts';
 import { getTaskRef } from './tasks.ts';
 import type { UserRow } from './users.ts';
+import { memberWorkspace } from './workspaces.ts';
 
 export const MAX_DESCRIPTION_LENGTH = 3000;
 /** Toggl rejects entries longer than 999 hours. */
@@ -316,9 +317,11 @@ export function deleteTimeEntry(db: Db, userId: number, wid: number, id: number)
 }
 
 /** Undoes a delete. A restored running entry is stopped if another one started meanwhile. */
+/** Takes `userId`'s entry out of the trash. Refused with 403 once the user has left the entry's workspace. */
 export function restoreTimeEntry(db: Db, userId: number, id: number): TimeEntryWithMeta {
   return transaction(db, () => {
     const current = getTimeEntry(db, userId, id, { includeDeleted: true });
+    memberWorkspace(db, userId, current.workspace_id);
     if (!current.deleted_at) return current;
     let stop = current.stop;
     if (!stop && getRunningEntry(db, userId)) stop = isoSeconds(new Date());

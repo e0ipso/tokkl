@@ -1,8 +1,8 @@
 import type { Request, RequestHandler } from 'express';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
-import { HttpError, forbidden } from '../lib/errors.ts';
-import { findUserByApiToken, findUserByEmail, type UserRow } from '../models/users.ts';
+import { forbidden, tooManyRequests } from '../lib/errors.ts';
+import { findUserByApiToken, findUserByEmail, getUser, isActiveAdmin, isActiveUser, type UserRow } from '../models/users.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from './crypto.ts';
 import { passwordCounters } from './rateLimit.ts';
 import { findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from './sessions.ts';
@@ -39,6 +39,25 @@ function decodeBasic(header: string): { username: string; password: string } | n
   return { username: decoded.slice(0, colon), password: decoded.slice(colon + 1) };
 }
 
+/**
+ * Checks a password for an account looked up by email. A suspended account fails like a wrong password,
+ * after the same scrypt run, so the limiter charges it and the response does not reveal the account.
+ */
+export async function verifyAccountPassword(user: UserRow | undefined, password: string): Promise<boolean> {
+  if (!user) return verifyAgainstDummy(password);
+  return (await verifyPassword(password, user.password_hash)) && isActiveUser(user);
+}
+
+/**
+ * The account as stored now, once its password check has passed, or undefined when it was deleted or
+ * suspended while scrypt ran. Authorize with this row, not the one read before the check, so a
+ * demotion or suspension made during the check applies to the request.
+ */
+export function currentActiveUser(db: Deps['db'], user: UserRow): UserRow | undefined {
+  const current = getUser(db, user.id);
+  return current && isActiveUser(current) ? current : undefined;
+}
+
 async function userFromBasic(deps: Deps, req: Request, header: string): Promise<UserRow> {
   const credentials = decodeBasic(header);
   if (!credentials) throw forbidden('Incorrect username and/or password');
@@ -46,17 +65,16 @@ async function userFromBasic(deps: Deps, req: Request, header: string): Promise<
   // API tokens are 128-bit random values, so only password attempts are rate limited.
   if (credentials.password === 'api_token') {
     const candidate = findUserByApiToken(deps.db, credentials.username);
-    if (candidate && safeEqual(candidate.api_token, credentials.username)) return candidate;
+    if (candidate && isActiveUser(candidate) && safeEqual(candidate.api_token, credentials.username)) return candidate;
     throw forbidden('Incorrect username and/or password');
   }
 
   const candidate = findUserByEmail(deps.db, credentials.username);
   const counters = passwordCounters(credentials.username, clientAddress(req));
-  const valid = await deps.loginLimiter.attempt(counters, () => (candidate
-    ? verifyPassword(credentials.password, candidate.password_hash)
-    : verifyAgainstDummy(credentials.password)));
-  if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');
-  if (candidate && valid) return candidate;
+  const valid = await deps.loginLimiter.attempt(counters, () => verifyAccountPassword(candidate, credentials.password));
+  if (valid === null) throw tooManyRequests('Too many failed login attempts, try again later', deps.loginLimiter.retryAfterSeconds(counters));
+  const account = candidate && valid ? currentActiveUser(deps.db, candidate) : undefined;
+  if (account) return account;
   throw forbidden('Incorrect username and/or password');
 }
 
@@ -84,3 +102,10 @@ export function requireAuth(deps: Deps): RequestHandler {
     return next();
   };
 }
+
+/** Runs after requireAuth. Only an active instance admin gets through. */
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  const user = res.locals.user as UserRow | undefined;
+  if (!user || !isActiveAdmin(user)) throw forbidden('Admin access required');
+  next();
+};

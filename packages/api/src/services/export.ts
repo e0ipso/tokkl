@@ -10,16 +10,19 @@ import { listTags, serializeTag } from '../models/tags.ts';
 import { listTasks, serializeTask } from '../models/tasks.ts';
 import { listTimeEntries, serializeTimeEntry, type TimeEntryWithMeta } from '../models/timeEntries.ts';
 import { getPreferences, serializeUser, type UserRow } from '../models/users.ts';
-import { getWorkspaceRole, listWorkspaces, serializeWorkspace } from '../models/workspaces.ts';
+import { getWorkspaceRole, listWorkspacesForUser, serializeWorkspace } from '../models/workspaces.ts';
 
 export const EXPORT_FORMAT = 'tokkl-export';
 /** Format name written before the rename to Tokkl. Restore still accepts it. */
 export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
 export const EXPORT_FORMAT_VERSION = 1;
 
-/** Everything the account owns, in Toggl v9 shapes, so other tools can read it. */
+/**
+ * Everything the account owns, in Toggl v9 shapes, so other tools can read it: the workspaces the
+ * account belongs to with their catalogs, and the account's own entries.
+ */
 export function buildJsonExport(db: Db, user: UserRow) {
-  const workspaces = listWorkspaces(db);
+  const workspaces = listWorkspacesForUser(db, user.id);
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_FORMAT_VERSION,

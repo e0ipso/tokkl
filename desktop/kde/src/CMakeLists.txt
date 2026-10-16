@@ -1,10 +1,13 @@
 # The backend QML module the widget imports. The API client, credential
-# storage and connection state live in the tokklcore library, which the
-# module and the tests link; qmltypes.h gives its classes their QML names.
+# storage, connection state and timer controller live in the tokklcore
+# library, which the module and the tests link; qmltypes.h gives its classes
+# their QML names.
 
 add_library(tokklcore STATIC
     apitypes.cpp
     apitypes.h
+    clock.cpp
+    clock.h
     connection.cpp
     connection.h
     connectionsetup.cpp
@@ -13,6 +16,8 @@ add_library(tokklcore STATIC
     credentialstore.h
     instanceurl.cpp
     instanceurl.h
+    timercontroller.cpp
+    timercontroller.h
     transport.cpp
     transport.h
 )

@@ -1,9 +1,10 @@
 include(ECMAddTests)
 
-# Unit tests of the API client and connection state, against the scripted
-# transport and credential store in fakes.h, and of the real transport
-# against an in-process loopback server. They never reach KDE Wallet, another
-# host or real configuration; private XDG dirs make sure of the last.
+# Unit tests of the API client, connection state and timer controller,
+# against the scripted transport, credential store and clock in fakes.h, and
+# of the real transport against an in-process loopback server. They never
+# reach KDE Wallet, another host or real configuration; private XDG dirs make
+# sure of the last.
 set(_unit_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-unit")
 ecm_add_test(apitest.cpp
     TEST_NAME api
@@ -14,7 +15,10 @@ ecm_add_test(connectiontest.cpp fakes.h
 ecm_add_test(networktransporttest.cpp
     TEST_NAME networktransport
     LINK_LIBRARIES tokklcore Qt6::Test)
-set_tests_properties(api connection networktransport PROPERTIES
+ecm_add_test(timercontrollertest.cpp fakes.h
+    TEST_NAME timer
+    LINK_LIBRARIES tokklcore Qt6::Test)
+set_tests_properties(api connection networktransport timer PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")
 
 # Version resolution and metadata stamping, in script mode.

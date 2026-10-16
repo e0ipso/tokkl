@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, type TestContext } from './helpers.ts';
-import { createWorkspace } from '../src/models/workspaces.ts';
+import { addWorkspaceMember, createWorkspace } from '../src/models/workspaces.ts';
 
 test('starting a timer returns a running entry with negative epoch duration', async () => {
   const ctx = await setup();
@@ -170,7 +170,9 @@ test('entry project and task references are validated on create and update', asy
   const billable = await ctx.json('POST', `${base}/projects`, { name: 'Billable', billable: true });
   const plain = await ctx.json('POST', `${base}/projects`, { name: 'Plain' });
   const task = await ctx.json('POST', `${base}/projects/${billable.body.id}/tasks`, { name: 'Design' });
+  // The caller must belong to a workspace to write to it (TT-0135).
   const otherWid = createWorkspace(ctx.db, 'Other').id;
+  addWorkspaceMember(ctx.db, otherWid, ctx.user.id, 'member');
   const foreignProject = await ctx.json('POST', `/api/v9/workspaces/${otherWid}/projects`, { name: 'Foreign' });
   const foreignTask = await ctx.json('POST', `/api/v9/workspaces/${otherWid}/projects/${foreignProject.body.id}/tasks`, { name: 'Remote' });
   assert.equal(foreignTask.status, 200);

@@ -17,6 +17,11 @@ PlasmoidItem {
         email: Plasmoid.configuration.email
     }
 
+    // The running entry, its elapsed time and the start/stop actions.
+    readonly property TokklTimer timer: TokklTimer {
+        connection: root.connection
+    }
+
     readonly property string connectionText: {
         switch (connection.state) {
         case TokklConnection.Unconfigured:
@@ -38,12 +43,13 @@ PlasmoidItem {
         PlasmaCore.Action {
             text: i18nc("@action", "Reconnect")
             icon.name: "view-refresh"
-            onTriggered: root.connection.reconnect()
+            onTriggered: root.timer.reconnect()
         }
     ]
 
     fullRepresentation: PlasmaComponents.Label {
         text: i18n("Tokkl %1", Companion.version) + "\n" + root.connectionText
+            + (root.timer.running ? "\n" + i18n("Running: %1", root.timer.elapsedText) : "")
         wrapMode: Text.Wrap
     }
 }

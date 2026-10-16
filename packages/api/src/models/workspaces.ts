@@ -1,5 +1,6 @@
 import type { Db } from '../db/index.ts';
 import { nowIso } from '../db/index.ts';
+import { forbidden } from '../lib/errors.ts';
 import { togglTime } from '../lib/values.ts';
 
 export interface WorkspaceRow {
@@ -25,10 +26,6 @@ export function getWorkspace(db: Db, id: number): WorkspaceRow | undefined {
   return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as WorkspaceRow | undefined;
 }
 
-export function listWorkspaces(db: Db): WorkspaceRow[] {
-  return db.prepare('SELECT * FROM workspaces ORDER BY id').all() as unknown as WorkspaceRow[];
-}
-
 export type WorkspaceMemberRole = 'owner' | 'member';
 
 export function addWorkspaceMember(db: Db, wid: number, userId: number, role: WorkspaceMemberRole): void {
@@ -37,6 +34,19 @@ export function addWorkspaceMember(db: Db, wid: number, userId: number, role: Wo
 
 export function isWorkspaceMember(db: Db, userId: number, wid: number): boolean {
   return getWorkspaceRole(db, userId, wid) !== undefined;
+}
+
+/** The message every route answers with when the caller is not a member of the workspace it names. */
+export const NO_WORKSPACE_ACCESS = 'User does not have access to this resource.';
+
+/**
+ * Workspace `wid` when `userId` is a member of it. Throws 403 otherwise, and for a workspace that
+ * does not exist, so a non-member cannot tell the two apart.
+ */
+export function memberWorkspace(db: Db, userId: number, wid: number): WorkspaceRow {
+  const workspace = isWorkspaceMember(db, userId, wid) ? getWorkspace(db, wid) : undefined;
+  if (!workspace) throw forbidden(NO_WORKSPACE_ACCESS);
+  return workspace;
 }
 
 /** `userId`'s role in workspace `wid`, or undefined when the user is not a member. */

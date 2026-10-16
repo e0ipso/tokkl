@@ -5,8 +5,8 @@ A Plasma 6 panel widget for Tokkl. It has two parts:
 - `package/`: the widget, a QML package with plugin id `com.github.e0ipso.tokkl`.
   Its entry point is `contents/ui/main.qml`.
 - `src/`: the backend, a Qt/C++ QML module imported as `com.github.e0ipso.tokkl.backend`.
-  The API client, credential storage and connection state are in the `tokklcore`
-  static library, which the module and the tests link.
+  The API client, credential storage, connection state and timer controller are
+  in the `tokklcore` static library, which the module and the tests link.
 
 This is a standalone CMake project. The npm workspaces, `npm run build` and the
 server image do not build or ship it.
@@ -49,6 +49,9 @@ CTest runs these checks:
 - `connection`: the connection state machine and the Configure page helper,
   against a scripted transport and credential store. It never opens KDE
   Wallet or the network.
+- `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
+  and credential store: ticking, sleep gaps, polling, start and stop requests,
+  repeated clicks, conflicts, late replies, failures and account switches.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
 - `version`: version resolution and metadata stamping.
@@ -101,6 +104,43 @@ answer pauses requests for the `Retry-After` time (60 seconds when the server
 sends none). Connection failures, timeouts and 5xx answers keep the last account
 data, marked stale. Redirects are not followed, so the credentials never go to
 another address; enter the final address instead.
+
+## Timer
+
+`TokklTimer` (`src/timercontroller.h`) drives the timer for the widget. QML
+sets its `connection` to the widget's `TokklConnection`.
+
+- The elapsed time (`elapsedText`, `H:MM:SS`) is recomputed every second from
+  the entry's server start time, so time spent asleep is not lost.
+- The current entry is read every 30 seconds, after every start or stop,
+  after a resume (a clock tick more than 10 seconds late) and when the
+  connection comes back. Projects are read on connect, resume and reconnection.
+- Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
+  `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
+  an empty description and the selected project and billable choice. Stop
+  sends `PATCH /api/v9/workspaces/{wid}/time_entries/{id}/stop` for the
+  running entry.
+- Start and stop stay disabled until a read of the current entry for the
+  account and workspace has succeeded, so a start never splits a timer that
+  is already running on the server. A failed first read keeps them disabled.
+- One start or stop runs at a time and clicks meanwhile are ignored. A read
+  sent before a start or stop cannot overwrite its result. When a start or
+  stop gets no clear answer (no response, timeout, 5xx or an unreadable body)
+  the timer stays busy until a read shows what the server did; it never sends
+  the request again. A 409 or 404 on stop just reads the entry again.
+- Connection failures keep the last entry, marked stale. After a failed read
+  of the entry the mark stays until the entry is read again, even if other
+  requests succeed first. Refused credentials clear it. During a 429 cooldown nothing is sent.
+- A 403 from a workspace request clears the entry, projects and choices,
+  blocks writes and polling, and asks `GET /api/v9/me` once. If `/me` names
+  another default workspace the widget switches to it; otherwise Reconnect
+  lifts the block. The request that got the 403 is not sent again. A start or
+  stop still waiting for its answer keeps the timer busy through the block and
+  a reconnect, until it answers and a fresh read of the entry arrives.
+- A running entry from a workspace other than the discovered one is not shown.
+- Changing the instance, account or secret clears the entry, projects and
+  choices at once and ignores late answers, even if the new account uses the
+  same ids.
 
 ## Version
 

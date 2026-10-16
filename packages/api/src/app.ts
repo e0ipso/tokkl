@@ -6,6 +6,7 @@ import type { Db } from './db/index.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { HttpError } from './lib/errors.ts';
+import { adminRoutes } from './routes/admin.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { togglV9Routes } from './routes/togglV9.ts';
@@ -51,7 +52,7 @@ const textBody = (limit: string) => express.text({ type: () => true, limit });
 
 const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   if (res.headersSent) return next(error);
-  if (error instanceof HttpError) return res.status(error.status).json(error.message);
+  if (error instanceof HttpError) return res.status(error.status).set(error.headers).json(error.message);
   // Date helpers throw RangeError on impossible input; that is the caller's mistake, not ours.
   if (error instanceof RangeError) return res.status(400).json(error.message);
   const type = (error as { type?: string }).type;
@@ -93,6 +94,7 @@ export function createApp({ db, config, setup }: AppOptions): Express {
 
   app.use('/api/v9', togglV9Routes(deps));
   app.use('/reports/api/v3', reportsV3Routes(deps));
+  app.use('/api/app/admin', adminRoutes(deps));
   app.use('/api/app', appRoutes(deps, setup), appReportRoutes(deps));
   app.use(['/api', '/reports/api'], (req, res) => {
     res.status(404).json('Not found');

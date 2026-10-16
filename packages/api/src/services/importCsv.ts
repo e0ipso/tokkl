@@ -8,6 +8,7 @@ import { createProject } from '../models/projects.ts';
 import { createTask } from '../models/tasks.ts';
 import { createTimeEntry } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
+import { memberWorkspace } from '../models/workspaces.ts';
 import type { ImportResult, ImportUser } from '@tokkl/types';
 
 const HEADER_ALIASES: Record<string, string[]> = {
@@ -153,7 +154,8 @@ export function importTogglCsv(
     throw badRequest(`The file has rows from ${users.size} Toggl users. Choose whose rows to import.`);
   }
 
-  const wid = user.default_workspace_id;
+  // A stored default can predate membership checks or outlive the membership; never write outside it.
+  const wid = memberWorkspace(db, user.id, user.default_workspace_id).id;
   const result: ImportResult = {
     dry_run: options.dryRun, rows: rows.length, created: 0, skipped_duplicates: 0,
     created_projects: [], created_clients: [], errors: [],

@@ -8,6 +8,7 @@ import { resolveTagNames } from '../models/tags.ts';
 import { createTask } from '../models/tasks.ts';
 import { createTimeEntry } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
+import { memberWorkspace } from '../models/workspaces.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './export.ts';
 
 export interface JsonImportResult {
@@ -44,7 +45,8 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
     throw badRequest('This is not a Tokkl JSON export');
   }
   const file = data as Item;
-  const wid = user.default_workspace_id;
+  // A stored default can predate membership checks or outlive the membership; never write outside it.
+  const wid = memberWorkspace(db, user.id, user.default_workspace_id).id;
   const result: JsonImportResult = {
     dry_run: options.dryRun, clients: 0, projects: 0, tasks: 0, tags: 0, time_entries: 0, skipped_duplicates: 0, errors: [],
   };

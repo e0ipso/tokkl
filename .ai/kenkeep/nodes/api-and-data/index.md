@@ -10,7 +10,7 @@
 _None._
 
 ## Conventions (how we build)
-- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) to learn about: Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1. #server #auth #security #rate-limit #csrf
+- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) to learn about: Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; cookie writes need X-Tokkl-CSRF. #server #auth #security #rate-limit #csrf
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) to learn about: importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import. #server #import #restore #backup
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) to learn about: Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them. #server #database #migrations #performance
 - Open [**Parse incoming timestamps with parseInstant**](practice-parse-api-timestamps-with-parseinstant.md) to learn about: Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)). #server #validation #time #api
@@ -21,8 +21,9 @@ _None._
 - Open [**Validate hourly rates with optionalRate and MAX_HOURLY_RATE**](practice-hourly-rates-go-through-optionalrate.md) to learn about: Workspace and project rates share optionalRate, capped at MAX_HOURLY_RATE (1e9); a finite check alone lets reports overflow. #server #validation #reports #money
 
 ## Components (what exists)
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) to learn about: Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers. #server #database #migrations #auth #workspaces
 - Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) to learn about: Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings. #server #reports #api #web
-- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) to learn about: Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers. #server #database #migrations #auth #workspaces
+- Open [**Admin API and disabled accounts**](map-admin-api-and-disabled-accounts.md) to learn about: /api/app/admin user list, role and disable changes, session revoke; last-active-admin rule; where disabled accounts are refused. #server #auth #admin
 
 ## By topic
 
@@ -39,18 +40,18 @@ _None._
 - Open [**Toggl CSV import: choose team-export users by opaque key**](practice-toggl-csv-import-selects-users-by-opaque-key.md) — Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400.
 - Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 ### #auth
-- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1.
-- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
-- Open [**End web sessions through endSession and logOut in lib/session.ts**](../web-ui-behaviour/practice-end-sessions-through-lib-session.md) — Logout clears the Query cache and cached theme even on failure, then reloads; a 403 from /me ends the session once per sign-in.
+- Open [**Admin API and disabled accounts**](map-admin-api-and-disabled-accounts.md) — /api/app/admin user list, role and disable changes, session revoke; last-active-admin rule; where disabled accounts are refused.
+- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; cookie writes need X-Tokkl-CSRF.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.
 ### #database
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
-- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.
 ### #import
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.
 - Open [**Toggl CSV import: choose team-export users by opaque key**](practice-toggl-csv-import-selects-users-by-opaque-key.md) — Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400.
 ### #migrations
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
-- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.
 ### #performance
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](practice-write-paths-validate-refs-not-totals.md) — Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals.
@@ -59,12 +60,14 @@ _None._
 - Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 - Open [**Arrow keys: arrowTarget for roving tabindex; global shortcuts yield**](../web-ui-behaviour/practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md) — Option groups move focus with arrowTarget and one tab stop; global arrow shortcuts skip defaultPrevented events and \[data-own-arrows\] targets.
 - Open [**styles.css loads last and owns the colour tokens**](../web-ui-styling-and-layout/practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals.
+### #admin
+- Open [**Admin API and disabled accounts**](map-admin-api-and-disabled-accounts.md) — /api/app/admin user list, role and disable changes, session revoke; last-active-admin rule; where disabled accounts are refused.
 ### #backup
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.
 ### #clients
 - Open [**Deleting a client detaches its projects and never merges them**](practice-client-deletion-keeps-projects.md) — deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N".
 ### #csrf
-- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1.
+- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; cookie writes need X-Tokkl-CSRF.
 ### #models
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](practice-write-paths-validate-refs-not-totals.md) — Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals.
 ### #money
@@ -75,11 +78,11 @@ _None._
 - Open [**Contrast tables in styles.css; project colours never paint text**](../web-ui-styling-and-layout/practice-contrast-tables-and-project-colours.md) — New colour pairs get a computed row in the styles.css contrast table. No opacity on text. A project hex only sets --project-color.
 - Open [**Deleting a client detaches its projects and never merges them**](practice-client-deletion-keeps-projects.md) — deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N".
 ### #rate-limit
-- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1.
+- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; cookie writes need X-Tokkl-CSRF.
 ### #restore
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.
 ### #security
-- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1.
+- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](practice-password-checks-and-csrf-rules.md) — Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; cookie writes need X-Tokkl-CSRF.
 ### #time
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](../web-ui-behaviour/practice-twelve-hour-time-entry-parsing-rules.md) — parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now.
 - Open [**UI time math uses account-local wall-clock helpers**](../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
@@ -90,4 +93,4 @@ _None._
 - Open [**Week calendar hour height lives in three places**](../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
 ### #workspaces
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](../tooling-and-project/map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
-- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
+- Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.

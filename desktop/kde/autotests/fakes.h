@@ -3,10 +3,13 @@
 // Scripted stand-ins for the network and KDE Wallet. Nothing here touches a
 // real host, wallet or configuration file.
 
+#include "clock.h"
 #include "credentialstore.h"
 #include "transport.h"
 
+#include <QDateTime>
 #include <QHash>
+#include <QTimeZone>
 #include <QList>
 #include <QPointer>
 
@@ -135,4 +138,26 @@ private:
             },
             Qt::QueuedConnection);
     }
+};
+
+// A clock that moves only when the test advances it. Each advance is one tick.
+class FakeClock : public Tokkl::Clock
+{
+    Q_OBJECT
+
+public:
+    using Tokkl::Clock::Clock;
+
+    QDateTime now() const override
+    {
+        return current;
+    }
+
+    void advance(qint64 ms)
+    {
+        current = current.addMSecs(ms);
+        Q_EMIT ticked();
+    }
+
+    QDateTime current{QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC};
 };

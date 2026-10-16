@@ -1,0 +1,68 @@
+import express, { type Router } from 'express';
+import { nowIso, transaction } from '../db/index.ts';
+import { requireAdmin, requireAuth } from '../auth/middleware.ts';
+import { deleteOtherSessions } from '../auth/sessions.ts';
+import type { Deps } from '../http/context.ts';
+import { readJson } from '../http/context.ts';
+import { badRequest, notFound } from '../lib/errors.ts';
+import { optionalBool, parseId } from '../lib/values.ts';
+import {
+  countActiveAdmins, getUser, isActiveAdmin, listUsers, serializeAccount, type UserRole,
+} from '../models/users.ts';
+
+interface AccountChanges {
+  role?: UserRole;
+  disabled?: boolean;
+}
+
+function readAccountChanges(body: Record<string, unknown>): AccountChanges {
+  if (body.role !== undefined && body.role !== 'admin' && body.role !== 'user') {
+    throw badRequest('Invalid role: expected admin or user');
+  }
+  const changes: AccountChanges = { role: body.role, disabled: optionalBool(body.disabled, 'disabled') };
+  if (changes.role === undefined && changes.disabled === undefined) throw badRequest('Expected role or disabled');
+  return changes;
+}
+
+/** Instance administration. Every route needs an active admin, signed in like any other API call. */
+export function adminRoutes(deps: Deps): Router {
+  const { db } = deps;
+  const api = express.Router();
+  api.use(requireAuth(deps), requireAdmin);
+
+  api.get('/users', (req, res) => res.json(listUsers(db).map(serializeAccount)));
+
+  api.patch('/users/:id', (req, res) => {
+    const id = parseId(req.params.id);
+    const changes = readAccountChanges(readJson(req));
+    // The count and the update share one write transaction, so two requests cannot both remove
+    // what each sees as the second-to-last active admin.
+    const updated = transaction(db, () => {
+      const user = getUser(db, id);
+      if (!user) throw notFound('User not found');
+      const role = changes.role ?? user.role;
+      const disabledAt = changes.disabled === undefined
+        ? user.disabled_at
+        : changes.disabled ? user.disabled_at ?? nowIso() : null;
+      const staysActiveAdmin = role === 'admin' && disabledAt === null;
+      if (isActiveAdmin(user) && !staysActiveAdmin && countActiveAdmins(db) <= 1) {
+        throw badRequest('At least one active admin must remain');
+      }
+      db.prepare('UPDATE users SET role = ?, disabled_at = ?, updated_at = ? WHERE id = ?')
+        .run(role, disabledAt, nowIso(), id);
+      if (changes.disabled) deleteOtherSessions(db, id);
+      return getUser(db, id)!;
+    });
+    return res.json(serializeAccount(updated));
+  });
+
+  // Signs the account out of every browser. Its API token keeps working.
+  api.post('/users/:id/sessions/revoke', (req, res) => {
+    const id = parseId(req.params.id);
+    if (!getUser(db, id)) throw notFound('User not found');
+    deleteOtherSessions(db, id);
+    return res.json({ ok: true });
+  });
+
+  return api;
+}

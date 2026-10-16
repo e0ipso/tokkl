@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, type TestContext } from './helpers.ts';
+import { addUser, setup, type TestContext } from './helpers.ts';
 
 const TOGGL_CSV = [
   'User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount (EUR)',
@@ -445,4 +445,30 @@ test('JSON restore accepts an export written before the rename to Tokkl', async 
   const unknown = await ctx.request('POST', '/api/app/import/json', { ...file, format: 'something-else' });
   assert.equal(unknown.status, 400);
   assert.equal(await unknown.json(), 'This is not a Tokkl JSON export');
+});
+
+test('imports into a default workspace the caller is not a member of are refused and write nothing', async () => {
+  const owner = await setup();
+  const bob = await addUser(owner, { email: 'bob@example.com', role: 'user' });
+  // Data written before membership checks, or a membership that later ended, can leave this behind.
+  owner.db.prepare('UPDATE users SET default_workspace_id = ? WHERE id = ?').run(owner.wid, bob.user.id);
+  const file = {
+    format: 'tokkl-export',
+    version: 1,
+    clients: [{ id: 1, name: 'Intruder client' }],
+    projects: [{ id: 2, name: 'Intruder project', client_id: 1 }],
+    tags: [{ id: 3, name: 'intruder' }],
+    time_entries: [{ id: 4, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', description: 'Intruder', project_id: 2, tag_ids: [3] }],
+  };
+  const before = rowCounts(owner);
+
+  for (const query of ['?dry_run=true', '']) {
+    const json = await bob.request('POST', `/api/app/import/json${query}`, file);
+    assert.equal(json.status, 403, `JSON import${query}`);
+    assert.equal(await json.json(), 'User does not have access to this resource.');
+    const csv = await bob.request('POST', `/api/app/import/toggl-csv${query}`, TOGGL_CSV, { 'content-type': 'text/csv' });
+    assert.equal(csv.status, 403, `CSV import${query}`);
+    assert.equal(await csv.json(), 'User does not have access to this resource.');
+  }
+  assert.deepEqual(rowCounts(owner), before);
 });

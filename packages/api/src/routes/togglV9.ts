@@ -1,4 +1,4 @@
-import express, { type Request, type Router } from 'express';
+import express, { type Request, type Response, type Router } from 'express';
 import { nowIso, transaction, type Db } from '../db/index.ts';
 import { generateApiToken, hashPassword, MAX_PASSWORD_LENGTH, verifyPassword } from '../auth/crypto.ts';
 import { requireAuth } from '../auth/middleware.ts';
@@ -6,7 +6,7 @@ import { passwordCounters } from '../auth/rateLimit.ts';
 import { deleteOtherSessions } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
-import { HttpError, badRequest, forbidden } from '../lib/errors.ts';
+import { badRequest, tooManyRequests } from '../lib/errors.ts';
 import { optionalId, optionalRate, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
 import { isValidTimeZone, startOfDay } from '@tokkl/common/time';
 import {
@@ -26,18 +26,16 @@ import {
   findUserByEmail, getPreferences, getUser, serializeUser, type UserRow, validatePreferenceChanges,
 } from '../models/users.ts';
 import {
-  countWorkspaceMembers, getWorkspace, getWorkspaceRole, isWorkspaceMember, listWorkspaceMembers, listWorkspaces,
-  listWorkspacesForUser, serializeWorkspace, type WorkspaceRow,
+  countWorkspaceMembers, getWorkspace, getWorkspaceRole, isWorkspaceMember, listWorkspaceMembers,
+  listWorkspacesForUser, memberWorkspace, serializeWorkspace, type WorkspaceRow,
 } from '../models/workspaces.ts';
 
 /** Without filters Toggl returns entries that started in the last 9 days. */
 const DEFAULT_LIST_DAYS = 9;
 
-function workspaceFor(db: Db, req: Request): WorkspaceRow {
-  const wid = parseId(req.params.wid);
-  const workspace = getWorkspace(db, wid);
-  if (!workspace) throw forbidden('User does not have access to this resource.');
-  return workspace;
+/** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
+function workspaceFor(db: Db, req: Request, res: Response): WorkspaceRow {
+  return memberWorkspace(db, res.locals.user.id, parseId(req.params.wid));
 }
 
 /** `ws` in Toggl's shape, with its admin flag and role taken from `user`'s membership. */
@@ -116,7 +114,7 @@ export function togglV9Routes(deps: Deps): Router {
     const user = res.locals.user;
     const body: Record<string, unknown> = serializeUser(user, { includeToken: true });
     if (queryFlag(req, 'with_related_data')) {
-      const workspaces = listWorkspaces(db);
+      const workspaces = listWorkspacesForUser(db, user.id);
       body.workspaces = workspaces.map((ws) => serializeWorkspaceFor(db, user, ws));
       body.clients = workspaces.flatMap((ws) => listClients(db, ws.id).map(serializeClient));
       body.projects = workspaces.flatMap((ws) => listProjects(db, ws.id).map((p) => serializeProject(p, ws.default_currency)));
@@ -144,7 +142,7 @@ export function togglV9Routes(deps: Deps): Router {
       beginningOfWeek = body.beginning_of_week as number;
     }
     const defaultWorkspaceId = optionalId(body.default_workspace_id, 'default_workspace_id');
-    if (defaultWorkspaceId && !getWorkspace(db, defaultWorkspaceId)) throw badRequest('Invalid default_workspace_id');
+    if (defaultWorkspaceId && !isWorkspaceMember(db, user.id, defaultWorkspaceId)) throw badRequest('Invalid default_workspace_id');
 
     let passwordHash = user.password_hash;
     if (body.password !== undefined) {
@@ -154,7 +152,7 @@ export function togglV9Routes(deps: Deps): Router {
       const current = optionalString(body.current_password, 'current_password', Number.POSITIVE_INFINITY) ?? '';
       const counters = passwordCounters(user.email, clientAddress(req));
       const valid = await loginLimiter.attempt(counters, () => verifyPassword(current, user.password_hash));
-      if (valid === null) throw new HttpError(429, 'Too many failed attempts, try again later');
+      if (valid === null) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counters));
       if (!valid) throw badRequest('Current password is not valid');
       if (password.length < 8) throw badRequest('Password must be at least 8 characters');
       passwordHash = await hashPassword(password);
@@ -202,7 +200,10 @@ export function togglV9Routes(deps: Deps): Router {
   api.post('/me/preferences', savePreferences);
   api.post('/me/preferences/:client', savePreferences);
 
-  api.get('/me/workspaces', (req, res) => res.json(listWorkspaces(db).map((ws) => serializeWorkspaceFor(db, res.locals.user, ws))));
+  api.get('/me/workspaces', (req, res) => {
+    const user = res.locals.user;
+    return res.json(listWorkspacesForUser(db, user.id).map((ws) => serializeWorkspaceFor(db, user, ws)));
+  });
 
   api.get('/me/organizations', (req, res) => res.json(listWorkspacesForUser(db, res.locals.user.id).map((ws) => {
     const owner = getWorkspaceRole(db, res.locals.user.id, ws.id) === 'owner';
@@ -227,25 +228,26 @@ export function togglV9Routes(deps: Deps): Router {
     };
   })));
 
-  api.get('/me/features', (req, res) => res.json(listWorkspaces(db).map((ws) => ({ workspace_id: ws.id, features: [] }))));
+  api.get('/me/features', (req, res) =>
+    res.json(listWorkspacesForUser(db, res.locals.user.id).map((ws) => ({ workspace_id: ws.id, features: [] }))));
 
   api.get('/me/projects', (req, res) => {
     const includeArchived = queryFlag(req, 'include_archived');
-    return res.json(listWorkspaces(db).flatMap((ws) =>
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
       listProjects(db, ws.id, { active: includeArchived ? 'both' : true }).map((p) => serializeProject(p, ws.default_currency))));
   });
 
   api.get('/me/clients', (req, res) => {
-    return res.json(listWorkspaces(db).flatMap((ws) => listClients(db, ws.id).map(serializeClient)));
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) => listClients(db, ws.id).map(serializeClient)));
   });
 
   api.get('/me/tags', (req, res) => {
-    return res.json(listWorkspaces(db).flatMap((ws) => listTags(db, ws.id).map(serializeTag)));
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) => listTags(db, ws.id).map(serializeTag)));
   });
 
   api.get('/me/tasks', (req, res) => {
     const includeDone = queryFlag(req, 'include_not_active');
-    return res.json(listWorkspaces(db).flatMap((ws) =>
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
       listTasks(db, ws.id, undefined, includeDone ? undefined : true).map(serializeTask)));
   });
 
@@ -267,10 +269,10 @@ export function togglV9Routes(deps: Deps): Router {
   });
 
   // ----- workspaces -----------------------------------------------------------------------------
-  api.get('/workspaces/:wid', (req, res) => res.json(serializeWorkspaceFor(db, res.locals.user, workspaceFor(db, req))));
+  api.get('/workspaces/:wid', (req, res) => res.json(serializeWorkspaceFor(db, res.locals.user, workspaceFor(db, req, res))));
 
   api.put('/workspaces/:wid', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const body = readJson(req);
     const name = optionalString(body.name, 'name', 140)?.trim() || ws.name;
     const currency = optionalString(body.default_currency, 'default_currency', 3);
@@ -298,10 +300,8 @@ export function togglV9Routes(deps: Deps): Router {
   });
 
   api.get('/workspaces/:wid/users', (req, res) => {
-    const wid = parseId(req.params.wid);
-    // TT-0135 moves this into the shared workspace resolver; without it any account could list other accounts' emails.
-    if (!isWorkspaceMember(db, res.locals.user.id, wid)) throw forbidden('User does not have access to this resource.');
-    return res.json(listWorkspaceMembers(db, wid).map((member) => ({
+    const ws = workspaceFor(db, req, res);
+    return res.json(listWorkspaceMembers(db, ws.id).map((member) => ({
       id: member.id, email: member.email, fullname: member.fullname, timezone: member.timezone,
       admin: member.role === 'owner', inactive: false,
     })));
@@ -309,59 +309,59 @@ export function togglV9Routes(deps: Deps): Router {
 
   // Time entries
   api.post('/workspaces/:wid/time_entries', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const entry = createTimeEntry(db, res.locals.user, ws.id, readJson(req));
     return res.json(serializeTimeEntry(entry, { meta: queryFlag(req, 'meta'), user: res.locals.user }));
   });
 
   api.put('/workspaces/:wid/time_entries/:id', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const entry = updateTimeEntry(db, res.locals.user, ws.id, parseId(req.params.id), readJson(req));
     return res.json(serializeTimeEntry(entry, { meta: queryFlag(req, 'meta'), user: res.locals.user }));
   });
 
   api.patch('/workspaces/:wid/time_entries/:id/stop', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const entry = stopTimeEntry(db, res.locals.user, ws.id, parseId(req.params.id));
     return res.json(serializeTimeEntry(entry, { meta: queryFlag(req, 'meta'), user: res.locals.user }));
   });
 
   api.patch('/workspaces/:wid/time_entries/:ids', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const ids = parseIdList(req.params.ids);
     const operations = readJsonArray(req);
     return res.json(transaction(db, () => patchTimeEntries(db, res.locals.user, ws.id, ids, operations)));
   });
 
   api.delete('/workspaces/:wid/time_entries/:id', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     deleteTimeEntry(db, res.locals.user.id, ws.id, parseId(req.params.id));
     return res.status(200).end();
   });
 
   // Projects
   api.get('/workspaces/:wid/projects', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const projects = paginate(req, listProjects(db, ws.id, projectFilter(req)), 151);
     return res.json(projects.map((p) => serializeProject(p, ws.default_currency)));
   });
   api.get('/workspaces/:wid/projects/:pid', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeProject(getProject(db, ws.id, parseId(req.params.pid)), ws.default_currency));
   });
   api.post('/workspaces/:wid/projects', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const body = readJson(req);
     return res.json(serializeProject(transaction(db, () => createProject(db, ws.id, body)), ws.default_currency));
   });
   api.put('/workspaces/:wid/projects/:pid', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const body = readJson(req);
     const project = transaction(db, () => updateProject(db, ws.id, parseId(req.params.pid), body));
     return res.json(serializeProject(project, ws.default_currency));
   });
   api.delete('/workspaces/:wid/projects/:pid', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const mode = query(req, 'teDeletionMode');
     transaction(db, () => deleteProject(db, ws.id, parseId(req.params.pid), mode === 'delete'));
     return res.json(parseId(req.params.pid));
@@ -370,7 +370,7 @@ export function togglV9Routes(deps: Deps): Router {
   // Tasks
   // Toggl wraps this listing in a paging envelope, unlike the per-project one below.
   api.get('/workspaces/:wid/tasks', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const active = query(req, 'active');
     const pid = query(req, 'pid');
     const search = query(req, 'search')?.toLowerCase();
@@ -389,7 +389,7 @@ export function togglV9Routes(deps: Deps): Router {
     });
   });
   api.get('/workspaces/:wid/projects/:pid/tasks', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const pid = parseId(req.params.pid);
     getProject(db, ws.id, pid);
     // Toggl: active=true lists open tasks only; false or absent lists all of them.
@@ -397,74 +397,74 @@ export function togglV9Routes(deps: Deps): Router {
     return res.json(listTasks(db, ws.id, pid, onlyActive ? true : undefined).map(serializeTask));
   });
   api.get('/workspaces/:wid/projects/:pid/tasks/:tid', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeTask(getTask(db, ws.id, parseId(req.params.tid), parseId(req.params.pid))));
   });
   api.post('/workspaces/:wid/projects/:pid/tasks', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeTask(createTask(db, ws.id, parseId(req.params.pid), readJson(req))));
   });
   api.put('/workspaces/:wid/projects/:pid/tasks/:tid', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const task = updateTask(db, ws.id, parseId(req.params.pid), parseId(req.params.tid), readJson(req));
     return res.json(serializeTask(task));
   });
   api.delete('/workspaces/:wid/projects/:pid/tasks/:tid', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     deleteTask(db, ws.id, parseId(req.params.pid), parseId(req.params.tid));
     return res.status(200).end();
   });
 
   // Clients
   api.get('/workspaces/:wid/clients', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const status = query(req, 'status');
     return res.json(listClients(db, ws.id,
       status === 'active' || status === 'archived' ? status : 'both', query(req, 'name') || undefined).map(serializeClient));
   });
   api.get('/workspaces/:wid/clients/:cid', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeClient(getClient(db, ws.id, parseId(req.params.cid))));
   });
   api.post('/workspaces/:wid/clients', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeClient(createClient(db, ws.id, readJson(req))));
   });
   api.put('/workspaces/:wid/clients/:cid', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeClient(updateClient(db, ws.id, parseId(req.params.cid), readJson(req))));
   });
   api.post('/workspaces/:wid/clients/:cid/archive', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(transaction(db, () => setClientArchived(db, ws.id, parseId(req.params.cid), true)));
   });
   api.post('/workspaces/:wid/clients/:cid/restore', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const cid = parseId(req.params.cid);
     transaction(db, () => setClientArchived(db, ws.id, cid, false));
     return res.json(serializeClient(getClient(db, ws.id, cid)));
   });
   api.delete('/workspaces/:wid/clients/:cid', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     deleteClient(db, ws.id, parseId(req.params.cid));
     return res.status(200).end();
   });
 
   // Tags
   api.get('/workspaces/:wid/tags', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(paginate(req, listTags(db, ws.id, query(req, 'search') || undefined), 200).map(serializeTag));
   });
   api.post('/workspaces/:wid/tags', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeTag(createTag(db, ws.id, readJson(req))));
   });
   api.put('/workspaces/:wid/tags/:tid', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     return res.json(serializeTag(updateTag(db, ws.id, parseId(req.params.tid), readJson(req))));
   });
   api.delete('/workspaces/:wid/tags/:tid', (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     transaction(db, () => deleteTag(db, ws.id, parseId(req.params.tid)));
     return res.status(200).end();
   });

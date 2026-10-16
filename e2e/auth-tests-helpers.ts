@@ -121,6 +121,19 @@ export function days(count: number): number {
   return count * DAY_MS;
 }
 
+/** Password and setup code counters run over a 15-minute window (packages/api/src/auth/rateLimit.ts). */
+export const LIMIT_WINDOW_SECONDS = 15 * 60;
+
+/** The whole seconds a limiter 429 says to wait (TT-0160): an integer from 1 to the window. */
+export function retryAfter(response: { headers(): Record<string, string> }): number {
+  const value = response.headers()['retry-after'];
+  expect(value, 'a 429 carries Retry-After').toMatch(/^\d+$/);
+  const seconds = Number(value);
+  expect(seconds).toBeGreaterThanOrEqual(1);
+  expect(seconds).toBeLessThanOrEqual(LIMIT_WINDOW_SECONDS);
+  return seconds;
+}
+
 export function basic(username: string, password: string): string {
   return `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
 }
