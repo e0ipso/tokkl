@@ -14,13 +14,14 @@ _None._
 - Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) to learn about: Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet. #kde #desktop #auth #configuration
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) to learn about: 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check. #testing #e2e #playwright #visual
 - Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](practice-commit-messages-pass-commitlint-no-ai-generated.md) to learn about: commitlint rejects Co-authored-by and AI tool trailers and subjects over 72 chars; worktrees without npm ci skip the hook. #tooling #workflow #git
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) to learn about: TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry. #kde #desktop
 
 ## Components (what exists)
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) to learn about: Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint. #testing #typecheck #tooling #workflow
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) to learn about: Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree. #monorepo #workspaces #layout #tooling #common #api #web #types
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) to learn about: Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 10 ctest tests. #tooling #kde #desktop #testing
 - Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) to learn about: scripts/screenshots.ts rebuilds the nine docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops. #tooling #docs #screenshots #playwright
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) to learn about: scripts/icons.ts resizes the owner's PNG artwork in docs/brand with ImageMagick 7 into the served icons and wordmark, and copies the maskable and apple-touch icons as supplied. #tooling #pwa #icons #imagemagick #maskable #web
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) to learn about: Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 9 ctest tests. #tooling #kde #desktop #testing
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) to learn about: bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it. #performance #bench #tooling #reports
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) to learn about: Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work. #server #web #config #rename
 
@@ -29,11 +30,19 @@ _None._
 ### #tooling
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
 - Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI tool trailers and subjects over 72 chars; worktrees without npm ci skip the hook.
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 9 ctest tests.
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 10 ctest tests.
 ### #testing
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
+### #desktop
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry.
+- Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) — Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet.
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 10 ctest tests.
+### #kde
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry.
+- Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) — Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet.
+- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 10 ctest tests.
 ### #playwright
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
@@ -46,24 +55,18 @@ _None._
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — Both run per workspace; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
 - Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI tool trailers and subjects over 72 chars; worktrees without npm ci skip the hook.
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
-### #desktop
-- Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) — Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet.
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 9 ctest tests.
 ### #e2e
 - Open [**Week calendar hour height lives in three places**](../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
 - Open [**Running the Playwright e2e suite**](practice-e2e-test-workflow.md) — test:e2e builds first; each run gets its own data dir; auto fixtures wipe data and fail tests on runtime errors unless a spec allows them.
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
-### #kde
-- Open [**KDE companion: connection errors, settings generations and the Configure page**](practice-kde-companion-connection-and-configure-page-rules.md) — Access kinds decide what a 401/403 means; old-generation replies drop; cfg_instanceUrl holds only persistedUrl(); secrets only in KWallet.
-- Open [**KDE Plasma companion in desktop/kde**](map-kde-plasma-companion-desktop-kde.md) — Standalone CMake project for the Plasma widget com.github.e0ipso.tokkl; tokklcore library; versioned from root package.json; 9 ctest tests.
 ### #api
 - Open [**Parse incoming timestamps with parseInstant**](../api-and-data/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
 - Open [**Toggl CSV import: choose team-export users by opaque key**](../api-and-data/practice-toggl-csv-import-selects-users-by-opaque-key.md) — Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400.
 - Open [**Web app report endpoints under /api/app/report**](../api-and-data/map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 ### #auth
-- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](../api-and-data/practice-password-checks-and-csrf-rules.md) — Password checks charge account+address, account and address counters; new passwords cap at 1024 chars; cookie writes need X-Tokkl-CSRF: 1.
-- Open [**Users, roles and workspace membership**](../api-and-data/map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
-- Open [**End web sessions through endSession and logOut in lib/session.ts**](../web-ui-behaviour/practice-end-sessions-through-lib-session.md) — Logout clears the Query cache and cached theme even on failure, then reloads; a 403 from /me ends the session once per sign-in.
+- Open [**Admin API and disabled accounts**](../api-and-data/map-admin-api-and-disabled-accounts.md) — /api/app/admin user list, role and disable changes, session revoke; last-active-admin rule; where disabled accounts are refused.
+- Open [**Password checks go through FailureLimiter.attempt; writes need the CSRF header**](../api-and-data/practice-password-checks-and-csrf-rules.md) — Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; cookie writes need X-Tokkl-CSRF.
+- Open [**Users, roles and workspace membership**](../api-and-data/map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.
 ### #bench
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) — bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it.
 ### #common
@@ -114,4 +117,4 @@ _None._
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 20 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 ### #workspaces
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
-- Open [**Users, roles and workspace membership**](../api-and-data/map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, membership helpers, which routes check membership, and the multi-user API test helpers.
+- Open [**Users, roles and workspace membership**](../api-and-data/map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.

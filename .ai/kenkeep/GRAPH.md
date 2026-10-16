@@ -1,11 +1,19 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:9b5f22da0724d791b4c804dcd25182c8c8ba084037d7c7f8bc6de89e5520438c'
-node_count: 38
+nodes_hash: 'sha256:a466615112dafa51e4d4cee440f6426fe28f75d598000ff503daac44d6a4e539'
+node_count: 40
 ---
 # kenkeep Graph
 
-Total nodes: 38
+Total nodes: 40
+
+## map-admin-api-and-disabled-accounts
+
+- **kind:** map
+- **title:** Admin API and disabled accounts
+- **path:** api-and-data/map-admin-api-and-disabled-accounts.md
+- **tags:** server, auth, admin
+- **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-and-csrf-rules
 
 ## map-app-icons-script
 
@@ -178,6 +186,14 @@ Total nodes: 38
 - **path:** tooling-and-project/practice-kde-companion-connection-and-configure-page-rules.md
 - **tags:** kde, desktop, auth, configuration
 - **relates_to:** map-kde-plasma-companion-desktop-kde, practice-password-checks-and-csrf-rules
+
+## practice-kde-timer-controller-rules
+
+- **kind:** practice
+- **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
+- **path:** tooling-and-project/practice-kde-timer-controller-rules.md
+- **tags:** kde, desktop
+- **relates_to:** map-kde-plasma-companion-desktop-kde, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership
 
 ## practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows
 
