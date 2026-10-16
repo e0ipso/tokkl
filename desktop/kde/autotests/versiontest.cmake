@@ -47,10 +47,16 @@ expect_equal("${version}" "4.1.0-rc.1+build.7" "explicit version without package
 tokkl_version_core(core "4.1.0-rc.1+build.7")
 expect_equal("${core}" "4.1.0" "version core")
 
-# The real root package.json resolves.
-tokkl_resolve_version(version PACKAGE_JSON "${TOKKL_SOURCE_DIR}/../../package.json")
-if(NOT version MATCHES "${TOKKL_SEMVER_REGEX}")
-    message(FATAL_ERROR "root package.json version \"${version}\" is not a semantic version")
+# The real root package.json resolves. A standalone copy of this directory,
+# built with -DTOKKL_VERSION, has no repository root to check.
+set(root_package_json "${TOKKL_SOURCE_DIR}/../../package.json")
+if(EXISTS "${root_package_json}")
+    tokkl_resolve_version(version PACKAGE_JSON "${root_package_json}")
+    if(NOT version MATCHES "${TOKKL_SEMVER_REGEX}")
+        message(FATAL_ERROR "root package.json version \"${version}\" is not a semantic version")
+    endif()
+else()
+    message(STATUS "No root package.json; skipping the repository version check")
 endif()
 
 expect_failure("is not a semantic version" "malformed override"
