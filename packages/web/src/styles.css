@@ -125,7 +125,8 @@
    The sidebar and the phone header strip are drawn with gradients of the texture tokens over
    surface. The glow fills the top 40% of the sidebar and the swell with its stripes the bottom 30%,
    so the two never overlap; within each band every pixel lies between surface and the strongest
-   token, and the texture rows above give the worst case for the nav labels (muted). The sidebar's
+   token, and the texture rows above give the worst case for the nav labels (muted) and for the
+   signed-in user above Log out (name in text, email in muted). The sidebar's
    edge line is border on bg on the page side. The active nav link is a primary block with on-primary text and icon, and its running dot turns on-primary too:
    the pink dot on primary is only 1.33:1.
    The auth page and the splash use the scene tokens over bg, full-bleed. Only the wordmark sits on
@@ -470,6 +471,12 @@ input.entry-duration:is(:hover, :focus) {
 .running-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--state-running); margin-left: auto; animation: pulse 1.6s infinite; }
 .nav-link.active .running-dot { background: var(--on-primary); }
 @keyframes pulse { 50% { opacity: 0.35; } }
+/* The signed-in user above Log out, in the sidebar and the More sheet. One line each, cut with an
+   ellipsis; App.tsx puts the full value in title. */
+.signed-in { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 10px 4px; font-size: var(--text-sm); line-height: 1.3; }
+.signed-in-name, .signed-in-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signed-in-name { font-weight: 700; }
+.signed-in-email { color: var(--muted); }
 .content { flex: 1; min-width: 0; padding: 24px clamp(12px, 3vw, 40px) 80px; }
 .page { max-width: 1100px; margin: 0 auto; }
 .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-5); flex-wrap: wrap; }
@@ -512,6 +519,7 @@ input.entry-duration:is(:hover, :focus) {
   .more-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 8px 10px; }
   .more-sheet-head .icon-button { width: 44px; height: 44px; }
   .more-sheet .nav-link { min-height: 48px; padding: 0 12px; font-size: var(--text-base); }
+  .more-sheet .signed-in { padding: 8px 12px 4px; }
   .content { padding: 12px 10px 90px; }
   .page-header h1 { font-size: var(--text-2xl); }
   /* Touch targets: buttons, menu rows and the modal close button are at least 44px. */

@@ -4,6 +4,7 @@ import { clientAddress, getCookie } from '../http/context.ts';
 import { HttpError, forbidden } from '../lib/errors.ts';
 import { findUserByApiToken, findUserByEmail, type UserRow } from '../models/users.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from './crypto.ts';
+import { passwordCounters } from './rateLimit.ts';
 import { findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from './sessions.ts';
 
 export const CSRF_HEADER = 'x-tokkl-csrf';
@@ -50,7 +51,8 @@ async function userFromBasic(deps: Deps, req: Request, header: string): Promise<
   }
 
   const candidate = findUserByEmail(deps.db, credentials.username);
-  const valid = await deps.loginLimiter.attempt(clientAddress(req), () => (candidate
+  const counters = passwordCounters(credentials.username, clientAddress(req));
+  const valid = await deps.loginLimiter.attempt(counters, () => (candidate
     ? verifyPassword(credentials.password, candidate.password_hash)
     : verifyAgainstDummy(credentials.password)));
   if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');

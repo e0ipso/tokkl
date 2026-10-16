@@ -29,6 +29,26 @@ export function listWorkspaces(db: Db): WorkspaceRow[] {
   return db.prepare('SELECT * FROM workspaces ORDER BY id').all() as unknown as WorkspaceRow[];
 }
 
+export type WorkspaceMemberRole = 'owner' | 'member';
+
+export function addWorkspaceMember(db: Db, wid: number, userId: number, role: WorkspaceMemberRole): void {
+  db.prepare('INSERT INTO workspace_users (workspace_id, user_id, role) VALUES (?, ?, ?)').run(wid, userId, role);
+}
+
+export function isWorkspaceMember(db: Db, userId: number, wid: number): boolean {
+  return db.prepare('SELECT 1 FROM workspace_users WHERE user_id = ? AND workspace_id = ?').get(userId, wid) !== undefined;
+}
+
+/** The workspaces `userId` belongs to, in any role, ordered by id. */
+export function listWorkspacesForUser(db: Db, userId: number): WorkspaceRow[] {
+  return db.prepare(`
+    SELECT workspaces.* FROM workspaces
+    JOIN workspace_users ON workspace_users.workspace_id = workspaces.id
+    WHERE workspace_users.user_id = ?
+    ORDER BY workspaces.id
+  `).all(userId) as unknown as WorkspaceRow[];
+}
+
 export function serializeWorkspace(ws: WorkspaceRow) {
   return {
     id: ws.id,

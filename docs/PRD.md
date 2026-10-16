@@ -1,10 +1,10 @@
 # Tokkl PRD
 
-A self-hosted, single-user time tracker that copies the parts of Toggl Track one person uses, runs on a server you own, and speaks enough of the Toggl API that scripts written for Toggl keep working.
+A self-hosted time tracker that copies the parts of Toggl Track one person uses, runs on a server you own, and speaks enough of the Toggl API that scripts written for Toggl keep working. One server holds several accounts, and each account has its own private workspace.
 
 - Owner: Tokkl contributors
 - Status: v0.1 built (see the status column in each table)
-- Last updated: 2026-10-14
+- Last updated: 2026-10-16
 
 ## 1. Why this exists
 
@@ -23,14 +23,14 @@ The replacement has to clear a high bar. If starting a timer from my phone takes
 
 ### Non-goals
 
-- Teams, roles, approvals, SSO, billing plans. One person uses this.
+- Shared workspaces, approvals, SSO, billing plans. Each account tracks its own time in its own workspace, and data is never shared between accounts.
 - Native desktop or mobile apps. The web app is a PWA and works on phones.
 - Any outbound network traffic. No telemetry, no CDN fonts, no update checks, no AI.
 - Public internet exposure as a default. The expected setup is LAN or VPN (Tailscale/WireGuard) access.
 
 ## 2. User and context
 
-One user, who runs the server. They track client work and personal projects, sometimes bill hourly, use a laptop at a desk and a phone away from it. They are technical enough to run `docker compose up -d` and read a log line, and they care more about privacy than about integrations.
+The person who runs the server is the first admin. They track client work and personal projects, sometimes bill hourly, use a laptop at a desk and a phone away from it. They are technical enough to run `docker compose up -d` and read a log line, and they care more about privacy than about integrations. The people they invite track their own time in their own workspaces.
 
 Usage pattern this design optimizes for:
 
@@ -43,7 +43,7 @@ Usage pattern this design optimizes for:
 
 The requirements come from two research passes done on 2026-10-14:
 
-- **Toggl Track product.** 179 Toggl knowledge base articles, the 2025 Reports redesign notes, community forum threads and review sites. Each feature got a plan tier and a MUST/SHOULD/COULD/WON'T call for a single-user clone.
+- **Toggl Track product.** 179 Toggl knowledge base articles, the 2025 Reports redesign notes, community forum threads and review sites. Each feature got a plan tier and a MUST/SHOULD/COULD/WON'T call for one person's use, which still holds for each account.
 - **Toggl API.** Toggl's published OpenAPI 2.0 specs for Track API v9, Reports API v3 and Webhooks, the rendered docs at engineering.toggl.com, response fixtures from the open source `toggl-go` client, and the source of 24 third-party Toggl clients.
 
 Where Toggl's own sources disagree, this document says so and picks a behavior. Section 7 lists those calls.
@@ -171,7 +171,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: *
 
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
-| A1 | First-run setup protected by a one-time setup code printed in the server log, so whoever reaches the server first cannot claim the account. | MUST | Done |
+| A1 | First-run setup code, printed in the server log, creates the first admin. Whoever reaches the server first cannot claim it without reading the log. The code creates only the first admin. | MUST | Done |
 | A2 | Email and password login; session cookie (HttpOnly, SameSite=Lax, Secure behind HTTPS). | MUST | Done |
 | A3 | Change password (signs out other sessions), email, name. | MUST | Done |
 | A4 | Timezone, first day of week, date format, 12/24-hour time, duration format (improved, classic, decimal). | MUST | Done |
@@ -179,6 +179,13 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: *
 | A6 | API token: view, copy, reset. | SHOULD | Done |
 | A7 | Keyboard shortcuts toggle and `?` help overlay. | SHOULD | Done |
 | A8 | TOTP two-factor login. | SHOULD | Planned |
+| A9 | Two account roles, admin and user. The first account is an admin. | MUST | Planned |
+| A10 | Admins create invite links and share them by hand. Opening a link lets one person create an account with a private workspace. The server sends no email. | MUST | Planned |
+| A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, and its data stays. | SHOULD | Planned |
+| A12 | Admins delete an account together with its workspace and everything in it. | SHOULD | Planned |
+| A13 | Admins create password-reset links for an account and share them by hand. | SHOULD | Planned |
+| A14 | Admins edit instance settings: session lifetime and invite lifetime. | COULD | Planned |
+| A15 | Admins manage accounts only and cannot read other users' time data. | MUST | Planned |
 
 ### 5.8 Clients and devices
 
@@ -194,7 +201,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-14: *
 
 ### 6.1 What compatible means here
 
-A client that lets you change the base URL can talk to this server with no other change. The server implements the Track API v9 endpoints a single user touches and the Reports API v3 endpoints that clients call most.
+A client that lets you change the base URL can talk to this server with no other change. The server implements the Track API v9 endpoints one account touches and the Reports API v3 endpoints that clients call most.
 
 Base URLs:
 
@@ -210,7 +217,7 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 | Me | `GET/PUT /me` (incl. `with_related_data`), `POST /me/reset_token`, `GET/POST /me/preferences[/{client}]`, `GET /me/workspaces`, `/me/organizations`, `/me/features`, `/me/projects`, `/me/clients`, `/me/tags`, `/me/tasks` | Done |
 | Time entries (read) | `GET /me/time_entries` with `since` (includes deleted entries with `server_deleted_at`), `before`, `start_date`/`end_date`, `meta`; `GET /me/time_entries/current`; `GET /me/time_entries/{id}` | Done |
 | Time entries (write) | `POST /workspaces/{wid}/time_entries`, `PUT .../{id}`, `PATCH .../{id}/stop`, `PATCH .../{ids}` (bulk JSON Patch, partial success), `DELETE .../{id}` | Done |
-| Workspace | `GET/PUT /workspaces/{wid}`, `GET /workspaces/{wid}/users` | Done |
+| Workspace | `GET/PUT /workspaces/{wid}`, `GET /workspaces/{wid}/users` (lists the workspace's members) | Done |
 | Projects | `GET/POST /workspaces/{wid}/projects`, `GET/PUT/DELETE .../{pid}` (`teDeletionMode`) | Done |
 | Tasks | `GET /workspaces/{wid}/tasks` (paged envelope, like Toggl), `GET/POST /workspaces/{wid}/projects/{pid}/tasks` (plain array), `GET/PUT/DELETE .../{tid}` | Done |
 | Clients | `GET/POST /workspaces/{wid}/clients` (`status`, `name`), `GET/PUT/DELETE .../{cid}`, `POST .../{cid}/archive`, `POST .../{cid}/restore` | Done |
@@ -218,7 +225,7 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 | Reports v3 | `POST /workspace/{wid}/search/time_entries` (paging via `X-Next-ID`/`X-Next-Row-Number`), `.../search/time_entries/totals`, `.../search/time_entries.csv`, `/summary/time_entries`, `/summary/time_entries.csv`, `/weekly/time_entries` | Done |
 | Reports v2 (legacy) | `details`, `summary`, `weekly` | Planned. Several older clients still call v2. |
 | Webhooks | n/a | WON'T (v1) |
-| Organizations, groups, invitations, approvals, SSO, billing | n/a | WON'T |
+| Organizations, groups, invitations, approvals, SSO, billing | n/a | WON'T. The app has its own admin invite links (A10), outside the Toggl API. |
 
 ### 6.3 Behavior details that clients depend on
 
@@ -232,7 +239,7 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 - `/me/time_entries` with no parameters returns entries that started in the last 9 days (Toggl v8's documented default; v9 leaves it undocumented). Date-only `end_date` is exclusive.
 - Report bodies also accept `exclude_project_ids`, `exclude_client_ids` and `exclude_tag_ids` (not in Toggl).
 - `/me/time_entries/current` returns `200 null` when nothing runs, as Toggl's fixtures show.
-- Project and tag lists honor `page`/`per_page` when sent and return everything otherwise. Toggl pages by default (151 projects per page); one person's lists fit in one response.
+- Project and tag lists honor `page`/`per_page` when sent and return everything otherwise. Toggl pages by default (151 projects per page); one account's lists fit in one response.
 - Task `tracked_seconds` is in milliseconds, because Toggl documents it that way.
 
 ### 6.4 Honest limits
@@ -294,9 +301,10 @@ The web UI is a client of the same Toggl-compatible API it exposes. Every timer 
 
 All instants are UTC ISO 8601 strings with second precision; calendar days are computed in the user's timezone at query time.
 
-- `users`: email, name, scrypt password hash, API token, timezone, first day of week, preferences JSON (Toggl preference keys plus favorites).
+- `users`: email, name, scrypt password hash, API token, timezone, first day of week, preferences JSON (Toggl preference keys plus favorites), `role` (`admin` or `user`, default `user`), `disabled_at` (null while the account is active).
 - `sessions`: SHA-256 of the session token, expiry. The raw token exists only in the cookie.
-- `workspaces`: one per account. Default currency, default rate, report rounding.
+- `workspaces`: one private workspace per account. Default currency, default rate, report rounding.
+- `workspace_users`: workspace and user, with a `role` of `owner` or `member`. The primary key is the pair. Workspace settings stay with the owner.
 - `clients`, `projects`, `tasks`, `tags`: unique names per scope, case-insensitive.
 - `time_entries`: project, task, description, start, stop (null while running), billable, `created_with`, `deleted_at` for the trash and for `since` sync.
 - `time_entry_tags`: join table.
@@ -309,10 +317,10 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 - API token: 128 random bits, shown in settings, resettable.
 - Sessions: 256-bit random token, only its hash stored, 30-day expiry, HttpOnly and SameSite=Lax cookie, `Secure` when served over HTTPS.
 - CSRF: cookie-authenticated writes must send `X-Tokkl-CSRF: 1` (the pre-rename `X-Timetrack-CSRF: 1` is still accepted), which a cross-site form cannot set and which needs a CORS preflight this server never grants.
-- Brute force: 10 failed password attempts per client address per 15 minutes, across the login form, Basic auth, setup code and password change. Behind a trusted proxy the address is the last `X-Forwarded-For` hop, which the client cannot forge. Unknown emails still run a scrypt check, so response time does not reveal whether an account exists.
+- Brute force: failed password attempts are counted over 15 minutes, across the login form, Basic auth and password change. The limits are 10 failures per account and client address, 50 per account and 100 per client address. A successful login resets the account-and-address and account counters, never the address counter. Setup code attempts keep their own per-address counter, limited to 10. Behind a trusted proxy the address is the last `X-Forwarded-For` hop, which the client cannot forge. Unknown emails still run a scrypt check, so response time does not reveal whether an account exists.
 - Headers: strict Content Security Policy (`default-src 'self'`), `frame-ancestors 'none'`, `nosniff`, no-store on API responses. Hashed assets are cached for a year; a missing asset is a 404, never the HTML page.
 - Input: request bodies capped at 1 MB (50 MB for imports), id lists in report filters capped at 1000; every field validated with Toggl-style error messages.
-- First run: the account can only be created with a setup code from the server log.
+- First run: the setup code from the server log creates only the first admin. Later accounts come from invite links that an admin creates.
 - Exports never contain the password hash or API token.
 
 ## 9. Non-functional requirements
@@ -341,6 +349,6 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 1. **Third-party app support is thin.** Most Toggl apps cannot change their base URL (section 6.4). If phone-widget convenience matters, the PWA and iOS Shortcuts against the API are the path, not Timery.
 2. **Toggl's CSV header may drift.** Toggl does not document its export columns, and the 2025 reports redesign lets users pick visible columns. The importer matches by name and reports per-row errors, but an export with missing start or end columns will be rejected with a message saying which columns it needs.
 3. **Phone off the home network.** Without the offline outbox (C4), starting a timer from a phone that cannot reach the server fails.
-4. **Single process, single file.** Fine for one user, but a bad disk loses everything unless the data folder is backed up.
+4. **Single process, single file.** Fine for a handful of accounts, but a bad disk loses every account's data unless the data folder is backed up. One copy of the data folder covers the whole instance.
 5. **Mixed currencies in one group.** Amounts are summed per group without converting currencies. The web UI hides per-row amounts when a report spans several currencies; the API still returns the raw sum.
 6. **`node:sqlite` stability.** It ships in Node 24 without a flag. If its API changes in a later Node major, the database layer is about 40 lines to port to `better-sqlite3`.

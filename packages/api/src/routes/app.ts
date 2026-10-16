@@ -1,5 +1,6 @@
 import express, { type Request, type Response, type Router } from 'express';
 import { MAX_PASSWORD_LENGTH, safeEqual, verifyAgainstDummy, verifyPassword } from '../auth/crypto.ts';
+import { accountCounters, passwordCounters } from '../auth/rateLimit.ts';
 import { hasCsrfHeader, requireAuth, sessionTokens } from '../auth/middleware.ts';
 import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
@@ -34,7 +35,7 @@ function startSession(deps: Deps, req: Request, res: Response, userId: number): 
 }
 
 export function appRoutes(deps: Deps, setup: SetupState): Router {
-  const { db, loginLimiter } = deps;
+  const { db, loginLimiter, setupLimiter } = deps;
   const app = express.Router();
   const auth = requireAuth(deps);
 
@@ -43,10 +44,10 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.post('/setup', async (req, res) => {
     if (countUsers(db) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
     const address = clientAddress(req);
-    if (loginLimiter.isBlocked(address)) throw new HttpError(429, 'Too many failed attempts, try again later');
+    if (setupLimiter.isBlocked(address)) throw new HttpError(429, 'Too many failed attempts, try again later');
     const body = readJson(req);
     if (typeof body.setup_code !== 'string' || !safeEqual(body.setup_code.trim(), setup.code)) {
-      loginLimiter.recordFailure(address);
+      setupLimiter.recordFailure(address);
       throw forbidden('Invalid setup code. It is printed in the server log on startup.');
     }
     const email = typeof body.email === 'string' ? body.email.trim() : '';
@@ -68,12 +69,13 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const user = findUserByEmail(db, email);
-    const valid = await loginLimiter.attempt(address, () => (
+    const valid = await loginLimiter.attempt(passwordCounters(email, address), () => (
       user ? verifyPassword(password, user.password_hash) : verifyAgainstDummy(password)
     ));
     if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');
     if (!user || !valid) throw forbidden('Incorrect email or password');
-    loginLimiter.reset(address);
+    // The address counter is left alone, so one account's success cannot clear failures against another.
+    loginLimiter.reset(accountCounters(email, address));
     startSession(deps, req, res, user.id);
     return res.json({ ok: true });
   });
@@ -136,7 +138,11 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const text = readText(req);
     if (!text.trim()) throw badRequest('The file is empty');
     const dryRun = query(req, 'dry_run') === 'true';
-    return res.json(importTogglCsv(db, res.locals.user, text, { dryRun }));
+    // Repeat `user` once per selected Toggl user; keys can hold commas, so no comma list.
+    const selected = req.query.user;
+    const users = selected === undefined ? undefined : [selected].flat().filter((key) => typeof key === 'string');
+    if (users?.length === 0) throw badRequest('Invalid user selection');
+    return res.json(importTogglCsv(db, res.locals.user, text, { dryRun, users }));
   });
 
   app.post('/import/json', auth, async (req, res) => {

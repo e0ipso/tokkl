@@ -144,3 +144,42 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
   await expect(page.locator('.import-summary')).toHaveCount(0);
   expect((await readAccount(page, data.workspaceId)).entries).toHaveLength(2);
 });
+
+// TT-0131: a team export lists its Toggl users, needs a choice, and imports only the chosen rows.
+// TT-0154: User "Alice <alice@example.com>" with no Email and User "Alice" with that Email are two users.
+test('a Toggl CSV from several users imports only the users picked in the preview', async ({ page, data }) => {
+  await login(page);
+  await openSettings(page);
+  const summary = page.locator('.import-summary').first();
+  const picker = page.getByRole('group', { name: 'This file has entries from 3 Toggl users. Choose whose entries to import.' });
+  const sam = picker.getByRole('checkbox', { name: 'Sam Synthetic sam@example.com · 2 rows', exact: true });
+  const aliceByName = picker.getByRole('checkbox', { name: 'Alice <alice@example.com> · 1 row', exact: true });
+  const aliceByEmail = picker.getByRole('checkbox', { name: 'Alice alice@example.com · 1 row', exact: true });
+
+  // Before anyone is picked the preview counts every row, and the import waits for a choice.
+  await chooseCsv(page, transferFixture('toggl-team.csv'));
+  await expect(picker.getByRole('checkbox')).toHaveCount(3);
+  for (const box of [sam, aliceByName, aliceByEmail]) await expect(box).not.toBeChecked();
+  await expect(summary).toContainText('4 entries to import');
+  await expect(page.getByRole('button', { name: 'Import 4 entries' })).toBeDisabled();
+
+  // Each pick previews again, so the counts describe only the chosen users' rows.
+  await sam.check();
+  await expect(summary).toContainText('2 entries to import');
+  await expect(summary).toContainText('2 rows from other Toggl users, skipped');
+  await aliceByEmail.check();
+  await expect(summary).toContainText('3 entries to import');
+  await expect(summary).toContainText('1 row from other Toggl users, skipped');
+  await expectEmptyAccount(page, data.workspaceId);
+
+  await page.getByRole('button', { name: 'Import 3 entries' }).click();
+  await expect(summary).toContainText('3 entries imported');
+  await expect(summary).toContainText('1 row from other Toggl users, skipped');
+  await expect(picker).toHaveCount(0);
+  const account = await readAccount(page, data.workspaceId);
+  expect(account.entries.map((e) => [e.description, e.start, e.project_name])).toEqual([
+    ['Sam first', accountTime('2026-04-06', '09:00:00'), 'Website'],
+    ['Alice with an email', accountTime('2026-04-07', '09:00:00'), 'Website'],
+    ['Sam second', accountTime('2026-04-07', '10:00:00'), 'Internal'],
+  ]);
+});

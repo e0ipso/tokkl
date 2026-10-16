@@ -15,8 +15,18 @@ function stamp(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** The query string for a CSV import request: preview or not, and the chosen Toggl users. */
+function importQuery(dryRun: boolean, users: string[]): string {
+  const params = new URLSearchParams();
+  if (dryRun) params.set('dry_run', 'true');
+  for (const key of users) params.append('user', key);
+  const text = params.toString();
+  return text ? `?${text}` : '';
+}
+
 function ImportSummary({ result }: { result: ImportResult }) {
-  const failed = Math.max(0, result.rows - result.created - result.skipped_duplicates);
+  const otherUsers = result.skipped.reduce((sum, item) => sum + item.rows, 0);
+  const failed = Math.max(0, result.rows - result.created - result.skipped_duplicates - otherUsers);
   const preview = result.dry_run;
   return (
     <div className="import-summary" aria-live="polite">
@@ -24,6 +34,7 @@ function ImportSummary({ result }: { result: ImportResult }) {
         <li>{plural(result.rows, 'row')} in the file</li>
         <li>{plural(result.created, 'entry', 'entries')} {preview ? 'to import' : 'imported'}</li>
         <li>{result.skipped_duplicates} already here, skipped</li>
+        {otherUsers > 0 ? <li>{plural(otherUsers, 'row')} from other Toggl users, skipped</li> : null}
         {failed > 0 ? <li className="is-error">{plural(failed, 'row')} with problems</li> : null}
       </ul>
       {result.created_projects.length > 0 ? (
@@ -61,6 +72,29 @@ interface RestoreResult {
   time_entries: number;
   skipped_duplicates: number;
   errors: Array<{ entity: string; id: unknown; message: string }>;
+}
+
+/** Checkboxes for a team export: whose rows to import. */
+function ImportUsers({ users, selected, onToggle }: {
+  users: ImportResult['users'];
+  selected: string[];
+  onToggle: (key: string, checked: boolean) => void;
+}) {
+  return (
+    <fieldset className="import-users">
+      <legend>This file has entries from {users.length} Toggl users. Choose whose entries to import.</legend>
+      {users.map((user) => (
+        <label key={user.key} className="field checkbox-field">
+          <input type="checkbox" checked={selected.includes(user.key)} onChange={(event) => onToggle(user.key, event.target.checked)} />
+          <span>
+            {user.user || user.email || 'No Toggl user'}
+            {user.user && user.email ? <span className="muted"> {user.email}</span> : null}
+            <span className="muted"> · {plural(user.rows, 'row')}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
 }
 
 /** Restores a Tokkl JSON export: preview first, then import. */
@@ -142,21 +176,32 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const [exporting, setExporting] = useState<'json' | 'csv' | null>(null);
+  // Only the newest request may show its result, so a slow preview can't overwrite a newer one.
+  const latest = useRef(0);
 
-  const runImport = useAction<{ text: string; dryRun: boolean }, ImportResult>({
-    mutationFn: ({ text, dryRun }) => api.post<ImportResult>(dryRun ? `${IMPORT_PATH}?dry_run=true` : IMPORT_PATH, text),
-    onSuccess: (imported, { dryRun }) => {
-      setResult(imported);
+  const runImport = useAction<{ text: string; dryRun: boolean; users: string[]; request: number }, ImportResult>({
+    mutationFn: ({ text, dryRun, users }) => api.post<ImportResult>(`${IMPORT_PATH}${importQuery(dryRun, users)}`, text),
+    onSuccess: (imported, { dryRun, request }) => {
       if (!dryRun) {
         void invalidate(...IMPORT_KEYS);
         toast.show(`Imported ${plural(imported.created, 'entry', 'entries')}`);
+      }
+      if (request !== latest.current) return;
+      setResult(imported);
+      if (!dryRun) {
         // Clear the file so a second click can't import the same rows again.
         setFile(null);
+        setSelected([]);
         if (fileInput.current) fileInput.current.value = '';
       }
     },
   });
+  const send = (text: string, dryRun: boolean, users: string[]) => {
+    latest.current++;
+    runImport.mutate({ text, dryRun, users, request: latest.current });
+  };
 
   const exportFile = async (kind: 'json' | 'csv') => {
     setExporting(kind);
@@ -170,23 +215,36 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   };
 
   const chooseFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const selected = event.target.files?.[0];
+    const chosen = event.target.files?.[0];
     setResult(null);
-    if (!selected) return setFile(null);
+    setSelected([]);
+    if (!chosen) return setFile(null);
     try {
-      const text = await selected.text();
-      setFile({ name: selected.name, text });
-      runImport.mutate({ text, dryRun: true });
+      const text = await chosen.text();
+      setFile({ name: chosen.name, text });
+      send(text, true, []);
     } catch (error) {
       toast.error(error);
     }
   };
 
   const reset = () => {
+    latest.current++;
     setFile(null);
     setResult(null);
+    setSelected([]);
     if (fileInput.current) fileInput.current.value = '';
   };
+
+  // Each change previews again, so the counts describe the chosen users' rows only.
+  const toggleUser = (key: string, checked: boolean) => {
+    if (!file || !result) return;
+    const next = result.users.map((user) => user.key)
+      .filter((candidate) => (candidate === key ? checked : selected.includes(candidate)));
+    setSelected(next);
+    send(file.text, true, next);
+  };
+  const mustChoose = (result?.users.length ?? 0) > 1;
 
   return (
     <SettingsCard id="data" title="Data">
@@ -218,7 +276,10 @@ export function DataSection({ timeZone }: { timeZone: string }) {
         {file ? <span className="muted file-name">{file.name}</span> : null}
       </div>
 
-      {runImport.isPending ? <p className="hint">{result ? 'Importing…' : 'Checking the file…'}</p> : null}
+      {runImport.isPending ? <p className="hint">{runImport.variables?.dryRun ? 'Checking the file…' : 'Importing…'}</p> : null}
+      {file && result?.dry_run && mustChoose ? (
+        <ImportUsers users={result.users} selected={selected} onToggle={toggleUser} />
+      ) : null}
       {result ? <ImportSummary result={result} /> : null}
 
       {file && result?.dry_run ? (
@@ -226,8 +287,8 @@ export function DataSection({ timeZone }: { timeZone: string }) {
           <button
             type="button"
             className="button button-primary"
-            disabled={runImport.isPending || result.created === 0}
-            onClick={() => runImport.mutate({ text: file.text, dryRun: false })}
+            disabled={runImport.isPending || result.created === 0 || (mustChoose && selected.length === 0)}
+            onClick={() => send(file.text, false, selected)}
           >
             <Icon name="upload" size={16} /> Import {plural(result.created, 'entry', 'entries')}
           </button>

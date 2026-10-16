@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures.ts';
+import { EMAIL, expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, openMore, tap, tapNav } from './mobile-tests-helpers.ts';
@@ -177,4 +177,41 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(sheet).toBeHidden();
   await expect(more).toBeFocused();
   await expect(more).toHaveAttribute('aria-expanded', 'false');
+});
+
+// TT-0130: the More sheet shows who is signed in above Log out. Long values are cut to one line
+// with the full text in title, so the sheet still fits 390x844.
+test('the More sheet names the signed-in user above Log out and cuts long values to fit', async ({ page }) => {
+  await login(page);
+  const shown = async (sheet: Awaited<ReturnType<typeof openMore>>, fullname: string, email: string) => {
+    const user = sheet.locator('.signed-in');
+    for (const [part, text] of [['.signed-in-name', fullname], ['.signed-in-email', email]] as const) {
+      await expect(user.locator(part)).toHaveText(text);
+      await expect(user.locator(part)).toHaveAttribute('title', text);
+      await expectFits(user.locator(part));
+    }
+    const userBox = (await user.boundingBox())!;
+    const logoutBox = (await sheet.getByRole('button', { name: 'Log out' }).boundingBox())!;
+    expect(userBox.y + userBox.height).toBeLessThanOrEqual(logoutBox.y + 0.5);
+    await expectNoPageOverflow(page);
+    return user;
+  };
+
+  await shown(await openMore(page), 'E2E User', EMAIL);
+
+  // Long values come from /me as served, so the shared test account keeps its own name and email.
+  const long = {
+    fullname: 'E2E User, whose full name is far too long for a phone to show on a single line',
+    email: 'a.very.long.mailbox.name.for.this.phone.check@subdomain.example.com',
+  };
+  await page.route('**/api/v9/me', async (route) => {
+    const response = await route.fetch();
+    if (route.request().method() !== 'GET' || !response.ok()) return route.fulfill({ response });
+    await route.fulfill({ response, json: { ...(await response.json()), ...long } });
+  });
+  await page.reload();
+  const user = await shown(await openMore(page), long.fullname, long.email);
+  for (const part of ['.signed-in-name', '.signed-in-email']) {
+    expect(await user.locator(part).evaluate((el) => el.scrollWidth > el.clientWidth), `${part} is cut`).toBe(true);
+  }
 });

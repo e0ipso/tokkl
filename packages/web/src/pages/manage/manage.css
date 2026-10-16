@@ -149,6 +149,10 @@
 .import-errors { margin-top: 8px; }
 .import-errors summary { cursor: pointer; color: var(--danger); }
 .import-errors ul { margin: 6px 0 0; padding-left: 18px; max-height: 200px; overflow: auto; }
+.import-users { margin: 12px 0 0; padding: 0; border: 0; min-width: 0; }
+.import-users legend { padding: 0; margin-bottom: 6px; font-size: var(--text-md); }
+.import-users .checkbox-field { padding: 4px 0; overflow-wrap: anywhere; }
+.import-users .checkbox-field > input { flex: none; }
 
 
 @media (max-width: 760px) {

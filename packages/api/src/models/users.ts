@@ -4,7 +4,7 @@ import { generateApiToken, hashPassword } from '../auth/crypto.ts';
 import { badRequest } from '../lib/errors.ts';
 import { togglTime } from '../lib/values.ts';
 import { MAX_DESCRIPTION_LENGTH } from './timeEntries.ts';
-import { createWorkspace } from './workspaces.ts';
+import { addWorkspaceMember, createWorkspace } from './workspaces.ts';
 
 export interface UserRow {
   id: number;
@@ -16,9 +16,14 @@ export interface UserRow {
   beginning_of_week: number;
   default_workspace_id: number;
   preferences: string;
+  role: UserRole;
+  /** When an admin suspended the account; null while it is active. */
+  disabled_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type UserRole = 'admin' | 'user';
 
 /** Defaults for the preferences this app reads. Unknown keys sent by clients are kept as-is. */
 export const DEFAULT_PREFERENCES = {
@@ -126,11 +131,13 @@ export async function createOwner(
     const preferences = { ...DEFAULT_PREFERENCES, pg_time_zone_name: input.timezone };
     const result = db.prepare(`
       INSERT INTO users (email, fullname, password_hash, api_token, timezone, default_workspace_id,
-                         preferences, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         preferences, role, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'admin', ?, ?)
     `).run(input.email, input.fullname, passwordHash, generateApiToken(), input.timezone,
       workspace.id, JSON.stringify(preferences), now, now);
-    return getUser(db, Number(result.lastInsertRowid))!;
+    const userId = Number(result.lastInsertRowid);
+    addWorkspaceMember(db, workspace.id, userId, 'owner');
+    return getUser(db, userId)!;
   });
 }
 

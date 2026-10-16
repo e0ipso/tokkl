@@ -1,5 +1,6 @@
 import { request, type Browser, type Locator, type Page, type Route } from '@playwright/test';
 import { EMAIL, PASSWORD, expect, test } from './fixtures.ts';
+import { meWithSession, sessionCookie } from './auth-tests-helpers.ts';
 import { login } from './helpers.ts';
 
 // TT-0073: the theme saved on the server is cached in the browser and applied before React
@@ -7,6 +8,8 @@ import { login } from './helpers.ts';
 // TT-0098: a blocking script in the head applies that cache, so it holds even when the bundle is slow.
 // TT-0075: the theme picked in Settings decides the page and chart colours.
 // TT-0080: the two media-scoped theme-color metas follow that choice, and "Match the system" restores them.
+// TT-0129: a failed logout request and an expired session also clear the cached theme.
+// TT-0155: when the failed request leaves the user signed in, the reloaded page says so.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const CACHE_KEY = 'tokkl.theme';
@@ -184,6 +187,126 @@ test('both log out buttons clear the cached theme', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   expect(await cachedTheme(page)).toBeNull();
   expect(await themeAtFirstParse(page)).toBeNull();
+});
+
+/** Logs in, saves a dark theme and reloads, so the theme is both on <html> and in the cache. */
+async function loginWithCachedDark(page: Page) {
+  await login(page);
+  await saveTheme(page, 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await cachedTheme(page)).toBe('dark');
+}
+
+test('a failed logout request still clears the cached theme', async ({ page, runtimeErrors }) => {
+  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/app\/logout$/, reason: 'the logout response is replaced with a server error' });
+  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/v9\/me$/, reason: 'the browser keeps the cookie of the session the server ended' });
+  await loginWithCachedDark(page);
+
+  // The server ends the session, but the browser gets a 500 and keeps its cookie.
+  await page.route('**/api/app/logout', async (route) => {
+    await route.fetch();
+    await route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' });
+  });
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  expect(await cachedTheme(page)).toBeNull();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+  // The session did end, so there is no "still signed in" message.
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('a logout the server never carries out clears the cache, then says the user is still signed in', async ({ page, runtimeErrors }) => {
+  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/app\/logout$/, reason: 'the logout request fails before the server ends the session' });
+  await loginWithCachedDark(page);
+  const failLogout = (route: Route) => route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' });
+  await page.route('**/api/app/logout', failLogout);
+  const message = page.getByRole('alert').filter({ hasText: 'Log out failed. You are still signed in.' });
+  const buttons = {
+    sidebar: () => page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Log out' }),
+    Settings: () => page.getByRole('region', { name: 'Session' }).getByRole('button', { name: 'Log out' }),
+  };
+
+  for (const [where, button] of Object.entries(buttons)) {
+    if (where === 'Settings') await page.getByRole('link', { name: 'Settings' }).click();
+    // Hold the reloaded page's preferences, so the cleared theme cannot be cached again before the check.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const hold = async (route: Route) => {
+      await held;
+      await route.fallback();
+    };
+    await page.route('**/api/v9/me/preferences', hold);
+    await button().click();
+    await expect(message, where).toBeVisible();
+    expect(await cachedTheme(page), where).toBeNull();
+    await expect(page.locator('html'), where).not.toHaveAttribute('data-theme');
+    release();
+    await page.unroute('**/api/v9/me/preferences', hold);
+    // Still signed in: the account's own theme comes back from the server.
+    await expect(page.locator('html'), where).toHaveAttribute('data-theme', 'dark');
+    if (where === 'sidebar') await message.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(message).toHaveCount(where === 'sidebar' ? 0 : 1);
+  }
+
+  // Try again once the server answers: the session ends, and logging in again shows no message.
+  await page.unroute('**/api/app/logout', failLogout);
+  await message.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await login(page);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(message).toHaveCount(0);
+});
+
+test('an expired session clears the cached theme once, and the login page follows the system', async ({ page, browser, baseURL, runtimeErrors }) => {
+  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/v9\/me$/, reason: 'the browser still sends the cookie of a session the server ended' });
+  const colours = await systemTokenColours(browser, baseURL!);
+  await loginWithCachedDark(page);
+
+  // End the session on the server only. The browser keeps sending the dead cookie, as after expiry.
+  const session = await sessionCookie(page, baseURL!);
+  const other = await request.newContext({ baseURL, extraHTTPHeaders: { ...CSRF, cookie: `tokkl_session=${session}` } });
+  try {
+    expect((await other.post('/api/app/logout')).ok()).toBe(true);
+  } finally {
+    await other.dispose();
+  }
+  expect(await meWithSession(baseURL!, session)).toBe(403);
+
+  const meRequests: string[] = [];
+  page.on('request', (sent) => {
+    if (new URL(sent.url()).pathname === '/api/v9/me') meRequests.push(sent.url());
+  });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme');
+  expect(await cachedTheme(page)).toBeNull();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe(colours.light['--bg']);
+
+  // One probe on load and one after the cache is cleared. Refocusing the tab refetches /me once
+  // more, and that 403 clears nothing. A loop would refetch within milliseconds, so a quiet
+  // second after each step shows there is none.
+  const isMe = (response: { url(): string }) => new URL(response.url()).pathname === '/api/v9/me';
+  await expect.poll(() => meRequests.length).toBe(2);
+  await page.waitForTimeout(1_000);
+  expect(meRequests).toHaveLength(2);
+  const refetched = page.waitForResponse(isMe);
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await refetched;
+  await page.waitForTimeout(1_000);
+  expect(meRequests).toHaveLength(3);
+
+  // Logging in on that same page works, and the saved theme comes back.
+  await page.getByLabel('Email').fill(EMAIL);
+  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await cachedTheme(page)).toBe('dark');
 });
 
 // The tokens are light-dark(light, dark) in source, but the production build compiles that into

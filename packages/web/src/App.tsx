@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Switch, useLocation } from 'wouter';
 import { ApiError, api } from './api/client.ts';
@@ -7,9 +7,11 @@ import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
+import { useToast } from './components/Toast.tsx';
 import { formatDuration } from '@tokkl/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
-import { applyTheme, clearCachedTheme } from './lib/theme.ts';
+import { endSession, logOut, takeLogoutFailure } from './lib/session.ts';
+import { applyTheme } from './lib/theme.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { ClientsPage } from './pages/ClientsPage.tsx';
 import { ProjectsPage } from './pages/ProjectsPage.tsx';
@@ -114,6 +116,24 @@ function MoreSheet({ onClose, children }: { onClose: () => void; children: React
   );
 }
 
+/**
+ * Who is signed in, shown beside Log out so a shared browser shows whose account is open. Reads
+ * the /me query the auth gate already loaded. Long values are cut with an ellipsis and keep the
+ * full text in title; with no full name the email stands alone.
+ */
+function SignedInUser() {
+  const { data: me } = useMe();
+  if (!me) return null;
+  const name = me.fullname.trim();
+  return (
+    <div className="signed-in">
+      <span className="visually-hidden">Signed in as </span>
+      {name ? <span className="signed-in-name" title={name}>{name}</span> : null}
+      <span className="signed-in-email" title={me.email}>{me.email}</span>
+    </div>
+  );
+}
+
 function Shell() {
   const [location] = useLocation();
   const qc = useQueryClient();
@@ -121,6 +141,7 @@ function Shell() {
   const phone = useMediaQuery(PHONE_QUERY);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
+  const toast = useToast();
   useTheme();
   useRunningTitle();
 
@@ -129,12 +150,27 @@ function Shell() {
     if (!phone) setMoreOpen(false);
   }, [phone]);
 
-  const logout = async () => {
-    await api.post('/api/app/logout');
-    clearCachedTheme();
-    qc.clear();
-    window.location.href = '/';
+  // The tab forgets the session even when the request fails. The new page load then shows what
+  // the server says: the login page, or this account if the server still holds the session.
+  const logout = () => {
+    logOut(qc)
+      .catch(() => {})
+      .finally(() => {
+        window.location.href = '/';
+      });
   };
+
+  // This account loaded after a failed logout, from here or from Settings. Say so, so nobody on a
+  // shared browser walks away thinking they logged out.
+  useEffect(() => {
+    if (!takeLogoutFailure()) return;
+    toast.show('Log out failed. You are still signed in.', {
+      kind: 'error',
+      action: { label: 'Try again', run: logout },
+      durationMs: 60_000,
+    });
+    // Runs once per page load; the first read clears the flag.
+  }, []);
 
   const closeMore = () => {
     setMoreOpen(false);
@@ -157,7 +193,7 @@ function Shell() {
   };
 
   const logoutButton = (
-    <button type="button" className="nav-link" onClick={() => void logout()}>
+    <button type="button" className="nav-link" onClick={logout}>
       <Icon name="logout" className="nav-icon" />
       <span>Log out</span>
     </button>
@@ -186,6 +222,7 @@ function Shell() {
             {moreOpen ? (
               <MoreSheet onClose={closeMore}>
                 {moreItems.map((item) => navLink(item, closeMore))}
+                <SignedInUser />
                 {logoutButton}
               </MoreSheet>
             ) : null}
@@ -195,6 +232,7 @@ function Shell() {
             <Brand />
             {NAV.map((item) => navLink(item))}
             <span className="spacer" />
+            <SignedInUser />
             {logoutButton}
           </>
         )}
@@ -218,6 +256,27 @@ function Shell() {
   );
 }
 
+/**
+ * Ends the session once when /me answers 403, whether it expired while the app was open or before
+ * this page load. Clearing the cache also drops the status and /me queries, which App reads, so
+ * the state change re-renders App and its queries fetch again. That second 403 finds the session
+ * already ended and does nothing, so the 403 path cannot clear and refetch in a loop. A successful
+ * /me, after the next login, re-arms it. This runs before paint, so the login page never shows in
+ * the previous user's theme.
+ */
+function useEndSessionOnForbidden(forbidden: boolean, signedIn: boolean) {
+  const qc = useQueryClient();
+  const [ended, setEnded] = useState(false);
+  useLayoutEffect(() => {
+    if (signedIn) {
+      setEnded(false);
+    } else if (forbidden && !ended) {
+      endSession(qc);
+      setEnded(true);
+    }
+  }, [forbidden, signedIn, ended, qc]);
+}
+
 export function App() {
   const status = useQuery({
     queryKey: ['status'],
@@ -225,12 +284,14 @@ export function App() {
     staleTime: Infinity,
   });
   const me = useMe();
+  const forbidden = me.error instanceof ApiError && me.error.status === 403;
+  useEndSessionOnForbidden(forbidden, me.isSuccess);
 
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
     return <div className="splash"><Brand size="lg" /><Loading /></div>;
   }
   if (status.data?.setup_required) return <AuthPage mode="setup" />;
-  if (me.error instanceof ApiError && me.error.status === 403) return <AuthPage mode="login" />;
+  if (forbidden) return <AuthPage mode="login" />;
   if (me.error) {
     const retry = () => {
       if (status.error) void status.refetch();

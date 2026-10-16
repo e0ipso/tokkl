@@ -15,6 +15,7 @@ kk_derived_from: []
 kk_relates_to:
   - practice-contrast-tables-and-project-colours
   - practice-e2e-test-workflow
+  - practice-end-sessions-through-lib-session
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -24,11 +25,12 @@ The production build (Vite 8, lightningcss) rewrites `light-dark()` into `--ligh
 
 The cached theme lives in localStorage under `tokkl.theme`. A value left under the pre-rename key `timetrack.theme` is copied to `tokkl.theme` when that is empty and then removed; `theme-boot.js` and `theme.ts` both do this. `packages/web/public/theme-boot.js` is a plain blocking `<script src>` in the head of `packages/web/index.html`; it reads the key and sets `data-theme` on `<html>` before the first paint. The module bundle does not block rendering, so the theme cannot wait for it. The CSP in `packages/api/src/app.ts` has `script-src 'self'` and allows no inline script, hence a separate file. It is served by the plain `express.static` with no long cache, so browsers revalidate it on each load instead of keeping a stale copy.
 
-`packages/web/src/lib/theme.ts` (imported first by `packages/web/src/main.tsx`) applies the cached value again as a fallback and owns the cache: `applyTheme` (called from `App.tsx` once preferences load) sets the attribute, writes the cache and updates both media-scoped `theme-color` metas in `index.html` (an explicit theme writes its colour into both; "Match the system" restores each tag's own colour). "Match the system" removes the key, and both logout paths (`App.tsx`, `SettingsPage.tsx`) call `clearCachedTheme`. Both keys are spelled in `theme-boot.js` and in `STORAGE_KEY` and `LEGACY_STORAGE_KEY` in `theme.ts`, with comments pointing at each other; change both together. `e2e/theme.spec.ts` fails if they drift.
+`packages/web/src/lib/theme.ts` (imported first by `packages/web/src/main.tsx`) applies the cached value again as a fallback and owns the cache: `applyTheme` (called from `App.tsx` once preferences load) sets the attribute, writes the cache and updates both media-scoped `theme-color` metas in `index.html` (an explicit theme writes its colour into both; "Match the system" restores each tag's own colour). "Match the system" removes the key, and `endSession` in `packages/web/src/lib/session.ts` calls `clearCachedTheme` on logout (successful or not) and when `/me` answers 403. Both keys are spelled in `theme-boot.js` and in `STORAGE_KEY` and `LEGACY_STORAGE_KEY` in `theme.ts`, with comments pointing at each other; change both together. `e2e/theme.spec.ts` fails if they drift.
 
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
 - Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
+- Related: [practice-end-sessions-through-lib-session](../web-ui-behaviour/practice-end-sessions-through-lib-session.md)
 <!-- kk:related:end -->
