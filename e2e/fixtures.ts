@@ -1,9 +1,27 @@
+import { randomUUID } from 'node:crypto';
 import { test as base, expect, request, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { RuntimeErrors } from './runtime-errors.ts';
 
 export const EMAIL = 'e2e@example.com';
 export const PASSWORD = 'e2e password';
 export const SETUP_CODE = 'E2E-SETUP-CODE';
+
+/** What the login form needs for one account. */
+export interface Account {
+  email: string;
+  password: string;
+  fullname: string;
+}
+
+/** The setup account: the only admin of the e2e server, and the account `data` signs in as. */
+export const ADMIN_ACCOUNT: Account = { email: EMAIL, password: PASSWORD, fullname: 'E2E User' };
+
+export interface NewUser {
+  role?: 'admin' | 'user';
+  /** Defaults to a unique address, so leftovers from a failed run never collide. */
+  email?: string;
+  fullname?: string;
+}
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
@@ -16,12 +34,14 @@ const BASELINE_PREFERENCES = {
   favorites: [],
   timeofday_format: 'H:mm',
   timerView: 'list',
+  theme: 'system',
 };
 
 interface SeedEntry {
   description: string;
   start: string;
   stop: string;
+  project_id?: number;
 }
 
 interface Favorite {
@@ -44,14 +64,26 @@ async function json<T>(response: Promise<APIResponse>): Promise<T> {
 /**
  * Talks to the disposable test server with its own session, separate from the page's, so a
  * scenario still logs in through the UI. Every scenario starts and ends with an empty account.
+ * The `data` fixture signs in as the setup admin; `users.create()` adds other accounts.
  */
 export class TestData {
   private readonly api: APIRequestContext;
+  private readonly baseURL: string;
+  readonly userId: number;
   readonly workspaceId: number;
+  readonly account: Account;
 
-  private constructor(api: APIRequestContext, workspaceId: number) {
+  private constructor(api: APIRequestContext, baseURL: string, me: { id: number; default_workspace_id: number }, account: Account) {
     this.api = api;
-    this.workspaceId = workspaceId;
+    this.baseURL = baseURL;
+    this.userId = me.id;
+    this.workspaceId = me.default_workspace_id;
+    this.account = account;
+  }
+
+  private static async signedIn(api: APIRequestContext, baseURL: string, account: Account): Promise<TestData> {
+    const me = await json<{ id: number; default_workspace_id: number }>(api.get('/api/v9/me'));
+    return new TestData(api, baseURL, me, account);
   }
 
   static async open(baseURL: string): Promise<TestData> {
@@ -60,13 +92,61 @@ export class TestData {
     if (status.setup_required) {
       await ok(await api.post('/api/app/setup', {
         headers: CSRF,
-        data: { setup_code: SETUP_CODE, email: EMAIL, password: PASSWORD, fullname: 'E2E User', timezone: 'Europe/Madrid' },
+        data: { setup_code: SETUP_CODE, ...ADMIN_ACCOUNT, timezone: 'Europe/Madrid' },
       }));
     } else {
       await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } }));
     }
-    const me = await json<{ default_workspace_id: number }>(api.get('/api/v9/me'));
-    return new TestData(api, me.default_workspace_id);
+    return TestData.signedIn(api, baseURL, ADMIN_ACCOUNT);
+  }
+
+  /**
+   * Creates another account the way a person joins: this account, which must be an admin, creates
+   * an invite and the new account accepts it. The new account owns a fresh workspace.
+   */
+  async inviteUser(options: NewUser = {}): Promise<TestData> {
+    const { url } = await json<{ url: string }>(this.api.post('/api/app/admin/invites', {
+      headers: CSRF, data: { role: options.role ?? 'user' },
+    }));
+    const email = options.email ?? `user-${randomUUID().slice(0, 8)}@e2e.example`;
+    const account: Account = { email, password: `${email} password`, fullname: options.fullname ?? 'Extra User' };
+    const api = await request.newContext({ baseURL: this.baseURL });
+    try {
+      await ok(await api.post(url.replace(/^\/invite\//, '/api/app/invites/'), {
+        headers: CSRF, data: { ...account, timezone: 'Europe/Madrid' },
+      }));
+      return await TestData.signedIn(api, this.baseURL, account);
+    } catch (error) {
+      await api.dispose();
+      throw error;
+    }
+  }
+
+  /** Every account on the server, as an admin sees them. */
+  async listUsers(): Promise<Array<{ id: number; email: string }>> {
+    return json(this.api.get('/api/app/admin/users'));
+  }
+
+  /** Deletes another account and its workspace, as an admin. */
+  async deleteUser(user: { id: number; email: string }): Promise<void> {
+    await ok(await this.api.delete(`/api/app/admin/users/${user.id}`, { headers: CSRF, data: { email: user.email } }));
+  }
+
+  /** Revokes every invite nobody has accepted yet, as an admin. */
+  async revokeInvites(): Promise<void> {
+    for (const invite of await json<Array<{ id: number }>>(this.api.get('/api/app/admin/invites'))) {
+      await ok(await this.api.delete(`/api/app/admin/invites/${invite.id}`, { headers: CSRF }));
+    }
+  }
+
+  /** Entries of this account, newest first. */
+  async entries(): Promise<Array<{ id: number; description: string }>> {
+    return json(this.api.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
+  }
+
+  /** Projects in this account's workspace, archived ones included. */
+  async projects(): Promise<Array<{ id: number; name: string }>> {
+    return json(this.api.get(`/api/v9/workspaces/${this.workspaceId}/projects?active=both`));
   }
 
   async createEntry(entry: SeedEntry): Promise<{ id: number }> {
@@ -85,17 +165,19 @@ export class TestData {
   }
 
   /** Saves preferences; the fixture puts every key in BASELINE_PREFERENCES back after the test. */
-  async savePreferences(preferences: { timeofday_format?: string; favorites?: Favorite[] }): Promise<void> {
+  async savePreferences(preferences: { timeofday_format?: string; favorites?: Favorite[]; theme?: 'system' | 'light' | 'dark' }): Promise<void> {
     await ok(await this.api.post('/api/v9/me/preferences', { headers: CSRF, data: preferences }));
   }
 
-  /** Deletes every entry (running or not), the trash, projects, clients and tags, and resets preferences. */
+  /**
+   * Deletes every entry (running or not), the trash, projects, clients and tags, and resets
+   * preferences. It touches only this account and its own workspace, so other accounts keep theirs.
+   */
   async reset(): Promise<void> {
     const ws = `/api/v9/workspaces/${this.workspaceId}`;
-    const entries = await json<Array<{ id: number }>>(this.api.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
-    for (const entry of entries) await ok(await this.api.delete(`${ws}/time_entries/${entry.id}`, { headers: CSRF }));
+    for (const entry of await this.entries()) await ok(await this.api.delete(`${ws}/time_entries/${entry.id}`, { headers: CSRF }));
     await ok(await this.api.delete('/api/app/trash', { headers: CSRF }));
-    for (const project of await json<Array<{ id: number }>>(this.api.get(`${ws}/projects?active=both`))) {
+    for (const project of await this.projects()) {
       await ok(await this.api.delete(`${ws}/projects/${project.id}`, { headers: CSRF }));
     }
     for (const client of await json<Array<{ id: number }>>(this.api.get(`${ws}/clients?status=both`))) {
@@ -113,7 +195,35 @@ export class TestData {
   }
 }
 
-export const test = base.extend<{ data: TestData; runtimeErrors: RuntimeErrors }>({
+/**
+ * Extra accounts for one scenario, created through invites by the setup admin. When the scenario
+ * ends, every account other than the setup admin is deleted and every pending invite revoked, so
+ * the next scenario again finds the setup admin alone.
+ */
+export class ExtraUsers {
+  private readonly admin: TestData;
+  private readonly created: TestData[] = [];
+
+  constructor(admin: TestData) {
+    this.admin = admin;
+  }
+
+  async create(options: NewUser = {}): Promise<TestData> {
+    const user = await this.admin.inviteUser(options);
+    this.created.push(user);
+    return user;
+  }
+
+  async dispose(): Promise<void> {
+    for (const user of this.created.splice(0)) await user.close();
+    for (const user of await this.admin.listUsers()) {
+      if (user.id !== this.admin.userId) await this.admin.deleteUser(user);
+    }
+    await this.admin.revokeInvites();
+  }
+}
+
+export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErrors: RuntimeErrors }>({
   data: [async ({ baseURL }, use) => {
     const data = await TestData.open(baseURL!);
     await data.reset();
@@ -121,6 +231,14 @@ export const test = base.extend<{ data: TestData; runtimeErrors: RuntimeErrors }
     await data.reset();
     await data.close();
   }, { auto: true }],
+  users: async ({ data }, use) => {
+    const users = new ExtraUsers(data);
+    try {
+      await use(users);
+    } finally {
+      await users.dispose();
+    }
+  },
   // Fails any scenario that hits an uncaught error, a console error or a failed request; see
   // e2e/runtime-errors.ts for the logged-out 403 rule and runtimeErrors.allowResponse.
   runtimeErrors: [async ({ page }, use, testInfo) => {
