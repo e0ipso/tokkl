@@ -338,15 +338,21 @@ test('normalizeEmail and passwordCounters key accounts by trimmed, ASCII-lowerca
 async function multiUserApp(count: number, names = Array.from({ length: count }, (_, i) => `user${i}@example.com`)) {
   const db = openDatabase(':memory:');
   const owner = await createOwner(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' });
-  const emails = [owner.email];
-  for (const name of names.slice(1)) emails.push(insertSecondUser(db, owner, name).email);
+  const users = [owner, ...names.slice(1).map((name) => insertSecondUser(db, owner, name))];
+  const emails = users.map((user) => user.email);
   const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-forwarded-for': address },
     body: JSON.stringify({ email, password }),
   })).status;
-  return { emails, login };
+  /** A password change signed in with `user`'s API token, so only current_password is checked. */
+  const changePassword = async (user: UserRow, current: string, address = '10.0.0.1') => (await app.request('/api/v9/me', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': address, authorization: basic(user.api_token, 'api_token') },
+    body: JSON.stringify({ current_password: current, password: 'new password 1' }),
+  })).status;
+  return { db, users, emails, login, changePassword };
 }
 
 test('one account signing in from an address does not reset failures against another', async () => {
@@ -389,6 +395,23 @@ test('ten users behind one address each failing five times can all still sign in
   const failures = await Promise.all(emails.flatMap((email) => Array.from({ length: 5 }, () => login(email, 'wrong'))));
   assert.deepEqual(failures, Array(50).fill(403));
   for (const email of emails) assert.equal(await login(email, PASSWORD), 200, email);
+});
+
+test("wrong current passwords in a password change count against the caller's account", async () => {
+  const { db, users, login, changePassword } = await multiUserApp(2);
+  const [caller, other] = users as [UserRow, UserRow];
+
+  for (let i = 0; i < 10; i++) assert.equal(await changePassword(caller, 'wrong'), 400);
+  assert.equal(await changePassword(caller, PASSWORD), 429, 'the account is blocked from this address');
+  assert.equal(await login(caller.email, PASSWORD), 429);
+  assert.equal(await login(other.email, PASSWORD), 200, 'another account at the same address is not');
+
+  // Forty more from other addresses, five each, reach the account's limit of 50.
+  const spread = await Promise.all(Array.from({ length: 40 }, (_, i) => changePassword(caller, 'wrong', `10.1.${Math.floor(i / 5)}.1`)));
+  assert.deepEqual(spread, Array(40).fill(400));
+  assert.equal(await login(caller.email, PASSWORD, '10.9.9.9'), 429, 'refused from an address it never failed from');
+  assert.equal(await login(other.email, PASSWORD, '10.9.9.9'), 200);
+  assert.equal(getUser(db, caller.id)!.password_hash, caller.password_hash, 'no change went through');
 });
 
 test('one address is refused after 100 failures across accounts, and a success does not clear it', async () => {

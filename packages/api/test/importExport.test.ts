@@ -151,6 +151,46 @@ test('CSV import keeps a user apart from one whose User cell spells out a name a
   assert.deepEqual(rest.skipped, [{ rows: 1, reason: 'Rows from Alice <a@example.com> were not selected' }]);
 });
 
+test('a two-user CSV previews both users, needs a selection and imports only the selected rows, once', async () => {
+  const ctx = await setup();
+  const csv = [
+    'User,Email,Project,Description,Start date,Start time,End date,End time',
+    'Ann,ann@example.com,Ann project,Ann first,2026-09-01,09:00:00,2026-09-01,10:00:00',
+    'Bob,bob@example.com,Bob project,Bob only,2026-09-01,10:00:00,2026-09-01,11:00:00',
+    'Ann,ann@example.com,Ann project,Ann second,2026-09-02,09:00:00,2026-09-02,10:00:00',
+  ].join('\n');
+  const post = (query: string) => ctx.request('POST', `/api/app/import/toggl-csv${query}`, csv, { 'content-type': 'text/csv' });
+  const empty = rowCounts(ctx);
+
+  const preview = await (await post('?dry_run=true')).json() as any;
+  assert.deepEqual(preview.users.map(({ user, email, rows }: any) => ({ user, email, rows })), [
+    { user: 'Ann', email: 'ann@example.com', rows: 2 },
+    { user: 'Bob', email: 'bob@example.com', rows: 1 },
+  ]);
+  assert.deepEqual(rowCounts(ctx), empty, 'the preview writes nothing');
+
+  const unselected = await post('');
+  assert.equal(unselected.status, 400);
+  assert.match(await unselected.json() as string, /2 Toggl users/);
+  assert.deepEqual(rowCounts(ctx), empty, 'a refused import writes nothing');
+
+  const ann = preview.users[0].key as string;
+  const first = await (await post(`?user=${encodeURIComponent(ann)}`)).json() as any;
+  assert.equal(first.created, 2);
+  assert.deepEqual(first.skipped, [{ rows: 1, reason: 'Rows from Bob <bob@example.com> were not selected' }]);
+  assert.deepEqual(first.created_projects, ['Ann project'], "the skipped user's project is not created");
+  const entries = async () => (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03')).body
+    .map((entry: any) => entry.description).sort();
+  assert.deepEqual(await entries(), ['Ann first', 'Ann second']);
+
+  const again = await (await post(`?user=${encodeURIComponent(ann)}`)).json() as any;
+  assert.equal(again.created, 0);
+  assert.equal(again.skipped_duplicates, 2);
+  assert.deepEqual(again.skipped, first.skipped);
+  assert.deepEqual(await entries(), ['Ann first', 'Ann second']);
+  assert.equal(rowCounts(ctx).projects, empty.projects! + 1);
+});
+
 /** Row counts of every table a JSON restore writes, so a preview can be checked to write nothing. */
 function rowCounts(ctx: TestContext): Record<string, number> {
   return Object.fromEntries(['clients', 'projects', 'tasks', 'tags', 'time_entries'].map((table) =>
