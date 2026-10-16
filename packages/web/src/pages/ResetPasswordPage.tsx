@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { api } from '../api/client.ts';
+import { ApiError, api } from '../api/client.ts';
 import { Brand } from '../components/Brand.tsx';
-import { FieldError } from '../components/FieldError.tsx';
+import { FieldError, useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 
@@ -13,6 +13,7 @@ import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 export function ResetPasswordPage({ token }: { token: string }) {
   const path = `/api/app/password-resets/${encodeURIComponent(token)}`;
   const [check, retry] = useLinkCheck<{ email: string }>(path);
+  const fields = useFieldErrors<'password'>();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,7 +27,10 @@ export function ResetPasswordPage({ token }: { token: string }) {
       await api.post(path, { password });
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // The link was checked on load, so a 400 is the server's password rules; anything else, such
+      // as a spent link or too many attempts, is about the page.
+      if (err instanceof ApiError && err.status === 400) fields.validate([['password', err.message]]);
+      else setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
   };
@@ -67,9 +71,10 @@ export function ResetPasswordPage({ token }: { token: string }) {
         <p className="muted">Choose a new password for {check.data.email}. This link works once.</p>
         {/* Lets a password manager save the new password under the right account. */}
         <input type="email" value={check.data.email} autoComplete="username" readOnly hidden />
-        <label className="field">
-          <span>New password</span>
+        <div className="field">
+          <label htmlFor={fields.id('password')}>New password</label>
           <input
+            {...fields.field('password')}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -78,7 +83,8 @@ export function ResetPasswordPage({ token }: { token: string }) {
             autoComplete="new-password"
             autoFocus
           />
-        </label>
+          {fields.message('password')}
+        </div>
         {error ? (
           <div className="auth-error">
             <Icon name="alert" className="error-icon" />

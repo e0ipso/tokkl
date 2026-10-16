@@ -52,7 +52,40 @@ test('a reset link sets a new password, ends old sessions, and the new password 
   await expect(page.getByLabel('New password')).toHaveCount(0);
 });
 
-test('a bad reset link says so and offers the login page', async ({ page, runtimeErrors, servers }) => {
+// TT-0179: the server's password rules show on the password field, which gets focus, like the
+// other password forms.
+test('a password the server rejects shows its error on the password field', async ({ page, runtimeErrors, servers }) => {
+  const server = await servers.start({ slot: 0 });
+  const { apiToken } = await createAccount(server.baseURL);
+  const account = await acceptInvite(server.baseURL, await createInvite(server.baseURL, apiToken, 'user'), 'rules@auth.example');
+  const link = await createPasswordReset(server.baseURL, apiToken, account.email);
+  runtimeErrors.allowResponse({ status: 400, method: 'POST', path: RESET_PATH, reason: 'passwords that are too short and too long' });
+
+  await page.goto(`${server.baseURL}${link}`);
+  const password = page.getByLabel('New password');
+  const submit = page.getByRole('button', { name: 'Set password' });
+  // The input's own minimum would stop a short password before the server sees it.
+  await password.evaluate((input) => input.removeAttribute('minlength'));
+  for (const [value, message] of [
+    ['short', 'Password must be at least 8 characters'],
+    ['x'.repeat(1025), 'Password must be at most 1024 characters'],
+  ] as const) {
+    await password.fill(value);
+    await submit.tap();
+    await expect(password).toHaveAttribute('aria-invalid', 'true');
+    await expect(password).toHaveAccessibleDescription(message);
+    await expect(password).toBeFocused();
+    await expect(page.locator('.auth-error')).toHaveCount(0);
+  }
+
+  // Typing clears the error, and a valid password still goes through.
+  await password.fill('long enough now');
+  await expect(password).not.toHaveAttribute('aria-invalid');
+  await submit.tap();
+  await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
+});
+
+test('a bad reset link says so and offers the login page',async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 0 });
   await createAccount(server.baseURL);
   runtimeErrors.allowResponse({ status: 404, method: 'GET', path: RESET_PATH, reason: 'an unknown reset token' });

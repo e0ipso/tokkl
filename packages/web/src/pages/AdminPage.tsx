@@ -287,7 +287,8 @@ function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: 
           }}
         >
           <strong>Password reset link for {reset.email} created.</strong> Copy it now: it is shown only once. Send it to
-          them; it works once, for 24 hours, and replaces any earlier link. Using it signs the account out everywhere.
+          them; it works once, for 24 hours, and replaces any earlier link. Using it signs the account out of every
+          browser. Their API token keeps working; they can reset it in Settings, under API token.
         </NewLink>
       ) : null}
       {deleting ? (

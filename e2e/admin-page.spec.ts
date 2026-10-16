@@ -121,6 +121,8 @@ test('an admin issues a password reset link, sees it once, and a new one replace
   await reset.click();
   await expect(linkOf).toHaveText(/^http:\/\/127\.0\.0\.1:\d+\/reset\/[\w-]+$/);
   await expect(page.locator('#users')).toContainText('works once, for 24 hours');
+  // TT-0179: a reset does not rotate the API token, so the admin is told it keeps working.
+  await expect(page.locator('#users')).toContainText('Their API token keeps working');
   const first = (await linkOf.textContent())!.split('/reset/')[1]!;
   const check = (token: string) => page.request.get(`/api/app/password-resets/${token}`);
   expect(await (await check(first)).json()).toEqual({ email: rita.account.email });
