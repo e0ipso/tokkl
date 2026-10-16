@@ -2,7 +2,8 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  EntityApi, entryRow, expectSameDocument, markDocument, rowAction, timerPickerProjects, yesterday, type Entry,
+  EntityApi, entryRow, expectSameDocument, markDocument, rowAction, rowActionByKeyboard, rowMenu, timerPickerProjects, yesterday,
+  type Entry,
 } from './entity-tests-helpers.ts';
 
 /** The fields an entry must keep when its project goes away. */
@@ -77,13 +78,8 @@ test('closing a dialog opened from the row menu returns focus to the menu button
   const intranet = await api.createProject({ name: 'Intranet' });
   await api.createProject({ name: 'Website' });
   await page.getByRole('link', { name: 'Projects' }).click();
-  const more = (name: string) => page.getByRole('button', { name: `More actions for ${name}`, exact: true });
-  const choose = async (name: string, action: string) => {
-    await more(name).focus();
-    await page.keyboard.press('Enter');
-    await page.getByRole('menuitem', { name: action, exact: true }).focus();
-    await page.keyboard.press('Enter');
-  };
+  const more = (name: string) => rowMenu(page, name);
+  const choose = (name: string, action: string) => rowActionByKeyboard(page, name, action);
 
   await choose('Website', 'Delete');
   const dialog = page.getByRole('dialog', { name: 'Delete Website?' });
@@ -96,6 +92,40 @@ test('closing a dialog opened from the row menu returns focus to the menu button
   await choose('Intranet', 'Archive');
   await expect.poll(async () => (await api.project(intranet.id)).active).toBe(false);
   await expect(page.getByRole('button', { name: 'Edit Intranet' })).toHaveCount(0);
+});
+
+// TT-0200: a row that leaves the list after an action from its menu takes the focused menu button
+// with it, so focus moves to the next row, else the previous one, else the page heading.
+test('archiving or deleting a project by keyboard keeps focus in the projects list', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  for (const name of ['Alpha', 'Beta', 'Gamma']) await api.createProject({ name });
+  await page.getByRole('link', { name: 'Projects' }).click();
+  const edit = (name: string) => page.getByRole('button', { name: `Edit ${name}`, exact: true });
+
+  await rowActionByKeyboard(page, 'Beta', 'Archive');
+  await expect(edit('Beta')).toHaveCount(0);
+  await expect(rowMenu(page, 'Gamma')).toBeFocused();
+
+  await rowActionByKeyboard(page, 'Gamma', 'Archive');
+  await expect(edit('Gamma')).toHaveCount(0);
+  await expect(rowMenu(page, 'Alpha')).toBeFocused();
+
+  await rowActionByKeyboard(page, 'Alpha', 'Delete');
+  const dialog = page.getByRole('dialog', { name: 'Delete Alpha?' });
+  await dialog.getByRole('button', { name: 'Delete project' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByText('No projects match these filters')).toBeVisible();
+  const heading = page.getByRole('heading', { level: 1, name: 'Projects' });
+  await expect(heading).toBeFocused();
+  await expect(heading).toHaveCSS('outline-width', '2px');
+
+  // A row that stays in the list, as under All, keeps focus on its own menu button.
+  await page.getByRole('group', { name: 'Project status' }).getByRole('button', { name: 'All' }).click();
+  await rowActionByKeyboard(page, 'Beta', 'Restore');
+  await expect.poll(async () => (await api.projects()).find((project) => project.name === 'Beta')?.active).toBe(true);
+  await expect(rowMenu(page, 'Beta')).toBeFocused();
 });
 
 test('deleting a project and keeping its entries clears their project and refreshes the report', async ({ page }) => {

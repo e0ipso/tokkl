@@ -154,6 +154,19 @@ export async function rowAction(page: Page, name: string, action: string): Promi
   await page.getByRole('menuitem', { name: action }).click();
 }
 
+/** The "More actions" button of the row named `name`. */
+export function rowMenu(page: Page, name: string): Locator {
+  return page.getByRole('button', { name: `More actions for ${name}`, exact: true });
+}
+
+/** Opens the row menu of `name` and picks `action`, by keyboard only. */
+export async function rowActionByKeyboard(page: Page, name: string, action: string): Promise<void> {
+  await rowMenu(page, name).focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: action, exact: true }).focus();
+  await page.keyboard.press('Enter');
+}
+
 /** Names of the projects the timer's project picker offers, then closes it. */
 export async function timerPickerProjects(page: Page): Promise<string[]> {
   const timer = page.getByRole('region', { name: 'Timer' });

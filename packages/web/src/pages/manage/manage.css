@@ -120,8 +120,11 @@
 .settings-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
 .settings-subheading { margin: 16px 0 6px; }
 .settings-card-head + .settings-subheading { margin-top: 0; }
-/* A section title takes focus when the row that had it goes away (pages/AdminPage.tsx); same ring as controls. */
-.settings-card h2[tabindex]:focus-visible, .settings-subheading[tabindex]:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+/* A page or section title takes focus when the last row goes away (manage/rowFocus.ts); same ring as controls. */
+.page-header h1[tabindex]:focus-visible, .settings-card h2[tabindex]:focus-visible, .settings-subheading[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
 .settings-row { margin-top: 10px; align-items: center; flex-wrap: wrap; }
 .settings-notice {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
