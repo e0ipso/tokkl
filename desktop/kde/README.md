@@ -176,8 +176,15 @@ sets its `connection` to the widget's `TokklConnection`.
   after a resume (a clock tick more than 10 seconds late) and when the
   connection comes back. Projects are read on connect, resume and reconnection,
   200 a page with `page` and `per_page` until a page comes back short. When the
-  running entry's project is not among the active ones it is read on its own
+  chosen project (the running entry's, or the next start's while stopped) is
+  not among the active ones it is read on its own
   (`GET /api/v9/workspaces/{wid}/projects/{id}`) so the menu can name it.
+- `indicatorState` says what the panel can show for that project: `None`
+  without a project or when the read answered 404, `Pending` while its
+  details are still unknown, and `Project` once they are, archived projects
+  included. `indicatorColor` is the project's colour in the `Project` state
+  when it is `#rrggbb`, and an invalid colour otherwise. `indicatorChanged`
+  fires whenever either changes.
 - Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
   `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
   an empty description and the selected project and billable choice. Stop

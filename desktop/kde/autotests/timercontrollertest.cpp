@@ -76,6 +76,21 @@ QByteArray projectsBody(qint64 workspace)
         .toUtf8();
 }
 
+QJsonObject projectObject(qint64 id, qint64 workspace, const QString &color, bool active = true)
+{
+    return QJsonObject{{QStringLiteral("id"), id},
+                       {QStringLiteral("workspace_id"), workspace},
+                       {QStringLiteral("name"), QStringLiteral("P%1").arg(id)},
+                       {QStringLiteral("color"), color},
+                       {QStringLiteral("active"), active},
+                       {QStringLiteral("billable"), false}};
+}
+
+QByteArray json(const QJsonObject &object)
+{
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
 // A page of distinct active projects of the workspace, ids first .. first + count - 1.
 QByteArray projectPage(int first, int count, qint64 workspace)
 {
@@ -1164,6 +1179,153 @@ private Q_SLOTS:
         QVERIFY(f.timer.stop());
         QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.host(),
                  switchInstance ? QStringLiteral("b.example.test") : QStringLiteral("a.example.test"));
+    }
+
+    void indicatorFollowsTheRunningEntry()
+    {
+        Fixture f;
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
+
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceA);
+        QVERIFY(QTest::qWaitFor([&] {
+            return f.transport.requests.size() == 1;
+        }));
+        f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        // The project is not known until the project list answers.
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 1);
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(f.timer.indicatorColor(), QColor(0x06, 0xaa, 0xf5));
+        QCOMPARE(indicator.count(), 2);
+
+        // An entry without a project shows nothing.
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 3);
+    }
+
+    void indicatorResolvesProjectsMissingFromTheList_data()
+    {
+        QTest::addColumn<bool>("running");
+        QTest::newRow("running entry") << true;
+        QTest::newRow("next start") << false;
+    }
+
+    void indicatorResolvesProjectsMissingFromTheList()
+    {
+        QFETCH(bool, running);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, running ? entryBody(5, 7, startedAt, true, 33) : QByteArray("null")));
+        if (!running) {
+            f.timer.setSelectedProjectId(33);
+        }
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 33);
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
+        const qsizetype archived = f.last("GET", "/projects/33");
+        QVERIFY(f.unanswered(archived));
+
+        // Archived: known, with its colour, whatever the case of the digits.
+        QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
+        f.respond(archived, FakeTransport::answer(200, json(projectObject(33, 7, QStringLiteral("#9E5BD9"), false))));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(f.timer.indicatorColor(), QColor(0x9e, 0x5b, 0xd9));
+        QCOMPARE(indicator.count(), 1);
+
+        // Deleted on the server: 404 gives None.
+        if (running) {
+            poll(f);
+            f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 44)));
+        } else {
+            f.timer.setSelectedProjectId(44);
+        }
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
+        f.respond(f.last("GET", "/projects/44"), FakeTransport::answer(404, "\"Project not found\""));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 3);
+        if (running) {
+            // entryProject keeps the id without a name, as before.
+            QCOMPARE(f.timer.entryProject()->id, 44);
+            QVERIFY(f.timer.entryProject()->name.isEmpty());
+        } else {
+            QVERIFY(!f.timer.entryProject());
+        }
+        QCOMPARE(f.find("GET", "/projects/44").size(), 1);
+    }
+
+    void indicatorColorMustBeHex_data()
+    {
+        QTest::addColumn<QString>("color");
+        QTest::newRow("empty") << QString();
+        QTest::newRow("short") << QStringLiteral("#abc");
+        QTest::newRow("long") << QStringLiteral("#06aaf5ff");
+        QTest::newRow("no hash") << QStringLiteral("06aaf5");
+        QTest::newRow("name") << QStringLiteral("red");
+        QTest::newRow("not hex") << QStringLiteral("#06aaf g");
+        QTest::newRow("trailing space") << QStringLiteral("#06aaf5 ");
+    }
+
+    void indicatorColorMustBeHex()
+    {
+        QFETCH(QString, color);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        f.timer.refresh();
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(12, 7, color)) + "]"));
+        QVERIFY(f.timer.chooseProject(12));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+    }
+
+    void indicatorChangesAreSignalled()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QSignalSpy indicator(&f.timer, &TimerController::indicatorChanged);
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+
+        // A choice.
+        QVERIFY(f.timer.chooseProject(11));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(indicator.count(), 1);
+
+        // A start: the running entry's project counts, here none.
+        QVERIFY(f.timer.start());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QCOMPARE(indicator.count(), 2);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
+        QCOMPARE(indicator.count(), 2);
+
+        // A stop of an entry on a project: the next start takes it.
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(22, 7, startedAt, true, 11)));
+        QCOMPARE(indicator.count(), 3);
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(22, 7, startedAt, false, 11)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(indicator.count(), 3);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+
+        // A projects reload with a new colour.
+        f.timer.refresh();
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(11, 7, QStringLiteral("#d92b2b"))) + "]"));
+        QCOMPARE(f.timer.indicatorColor(), QColor(0xd9, 0x2b, 0x2b));
+        QCOMPARE(indicator.count(), 4);
+
+        // A new generation clears it.
+        f.connection.setInstanceUrl(instanceB);
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(indicator.count(), 5);
     }
 
     void incompleteProjectListFollowsTheConnection()

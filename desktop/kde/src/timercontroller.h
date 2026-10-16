@@ -4,6 +4,7 @@
 #include "clock.h"
 #include "connection.h"
 
+#include <QColor>
 #include <QDateTime>
 #include <QObject>
 #include <QPointer>
@@ -73,6 +74,14 @@ public:
     };
     Q_ENUM(Status)
 
+    // What the panel indicator can show for chosenProjectId.
+    enum class IndicatorState {
+        None, // no project, or the instance no longer has it (404)
+        Pending, // the project's details are still being read
+        Project, // the project is known, archived or not
+    };
+    Q_ENUM(IndicatorState)
+
 private:
     Q_PROPERTY(Tokkl::Connection *connection READ connection WRITE setConnection NOTIFY connectionChanged)
 
@@ -117,6 +126,11 @@ private:
     // and so missing from projects; null without one or while unresolved. A
     // project the instance no longer has is a map with an empty name.
     Q_PROPERTY(QVariant entryProject READ entryProjectVariant NOTIFY entryProjectChanged)
+    // The project behind chosenProjectId for the panel indicator, and its
+    // colour. The colour is valid only in the Project state and for a
+    // #rrggbb value.
+    Q_PROPERTY(IndicatorState indicatorState READ indicatorState NOTIFY indicatorChanged)
+    Q_PROPERTY(QColor indicatorColor READ indicatorColor NOTIFY indicatorChanged)
 
 public:
     static constexpr int pollIntervalMs = 30000;
@@ -159,6 +173,8 @@ public:
     bool chosenBillable() const;
     std::optional<Project> entryProject() const;
     QVariant entryProjectVariant() const;
+    IndicatorState indicatorState() const;
+    QColor indicatorColor() const;
 
     static QString formatElapsed(qint64 seconds);
 
@@ -190,6 +206,7 @@ Q_SIGNALS:
     void selectionChanged();
     void choiceChanged();
     void entryProjectChanged();
+    void indicatorChanged();
 
 private:
     void onTick();
@@ -203,8 +220,15 @@ private:
     void setNextStart(std::optional<qint64> projectId, bool billable);
     void decideNextStart();
     bool updateEntry(const TimeEntryUpdate &update);
-    void resolveEntryProject();
+    std::optional<qint64> chosenProject() const;
+    // The details of a project: from projects, else from the single-project
+    // read. gone is set when that read answered 404.
+    std::optional<Project> knownProject(qint64 id, bool *gone = nullptr) const;
+    // Reads the chosen project when projects lacks it, then updates
+    // entryProject and the indicator.
+    void resolveProject();
     void setEntryProject(const std::optional<Project> &project);
+    void updateIndicator();
     void finishMutation(const ApiError &error, bool succeeded);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
@@ -231,7 +255,13 @@ private:
     // The project list of this context was read at least once.
     bool m_projectsKnown = false;
     std::optional<Project> m_entryProject;
-    qint64 m_entryProjectPending = 0; // id of the project read in flight, or 0
+    // The last project read on its own, because projects lacked it, and
+    // whether the instance answered 404 for it.
+    std::optional<Project> m_lookedUp;
+    bool m_lookedUpGone = false;
+    qint64 m_lookupPending = 0; // id of the project read in flight, or 0
+    IndicatorState m_indicatorState = IndicatorState::None;
+    QColor m_indicatorColor;
     qint64 m_elapsed = 0;
     QString m_error;
 

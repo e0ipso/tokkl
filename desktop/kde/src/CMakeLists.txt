@@ -29,6 +29,7 @@ target_compile_definitions(tokklcore PRIVATE
 target_link_libraries(tokklcore
     PUBLIC
         Qt6::Core
+        Qt6::Gui
         Qt6::Network
     PRIVATE
         KF6::Wallet

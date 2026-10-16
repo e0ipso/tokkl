@@ -47,7 +47,7 @@ include(ECMQmlModule)
 include(ECMFindQmlModule)
 include(FeatureSummary)
 
-find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Network Qml Quick)
+find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Gui Network Qml Quick)
 find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Wallet Package)
 find_package(Plasma ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
 
