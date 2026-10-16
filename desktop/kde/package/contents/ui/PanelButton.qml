@@ -8,8 +8,9 @@ import org.kde.plasma.components as PlasmaComponents
 
 import com.github.e0ipso.tokkl.backend
 
-// The panel item: the Tokkl icon, a running or stopped symbol, the elapsed
-// time and, unless the timer is ready, a symbol for its state.
+// The panel item: the Tokkl icon, a running or stopped symbol, the project
+// indicator, the elapsed time and, unless the timer is ready, a symbol for
+// its state.
 //
 // Left click, Space or Return starts or stops the timer. Right click, the
 // Menu key or Shift+F10 opens the menu. Tab focuses the item and a frame
@@ -92,6 +93,13 @@ MouseArea {
             Layout.preferredWidth: Kirigami.Units.iconSizes.small
             Layout.preferredHeight: Kirigami.Units.iconSizes.small
             source: button.timer.running ? "media-playback-playing" : "media-playback-stopped"
+        }
+
+        ProjectIndicator {
+            objectName: "projectIndicator"
+            Layout.preferredWidth: implicitWidth
+            Layout.preferredHeight: implicitHeight
+            timer: button.timer
         }
 
         PlasmaComponents.Label {

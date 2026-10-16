@@ -2,7 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { claimDataDir } from './e2e/data-dir-lock.ts';
 
 const port = Number(process.env.E2E_PORT ?? 8095);
 // The instance project's own server. Its specs need the whole server to themselves.
@@ -12,13 +13,23 @@ const instancePort = Number(process.env.E2E_INSTANCE_PORT ?? port + 1);
 // first load picks a fresh path for the run; the servers create their directories when they
 // start, so `--list` creates nothing. The process that picked the path deletes it when it exits,
 // whether the run passed or failed.
+//
+// A preset TOKKL_E2E_DATA_DIR is used as is, and the first load claims it for this run (see
+// e2e/data-dir-lock.ts): a second run on the same directory fails here, before any server starts.
+// TOKKL_E2E_DATA_DIR_CLAIMED tells later loads, in the workers, that the runner has done this.
 let dataDir = process.env.TOKKL_E2E_DATA_DIR;
 if (!dataDir) {
   const runDir = join(tmpdir(), `tokkl-e2e-${randomUUID()}`);
   dataDir = process.env.TOKKL_E2E_DATA_DIR = runDir;
+  process.env.TOKKL_E2E_DATA_DIR_CLAIMED = '1';
   process.on('exit', () => {
     for (const dir of [runDir, `${runDir}-instance`]) rmSync(dir, { recursive: true, force: true });
   });
+} else if (!process.env.TOKKL_E2E_DATA_DIR_CLAIMED) {
+  // The servers run in this file's directory, so a relative path is resolved from here too.
+  const release = claimDataDir(resolve(import.meta.dirname, dataDir));
+  process.env.TOKKL_E2E_DATA_DIR_CLAIMED = '1';
+  process.on('exit', release);
 }
 
 // Specs that need the whole server: they sign in as the setup admin, list every account or invite,
@@ -43,6 +54,8 @@ function server(serverPort: number, serverDataDir: string) {
 
 export default defineConfig<object, { instanceWide: boolean }>({
   testDir: 'e2e',
+  // Only specs. e2e/*.test.ts files are node --test unit tests for the e2e tooling (npm test).
+  testMatch: /\.spec\.ts$/,
   globalSetup: './e2e/global-setup.ts',
   // Half the CPU cores; pass --workers to change it. The instance project never uses more than one.
   workers: '50%',

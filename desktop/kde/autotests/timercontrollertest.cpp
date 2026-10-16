@@ -1356,6 +1356,119 @@ private Q_SLOTS:
         QCOMPARE(f.find("GET", "/projects/44").size(), 1);
     }
 
+    void lookedUpProjectIsReadAgainOnRefresh_data()
+    {
+        QTest::addColumn<bool>("running");
+        QTest::addColumn<bool>("viaReconnect");
+        QTest::newRow("running entry, reconnect") << true << true;
+        QTest::newRow("running entry, projects reload") << true << false;
+        QTest::newRow("next start, reconnect") << false << true;
+        QTest::newRow("next start, projects reload") << false << false;
+    }
+
+    void lookedUpProjectIsReadAgainOnRefresh()
+    {
+        QFETCH(bool, running);
+        QFETCH(bool, viaReconnect);
+        const QByteArray current = running ? entryBody(5, 7, startedAt, true, 33) : QByteArray("null");
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, current));
+        if (!running) {
+            f.timer.setSelectedProjectId(33);
+        }
+        f.respond(f.last("GET", "/projects/33"), FakeTransport::answer(200, json(projectObject(33, 7, QStringLiteral("#9e5bd9"), false))));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(f.find("GET", "/projects/33").size(), 1);
+
+        // Project 33 is deleted on the server, then the projects are refreshed.
+        const qsizetype before = f.transport.requests.size();
+        if (viaReconnect) {
+            f.timer.reconnect();
+        } else {
+            f.timer.refresh();
+        }
+        const qsizetype read = f.last("GET", currentPath);
+        QVERIFY(read >= before);
+        f.respond(read, FakeTransport::answer(200, current));
+        const qsizetype list = f.last("GET", "/projects");
+        QVERIFY(list >= before);
+        f.respond(list, FakeTransport::answer(200, projectsBody(7)));
+        QCOMPARE(f.find("GET", "/projects/33").size(), 2);
+        const qsizetype again = f.last("GET", "/projects/33");
+        QVERIFY(f.unanswered(again));
+        // The known project stays on show while it is read again.
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+
+        // Another refresh and a poll while that read is out ask nothing more.
+        f.timer.refresh();
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QCOMPARE(f.find("GET", "/projects/33").size(), 2);
+
+        // That read began before the second reload, so its answer is shown
+        // and checked once more (TT-0215).
+        f.respond(again, FakeTransport::answer(404, "\"Project not found\""));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        QVERIFY(!f.timer.indicatorColor().isValid());
+        QCOMPARE(f.find("GET", "/projects/33").size(), 3);
+        f.respond(f.last("GET", "/projects/33"), FakeTransport::answer(404, "\"Project not found\""));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QCOMPARE(f.find("GET", "/projects/33").size(), 3);
+    }
+
+    void lookupFromBeforeAReloadIsReadAgain_data()
+    {
+        QTest::addColumn<bool>("cached");
+        QTest::newRow("revalidation") << true;
+        QTest::newRow("first read") << false;
+    }
+
+    void lookupFromBeforeAReloadIsReadAgain()
+    {
+        QFETCH(bool, cached);
+        const QByteArray current = entryBody(5, 7, startedAt, true, 33);
+        const QByteArray archived = json(projectObject(33, 7, QStringLiteral("#9e5bd9"), false));
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, current));
+        qsizetype older = f.last("GET", "/projects/33");
+        if (cached) {
+            // Known from a first read, then read again after a reload.
+            f.respond(older, FakeTransport::answer(200, archived));
+            f.timer.refresh();
+            f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+            f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+            older = f.last("GET", "/projects/33");
+        }
+        QVERIFY(f.unanswered(older));
+        const qsizetype reads = f.find("GET", "/projects/33").size();
+
+        // Project 33 is deleted, a reload completes, then the older read
+        // answers with the project as it was.
+        f.timer.refresh();
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        QCOMPARE(f.find("GET", "/projects/33").size(), reads);
+        f.respond(older, FakeTransport::answer(200, archived));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+
+        // One follow-up read, and its 404 gives None.
+        QCOMPARE(f.find("GET", "/projects/33").size(), reads + 1);
+        const qsizetype followUp = f.last("GET", "/projects/33");
+        QVERIFY(f.unanswered(followUp));
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QCOMPARE(f.find("GET", "/projects/33").size(), reads + 1);
+        f.respond(followUp, FakeTransport::answer(404, "\"Project not found\""));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QCOMPARE(f.find("GET", "/projects/33").size(), reads + 1);
+    }
+
     void indicatorColorMustBeHex_data()
     {
         QTest::addColumn<QString>("color");

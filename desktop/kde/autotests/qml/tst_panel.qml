@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import org.kde.kirigami as Kirigami
 
 import com.github.e0ipso.tokkl.backend
 import Tokkl.Test
@@ -24,6 +25,8 @@ TestCase {
 
     property PanelFixture fixture
     property PanelButton button
+    // Kirigami.Units.longDuration before a test changed it, or -1.
+    property int longDurationBefore: -1
 
     Component {
         id: fixtureComponent
@@ -184,6 +187,10 @@ TestCase {
 
     // The panel item goes first: its bindings read the fixture's timer.
     function cleanup() {
+        if (longDurationBefore >= 0) {
+            fixture.setLongDuration(longDurationBefore);
+            longDurationBefore = -1;
+        }
         button.menu.dismiss();
         button.destroy();
         wait(0);
@@ -633,6 +640,249 @@ TestCase {
         compare(Object.keys(seen).length, 7);
         delete seen["Connected"];
         compare(new Set(Object.values(seen)).size, 6);
+    }
+
+    // ----- project indicator -----------------------------------------------
+
+    function colored(id, name, color, active) {
+        return Object.assign(project(id, 7, name, false, active), {
+            color: color
+        });
+    }
+
+    // The WCAG 2 contrast ratio of two colours.
+    function contrast(a, b) {
+        function channel(c) {
+            return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        }
+        function luminance(c) {
+            return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
+        }
+        const la = luminance(a);
+        const lb = luminance(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    }
+
+    function indicator() {
+        return findChild(button, "projectIndicator");
+    }
+
+    // The colour of the panel item at a point of the indicator's shape.
+    function shapePixel(x, y) {
+        const shape = findChild(button, "indicatorShape");
+        const point = shape.mapToItem(button, x, y);
+        return grabImage(button).pixel(Math.floor(point.x), Math.floor(point.y));
+    }
+
+    function test_indicatorSitsBetweenTheRunSymbolAndTheTime() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const ind = indicator();
+        const runIcon = findChild(button, "runIcon");
+        const label = findChild(button, "elapsedLabel");
+        const left = ind.mapToItem(button, 0, 0).x;
+        verify(left >= runIcon.mapToItem(button, runIcon.width, 0).x, "right of the run symbol");
+        verify(left + ind.width <= label.mapToItem(button, 0, 0).x, "left of the elapsed time");
+        verify(ind.width > 0);
+        verify(ind.Accessible.ignored, "decoration only; the words carry the project");
+    }
+
+    function test_runningProjectPulsesInItsColour() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const ind = indicator();
+        verify(ind.filled);
+        verify(!ind.dashed);
+        verify(ind.round, "a dot while running");
+        verify(Qt.colorEqual(ind.fillColor, "#06aaf5"), ind.fillColor);
+        verify(ind.pulsing, "the dot pulses");
+        tryVerify(() => ind.fillOpacity < 0.9, 3000, "its opacity moves");
+
+        const fill = findChild(button, "indicatorFill");
+        verify(fill.visible);
+        compare(fill.radius, fill.width / 2);
+        verify(fill.border.width >= 1, "a ring surrounds the fill");
+        verify(Qt.colorEqual(fill.border.color, Kirigami.Theme.textColor), "the ring is in the text colour");
+        verify(!findChild(button, "indicatorOutline").visible);
+
+        verify(button.words.summary.indexOf("Alpha") >= 0, button.words.summary);
+        verify(button.Accessible.description.indexOf("Running 0:01:05 · Alpha") === 0, button.Accessible.description);
+    }
+
+    function test_stoppedProjectIsAStillSquare() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        verify(button.timer.chooseProject(11));
+        const ind = indicator();
+        verify(ind.filled);
+        verify(!ind.round, "a square while stopped");
+        verify(!ind.pulsing, "still");
+        compare(ind.fillOpacity, 1);
+        const fill = findChild(button, "indicatorFill");
+        verify(fill.radius < fill.width / 2);
+        verify(button.Accessible.description.indexOf("Stopped 0:00:00 · Alpha") === 0, button.Accessible.description);
+
+        // Drawn: the project colour inside, the text colour on the ring.
+        const shape = findChild(button, "indicatorShape");
+        tryVerify(() => Qt.colorEqual(shapePixel(shape.width / 2, shape.height / 2), "#06aaf5"), 3000, "filled with the project colour");
+        tryVerify(() => Qt.colorEqual(shapePixel(0, shape.height / 2), ind.ringColor), 3000, "ringed in the text colour");
+        verify(Qt.colorEqual(ind.ringColor, Kirigami.Theme.textColor));
+    }
+
+    function test_noProjectIsADashedOutline() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        const ind = indicator();
+        verify(ind.dashed, "a dashed square while stopped");
+        verify(!ind.filled);
+        verify(!ind.round);
+        verify(!ind.pulsing);
+        verify(findChild(button, "indicatorOutline").visible);
+        verify(!findChild(button, "indicatorFill").visible);
+        verify(button.Accessible.description.indexOf("Stopped 0:00:00 · No project") === 0, button.Accessible.description);
+        const width = ind.width;
+
+        // Drawn: inside its corners, the left side has dashes in the text
+        // colour and gaps between them.
+        const shape = findChild(button, "indicatorShape");
+        function leftSide() {
+            const image = grabImage(button);
+            const origin = shape.mapToItem(button, 0, 0);
+            const ink = [];
+            for (let y = 1; y < shape.height - 1; ++y) {
+                ink.push(Qt.colorEqual(image.pixel(Math.floor(origin.x), Math.floor(origin.y) + y), ind.ringColor));
+            }
+            return ink;
+        }
+        tryVerify(() => {
+            const ink = leftSide();
+            return ink.indexOf(true) >= 0 && ink.indexOf(false) >= 0;
+        }, 3000, "a dashed side");
+
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        fixture.respond(waitFor("POST", "/workspaces/7/time_entries"), 200, JSON.stringify(entry(9, 7, null, false)));
+        answer("GET", "/me/time_entries/current", 200, entry(9, 7, null, false));
+        tryCompare(button.timer, "running", true);
+        verify(ind.dashed, "a dashed circle while running");
+        verify(ind.round);
+        compare(ind.width, width);
+        verify(button.words.summary.indexOf("No project") >= 0, button.words.summary);
+    }
+
+    function test_pendingProjectLeavesTheSlotEmpty() {
+        fixture.configure(instanceA, "tok-3");
+        answer("GET", "/me", 200, meBody(3, 7));
+        answer("GET", "/me/time_entries/current", 200, entry(5, 7, 33, true));
+        answer("GET", "/projects", 200, [project(11, 7, "Alpha", true)]);
+        tryCompare(button.timer, "indicatorState", TokklTimer.IndicatorState.Pending);
+        const ind = indicator();
+        verify(!ind.filled);
+        verify(!ind.dashed);
+        verify(!findChild(button, "indicatorFill").visible);
+        verify(!findChild(button, "indicatorOutline").visible);
+        verify(!ind.pulsing, "nothing to pulse");
+        const width = ind.width;
+        const rowWidth = button.implicitWidth;
+        verify(width > 0, "the slot keeps its width");
+
+        answer("GET", "/projects/33", 200, colored(33, "Legacy", "#9e5bd9", false));
+        tryVerify(() => ind.filled, 3000, "filled once known");
+        verify(Qt.colorEqual(ind.fillColor, "#9e5bd9"));
+        compare(ind.width, width);
+        compare(button.implicitWidth, rowWidth, "the row does not change size");
+    }
+
+    function test_invalidColourFallsBackToTheTextColour() {
+        connectAccount(instanceA, 3, 7, undefined, [colored(11, "Alpha", "blue"), colored(12, "Beta", "#06aaf")]);
+        answer("GET", "/me/time_entries", 200, []);
+        const ind = indicator();
+        for (const id of [11, 12]) {
+            verify(button.timer.chooseProject(id));
+            compare(button.timer.indicatorState, TokklTimer.IndicatorState.Project);
+            verify(ind.filled, "a solid shape");
+            verify(Qt.colorEqual(ind.fillColor, Kirigami.Theme.textColor), "in the text colour");
+        }
+    }
+
+    function test_reducedMotionStopsThePulse() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const ind = indicator();
+        verify(!ind.reducedMotion);
+        verify(ind.pulsing);
+
+        // Plasma's Animation speed at "Instant" gives longDuration 1.
+        longDurationBefore = fixture.setLongDuration(1);
+        verify(longDurationBefore > 1, "Kirigami.Units is reachable");
+        verify(ind.reducedMotion);
+        verify(!ind.pulsing, "no pulse");
+        compare(ind.fillOpacity, 1, "steady at full opacity");
+        fixture.advance(1000);
+        wait(100);
+        compare(ind.fillOpacity, 1);
+
+        fixture.setLongDuration(0);
+        verify(!ind.pulsing);
+
+        fixture.setLongDuration(longDurationBefore);
+        verify(ind.pulsing, "the pulse comes back with the setting");
+    }
+
+    function test_pulseFadesOnlyTheFill() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const ind = indicator();
+        const shape = findChild(button, "indicatorShape");
+        const fill = findChild(button, "indicatorFill");
+        tryVerify(() => Math.min(shape.opacity, fill.opacity) < 0.45, 3000, "the pulse reaches its low point");
+        compare(shape.opacity, 1, "the shape as a whole stays opaque");
+        verify(fill.opacity < 0.45, "the fill fades");
+        const ring = findChild(button, "indicatorRing");
+        verify(ring, "the ring is drawn on its own");
+        verify(ring.visible);
+        compare(ring.opacity, 1, "the ring never fades");
+        verify(ring.border.width >= 1);
+        verify(Qt.colorEqual(ring.border.color, ind.ringColor));
+        // As drawn, the ring's edge keeps 3:1 against the background next to it.
+        const edge = shapePixel(0, shape.height / 2);
+        const outside = shapePixel(-1, shape.height / 2);
+        const ratio = contrast(edge, outside);
+        verify(ratio >= 3, "ring " + edge + " on " + outside + ": " + ratio);
+    }
+
+    function test_dashedOutlineNeverFades() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, null, true));
+        const ind = indicator();
+        verify(ind.dashed);
+        verify(ind.round);
+        const shape = findChild(button, "indicatorShape");
+        const outline = findChild(button, "indicatorOutline");
+        // A whole pulse cycle is 1.6 s.
+        for (let i = 0; i < 36; ++i) {
+            compare(shape.opacity, 1, "the shape stays opaque");
+            compare(outline.opacity, 1, "the outline stays opaque");
+            wait(50);
+        }
+        verify(!ind.pulsing, "only a fill pulses");
+    }
+
+    function test_hiddenIndicatorStopsThePulse() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const ind = indicator();
+        const fill = findChild(button, "indicatorFill");
+        verify(ind.pulsing);
+
+        ind.visible = false;
+        verify(!ind.pulsing, "a hidden item does not pulse");
+        compare(fill.opacity, 1, "the fill is back at full opacity");
+        ind.visible = true;
+        verify(ind.pulsing, "showing it again restarts the pulse");
+
+        const window = button.Window.window;
+        window.visible = false;
+        try {
+            verify(!ind.pulsing, "a hidden window does not pulse");
+            compare(fill.opacity, 1);
+        } finally {
+            window.visible = true;
+        }
+        tryVerify(() => ind.pulsing, 3000, "the pulse restarts with the window");
     }
 
     // ----- accounts --------------------------------------------------------

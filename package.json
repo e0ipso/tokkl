@@ -16,7 +16,7 @@
     "build": "npm run build --workspaces --if-present",
     "start": "node packages/api/src/index.ts",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc -p e2e/tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p bench/tsconfig.json && tsc -p desktop/kde/tests/tsconfig.json",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && node --test --test-reporter=spec 'e2e/**/*.test.ts'",
     "test:e2e": "npm run build && playwright test",
     "test:e2e:install": "playwright install --only-shell chromium",
     "bench:history": "npm run build && node bench/history.ts",

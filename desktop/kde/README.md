@@ -10,7 +10,8 @@ It has two parts:
 
 - `package/`: the widget, a QML package with plugin id `com.github.e0ipso.tokkl`.
   Its entry point is `contents/ui/main.qml`; the panel item and its menu are
-  `PanelButton.qml` and `PanelMenu.qml`.
+  `PanelButton.qml` (with its project indicator, `ProjectIndicator.qml`) and
+  `PanelMenu.qml`.
 - `src/`: the backend, a Qt/C++ QML module imported as `com.github.e0ipso.tokkl.backend`.
   The API client, credential storage, connection state and timer controller are
   in the `tokklcore` static library, which the module and the tests link.
@@ -130,8 +131,8 @@ CTest runs these checks:
 - `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
   and credential store: ticking, sleep gaps, polling, start and stop requests,
   repeated clicks, conflicts, late replies, failures and account switches.
-- `panel`: the panel item and its menu (`PanelButton.qml`, `PanelMenu.qml`)
-  in QtQuickTest, from the QML tests in `autotests/qml/`, offscreen. The
+- `panel`: the panel item, its project indicator and its menu
+  (`PanelButton.qml`, `ProjectIndicator.qml`, `PanelMenu.qml`) in QtQuickTest, from the QML tests in `autotests/qml/`, offscreen. The
   backend types come from `tokklcore` wired to the fake clock, transport and
   credential store; the test never loads `main.qml`, the real connection or a
   copy of the backend plugin. It covers clicks and keys, the menu and its
@@ -235,10 +236,23 @@ data and stops until you choose Reconnect or change the settings.
 ## Panel
 
 The panel shows the Tokkl icon, a running (playing) or stopped symbol, the
-elapsed time and, unless everything is ready, a symbol for the state. Each
-state also has its own words in the tooltip, the menu and the accessible
-description, so none relies on color: Not configured, Loading, Connected,
-Saving, Offline (the last known state), Sign-in refused and Error.
+project indicator, the elapsed time and, unless everything is ready, a symbol
+for the state. Each state also has its own words in the tooltip, the menu and
+the accessible description, so none relies on color: Not configured, Loading,
+Connected, Saving, Offline (the last known state), Sign-in refused and Error.
+
+The project indicator shows the running entry's project, or the next start's
+while stopped. A dot pulses while an entry runs and a still square shows while
+stopped. The project's colour fills it inside a thin ring in the theme's text
+colour, which keeps well over 3:1 against the panel in Breeze Light and Breeze
+Dark whatever the project colour. A project whose colour is not `#rrggbb` is
+filled with the text colour. No project draws a dashed outline of the dot or
+the square, and while the project is still being read the slot stays empty.
+The slot has the same width in every state. Only the dot's fill pulses; the
+ring and the dashed outline stay solid. The pulse stops while the panel is
+hidden, and with Plasma's Animation speed set to Instant. The tooltip and the
+accessible description name the project, or say No project, so the colour is
+never the only sign.
 
 | State           | Symbol             | Meaning                                                                                                                                                                  |
 | --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -314,7 +328,7 @@ sets its `connection` to the widget's `TokklConnection`.
   details are still unknown, and `Project` once they are, archived projects
   included. `indicatorColor` is the project's colour in the `Project` state
   when it is `#rrggbb`, and an invalid colour otherwise. `indicatorChanged`
-  fires whenever either changes. The panel item does not draw it yet.
+  fires whenever either changes. The panel's project indicator draws it.
 - Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
   `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
   an empty description and the selected project and billable choice. Stop
@@ -596,10 +610,10 @@ Install and load:
       version.
 - [ ] Add Widgets lists Tokkl, and the widget goes onto a horizontal panel.
       Record the menu path you used and whether a log out was needed.
-- [ ] The panel shows the Tokkl icon, the stopped symbol, `0:00:00` and the
-      Not configured symbol. The tooltip reads "Tokkl: Stopped 0:00:00 · Not
-      configured · Set the instance URL and credentials in the widget
-      settings." and shows the version.
+- [ ] The panel shows the Tokkl icon, the stopped symbol, a dashed square,
+      `0:00:00` and the Not configured symbol. The tooltip reads "Tokkl:
+      Stopped 0:00:00 · No project · Not configured · Set the instance URL and
+      credentials in the widget settings." and shows the version.
 - [ ] Configure opens on Connection. Test Connection is disabled until an
       address and a secret are on screen.
 
@@ -627,6 +641,11 @@ Timer:
 - [ ] Tab to the widget: a frame shows. Space and Return start and stop it.
 - [ ] Start in the web app: the panel shows it running within 30 seconds.
       Stop it in the web app: the panel stops.
+- [ ] Start on a project: a dot in the project's colour pulses left of the
+      time, and the tooltip names the project. Stop: a still square stays.
+      Check the dot against the panel in Breeze Light and Breeze Dark.
+- [ ] Set the animation speed in System Settings to Instant: the dot stops
+      pulsing and stays solid. Set it back: it pulses again.
 - [ ] Suspend and resume with the timer running: the elapsed time matches the
       web app after the resume.
 
