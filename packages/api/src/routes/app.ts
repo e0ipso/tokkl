@@ -1,7 +1,7 @@
 import express, { type Request, type Response, type Router } from 'express';
-import { MAX_PASSWORD_LENGTH, safeEqual, verifyAgainstDummy, verifyPassword } from '../auth/crypto.ts';
+import { MAX_PASSWORD_LENGTH, safeEqual } from '../auth/crypto.ts';
 import { accountCounters, passwordCounters } from '../auth/rateLimit.ts';
-import { hasCsrfHeader, requireAuth, sessionTokens } from '../auth/middleware.ts';
+import { hasCsrfHeader, requireAuth, sessionTokens, verifyAccountPassword } from '../auth/middleware.ts';
 import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, query, readJson, readText } from '../http/context.ts';
@@ -69,9 +69,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const user = findUserByEmail(db, email);
-    const valid = await loginLimiter.attempt(passwordCounters(email, address), () => (
-      user ? verifyPassword(password, user.password_hash) : verifyAgainstDummy(password)
-    ));
+    const valid = await loginLimiter.attempt(passwordCounters(email, address), () => verifyAccountPassword(user, password));
     if (valid === null) throw new HttpError(429, 'Too many failed login attempts, try again later');
     if (!user || !valid) throw forbidden('Incorrect email or password');
     // The address counter is left alone, so one account's success cannot clear failures against another.

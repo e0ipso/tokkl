@@ -1,5 +1,5 @@
 import type { Db } from '../db/index.ts';
-import { getUser, type UserRow } from '../models/users.ts';
+import { getUser, isActiveUser, type UserRow } from '../models/users.ts';
 import { generateSessionToken, sha256 } from './crypto.ts';
 
 export const SESSION_COOKIE = 'tokkl_session';
@@ -21,7 +21,8 @@ export function findSessionUser(db: Db, token: string): UserRow | undefined {
     | { user_id: number; expires_at: string }
     | undefined;
   if (!session || session.expires_at < new Date().toISOString()) return undefined;
-  return getUser(db, session.user_id);
+  const user = getUser(db, session.user_id);
+  return user && isActiveUser(user) ? user : undefined;
 }
 
 export function deleteSession(db: Db, token: string): void {

@@ -6,6 +6,7 @@ import type { Db } from './db/index.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { HttpError } from './lib/errors.ts';
+import { adminRoutes } from './routes/admin.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { togglV9Routes } from './routes/togglV9.ts';
@@ -93,6 +94,7 @@ export function createApp({ db, config, setup }: AppOptions): Express {
 
   app.use('/api/v9', togglV9Routes(deps));
   app.use('/reports/api/v3', reportsV3Routes(deps));
+  app.use('/api/app/admin', adminRoutes(deps));
   app.use('/api/app', appRoutes(deps, setup), appReportRoutes(deps));
   app.use(['/api', '/reports/api'], (req, res) => {
     res.status(404).json('Not found');

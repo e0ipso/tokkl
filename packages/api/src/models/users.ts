@@ -119,6 +119,35 @@ export function findUserByApiToken(db: Db, token: string): UserRow | undefined {
   return db.prepare('SELECT * FROM users WHERE api_token = ?').get(token) as UserRow | undefined;
 }
 
+/** False once an admin has suspended the account. A suspended account cannot sign in by any method. */
+export function isActiveUser(user: UserRow): boolean {
+  return user.disabled_at === null;
+}
+
+export function isActiveAdmin(user: UserRow): boolean {
+  return user.role === 'admin' && isActiveUser(user);
+}
+
+export function listUsers(db: Db): UserRow[] {
+  return db.prepare('SELECT * FROM users ORDER BY id').all() as unknown as UserRow[];
+}
+
+export function countActiveAdmins(db: Db): number {
+  return (db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled_at IS NULL").get() as { n: number }).n;
+}
+
+/** The account fields an instance admin sees. Never includes the API token, password hash or preferences. */
+export function serializeAccount(user: UserRow) {
+  return {
+    id: user.id,
+    email: user.email,
+    fullname: user.fullname,
+    role: user.role,
+    created_at: togglTime(user.created_at),
+    disabled_at: togglTime(user.disabled_at),
+  };
+}
+
 /** Creates the first admin and the workspace it owns in one transaction. Refuses once any user exists. */
 export async function createFirstAdmin(
   db: Db,
