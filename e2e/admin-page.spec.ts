@@ -177,7 +177,7 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await inviteDays.fill('3');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
-  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3 });
+  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
   runtimeErrors.allowResponse({
     status: 400, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'invite_days 91 is over the 90-day limit',
@@ -187,13 +187,46 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await expect(await describedError(inviteDays)).toHaveText('Invalid invite_days: expected an integer from 1 to 90');
   await expect(inviteDays).toBeFocused();
   await expect(sessionDays).not.toHaveAttribute('aria-invalid', 'true');
-  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3 });
+  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
   // Typing clears the error; a value that is not a whole number never reaches the server.
   await inviteDays.fill('');
   await expect(inviteDays).not.toHaveAttribute('aria-invalid', 'true');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(await describedError(inviteDays)).toHaveText('Enter a whole number of days');
+});
+
+test('an admin saves the time resolution, sees it after a reload, and sees the server error for a value that does not divide an hour', async ({ page, data, runtimeErrors }) => {
+  await login(page);
+  await openAdmin(page);
+  const card = page.locator('#instance');
+  const resolution = card.getByLabel('Time resolution (minutes)');
+  await expect(resolution).toHaveValue('5');
+  await expect(card.getByText('Entries are rounded up to this many minutes. Existing entries change only when they are edited.')).toBeVisible();
+
+  await resolution.fill('15');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Instance settings saved')).toBeVisible();
+  expect(await data.instanceSettings()).toEqual({ session_days: 30, invite_days: 7, time_resolution_minutes: 15 });
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
+  await expect(resolution).toHaveValue('15');
+
+  runtimeErrors.allowResponse({
+    status: 400, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'a time resolution of 7 minutes does not divide an hour',
+  });
+  await resolution.fill('7');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(await describedError(resolution))
+    .toHaveText('Invalid time_resolution_minutes: expected one of 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60');
+  await expect(resolution).toBeFocused();
+  await expect(card.getByLabel('Session length (days)')).not.toHaveAttribute('aria-invalid', 'true');
+  expect((await data.instanceSettings()).time_resolution_minutes).toBe(15);
+
+  // A value that is not a whole number never reaches the server, and the message names minutes.
+  await resolution.fill('');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(await describedError(resolution)).toHaveText('Enter a whole number of minutes');
 });
 
 // Another admin's change arrives with a background refetch while this admin is typing.
@@ -217,7 +250,7 @@ test('a refetch keeps an unsaved instance setting and its focus, and updates the
 
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
-  expect(await data.instanceSettings()).toEqual({ session_days: 21, invite_days: 5 });
+  expect(await data.instanceSettings()).toEqual({ session_days: 21, invite_days: 5, time_resolution_minutes: 5 });
   await expect(sessionDays).toHaveValue('21');
   await expect(inviteDays).toHaveValue('5');
 });
@@ -398,7 +431,9 @@ test('an instance setting restored to the server value follows refetches, and sa
     await data.saveInstanceSettings({ session_days: 90, invite_days: before.invite_days });
     await card.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Instance settings saved')).toBeVisible();
-    expect(await data.instanceSettings()).toEqual({ session_days: 90, invite_days: invite });
+    expect(await data.instanceSettings()).toEqual({
+      session_days: 90, invite_days: invite, time_resolution_minutes: before.time_resolution_minutes,
+    });
     await expect(sessionDays).toHaveValue('90');
     await expect(inviteDays).toHaveValue(String(invite));
   } finally {

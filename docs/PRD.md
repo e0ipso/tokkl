@@ -184,7 +184,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, its sessions end, and its data stays. Admins can also sign an account out of every browser without disabling it; its API token keeps working. | SHOULD | Done |
 | A12 | Admins delete an account together with its workspace and everything in it, after typing the account's email to confirm. An admin cannot delete their own account or the last active admin. A workspace that has another member stays. | SHOULD | Done |
 | A13 | Admins create password-reset links for an account and share them by hand. A link works once, expires after 24 hours, and replaces the account's earlier unused link. Using it signs the account out of every session. It does not change the account's API token, which the user resets separately (`POST /me/reset_token`). | SHOULD | Done |
-| A14 | Admins edit instance settings: session lifetime (1 to 365 days) and invite lifetime (1 to 90 days). A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. | COULD | Done |
+| A14 | Admins edit instance settings: session lifetime (1 to 365 days), invite lifetime (1 to 90 days) and time resolution (a divisor of 60 minutes, 5 by default). A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. | COULD | Done |
 | A15 | Admins manage accounts only and cannot read other users' time data. Workspace access depends on membership, never on the instance role, so an admin gets 403 on another account's workspace. | MUST | Done |
 
 ### 5.8 Clients and devices
@@ -215,7 +215,7 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 
 | Area | Endpoints | Status |
 |---|---|---|
-| Me | `GET/PUT /me` (incl. `with_related_data`; the response adds Tokkl's own `role` field), `POST /me/reset_token`, `GET/POST /me/preferences[/{client}]`, `GET /me/workspaces`, `/me/organizations`, `/me/features`, `/me/projects`, `/me/clients`, `/me/tags`, `/me/tasks` | Done |
+| Me | `GET/PUT /me` (incl. `with_related_data`; the `GET` response adds Tokkl's own `role` and `time_resolution_minutes` fields), `POST /me/reset_token`, `GET/POST /me/preferences[/{client}]`, `GET /me/workspaces`, `/me/organizations`, `/me/features`, `/me/projects`, `/me/clients`, `/me/tags`, `/me/tasks` | Done |
 | Time entries (read) | `GET /me/time_entries` with `since` (includes deleted entries with `server_deleted_at`), `before`, `start_date`/`end_date`, `meta`; `GET /me/time_entries/current`; `GET /me/time_entries/{id}` | Done |
 | Time entries (write) | `POST /workspaces/{wid}/time_entries`, `PUT .../{id}`, `PATCH .../{id}/stop`, `PATCH .../{ids}` (bulk JSON Patch, partial success), `DELETE .../{id}` | Done |
 | Workspace | `GET/PUT /workspaces/{wid}`, `GET /workspaces/{wid}/users` (lists the workspace's members) | Done |
@@ -307,7 +307,7 @@ All instants are UTC ISO 8601 strings with second precision; calendar days are c
 
 - `users`: email, name, scrypt password hash, API token, timezone, first day of week, preferences JSON (Toggl preference keys plus favorites), `role` (`admin` or `user`, default `user`), `disabled_at` (null while the account is active).
 - `sessions`: SHA-256 of the session token, expiry. The raw token exists only in the cookie.
-- `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`), with who changed them. A key with no row uses its default.
+- `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`, `time_resolution_minutes`), with who changed them. A key with no row uses its default.
 - `account_tokens`: one-time invite and password-reset links. Only the SHA-256 of the token is stored, with its kind, the invited role or the target account, the creator, expiry and use time.
 - `workspaces`: one private workspace per account. Default currency, default rate, report rounding.
 - `workspace_users`: workspace and user, with a `role` of `owner` or `member`. The primary key is the pair. Workspace settings stay with the owner.

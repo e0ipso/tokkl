@@ -147,13 +147,13 @@ test('stored session and invite lifetimes apply to new sessions and invites, acr
   const before = await logIn(first.baseURL);
 
   await withAuth(first.baseURL, admin, async (api) => {
-    expect(await (await api.get('/api/app/admin/settings')).json()).toEqual({ session_days: 30, invite_days: 7 });
+    expect(await (await api.get('/api/app/admin/settings')).json()).toEqual({ session_days: 30, invite_days: 7, time_resolution_minutes: 5 });
     for (const change of [{ session_days: 366 }, { invite_days: 91 }]) {
       expect((await api.put('/api/app/admin/settings', { data: change })).status(), JSON.stringify(change)).toBe(400);
     }
     const put = await api.put('/api/app/admin/settings', { data: { session_days: 2, invite_days: 1 } });
     expect(put.status()).toBe(200);
-    expect(await put.json()).toEqual({ session_days: 2, invite_days: 1 });
+    expect(await put.json()).toEqual({ session_days: 2, invite_days: 1, time_resolution_minutes: 5 });
   });
 
   const after = await logIn(first.baseURL);
@@ -172,7 +172,7 @@ test('stored session and invite lifetimes apply to new sessions and invites, acr
   // Restart the same data two days later, by the server's clock.
   const later = await servers.start({ slot: 3, dataDir: first.dataDir, clockShiftMs: days(2) + 60_000 });
   await withAuth(later.baseURL, admin, async (api) => {
-    expect(await (await api.get('/api/app/admin/settings')).json()).toEqual({ session_days: 2, invite_days: 1 });
+    expect(await (await api.get('/api/app/admin/settings')).json()).toEqual({ session_days: 2, invite_days: 1, time_resolution_minutes: 5 });
     expect(await (await api.get('/api/app/admin/invites')).json()).toEqual([]);
     expect((await api.get(inviteLookup)).status()).toBe(404);
   });

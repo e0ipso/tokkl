@@ -25,9 +25,9 @@ test('a regular user gets 403 from every admin route', async () => {
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[1].role, 'user');
 });
 
-// The web app shows the admin area from GET /api/v9/me. role is a Tokkl-only field; the
-// Toggl fields keep their names, and the other user-shaped responses stay Toggl-only.
-test('GET /api/v9/me carries the instance role next to the unchanged Toggl fields', async () => {
+// The web app shows the admin area from GET /api/v9/me. role and time_resolution_minutes are
+// Tokkl-only fields; the Toggl fields keep their names, and the other user-shaped responses stay Toggl-only.
+test('GET /api/v9/me carries the instance role and time resolution next to the unchanged Toggl fields', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
   const TOGGL_FIELDS = [
@@ -39,7 +39,8 @@ test('GET /api/v9/me carries the instance role next to the unchanged Toggl field
   const adminMe = await admin.json('GET', '/api/v9/me');
   assert.equal(adminMe.status, 200);
   assert.equal(adminMe.body.role, 'admin');
-  assert.deepEqual(Object.keys(adminMe.body).sort(), [...TOGGL_FIELDS, 'role'].sort());
+  assert.equal(adminMe.body.time_resolution_minutes, 5);
+  assert.deepEqual(Object.keys(adminMe.body).sort(), [...TOGGL_FIELDS, 'role', 'time_resolution_minutes'].sort());
   assert.equal(adminMe.body.email, 'me@example.com');
   assert.equal(adminMe.body.default_workspace_id, admin.wid);
 
@@ -55,6 +56,7 @@ test('GET /api/v9/me carries the instance role next to the unchanged Toggl field
   const updated = await bob.json('PUT', '/api/v9/me', { fullname: 'Bob' });
   assert.equal(updated.status, 200);
   assert.equal(updated.body.role, undefined, 'PUT /me answers in the Toggl shape');
+  assert.equal(updated.body.time_resolution_minutes, undefined, 'PUT /me answers in the Toggl shape');
 });
 
 test('an admin lists every account with only the account fields, ordered by id', async () => {

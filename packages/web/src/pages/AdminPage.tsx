@@ -456,9 +456,15 @@ function InvitesSection({ settings }: { settings: Settings }) {
 }
 
 const SETTING_FIELDS = [
-  { key: 'session_days', label: 'Session length (days)', hint: 'New logins stay signed in this long. Existing sessions keep their expiry.' },
-  { key: 'invite_days', label: 'Invite link lifetime (days)', hint: 'New invite links stop working after this many days.' },
-] as const satisfies ReadonlyArray<{ key: keyof InstanceSettings; label: string; hint: string }>;
+  { key: 'session_days', unit: 'days', label: 'Session length (days)', hint: 'New logins stay signed in this long. Existing sessions keep their expiry.' },
+  { key: 'invite_days', unit: 'days', label: 'Invite link lifetime (days)', hint: 'New invite links stop working after this many days.' },
+  {
+    key: 'time_resolution_minutes',
+    unit: 'minutes',
+    label: 'Time resolution (minutes)',
+    hint: 'Entries are rounded up to this many minutes. Existing entries change only when they are edited.',
+  },
+] as const satisfies ReadonlyArray<{ key: keyof InstanceSettings; unit: string; label: string; hint: string }>;
 
 type SettingsDraft = Record<keyof InstanceSettings, string>;
 
@@ -478,6 +484,7 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
   const draft: SettingsDraft = {
     session_days: edits.session_days ?? String(server.session_days),
     invite_days: edits.invite_days ?? String(server.invite_days),
+    time_resolution_minutes: edits.time_resolution_minutes ?? String(server.time_resolution_minutes),
   };
 
   // Once a save settles, an edit equal to the server's value is no longer an edit. Anything else
@@ -504,11 +511,11 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
     },
   });
 
-  // Only whole numbers go to the server; it checks the range and its 400 shows on the field.
+  // Only whole numbers go to the server; it checks the allowed values and its 400 shows on the field.
   const submit = () => {
-    const valid = fields.validate(SETTING_FIELDS.map(({ key }) => [
+    const valid = fields.validate(SETTING_FIELDS.map(({ key, unit }) => [
       key,
-      (draft[key].trim() === '' || !Number.isInteger(Number(draft[key].trim()))) && 'Enter a whole number of days',
+      (draft[key].trim() === '' || !Number.isInteger(Number(draft[key].trim()))) && `Enter a whole number of ${unit}`,
     ] as const));
     if (!valid) return;
     const changes: Partial<InstanceSettings> = {};

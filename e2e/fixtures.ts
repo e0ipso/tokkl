@@ -45,6 +45,7 @@ export function currentAccount(): Account {
 export interface InstanceSettings {
   session_days: number;
   invite_days: number;
+  time_resolution_minutes: number;
 }
 
 export interface NewUser {
@@ -180,7 +181,7 @@ export class TestData {
     return json(this.api.get('/api/app/admin/settings'));
   }
 
-  async saveInstanceSettings(settings: InstanceSettings): Promise<void> {
+  async saveInstanceSettings(settings: Partial<InstanceSettings>): Promise<void> {
     await ok(await this.api.put('/api/app/admin/settings', { headers: CSRF, data: settings }));
   }
 
