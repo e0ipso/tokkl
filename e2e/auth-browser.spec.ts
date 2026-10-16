@@ -1,9 +1,9 @@
-import type { Page } from '@playwright/test';
+import { request, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  ACCOUNT, CSRF, LIMIT_WINDOW_SECONDS, SETUP_CODE, basic, createAccount, expect, logInThroughForm, meWithSession,
-  retryAfter, sessionCookie, test,
+  ACCOUNT, CSRF, LIMIT_WINDOW_SECONDS, SETUP_CODE, acceptInvite, basic, createAccount, createInvite, expect,
+  inviteApiPath, logInThroughForm, meWithSession, retryAfter, sessionCookie, test,
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
@@ -187,6 +187,62 @@ test('ten wrong passwords lock the account on this address, and the login form s
   await page.getByLabel('Password').fill('wrong password');
   await page.getByRole('button', { name: 'Log in' }).click();
   await expect(alert).toHaveText('Incorrect email or password');
+});
+
+// TT-0171: login, setup and invite acceptance refuse a request without X-Tokkl-CSRF before doing
+// anything else: 403, no cookie, nothing charged to a limiter, and the invite stays usable.
+test('login, setup and invite acceptance without the CSRF header are refused and charge nothing', async ({ servers }) => {
+  const server = await servers.start({ slot: 0 });
+  const api = await request.newContext({ baseURL: server.baseURL });
+  const refused = async (path: string, data: object) => {
+    const response = await api.post(path, { data });
+    expect(response.status(), path).toBe(403);
+    expect(await response.json(), path).toBe('Missing CSRF header');
+    expect(response.headers()['set-cookie'], path).toBeUndefined();
+  };
+  try {
+    // More wrong codes than the setup limit allows, then the right one: none of them is counted.
+    for (let i = 0; i < 11; i++) await refused('/api/app/setup', { setup_code: 'WRONG-CODE', ...ACCOUNT });
+    await refused('/api/app/setup', { setup_code: SETUP_CODE, ...ACCOUNT });
+    expect(await (await api.get('/api/app/status')).json()).toEqual({ setup_required: true });
+    const { apiToken } = await createAccount(server.baseURL);
+
+    for (let i = 0; i < 11; i++) await refused('/api/app/login', { email: ACCOUNT.email, password: 'wrong password' });
+    await refused('/api/app/login', { email: ACCOUNT.email, password: ACCOUNT.password });
+    const login = await api.post('/api/app/login', { headers: CSRF, data: { email: ACCOUNT.email, password: ACCOUNT.password } });
+    expect(login.status()).toBe(200);
+
+    const invite = await createInvite(server.baseURL, apiToken, 'user');
+    const acceptPath = inviteApiPath(invite);
+    await refused(acceptPath, { email: 'member@auth.example', password: 'member password 1' });
+    expect(await (await api.get(acceptPath)).json()).toEqual({ role: 'user' });
+    await acceptInvite(server.baseURL, invite, 'member@auth.example');
+  } finally {
+    await api.dispose();
+  }
+});
+
+// TT-0171: a cross-site form can post a JSON-shaped text/plain body, which the server parses, but
+// it cannot add the header, so it cannot sign the browser into the account it names.
+test('a cross-site form that posts valid credentials does not sign the browser in', async ({ page, servers }) => {
+  const server = await servers.start({ slot: 0 });
+  await createAccount(server.baseURL);
+  const loginURL = `${server.baseURL}/api/app/login`;
+  const body = JSON.stringify({ email: ACCOUNT.email, password: ACCOUNT.password, pad: '' });
+
+  // text/plain sends name=value, so the name carries the JSON up to the last value's opening quote.
+  await page.setContent(`<form method="post" enctype="text/plain" action="${loginURL}">
+    <input type="hidden" name='${body.slice(0, -2)}' value='"}'></form>`);
+  const response = page.waitForResponse((r) => r.url() === loginURL);
+  await page.locator('form').evaluate((form: HTMLFormElement) => form.submit());
+  expect((await response).status()).toBe(403);
+  expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tokkl_session')).toBe(false);
+
+  // The same text/plain body with the header logs in, so the header is what refused the form.
+  const withHeader = await page.request.post(loginURL, {
+    headers: { ...CSRF, 'content-type': 'text/plain' }, data: `${body.slice(0, -2)}="}\r\n`,
+  });
+  expect(withHeader.status()).toBe(200);
 });
 
 // TT-0130: the sidebar shows who is signed in above Log out, one line each, with the full value in title.
