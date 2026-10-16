@@ -441,6 +441,57 @@ test('a value typed while a save is pending stays after the response, and Save s
   await expect(sessionDays).toHaveValue(String(before.session_days));
 });
 
+// TT-0209: when the pending save fails, the server's value has not changed, so a value typed back to
+// it is no longer an edit, while a different value typed meanwhile stays one.
+test('after a failed save, a value typed back to the server value is no longer an edit', async ({ page, data, runtimeErrors }) => {
+  const before = await data.instanceSettings();
+  const changed = before.session_days === 60 ? 61 : 60;
+  const invite = before.invite_days === 10 ? 11 : 10;
+  runtimeErrors.allowResponse({
+    status: 503, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'the held save is answered with an outage',
+  });
+  let sent = 0;
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/api/app/admin/settings', async (route) => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    sent += 1;
+    await held;
+    await route.fulfill({ status: 503, contentType: 'text/plain', body: 'Server unavailable' });
+  });
+  await login(page);
+  await openAdmin(page);
+  const card = page.locator('#instance');
+  const sessionDays = card.getByLabel('Session length (days)');
+  const inviteDays = card.getByLabel('Invite link lifetime (days)');
+  await expect(sessionDays).toHaveValue(String(before.session_days));
+
+  await sessionDays.fill(String(changed));
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => sent).toBe(1);
+  await sessionDays.fill(String(before.session_days));
+  await inviteDays.fill(String(invite));
+  release();
+  await expect(page.getByRole('alert').filter({ hasText: 'Server unavailable' })).toBeVisible();
+  await expect(sessionDays).toHaveValue(String(before.session_days));
+  await expect(inviteDays).toHaveValue(String(invite));
+  expect(await data.instanceSettings()).toEqual(before);
+
+  // Another admin's change reaches the field that is no longer edited, not the one that is.
+  const other = before.session_days === 90 ? 91 : 90;
+  await data.saveInstanceSettings({ session_days: other, invite_days: before.invite_days });
+  try {
+    // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+    await expect(async () => {
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await expect(sessionDays).toHaveValue(String(other), { timeout: 1500 });
+    }).toPass();
+    await expect(inviteDays).toHaveValue(String(invite));
+  } finally {
+    await data.saveInstanceSettings(before);
+  }
+});
+
 test('every admin control is reachable by keyboard and shows a focus ring',async ({ page, data, users }) => {
   await users.create();
   await data.createInvite({ role: 'user', note: 'Keyboard check' });

@@ -109,6 +109,16 @@ test('closing a picker focuses the description without opening its suggestions',
   await expect(suggestions).toHaveCount(0);
   expect(await suggestionsShown()).toBe(false);
 
+  // Typing after a picker closed opens the list again. Retyping the last letter leaves the
+  // description as it was, so the blur below has nothing to save.
+  await page.keyboard.press('End');
+  await page.keyboard.press('Backspace');
+  await expect(suggestions.getByRole('option')).toHaveCount(1);
+  await page.keyboard.type('c');
+  await expect(description).toHaveValue('Draft the spec');
+  await page.keyboard.press('Escape');
+  await expect(suggestions).toHaveCount(0);
+
   // Focusing the field by hand still offers the matching entry.
   await description.blur();
   await description.click();
