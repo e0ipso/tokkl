@@ -109,7 +109,13 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
                 type="button"
                 role="menuitem"
                 className={item.danger ? 'danger' : undefined}
-                onClick={() => { setAnchor(null); item.onSelect(); }}
+                onClick={() => {
+                  // The item goes away with the menu. Focus the menu button first, so a modal the
+                  // item opens returns focus there when it closes.
+                  anchor.focus();
+                  setAnchor(null);
+                  item.onSelect();
+                }}
               >
                 {item.icon ? <Icon name={item.icon} size={16} /> : <span className="manage-menu-gap" />}
                 {item.label}
