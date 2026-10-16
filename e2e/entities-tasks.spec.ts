@@ -92,3 +92,46 @@ test('a project task is created, renamed, assigned, completed and deleted withou
   await expect(row.locator('.project-label')).toHaveText('Platform');
   expect(await pickerTasks(page)).toEqual([]);
 });
+
+// TT-0206: the inline confirm replaces the focused "Delete task" button, and a delete takes the whole
+// row away, so focus moves within the task list instead of falling to the page body.
+test('deleting tasks by keyboard keeps focus in the task list', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  const project = await api.createProject({ name: 'Platform' });
+  for (const name of ['Alpha', 'Beta', 'Gamma']) await api.createTask(project.id, name);
+  const { editor, tasks } = await openTasks(page, 'Platform');
+  const deleteTask = (name: string) => tasks.getByRole('button', { name: `Delete task ${name}`, exact: true });
+  const keep = tasks.getByRole('button', { name: 'Keep', exact: true });
+  const confirm = tasks.getByRole('button', { name: 'Delete', exact: true });
+  const deleteByKeyboard = async (name: string) => {
+    await deleteTask(name).focus();
+    await page.keyboard.press('Enter');
+    await expect(keep).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirm).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(deleteTask(name)).toHaveCount(0);
+  };
+
+  // Keep closes the inline confirm and gives focus back to "Delete task".
+  await deleteTask('Beta').focus();
+  await page.keyboard.press('Enter');
+  await expect(keep).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(keep).toHaveCount(0);
+  await expect(deleteTask('Beta')).toBeFocused();
+
+  // A deleted task passes focus to the next task's "Delete task", else the previous one's.
+  await deleteByKeyboard('Beta');
+  await expect(deleteTask('Gamma')).toBeFocused();
+  await deleteByKeyboard('Gamma');
+  await expect(deleteTask('Alpha')).toBeFocused();
+
+  // With no task left, focus stays in the Tasks region, on the new task field.
+  await deleteByKeyboard('Alpha');
+  await expect(tasks.getByText('No tasks yet.')).toBeVisible();
+  await expect(tasks.getByRole('textbox', { name: 'New task name' })).toBeFocused();
+  await expect(editor).toBeVisible();
+  expect(await api.tasks(project.id)).toEqual([]);
+});
