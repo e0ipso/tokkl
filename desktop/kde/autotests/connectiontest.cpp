@@ -666,25 +666,35 @@ private Q_SLOTS:
         FakeTransport transport;
         FakeCredentialStore store;
         ConnectionSetup setup(&transport, &store);
-        QSignalSpy saved(&setup, &ConnectionSetup::secretSaved);
-        QSignalSpy loaded(&setup, &ConnectionSetup::secretLoaded);
 
-        setup.saveSecret(instance + QLatin1Char('/'), QStringLiteral("token"), QString(), QStringLiteral("  ") + token + QStringLiteral("\n"));
-        QTRY_COMPARE(saved.count(), 1);
+        setup.setAccount(instance + QLatin1Char('/'), QStringLiteral("token"), QString());
+        setup.editSecret(QStringLiteral("  ") + token + QStringLiteral("\n"));
+        setup.saveSecret();
         // Same key as the connection uses, and pasted whitespace dropped.
-        QCOMPARE(store.secrets.value(tokenKey()), token);
+        QTRY_COMPARE(store.secrets.value(tokenKey()), token);
+        QTRY_VERIFY(!setup.isBusy());
 
-        setup.saveSecret(instance, QStringLiteral("password"), QStringLiteral("Bea@example.test"), QStringLiteral(" pw "));
-        QTRY_COMPARE(saved.count(), 2);
-        QCOMPARE(store.secrets.value(passwordKey(QStringLiteral("bea@example.test"))), QStringLiteral(" pw "));
+        setup.setAccount(instance, QStringLiteral("password"), QStringLiteral("Bea@example.test"));
+        setup.editSecret(QStringLiteral(" pw "));
+        setup.saveSecret();
+        QTRY_COMPARE(store.secrets.value(passwordKey(QStringLiteral("bea@example.test"))), QStringLiteral(" pw "));
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(store.writes, 2);
 
-        setup.loadSecret(instance, QStringLiteral("token"), QString());
-        QTRY_COMPARE(loaded.count(), 1);
-        QCOMPARE(loaded.last().first().toString(), token);
+        ConnectionSetup reopened(&transport, &store);
+        reopened.setAccount(instance, QStringLiteral("token"), QString());
+        reopened.loadSecret();
+        QTRY_COMPARE(reopened.secret(), token);
+        QTRY_VERIFY(!reopened.isBusy());
+        // Apply with the stored secret unchanged writes nothing.
+        reopened.saveSecret();
+        QCOMPARE(store.writes, 2);
 
-        setup.loadSecret(QStringLiteral("https://unknown.example.test"), QStringLiteral("token"), QString());
-        QTRY_COMPARE(loaded.count(), 2);
-        QCOMPARE(loaded.last().first().toString(), QString());
+        reopened.setAccount(QStringLiteral("https://unknown.example.test"), QStringLiteral("token"), QString());
+        reopened.loadSecret();
+        QTRY_VERIFY(!reopened.isBusy());
+        QCOMPARE(reopened.secret(), QString());
+        QCOMPARE(reopened.walletError(), QString());
     }
 
     void setupReportsWalletDenial()
@@ -693,19 +703,144 @@ private Q_SLOTS:
         FakeCredentialStore store;
         store.failure = CredentialResult::Status::Unavailable;
         ConnectionSetup setup(&transport, &store);
-        QSignalSpy failed(&setup, &ConnectionSetup::walletFailed);
-        QSignalSpy saved(&setup, &ConnectionSetup::secretSaved);
 
-        setup.saveSecret(instance, QStringLiteral("token"), QString(), token);
-        QTRY_COMPARE(failed.count(), 1);
-        const QString message = failed.last().first().toString();
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.editSecret(token);
+        setup.saveSecret();
+        QTRY_VERIFY(!setup.walletError().isEmpty());
+        const QString message = setup.walletError();
         QVERIFY(message.contains(QLatin1String("locked or denied")));
         QVERIFY(!message.contains(token));
-        QCOMPARE(saved.count(), 0);
         QVERIFY(store.secrets.isEmpty());
 
-        setup.loadSecret(instance, QStringLiteral("token"), QString());
-        QTRY_COMPARE(failed.count(), 2);
+        ConnectionSetup reading(&transport, &store);
+        reading.setAccount(instance, QStringLiteral("token"), QString());
+        reading.loadSecret();
+        QTRY_COMPARE(reading.walletError(), message);
+    }
+
+    // A secret read from the wallet for one account is never tested against
+    // or saved under another one.
+    void setupClearsASecretOnAccountChange()
+    {
+        FakeTransport transport;
+        FakeCredentialStore store;
+        store.secrets.insert(tokenKey(), token);
+        store.secrets.insert(passwordKey(QStringLiteral("bea@example.test")), password);
+        ConnectionSetup setup(&transport, &store);
+        const QString other = QStringLiteral("https://other.example.test");
+
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.loadSecret();
+        QTRY_COMPARE(setup.secret(), token);
+
+        // Another address with nothing stored.
+        setup.setAccount(other, QStringLiteral("token"), QString());
+        QCOMPARE(setup.secret(), QString());
+        setup.testAccount();
+        QCOMPARE(setup.testResult(), ConnectionSetup::Failed);
+        setup.saveSecret();
+        setup.loadSecret();
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(setup.secret(), QString());
+        QVERIFY(transport.requests.isEmpty());
+        QCOMPARE(store.writes, 0);
+        QVERIFY(!store.secrets.contains(tokenKey(other)));
+
+        // The same address with another sign-in method or email.
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.loadSecret();
+        QTRY_COMPARE(setup.secret(), token);
+        setup.setAccount(instance, QStringLiteral("password"), QStringLiteral("bea@example.test"));
+        QCOMPARE(setup.secret(), QString());
+        setup.loadSecret();
+        QTRY_COMPARE(setup.secret(), password);
+        setup.setAccount(instance, QStringLiteral("password"), QStringLiteral("cy@example.test"));
+        QCOMPARE(setup.secret(), QString());
+        setup.testAccount();
+        setup.saveSecret();
+        QTRY_VERIFY(!setup.isBusy());
+        QVERIFY(transport.requests.isEmpty());
+        QCOMPARE(store.writes, 0);
+
+        // Only the account matters: the same address written differently, or
+        // an email typed during token sign-in, keeps the secret.
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.loadSecret();
+        QTRY_COMPARE(setup.secret(), token);
+        setup.setAccount(instance + QLatin1Char('/'), QStringLiteral("token"), QStringLiteral("cy@example.test"));
+        QCOMPARE(setup.secret(), token);
+    }
+
+    void setupDropsStaleWalletResults()
+    {
+        FakeTransport transport;
+        FakeCredentialStore store;
+        store.secrets.insert(tokenKey(), token);
+        ConnectionSetup setup(&transport, &store);
+
+        // The read for the first address finishes after the page moved on.
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.loadSecret();
+        setup.setAccount(QStringLiteral("https://other.example.test"), QStringLiteral("token"), QString());
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(store.reads, 1);
+        QCOMPARE(setup.secret(), QString());
+        setup.saveSecret();
+        QCOMPARE(store.writes, 0);
+
+        // Also while the address is incomplete.
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.loadSecret();
+        setup.setAccount(QStringLiteral("https://"), QStringLiteral("token"), QString());
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(setup.secret(), QString());
+    }
+
+    void setupKeepsATypedSecret()
+    {
+        FakeTransport transport;
+        FakeCredentialStore store;
+        store.secrets.insert(tokenKey(), token);
+        ConnectionSetup setup(&transport, &store);
+        const QString other = QStringLiteral("https://other.example.test");
+        const QString typed = QStringLiteral("typed-for-other");
+
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.loadSecret();
+        QTRY_COMPARE(setup.secret(), token);
+        setup.setAccount(other, QStringLiteral("token"), QString());
+        setup.editSecret(typed);
+        setup.loadSecret();
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(setup.secret(), typed);
+
+        setup.testAccount();
+        QCOMPARE(transport.requests.size(), 1);
+        QCOMPARE(transport.requests.last().url.host(), QStringLiteral("other.example.test"));
+        QCOMPARE(transport.requests.last().authorization, basicAuthorization(AuthMode::Token, QString(), typed));
+        transport.respondLast(FakeTransport::answer(200, meBody(4, 9)));
+
+        setup.saveSecret();
+        QTRY_COMPARE(store.secrets.value(tokenKey(other)), typed);
+        QCOMPARE(store.secrets.value(tokenKey()), token);
+
+        // Once saved, the secret belongs to that account like a loaded one,
+        // even before the write finishes.
+        setup.editSecret(QStringLiteral("replacement"));
+        setup.saveSecret();
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        QCOMPARE(setup.secret(), QString());
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(store.secrets.value(tokenKey(other)), QStringLiteral("replacement"));
+        QCOMPARE(store.secrets.value(tokenKey()), token);
+
+        // A typed secret wins over a stored one that arrives later.
+        setup.setAccount(other, QStringLiteral("token"), QString());
+        setup.editSecret(typed);
+        setup.loadSecret();
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(setup.secret(), typed);
     }
 
     void setupTestsUnsavedSettings()

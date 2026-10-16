@@ -78,6 +78,11 @@ Right-click the widget and choose Configure, then Connection:
 - **Test Connection** calls `GET /api/v9/me` with the values on screen, before
   they are saved, and reports the account and its workspace.
 
+The page loads the saved token or password of the address, sign-in method and
+email on screen. Changing any of them clears a loaded or saved secret, so it
+is never tested against or saved for another account. A secret you typed stays
+and Apply saves it for the account on screen.
+
 The address, sign-in method and email are ordinary widget settings, in the
 Plasma applet configuration. The token or password is saved only in KDE Wallet,
 in the network wallet under the folder `Tokkl`, one entry per instance (and

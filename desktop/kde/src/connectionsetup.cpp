@@ -17,6 +17,18 @@ QString cleanSecret(AuthMode mode, const QString &secret)
 {
     return mode == AuthMode::Token ? secret.trimmed() : secret;
 }
+
+// The credential key of an account, or an empty string while the address or
+// the email for password sign-in is not usable.
+QString accountKey(const QString &url, const QString &authMode, const QString &email)
+{
+    const InstanceUrl instance = parseInstanceUrl(url);
+    const AuthMode mode = authModeFromString(authMode);
+    if (!instance.isValid() || (mode == AuthMode::Password && email.trimmed().isEmpty())) {
+        return QString();
+    }
+    return credentialKey(instance, mode, email);
+}
 }
 
 ConnectionSetup::ConnectionSetup(QObject *parent)
@@ -45,6 +57,16 @@ ConnectionSetup::~ConnectionSetup()
 bool ConnectionSetup::isBusy() const
 {
     return m_busy > 0;
+}
+
+QString ConnectionSetup::secret() const
+{
+    return m_secret;
+}
+
+QString ConnectionSetup::walletError() const
+{
+    return m_walletError;
 }
 
 ConnectionSetup::TestResult ConnectionSetup::testResult() const
@@ -82,45 +104,101 @@ void ConnectionSetup::setBusy(int delta)
     }
 }
 
-void ConnectionSetup::loadSecret(const QString &url, const QString &authMode, const QString &email)
+void ConnectionSetup::setSecret(const QString &secret, const QString &owner)
 {
-    const InstanceUrl instance = parseInstanceUrl(url);
-    const AuthMode mode = authModeFromString(authMode);
-    if (!instance.isValid() || (mode == AuthMode::Password && email.trimmed().isEmpty()) || !m_store) {
-        Q_EMIT secretLoaded(QString());
+    m_secretOwner = owner;
+    if (m_secret != secret) {
+        m_secret = secret;
+        Q_EMIT secretChanged();
+    }
+}
+
+void ConnectionSetup::setWalletError(const QString &message)
+{
+    if (m_walletError != message) {
+        m_walletError = message;
+        Q_EMIT walletErrorChanged();
+    }
+}
+
+void ConnectionSetup::setAccount(const QString &url, const QString &authMode, const QString &email)
+{
+    m_url = url;
+    m_authMode = authMode;
+    m_email = email;
+    const QString key = accountKey(url, authMode, email);
+    if (key == m_accountKey) {
+        return;
+    }
+    m_accountKey = key;
+    if (!m_secretOwner.isEmpty() && m_secretOwner != key) {
+        // The field holds another account's secret.
+        setSecret(QString(), QString());
+    }
+}
+
+void ConnectionSetup::editSecret(const QString &secret)
+{
+    setSecret(secret, QString());
+}
+
+void ConnectionSetup::loadSecret()
+{
+    const QString key = m_accountKey;
+    if (key.isEmpty() || !m_store) {
         return;
     }
     setBusy(1);
-    m_store->read(credentialKey(instance, mode, email), this, [this](const CredentialResult &result) {
+    m_store->read(key, this, [this, key](const CredentialResult &result) {
         setBusy(-1);
-        if (result.ok() || result.status == CredentialResult::Status::NotFound) {
-            Q_EMIT secretLoaded(result.secret);
-        } else {
-            Q_EMIT walletFailed(result.message());
+        if (key != m_accountKey) {
+            return; // the page shows another account now
+        }
+        if (!result.ok() && result.status != CredentialResult::Status::NotFound) {
+            setWalletError(result.message());
+            return;
+        }
+        setWalletError(QString());
+        m_storedKey = key;
+        m_storedSecret = result.secret;
+        // Keep what the user typed; Apply saves it under this account.
+        if (m_secretOwner == key || m_secret.isEmpty()) {
+            setSecret(result.secret, key);
         }
     });
 }
 
-void ConnectionSetup::saveSecret(const QString &url, const QString &authMode, const QString &email, const QString &secret)
+void ConnectionSetup::saveSecret()
 {
-    const InstanceUrl instance = parseInstanceUrl(url);
-    const AuthMode mode = authModeFromString(authMode);
-    if (!instance.isValid() || (mode == AuthMode::Password && email.trimmed().isEmpty())) {
+    const QString key = m_accountKey;
+    const AuthMode mode = authModeFromString(m_authMode);
+    const QString submitted = m_secret;
+    const QString cleaned = cleanSecret(mode, submitted);
+    if (key.isEmpty() || cleaned.isEmpty() || (key == m_storedKey && submitted == m_storedSecret)) {
         return;
     }
+    // From now on the field belongs to this account.
+    m_secretOwner = key;
     if (!m_store) {
-        Q_EMIT walletFailed(CredentialResult{CredentialResult::Status::Unavailable, {}}.message());
+        setWalletError(CredentialResult{CredentialResult::Status::Unavailable, {}}.message());
         return;
     }
+    setWalletError(QString());
     setBusy(1);
-    m_store->write(credentialKey(instance, mode, email), cleanSecret(mode, secret), this, [this](const CredentialResult &result) {
+    m_store->write(key, cleaned, this, [this, key, submitted](const CredentialResult &result) {
         setBusy(-1);
         if (result.ok()) {
-            Q_EMIT secretSaved();
+            m_storedKey = key;
+            m_storedSecret = submitted;
         } else {
-            Q_EMIT walletFailed(result.message());
+            setWalletError(result.message());
         }
     });
+}
+
+void ConnectionSetup::testAccount()
+{
+    testConnection(m_url, m_authMode, m_email, m_secret);
 }
 
 void ConnectionSetup::testConnection(const QString &url, const QString &authMode, const QString &email, const QString &secret)

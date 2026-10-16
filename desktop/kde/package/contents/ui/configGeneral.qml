@@ -22,54 +22,21 @@ KCM.SimpleKCM {
 
     readonly property bool passwordMode: cfg_authMode === "password"
     readonly property string urlError: urlField.text.trim() === "" ? "" : setup.urlError(urlField.text)
-    readonly property string secretKey: [urlField.text.trim(), cfg_authMode, passwordMode ? emailField.text.trim() : ""].join("\n")
-
-    // The wallet entry the secret field was last loaded from or saved to.
-    property string loadedKey: ""
-    property string loadedSecret: ""
-    property bool secretEdited: false
-    property bool fillingSecret: false
-    property string walletError: ""
-
-    function fillSecret(text) {
-        fillingSecret = true;
-        secretField.text = text;
-        fillingSecret = false;
-    }
+    readonly property string accountText: [urlField.text, cfg_authMode, emailField.text].join("\n")
 
     function saveConfig() {
-        if (urlError !== "" || urlField.text.trim() === "" || secretField.text === "") {
-            return;
-        }
-        if (secretKey === loadedKey && secretField.text === loadedSecret) {
-            return;
-        }
-        walletError = "";
-        setup.saveSecret(urlField.text, cfg_authMode, emailField.text, secretField.text);
+        setup.saveSecret();
     }
 
+    // Keeps the secret field tied to the account on screen: a secret loaded
+    // for one account is cleared when the page moves to another.
     TokklConnectionSetup {
         id: setup
-
-        property string pendingKey: ""
-        property string pendingSecret: ""
-
-        onSecretLoaded: secret => {
-            page.walletError = "";
-            page.loadedKey = pendingKey;
-            page.loadedSecret = secret;
-            // Keep what the user typed when nothing is stored for the new
-            // address; Apply then saves it under that address.
-            if (secret !== "" && !page.secretEdited) {
-                page.fillSecret(secret);
+        onSecretChanged: {
+            if (secretField.text !== setup.secret) {
+                secretField.text = setup.secret;
             }
         }
-        onSecretSaved: {
-            page.loadedKey = page.secretKey;
-            page.loadedSecret = secretField.text;
-            page.secretEdited = false;
-        }
-        onWalletFailed: message => page.walletError = message
     }
 
     // Load the stored secret for the current address and account, once the
@@ -77,16 +44,16 @@ KCM.SimpleKCM {
     Timer {
         id: loadTimer
         interval: 400
-        onTriggered: {
-            if (page.urlError !== "" || urlField.text.trim() === "" || (page.passwordMode && emailField.text.trim() === "")) {
-                return;
-            }
-            setup.pendingKey = page.secretKey;
-            setup.loadSecret(urlField.text, page.cfg_authMode, emailField.text);
-        }
+        onTriggered: setup.loadSecret()
     }
-    onSecretKeyChanged: loadTimer.restart()
-    Component.onCompleted: loadTimer.restart()
+    onAccountTextChanged: {
+        setup.setAccount(urlField.text, cfg_authMode, emailField.text);
+        loadTimer.restart();
+    }
+    Component.onCompleted: {
+        setup.setAccount(urlField.text, cfg_authMode, emailField.text);
+        loadTimer.restart();
+    }
 
     Kirigami.FormLayout {
         QQC2.TextField {
@@ -133,11 +100,9 @@ KCM.SimpleKCM {
             Kirigami.FormData.label: page.passwordMode ? i18nc("@label:textbox", "Password:") : i18nc("@label:textbox", "API token:")
             placeholderText: page.passwordMode ? "" : i18n("From Settings → API token in Tokkl")
             Layout.fillWidth: true
-            onTextChanged: {
-                if (!page.fillingSecret) {
-                    page.secretEdited = true;
-                    page.configurationChanged();
-                }
+            onTextEdited: {
+                setup.editSecret(text);
+                page.configurationChanged();
             }
         }
 
@@ -149,9 +114,9 @@ KCM.SimpleKCM {
         }
 
         Kirigami.InlineMessage {
-            visible: page.walletError !== ""
+            visible: setup.walletError !== ""
             type: Kirigami.MessageType.Error
-            text: page.walletError
+            text: setup.walletError
             Layout.fillWidth: true
         }
 
@@ -161,8 +126,8 @@ KCM.SimpleKCM {
             QQC2.Button {
                 text: i18nc("@action:button", "Test Connection")
                 icon.name: "network-connect"
-                enabled: !setup.busy && urlField.text.trim() !== "" && page.urlError === "" && secretField.text !== ""
-                onClicked: setup.testConnection(urlField.text, page.cfg_authMode, emailField.text, secretField.text)
+                enabled: !setup.busy && urlField.text.trim() !== "" && page.urlError === "" && setup.secret !== ""
+                onClicked: setup.testAccount()
             }
 
             QQC2.BusyIndicator {
