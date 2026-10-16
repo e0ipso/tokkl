@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.ts';
 import { generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
-import { FailureLimiter } from '../src/auth/rateLimit.ts';
+import { accountCounters, FailureLimiter, normalizeEmail, passwordCounters } from '../src/auth/rateLimit.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
 import { createOwner, getUser, type UserRow } from '../src/models/users.ts';
 import { PASSWORD, setup, testConfig, testServer } from './helpers.ts';
@@ -295,6 +295,111 @@ test('FailureLimiter runs no checks past the limit and unblocks when the window 
   assert.equal(checks, 10);
   t.mock.timers.tick(1);
   assert.equal(await limiter.attempt('1.2.3.4', async () => true), true);
+});
+
+test('FailureLimiter charges every counter, refuses when any is full and resets only the keys given', async () => {
+  const limiter = new FailureLimiter(100, 15 * 60 * 1000);
+  const small = { key: 'small', limit: 2 };
+  const large = { key: 'large', limit: 5 };
+  let checks = 0;
+  const failingCheck = async () => {
+    checks++;
+    await new Promise((resolve) => setImmediate(resolve));
+    return false;
+  };
+
+  const parallel = await Promise.all(Array.from({ length: 4 }, () => limiter.attempt([small, large], failingCheck)));
+  assert.deepEqual(parallel, [false, false, null, null], 'the smaller counter caps the parallel checks');
+  assert.equal(checks, 2);
+  assert.equal(limiter.isBlocked([small]), true);
+  assert.equal(limiter.isBlocked([large]), false);
+
+  // The larger counter still holds the two failures charged with the smaller one.
+  limiter.reset([small]);
+  for (let i = 0; i < 3; i++) await limiter.attempt([{ key: 'other', limit: 10 }, large], failingCheck);
+  assert.equal(await limiter.attempt([small, large], async () => true), null, 'blocked by the larger counter alone');
+  assert.equal(checks, 5);
+});
+
+test('normalizeEmail and passwordCounters key accounts by trimmed lowercase email and keep pairs apart', () => {
+  assert.equal(normalizeEmail('  Me@Example.COM '), 'me@example.com');
+  assert.deepEqual(passwordCounters(' ME@example.com', '1.2.3.4'), passwordCounters('me@example.com', '1.2.3.4'));
+  assert.deepEqual(passwordCounters('a@b', '1.2.3.4').map(({ limit }) => limit), [10, 50, 100]);
+  assert.deepEqual(accountCounters('a@b', '1.2.3.4'), passwordCounters('a@b', '1.2.3.4').slice(0, 2));
+  // An email and address that share a joined spelling still get different pair keys.
+  const [left] = passwordCounters('a@b:c', 'd');
+  const [right] = passwordCounters('a@b', 'c:d');
+  assert.notEqual(left!.key, right!.key);
+});
+
+/** An app behind a trusted proxy, so each request can pick its client address. */
+async function multiUserApp(count: number) {
+  const db = openDatabase(':memory:');
+  const owner = await createOwner(db, { email: 'user0@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
+  const emails = ['user0@example.com'];
+  for (let i = 1; i < count; i++) emails.push(insertSecondUser(db, owner, `user${i}@example.com`).email);
+  const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
+  const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': address },
+    body: JSON.stringify({ email, password }),
+  })).status;
+  return { emails, login };
+}
+
+test('one account signing in from an address does not reset failures against another', async () => {
+  const { login } = await multiUserApp(2);
+  for (let i = 0; i < 9; i++) assert.equal(await login('user1@example.com', 'wrong'), 403);
+  assert.equal(await login('user0@example.com', PASSWORD), 200);
+  assert.equal(await login('user1@example.com', 'wrong'), 403, 'the tenth failure');
+  assert.equal(await login('user1@example.com', PASSWORD), 429, 'still counted from the earlier nine');
+});
+
+test('failures against one account from many addresses are refused after 50', async () => {
+  const { login } = await multiUserApp(1);
+  // Five per address, so no address comes near its own limits. All 50 fit under every limit, so
+  // they run in parallel.
+  const spread = (email: string, subnet: number) => Promise.all(
+    Array.from({ length: 50 }, (_, i) => login(email, 'wrong', `10.${subnet}.${Math.floor(i / 5)}.1`)),
+  );
+  assert.deepEqual(await spread('user0@example.com', 1), Array(50).fill(403));
+  assert.equal(await login('user0@example.com', PASSWORD, '10.9.9.9'), 429);
+  // Unknown emails are counted the same way.
+  assert.deepEqual(await spread(' Ghost@Example.com', 2), Array(50).fill(403));
+  assert.equal(await login('ghost@example.com', 'wrong', '10.9.9.9'), 429);
+});
+
+test('ten users behind one address each failing five times can all still sign in', async () => {
+  const { emails, login } = await multiUserApp(10);
+  const failures = await Promise.all(emails.flatMap((email) => Array.from({ length: 5 }, () => login(email, 'wrong'))));
+  assert.deepEqual(failures, Array(50).fill(403));
+  for (const email of emails) assert.equal(await login(email, PASSWORD), 200, email);
+});
+
+test('one address is refused after 100 failures across accounts, and a success does not clear it', async () => {
+  const { login } = await multiUserApp(1);
+  const failures = await Promise.all(Array.from({ length: 99 }, (_, i) => login(`nobody${Math.floor(i / 5)}@example.com`, 'wrong')));
+  assert.deepEqual(failures, Array(99).fill(403));
+  assert.equal(await login('user0@example.com', PASSWORD), 200);
+  assert.equal(await login('nobody-else@example.com', 'wrong'), 403, 'the hundredth failure');
+  assert.equal(await login('user0@example.com', PASSWORD), 429);
+  assert.equal(await login('user0@example.com', PASSWORD, '10.0.0.2'), 200, 'other addresses are unaffected');
+});
+
+test('setup codes have their own per-address limit of ten', async () => {
+  const db = openDatabase(':memory:');
+  const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const post = (path: string, body: unknown, address = '10.0.0.1') => app.request(path, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': address }, body: JSON.stringify(body),
+  });
+  const account = { email: 'owner@example.com', password: 'long enough' };
+
+  // Password failures from the address do not use up its setup allowance.
+  const logins = await Promise.all(Array.from({ length: 20 }, (_, i) => post('/api/app/login', { email: `x${i}@example.com`, password: 'wrong' })));
+  assert.deepEqual(logins.map((response) => response.status), Array(20).fill(403));
+  for (let i = 0; i < 10; i++) assert.equal((await post('/api/app/setup', { ...account, setup_code: 'WRONG' })).status, 403);
+  assert.equal((await post('/api/app/setup', { ...account, setup_code: 'ABCD-EFGH-JKLM' })).status, 429);
+  assert.equal((await post('/api/app/setup', { ...account, setup_code: 'ABCD-EFGH-JKLM' }, '10.0.0.2')).status, 200);
 });
 
 test('logout with a wrong CSRF value keeps the session; no or stale session logout is 200', async () => {

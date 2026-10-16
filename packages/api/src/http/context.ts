@@ -9,8 +9,13 @@ import { badRequest } from '../lib/errors.ts';
 export interface Deps {
   db: Db;
   config: Config;
-  /** Failed password attempts per client address, shared by the login form, setup and Basic auth. */
+  /**
+   * Failed password attempts, shared by the login form, Basic auth and password change. Each check
+   * is charged to the account from its address, the account and the address (`passwordCounters`).
+   */
   loginLimiter: FailureLimiter;
+  /** Wrong setup codes per client address, counted apart from passwords. */
+  setupLimiter: FailureLimiter;
 }
 
 declare module 'express-serve-static-core' {

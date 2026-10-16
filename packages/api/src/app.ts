@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Config } from './config.ts';
 import type { Db } from './db/index.ts';
 import type { Deps } from './http/context.ts';
-import { FailureLimiter } from './auth/rateLimit.ts';
+import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { HttpError } from './lib/errors.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
@@ -66,7 +66,12 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
 
 export function createApp({ db, config, setup }: AppOptions): Express {
   const app = express();
-  const deps: Deps = { db, config, loginLimiter: new FailureLimiter(10, 15 * 60 * 1000) };
+  const deps: Deps = {
+    db,
+    config,
+    loginLimiter: new FailureLimiter(ADDRESS_LIMIT, PASSWORD_WINDOW_MS),
+    setupLimiter: new FailureLimiter(SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
+  };
 
   app.disable('x-powered-by');
   app.set('etag', false);
