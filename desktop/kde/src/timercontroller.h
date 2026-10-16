@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QObject>
 #include <QPointer>
+#include <QSet>
 #include <QVariant>
 
 #include <optional>
@@ -265,7 +266,10 @@ private:
     // whether the instance answered 404 for it.
     std::optional<Project> m_lookedUp;
     bool m_lookedUpGone = false;
-    qint64 m_lookupPending = 0; // id of the project read in flight, or 0
+    // The project list was read again after m_lookedUp, so it is read again
+    // too: it may have been renamed, recoloured or deleted since.
+    bool m_lookedUpStale = false;
+    QSet<qint64> m_lookupsPending; // ids of the project reads in flight
     IndicatorState m_indicatorState = IndicatorState::None;
     QColor m_indicatorColor;
     qint64 m_elapsed = 0;

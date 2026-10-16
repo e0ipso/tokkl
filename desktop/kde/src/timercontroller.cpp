@@ -455,7 +455,8 @@ void TimerController::loseWorkspace(const ApiError &error)
     m_error = tr("Tokkl cannot use this workspace any more (%1). Check your membership, then reconnect.").arg(error.message);
     m_lookedUp.reset();
     m_lookedUpGone = false;
-    m_lookupPending = 0;
+    m_lookedUpStale = false;
+    m_lookupsPending.clear();
     applyEntry(std::nullopt);
     m_projectsKnown = false;
     if (!m_projects.isEmpty() || m_projectsIncomplete) {
@@ -632,6 +633,7 @@ void TimerController::fetchProjects()
             self->m_projects = *result.value;
             self->m_projectsIncomplete = self->m_connection && self->m_connection->projectsIncomplete();
             self->m_projectsKnown = true;
+            self->m_lookedUpStale = self->m_lookedUp.has_value();
             Q_EMIT self->projectsChanged();
             self->applyStopDefault();
             self->resolveProject();
@@ -753,8 +755,14 @@ void TimerController::resolveProject()
     const std::optional<qint64> id = chosenProject();
     // Not among the active projects: read it once the active list is known,
     // so an archived project can still be named and a deleted one noticed.
-    if (id && !knownProject(*id) && m_projectsKnown && m_lookupPending != *id && readable()) {
-        m_lookupPending = *id;
+    // A read from before the last project list is read again; until it
+    // answers, the indicator keeps what that earlier read found.
+    const bool listed = id && std::any_of(m_projects.cbegin(), m_projects.cend(), [&id](const Project &project) {
+                            return project.id == *id;
+                        });
+    const bool stale = m_lookedUpStale && m_lookedUp && id && m_lookedUp->id == *id;
+    if (id && !listed && (!knownProject(*id) || stale) && m_projectsKnown && !m_lookupsPending.contains(*id) && readable()) {
+        m_lookupsPending.insert(*id);
 
         QPointer<TimerController> self(this);
         const quint64 epoch = m_epoch;
@@ -763,15 +771,14 @@ void TimerController::resolveProject()
             if (!self || epoch != self->m_epoch) {
                 return;
             }
-            if (self->m_lookupPending == projectId) {
-                self->m_lookupPending = 0;
-            }
+            self->m_lookupsPending.remove(projectId);
             if (self->m_workspaceLost || self->chosenProject() != projectId) {
                 return;
             }
             if (result.ok()) {
                 self->m_lookedUp = *result.value;
                 self->m_lookedUpGone = false;
+                self->m_lookedUpStale = false;
             } else if (result.error.kind == ApiError::Kind::Forbidden) {
                 self->loseWorkspace(result.error);
                 return;
@@ -783,6 +790,7 @@ void TimerController::resolveProject()
                 gone.active = false;
                 self->m_lookedUp = gone;
                 self->m_lookedUpGone = true;
+                self->m_lookedUpStale = false;
             } else {
                 return; // read again on the next resolve
             }
@@ -884,7 +892,8 @@ void TimerController::reset()
     m_projectsKnown = false;
     m_lookedUp.reset();
     m_lookedUpGone = false;
-    m_lookupPending = 0;
+    m_lookedUpStale = false;
+    m_lookupsPending.clear();
     m_nextStartPicked = false;
     m_stopDefault.reset();
     m_lastEntryWanted = true;
