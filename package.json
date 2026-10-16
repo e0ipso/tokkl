@@ -2,7 +2,7 @@
   "name": "tokkl",
   "version": "1.0.1",
   "private": true,
-  "description": "Self-hosted, single-user time tracker with a Toggl Track compatible API",
+  "description": "Self-hosted time tracker with a Toggl Track compatible API",
   "type": "module",
   "workspaces": [
     "packages/*"

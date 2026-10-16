@@ -1,6 +1,6 @@
 <h1><img src="docs/brand/tokkl-wordmark.png" alt="Tokkl" width="320"></h1>
 
-A self-hosted, single-user time tracker modeled on Toggl Track. It runs on a server you own, keeps every entry in one SQLite file, and answers on a subset of the Toggl Track API v9 and Reports API v3. Scripts and libraries written for Toggl can switch to it by changing the base URL.
+A self-hosted time tracker modeled on Toggl Track. One server holds several accounts, and each account has its own private workspace. It runs on a server you own, keeps every entry in one SQLite file, and answers on a subset of the Toggl Track API v9 and Reports API v3. Scripts and libraries written for Toggl can switch to it by changing the base URL.
 
 The server makes no outbound requests. No telemetry, CDN fonts or AI features.
 
@@ -66,7 +66,7 @@ On first start the log prints a setup code:
 No account yet. Open the web UI and use this setup code to create it: ABCD-EFGH-JKLM
 ```
 
-Open the web app, enter the code, and create your account. Only someone who can read the server log can create the account.
+Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link and shares it by hand, and the server sends no email.
 
 All data is in `tokkl.sqlite` (plus its `-wal` and `-shm` files) inside the data folder. Settings → Data also exports everything as JSON and all entries as CSV, and restores the JSON export.
 
@@ -91,7 +91,7 @@ The container runs as the image's `node` user (UID 1000). To run it as another U
 | `TOKKL_DATABASE` | `<data dir>/tokkl.sqlite` | Database file path |
 | `TOKKL_TRUST_PROXY` | `false` | Trust one reverse proxy hop. The client address for login rate limiting then comes from the last `X-Forwarded-For` entry, and `X-Forwarded-Proto: https` makes the session cookie `Secure` and turns on HSTS. Set it only when the app is reachable through the proxy alone. |
 | `TOKKL_SESSION_DAYS` | `30` | Login session lifetime |
-| `TOKKL_SETUP_CODE` | random | Fixed first-run setup code, for scripted installs |
+| `TOKKL_SETUP_CODE` | random | Fixed setup code that creates the first admin, for scripted installs |
 | `TOKKL_WEB_ROOT` | `dist/web` | Folder with the built web app |
 
 ## Moving from Toggl Track
@@ -104,24 +104,24 @@ Clients, projects, tasks and tags are created as needed. Rows that match an exis
 
 ## Using the Toggl-compatible API
 
-Find your API token under Settings → API token. Authentication is the same as Toggl's. In these examples `$TOKKL_URL` is wherever the server is reachable:
+Find your API token under Settings → API token. Authentication is the same as Toggl's. In these examples `$TOKKL_URL` is wherever the server is reachable. Each account has its own workspace, so read its id from `default_workspace_id` in `GET /api/v9/me` first (this uses `jq`):
 
 ```sh
+WID=$(curl -s -u "$TOKEN:api_token" $TOKKL_URL/api/v9/me | jq -r .default_workspace_id)
+
 curl -u "$TOKEN:api_token" $TOKKL_URL/api/v9/me
 curl -u "$TOKEN:api_token" $TOKKL_URL/api/v9/me/time_entries/current
 
 # Start a timer
 curl -u "$TOKEN:api_token" -H 'Content-Type: application/json' \
-  -d '{"description":"Deep work","start":"'"$(date -u +%FT%TZ)"'","duration":-1,"created_with":"curl","workspace_id":1}' \
-  $TOKKL_URL/api/v9/workspaces/1/time_entries
+  -d '{"description":"Deep work","start":"'"$(date -u +%FT%TZ)"'","duration":-1,"created_with":"curl","workspace_id":'"$WID"'}' \
+  $TOKKL_URL/api/v9/workspaces/$WID/time_entries
 
 # Summary report
 curl -u "$TOKEN:api_token" -H 'Content-Type: application/json' \
   -d '{"start_date":"2026-10-01","end_date":"2026-10-31","grouping":"projects","sub_grouping":"time_entries"}' \
-  $TOKKL_URL/reports/api/v3/workspace/1/summary/time_entries
+  $TOKKL_URL/reports/api/v3/workspace/$WID/summary/time_entries
 ```
-
-Your workspace id is `default_workspace_id` in `GET /api/v9/me`.
 
 Most Toggl apps hardcode `api.track.toggl.com` and cannot be redirected (Raycast, Obsidian, `toggl-cli`, Timery, Toggl's own apps). Libraries that accept a base URL work, for example `toggl-client` (`TOGGL_BASE_URL`), `toggl-track` (`baseURL`), `toggl-api` (`apiUrl`) and `toggl_python` (`base_url`). The PRD lists implemented endpoints and the behavior decisions in [section 6](docs/PRD.md#6-toggl-api-compatibility).
 
