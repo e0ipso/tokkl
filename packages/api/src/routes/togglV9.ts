@@ -26,7 +26,7 @@ import {
   findUserByEmail, getPreferences, getUser, serializeUser, type UserRow, validatePreferenceChanges,
 } from '../models/users.ts';
 import {
-  countWorkspaceMembers, getWorkspace, getWorkspaceRole, isWorkspaceMember, listWorkspaceMembers, listWorkspaces,
+  countWorkspaceMembers, getWorkspace, getWorkspaceRole, isWorkspaceMember, listWorkspaceMembers,
   listWorkspacesForUser, memberWorkspace, serializeWorkspace, type WorkspaceRow,
 } from '../models/workspaces.ts';
 
@@ -114,7 +114,7 @@ export function togglV9Routes(deps: Deps): Router {
     const user = res.locals.user;
     const body: Record<string, unknown> = serializeUser(user, { includeToken: true });
     if (queryFlag(req, 'with_related_data')) {
-      const workspaces = listWorkspaces(db);
+      const workspaces = listWorkspacesForUser(db, user.id);
       body.workspaces = workspaces.map((ws) => serializeWorkspaceFor(db, user, ws));
       body.clients = workspaces.flatMap((ws) => listClients(db, ws.id).map(serializeClient));
       body.projects = workspaces.flatMap((ws) => listProjects(db, ws.id).map((p) => serializeProject(p, ws.default_currency)));
@@ -200,7 +200,10 @@ export function togglV9Routes(deps: Deps): Router {
   api.post('/me/preferences', savePreferences);
   api.post('/me/preferences/:client', savePreferences);
 
-  api.get('/me/workspaces', (req, res) => res.json(listWorkspaces(db).map((ws) => serializeWorkspaceFor(db, res.locals.user, ws))));
+  api.get('/me/workspaces', (req, res) => {
+    const user = res.locals.user;
+    return res.json(listWorkspacesForUser(db, user.id).map((ws) => serializeWorkspaceFor(db, user, ws)));
+  });
 
   api.get('/me/organizations', (req, res) => res.json(listWorkspacesForUser(db, res.locals.user.id).map((ws) => {
     const owner = getWorkspaceRole(db, res.locals.user.id, ws.id) === 'owner';
@@ -225,25 +228,26 @@ export function togglV9Routes(deps: Deps): Router {
     };
   })));
 
-  api.get('/me/features', (req, res) => res.json(listWorkspaces(db).map((ws) => ({ workspace_id: ws.id, features: [] }))));
+  api.get('/me/features', (req, res) =>
+    res.json(listWorkspacesForUser(db, res.locals.user.id).map((ws) => ({ workspace_id: ws.id, features: [] }))));
 
   api.get('/me/projects', (req, res) => {
     const includeArchived = queryFlag(req, 'include_archived');
-    return res.json(listWorkspaces(db).flatMap((ws) =>
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
       listProjects(db, ws.id, { active: includeArchived ? 'both' : true }).map((p) => serializeProject(p, ws.default_currency))));
   });
 
   api.get('/me/clients', (req, res) => {
-    return res.json(listWorkspaces(db).flatMap((ws) => listClients(db, ws.id).map(serializeClient)));
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) => listClients(db, ws.id).map(serializeClient)));
   });
 
   api.get('/me/tags', (req, res) => {
-    return res.json(listWorkspaces(db).flatMap((ws) => listTags(db, ws.id).map(serializeTag)));
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) => listTags(db, ws.id).map(serializeTag)));
   });
 
   api.get('/me/tasks', (req, res) => {
     const includeDone = queryFlag(req, 'include_not_active');
-    return res.json(listWorkspaces(db).flatMap((ws) =>
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
       listTasks(db, ws.id, undefined, includeDone ? undefined : true).map(serializeTask)));
   });
 

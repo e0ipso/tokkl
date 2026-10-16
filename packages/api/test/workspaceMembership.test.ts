@@ -227,7 +227,7 @@ test('workspace and organization flags come from the caller\'s membership, not u
   assert.deepEqual(flags((await owner.json('PUT', `/api/v9/workspaces/${owner.wid}`, { name: 'Renamed' })).body),
     { admin: true, role: 'admin' });
   const related = await member.json('GET', '/api/v9/me?with_related_data=true');
-  assert.deepEqual(related.body.workspaces.filter((ws: any) => ws.id !== outsider.wid).map((ws: any) => [ws.id, ws.admin, ws.role]),
+  assert.deepEqual(related.body.workspaces.map((ws: any) => [ws.id, ws.admin, ws.role]),
     [[owner.wid, false, 'user'], [member.wid, true, 'admin']]);
   const exported = await member.json('GET', '/api/app/export.json');
   assert.equal(exported.status, 200);
@@ -273,15 +273,18 @@ async function workspaceState(ctx: TestContext) {
   };
 }
 
-/** Gives `ctx` a client, a project, a task, a tag and one stopped entry using all of them. */
-async function seedWorkspace(ctx: TestContext) {
+/**
+ * Gives `ctx` a client, a project, a task, a tag and one stopped entry using all of them. Each name
+ * starts with `prefix`, so two accounts' records can be told apart.
+ */
+async function seedWorkspace(ctx: TestContext, prefix = '') {
   const base = `/api/v9/workspaces/${ctx.wid}`;
-  const client = (await ctx.json('POST', `${base}/clients`, { name: 'Client' })).body;
-  const project = (await ctx.json('POST', `${base}/projects`, { name: 'Project', client_id: client.id })).body;
-  const task = (await ctx.json('POST', `${base}/projects/${project.id}/tasks`, { name: 'Task' })).body;
-  const tag = (await ctx.json('POST', `${base}/tags`, { name: 'Tag' })).body;
+  const client = (await ctx.json('POST', `${base}/clients`, { name: `${prefix}Client` })).body;
+  const project = (await ctx.json('POST', `${base}/projects`, { name: `${prefix}Project`, client_id: client.id })).body;
+  const task = (await ctx.json('POST', `${base}/projects/${project.id}/tasks`, { name: `${prefix}Task` })).body;
+  const tag = (await ctx.json('POST', `${base}/tags`, { name: `${prefix}Tag` })).body;
   const entry = (await ctx.json('POST', `${base}/time_entries`, {
-    start: '2026-10-01T08:00:00Z', duration: 3600, project_id: project.id, task_id: task.id, tags: ['Tag'], workspace_id: ctx.wid,
+    start: '2026-10-01T08:00:00Z', duration: 3600, project_id: project.id, task_id: task.id, tags: [`${prefix}Tag`], workspace_id: ctx.wid,
   })).body;
   for (const created of [client, project, task, tag, entry]) assert.equal(typeof created.id, 'number');
   return { client, project, task, tag, entry };
@@ -415,4 +418,76 @@ test('a non-member cannot delete another workspace\'s project or trash its entri
   const kept = await a.json('GET', `/api/v9/me/time_entries/${entry.id}`);
   assert.equal(kept.status, 200, 'the entry is not in the trash');
   assert.equal(kept.body.project_id, project.id);
+});
+
+/** What `ctx` sees through each /me collection: workspace ids, and record names per collection. */
+async function meCollections(ctx: TestContext) {
+  const names = (list: Array<{ name: string }>) => list.map((item) => item.name).sort();
+  const related = (await ctx.json('GET', '/api/v9/me?with_related_data=true')).body;
+  return {
+    related: {
+      workspaces: related.workspaces.map((ws: any) => ws.id),
+      clients: names(related.clients), projects: names(related.projects), tasks: names(related.tasks), tags: names(related.tags),
+    },
+    workspaces: (await ctx.json('GET', '/api/v9/me/workspaces')).body.map((ws: any) => ws.id),
+    features: (await ctx.json('GET', '/api/v9/me/features')).body.map((f: any) => f.workspace_id),
+    clients: names((await ctx.json('GET', '/api/v9/me/clients')).body),
+    projects: names((await ctx.json('GET', '/api/v9/me/projects')).body),
+    tasks: names((await ctx.json('GET', '/api/v9/me/tasks')).body),
+    tags: names((await ctx.json('GET', '/api/v9/me/tags')).body),
+  };
+}
+
+/** The collections a caller should see when it belongs to `wids` holding records named with `prefixes`. */
+function expectedCollections(wids: number[], prefixes: string[]) {
+  const names = (kind: string) => prefixes.map((prefix) => `${prefix}${kind}`).sort();
+  const catalog = { clients: names('Client'), projects: names('Project'), tasks: names('Task'), tags: names('Tag') };
+  return { related: { workspaces: wids, ...catalog }, workspaces: wids, features: wids, ...catalog };
+}
+
+test('the /me collections hold only the caller\'s workspaces and their catalogs', async () => {
+  const a = await setup();
+  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
+  await seedWorkspace(a, 'A ');
+  await seedWorkspace(b, 'B ');
+
+  assert.deepEqual(await meCollections(a), expectedCollections([a.wid], ['A ']));
+  assert.deepEqual(await meCollections(b), expectedCollections([b.wid], ['B ']));
+
+  addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
+  assert.deepEqual(await meCollections(b), expectedCollections([a.wid, b.wid], ['A ', 'B ']), 'a member also sees the shared workspace');
+  assert.deepEqual(await meCollections(a), expectedCollections([a.wid], ['A ']), 'joining does not show B\'s workspace to A');
+});
+
+test('the JSON export holds only the caller\'s workspaces and catalog, no secrets, and still restores', async () => {
+  const a = await setup();
+  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
+  await seedWorkspace(a, 'A ');
+  await seedWorkspace(b, 'B ');
+
+  for (const [ctx, prefix, other] of [[a, 'A ', b], [b, 'B ', a]] as const) {
+    const response = await ctx.request('GET', '/api/app/export.json');
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    const exported = JSON.parse(text);
+    const names = (list: Array<{ name: string }>) => list.map((item) => item.name);
+    assert.deepEqual(exported.workspaces.map((ws: any) => ws.id), [ctx.wid], ctx.user.email);
+    assert.deepEqual([names(exported.clients), names(exported.projects), names(exported.tasks), names(exported.tags)],
+      [[`${prefix}Client`], [`${prefix}Project`], [`${prefix}Task`], [`${prefix}Tag`]], ctx.user.email);
+    assert.deepEqual(exported.time_entries.map((te: any) => te.workspace_id), [ctx.wid]);
+    for (const user of [ctx.user, other.user]) {
+      assert.ok(!text.includes(user.api_token), 'no API token');
+      assert.ok(!text.includes(user.password_hash), 'no password hash');
+    }
+    assert.ok(!text.includes('scrypt$'));
+
+    const target = await setup();
+    const restored = await (await target.request('POST', '/api/app/import/json', text)).json() as any;
+    assert.deepEqual(restored.errors, []);
+    assert.deepEqual([restored.clients, restored.projects, restored.tasks, restored.tags, restored.time_entries], [1, 1, 1, 1, 1]);
+    const restoredProjects = (await target.json('GET', '/api/v9/me/projects')).body;
+    assert.deepEqual(restoredProjects.map((p: any) => [p.name, p.client_name]), [[`${prefix}Project`, `${prefix}Client`]]);
+    const again = await (await target.request('POST', '/api/app/import/json', text)).json() as any;
+    assert.deepEqual([again.time_entries, again.skipped_duplicates], [0, 1], 'restoring twice changes nothing');
+  }
 });

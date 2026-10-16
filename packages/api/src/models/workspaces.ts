@@ -26,10 +26,6 @@ export function getWorkspace(db: Db, id: number): WorkspaceRow | undefined {
   return db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id) as WorkspaceRow | undefined;
 }
 
-export function listWorkspaces(db: Db): WorkspaceRow[] {
-  return db.prepare('SELECT * FROM workspaces ORDER BY id').all() as unknown as WorkspaceRow[];
-}
-
 export type WorkspaceMemberRole = 'owner' | 'member';
 
 export function addWorkspaceMember(db: Db, wid: number, userId: number, role: WorkspaceMemberRole): void {
