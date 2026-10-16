@@ -68,8 +68,9 @@ async function json<T>(response: Promise<APIResponse>): Promise<T> {
 
 /**
  * Talks to the disposable test server with its own session, separate from the page's, so a
- * scenario still logs in through the UI. Every scenario starts and ends with an empty account.
- * The `data` fixture signs in as the setup admin; `users.create()` adds other accounts.
+ * scenario still logs in through the UI. Every scenario starts and ends with an empty account and
+ * with the setup admin as the only account. The `data` fixture signs in as the setup admin;
+ * `users.create()` adds other accounts.
  */
 export class TestData {
   private readonly api: APIRequestContext;
@@ -163,6 +164,17 @@ export class TestData {
     }
   }
 
+  /**
+   * Deletes every other account and revokes every pending invite, as an admin, so the server again
+   * holds only this account. Password reset links of the deleted accounts go with them.
+   */
+  async resetInstance(): Promise<void> {
+    for (const user of await this.listUsers()) {
+      if (user.id !== this.userId) await this.deleteUser(user);
+    }
+    await this.revokeInvites();
+  }
+
   /** Entries of this account, newest first. */
   async entries(): Promise<Array<{ id: number; description: string }>> {
     return json(this.api.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
@@ -221,8 +233,7 @@ export class TestData {
 
 /**
  * Extra accounts for one scenario, created through invites by the setup admin. When the scenario
- * ends, every account other than the setup admin is deleted and every pending invite revoked, so
- * the next scenario again finds the setup admin alone.
+ * ends their sessions are closed; the `data` fixture then deletes the accounts.
  */
 export class ExtraUsers {
   private readonly admin: TestData;
@@ -240,20 +251,26 @@ export class ExtraUsers {
 
   async dispose(): Promise<void> {
     for (const user of this.created.splice(0)) await user.close();
-    for (const user of await this.admin.listUsers()) {
-      if (user.id !== this.admin.userId) await this.admin.deleteUser(user);
-    }
-    await this.admin.revokeInvites();
   }
 }
 
 export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErrors: RuntimeErrors }>({
+  // Automatic, so a scenario that creates accounts or invites without the users fixture, and fails
+  // before cleaning up, still leaves the server with the setup admin alone.
   data: [async ({ baseURL }, use) => {
     const data = await TestData.open(baseURL!);
-    await data.reset();
-    await use(data);
-    await data.reset();
-    await data.close();
+    try {
+      await data.resetInstance();
+      await data.reset();
+      await use(data);
+    } finally {
+      try {
+        await data.resetInstance();
+        await data.reset();
+      } finally {
+        await data.close();
+      }
+    }
   }, { auto: true }],
   users: async ({ data }, use) => {
     const users = new ExtraUsers(data);

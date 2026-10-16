@@ -4,7 +4,8 @@ import { login, loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, openMore, tap } from './mobile-tests-helpers.ts';
 
 // TT-0141: the admin area in the web app. The setup account is the e2e server's only admin;
-// the users fixture adds regular accounts through invites and deletes them afterwards.
+// the users fixture adds regular accounts through invites, and the data fixture deletes them
+// afterwards.
 
 const LAST_ADMIN = 'At least one active admin must remain';
 
