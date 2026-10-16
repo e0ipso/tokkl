@@ -54,6 +54,7 @@ class Connection : public QObject
     Q_PROPERTY(QVariantMap account READ accountMap NOTIFY accountChanged)
     Q_PROPERTY(qint64 workspaceId READ workspaceId NOTIFY accountChanged)
     Q_PROPERTY(QVariantList projects READ projectList NOTIFY projectsChanged)
+    Q_PROPERTY(bool projectsIncomplete READ projectsIncomplete NOTIFY projectsChanged)
     Q_PROPERTY(QVariant currentEntry READ currentEntryVariant NOTIFY currentEntryChanged)
 
     // Choices for the next start. null or a project id.
@@ -108,6 +109,9 @@ public:
     qint64 workspaceId() const;
     QList<Project> projects() const;
     QVariantList projectList() const;
+    // True when the workspace has more active projects than the page limit
+    // allows reading, so projects() is a prefix of them.
+    bool projectsIncomplete() const;
     std::optional<TimeEntry> currentEntry() const;
     QVariant currentEntryVariant() const;
 
@@ -124,7 +128,9 @@ public:
     // generation.
     void fetchMe(Callback<Me> done = {});
     void fetchCurrentEntry(Callback<std::optional<TimeEntry>> done = {});
-    // Every active project of the workspace, following the pages.
+    // Every active project of the workspace, following the pages up to
+    // maxProjectPages. A workspace beyond that still succeeds with the
+    // projects read; projectsIncomplete() reports the cut.
     void fetchProjects(Callback<QList<Project>> done = {});
     // One project of the workspace, archived or not.
     void fetchProject(qint64 projectId, Callback<Project> done = {});
@@ -222,6 +228,7 @@ private:
     QString m_error;
     std::optional<Context> m_context;
     QList<Project> m_projects;
+    bool m_projectsIncomplete = false;
     std::optional<TimeEntry> m_currentEntry;
     std::optional<qint64> m_nextProjectId;
     bool m_nextBillable = false;
