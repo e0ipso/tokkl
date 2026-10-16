@@ -3,10 +3,10 @@ import type { Db } from '../db/index.ts';
 import { requireAuth } from '../auth/middleware.ts';
 import type { Deps } from '../http/context.ts';
 import { readJson } from '../http/context.ts';
-import { badRequest, forbidden } from '../lib/errors.ts';
+import { badRequest } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { addDays } from '@tokkl/common/time';
-import { getWorkspace, type WorkspaceRow } from '../models/workspaces.ts';
+import { memberWorkspace, type WorkspaceRow } from '../models/workspaces.ts';
 import { filterFromBody, resolutionFor, type Dimension } from '../services/reports.ts';
 import { checkOrderBy, v3WeeklyFilter, type JobResult, type ReportJob } from '../services/reportJobs.ts';
 import { reportRunner } from '../services/reportRunner.ts';
@@ -14,10 +14,9 @@ import { reportRunner } from '../services/reportRunner.ts';
 /** Toggl's Reports API v3 rejects ranges longer than a year. */
 const TOGGL_MAX_DAYS = 366;
 
-function workspaceFor(db: Db, req: Request): WorkspaceRow {
-  const workspace = getWorkspace(db, parseId(req.params.wid));
-  if (!workspace) throw forbidden('Workspace not found/accessible');
-  return workspace;
+/** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
+function workspaceFor(db: Db, req: Request, res: Response): WorkspaceRow {
+  return memberWorkspace(db, res.locals.user.id, parseId(req.params.wid));
 }
 
 const GROUPINGS: Record<string, Dimension> = {
@@ -53,14 +52,14 @@ export function reportsV3Routes(deps: Deps): Router {
   const api = express.Router();
   api.use(requireAuth(deps));
 
-  const v3Filter = (req: Request) => {
-    const ws = workspaceFor(db, req);
+  const v3Filter = (req: Request, res: Response) => {
+    const ws = workspaceFor(db, req, res);
     const body = readJson(req);
     return { ws, body, filter: filterFromBody(body, ws, TOGGL_MAX_DAYS) };
   };
 
   api.post('/workspace/:wid/search/time_entries', async (req, res) => {
-    const { ws, body, filter } = v3Filter(req);
+    const { ws, body, filter } = v3Filter(req, res);
     checkOrderBy(body.order_by);
     const pageSize = Math.min(Math.max(Number(body.page_size ?? 50) || 50, 1), 1000);
     const firstRow = Math.max(Number(body.first_row_number ?? 1) || 1, 1);
@@ -68,20 +67,20 @@ export function reportsV3Routes(deps: Deps): Router {
   });
 
   api.post('/workspace/:wid/search/time_entries/totals', async (req, res) => {
-    const { ws, body, filter } = v3Filter(req);
+    const { ws, body, filter } = v3Filter(req, res);
     const granularity = body.granularity === 'week' || body.granularity === 'month' ? body.granularity
       : resolutionFor(filter.startDate, filter.endDate);
     await send(deps, res, ws, { kind: 'v3-totals', filter, granularity, withGraph: Boolean(body.with_graph) });
   });
 
   api.post('/workspace/:wid/search/time_entries.csv', async (req, res) => {
-    const { ws, body, filter } = v3Filter(req);
+    const { ws, body, filter } = v3Filter(req, res);
     checkOrderBy(body.order_by);
     await send(deps, res, ws, { kind: 'v3-csv', filter, orderBy: body.order_by, orderDir: body.order_dir, durationFormat: body.duration_format });
   });
 
   const summary = (req: Request, res: Response) => {
-    const { ws, body, filter } = v3Filter(req);
+    const { ws, body, filter } = v3Filter(req, res);
     const [groupingName, grouping] = dimension(body.grouping, 'projects', 'grouping');
     const [subName, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
     if (grouping === sub) throw badRequest('grouping and sub_grouping must differ');
@@ -103,7 +102,7 @@ export function reportsV3Routes(deps: Deps): Router {
   });
 
   api.post('/workspace/:wid/weekly/time_entries', async (req, res) => {
-    const ws = workspaceFor(db, req);
+    const ws = workspaceFor(db, req, res);
     const body = readJson(req);
     const start = typeof body.start_date === 'string' ? body.start_date : '';
     const range = filterFromBody({ ...body, end_date: body.end_date ?? (start ? addDays(start, 6) : undefined) }, ws, TOGGL_MAX_DAYS);
@@ -131,7 +130,8 @@ export function appReportRoutes(deps: Deps): Router {
   /** The account's workspace, the request body and its filter, with the app's range allowance. */
   const appFilter = (req: Request, res: Response) => {
     const user = res.locals.user;
-    const ws = getWorkspace(db, user.default_workspace_id)!;
+    // PUT /me accepts only a workspace the user belongs to, but a membership can end after that.
+    const ws = memberWorkspace(db, user.id, user.default_workspace_id);
     const body = readJson(req);
     // The web app always applies the workspace rounding setting; the request can still override it.
     const filter = filterFromBody({ rounding: ws.rounding, rounding_minutes: ws.rounding_minutes, ...body }, ws);
