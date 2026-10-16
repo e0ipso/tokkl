@@ -12,6 +12,7 @@ export interface Deps {
   /**
    * Failed password attempts, shared by the login form, Basic auth and password change. Each check
    * is charged to the account from its address, the account and the address (`passwordCounters`).
+   * Unknown invite tokens count against the same address counter (`addressCounter`).
    */
   loginLimiter: FailureLimiter;
   /** Wrong setup codes per client address, counted apart from passwords. */

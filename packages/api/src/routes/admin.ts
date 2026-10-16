@@ -5,7 +5,10 @@ import { deleteOtherSessions } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { readJson } from '../http/context.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
-import { optionalBool, parseId } from '../lib/values.ts';
+import { optionalBool, optionalString, parseId } from '../lib/values.ts';
+import {
+  createInvite, listPendingInvites, MAX_INVITE_NOTE_LENGTH, revokeInvite, serializeInvite,
+} from '../models/accountTokens.ts';
 import {
   countActiveAdmins, getUser, isActiveAdmin, listUsers, serializeAccount, type UserRole,
 } from '../models/users.ts';
@@ -62,6 +65,23 @@ export function adminRoutes(deps: Deps): Router {
     const id = parseId(req.params.id);
     if (!getUser(db, id)) throw notFound('User not found');
     deleteOtherSessions(db, id);
+    return res.json({ ok: true });
+  });
+
+  api.post('/invites', (req, res) => {
+    const body = readJson(req);
+    if (body.role !== 'admin' && body.role !== 'user') throw badRequest('Invalid role: expected admin or user');
+    const note = optionalString(body.note, 'note', MAX_INVITE_NOTE_LENGTH)?.trim() || null;
+    const days = getInstanceSettings(db, config).invite_days;
+    const { token, invite } = createInvite(db, { role: body.role, note, createdBy: res.locals.user.id, days });
+    // The only response that ever carries the token.
+    return res.json({ ...serializeInvite(invite), url: `/invite/${token}` });
+  });
+
+  api.get('/invites', (req, res) => res.json(listPendingInvites(db).map(serializeInvite)));
+
+  api.delete('/invites/:id', (req, res) => {
+    if (!revokeInvite(db, parseId(req.params.id))) throw notFound('Invite not found');
     return res.json({ ok: true });
   });
 

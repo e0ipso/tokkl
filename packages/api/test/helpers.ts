@@ -6,11 +6,10 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 import { createApp } from '../src/app.ts';
-import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
+import { hashPassword } from '../src/auth/crypto.ts';
 import type { Config } from '../src/config.ts';
-import { nowIso, openDatabase, transaction, type Db } from '../src/db/index.ts';
-import { createFirstAdmin, DEFAULT_PREFERENCES, getUser, type UserRole, type UserRow } from '../src/models/users.ts';
-import { addWorkspaceMember, createWorkspace } from '../src/models/workspaces.ts';
+import { openDatabase, transaction, type Db } from '../src/db/index.ts';
+import { createFirstAdmin, insertAccount, type UserRole, type UserRow } from '../src/models/users.ts';
 
 export interface TestContext {
   db: Db;
@@ -64,30 +63,19 @@ const apps = new WeakMap<Db, TestServer>();
 
 /**
  * Adds another account to the database behind `ctx`, with its own workspace that it owns, and
- * returns a context signed in as that account on the same app. The password is PASSWORD. Invites
- * do not exist yet, so this writes the rows directly, in one transaction.
+ * returns a context signed in as that account on the same app. The password is PASSWORD. It writes
+ * the account the way an accepted invite does, without the invite round trip.
  */
 export async function addUser(
   ctx: TestContext,
   options: { email: string; role: UserRole; fullname?: string; timezone?: string },
 ): Promise<TestContext> {
   const { db } = ctx;
-  const fullname = options.fullname ?? '';
-  const timezone = options.timezone ?? 'UTC';
   const passwordHash = await hashPassword(PASSWORD);
-  const user = transaction(db, () => {
-    const now = nowIso();
-    const workspace = createWorkspace(db, `${fullname || options.email} workspace`);
-    const result = db.prepare(`
-      INSERT INTO users (email, fullname, password_hash, api_token, timezone, default_workspace_id,
-                         preferences, role, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(options.email, fullname, passwordHash, generateApiToken(), timezone, workspace.id,
-      JSON.stringify({ ...DEFAULT_PREFERENCES, pg_time_zone_name: timezone }), options.role, now, now);
-    const userId = Number(result.lastInsertRowid);
-    addWorkspaceMember(db, workspace.id, userId, 'owner');
-    return getUser(db, userId)!;
-  });
+  const user = transaction(db, () => insertAccount(db, {
+    email: options.email, fullname: options.fullname ?? '', timezone: options.timezone ?? 'UTC',
+    passwordHash, role: options.role,
+  }));
   return serve(db, user);
 }
 
