@@ -101,7 +101,8 @@ jobs:
 
   # desktop/gnome (tokkl-timerd on desktop/core) in a pinned Fedora 44
   # container with QtKeychain and GNOME Keyring and no Qt Gui runtime: CTest,
-  # the Qt libraries the service loads and its installed files.
+  # the Qt libraries the service loads, its installed files, and D-Bus
+  # activation of the installed service with and without systemd.
   gnome:
     runs-on: ubuntu-latest
     permissions:

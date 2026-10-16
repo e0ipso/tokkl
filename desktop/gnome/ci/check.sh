@@ -6,7 +6,10 @@
 # Qt library other than Core, Network and DBus, so the service stays headless.
 # The install is checked for the program, the D-Bus activation file, the
 # systemd user unit (with systemd-analyze verify) and the interface
-# description. CI runs it.
+# description. activation.sh then checks that a call to org.tokkl.Timer1
+# starts the installed program: first on a dbus-daemon without systemd, then
+# with systemd booted in the container, through the systemd user unit. The
+# container exits with the result of that last check. CI runs it.
 #
 #   check.sh
 #
@@ -17,6 +20,10 @@
 # container. CONTAINER_ENGINE defaults to docker. The image is pinned by
 # digest, as in desktop/core/ci/check.sh; Fedora's updates repository has no
 # snapshots, so the Qt version is whatever it holds on the day of the run.
+#
+# Booting systemd needs a writable cgroup tree, so the container is
+# privileged and has its own cgroup namespace. It also gets a terminal,
+# because systemd and the check write their output to the console.
 
 set -euo pipefail
 
@@ -27,9 +34,11 @@ engine="${CONTAINER_ENGINE:-docker}"
 image="fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80"
 
 # shellcheck disable=SC2016
-"$engine" run --rm -e LANG=C.UTF-8 -v "$repo:/repo:ro" "$image" bash -euc '
+"$engine" run --rm -t --privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock \
+    -e container=docker -e LANG=C.UTF-8 -v "$repo:/repo:ro" "$image" bash -euc '
     dnf install -y -q --setopt=install_weak_deps=False cmake gcc-c++ make qt6-qtbase-devel \
-        qtkeychain-qt6-devel libsecret gnome-keyring dbus-daemon systemd \
+        qtkeychain-qt6-devel libsecret gnome-keyring dbus-daemon dbus-tools dbus-broker \
+        systemd util-linux \
         > /tmp/dnf.log 2>&1 || { cat /tmp/dnf.log; exit 1; }
     # The development package pulls in the Gui runtime. Remove it, so the
     # service can neither link nor load Qt Gui.
@@ -72,5 +81,26 @@ image="fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798
     grep -qx "SystemdService=tokkl-timerd.service" /usr/share/dbus-1/services/org.tokkl.Timer1.service \
         || { echo "error: the activation file does not name the systemd user unit" >&2; status=1; }
     systemd-analyze verify /usr/lib/systemd/user/tokkl-timerd.service || status=1
-    exit "$status"
+    [ "$status" -eq 0 ] || exit "$status"
+
+    runuser -u builder -- dbus-run-session -- /repo/desktop/gnome/ci/activation.sh bus
+
+    echo "== booting systemd"
+    # builder lingers, so its user manager and session bus start at boot.
+    # In this container the user manager gets no XDG_RUNTIME_DIR from PAM and
+    # refuses to start, so a drop-in sets it.
+    uid="$(id -u builder)"
+    install -d /var/lib/systemd/linger /etc/systemd/system/user@.service.d
+    touch /var/lib/systemd/linger/builder
+    printf "%s\n" "[Service]" "Environment=XDG_RUNTIME_DIR=/run/user/%i" \
+        > /etc/systemd/system/user@.service.d/runtime-dir.conf
+    printf "%s\n" "[Unit]" "Description=tokkl-timerd activation check" \
+        "Wants=user@$uid.service" "After=user@$uid.service" \
+        "[Service]" "Type=oneshot" "TimeoutStartSec=300" \
+        "ExecStart=/repo/desktop/gnome/ci/activation.sh systemd" \
+        "StandardOutput=tty" "StandardError=tty" "TTYPath=/dev/console" \
+        "[Install]" "WantedBy=multi-user.target" \
+        > /etc/systemd/system/tokkl-activation-check.service
+    systemctl enable --quiet tokkl-activation-check.service
+    exec /usr/sbin/init --show-status=no
 '
