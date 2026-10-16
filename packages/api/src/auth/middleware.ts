@@ -1,4 +1,4 @@
-import type { Request, RequestHandler } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
 import { forbidden, tooManyRequests } from '../lib/errors.ts';
@@ -60,6 +60,21 @@ export function currentActiveUser(db: Deps['db'], user: UserRow): UserRow | unde
   const current = getUser(db, user.id);
   if (!current || !isActiveUser(current)) return undefined;
   return current.password_hash === user.password_hash ? current : undefined;
+}
+
+/**
+ * Whether a request authenticated as `user` is still signed in after waiting on I/O: the account
+ * passes currentActiveUser and the credential requireAuth accepted still exists. A session must still
+ * be live. A Basic request needs the same API token; that also refuses a password-Basic request whose
+ * token was rotated meanwhile, which is harmless. A reset or another password change ends sessions and
+ * changes the hash, so a request that awaited while one committed fails here. Run it after the last
+ * await, right before the write.
+ */
+export function stillSignedIn(db: Deps['db'], locals: Response['locals'], user: UserRow): boolean {
+  const current = currentActiveUser(db, user);
+  if (!current) return false;
+  if (locals.authMethod === 'session') return findSessionUser(db, locals.sessionToken)?.id === user.id;
+  return current.api_token === user.api_token;
 }
 
 async function userFromBasic(deps: Deps, req: Request, header: string): Promise<UserRow> {

@@ -1,12 +1,12 @@
 import express, { type Request, type Response, type Router } from 'express';
 import { nowIso, transaction, type Db } from '../db/index.ts';
 import { generateApiToken, hashPassword, readNewPassword, verifyPassword } from '../auth/crypto.ts';
-import { requireAuth } from '../auth/middleware.ts';
+import { requireAuth, stillSignedIn } from '../auth/middleware.ts';
 import { passwordCounters } from '../auth/rateLimit.ts';
 import { deleteOtherSessions } from '../auth/sessions.ts';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
-import { badRequest, tooManyRequests } from '../lib/errors.ts';
+import { badRequest, forbidden, tooManyRequests } from '../lib/errors.ts';
 import { optionalId, optionalRate, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
 import { isValidTimeZone, startOfDay } from '@tokkl/common/time';
 import {
@@ -157,6 +157,9 @@ export function togglV9Routes(deps: Deps): Router {
       if (valid === null) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counters));
       if (!valid) throw badRequest('Current password is not valid');
       passwordHash = await hashPassword(password);
+      // Nothing below awaits, so a reset or another password change cannot commit between this check
+      // and the UPDATE. One that committed while scrypt ran refuses the request, as an ended session would.
+      if (!stillSignedIn(db, res.locals, user)) throw forbidden('Incorrect username and/or password');
     }
 
     // Checked after the last await, so no other request can take the address before the UPDATE.
