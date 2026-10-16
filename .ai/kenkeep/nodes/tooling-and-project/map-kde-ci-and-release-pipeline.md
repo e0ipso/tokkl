@@ -19,7 +19,9 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`.github/workflows/ci.yml` has a `kde` job with a matrix of two targets, TUXEDO OS 24.04 (`deb`, `desktop/kde/ci/Dockerfile`) and Fedora KDE 44 (`rpm`, `desktop/kde/ci/fedora.Dockerfile`). Each target runs `desktop/kde/scripts/container-check.sh --format` (CTest under Xvfb and DBus, packaging, then version, dependency, clean-install, installed widget and backend load, upgrade from 0.0.0 and removal checks) and then `desktop/kde/ci/realserver.sh`. The `release` job `needs: [test, kde]`.
+`.github/workflows/ci.yml` has a `kde` job with a matrix of two targets, TUXEDO OS 24.04 (`deb`, `desktop/kde/ci/Dockerfile`) and Fedora KDE 44 (`rpm`, `desktop/kde/ci/fedora.Dockerfile`). Each target runs `desktop/kde/scripts/container-check.sh --format` (CTest under Xvfb and DBus, packaging, then version, dependency, clean-install, installed widget and backend load, upgrade from 0.0.0 and removal checks) and then `desktop/kde/ci/realserver.sh`. The `release` job `needs: [test, kde, core]`.
+
+The `core` job runs `desktop/core/ci/check.sh` in the digest-pinned `fedora:44` image with only cmake, gcc-c++, make and qt6-qtbase-devel, after `rpm -e --nodeps qt6-qtbase-gui`. It configures and builds `desktop/core`, runs CTest, and fails if any test binary loads a Qt library other than Core, Network or Test (checked with `ldd`). A Qt Gui or KDE dependency added to the core breaks this job, not the `kde` job. Fedora updates have no snapshots, so the Qt version is whatever the archive holds that day.
 
 - Base images are pinned by digest, but the TUXEDO OS, Ubuntu and Fedora updates archives have no snapshots, so Qt, KDE Frameworks and Plasma are whatever the archive holds on the build day. `desktop/kde/ci/baseline.sh` prints the versions and fails the build below the floor (Qt 6.10.2, Frameworks 6.24.0, Plasma 6.6.6 for deb and 6.6.0 for rpm). A red `kde` job with no code change can be an archive moving, not a regression.
 - `TOKKL_KDE_CI_IMAGE` names the images for both `container-check.sh` and `realserver.sh`. It replaced `TOKKL_DEB_IMAGE` and `TOKKL_RPM_IMAGE`.

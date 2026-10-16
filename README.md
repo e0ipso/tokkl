@@ -156,7 +156,7 @@ npm run screenshots  # builds, then rewrites docs/screenshots/*.png
 npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
 
-The KDE companion is a separate CMake project that no npm script builds. To build and test it, run `cmake -S desktop/kde -B desktop/kde/build`, `cmake --build desktop/kde/build` and `ctest --test-dir desktop/kde/build` (needs Qt 6.10 and KDE Frameworks 6.24; [details](desktop/kde/README.md#configure-build-and-test)).
+The KDE companion is a separate CMake project that no npm script builds. To build and test it, run `cmake -S desktop/kde -B desktop/kde/build`, `cmake --build desktop/kde/build` and `ctest --test-dir desktop/kde/build` (needs Qt 6.10 and KDE Frameworks 6.24; [details](desktop/kde/README.md#configure-build-and-test)). It builds on `desktop/core`, the timer and connection core the desktop companions share. That project needs only Qt 6.10 Core, Network and Test, and the same three commands pointed at `desktop/core` build and test it on its own.
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)) and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
 
@@ -168,6 +168,7 @@ packages/web     @tokkl/web: React app, built by Vite into dist/web
 packages/common  @tokkl/common: duration, time-of-day and timezone helpers used by the API and the web app
 packages/types   @tokkl/types: type declarations for the JSON the API and the web app exchange
 e2e/             Playwright tests
+desktop/core/    Shared desktop core: API client, connection state and timer controller, Qt only (its own CMake project)
 desktop/kde/     KDE Plasma panel companion: widget, Qt backend, DEB and RPM packaging, CI images and tests (its own CMake project)
 scripts/         README screenshot and app icon generators
 bench/           history-scale measurements

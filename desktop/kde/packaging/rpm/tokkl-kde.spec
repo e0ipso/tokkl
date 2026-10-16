@@ -71,7 +71,8 @@ The token or password is stored in KDE Wallet. Built for Fedora KDE 44 x86_64.
 %autosetup -n %{name}-%{version}
 
 %build
-%cmake_kf6 -DTOKKL_VERSION=%{tokkl_version} -DBUILD_TESTING=OFF
+# The tarball carries desktop/core in core/.
+%cmake_kf6 -DTOKKL_VERSION=%{tokkl_version} -DTOKKL_CORE_DIR="$PWD/core" -DBUILD_TESTING=OFF
 %cmake_build
 
 # The tests need an offscreen Plasma session and run in CI, not in package
