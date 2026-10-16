@@ -66,7 +66,11 @@ On first start the log prints a setup code:
 No admin account yet. Open the web UI and use this setup code to create it: ABCD-EFGH-JKLM
 ```
 
-Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link on the Admin page and shares it by hand, and the server sends no email. The Admin page also changes roles, disables, signs out and deletes accounts, creates one-time password reset links (shared by hand, valid for 24 hours), and sets how long sessions and invite links last.
+Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link on the Admin page, picks the new account's role (admin or user) and shares the link by hand. The server sends no email. A link works once and expires after 7 days unless an admin changes that. Each invited account gets its own private workspace.
+
+The Admin page also changes roles, disables and re-enables accounts, signs them out, deletes them with their workspace, and sets how long new sessions (1 to 365 days) and invite links (1 to 90 days) last. The server always keeps one active admin. Admins manage accounts only: they have no access to other accounts' workspaces, so they cannot read anyone else's entries.
+
+An admin can also create a one-time password reset link for an account and share it by hand. The link is valid for 24 hours, and a newer link replaces the older unused one. Setting a new password through the link signs the account out of every session, but it does not change the account's API token. The user rotates that separately under Settings → API token.
 
 All data is in `tokkl.sqlite` (plus its `-wal` and `-shm` files) inside the data folder. Settings → Data also exports everything as JSON and all entries as CSV, and restores the JSON export.
 
@@ -90,7 +94,7 @@ The container runs as the image's `node` user (UID 1000). To run it as another U
 | `TOKKL_DATA_DIR` | `./data` | Folder for the database |
 | `TOKKL_DATABASE` | `<data dir>/tokkl.sqlite` | Database file path |
 | `TOKKL_TRUST_PROXY` | `false` | Trust one reverse proxy hop. The client address for login rate limiting then comes from the last `X-Forwarded-For` entry, and `X-Forwarded-Proto: https` makes the session cookie `Secure` and turns on HSTS. Set it only when the app is reachable through the proxy alone. |
-| `TOKKL_SESSION_DAYS` | `30` | Login session lifetime |
+| `TOKKL_SESSION_DAYS` | `30` | Default lifetime in days of a new login session. Once an admin saves a session length on the Admin page, that value replaces this one. Existing sessions keep their expiry. |
 | `TOKKL_SETUP_CODE` | random | Fixed setup code that creates the first admin, for scripted installs |
 | `TOKKL_WEB_ROOT` | `dist/web` | Folder with the built web app |
 
