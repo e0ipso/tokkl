@@ -16,6 +16,9 @@ export interface ReportFilter {
   clientIds?: IdFilter;
   tagIds?: IdFilter;
   taskIds?: IdFilter;
+  userIds?: IdFilter;
+  minDurationSeconds?: number;
+  maxDurationSeconds?: number;
   /** Negated filters: drop entries matching any of these. `null` means "without". */
   excludeProjectIds?: IdFilter;
   excludeClientIds?: IdFilter;
@@ -126,7 +129,17 @@ export function collectEntries(db: Db, user: UserRow, workspace: WorkspaceRow, f
     idClause('te.project_id', filter.projectIds, params),
     idClause('p.client_id', filter.clientIds, params),
     idClause('te.task_id', filter.taskIds, params),
+    idClause('te.user_id', filter.userIds, params),
   ]) if (clause) where.push(clause);
+
+  if (filter.minDurationSeconds !== undefined) {
+    where.push('unixepoch(te.stop) - unixepoch(te.start) >= ?');
+    params.push(filter.minDurationSeconds);
+  }
+  if (filter.maxDurationSeconds !== undefined) {
+    where.push('unixepoch(te.stop) - unixepoch(te.start) <= ?');
+    params.push(filter.maxDurationSeconds);
+  }
 
   const tags = tagClause(filter.tagIds, params);
   if (tags) where.push(tags);
@@ -392,6 +405,17 @@ export function filterFromBody(body: Record<string, unknown>, workspace: Workspa
     throw badRequest("Invalid 'billable' value");
   }
   const timeEntryIds = parseIdFilter(body.time_entry_ids, 'time_entry_ids')?.filter((id): id is number => id !== null);
+  const durationBound = (field: string): number | undefined => {
+    const value = body[field];
+    if (value === undefined || value === null) return undefined;
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw badRequest(`Invalid '${field}' value`);
+    return value;
+  };
+  const minDurationSeconds = durationBound('min_duration_seconds');
+  const maxDurationSeconds = durationBound('max_duration_seconds');
+  if (minDurationSeconds !== undefined && maxDurationSeconds !== undefined && minDurationSeconds >= maxDurationSeconds) {
+    throw badRequest('max_duration_seconds must be greater than min_duration_seconds');
+  }
   const rounding = body.rounding === undefined ? undefined : Number(body.rounding);
   const roundingMinutes = body.rounding_minutes === undefined ? undefined : Number(body.rounding_minutes);
   if (roundingMinutes !== undefined && !ROUNDING_MINUTES.includes(roundingMinutes)) {
@@ -405,6 +429,9 @@ export function filterFromBody(body: Record<string, unknown>, workspace: Workspa
     clientIds: parseIdFilter(body.client_ids, 'client_ids'),
     tagIds: parseIdFilter(body.tag_ids, 'tag_ids'),
     taskIds: parseIdFilter(body.task_ids, 'task_ids'),
+    userIds: parseIdFilter(body.user_ids, 'user_ids'),
+    minDurationSeconds,
+    maxDurationSeconds,
     excludeProjectIds: parseIdFilter(body.exclude_project_ids, 'exclude_project_ids'),
     excludeClientIds: parseIdFilter(body.exclude_client_ids, 'exclude_client_ids'),
     excludeTagIds: parseIdFilter(body.exclude_tag_ids, 'exclude_tag_ids'),

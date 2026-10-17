@@ -10,7 +10,7 @@ import { badRequest, forbidden, tooManyRequests } from '../lib/errors.ts';
 import { optionalId, optionalRate, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
 import { isValidTimeZone, startOfDay } from '@tokkl/common/time';
 import {
-  createClient, deleteClient, getClient, listClients, serializeClient, setClientArchived, updateClient,
+  createClient, deleteClient, getClient, listClients, restoreClient, serializeClient, setClientArchived, updateClient,
 } from '../models/clients.ts';
 import {
   createProject, deleteProject, getProject, listProjects, serializeProject, updateProject, type ProjectFilter,
@@ -49,20 +49,28 @@ function boundary(value: string, field: string, user: UserRow): Date {
   return 'instant' in parsed ? parsed.instant : startOfDay(parsed.date, user.timezone);
 }
 
-function timeEntryFilter(req: Request, user: UserRow): TimeEntryFilter {
+function changedSince(req: Request): string | undefined {
   const since = query(req, 'since');
+  if (since === undefined) return undefined;
+  const date = new Date(Number(since) * 1000);
+  if (!/^\d+$/.test(since) || Number.isNaN(date.getTime())) {
+    throw badRequest('Since is expected to be an unix timestamp, integer value');
+  }
+  return date.toISOString();
+}
+
+function modifiedSince<T extends { updated_at: string }>(rows: T[], since: string | undefined): T[] {
+  return since === undefined ? rows : rows.filter((row) => row.updated_at >= since);
+}
+
+function timeEntryFilter(req: Request, user: UserRow): TimeEntryFilter {
+  const since = changedSince(req);
   const before = query(req, 'before');
   const startDate = query(req, 'start_date');
   const endDate = query(req, 'end_date');
   const filter: TimeEntryFilter = {};
 
-  if (since !== undefined) {
-    const sinceDate = new Date(Number(since) * 1000);
-    if (!/^\d+$/.test(since) || Number.isNaN(sinceDate.getTime())) {
-      throw badRequest('Since is expected to be an unix timestamp, integer value');
-    }
-    filter.changedSince = sinceDate;
-  }
+  if (since !== undefined) filter.changedSince = new Date(since);
   if ((startDate === undefined) !== (endDate === undefined)) {
     throw badRequest('start_date and end_date must be used together');
   }
@@ -81,14 +89,13 @@ function timeEntryFilter(req: Request, user: UserRow): TimeEntryFilter {
 function projectFilter(req: Request): ProjectFilter {
   const active = query(req, 'active');
   const billable = query(req, 'billable');
-  const since = query(req, 'since');
   const clientIds = query(req, 'client_ids');
   return {
     active: active === 'both' ? 'both' : active === 'false' ? false : active === 'true' ? true : 'both',
     billable: billable === undefined ? undefined : billable === 'true',
     name: query(req, 'name') || query(req, 'search') || undefined,
     clientIds: clientIds ? parseIdList(clientIds, 1000) : undefined,
-    sinceIso: since && /^\d+$/.test(since) ? new Date(Number(since) * 1000).toISOString() : undefined,
+    sinceIso: changedSince(req),
   };
 }
 
@@ -212,7 +219,8 @@ export function togglV9Routes(deps: Deps): Router {
 
   api.get('/me/workspaces', (req, res) => {
     const user = res.locals.user;
-    return res.json(listWorkspacesForUser(db, user.id).map((ws) => serializeWorkspaceFor(db, user, ws)));
+    return res.json(modifiedSince(listWorkspacesForUser(db, user.id), changedSince(req))
+      .map((ws) => serializeWorkspaceFor(db, user, ws)));
   });
 
   api.get('/me/organizations', (req, res) => res.json(listWorkspacesForUser(db, res.locals.user.id).map((ws) => {
@@ -243,22 +251,33 @@ export function togglV9Routes(deps: Deps): Router {
 
   api.get('/me/projects', (req, res) => {
     const includeArchived = queryFlag(req, 'include_archived');
+    const sinceIso = changedSince(req);
     return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
-      listProjects(db, ws.id, { active: includeArchived ? 'both' : true }).map((p) => serializeProject(p, ws.default_currency))));
+      listProjects(db, ws.id, { active: includeArchived ? 'both' : true, sinceIso })
+        .map((p) => serializeProject(p, ws.default_currency))));
   });
 
   api.get('/me/clients', (req, res) => {
-    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) => listClients(db, ws.id).map(serializeClient)));
+    const since = changedSince(req);
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
+      modifiedSince(listClients(db, ws.id), since).map(serializeClient)));
   });
 
   api.get('/me/tags', (req, res) => {
-    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) => listTags(db, ws.id).map(serializeTag)));
+    const since = changedSince(req);
+    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
+      modifiedSince(listTags(db, ws.id), since).map(serializeTag)));
   });
 
   api.get('/me/tasks', (req, res) => {
     const includeDone = queryFlag(req, 'include_not_active');
-    return res.json(listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
-      listTasks(db, ws.id, undefined, includeDone ? undefined : true).map(serializeTask)));
+    const since = changedSince(req);
+    const offset = Math.max(Number(query(req, 'offset') ?? 0) || 0, 0);
+    const perPageParam = query(req, 'per_page');
+    const tasks = listWorkspacesForUser(db, res.locals.user.id).flatMap((ws) =>
+      modifiedSince(listTasks(db, ws.id, undefined, includeDone ? undefined : true), since));
+    const perPage = perPageParam === undefined ? tasks.length : Math.max(Number(perPageParam) || 1, 1);
+    return res.json(tasks.slice(offset, offset + perPage).map(serializeTask));
   });
 
   api.get('/me/time_entries', (req, res) => {
@@ -386,15 +405,23 @@ export function togglV9Routes(deps: Deps): Router {
     const search = query(req, 'search')?.toLowerCase();
     let tasks = listTasks(db, ws.id, pid ? parseId(pid) : undefined,
       active === undefined || active === 'both' ? undefined : active === 'true');
+    tasks = modifiedSince(tasks, changedSince(req));
     if (search) tasks = tasks.filter((task) => task.name.toLowerCase().includes(search));
+    const sortField = query(req, 'sort_field') ?? 'name';
+    const sortOrder = (query(req, 'sort_order') ?? 'ASC').toUpperCase();
+    if (sortField !== 'name' && sortField !== 'created_at') throw badRequest('Invalid sort_field');
+    if (sortOrder !== 'ASC' && sortOrder !== 'DESC') throw badRequest('Invalid sort_order');
+    const direction = sortOrder === 'ASC' ? 1 : -1;
+    tasks.sort((a, b) => direction * ((sortField === 'name'
+      ? a.name.toLowerCase().localeCompare(b.name.toLowerCase()) : a.created_at.localeCompare(b.created_at)) || a.id - b.id));
     const page = Math.max(Number(query(req, 'page') ?? 1) || 1, 1);
     const perPage = Math.min(Math.max(Number(query(req, 'per_page') ?? 50) || 50, 1), 200);
     return res.json({
       data: tasks.slice((page - 1) * perPage, page * perPage).map(serializeTask),
       page,
       per_page: perPage,
-      sort_field: 'name',
-      sort_order: 'ASC',
+      sort_field: sortField,
+      sort_order: sortOrder,
       total_count: tasks.length,
     });
   });
@@ -429,8 +456,11 @@ export function togglV9Routes(deps: Deps): Router {
   api.get('/workspaces/:wid/clients', (req, res) => {
     const ws = workspaceFor(db, req, res);
     const status = query(req, 'status');
+    if (status !== undefined && status !== 'active' && status !== 'archived' && status !== 'both') {
+      throw badRequest('Client status is invalid');
+    }
     return res.json(listClients(db, ws.id,
-      status === 'active' || status === 'archived' ? status : 'both', query(req, 'name') || undefined).map(serializeClient));
+      status === 'both' || status === 'archived' ? status : 'active', query(req, 'name') || undefined).map(serializeClient));
   });
   api.get('/workspaces/:wid/clients/:cid', (req, res) => {
     const ws = workspaceFor(db, req, res);
@@ -451,8 +481,8 @@ export function togglV9Routes(deps: Deps): Router {
   api.post('/workspaces/:wid/clients/:cid/restore', async (req, res) => {
     const ws = workspaceFor(db, req, res);
     const cid = parseId(req.params.cid);
-    transaction(db, () => setClientArchived(db, ws.id, cid, false));
-    return res.json(serializeClient(getClient(db, ws.id, cid)));
+    const body = req.body ? readJson(req) : {};
+    return res.json(serializeClient(transaction(db, () => restoreClient(db, ws.id, cid, body))));
   });
   api.delete('/workspaces/:wid/clients/:cid', (req, res) => {
     const ws = workspaceFor(db, req, res);

@@ -1,4 +1,5 @@
 import { snapSpan } from '@tokkl/common/snap';
+import { parseDateKey } from '@tokkl/common/time';
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
 import { badRequest, conflict, notFound } from '../lib/errors.ts';
@@ -168,6 +169,22 @@ function readDuration(value: unknown): number | undefined {
   return Math.trunc(value);
 }
 
+function readStart(body: Record<string, unknown>, fallback: Date): Date {
+  const value = body.start ?? fallback.toISOString();
+  const start = parseInstant(value, 'start');
+  if (body.start_date === undefined || body.start_date === null) return start;
+  if (typeof body.start_date !== 'string' || !parseDateKey(body.start_date)) {
+    throw badRequest('Invalid start_date: expected YYYY-MM-DD');
+  }
+  return parseInstant(`${body.start_date}${(value as string).slice(10)}`, 'start');
+}
+
+function assertConsistentDuration(start: Date, stop: Date | null, duration: number | undefined, body: Record<string, unknown>): void {
+  if (body.stop != null && stop && duration !== undefined && seconds(stop) - seconds(start) !== duration) {
+    throw badRequest('Stop and duration must be consistent with start');
+  }
+}
+
 function resolveProjectAndTask(
   db: Db, wid: number, body: Record<string, unknown>, current: { projectId: number | null; taskId: number | null },
 ): { projectId: number | null; taskId: number | null; project: ProjectRef | null; projectChanged: boolean } {
@@ -251,11 +268,12 @@ export function createTimeEntry(
 ): TimeEntryWithMeta {
   return transaction(db, () => {
     assertWorkspace(body, wid);
-    const start = body.start === undefined || body.start === null ? new Date() : parseInstant(body.start, 'start');
+    const start = readStart(body, new Date());
     const duration = readDuration(body.duration);
     let stop: Date | null = null;
     if (body.stop !== undefined && body.stop !== null) stop = parseInstant(body.stop, 'stop');
     else if (duration !== undefined && duration >= 0) stop = new Date(start.getTime() + duration * 1000);
+    assertConsistentDuration(start, stop, duration, body);
 
     const { projectId, taskId, project } = resolveProjectAndTask(db, wid, body, { projectId: null, taskId: null });
     const billableInput = optionalBool(body.billable, 'billable');
@@ -296,7 +314,7 @@ export function updateTimeEntry(
 
     const currentStart = new Date(current.start);
     const currentStop = current.stop ? new Date(current.stop) : null;
-    const start = body.start === undefined || body.start === null ? currentStart : parseInstant(body.start, 'start');
+    const start = readStart(body, currentStart);
     const duration = readDuration(body.duration);
     let stop = currentStop;
     if (body.stop !== undefined && body.stop !== null) {
@@ -304,6 +322,7 @@ export function updateTimeEntry(
     } else if (duration !== undefined) {
       stop = duration >= 0 ? new Date(start.getTime() + duration * 1000) : null;
     }
+    assertConsistentDuration(start, stop, duration, body);
     // Editing only the start of a stopped entry keeps its stop time, as the Toggl web app does.
 
     const { projectId, taskId, project, projectChanged } = resolveProjectAndTask(db, wid, body, {

@@ -1,6 +1,6 @@
 <h1><img src="docs/brand/tokkl-wordmark.png" alt="Tokkl" width="320"></h1>
 
-A self-hosted time tracker modeled on Toggl Track. One server holds several accounts, and each account has its own private workspace. It runs on a server you own, keeps every entry in one SQLite file, and answers on a subset of the Toggl Track API v9 and Reports API v3. Scripts and libraries written for Toggl can switch to it by changing the base URL.
+A self-hosted time tracker modeled on Toggl Track. One server holds several accounts, and each account has its own private workspace. It runs on a server you own, keeps every entry in one SQLite file, and answers on a subset of the Toggl Track API v9 and Reports API v3. Scripts and libraries using the [supported endpoints and parameters](docs/PRD.md#6-toggl-api-compatibility) can switch to it by changing the base URL. Stopped entries follow Tokkl's instance time resolution, so their stored times can differ from the times sent.
 
 The server makes no outbound requests. No telemetry, CDN fonts or AI features.
 
