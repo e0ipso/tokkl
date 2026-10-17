@@ -123,3 +123,54 @@ test('across a half-hour clock change the stored start stays on the local hour g
   expect([instant(saved.start), instant(saved.stop)]).toEqual([Date.parse('2026-10-03T16:00:00Z'), Date.parse('2026-10-03T17:00:00Z')]);
   await expect(timer.getByLabel('Start time')).toHaveValue('04:00');
 });
+
+test('an entry saved under a finer resolution splits into halves that fill its snapped span', async ({ page, data }) => {
+  const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const start = Date.parse(`${day}T08:05:00Z`);
+  // Stored at the default 5-minute resolution, then the server moves to 15: the entry now snaps to
+  // 08:00-09:00, and each half carries its own snapped start and stop so they add up to that hour.
+  await data.createEntry({ description: 'Older grid', start: `${day}T08:05:00Z`, stop: `${day}T09:05:00Z` });
+  await data.saveInstanceSettings({ time_resolution_minutes: 15 });
+  await login(page);
+  const row = page.locator('.entry-line', { has: page.locator('input[value="Older grid"]') });
+  await row.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+
+  await editor.getByLabel('Split at').fill(madridWallClock(new Date(start + 25 * MINUTE)).time);
+  await expect(editor.getByText('Splits into 0:30:00 and 0:30:00.')).toBeVisible();
+  await editor.getByRole('button', { name: 'Split' }).click();
+  await expect(page.getByText('Entry split in two')).toBeVisible();
+  const api = await TimerApi.open(page);
+  const halves = (await api.entries())
+    .filter((entry) => entry.description === 'Older grid')
+    .map((entry) => [instant(entry.start), instant(entry.stop)])
+    .sort(([a], [b]) => a! - b!);
+  const hour = start - 5 * MINUTE;
+  expect(halves).toEqual([[hour, hour + 30 * MINUTE], [hour + 30 * MINUTE, hour + 60 * MINUTE]]);
+});
+
+test('across a half-hour clock change the entry editor refuses a split whose halves would overlap', async ({ page, data, users }) => {
+  await data.saveInstanceSettings({ time_resolution_minutes: 60 });
+  // On Lord Howe Island 01:00 (UTC+10:30) to 03:30 (UTC+11) on 2026-10-04 is two hours. Cut at
+  // 03:00, the first half lasts an hour and a half and would be stored as two, overlapping the second.
+  const user = await users.create({ timezone: 'Australia/Lord_Howe' });
+  const span = [Date.parse('2026-10-03T14:30:00Z'), Date.parse('2026-10-03T16:30:00Z')];
+  const { id } = await user.createEntry({ description: 'Island shift', start: '2026-10-03T14:30:00Z', stop: '2026-10-03T16:30:00Z' });
+  await page.clock.setFixedTime(new Date('2026-10-04T01:00:00Z'));
+  await loginAs(page, user.account);
+  const api = await TimerApi.open(page);
+  const stored = async () => (await api.entries()).map((entry) => [entry.id, instant(entry.start), instant(entry.stop)]);
+  expect(await stored()).toEqual([[id, ...span]]);
+
+  const row = page.locator('.entry-line', { has: page.locator('input[value="Island shift"]') });
+  await row.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  await editor.getByLabel('Split at').fill('3:00');
+  await expect(editor.getByText(/^Splits into/)).toBeHidden();
+  await editor.getByRole('button', { name: 'Split' }).click();
+  await expect(editor.getByText('The clocks change during this entry, so it can\'t be split at that time')).toBeVisible();
+  await expect(page.getByText('Entry split in two')).toBeHidden();
+  expect(await stored()).toEqual([[id, ...span]]);
+});
