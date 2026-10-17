@@ -69,10 +69,18 @@ in_container() {
 # Installs and checks a package in a fresh container that boots systemd
 # for the last step, as desktop/gnome/ci/check.sh does.
 check_package() {
-    local image="$1" package="$2"
+    local image="$1" package="$2" log_dir status=0
+    log_dir="$(mktemp -d)"
     "$engine" run --rm -t --privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock \
-        -e container=docker -e LANG=C.UTF-8 -v "$repo:/repo:ro" -v "$output:/out:ro" "$image" \
-        /repo/desktop/gnome/scripts/check-package.sh --version "$version" --package "/out/$package"
+        -e container=docker -e LANG=C.UTF-8 -e ACTIVATION_LOG=/log/activation.log \
+        -v "$repo:/repo:ro" -v "$output:/out:ro" -v "$log_dir:/log" "$image" \
+        /repo/desktop/gnome/scripts/check-package.sh --version "$version" --package "/out/$package" \
+        || status=$?
+    if [ -s "$log_dir/activation.log" ]; then
+        cat "$log_dir/activation.log"
+    fi
+    rm -rf "$log_dir"
+    return "$status"
 }
 
 for format in $formats; do

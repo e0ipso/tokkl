@@ -23,7 +23,7 @@
 #
 # Booting systemd needs a writable cgroup tree, so the container is
 # privileged and has its own cgroup namespace. It also gets a terminal,
-# because systemd and the check write their output to the console.
+# because systemd writes its output to the console.
 
 set -euo pipefail
 
@@ -33,9 +33,15 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 engine="${CONTAINER_ENGINE:-docker}"
 image="fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80"
 
+# The systemd activation check writes to a file here, printed after the run.
+log_dir="$(mktemp -d)"
+trap 'rm -rf "$log_dir"' EXIT
+
+status=0
 # shellcheck disable=SC2016
 "$engine" run --rm -t --privileged --cgroupns=private --tmpfs /run --tmpfs /run/lock \
-    -e container=docker -e LANG=C.UTF-8 -v "$repo:/repo:ro" "$image" bash -euc '
+    -e container=docker -e LANG=C.UTF-8 -e ACTIVATION_LOG=/log/activation.log \
+    -v "$repo:/repo:ro" -v "$log_dir:/log" "$image" bash -euc '
     dnf install -y -q --setopt=install_weak_deps=False cmake gcc-c++ make qt6-qtbase-devel \
         qtkeychain-qt6-devel libsecret gnome-keyring dbus-daemon dbus-tools dbus-broker \
         systemd util-linux \
@@ -86,4 +92,8 @@ image="fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798
     runuser -u builder -- dbus-run-session -- /repo/desktop/gnome/ci/activation.sh bus
 
     exec /repo/desktop/gnome/ci/boot-activation.sh
-'
+' || status=$?
+if [ -s "$log_dir/activation.log" ]; then
+    cat "$log_dir/activation.log"
+fi
+exit "$status"
