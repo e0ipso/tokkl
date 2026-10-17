@@ -257,9 +257,11 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       const saved = await create.mutateAsync({ ...draft, start: range.start.toISOString(), stop: range.stop.toISOString() });
       toast.show(`Added ${formatDuration(entrySeconds(saved, range.stop))}`);
       setDraft(EMPTY);
-      // The next entry starts where this one stopped, which is the next day after midnight.
-      setManualDay(localDay(range.stop, settings.timeZone));
-      setManualStart(formatTime(range.stop, settings));
+      // The next entry starts where the stored one stopped, which is the next day after midnight.
+      // The server snaps the times, so starting at the typed end could overlap the stored entry.
+      const stop = saved.stop ? new Date(saved.stop) : range.stop;
+      setManualDay(localDay(stop, settings.timeZone));
+      setManualStart(formatTime(stop, settings));
       setManualEnd('');
       descriptionRef.current?.focus();
     } catch (error) {
