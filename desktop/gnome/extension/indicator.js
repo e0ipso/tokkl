@@ -238,6 +238,7 @@ class TokklIndicator extends PanelMenu.Button {
             indicatorColor: this._property('IndicatorColor', ''),
             projects: this._property('Projects', []),
             chosenProject: this._property('ChosenProject', 0),
+            chosenProjectName: this._property('ChosenProjectName', ''),
             billable: this._property('Billable', false),
         };
     }
@@ -274,7 +275,7 @@ class TokklIndicator extends PanelMenu.Button {
     // Project chooses the project of the next start. The service refuses it
     // while an entry runs, so the submenu is locked then.
     _syncProjects(state, ready) {
-        const chosen = chosenProjectLabel(state.projects, state.chosenProject, _);
+        const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
         this._projectMenu.label.text = state.running
             ? _('Project: %s (locked while running)').format(chosen)
             : _('Project: %s').format(chosen);

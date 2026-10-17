@@ -30,6 +30,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QString IndicatorColor READ indicatorColor)
     Q_PROPERTY(QList<QVariantMap> Projects READ projects)
     Q_PROPERTY(qint64 ChosenProject READ chosenProject)
+    Q_PROPERTY(QString ChosenProjectName READ chosenProjectName)
     Q_PROPERTY(bool Billable READ billable)
     Q_PROPERTY(QString Status READ status)
     Q_PROPERTY(QString ErrorString READ errorString)
@@ -67,6 +68,7 @@ public:
     QString indicatorColor() const;
     QList<QVariantMap> projects() const;
     qint64 chosenProject() const;
+    QString chosenProjectName() const;
     bool billable() const;
     QString status() const;
     QString errorString() const;

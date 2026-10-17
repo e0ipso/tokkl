@@ -53,6 +53,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     connect(m_timer, &TimerController::indicatorChanged, this, publish);
     connect(m_timer, &TimerController::projectsChanged, this, publish);
     connect(m_timer, &TimerController::choiceChanged, this, publish);
+    connect(m_timer, &TimerController::entryProjectChanged, this, publish);
     connect(m_timer, &TimerController::statusChanged, this, publish);
 
     loadSettings();
@@ -143,6 +144,28 @@ qint64 TimerService::chosenProject() const
 {
     const QVariant project = m_timer->chosenProjectId();
     return project.isNull() ? 0 : project.toLongLong();
+}
+
+QString TimerService::chosenProjectName() const
+{
+    const qint64 id = chosenProject();
+    if (id == 0) {
+        return QString();
+    }
+    // The running entry's project is resolved by the core even when it is
+    // archived and so missing from projects.
+    const std::optional<Project> entryProject = m_timer->entryProject();
+    if (m_timer->isRunning() && entryProject && entryProject->id == id) {
+        return entryProject->name;
+    }
+    const QVariantList projects = m_timer->projects();
+    for (const QVariant &value : projects) {
+        const QVariantMap project = value.toMap();
+        if (project.value(QStringLiteral("id")).toLongLong() == id) {
+            return project.value(QStringLiteral("name")).toString();
+        }
+    }
+    return QString();
 }
 
 bool TimerService::billable() const
@@ -279,6 +302,7 @@ QVariantMap TimerService::snapshot() const
         {QStringLiteral("IndicatorColor"), indicatorColor()},
         {QStringLiteral("Projects"), QVariant::fromValue(projects())},
         {QStringLiteral("ChosenProject"), chosenProject()},
+        {QStringLiteral("ChosenProjectName"), chosenProjectName()},
         {QStringLiteral("Billable"), billable()},
         {QStringLiteral("Status"), status()},
         {QStringLiteral("ErrorString"), errorString()},

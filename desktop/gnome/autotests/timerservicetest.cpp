@@ -343,6 +343,7 @@ private Q_SLOTS:
             {QStringLiteral("IndicatorColor"), QStringLiteral("s read")},
             {QStringLiteral("Projects"), QStringLiteral("aa{sv} read")},
             {QStringLiteral("ChosenProject"), QStringLiteral("x read")},
+            {QStringLiteral("ChosenProjectName"), QStringLiteral("s read")},
             {QStringLiteral("Billable"), QStringLiteral("b read")},
             {QStringLiteral("Status"), QStringLiteral("s read")},
             {QStringLiteral("ErrorString"), QStringLiteral("s read")},
@@ -395,6 +396,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("ready"));
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 11);
         QCOMPARE(core->chosenProjectId().toLongLong(), 11);
+        QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QStringLiteral("Alpha"));
         QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), core->chosenBillable());
         QCOMPARE(f.get(QStringLiteral("IndicatorState")).toString(), QStringLiteral("project"));
         QCOMPARE(f.get(QStringLiteral("IndicatorColor")).toString(), QStringLiteral("#06aaf5"));
@@ -414,6 +416,7 @@ private Q_SLOTS:
         }));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Status")).contains(QStringLiteral("loading")));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ChosenProject")).contains(11));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ChosenProjectName")).contains(QStringLiteral("Alpha")));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("IndicatorColor")).contains(QStringLiteral("#06aaf5")));
         const QVariantList published = f.recorder.valuesOf(QStringLiteral("Projects"));
         QVERIFY(!published.isEmpty());
@@ -495,7 +498,45 @@ private Q_SLOTS:
         // No project, while stopped, is a valid pick.
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(0)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 0);
+        QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("IndicatorState")).toString(), QStringLiteral("none"));
+    }
+
+    // A running entry on an archived project: Projects lacks it, but the
+    // core reads it, so the indicator shows it and ChosenProjectName names it.
+    void archivedRunningProjectIsNamed()
+    {
+        Fixture f;
+        f.current = json(entryObject(5, 99, true));
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 99);
+
+        qsizetype read = -1;
+        QVERIFY(QTest::qWaitFor([&f, &read] {
+            const QList<qsizetype> found = f.find("GET", "/workspaces/7/projects/99");
+            read = found.isEmpty() ? -1 : found.constFirst();
+            return read >= 0;
+        }));
+        QCOMPARE(f.get(QStringLiteral("IndicatorState")).toString(), QStringLiteral("pending"));
+        QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QString());
+
+        QJsonObject archived = projectObject(99, QStringLiteral("Legacy"), QStringLiteral("#2da608"), false);
+        archived.insert(QStringLiteral("active"), false);
+        f.respond(read, FakeTransport::answer(200, json(archived)));
+        QVERIFY(QTest::qWaitFor([&f] {
+            return f.get(QStringLiteral("IndicatorState")).toString() == QLatin1String("project");
+        }));
+        QCOMPARE(f.get(QStringLiteral("IndicatorColor")).toString(), QStringLiteral("#2da608"));
+        QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QStringLiteral("Legacy"));
+        const QList<QVariantMap> projects = qdbus_cast<QList<QVariantMap>>(f.get(QStringLiteral("Projects")));
+        for (const QVariantMap &project : projects) {
+            QVERIFY(project.value(QStringLiteral("id")).toLongLong() != 99);
+        }
+        QVERIFY(QTest::qWaitFor([&f] {
+            return f.recorder.valuesOf(QStringLiteral("ChosenProjectName")).contains(QStringLiteral("Legacy"));
+        }));
     }
 
     void configureRefusesUnusableSettings_data()

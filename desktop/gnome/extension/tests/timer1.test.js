@@ -59,16 +59,19 @@ test('every Status value has words and a mark', () => {
     assert.match(describeStatus('unconfigured', '', identity).detail, /settings/);
 });
 
-test('project labels name the client and the missing project', () => {
+test('project labels name the client, an archived project and the missing project', () => {
     const projects = [
         {id: 7, name: 'Website', clientName: 'Acme'},
         {id: 9, name: 'Internal', clientName: ''},
     ];
     assert.equal(projectLabel(projects[0]), 'Website (Acme)');
     assert.equal(projectLabel(projects[1]), 'Internal');
-    assert.equal(chosenProjectLabel(projects, 0, identity), 'No project');
-    assert.equal(chosenProjectLabel(projects, 9, identity), 'Internal');
-    assert.equal(chosenProjectLabel(projects, 42, identity), 'Unavailable project');
+    assert.equal(chosenProjectLabel(projects, 0, '', identity), 'No project');
+    assert.equal(chosenProjectLabel(projects, 9, 'Internal', identity), 'Internal');
+    assert.equal(chosenProjectLabel(projects, 7, 'Website', identity), 'Website (Acme)');
+    // A running entry's archived project is not in Projects but has a name.
+    assert.equal(chosenProjectLabel(projects, 42, 'Legacy', identity), 'Legacy');
+    assert.equal(chosenProjectLabel(projects, 42, '', identity), 'Unavailable project');
 });
 
 test('the sign-in methods are the ones Configure accepts', () => {

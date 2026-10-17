@@ -65,6 +65,12 @@ test('a project the instance no longer has is an outline with the menu\'s label'
     assert.equal(shown.label, 'Unavailable project');
 });
 
+test('a running entry\'s archived project is filled and named from ChosenProjectName', () => {
+    const shown = describeIndicator(timer({chosenProject: 42, chosenProjectName: 'Legacy', running: true,
+        indicatorColor: '#2da608'}), true, identity);
+    assert.deepEqual(shown, {kind: 'filled', round: true, color: '#2da608', pulsing: true, label: 'Legacy'});
+});
+
 test('a project still being read leaves the slot empty but keeps the label', () => {
     const shown = describeIndicator(timer({indicatorState: 'pending', indicatorColor: '', running: true}),
         true, identity);

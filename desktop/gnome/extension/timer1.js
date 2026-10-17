@@ -18,6 +18,7 @@ export const TIMER1_INTERFACE = `<node>
     <property name="IndicatorColor" type="s" access="read"/>
     <property name="Projects" type="aa{sv}" access="read"/>
     <property name="ChosenProject" type="x" access="read"/>
+    <property name="ChosenProjectName" type="s" access="read"/>
     <property name="Billable" type="b" access="read"/>
     <property name="Status" type="s" access="read"/>
     <property name="ErrorString" type="s" access="read"/>
@@ -127,17 +128,21 @@ export function projectLabel(project) {
 
 /**
  * The label of ChosenProject: "No project" for 0, the project's label when it
- * is in Projects, and "Unavailable project" otherwise (an entry on a project
- * the workspace no longer lists).
+ * is in Projects, else its ChosenProjectName (a running entry's archived
+ * project), and "Unavailable project" without a name (a project the instance
+ * no longer has, or one still being read).
  *
  * @param {Array<{id: number, name: string, clientName?: string}>} projects
  * @param {number} chosenProject
+ * @param {string} chosenProjectName
  * @param {(text: string) => string} _ gettext
  * @returns {string}
  */
-export function chosenProjectLabel(projects, chosenProject, _) {
+export function chosenProjectLabel(projects, chosenProject, chosenProjectName, _) {
     if (!chosenProject)
         return _('No project');
     const project = projects.find(candidate => candidate.id === chosenProject);
-    return project ? projectLabel(project) : _('Unavailable project');
+    if (project)
+        return projectLabel(project);
+    return chosenProjectName || _('Unavailable project');
 }

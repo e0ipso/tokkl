@@ -27,7 +27,7 @@ const mockXml = `<node>
 
 const types = {
     Running: 'b', StartTime: 'x', IndicatorState: 's', IndicatorColor: 's', Projects: 'aa{sv}',
-    ChosenProject: 'x', Billable: 'b', Status: 's', ErrorString: 's',
+    ChosenProject: 'x', ChosenProjectName: 's', Billable: 'b', Status: 's', ErrorString: 's',
 };
 
 const state = {
@@ -40,6 +40,7 @@ const state = {
         {id: 9, name: 'Internal', clientName: '', color: '#cc6633', billable: false},
     ],
     ChosenProject: 0,
+    ChosenProjectName: '',
     Billable: false,
     Status: 'ready',
     ErrorString: '',
@@ -94,6 +95,7 @@ class Timer1 {
         const project = state.Projects.find(p => p.id === projectId);
         set({
             ChosenProject: projectId,
+            ChosenProjectName: project ? project.name : '',
             Billable: project ? project.billable : false,
             IndicatorState: project ? 'project' : 'none',
             IndicatorColor: project ? project.color : '',

@@ -29,6 +29,11 @@
     <!-- The running entry's project, or the project of the next start while
          stopped; 0 for no project. -->
     <property name="ChosenProject" type="x" access="read"/>
+    <!-- The name of ChosenProject, also when the running entry's project is
+         archived and so missing from Projects. Empty for no project, while
+         the project is still being read, and for a project the instance no
+         longer has. -->
+    <property name="ChosenProjectName" type="s" access="read"/>
     <!-- The running entry's billable flag, or that of the next start. -->
     <property name="Billable" type="b" access="read"/>
     <!-- "unconfigured", "loading", "ready", "busy", "stale",

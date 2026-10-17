@@ -182,6 +182,27 @@ await step('a project still being read leaves the slot empty', async () => {
     await indicatorIs('the filled square', {kind: 'filled', color: '#3366cc'});
 });
 
+await step('a running entry on an archived project is named by the indicator and the button', async () => {
+    // The service has read the project, which Projects does not list.
+    mockSet('Running', new GLib.Variant('b', true));
+    mockSet('ChosenProject', new GLib.Variant('x', 42));
+    mockSet('ChosenProjectName', new GLib.Variant('s', 'Legacy'));
+    mockSet('IndicatorColor', new GLib.Variant('s', '#2da608'));
+    await indicatorIs('a named dot', {kind: 'filled', round: true, color: '#2da608', accessibleName: 'Legacy'});
+    const name = shell(`${button}.accessible_name`);
+    if (!name.includes('Legacy') || name.includes('Unavailable project'))
+        throw new Error(`button name: ${name}`);
+    const title = shell(`${button}._projectMenu.label.text`);
+    if (title !== 'Project: Legacy (locked while running)')
+        throw new Error(`title: ${title}`);
+    mockSet('Running', new GLib.Variant('b', false));
+    mockSet('ChosenProject', new GLib.Variant('x', 7));
+    mockSet('ChosenProjectName', new GLib.Variant('s', 'Website'));
+    mockSet('IndicatorColor', new GLib.Variant('s', '#3366cc'));
+    await indicatorIs('the still square', {kind: 'filled', round: false, color: '#3366cc',
+        accessibleName: 'Website (Acme)'});
+});
+
 await step('the ring keeps 3:1 against the top bar in light and dark styles', async () => {
     // The top bar is see-through in the overview, which GNOME Shell shows
     // at startup.
