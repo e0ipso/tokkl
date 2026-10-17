@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/e0ipso/tokkl/compare/v1.3.0...v1.3.1) (2026-10-17)
+
+### Bug Fixes
+
+* **api:** rotate tokens on password changes ([82a2732](https://github.com/e0ipso/tokkl/commit/82a2732ed476f235bf12d8292e7dc33900223e8b)), closes [#18](https://github.com/e0ipso/tokkl/issues/18)
+
 ## [1.3.0](https://github.com/e0ipso/tokkl/compare/v1.2.1...v1.3.0) (2026-10-17)
 
 ### Features

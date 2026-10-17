@@ -1,6 +1,6 @@
 {
   "name": "tokkl",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Self-hosted time tracker with a Toggl Track compatible API",
   "license": "MIT",
