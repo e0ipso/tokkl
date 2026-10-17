@@ -4,11 +4,23 @@
 # prefs-check.js the preferences. check.sh runs this in a container, as an
 # unprivileged user inside dbus-run-session, with the repository at REPO.
 #
-#   shell-test.sh REPO
+#   shell-test.sh REPO [--service TOKKL_TIMERD]
+#
+# With --service it runs realservice-check.js instead, against that
+# tokkl-timerd program and a GNOME Keyring of its own; realservice.sh runs
+# it that way, with TOKKL_GNOME_FIXTURE naming a real Tokkl server.
 
 set -euo pipefail
 
-[ $# -eq 1 ] || { echo "usage: $0 REPO" >&2; exit 2; }
+usage() {
+    echo "usage: $0 REPO [--service TOKKL_TIMERD]" >&2
+    exit 2
+}
+case $# in
+    1) timerd="" ;;
+    3) [ "$2" = "--service" ] && [ -x "$3" ] || usage; timerd="$3" ;;
+    *) usage ;;
+esac
 repo="$1"
 source_dir="$repo/desktop/gnome/extension"
 ci="$source_dir/ci"
@@ -79,20 +91,37 @@ start_mock() {
     pids+=($!)
     gdbus wait --session --timeout 30 org.tokkl.Timer1
 }
+if [ -n "$timerd" ]; then
+    # A keyring of its own, unlocked with a throwaway password, where
+    # tokkl-timerd's Configure stores the token. It starts before the Shell,
+    # so nothing activates a locked one first.
+    echo "== GNOME Keyring"
+    printf '%s' test-only-password \
+        | gnome-keyring-daemon --foreground --components=secrets --unlock > "$work/keyring.log" 2>&1 &
+    pids+=($!)
+    gdbus wait --session --timeout 30 org.freedesktop.secrets
+fi
 echo "== headless GNOME Shell"
 gnome-shell --headless --wayland --no-x11 --virtual-monitor 1280x800 > "$work/shell.log" 2>&1 &
 pids+=($!)
 gdbus wait --session --timeout 60 org.gnome.Shell
 
 status=0
-# shell-check.js starts the mock itself, after it has checked the button
-# without one, and stops it last.
-gjs -m "$ci/shell-check.js" "$uuid" "$ci/mock-timer.js" "$repo/desktop/gnome/dbus/org.tokkl.Timer1.xml" \
-    || status=1
+if [ -n "$timerd" ]; then
+    # realservice-check.js starts tokkl-timerd itself, after the extension
+    # is up, and stops it last.
+    echo "== real tokkl-timerd"
+    gjs -m "$ci/realservice-check.js" "$uuid" "$timerd" || status=1
+else
+    # shell-check.js starts the mock itself, after it has checked the button
+    # without one, and stops it last.
+    gjs -m "$ci/shell-check.js" "$uuid" "$ci/mock-timer.js" "$repo/desktop/gnome/dbus/org.tokkl.Timer1.xml" \
+        || status=1
 
-start_mock
-echo "== preferences"
-WAYLAND_DISPLAY=wayland-0 gjs -m "$ci/prefs-check.js" "$uuid" || status=1
+    start_mock
+    echo "== preferences"
+    WAYLAND_DISPLAY=wayland-0 gjs -m "$ci/prefs-check.js" "$uuid" || status=1
+fi
 
 if grep -E 'JS ERROR|JS WARNING' "$work/shell.log" || grep -i "$uuid\|tokkl" "$work/shell.log"; then
     echo "error: GNOME Shell logged the messages above" >&2

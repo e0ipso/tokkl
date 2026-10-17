@@ -950,6 +950,74 @@ private Q_SLOTS:
         QTRY_COMPARE(reading.walletError(), message);
     }
 
+    // The callback form of saveSecret tells the caller when the store has
+    // kept the secret, so a settings window can wait for it before closing.
+    void setupReportsWhenTheSecretIsSaved()
+    {
+        FakeTransport transport;
+        FakeCredentialStore store;
+        ConnectionSetup setup(&transport, &store);
+        QList<bool> results;
+        const auto record = [&results](bool saved) {
+            results.append(saved);
+        };
+
+        // Nothing to write: done runs at once, with true.
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.saveSecret(this, record);
+        QCOMPARE(results, QList<bool>{true});
+        QCOMPARE(store.writes, 0);
+
+        // A write: done waits for the store's answer.
+        results.clear();
+        setup.editSecret(token);
+        setup.saveSecret(this, record);
+        QVERIFY(results.isEmpty());
+        QTRY_COMPARE(results, QList<bool>{true});
+        QCOMPARE(store.secrets.value(tokenKey()), token);
+        QCOMPARE(setup.walletError(), QString());
+        QVERIFY(!setup.isBusy());
+
+        // The stored secret again: nothing to write, true at once.
+        results.clear();
+        setup.saveSecret(this, record);
+        QCOMPARE(results, QList<bool>{true});
+        QCOMPARE(store.writes, 1);
+
+        // A refused write: false, and walletError says why without the secret.
+        results.clear();
+        store.failure = CredentialResult::Status::Unavailable;
+        setup.editSecret(QStringLiteral("refused-secret"));
+        setup.saveSecret(this, record);
+        QVERIFY(results.isEmpty());
+        QTRY_COMPARE(results, QList<bool>{false});
+        QVERIFY(!setup.walletError().isEmpty());
+        QVERIFY(!setup.walletError().contains(QLatin1String("refused-secret")));
+        QCOMPARE(store.secrets.value(tokenKey()), token);
+        QVERIFY(!setup.isBusy());
+
+        // A context gone before the answer: the write still lands, done never runs.
+        results.clear();
+        store.failure = CredentialResult::Status::Ok;
+        setup.editSecret(QStringLiteral("late-secret"));
+        auto *context = new QObject;
+        setup.saveSecret(context, record);
+        delete context;
+        QTRY_COMPARE(store.secrets.value(tokenKey()), QStringLiteral("late-secret"));
+        QTRY_VERIFY(!setup.isBusy());
+        QCoreApplication::processEvents();
+        QVERIFY(results.isEmpty());
+        QCOMPARE(setup.walletError(), QString());
+
+        // No credential store: false at once.
+        ConnectionSetup storeless(&transport, nullptr);
+        storeless.setAccount(instance, QStringLiteral("token"), QString());
+        storeless.editSecret(token);
+        storeless.saveSecret(this, record);
+        QCOMPARE(results, QList<bool>{false});
+        QVERIFY(!storeless.walletError().isEmpty());
+    }
+
     // A secret read from the wallet for one account is never tested against
     // or saved under another one.
     void setupClearsASecretOnAccountChange()

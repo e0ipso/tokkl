@@ -77,4 +77,6 @@ desktop/gnome/extension/ci/check.sh        # every version in metadata.json
 desktop/gnome/extension/ci/check.sh 50 51  # some of them
 ```
 
+`extension/ci/realservice.sh` checks the same panel end to end on GNOME Shell 50: `ci/realservice.test.ts` serves a Tokkl server on 127.0.0.1 with the API's test fixtures, a Fedora 44 container on the host's network builds the real `tokkl-timerd`, configures it with a token kept in a GNOME Keyring of its own, and `ci/realservice-check.js` starts and stops an entry from the panel. The script then checks that the server holds that one entry, with the chosen project, billable switched on while it ran, and the stop snapped to the time resolution. It needs Docker, Node.js 24 and `npm ci` on the host. CI does not run it.
+
 `ci/check.sh` builds and tests the service in a Fedora 44 container and checks its install and D-Bus activation. The `gnome` CI job runs it.

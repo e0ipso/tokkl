@@ -1,127 +1,27 @@
 // Drives the installed extension inside a running GNOME Shell against
-// mock-timer.js, and fails on the first difference. GNOME Shell's Eval method
-// reads the panel and sends pointer and key events; the probe extension that
-// shell-test.sh installs turns on the unsafe mode Eval needs.
+// mock-timer.js and reports every step that fails. shell-driver.js has the
+// helpers that read and operate the panel button.
 //
 //   gjs -m shell-check.js UUID MOCK_TIMER_JS TIMER1_XML
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {exit, programArgs} from 'system';
+import {call, delay, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
 
 const [uuid, mockTimer, timer1Xml] = programArgs;
-const bus = Gio.DBus.session;
-
-function call(name, path, iface, method, params, replyType) {
-    const reply = bus.call_sync(name, path, iface, method, params,
-        replyType ? new GLib.VariantType(replyType) : null, Gio.DBusCallFlags.NONE, 10_000, null);
-    return reply ? reply.recursiveUnpack() : [];
-}
-
-// Runs code in GNOME Shell's shellDBus.js module, where Main is in scope.
-function shell(code) {
-    const [ok, result] = call('org.gnome.Shell', '/org/gnome/Shell', 'org.gnome.Shell', 'Eval',
-        new GLib.Variant('(s)', [code]), '(bs)');
-    if (!ok)
-        throw new Error(`Eval failed: ${result}\n${code}`);
-    return result === '' ? undefined : JSON.parse(result);
-}
 
 const mockCalls = () => JSON.parse(call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Calls',
     null, '(s)')[0]);
 const mockSet = (name, value) => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Set',
     new GLib.Variant('(sv)', [name, value]), null);
 
-function delay(ms) {
-    return new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-        resolve();
-        return GLib.SOURCE_REMOVE;
-    }));
-}
-
-async function waitFor(what, check, timeoutMs = 15_000) {
-    const deadline = Date.now() + timeoutMs;
-    let last;
-    while (Date.now() < deadline) {
-        try {
-            last = check();
-            if (last === true)
-                return;
-        } catch (error) {
-            last = error.message;
-        }
-        await delay(100);
-    }
-    throw new Error(`timed out waiting for ${what}; last: ${JSON.stringify(last)}`);
-}
-
-let failures = 0;
-async function step(name, body) {
-    try {
-        await body();
-        print(`ok - ${name}`);
-    } catch (error) {
-        failures++;
-        print(`not ok - ${name}\n  ${String(error.message).replaceAll('\n', '\n  ')}`);
-    }
-}
-
-const button = `Main.panel.statusArea[${JSON.stringify(uuid)}]`;
-const label = () => shell(`${button}._label.text`);
+const checks = steps();
+const {step} = checks;
+const {button, label, menuOpen, sensitive, pointAtButton, click, press} = panelButton(uuid);
 const lastCall = () => mockCalls().at(-1) ?? [];
 
-// A virtual pointer over the panel button. The seat adds the device and
-// the first motion asynchronously, so clicks wait until it is there.
-const pointerCode = `
-    const {Clutter, GLib} = imports.gi;
-    const button = ${button};
-    const [x, y] = button.get_transformed_position();
-    const [width, height] = button.get_transformed_size();
-    const backend = global.stage.get_context?.().get_backend() ?? Clutter.get_default_backend();
-    globalThis.tokklPointer ??= backend.get_default_seat()
-        .create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE);
-    const pointer = globalThis.tokklPointer;
-    pointer.notify_absolute_motion(GLib.get_monotonic_time(), x + width / 2, y + height / 2);`;
-
-async function pointAtButton() {
-    await waitFor('the pointer over the button', () => {
-        shell(`(() => {${pointerCode}})()`);
-        return shell(`${button}.hover`) === true;
-    });
-}
-
-// Presses and releases a pointer button over the panel button.
-const click = number => shell(`(() => {${pointerCode}
-    pointer.notify_button(GLib.get_monotonic_time(), ${number}, Clutter.ButtonState.PRESSED);
-    pointer.notify_button(GLib.get_monotonic_time(), ${number}, Clutter.ButtonState.RELEASED);
-})()`);
-
-// Presses and releases a key while the panel button has the keyboard focus,
-// as after Ctrl+Alt+Tab: the stage, not a window, takes the keys.
-const press = keyval => shell(`(() => {
-    const {Clutter, GLib} = imports.gi;
-    const backend = global.stage.get_context?.().get_backend() ?? Clutter.get_default_backend();
-    globalThis.tokklKeyboard ??= backend.get_default_seat()
-        .create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
-    const keyboard = globalThis.tokklKeyboard;
-    global.display.unset_input_focus(global.get_current_time());
-    ${button}.grab_key_focus();
-    keyboard.notify_keyval(GLib.get_monotonic_time(), Clutter.${keyval}, Clutter.KeyState.PRESSED);
-    keyboard.notify_keyval(GLib.get_monotonic_time(), Clutter.${keyval}, Clutter.KeyState.RELEASED);
-})()`);
-
-const menuOpen = () => shell(`${button}.menu.isOpen`);
-const sensitive = item => shell(`${button}.${item}.sensitive`);
-
-await step('the extension is enabled without errors', () => waitFor('the extension state', () => {
-    const info = shell(`(() => {
-        const extension = Main.extensionManager.lookup(${JSON.stringify(uuid)});
-        return extension && {state: extension.state, error: extension.error ?? ''};
-    })()`);
-    if (info?.error)
-        throw new Error(info.error);
-    return info?.state === 1 || info;
-}));
+await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
 await step('without the service the button says it is not running', async () => {
     await waitFor('the mark', () => label() === '0:00:00!' || label());
@@ -236,5 +136,5 @@ await step('the button says so when the service goes away', async () => {
         throw new Error('Start stayed sensitive');
 });
 
-print(failures ? `${failures} failed` : 'all passed');
-exit(failures ? 1 : 0);
+print(checks.failures ? `${checks.failures} failed` : 'all passed');
+exit(checks.failures ? 1 : 0);
