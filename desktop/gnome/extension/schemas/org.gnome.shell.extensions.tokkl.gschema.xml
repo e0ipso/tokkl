@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  What the preferences last sent to tokkl-timerd and it accepted, so the form
+  opens filled in. The service keeps its own copy; the token or password is
+  only in the keyring.
+-->
+<schemalist>
+  <schema id="org.gnome.shell.extensions.tokkl" path="/org/gnome/shell/extensions/tokkl/">
+    <key name="instance-url" type="s">
+      <default>''</default>
+      <summary>Instance URL</summary>
+    </key>
+    <key name="auth-mode" type="s">
+      <choices>
+        <choice value="token"/>
+        <choice value="password"/>
+      </choices>
+      <default>'token'</default>
+      <summary>Sign-in method</summary>
+    </key>
+    <key name="email" type="s">
+      <default>''</default>
+      <summary>Email for password sign-in</summary>
+    </key>
+  </schema>
+</schemalist>

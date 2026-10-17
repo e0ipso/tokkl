@@ -20,3 +20,4 @@ test-results/
 /desktop/core/build/
 /desktop/kde/build/
 /desktop/macos/build/
+/desktop/gnome/extension/schemas/gschemas.compiled

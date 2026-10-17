@@ -1,0 +1,4 @@
+/* Digits keep their width, so the button does not jitter every second. */
+.tokkl-elapsed {
+  font-feature-settings: "tnum";
+}
