@@ -15,7 +15,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 - Summary, detailed and weekly reports with filters, billable amounts, rounding, CSV export, and bookmarkable URLs.
 - Import of Toggl Track's detailed CSV export (safe to repeat), CSV and JSON export, and restore from the JSON export.
 - Works on phones; installable as a PWA.
-- A KDE Plasma panel widget starts and stops the timer from the desktop. See [KDE panel companion](#kde-panel-companion).
+- A KDE Plasma panel widget, a macOS menu bar app and a GNOME top bar extension start and stop the timer from the desktop. See [KDE panel companion](#kde-panel-companion), [macOS menu bar companion](#macos-menu-bar-companion) and [GNOME companion](#gnome-companion); the guides are [desktop/kde/README.md](desktop/kde/README.md), [desktop/macos/README.md](desktop/macos/README.md) and [desktop/gnome/README.md](desktop/gnome/README.md).
 
 ## Screenshots
 

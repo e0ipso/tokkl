@@ -24,7 +24,7 @@ The replacement has to clear a high bar. If starting a timer from my phone takes
 ### Non-goals
 
 - Shared workspaces, approvals, SSO, billing plans. Each account tracks its own time in its own workspace, and data is never shared between accounts.
-- Native desktop or mobile apps, except the KDE Plasma panel companion (C6), which is a client of the same API for TUXEDO OS and Fedora KDE. The web app is a PWA and works on phones.
+- Native desktop or mobile apps, except the KDE Plasma panel companion (C6), the macOS menu bar companion (C7) and the GNOME companion (C8). Each is a client of the same API. The web app is a PWA and works on phones.
 - Any outbound network traffic. No telemetry, no CDN fonts, no update checks, no AI.
 - Public internet exposure as a default. The expected setup is LAN or VPN (Tailscale/WireGuard) access.
 
@@ -195,8 +195,10 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | C2 | Installable PWA (manifest, icons). | SHOULD | Partial: the manifest ships the owner-supplied stopwatch icon as 192 and 512 pixel PNGs plus the owner's maskable 192 and 512 pixel PNGs on navy, with a 32 pixel PNG favicon and the owner's opaque navy 180 pixel apple-touch-icon; installing on a phone is untested. |
 | C3 | Cross-device freshness: the running timer refreshes every 30 s and on window focus, entries every 60 s. | MUST | Done |
 | C4 | Offline outbox for timer start/stop/edit in the PWA, with an unsynced marker. Matters more here than for Toggl because a phone off the home network loses the server. | SHOULD | Planned |
-| C5 | Browser extension, desktop tray app. The KDE companion (C6) is the one exception. | WON'T (v1) | n/a |
+| C5 | Browser extension, desktop tray app. The KDE (C6), macOS (C7) and GNOME (C8) companions are the exceptions; the browser extension stays out. | WON'T (v1) | n/a |
 | C6 | KDE Plasma 6 panel widget for TUXEDO OS 24.04 (amd64) and Fedora KDE 44 (x86_64), packaged as a DEB and an RPM. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, and signs in with the API token (default) or email and password, kept in KDE Wallet. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/kde/README.md)). Publication to app stores is out of scope. | COULD | Partial: CTest, real-server and package checks run in CI; the manual Plasma Wayland and KWallet checklist has not been run yet |
+| C7 | macOS menu bar app for Macs with Apple silicon and macOS 13 or later, shipped as a DMG signed ad hoc and not notarized. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, and signs in with the API token (default) or email and password, kept in the macOS Keychain. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/macos/README.md)). Publication to app stores is out of scope. | COULD | Partial: the `macos` CI job is set up to build, test and package it, but the app has not been built or run on a Mac by hand |
+| C8 | GNOME top bar extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives, packaged as a DEB for Ubuntu 26.04 LTS (amd64), an RPM for Fedora 44 (x86_64) and an extension zip. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, and signs in with the API token (default) or email and password, kept in the keyring. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/gnome/README.md)). Publication to extensions.gnome.org is manual. | COULD | Partial: the `gnome` and `gnome-extension` CI jobs build, test and package it and drive the extension in a headless GNOME Shell per supported version; no manual check on a desktop session is recorded |
 
 ## 6. Toggl API compatibility
 
@@ -339,7 +341,7 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 | Latency | Timer start/stop under 100 ms server time on a low-power CPU. Reports over a year of data under 500 ms. | Not measured on low-power hardware yet |
 | Reliability | Writes are transactional; one running entry guaranteed by the database. Graceful shutdown on SIGTERM. | Done |
 | Privacy | Zero outbound requests from server and UI. | Done (verify with the CSP and a network log) |
-| Portability | The server runs on any Linux host with Node 24 (amd64 or arm64) and has no native modules. The KDE companion is native code for the two targets in C6. | Tested on amd64 only |
+| Portability | The server runs on any Linux host with Node 24 (amd64 or arm64) and has no native modules. The KDE, macOS and GNOME companions are native code for the targets in C6, C7 and C8. | Tested on amd64 only; the macOS app has not been built on a Mac by hand |
 | Accessibility | Keyboard reachable controls, labeled inputs, visible focus, color never the only signal. | Partial: labels, focus rings, non-colour cues (hatched non-billable bars, check marks on colour swatches, a labelled running dot), reduced motion, inline field errors, loading and error states and keyboard navigation are covered by Playwright specs; no screen reader audit |
 | Tests | 213 `node --test` tests (177 api, 13 common, 23 web), 226 Playwright browser tests in 46 spec files and 12 KDE CTest tests, run and counted on 2026-10-16. | Done |
 
