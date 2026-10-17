@@ -1,8 +1,10 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
+import { expectSnapped, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
-test('start and stop a timer with a new project and tag', async ({ page }) => {
+test('start and stop a timer with a new project and tag', async ({ page, data }) => {
   await login(page);
+  const api = await TimerApi.open(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Write the PRD');
 
@@ -24,9 +26,15 @@ test('start and stop a timer with a new project and tag', async ({ page }) => {
   await expect(timer.getByText('Running', { exact: true })).toBeVisible();
   await expect(timerLink).toHaveCount(1);
   await page.screenshot({ path: 'test-results/timer-running.png' });
+  const running = await nextRunning(api, null);
 
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  // Stopping snaps the entry to the time resolution; until then it kept its exact start, which the
+  // title's elapsed time above counts from.
+  const [stopped] = await api.entries();
+  expect(stopped!.id).toBe(running.id);
+  expectSnapped(stopped!, running.start, (await data.me()).time_resolution_minutes * 60_000);
   await expect(timer.getByText('Running', { exact: true })).toHaveCount(0);
   await expect(timerLink).toHaveCount(0);
   const row = page.locator('.entry-line').first();
@@ -49,7 +57,8 @@ test('manual entry across midnight, edit and delete with undo', async ({ page })
   const row = page.locator('.entry-line', { has: page.locator('input[value="Night deploy"]') });
   await expect(row.locator('.entry-duration')).toHaveValue('1:15:00');
 
-  await row.getByLabel('Duration').fill('2h');
+  // The server rounds the edited duration up to the default 5-minute time resolution.
+  await row.getByLabel('Duration').fill('1h 58m');
   await row.getByLabel('Duration').press('Enter');
   await expect(row.locator('.entry-duration')).toHaveValue('2:00:00');
 
@@ -88,6 +97,29 @@ test('discard a running timer, then undo', async ({ page }) => {
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Started by mistake');
+  await timer.getByRole('button', { name: 'Stop timer' }).click();
+});
+
+test('undoing a discard while another timer runs restores the entry stopped on the grid', async ({ page, data }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await timer.getByLabel('Description').fill('Started by mistake');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  const discarded = await nextRunning(api, null);
+  await timer.getByRole('button', { name: 'Discard running entry' }).click();
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  await timer.getByLabel('Description').fill('Started on purpose');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  const kept = await nextRunning(api, discarded.id);
+
+  // Only one timer runs, so the restored entry stops now, snapped to the time resolution.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.entry-line', { has: page.locator('input[value="Started by mistake"]') })).toHaveCount(1);
+  const all = await api.entries();
+  expect(all.filter((entry) => entry.stop === null).map((entry) => entry.id)).toEqual([kept.id]);
+  expectSnapped(all.find((entry) => entry.id === discarded.id)!, discarded.start, (await data.me()).time_resolution_minutes * 60_000);
+  await expect(timer.getByLabel('Description')).toHaveValue('Started on purpose');
   await timer.getByRole('button', { name: 'Stop timer' }).click();
 });
 

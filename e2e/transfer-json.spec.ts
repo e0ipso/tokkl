@@ -168,9 +168,10 @@ test('JSON restore committed while a timer runs skips the running entry and keep
     const current = await (await page.request.get('/api/v9/me/time_entries/current')).json();
     expect(current).toMatchObject({ id: running.id, description: 'Running here', start: running.start, stop: null });
     const account = await readAccount(page, data.workspaceId);
-    expect(account.entries.map((e) => [e.description, e.stop])).toEqual([
-      ['Stopped there', '2025-05-06T10:00:00+00:00'],
-      ['Running here', null],
+    // The restored entry is off the time resolution grid: a restore keeps the times in the file.
+    expect(account.entries.map((e) => [e.description, e.start, e.stop])).toEqual([
+      ['Stopped there', '2025-05-06T09:02:37+00:00', '2025-05-06T10:01:12+00:00'],
+      ['Running here', running.start, null],
     ]);
   };
 

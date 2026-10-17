@@ -109,3 +109,15 @@ export function instant(iso: string | null): number {
   expect(iso).not.toBeNull();
   return Date.parse(iso!);
 }
+
+/**
+ * Expects `saved`, a stopped entry that ran from `exactStart`, to sit on the time resolution grid of
+ * `step` milliseconds: its start is the grid point nearest `exactStart` and its duration is a
+ * multiple of the step. Europe/Madrid is a whole number of hours off UTC, so its grid is the UTC one.
+ */
+export function expectSnapped(saved: Pick<EntryView, 'start' | 'stop'>, exactStart: string, step: number): void {
+  const start = instant(saved.start);
+  expect(start % step).toBe(0);
+  expect(Math.abs(start - instant(exactStart))).toBeLessThanOrEqual(step / 2);
+  expect((instant(saved.stop) - start) % step).toBe(0);
+}
