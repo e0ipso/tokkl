@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:f5b7440614d79b5f9ef7df0d6613e0dd58cb892d44de36d1fe2e5ce11d2b732b'
-node_count: 54
+nodes_hash: 'sha256:698efaec9f000a7272c3ccb4e2195b5ec2519383b957b6fbc3efaa73b74a4681'
+node_count: 55
 ---
 # kenkeep Graph
 
-Total nodes: 54
+Total nodes: 55
 
 ## map-admin-api-and-disabled-accounts
 
@@ -330,7 +330,7 @@ Total nodes: 54
 - **title:** Stopped entries snap to the instance time resolution on write
 - **path:** api-and-data/practice-stopped-entries-snap-to-the-time-resolution-on-write.md
 - **tags:** server, time, entries, import
-- **relates_to:** map-admin-api-and-disabled-accounts, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant
+- **relates_to:** map-admin-api-and-disabled-accounts, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant, practice-web-previews-and-editor-show-snapped-durations
 
 ## practice-styles-css-loads-last-and-owns-colour-tokens
 
@@ -394,6 +394,14 @@ Total nodes: 54
 - **path:** tooling-and-project/testing/practice-visual-screenshot-baselines.md
 - **tags:** testing, e2e, playwright, visual
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-app-icons-script, map-readme-screenshots-script
+
+## practice-web-previews-and-editor-show-snapped-durations
+
+- **kind:** practice
+- **title:** Web previews and the entry editor show the snapped duration
+- **path:** web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md
+- **tags:** web, time, timer, entries
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-api-and-disabled-accounts
 
 ## practice-web-ui-survives-background-refetches
 

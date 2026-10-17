@@ -17,6 +17,7 @@ kk_relates_to:
   - practice-json-restore-rules
   - practice-toggl-csv-import-selects-users-by-opaque-key
   - practice-parse-api-timestamps-with-parseinstant
+  - practice-web-previews-and-editor-show-snapped-durations
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -24,7 +25,10 @@ kk_confidence: high
 
 - Inputs are cut to whole seconds first. The stored duration is the real duration rounded up to a multiple of the resolution R. The start goes to the nearest grid point on the owner's wall clock, and a tie goes later. The stop is the snapped start plus the rounded duration in elapsed time, so a span across a DST change keeps its length. A same-second start and stop is a zero-length entry on a grid point.
 - A running entry keeps its exact start until it stops. Undoing the delete of a running entry stops it if another timer started meanwhile, and that stop snaps too.
-- The 999 h cap is checked after snapping. 999 h is a multiple of every allowed R, so snapping never pushes a valid entry over it by rounding alone.
+- The 999 h cap is checked after snapping. 999 h is a multiple of every allowed R, so snapping never pushes a valid entry over it by rounding alone. Create and edit reject a longer span, but `stopEntryAt` clamps it to exactly 999 h instead: a timer left running past the cap must still stop, because a failed stop would leave it running and every new start fails too (starting one stops the old one). The clamped span stays on the grid.
+- Bulk PATCH (`/time_entries/:ids`) runs each operation through `updateTimeEntry`, so removing all tags or any other bulk edit snaps like a single edit.
+- Near a UTC-offset change, `snapSpan` builds grid candidates from the offsets on both sides and keeps only those on the grid at their own offset, which also drops wall-clock times a DST gap skips. The nearest wins and a tie goes later. A zone with a half-hour change, `Australia/Lord_Howe`, is the test case (`packages/common/snap.test.ts`, `e2e/timer-resolution.spec.ts`).
+- Report rounding (PRD R8) applies on top of the stored values. Whenever the report step is not a multiple of the resolution, a report shows durations that are not multiples of the resolution, in every rounding mode. That is expected, not a snapping bug.
 - When a new timer stops the old one, the two can overlap by up to 1.5R, not R: the start can move half a step earlier and the duration can gain almost a step.
 - Existing entries are not migrated. They snap the next time they are edited.
 - `importCsv` and `importJson` pass `{ exact: true }` and keep their times. Snapping them would break the de-duplication that matches on start and stop, so a second import would add copies.
@@ -38,4 +42,5 @@ Tests that need exact times set the resolution to 1 through `PUT /api/app/admin/
 - Related: [practice-json-restore-rules](practice-json-restore-rules.md)
 - Related: [practice-toggl-csv-import-selects-users-by-opaque-key](practice-toggl-csv-import-selects-users-by-opaque-key.md)
 - Related: [practice-parse-api-timestamps-with-parseinstant](practice-parse-api-timestamps-with-parseinstant.md)
+- Related: [practice-web-previews-and-editor-show-snapped-durations](../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md)
 <!-- kk:related:end -->

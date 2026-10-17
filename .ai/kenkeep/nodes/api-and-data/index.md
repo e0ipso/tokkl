@@ -11,9 +11,9 @@
 
 ## Conventions (how we build)
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) to learn about: importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import. #server #import #restore #backup
+- Open [**Stopped entries snap to the instance time resolution on write**](practice-stopped-entries-snap-to-the-time-resolution-on-write.md) to learn about: Live writes snap start and duration to time_resolution_minutes in the owner's zone; imports and JSON restore stay exact. #server #time #entries #import
 - Open [**Parse incoming timestamps with parseInstant**](practice-parse-api-timestamps-with-parseinstant.md) to learn about: Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)). #server #validation #time #api
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) to learn about: Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them. #server #database #migrations #performance
-- Open [**Stopped entries snap to the instance time resolution on write**](practice-stopped-entries-snap-to-the-time-resolution-on-write.md) to learn about: Live writes snap start and duration to time_resolution_minutes in the owner's zone; imports and JSON restore stay exact. #server #time #entries #import
 - Open [**Toggl CSV import: choose team-export users by opaque key**](practice-toggl-csv-import-selects-users-by-opaque-key.md) to learn about: Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400. #server #api #import #validation
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](practice-write-paths-validate-refs-not-totals.md) to learn about: Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals. #server #models #performance #validation
 - Open [**Deleting a client detaches its projects and never merges them**](practice-client-deletion-keeps-projects.md) to learn about: deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N". #server #clients #projects
@@ -62,8 +62,8 @@
 - Open [**Arrow keys: arrowTarget for roving tabindex; global shortcuts yield**](../web-ui-behaviour/practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md) — Option groups move focus with arrowTarget and one tab stop; global arrow shortcuts skip defaultPrevented events and \[data-own-arrows\] targets.
 - Open [**styles.css loads last and owns the colour tokens**](../web-ui-styling-and-layout/practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals.
 ### #time
+- Open [**Web previews and the entry editor show the snapped duration**](../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md) — Previews use snappedSeconds and snappedInstant with the /me resolution; toasts and chained starts use the server-returned entry.
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](../web-ui-behaviour/practice-twelve-hour-time-entry-parsing-rules.md) — parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now.
-- Open [**Parse incoming timestamps with parseInstant**](practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
 - Open [**Stopped entries snap to the instance time resolution on write**](practice-stopped-entries-snap-to-the-time-resolution-on-write.md) — Live writes snap start and duration to time_resolution_minutes in the owner's zone; imports and JSON restore stay exact.
 ### #admin
 - Open [**Admin API and disabled accounts**](map-admin-api-and-disabled-accounts.md) — /api/app/admin users, delete, invites and instance settings; public invite routes; last-active-admin rule; where disabled accounts are refused.
@@ -73,6 +73,7 @@
 - Open [**Deleting a client detaches its projects and never merges them**](practice-client-deletion-keeps-projects.md) — deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N".
 ### #entries
 - Open [**Stopped entries snap to the instance time resolution on write**](practice-stopped-entries-snap-to-the-time-resolution-on-write.md) — Live writes snap start and duration to time_resolution_minutes in the owner's zone; imports and JSON restore stay exact.
+- Open [**Web previews and the entry editor show the snapped duration**](../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md) — Previews use snappedSeconds and snappedInstant with the /me resolution; toasts and chained starts use the server-returned entry.
 ### #invites
 - Open [**Admin API and disabled accounts**](map-admin-api-and-disabled-accounts.md) — /api/app/admin users, delete, invites and instance settings; public invite routes; last-active-admin rule; where disabled accounts are refused.
 ### #models
