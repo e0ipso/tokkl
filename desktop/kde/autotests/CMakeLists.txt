@@ -25,12 +25,13 @@ set(_kde_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-kde")
 set_tests_properties(kdeconnection kdewallet-disabled PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_kde_xdg}/data;XDG_CONFIG_HOME=${_kde_xdg}/config;XDG_CACHE_HOME=${_kde_xdg}/cache;XDG_STATE_HOME=${_kde_xdg}/state")
 
-# The panel item and its menu (package/contents/ui), driven by QtQuickTest
-# through the QML tests in qml/. The backend types come from tokklcore, wired
-# to the fakes of desktop/core; the test never loads main.qml, the real connection or a
-# plugin copy of the backend. Kept out of bin/, where the build-tree backend
-# module lives. KF6::KirigamiPlatform, which find_package(Plasma) brings in,
-# lets the fixture set Kirigami.Units.longDuration for the reduced-motion test.
+# The panel item, its menu and the Configure page (package/contents/ui),
+# driven by QtQuickTest through the QML tests in qml/. The backend types come
+# from tokklcore, wired to the fakes of desktop/core; the test never loads
+# main.qml, the real connection, KDE Wallet or a plugin copy of the backend.
+# Kept out of bin/, where the build-tree backend module lives.
+# KF6::KirigamiPlatform, which find_package(Plasma) brings in, lets the
+# fixture set Kirigami.Units.longDuration for the reduced-motion test.
 set(_panel_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-panel")
 ecm_add_test(panelquicktest.cpp
     TEST_NAME panel
