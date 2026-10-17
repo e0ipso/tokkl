@@ -113,6 +113,15 @@ export function snappedSeconds(start: Date, stop: Date, settings: Pick<Settings,
   return (span.stop.getTime() - span.start.getTime()) / 1000;
 }
 
+/**
+ * The grid point of the time resolution nearest `at`, cut to whole seconds first: where the server
+ * moves a start it saves. Use it to pick one instant that stays put when either side is saved.
+ */
+export function snappedInstant(at: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>): Date {
+  const point = new Date(Math.floor(at.getTime() / 1000) * 1000);
+  return snapSpan(point, point, settings.timeResolution, settings.timeZone).start;
+}
+
 export function formatMoney(cents: number, currency: string): string {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(cents / 100);

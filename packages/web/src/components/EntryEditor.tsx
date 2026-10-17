@@ -4,7 +4,7 @@ import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { addDays } from '@tokkl/common/time';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
-import { entrySeconds, formatTime, minutesOfDay, snappedSeconds, useNow, useSettings } from '../lib/settings.ts';
+import { entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, useNow, useSettings } from '../lib/settings.ts';
 import { parseTimeOfDay } from '../lib/timeOfDay.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
@@ -121,7 +121,11 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     }
   };
 
-  /** The instant a typed split time names inside a stopped entry, or why it names none. */
+  /**
+   * Where a typed split time cuts a stopped entry, or why it cuts nowhere. The time moves to the
+   * nearest grid point of the time resolution, so both halves keep it as their shared boundary
+   * when the server snaps them; the entry's own start and stop stay as they are.
+   */
   const splitPoint = (text: string, stop: string): Date | 'unreadable' | 'outside' => {
     const minutes = parseTimeOfDay(text, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
     if (minutes === null) return 'unreadable';
@@ -130,6 +134,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
     // DST shift when the clocks change that night.
     if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
+    at = snappedInstant(at, settings);
     return at <= new Date(entry.start) || at >= new Date(stop) ? 'outside' : at;
   };
   const splitAt = entry.stop ? splitPoint(splitText, entry.stop) : null;

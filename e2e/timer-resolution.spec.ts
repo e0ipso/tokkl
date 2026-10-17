@@ -78,13 +78,26 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
   const saved = (await api.entries()).find((entry) => entry.id === id)!;
   expect(instant(saved.stop) - instant(saved.start)).toBe(75 * MINUTE);
 
-  // 37 and 38 minutes: each half is stored as 45.
   editor = await openEditor();
   await expect(editor.getByLabel('Duration')).toHaveValue('1:15:00');
-  await editor.getByLabel('Split at').fill(clock(37));
-  await expect(editor.getByText('Splits into 0:45:00 and 0:45:00.')).toBeVisible();
+  const splitAt = editor.getByLabel('Split at');
+  // A split time that snaps onto the entry's start or stop leaves nothing to split off.
+  for (const offset of [5, 70]) {
+    await splitAt.fill(clock(offset));
+    await editor.getByRole('button', { name: 'Split' }).click();
+    await expect(editor.getByText('The split time must fall inside the entry')).toBeVisible();
+    await expect(editor.getByText(/^Splits into/)).toBeHidden();
+  }
+  expect((await api.entries()).filter((entry) => entry.description === 'Snapped edit')).toHaveLength(1);
+
+  // A split at 37 minutes moves to the grid point at 30, which both halves share.
+  await splitAt.fill(clock(37));
+  await expect(editor.getByText('Splits into 0:30:00 and 0:45:00.')).toBeVisible();
   await editor.getByRole('button', { name: 'Split' }).click();
   await expect(page.getByText('Entry split in two')).toBeVisible();
-  const halves = (await api.entries()).filter((entry) => entry.description === 'Snapped edit');
-  expect(halves.map((entry) => instant(entry.stop) - instant(entry.start))).toEqual([45 * MINUTE, 45 * MINUTE]);
+  const halves = (await api.entries())
+    .filter((entry) => entry.description === 'Snapped edit')
+    .map((entry) => [instant(entry.start), instant(entry.stop)])
+    .sort(([a], [b]) => a! - b!);
+  expect(halves).toEqual([[start, start + 30 * MINUTE], [start + 30 * MINUTE, start + 75 * MINUTE]]);
 });
