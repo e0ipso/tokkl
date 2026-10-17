@@ -1,3 +1,34 @@
+## [1.2.0](https://github.com/e0ipso/tokkl/compare/v1.1.0...v1.2.0) (2026-10-17)
+
+### Features
+
+* add the instance time resolution setting ([9195237](https://github.com/e0ipso/tokkl/commit/91952377b83267a5a90f2470648ec28f9bea009a))
+* **api:** snap stopped entries to the instance time resolution ([0af795a](https://github.com/e0ipso/tokkl/commit/0af795a4b65b9d901a64a53344053a303d204389))
+* **desktop:** add the macOS menu bar app on the shared core ([a622b14](https://github.com/e0ipso/tokkl/commit/a622b14805f7be256cc192598b559656431af67a))
+* **gnome:** add the GNOME Shell top-bar extension ([eab0662](https://github.com/e0ipso/tokkl/commit/eab0662021452591a6d0cff05f4fce8fc7034a24))
+* **gnome:** package tokkl-timerd and the extension for releases ([dec1855](https://github.com/e0ipso/tokkl/commit/dec1855747ab14352d28b85c7c5a9ca3dbc24c24))
+* **gnome:** run the shared core as a D-Bus timer service ([f25ad88](https://github.com/e0ipso/tokkl/commit/f25ad88a3a2537139b1635960f441f40da26a418))
+* **gnome:** show the project indicator in the top bar ([b719340](https://github.com/e0ipso/tokkl/commit/b71934086ea085e6eec4851fed7396692f4592fd))
+* **macos:** attach an unsigned macOS DMG to each release ([f5cc3cf](https://github.com/e0ipso/tokkl/commit/f5cc3cf59cdb969acc478a372611ac682d8c6b75))
+* **macos:** show the project indicator in the menu bar ([3d741a1](https://github.com/e0ipso/tokkl/commit/3d741a1ce82ec8857db55a4965e0693c34e51b92))
+* **web:** preview snapped durations before saving ([4407cac](https://github.com/e0ipso/tokkl/commit/4407cac8ffe155eeb26fabab206c318c71bde8b4))
+
+### Bug Fixes
+
+* **api:** cap stopped timers and snap bulk tag clears ([30f5c84](https://github.com/e0ipso/tokkl/commit/30f5c84dce0d975680ea654b3a0a668516a95719))
+* **common:** keep snapped starts on the grid across DST changes ([51aed28](https://github.com/e0ipso/tokkl/commit/51aed28fbc2769e4868f915230a558c2f2ce989e))
+* **desktop:** show a refused credential write in the connection ([cac0686](https://github.com/e0ipso/tokkl/commit/cac0686bb04bce4cbcc4df088c473a0a95723da6))
+* **gnome:** let the test user manager start on rootful Docker ([dfdea39](https://github.com/e0ipso/tokkl/commit/dfdea39c830a9fe84216fdba1a90242f394c8ce5))
+* **gnome:** name an archived running project in the indicator ([52fbe89](https://github.com/e0ipso/tokkl/commit/52fbe897a25b70cad47e032103ee9900e0f34e41))
+* **gnome:** print the systemd activation check to the container terminal ([79b0c3e](https://github.com/e0ipso/tokkl/commit/79b0c3edbad4cc23afecba0b3936f83c93a171c3))
+* **gnome:** read the terminal of the shell, not of its substitution ([b0223bb](https://github.com/e0ipso/tokkl/commit/b0223bbfff3709b224440e4bd695b60dc18f23e8))
+* **gnome:** write the systemd activation check to a mounted log ([9cf60bd](https://github.com/e0ipso/tokkl/commit/9cf60bd33573f751091a0d53a314c909daedfa9e))
+* **kde:** ask for Apply again after a refused wallet write ([7cdfd6c](https://github.com/e0ipso/tokkl/commit/7cdfd6ceeea9918c57604be934a897bf4567b238))
+* **macos:** keep Settings open until the Keychain write succeeds ([74cc6c9](https://github.com/e0ipso/tokkl/commit/74cc6c99bdf87d1ac075a3dccd9a9f7ff0846ac4))
+* **web:** chain manual entries from the stored stop ([9849d34](https://github.com/e0ipso/tokkl/commit/9849d346241f685e5237f4c1ff79d9e50953e065))
+* **web:** refuse splits whose halves overlap across a clock change ([b4366c0](https://github.com/e0ipso/tokkl/commit/b4366c0ef3f74bbd9168ee22f080fc292097bbda))
+* **web:** split entries at a grid point shared by both halves ([cc21a60](https://github.com/e0ipso/tokkl/commit/cc21a60c45e973a1be392f86f808865c33fe84c9))
+
 ## [1.1.0](https://github.com/e0ipso/tokkl/compare/v1.0.1...v1.1.0) (2026-10-16)
 
 ### Features
