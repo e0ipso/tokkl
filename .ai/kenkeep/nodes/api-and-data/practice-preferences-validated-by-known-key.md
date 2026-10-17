@@ -18,3 +18,5 @@ kk_confidence: high
 `PREFERENCE_RULES` in `packages/api/src/models/users.ts` lists the preference keys the web app reads and the values it can render: date and time-of-day formats, `duration_format`, `theme`, `timerView`, the boolean toggles, and `favorites` (at most `MAX_FAVORITES`). `validatePreferenceChanges` answers 400 for a known key with an unusable value. Keys not in the table are stored as sent, so Toggl clients can keep their own settings.
 
 `getPreferences` drops stored values that fail their rule and falls back to `DEFAULT_PREFERENCES`, so values saved before validation existed never reach clients. A new preference the UI depends on needs a rule and a default here.
+
+<!-- Verified against the current code on 2026-10-16. -->

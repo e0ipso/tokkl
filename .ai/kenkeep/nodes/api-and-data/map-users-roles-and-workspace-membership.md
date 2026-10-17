@@ -15,7 +15,7 @@ kk_id: map-users-roles-and-workspace-membership
 kk_derived_from: []
 kk_relates_to:
   - practice-live-entry-indexes-back-project-and-task-totals
-  - practice-password-checks-and-csrf-rules
+  - practice-password-checks-go-through-failurelimiter-attempt
   - map-admin-api-and-disabled-accounts
 kk_depends_on: []
 kk_confidence: high
@@ -43,10 +43,12 @@ For multi-user API tests, `addUser(ctx, { email, role })` in `packages/api/test/
 
 `packages/api/test/entities.test.ts` asserts `PRAGMA user_version` equals both `MIGRATIONS.length` and a literal (now 5). A new migration must bump that literal. Migrations 4 and 5 add `instance_settings` and `account_tokens`; see the admin API node.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-live-entry-indexes-back-project-and-task-totals](practice-live-entry-indexes-back-project-and-task-totals.md)
-- Related: [practice-password-checks-and-csrf-rules](practice-password-checks-and-csrf-rules.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt](password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
 - Related: [map-admin-api-and-disabled-accounts](map-admin-api-and-disabled-accounts.md)
 <!-- kk:related:end -->

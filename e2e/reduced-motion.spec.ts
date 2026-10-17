@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test, type TestData } from './fixtures.ts';
 import { login } from './helpers.ts';
 
-// TT-0072: the prefers-reduced-motion block at the end of styles.css stops the running dot's
+// The prefers-reduced-motion block at the end of styles.css stops the running dot's
 // pulse and the report fades, and keeps the dot solid.
 
 // Computed durations come back in seconds, so 0.01ms reads as "1e-05s".

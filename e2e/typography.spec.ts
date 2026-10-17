@@ -2,10 +2,10 @@ import type { Locator } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
-// TT-0068: the Anybody variable font ships with the app, is preloaded once, loads under the CSP
+// The Anybody variable font ships with the app, is preloaded once, loads under the CSP
 // (font-src 'self') and sets headings, the running clock and totals.
-// TT-0122: the wordmark is the owner's artwork as an image named "Tokkl", not text set in a font.
-// TT-0067: the root font size is 93.75%, so 1rem is 15px.
+// The wordmark is the owner's artwork as an image named "Tokkl", not text set in a font.
+// The root font size is 93.75%, so 1rem is 15px.
 
 const FONT = '/fonts/anybody-wdth-wght.woff2';
 

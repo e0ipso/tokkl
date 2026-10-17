@@ -1,9 +1,12 @@
-// Runs the QML tests in autotests/qml against the widget's panel components.
-// The backend types are registered from tokklcore under the backend URI, and
-// a PanelFixture wires them to the scripted transport, credential store and
-// clock from fakes.h. Nothing reaches a host, KDE Wallet or real settings.
+// Runs the QML tests in autotests/qml against the widget's panel components
+// and its Configure page. The backend types are registered from tokklcore
+// under the backend URI, and a PanelFixture wires them to the scripted
+// transport, credential store and clock from fakes.h. The page's
+// TokklConnectionSetup uses another such store, which a WalletFixture
+// controls. Nothing reaches a host, KDE Wallet or real settings.
 
 #include "connection.h"
+#include "connectionsetup.h"
 #include "fakes.h"
 #include "timercontroller.h"
 
@@ -147,6 +150,73 @@ private:
     QSet<qsizetype> m_answered;
 };
 
+// The transport and store behind every TokklConnectionSetup the Configure
+// page makes. They live as long as the process.
+FakeTransport *setupTransport()
+{
+    static auto *transport = new FakeTransport;
+    return transport;
+}
+
+FakeCredentialStore *setupStore()
+{
+    static auto *store = new FakeCredentialStore;
+    return store;
+}
+
+// The page's TokklConnectionSetup, created from QML as the widget's is.
+class FakeConnectionSetup : public ConnectionSetup
+{
+    Q_OBJECT
+
+public:
+    explicit FakeConnectionSetup(QObject *parent = nullptr)
+        : ConnectionSetup(setupTransport(), setupStore(), parent)
+    {
+    }
+};
+
+// Scripts the wallet behind the Configure page.
+class WalletFixture : public QObject
+{
+    Q_OBJECT
+
+    Q_PROPERTY(int writes READ writes)
+
+public:
+    using QObject::QObject;
+
+    int writes() const
+    {
+        return setupStore()->writes;
+    }
+
+    // Reads and writes are refused as by a locked wallet, or work again.
+    Q_INVOKABLE void setRefused(bool refused)
+    {
+        setupStore()->failure = refused ? CredentialResult::Status::Unavailable : CredentialResult::Status::Ok;
+    }
+
+    Q_INVOKABLE void reset()
+    {
+        setRefused(false);
+        setupStore()->secrets.clear();
+        setupStore()->writes = 0;
+    }
+
+    // The token stored for the instance, or an empty string.
+    Q_INVOKABLE QString storedToken(const QString &url) const
+    {
+        return setupStore()->secrets.value(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()));
+    }
+
+    // The page's connection setup.
+    Q_INVOKABLE QObject *setupOf(QObject *page) const
+    {
+        return page ? page->findChild<ConnectionSetup *>() : nullptr;
+    }
+};
+
 class Setup : public QObject
 {
     Q_OBJECT
@@ -166,7 +236,9 @@ public Q_SLOTS:
         const char *uri = TOKKL_BACKEND_URI;
         qmlRegisterUncreatableType<Connection>(uri, 1, 0, "TokklConnection", QStringLiteral("Created by PanelFixture"));
         qmlRegisterUncreatableType<TimerController>(uri, 1, 0, "TokklTimer", QStringLiteral("Created by PanelFixture"));
+        qmlRegisterType<FakeConnectionSetup>(uri, 1, 0, "TokklConnectionSetup");
         qmlRegisterType<PanelFixture>("Tokkl.Test", 1, 0, "PanelFixture");
+        qmlRegisterType<WalletFixture>("Tokkl.Test", 1, 0, "WalletFixture");
 
         // Plasma sets the widget's domain the same way.
         KLocalizedString::setApplicationDomain(QByteArrayLiteral("plasma_applet_" TOKKL_PLASMOID_ID));

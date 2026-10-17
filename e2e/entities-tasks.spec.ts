@@ -93,7 +93,7 @@ test('a project task is created, renamed, assigned, completed and deleted withou
   expect(await pickerTasks(page)).toEqual([]);
 });
 
-// TT-0206: the inline confirm replaces the focused "Delete task" button, and a delete takes the whole
+// The inline confirm replaces the focused "Delete task" button, and a delete takes the whole
 // row away, so focus moves within the task list instead of falling to the page body.
 test('deleting tasks by keyboard keeps focus in the task list', async ({ page }) => {
   await login(page);
@@ -136,7 +136,7 @@ test('deleting tasks by keyboard keeps focus in the task list', async ({ page })
   expect(await api.tasks(project.id)).toEqual([]);
 });
 
-// TT-0206: an archived project's editor has no new task field, so deleting its last task moves focus
+// An archived project's editor has no new task field, so deleting its last task moves focus
 // to the Tasks heading instead.
 test('deleting the last task of an archived project moves focus to the Tasks heading', async ({ page }) => {
   await login(page);

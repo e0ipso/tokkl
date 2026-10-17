@@ -4,7 +4,7 @@ A self-hosted time tracker that copies the parts of Toggl Track one person uses,
 
 - Owner: Tokkl contributors
 - Status: v0.1 built (see the status column in each table)
-- Last updated: 2026-10-16
+- Last updated: 2026-10-17
 
 ## 1. Why this exists
 
@@ -24,7 +24,7 @@ The replacement has to clear a high bar. If starting a timer from my phone takes
 ### Non-goals
 
 - Shared workspaces, approvals, SSO, billing plans. Each account tracks its own time in its own workspace, and data is never shared between accounts.
-- Native desktop or mobile apps, except the KDE Plasma panel companion (C6), which is a client of the same API for TUXEDO OS and Fedora KDE. The web app is a PWA and works on phones.
+- Native desktop or mobile apps, except the KDE Plasma panel companion (C6), the macOS menu bar companion (C7) and the GNOME companion (C8). Each is a client of the same API. The web app is a PWA and works on phones.
 - Any outbound network traffic. No telemetry, no CDN fonts, no update checks, no AI.
 - Public internet exposure as a default. The expected setup is LAN or VPN (Tailscale/WireGuard) access.
 
@@ -59,9 +59,9 @@ Where Toggl's own sources disagree, this document says so and picks a behavior. 
 
 ### Visual direction
 
-This is the brief every restyle ticket is checked against.
+This is the brief every visual change is checked against.
 
-- **Palette roles.** Light theme: sand background, ink text, sunset orange primary, aqua secondary, hot pink and lime for states. Dark theme: deep navy background with a neon counterpart for each role. The design tokens ticket (TT-0067) picks the exact values.
+- **Palette roles.** Light theme: sand background, ink text, sunset orange primary, aqua secondary, hot pink and lime for states. Dark theme: deep navy background with a neon counterpart for each role. The exact values are the colour tokens in `packages/web/src/styles.css`.
 - **Typeface.** One display face for headings, the running clock and totals. The wordmark is the owner-supplied graffiti artwork, shipped as an image named "Tokkl", so it uses no font. Body text, controls and tables use the system font stack.
 - **Texture.** CSS gradients or inline SVG only, never raster images. Texture never sits behind data tables or inputs.
 - **Type effects.** Rotated or skewed type is decoration only. It never appears on controls, numbers or labels.
@@ -79,7 +79,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | T1 | Start a timer from an empty bar; fill description, project, tags and billable before or after starting. | MUST | Done |
-| T2 | Exactly one running entry. Starting a new one stops the old one at the new start time. Enforced by a partial unique index in SQLite, not only in code. | MUST | Done |
+| T2 | Exactly one running entry. Starting a new one stops the old one at the new start time, snapped to the time resolution (section 6.3). Enforced by a partial unique index in SQLite, not only in code. | MUST | Done |
 | T3 | Stop from the bar, with `S`, or through the API. Stopping a stopped entry returns 409 like Toggl. | MUST | Done |
 | T4 | Continue: a play button on any past entry, and `C` for the latest one, creates a new entry with the same description, project, task, tags and billable flag. | MUST | Done |
 | T5 | Description autocomplete from recent entries; picking one copies project, task, tags and billable. | MUST | Done |
@@ -101,7 +101,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | M2 | Start and end time fields accept `9`, `930`, `9:30`, `17.45`, `9a`, `4pm`. 12-hour users get Toggl's AM/PM guess (closest to now for the start, always after the start for the end). | MUST | Done |
 | M3 | An end time earlier than the start rolls to the next day. The entry counts toward its start date, as in Toggl. | MUST | Done |
 | M4 | One duration grammar everywhere: bare integer = minutes, `h:mm[:ss]`, unit suffixes (`1h 30m`, `90m`, `45s`), decimal hours with `.` or `,`. Toggl's timer and timesheet disagree on a bare `5`; this app does not. | MUST | Done |
-| M5 | After adding a manual entry, the next start time defaults to the previous end, so a day can be logged in sequence. | SHOULD | Done |
+| M5 | After adding a manual entry, the next start time defaults to the stored end of that entry, after snapping to the time resolution, so a day can be logged in sequence. | SHOULD | Done |
 | M6 | Overlapping entries are allowed, as in Toggl, and flagged with a marker in the list. | SHOULD | Done |
 
 ### 5.3 Entry list and editing
@@ -146,7 +146,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | R5 | Detailed: one row per entry, sortable, editable by click. | MUST | Done |
 | R6 | Weekly grid: projects by days with row and column totals. | SHOULD | Done |
 | R7 | Billable amounts from project rate, falling back to the workspace default rate. | SHOULD | Done |
-| R8 | Rounding per entry (up, nearest, down; 1 to 240 minutes), as a report setting that never changes stored data. The app's reports always apply the workspace setting; Toggl API report calls round only when asked, as in Toggl. | SHOULD | Done |
+| R8 | Rounding per entry (up, nearest, down; 1 to 240 minutes), as a report setting that never changes stored data. Stored entries snap on write to the instance time resolution (A14), not to this setting, and report rounding applies on top of the stored durations. With a rounding step that is not a multiple of the resolution, a report can show durations that are not multiples of the resolution. The app's reports always apply the workspace setting; Toggl API report calls round only when asked, as in Toggl. | SHOULD | Done |
 | R9 | CSV export of detailed and summary reports, never plan-gated. | MUST | Done |
 | R10 | Report state in the URL so a report can be bookmarked. Toggl removed this in 2025. | MUST | Done |
 | R11 | "All time" preset, from the first entry to today (up to ten years). | MUST | Done |
@@ -184,7 +184,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, its sessions end, and its data stays. Admins can also sign an account out of every browser without disabling it; its API token keeps working. | SHOULD | Done |
 | A12 | Admins delete an account together with its workspace and everything in it, after typing the account's email to confirm. An admin cannot delete their own account or the last active admin. A workspace that has another member stays. | SHOULD | Done |
 | A13 | Admins create password-reset links for an account and share them by hand. A link works once, expires after 24 hours, and replaces the account's earlier unused link. Using it signs the account out of every session. It does not change the account's API token, which the user resets separately (`POST /me/reset_token`). | SHOULD | Done |
-| A14 | Admins edit instance settings: session lifetime (1 to 365 days) and invite lifetime (1 to 90 days). A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. | COULD | Done |
+| A14 | Admins edit instance settings: session lifetime (1 to 365 days), invite lifetime (1 to 90 days) and the time resolution `time_resolution_minutes` (a divisor of 60 minutes, 5 by default), which any signed-in client can read from `GET /api/v9/me`. A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. A new resolution applies to entries written after the change; existing entries change only when they are next edited. | COULD | Done |
 | A15 | Admins manage accounts only and cannot read other users' time data. Workspace access depends on membership, never on the instance role, so an admin gets 403 on another account's workspace. | MUST | Done |
 
 ### 5.8 Clients and devices
@@ -195,8 +195,10 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | C2 | Installable PWA (manifest, icons). | SHOULD | Partial: the manifest ships the owner-supplied stopwatch icon as 192 and 512 pixel PNGs plus the owner's maskable 192 and 512 pixel PNGs on navy, with a 32 pixel PNG favicon and the owner's opaque navy 180 pixel apple-touch-icon; installing on a phone is untested. |
 | C3 | Cross-device freshness: the running timer refreshes every 30 s and on window focus, entries every 60 s. | MUST | Done |
 | C4 | Offline outbox for timer start/stop/edit in the PWA, with an unsynced marker. Matters more here than for Toggl because a phone off the home network loses the server. | SHOULD | Planned |
-| C5 | Browser extension, desktop tray app. The KDE companion (C6) is the one exception. | WON'T (v1) | n/a |
+| C5 | Browser extension, desktop tray app. The KDE (C6), macOS (C7) and GNOME (C8) companions are the exceptions; the browser extension stays out. | WON'T (v1) | n/a |
 | C6 | KDE Plasma 6 panel widget for TUXEDO OS 24.04 (amd64) and Fedora KDE 44 (x86_64), packaged as a DEB and an RPM. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, and signs in with the API token (default) or email and password, kept in KDE Wallet. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/kde/README.md)). Publication to app stores is out of scope. | COULD | Partial: CTest, real-server and package checks run in CI; the manual Plasma Wayland and KWallet checklist has not been run yet |
+| C7 | macOS menu bar app for Macs with Apple silicon and macOS 13 or later, shipped as a DMG signed ad hoc and not notarized. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, and signs in with the API token (default) or email and password, kept in the macOS Keychain. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/macos/README.md)). Publication to app stores is out of scope. | COULD | Partial: the `macos` CI job is set up to build, test and package it, but the app has not been built or run on a Mac by hand |
+| C8 | GNOME top bar extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives, packaged as a DEB for Ubuntu 26.04 LTS (amd64), an RPM for Fedora 44 (x86_64) and an extension zip. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, and signs in with the API token (default) or email and password, kept in the keyring. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/gnome/README.md)). Publication to extensions.gnome.org is manual. | COULD | Partial: the `gnome` and `gnome-extension` CI jobs build, test and package it and drive the extension in a headless GNOME Shell per supported version; no manual check on a desktop session is recorded |
 
 ## 6. Toggl API compatibility
 
@@ -215,7 +217,7 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 
 | Area | Endpoints | Status |
 |---|---|---|
-| Me | `GET/PUT /me` (incl. `with_related_data`; the response adds Tokkl's own `role` field), `POST /me/reset_token`, `GET/POST /me/preferences[/{client}]`, `GET /me/workspaces`, `/me/organizations`, `/me/features`, `/me/projects`, `/me/clients`, `/me/tags`, `/me/tasks` | Done |
+| Me | `GET/PUT /me` (incl. `with_related_data`; the `GET` response adds Tokkl's own `role` and `time_resolution_minutes` fields), `POST /me/reset_token`, `GET/POST /me/preferences[/{client}]`, `GET /me/workspaces`, `/me/organizations`, `/me/features`, `/me/projects`, `/me/clients`, `/me/tags`, `/me/tasks` | Done |
 | Time entries (read) | `GET /me/time_entries` with `since` (includes deleted entries with `server_deleted_at`), `before`, `start_date`/`end_date`, `meta`; `GET /me/time_entries/current`; `GET /me/time_entries/{id}` | Done |
 | Time entries (write) | `POST /workspaces/{wid}/time_entries`, `PUT .../{id}`, `PATCH .../{id}/stop`, `PATCH .../{ids}` (bulk JSON Patch, partial success), `DELETE .../{id}` | Done |
 | Workspace | `GET/PUT /workspaces/{wid}`, `GET /workspaces/{wid}/users` (lists the workspace's members) | Done |
@@ -233,7 +235,8 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 
 - Responses are bare JSON objects or arrays with explicit `null`s. No `{"data": ...}` envelope (that was v8).
 - Errors are JSON-encoded strings, e.g. `"Time entry already stopped"`, with 400, 403, 404 or 409.
-- Timestamps go out as RFC 3339 UTC with `+00:00`; any RFC 3339 offset is accepted on input. Times are stored with second precision.
+- Timestamps go out as RFC 3339 UTC with `+00:00`; any RFC 3339 offset is accepted on input.
+- Every API write that stores a stopped entry (create, update, stop, bulk `PATCH`, stopping the running entry when a new one starts, and undoing the delete of a running entry while another one runs) snaps it to the instance time resolution on the clock of the owner's timezone. The duration rounds up to a multiple of the resolution, so the padding is always less than one step. The start moves to the nearest grid point, and the stop follows it by the rounded duration. The response returns the stored values, so `stop - start` equals `duration`. A running entry keeps its exact start until it stops. When a new timer stops it, its stored stop lands up to half a step before the new start or up to one and a half steps after it. A timer that has run for more than 999 hours, the longest entry the API accepts, stops at 999 hours. CSV import and JSON restore keep the times in the file, and existing entries change only when they are next edited.
 - Legacy field aliases are emitted and accepted: `wid`/`workspace_id`, `pid`/`project_id`, `tid`/`task_id`, `uid`/`user_id`, `cid`/`client_id`.
 - A running entry has `stop: null` and `duration` equal to minus its start in Unix seconds. That satisfies clients computing `now + duration` (the documented v8-era rule) and clients that only test `duration < 0`.
 - Any negative `duration` on create means "running". `created_with` is accepted but optional (Toggl requires it).
@@ -299,15 +302,15 @@ The web UI is a client of the same Toggl-compatible API it exposes. Every timer 
 | HTTP | Express 5 | The most widely known Node server framework. Version 5 sends rejected promises from async handlers to the error handler, so routes need no wrappers. `trust proxy` handles a reverse proxy's forwarded headers. |
 | Database | SQLite through the built-in `node:sqlite` | No native module to compile, on amd64 or arm64; a single file to back up. WAL mode, foreign keys on. |
 | UI | React 19, Vite, TanStack Query, wouter | Query caching and refetch-on-focus give cross-device freshness for free. |
-| Shared | `packages/common` (`@tokkl/common`) modules for duration parsing, time-of-day parsing, timezone math, with their types in `packages/types` (`@tokkl/types`) | Server and UI parse `1h 30m` and midnight the same way. |
+| Shared | `packages/common` (`@tokkl/common`) modules for duration parsing, time-of-day parsing, timezone math, snapping entries to the time resolution, with their types in `packages/types` (`@tokkl/types`) | Server and UI parse `1h 30m` and midnight the same way. |
 
 ### 8.3 Data model
 
-All instants are UTC ISO 8601 strings with second precision; calendar days are computed in the user's timezone at query time.
+All instants are UTC ISO 8601 strings; calendar days are computed in the user's timezone at query time. A stopped entry written through the API starts on the instance time resolution grid and lasts a multiple of it (section 6.3).
 
 - `users`: email, name, scrypt password hash, API token, timezone, first day of week, preferences JSON (Toggl preference keys plus favorites), `role` (`admin` or `user`, default `user`), `disabled_at` (null while the account is active).
 - `sessions`: SHA-256 of the session token, expiry. The raw token exists only in the cookie.
-- `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`), with who changed them. A key with no row uses its default.
+- `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`, and `time_resolution_minutes`, a divisor of 60 that defaults to 5), with who changed them. A key with no row uses its default.
 - `account_tokens`: one-time invite and password-reset links. Only the SHA-256 of the token is stored, with its kind, the invited role or the target account, the creator, expiry and use time.
 - `workspaces`: one private workspace per account. Default currency, default rate, report rounding.
 - `workspace_users`: workspace and user, with a `role` of `owner` or `member`. The primary key is the pair. Workspace settings stay with the owner.
@@ -338,7 +341,7 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 | Latency | Timer start/stop under 100 ms server time on a low-power CPU. Reports over a year of data under 500 ms. | Not measured on low-power hardware yet |
 | Reliability | Writes are transactional; one running entry guaranteed by the database. Graceful shutdown on SIGTERM. | Done |
 | Privacy | Zero outbound requests from server and UI. | Done (verify with the CSP and a network log) |
-| Portability | The server runs on any Linux host with Node 24 (amd64 or arm64) and has no native modules. The KDE companion is native code for the two targets in C6. | Tested on amd64 only |
+| Portability | The server runs on any Linux host with Node 24 (amd64 or arm64) and has no native modules. The KDE, macOS and GNOME companions are native code for the targets in C6, C7 and C8. | Tested on amd64 only; the macOS app has not been built on a Mac by hand |
 | Accessibility | Keyboard reachable controls, labeled inputs, visible focus, color never the only signal. | Partial: labels, focus rings, non-colour cues (hatched non-billable bars, check marks on colour swatches, a labelled running dot), reduced motion, inline field errors, loading and error states and keyboard navigation are covered by Playwright specs; no screen reader audit |
 | Tests | 213 `node --test` tests (177 api, 13 common, 23 web), 226 Playwright browser tests in 46 spec files and 12 KDE CTest tests, run and counted on 2026-10-16. | Done |
 

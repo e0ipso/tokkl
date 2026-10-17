@@ -37,6 +37,7 @@ jobs:
           fi
 
       - run: npm run typecheck
+      - run: npm run check:tracker-refs
       - run: npm test
       # The visual baselines were drawn with Noto Sans as system-ui. Without
       # it Ubuntu picks WenQuanYi Zen Hei and every baseline fails.
@@ -98,14 +99,104 @@ jobs:
           persist-credentials: false
       - run: desktop/core/ci/check.sh
 
+  # desktop/gnome (tokkl-timerd on desktop/core) in a pinned Fedora 44
+  # container with QtKeychain and GNOME Keyring and no Qt Gui runtime: CTest,
+  # the Qt libraries the service loads, its installed files, and D-Bus
+  # activation of the installed service with and without systemd. Then the
+  # release files for the version in package.json: the tokkl-timerd DEB
+  # (Ubuntu 26.04) and RPM (Fedora 44), each installed on a clean target and
+  # activated on the session bus, and the extension zip. gnome-release builds
+  # them for the release the same way.
+  gnome:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: desktop/gnome/ci/check.sh
+      - name: Package and check
+        env:
+          OUTPUT: ${{ runner.temp }}/gnome
+        run: desktop/gnome/scripts/container-check.sh --version "$(jq -r .version package.json)" --output "$OUTPUT"
+
+  # desktop/gnome/extension/ci/check.sh: the GNOME Shell extension in a
+  # headless GNOME Shell against a stand-in for tokkl-timerd, in a pinned
+  # container of a distribution that ships that Shell. One leg per Shell
+  # version, as each takes a few minutes. The first step fails when the
+  # matrix and the shell-version list of metadata.json differ.
+  gnome-extension:
+    name: gnome-extension (Shell ${{ matrix.shell }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: ['46', '47', '48', '49', '50', '51']
+    env:
+      VERSION: ${{ matrix.shell }}
+      LEGS: ${{ strategy.job-total }}
+      METADATA: desktop/gnome/extension/metadata.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the matrix against metadata.json
+        run: |
+          listed="$(jq '."shell-version" | length' "$METADATA")"
+          if [ "$LEGS" != "$listed" ]; then
+            echo "::error::the matrix has $LEGS Shell versions and $METADATA lists $listed"
+            exit 1
+          fi
+          if ! jq -e --arg version "$VERSION" 'any(."shell-version"[]; . == $version)' "$METADATA" > /dev/null; then
+            echo "::error::$METADATA does not list GNOME Shell $VERSION"
+            exit 1
+          fi
+      - run: desktop/gnome/extension/ci/check.sh "$VERSION"
+
+  # The macOS menu bar app on a pinned Qt from the Qt installer and a pinned
+  # QtKeychain built against it (.github/actions/macos-build): build
+  # Tokkl.app for the version in package.json, run CTest (desktop/core's tests
+  # included), then package it as a DMG and check the DMG, starting the app
+  # from it once to see that it stays up. macos-release packages the release
+  # the same way.
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: build
+        uses: ./.github/actions/macos-build
+      - name: Test
+        env:
+          BUILD: ${{ steps.build.outputs.build-dir }}
+        run: ctest --test-dir "$BUILD" --output-on-failure
+      - name: Package and check the DMG
+        env:
+          APP: ${{ steps.build.outputs.app }}
+          QTKEYCHAIN: ${{ steps.build.outputs.qtkeychain }}
+          OUTPUT: ${{ runner.temp }}/dmg
+        run: |
+          version="$(jq -r .version package.json)"
+          dmg="$(MACDEPLOYQT="$QT_ROOT_DIR/bin/macdeployqt" desktop/macos/scripts/package-dmg.sh \
+            --app "$APP" --version "$version" --output "$OUTPUT" --libpath "$QTKEYCHAIN/lib")"
+          desktop/macos/scripts/check-dmg.sh "$dmg" "$version"
+
   release:
-    needs: [test, kde, core]
+    needs: [test, kde, core, gnome, gnome-extension, macos]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency: release
     permissions:
       contents: write
       packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -121,7 +212,9 @@ jobs:
       # (desktop/kde/ci/semantic-release.js), commits CHANGELOG.md and
       # package.json, tags v<version> and creates the GitHub release with the
       # DEB and RPM attached, or does nothing when the pushed commits warrant
-      # no release.
+      # no release. The macos-release and macos-publish jobs add the DMG, and
+      # gnome-release and gnome-publish the tokkl-timerd DEB and RPM and the
+      # GNOME Shell extension zip.
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -150,3 +243,157 @@ jobs:
           image=ghcr.io/${GITHUB_REPOSITORY,,}
           docker buildx build --push --platform linux/amd64,linux/arm64 \
             -t "$image:$version" -t "$image:${version%.*}" -t "$image:${version%%.*}" -t "$image:latest" .
+
+  # The DMG for the release the release job just made. semantic-release
+  # decides the version on the Linux release runner, and the app builds only
+  # on macOS, so this job runs afterwards: it builds Tokkl.app from the
+  # v<version> tag with that version, packages and checks it as the macos job
+  # does, and hands the DMG to macos-publish. The release is public without
+  # the DMG until macos-publish attaches it. Re-running a failed job attaches
+  # it to the existing release.
+  macos-release:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      # The tag's package.json holds the version semantic-release wrote.
+      - name: Check the version
+        run: |
+          version=${TAG#v}
+          if [ "$(jq -r .version package.json)" != "$version" ]; then
+            echo "::error::package.json at $TAG does not have version $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - id: build
+        uses: ./.github/actions/macos-build
+        with:
+          version: ${{ env.VERSION }}
+          build-type: Release
+      - name: Package and check the DMG
+        env:
+          APP: ${{ steps.build.outputs.app }}
+          QTKEYCHAIN: ${{ steps.build.outputs.qtkeychain }}
+          OUTPUT: ${{ runner.temp }}/dmg
+        run: |
+          dmg="$(MACDEPLOYQT="$QT_ROOT_DIR/bin/macdeployqt" desktop/macos/scripts/package-dmg.sh \
+            --app "$APP" --version "$VERSION" --output "$OUTPUT" --libpath "$QTKEYCHAIN/lib")"
+          test "$dmg" = "$OUTPUT/Tokkl-$VERSION-arm64.dmg"
+          desktop/macos/scripts/check-dmg.sh "$dmg" "$VERSION"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-dmg
+          path: ${{ runner.temp }}/dmg/Tokkl-${{ env.VERSION }}-arm64.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  # Attaches the DMG to the v<version> release. Kept apart from macos-release
+  # so the job that builds third-party code holds no write token.
+  macos-publish:
+    needs: [release, macos-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: macos-dmg
+          path: ${{ runner.temp }}/dmg
+      - name: Attach the DMG to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIR: ${{ runner.temp }}/dmg
+        run: |
+          dmg="$DIR/Tokkl-${TAG#v}-arm64.dmg"
+          test -f "$dmg"
+          gh release upload "$TAG" "$dmg#Tokkl for macOS 13 or later (Apple silicon)" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+  # The tokkl-timerd DEB and RPM and the GNOME Shell extension zip for the
+  # release the release job just made, built from the v<version> tag with
+  # that version and checked as the gnome job checks them. They go to
+  # gnome-publish, which attaches them. The release is public without them
+  # until then. Re-running a failed job attaches them to the existing
+  # release. extensions.gnome.org is not part of the release: its upload and
+  # review are manual (desktop/gnome/README.md).
+  gnome-release:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      # The tag's package.json holds the version semantic-release wrote.
+      - name: Check the version
+        run: |
+          version=${TAG#v}
+          if [ "$(jq -r .version package.json)" != "$version" ]; then
+            echo "::error::package.json at $TAG does not have version $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Package and check
+        env:
+          OUTPUT: ${{ runner.temp }}/gnome
+        run: desktop/gnome/scripts/container-check.sh --version "$VERSION" --output "$OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gnome-release
+          path: |
+            ${{ runner.temp }}/gnome/tokkl-timerd_*_amd64.deb
+            ${{ runner.temp }}/gnome/tokkl-timerd-*.x86_64.rpm
+            ${{ runner.temp }}/gnome/tokkl-gnome-extension-${{ env.VERSION }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  # Attaches the GNOME files to the v<version> release. Kept apart from
+  # gnome-release so the job that builds third-party code holds no write
+  # token.
+  gnome-publish:
+    needs: [release, gnome-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: gnome-release
+          path: ${{ runner.temp }}/gnome
+      - name: Attach the GNOME files to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIR: ${{ runner.temp }}/gnome
+        run: |
+          version=${TAG#v}
+          shopt -s nullglob
+          debs=("$DIR"/tokkl-timerd_*_amd64.deb)
+          rpms=("$DIR"/tokkl-timerd-*.x86_64.rpm)
+          zip="$DIR/tokkl-gnome-extension-$version.zip"
+          if [ "${#debs[@]}" != 1 ] || [ "${#rpms[@]}" != 1 ] || [ ! -f "$zip" ]; then
+            echo "::error::expected one DEB, one RPM and $zip in $DIR"
+            ls -l "$DIR"
+            exit 1
+          fi
+          gh release upload "$TAG" \
+            "${debs[0]}#tokkl-timerd DEB for Ubuntu 26.04 LTS (amd64)" \
+            "${rpms[0]}#tokkl-timerd RPM for Fedora 44 (x86_64)" \
+            "$zip#Tokkl GNOME Shell extension (GNOME Shell 46 to 51)" \
+            --repo "$GITHUB_REPOSITORY" --clobber

@@ -172,7 +172,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
 
   app.post('/time_entries/:id/restore', auth, (req, res) => {
-    const entry = restoreTimeEntry(db, res.locals.user.id, parseId(req.params.id));
+    const entry = restoreTimeEntry(db, res.locals.user, parseId(req.params.id));
     return res.json(serializeTimeEntry(entry, { meta: true, user: res.locals.user }));
   });
 

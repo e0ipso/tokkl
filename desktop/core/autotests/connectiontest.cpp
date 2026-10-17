@@ -459,6 +459,184 @@ private Q_SLOTS:
         verifyCleared(f.connection);
     }
 
+    // The store reports every write: secretChanged when it kept the secret,
+    // secretWriteFailed with the status and no secret when it did not.
+    void storeReportsWritesWithoutTheSecret()
+    {
+        class ReportingStore : public FakeCredentialStore
+        {
+        public:
+            // A failed result that still carries a secret must not pass it on.
+            void reportLeaky(const QString &key)
+            {
+                reportWrite(key, CredentialResult{CredentialResult::Status::Failed, QStringLiteral("leaked-secret")});
+            }
+        };
+        ReportingStore store;
+        QStringList changed;
+        QList<std::pair<QString, CredentialResult>> failed;
+        connect(&store, &CredentialStore::secretChanged, this, [&changed](const QString &key) {
+            changed.append(key);
+        });
+        connect(&store, &CredentialStore::secretWriteFailed, this, [&failed](const QString &key, const CredentialResult &result) {
+            failed.append({key, result});
+        });
+
+        store.write(tokenKey(), token, this, [](const CredentialResult &) { });
+        QCOMPARE(changed, QStringList{tokenKey()});
+        QVERIFY(failed.isEmpty());
+
+        store.failure = CredentialResult::Status::Unavailable;
+        store.write(tokenKey(), QStringLiteral("refused-secret"), this, [](const CredentialResult &) { });
+        QCOMPARE(changed.size(), 1);
+        QCOMPARE(failed.size(), 1);
+        QCOMPARE(failed.first().first, tokenKey());
+        QCOMPARE(failed.first().second.status, CredentialResult::Status::Unavailable);
+        QVERIFY(failed.first().second.secret.isEmpty());
+
+        store.reportLeaky(tokenKey());
+        QCOMPARE(failed.size(), 2);
+        QCOMPARE(failed.last().second.status, CredentialResult::Status::Failed);
+        QVERIFY(failed.last().second.secret.isEmpty());
+    }
+
+    // A settings page saves a secret for the connection's own account and the
+    // store refuses: the connection drops the account and says the new
+    // credentials were not saved, even when the page is already gone.
+    void refusedWriteForTheOwnKeyShowsWalletError()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(populate(f));
+        const qsizetype requests = f.transport.requests.size();
+
+        f.store.failure = CredentialResult::Status::Unavailable;
+        {
+            ConnectionSetup setup(&f.transport, &f.store);
+            setup.setAccount(instance, QStringLiteral("token"), QString());
+            setup.editSecret(QStringLiteral("refused-secret"));
+            setup.saveSecret();
+        }
+        QTRY_COMPARE(f.connection.state(), Connection::WalletError);
+        QVERIFY2(f.connection.errorString().startsWith(QLatin1String("The new credentials were not saved.")), qPrintable(f.connection.errorString()));
+        QVERIFY(f.connection.errorString().contains(QLatin1String("locked or denied")));
+        QVERIFY(!f.connection.errorString().contains(QLatin1String("refused-secret")));
+        verifyCleared(f.connection);
+
+        // The old secret is still in the store, but nothing is validated or
+        // sent with it until the user reconnects.
+        QTest::qWait(20);
+        QCOMPARE(f.connection.state(), Connection::WalletError);
+        QCOMPARE(f.transport.requests.size(), requests);
+    }
+
+    // A wallet read that started before the refused write answers after it,
+    // with the old secret. It belongs to an older generation and cannot
+    // replace the error.
+    void refusedWriteOutranksAnEarlierRead()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        const int reads = f.store.reads;
+        const qsizetype requests = f.transport.requests.size();
+
+        f.connection.reconnect();
+        QCOMPARE(f.store.reads, reads + 1);
+        f.store.failure = CredentialResult::Status::Failed;
+        f.store.write(tokenKey(), QStringLiteral("refused-secret"), this, [](const CredentialResult &) { });
+        QCOMPARE(f.connection.state(), Connection::WalletError);
+
+        QTest::qWait(20);
+        QCOMPARE(f.connection.state(), Connection::WalletError);
+        QVERIFY(f.connection.errorString().startsWith(QLatin1String("The new credentials were not saved.")));
+        QCOMPARE(f.transport.requests.size(), requests);
+    }
+
+    // A refused write for another account leaves this one connected.
+    void refusedWriteForAnotherKeyIsIgnored()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.store.failure = CredentialResult::Status::Unavailable;
+        f.store.write(tokenKey(QStringLiteral("https://other.example.test")), QStringLiteral("other"), this, [](const CredentialResult &) { });
+        QTest::qWait(20);
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(f.connection.isConnected());
+    }
+
+    // A settings page may save the secret before Plasma hands the matching
+    // settings to the connection. The refusal is kept and shown on the
+    // reload those settings start, without reading the store.
+    void refusedWriteBeforeTheSettingsShowsOnReload()
+    {
+        Fixture f;
+        f.store.secrets.insert(tokenKey(), token);
+        f.store.failure = CredentialResult::Status::Unavailable;
+        f.store.write(tokenKey(), QStringLiteral("refused-secret"), this, [](const CredentialResult &) { });
+        QCOMPARE(f.connection.state(), Connection::Unconfigured);
+
+        f.store.failure = CredentialResult::Status::Ok;
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.connection.state(), Connection::WalletError);
+        QVERIFY(f.connection.errorString().startsWith(QLatin1String("The new credentials were not saved.")));
+        QVERIFY(f.connection.errorString().contains(QLatin1String("locked or denied")));
+        QCOMPARE(f.store.reads, 0);
+        QVERIFY(f.transport.requests.isEmpty());
+
+        // Reconnect clears it and uses what the store holds.
+        f.connection.reconnect();
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.transport.requests.last().authorization, basicAuthorization(AuthMode::Token, QString(), token));
+    }
+
+    // The kept refusal lasts until the next reload only, and it is shown
+    // only when that reload is for its key.
+    void refusedWriteBeforeOtherSettingsIsDropped()
+    {
+        Fixture f;
+        const QString other = QStringLiteral("https://other.example.test");
+        f.store.failure = CredentialResult::Status::Unavailable;
+        f.store.write(tokenKey(other), QStringLiteral("refused-secret"), this, [](const CredentialResult &) { });
+        f.store.failure = CredentialResult::Status::Ok;
+
+        QVERIFY(connectAccount(f));
+        f.connection.setInstanceUrl(other);
+        QTRY_COMPARE(f.connection.state(), Connection::CredentialsMissing);
+        QVERIFY(!f.connection.errorString().contains(QLatin1String("not saved")));
+    }
+
+    // A later successful write of the same key replaces the refusal: before
+    // the settings arrive, and while the connection shows it.
+    void successfulWriteClearsARefusal()
+    {
+        Fixture f;
+        f.store.failure = CredentialResult::Status::Unavailable;
+        f.store.write(tokenKey(), QStringLiteral("refused-secret"), this, [](const CredentialResult &) { });
+        f.store.failure = CredentialResult::Status::Ok;
+        f.store.write(tokenKey(), token, this, [](const CredentialResult &) { });
+
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+
+        f.store.failure = CredentialResult::Status::Disabled;
+        f.store.write(tokenKey(), QStringLiteral("refused-secret"), this, [](const CredentialResult &) { });
+        QCOMPARE(f.connection.state(), Connection::WalletError);
+        QVERIFY(f.connection.errorString().startsWith(QLatin1String("The new credentials were not saved.")));
+        QVERIFY(f.connection.errorString().contains(QLatin1String("disabled")));
+
+        const QString fresh = QStringLiteral("tok-fresh");
+        f.store.failure = CredentialResult::Status::Ok;
+        f.store.write(tokenKey(), fresh, this, [](const CredentialResult &) { });
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(f.transport.requests.last().authorization, basicAuthorization(AuthMode::Token, QString(), fresh));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+    }
+
     void meForbiddenPausesAuthentication()
     {
         Fixture f;
@@ -948,6 +1126,74 @@ private Q_SLOTS:
         reading.setAccount(instance, QStringLiteral("token"), QString());
         reading.loadSecret();
         QTRY_COMPARE(reading.walletError(), message);
+    }
+
+    // The callback form of saveSecret tells the caller when the store has
+    // kept the secret, so a settings window can wait for it before closing.
+    void setupReportsWhenTheSecretIsSaved()
+    {
+        FakeTransport transport;
+        FakeCredentialStore store;
+        ConnectionSetup setup(&transport, &store);
+        QList<bool> results;
+        const auto record = [&results](bool saved) {
+            results.append(saved);
+        };
+
+        // Nothing to write: done runs at once, with true.
+        setup.setAccount(instance, QStringLiteral("token"), QString());
+        setup.saveSecret(this, record);
+        QCOMPARE(results, QList<bool>{true});
+        QCOMPARE(store.writes, 0);
+
+        // A write: done waits for the store's answer.
+        results.clear();
+        setup.editSecret(token);
+        setup.saveSecret(this, record);
+        QVERIFY(results.isEmpty());
+        QTRY_COMPARE(results, QList<bool>{true});
+        QCOMPARE(store.secrets.value(tokenKey()), token);
+        QCOMPARE(setup.walletError(), QString());
+        QVERIFY(!setup.isBusy());
+
+        // The stored secret again: nothing to write, true at once.
+        results.clear();
+        setup.saveSecret(this, record);
+        QCOMPARE(results, QList<bool>{true});
+        QCOMPARE(store.writes, 1);
+
+        // A refused write: false, and walletError says why without the secret.
+        results.clear();
+        store.failure = CredentialResult::Status::Unavailable;
+        setup.editSecret(QStringLiteral("refused-secret"));
+        setup.saveSecret(this, record);
+        QVERIFY(results.isEmpty());
+        QTRY_COMPARE(results, QList<bool>{false});
+        QVERIFY(!setup.walletError().isEmpty());
+        QVERIFY(!setup.walletError().contains(QLatin1String("refused-secret")));
+        QCOMPARE(store.secrets.value(tokenKey()), token);
+        QVERIFY(!setup.isBusy());
+
+        // A context gone before the answer: the write still lands, done never runs.
+        results.clear();
+        store.failure = CredentialResult::Status::Ok;
+        setup.editSecret(QStringLiteral("late-secret"));
+        auto *context = new QObject;
+        setup.saveSecret(context, record);
+        delete context;
+        QTRY_COMPARE(store.secrets.value(tokenKey()), QStringLiteral("late-secret"));
+        QTRY_VERIFY(!setup.isBusy());
+        QCoreApplication::processEvents();
+        QVERIFY(results.isEmpty());
+        QCOMPARE(setup.walletError(), QString());
+
+        // No credential store: false at once.
+        ConnectionSetup storeless(&transport, nullptr);
+        storeless.setAccount(instance, QStringLiteral("token"), QString());
+        storeless.editSecret(token);
+        storeless.saveSecret(this, record);
+        QCOMPARE(results, QList<bool>{false});
+        QVERIFY(!storeless.walletError().isEmpty());
     }
 
     // A secret read from the wallet for one account is never tested against

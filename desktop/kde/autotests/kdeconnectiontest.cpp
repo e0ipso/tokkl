@@ -615,6 +615,65 @@ private Q_SLOTS:
         QVERIFY(!m_daemon->secret(KWalletCredentialStore::folder, tokenKey(url)));
     }
 
+    // A write KDE Wallet refuses reaches the panel's connection for the same
+    // account through the shared store, also once the Configure page is gone,
+    // as when OK closes the dialog. Reconnect reads what the wallet holds.
+    void refusedWriteReachesTheConnection()
+    {
+        const QString url = m_server.url(QStringLiteral("/refused"));
+        m_daemon->storeSecret(KWalletCredentialStore::folder, tokenKey(url), QStringLiteral("tok-kde"));
+        KdeConnection connection;
+        connection.setInstanceUrl(url);
+        QTRY_COMPARE(connection.state(), Connection::Connected);
+        const qsizetype requests = m_server.requests.size();
+
+        m_daemon->setWriteFails(true);
+        {
+            KdeConnectionSetup setup;
+            setup.setAccount(url, QStringLiteral("token"), QString());
+            setup.editSecret(QStringLiteral("tok-refused"));
+            setup.saveSecret();
+        }
+        QTRY_COMPARE(connection.state(), Connection::WalletError);
+        QCOMPARE(connection.errorString(), QStringLiteral("The new credentials were not saved. ") + kdeFailed);
+        QVERIFY(!connection.isConnected());
+        QCOMPARE(m_daemon->secret(KWalletCredentialStore::folder, tokenKey(url)), std::optional<QString>(QStringLiteral("tok-kde")));
+        QTest::qWait(50);
+        QCOMPARE(m_server.requests.size(), requests);
+
+        m_daemon->setWriteFails(false);
+        connection.reconnect();
+        QTRY_COMPARE(connection.state(), Connection::Connected);
+        QCOMPARE(m_server.requests.last().header("Authorization"), "Basic " + QByteArray("tok-kde:api_token").toBase64());
+    }
+
+    // The page can save the secret before the panel's connection gets the
+    // matching address. The refusal shows once the address arrives, and the
+    // wallet is not read for it.
+    void refusedWriteBeforeTheAddressShowsLater()
+    {
+        const QString url = m_server.url(QStringLiteral("/early"));
+        KdeConnection connection;
+        QCOMPARE(connection.state(), Connection::Unconfigured);
+
+        m_daemon->setWriteFails(true);
+        KdeConnectionSetup setup;
+        setup.setAccount(url, QStringLiteral("token"), QString());
+        setup.editSecret(QStringLiteral("tok-early"));
+        setup.saveSecret();
+        QTRY_VERIFY(!setup.isBusy());
+        QCOMPARE(setup.walletError(), kdeFailed);
+        m_daemon->setWriteFails(false);
+
+        connection.setInstanceUrl(url);
+        QTRY_COMPARE(connection.state(), Connection::WalletError);
+        QCOMPARE(connection.errorString(), QStringLiteral("The new credentials were not saved. ") + kdeFailed);
+        QVERIFY(!m_daemon->secret(KWalletCredentialStore::folder, tokenKey(url)));
+        QVERIFY(std::none_of(m_server.requests.cbegin(), m_server.requests.cend(), [](const ReceivedRequest &request) {
+            return request.path.startsWith("/early/");
+        }));
+    }
+
 private:
     QTemporaryDir m_home;
     QProcess m_bus;

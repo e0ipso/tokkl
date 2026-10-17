@@ -53,6 +53,14 @@ public:
 Q_SIGNALS:
     // This store wrote a secret under the key.
     void secretChanged(const QString &key);
+    // This store could not write a secret under the key. It is emitted even
+    // when the caller of write() is gone, so whoever uses that key can tell
+    // the user. The result carries no secret.
+    void secretWriteFailed(const QString &key, const Tokkl::CredentialResult &result);
+
+protected:
+    // Emits secretChanged or secretWriteFailed for the result of a write.
+    void reportWrite(const QString &key, const CredentialResult &result);
 };
 
 }

@@ -40,7 +40,7 @@ test('report filters, tabs and CSV downloads work by touch on a phone and match 
   await page.goto('/reports?from=2026-01-05&to=2026-01-11');
   await expect(totalTime(page)).toHaveText('4:15:00');
   await expectNoPageOverflow(page);
-  // TT-0092: the filters, range control, tabs, totals and the summary table fit the screen.
+  // The filters, range control, tabs, totals and the summary table fit the screen.
   const tabs = page.getByRole('tablist', { name: 'Report type' });
   await expectFits(page.getByRole('group', { name: 'Filters' }));
   await expectFits(page.locator('.range-control'));
@@ -115,7 +115,7 @@ test('choosing "Is not" before picking a project excludes the project picked nex
   await expect(totalTime(page)).toHaveText('1:00:00');
 });
 
-// TT-0118: on a phone the browser squeezed every wrappable column of the wide detailed table, so the
+// On a phone the browser squeezed every wrappable column of the wide detailed table, so the
 // client wrapped one word per line and the tags one chip per line, and short rows grew to about 80px.
 // Client and tags now stay on one line (about 40px rows); a long client is cut off with an ellipsis
 // and keeps its full name in the title, as does the project name.

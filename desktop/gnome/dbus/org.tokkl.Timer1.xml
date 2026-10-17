@@ -1,0 +1,83 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  org.tokkl.Timer1: the Tokkl timer of tokkl-timerd, at /org/tokkl/Timer1 on
+  the session bus. The service runs the shared desktop core and adds no rule
+  of its own. Every property emits
+  org.freedesktop.DBus.Properties.PropertiesChanged with its new value when
+  it changes.
+-->
+<node>
+  <interface name="org.tokkl.Timer1">
+    <!-- An entry is running. -->
+    <property name="Running" type="b" access="read"/>
+    <!-- Start of the running entry as Unix time in seconds, or 0. Elapsed
+         time is the current time minus this. -->
+    <property name="StartTime" type="x" access="read"/>
+    <!-- What the project indicator shows for ChosenProject: "none" (no
+         project, or the instance no longer has it), "pending" (its details
+         are still being read) or "project". -->
+    <property name="IndicatorState" type="s" access="read"/>
+    <!-- The project's colour as lowercase #rrggbb in the "project" state,
+         otherwise empty. -->
+    <property name="IndicatorColor" type="s" access="read"/>
+    <!-- The active projects of the workspace, each with id (x), name (s),
+         clientName (s), color (s) and billable (b). -->
+    <property name="Projects" type="aa{sv}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
+    </property>
+    <!-- The running entry's project, or the project of the next start while
+         stopped; 0 for no project. -->
+    <property name="ChosenProject" type="x" access="read"/>
+    <!-- The name of ChosenProject, also when the running entry's project is
+         archived and so missing from Projects. Empty for no project, while
+         the project is still being read, and for a project the instance no
+         longer has. -->
+    <property name="ChosenProjectName" type="s" access="read"/>
+    <!-- The running entry's billable flag, or that of the next start. -->
+    <property name="Billable" type="b" access="read"/>
+    <!-- "unconfigured", "loading", "ready", "busy", "stale",
+         "authentication-blocked" or "error". -->
+    <property name="Status" type="s" access="read"/>
+    <!-- Why Status is "error", "stale" or "authentication-blocked", for the
+         user; empty otherwise. It never contains a secret. -->
+    <property name="ErrorString" type="s" access="read"/>
+
+    <!-- Start a new entry on ChosenProject with Billable. Returns false
+         when nothing was sent: an entry runs, a request is in flight, or
+         the account is not ready. -->
+    <method name="Start">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <!-- Stop the running entry. Returns false when nothing was sent. -->
+    <method name="Stop">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <!-- Choose the project of the next start; 0 for no project. Applies the
+         project's billable default. Refused (false) while an entry runs and
+         for a project that is not an active project of the workspace. -->
+    <method name="SetProject">
+      <arg name="projectId" type="x" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <!-- Choose billable for the next start; while an entry runs, also edit
+         that entry. Returns false when the choice was refused. -->
+    <method name="SetBillable">
+      <arg name="billable" type="b" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <!-- Connect to an instance. authMode is "token" or "password"; email is
+         needed for "password". A nonempty secret is saved in the credential
+         store first; an empty one keeps what the store holds for that
+         account. Fails with org.freedesktop.DBus.Error.InvalidArgs for
+         unusable settings, and with org.tokkl.Timer1.Error.CredentialStore
+         when the store refuses the secret; the settings then stay as they
+         were. -->
+    <method name="Configure">
+      <arg name="instanceUrl" type="s" direction="in"/>
+      <arg name="authMode" type="s" direction="in"/>
+      <arg name="email" type="s" direction="in"/>
+      <arg name="secret" type="s" direction="in"/>
+    </method>
+  </interface>
+</node>

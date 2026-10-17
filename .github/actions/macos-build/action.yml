@@ -1,0 +1,70 @@
+name: Build Tokkl.app
+description: >-
+  Installs the pinned Qt from the Qt installer, builds the pinned QtKeychain
+  against it and builds desktop/macos with both. Run it from the checkout's
+  root on a macOS runner. The build fails when CMake finds a Qt outside the
+  pinned one, so a Homebrew Qt on the runner cannot slip in.
+inputs:
+  version:
+    description: Tokkl version for the bundle (TOKKL_VERSION). Empty reads the root package.json.
+    required: false
+    default: ''
+  build-type:
+    description: CMAKE_BUILD_TYPE.
+    required: false
+    default: RelWithDebInfo
+outputs:
+  build-dir:
+    description: The CMake build directory.
+    value: ${{ steps.build.outputs.build-dir }}
+  app:
+    description: The built Tokkl.app, signed ad hoc.
+    value: ${{ steps.build.outputs.app }}
+  qtkeychain:
+    description: The QtKeychain install prefix.
+    value: ${{ steps.qtkeychain.outputs.prefix }}
+runs:
+  using: composite
+  steps:
+    # Sets QT_ROOT_DIR and puts the pinned Qt's tools on PATH.
+    - name: Install Qt
+      uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
+      with:
+        version: 6.11.3
+        cache: true
+    - name: Build QtKeychain
+      id: qtkeychain
+      shell: bash
+      env:
+        QTKEYCHAIN_VERSION: 0.17.0
+        QTKEYCHAIN_COMMIT: 875f77d9f61bd97fd84cca47ce3bc71186dfbd09
+        SRC: ${{ runner.temp }}/qtkeychain-src
+        PREFIX: ${{ runner.temp }}/qtkeychain
+      run: |
+        git clone --quiet --depth 1 --branch "$QTKEYCHAIN_VERSION" https://github.com/frankosterfeld/qtkeychain.git "$SRC"
+        test "$(git -C "$SRC" rev-parse HEAD)" = "$QTKEYCHAIN_COMMIT"
+        cmake -S "$SRC" -B "$SRC/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DBUILD_TRANSLATIONS=OFF -DBUILD_TESTING=OFF
+        cmake --build "$SRC/build" -j"$(sysctl -n hw.ncpu)"
+        cmake --install "$SRC/build"
+        echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+    - name: Build
+      id: build
+      shell: bash
+      env:
+        BUILD: ${{ runner.temp }}/macos
+        QTKEYCHAIN: ${{ steps.qtkeychain.outputs.prefix }}
+        VERSION: ${{ inputs.version }}
+        BUILD_TYPE: ${{ inputs.build-type }}
+      run: |
+        cmake -S desktop/macos -B "$BUILD" -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DTOKKL_VERSION="$VERSION" \
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR;$QTKEYCHAIN"
+        # The pinned Qt, not another one on the runner.
+        qt_dir=$(sed -n 's/^Qt6_DIR:[A-Z]*=//p' "$BUILD/CMakeCache.txt")
+        case "$qt_dir" in
+          "$QT_ROOT_DIR"/*) ;;
+          *) echo "Qt6_DIR is '$qt_dir', not under $QT_ROOT_DIR" >&2; exit 1 ;;
+        esac
+        cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)"
+        echo "build-dir=$BUILD" >> "$GITHUB_OUTPUT"
+        echo "app=$BUILD/src/Tokkl.app" >> "$GITHUB_OUTPUT"

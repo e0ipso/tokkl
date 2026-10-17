@@ -29,4 +29,13 @@ QString CredentialStore::message(const CredentialResult &result) const
     return result.message();
 }
 
+void CredentialStore::reportWrite(const QString &key, const CredentialResult &result)
+{
+    if (result.ok()) {
+        Q_EMIT secretChanged(key);
+        return;
+    }
+    Q_EMIT secretWriteFailed(key, CredentialResult{result.status, {}});
+}
+
 }

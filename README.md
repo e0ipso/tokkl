@@ -15,7 +15,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 - Summary, detailed and weekly reports with filters, billable amounts, rounding, CSV export, and bookmarkable URLs.
 - Import of Toggl Track's detailed CSV export (safe to repeat), CSV and JSON export, and restore from the JSON export.
 - Works on phones; installable as a PWA.
-- A KDE Plasma panel widget starts and stops the timer from the desktop. See [KDE panel companion](#kde-panel-companion).
+- A KDE Plasma panel widget, a macOS menu bar app and a GNOME top bar extension start and stop the timer from the desktop. See [KDE panel companion](#kde-panel-companion), [macOS menu bar companion](#macos-menu-bar-companion) and [GNOME companion](#gnome-companion); the guides are [desktop/kde/README.md](desktop/kde/README.md), [desktop/macos/README.md](desktop/macos/README.md) and [desktop/gnome/README.md](desktop/gnome/README.md).
 
 ## Screenshots
 
@@ -73,7 +73,7 @@ No admin account yet. Open the web UI and use this setup code to create it: ABCD
 
 Open the web app, enter the code, and create the first admin account. Only someone who can read the server log can do that. Later users join through invite links: an admin creates a link on the Admin page, picks the new account's role (admin or user) and shares the link by hand. The server sends no email. A link works once and expires after 7 days unless an admin changes that. Each invited account gets its own private workspace.
 
-The Admin page also changes roles, disables and re-enables accounts, signs them out, deletes them with their workspace, and sets how long new sessions (1 to 365 days) and invite links (1 to 90 days) last. The server always keeps one active admin. Admins manage accounts only: they have no access to other accounts' workspaces, so they cannot read anyone else's entries.
+The Admin page also changes roles, disables and re-enables accounts, signs them out, deletes them with their workspace, and sets how long new sessions (1 to 365 days) and invite links (1 to 90 days) last. It also sets the time resolution, `time_resolution_minutes`, to any divisor of 60 minutes. The default is 5. Each stopped entry saved after a change snaps to it. Its duration rounds up to a multiple of the resolution, and its start moves to the nearest step on the account's clock. Existing entries change only when they are next edited, and CSV imports and JSON restores keep the times in the file. The server always keeps one active admin. Admins manage accounts only: they have no access to other accounts' workspaces, so they cannot read anyone else's entries.
 
 An admin can also create a one-time password reset link for an account and share it by hand. The link is valid for 24 hours, and a newer link replaces the older unused one. Setting a new password through the link signs the account out of every session, but it does not change the account's API token. The user rotates that separately under Settings → API token.
 
@@ -140,6 +140,24 @@ A Plasma 6 panel widget for TUXEDO OS 24.04 (amd64) and Fedora KDE 44 (x86_64). 
 
 It ships as a DEB and an RPM attached to each GitHub release that includes it, under the same version as the server and the Docker image. The Docker image does not contain it. As of 2026-10-16 no release has carried the packages; the guide says how to build them. The packages are under the MIT license, like the rest of Tokkl. Installation, setup, behavior, the build and a manual Plasma checklist are in [desktop/kde/README.md](desktop/kde/README.md).
 
+## macOS menu bar companion
+
+A menu bar app for Macs with Apple silicon and macOS 13 or later. It shows the running timer's time in the menu bar, starts and stops it with a click, and sets the project and billable flag. It keeps the API token or password in the macOS Keychain.
+
+It ships as `Tokkl-<version>-arm64.dmg`, attached to each GitHub release that includes it, under the same version as the server and the Docker image. It is signed ad hoc, not with an Apple Developer ID, and is not notarized, so remove the quarantine flag after you drag it to `/Applications`:
+
+```sh
+xattr -cr /Applications/Tokkl.app
+```
+
+Installation, setup and the build are in [desktop/macos/README.md](desktop/macos/README.md).
+
+## GNOME companion
+
+A GNOME Shell extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives. The top bar button shows the running timer, starts and stops it with a click, and sets the project and billable flag. The service keeps the API token or password in the keyring.
+
+It ships as a DEB of `tokkl-timerd` for Ubuntu 26.04 LTS (amd64), an RPM for Fedora 44 (x86_64) and `tokkl-gnome-extension-<version>.zip`, attached to each GitHub release that includes them, under the same version as the server and the Docker image. As of 2026-10-17 no release has carried them; the guide says how to build them. Installation, setup and the build are in [desktop/gnome/README.md](desktop/gnome/README.md).
+
 ## Development
 
 Requires Node.js 24 or newer.
@@ -153,12 +171,13 @@ npm run typecheck  # tsc over every package, e2e, scripts, bench and the KDE tes
 npm run build      # builds the web app into dist/web
 npm run test:e2e   # builds, then runs the Playwright browser tests
 npm run screenshots  # builds, then rewrites docs/screenshots/*.png
+npm run check:tracker-refs  # fails when a tracked file cites a ticket ID or plan path
 npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
 
 The KDE companion is a separate CMake project that no npm script builds. To build and test it, run `cmake -S desktop/kde -B desktop/kde/build`, `cmake --build desktop/kde/build` and `ctest --test-dir desktop/kde/build` (needs Qt 6.10 and KDE Frameworks 6.24; [details](desktop/kde/README.md#configure-build-and-test)). It builds on `desktop/core`, the timer and connection core the desktop companions share. That project needs only Qt 6.10 Core, Network and Test, and the same three commands pointed at `desktop/core` build and test it on its own.
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)) and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)), the macOS companion's DMG, which a later job attaches to the same release (see [desktop/macos/README.md](desktop/macos/README.md#releases)), the GNOME companion's DEB, RPM and extension zip, also attached by later jobs (see [desktop/gnome/README.md](desktop/gnome/README.md#releases)), and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
 
 The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
 

@@ -131,6 +131,25 @@ function snapshot(ctx: TestContext) {
 }
 const without = (row: Row, ...keys: string[]) => Object.fromEntries(Object.entries(row).filter(([key]) => !keys.includes(key)));
 
+/** The instances' default time resolution, five minutes, on the UTC clock of the fixture accounts. */
+const RESOLUTION_MS = 5 * 60_000;
+
+/**
+ * A stopped entry snapped to the time resolution: start on the grid, a whole number of steps long
+ * (zero for one stopped within the second it started), and, when the exact start is known, within
+ * half a step of it.
+ */
+function assertSnapped(row: Row, exactStart?: number) {
+  const start = Date.parse(String(row.start));
+  const stop = Date.parse(String(row.stop));
+  assert.equal(start % RESOLUTION_MS, 0, `start ${row.start} is on the grid`);
+  assert.ok(stop >= start, `${row.start} to ${row.stop}`);
+  assert.equal((stop - start) % RESOLUTION_MS, 0, `${row.start} to ${row.stop} is a whole number of steps`);
+  if (exactStart !== undefined) {
+    assert.ok(Math.abs(start - exactStart) <= RESOLUTION_MS / 2, `${row.start} near ${new Date(exactStart).toISOString()}`);
+  }
+}
+
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -303,6 +322,9 @@ test('the KDE companion against real Tokkl servers', async (t) => {
       assert.equal(row.created_with, 'tokkl-kde');
     }
     assert.equal(mine.filter((row) => row.stop === null).length, 1);
+    // The entry it stopped is snapped to the time resolution; the running one keeps its exact start.
+    const stopped = mine.find((row) => row.stop !== null)!;
+    assertSnapped(stopped);
   });
 
   await t.test('instance b changed only by the stop sent after the switch', () => {
@@ -316,6 +338,8 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     const old = before.b.entries.find((entry) => entry.id === stopped)!;
     assert.equal(old.stop, null);
     assert.notEqual(row.stop, null);
-    assert.deepEqual(without(row, 'stop', 'duration', 'updated_at'), without(old, 'stop', 'duration', 'updated_at'));
+    // Stopping snaps the entry to the time resolution, so its start moves to the nearest grid point.
+    assert.deepEqual(without(row, 'start', 'stop', 'duration', 'updated_at'), without(old, 'start', 'stop', 'duration', 'updated_at'));
+    assertSnapped(row, Date.parse(String(old.start)));
   });
 });

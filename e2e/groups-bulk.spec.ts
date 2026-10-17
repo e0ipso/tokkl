@@ -105,7 +105,7 @@ test('bulk project, tags, billable and delete act on the entries selected across
   };
 
   await select();
-  // TT-0082: a selected row has a 3px bar on its left edge as well as the tint.
+  // A selected row has a 3px bar on its left edge as well as the tint.
   const edge = (description: string) => entryRow(page, description).evaluate((element) => getComputedStyle(element).boxShadow);
   expect(await edge('Alpha')).toMatch(/ 3px 0px 0px 0px inset$/);
   expect(await edge('Beta')).toBe('none');
@@ -172,7 +172,7 @@ test('a bulk edit that fails for one entry reports it and keeps the other change
   expect([...result.success].sort((a, b) => a - b)).toEqual([alpha.id, delta.id].sort((a, b) => a - b));
   expect(result.failure).toEqual([{ id: gamma.id, message: 'Time entry not found' }]);
 
-  // TT-0083: an error toast is an alert with an icon and a spoken "Error:" prefix.
+  // An error toast is an alert with an icon and a spoken "Error:" prefix.
   const failure = page.getByRole('alert');
   await expect(failure).toHaveText(/^Error: 1 entries failed: Time entry not found/);
   await expect(failure.locator('svg.toast-icon')).toBeVisible();
@@ -216,7 +216,7 @@ test('a bulk delete that fails for one entry reports what was deleted and can un
   expect(await device.trashIds()).toEqual([gamma.id]);
 });
 
-// TT-0089: the timer bar writes its height to --timer-bar-height on <html>, and the bulk bar
+// The timer bar writes its height to --timer-bar-height on <html>, and the bulk bar
 // reads it to stick flush under the timer bar while a long selection scrolls on a desktop.
 test('the bulk bar sticks flush under the timer bar while a long selection scrolls', async ({ page }) => {
   const day = daysAgo(2);

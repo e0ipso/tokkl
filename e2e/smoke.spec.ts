@@ -1,8 +1,10 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
+import { expectSnapped, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
-test('start and stop a timer with a new project and tag', async ({ page }) => {
+test('start and stop a timer with a new project and tag', async ({ page, data }) => {
   await login(page);
+  const api = await TimerApi.open(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Write the PRD');
 
@@ -19,14 +21,20 @@ test('start and stop a timer with a new project and tag', async ({ page }) => {
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Write the PRD');
   await expect(page).toHaveTitle(/0:00:0\d · Write the PRD/);
-  // TT-0081: a running timer shows a "Running" label, and the nav dot has text, not just colour.
+  // A running timer shows a "Running" label, and the nav dot has text, not just colour.
   const timerLink = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Timer running' });
   await expect(timer.getByText('Running', { exact: true })).toBeVisible();
   await expect(timerLink).toHaveCount(1);
   await page.screenshot({ path: 'test-results/timer-running.png' });
+  const running = await nextRunning(api, null);
 
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  // Stopping snaps the entry to the time resolution; until then it kept its exact start, which the
+  // title's elapsed time above counts from.
+  const [stopped] = await api.entries();
+  expect(stopped!.id).toBe(running.id);
+  expectSnapped(stopped!, running.start, (await data.me()).time_resolution_minutes * 60_000);
   await expect(timer.getByText('Running', { exact: true })).toHaveCount(0);
   await expect(timerLink).toHaveCount(0);
   const row = page.locator('.entry-line').first();
@@ -49,7 +57,8 @@ test('manual entry across midnight, edit and delete with undo', async ({ page })
   const row = page.locator('.entry-line', { has: page.locator('input[value="Night deploy"]') });
   await expect(row.locator('.entry-duration')).toHaveValue('1:15:00');
 
-  await row.getByLabel('Duration').fill('2h');
+  // The server rounds the edited duration up to the default 5-minute time resolution.
+  await row.getByLabel('Duration').fill('1h 58m');
   await row.getByLabel('Duration').press('Enter');
   await expect(row.locator('.entry-duration')).toHaveValue('2:00:00');
 
@@ -91,6 +100,29 @@ test('discard a running timer, then undo', async ({ page }) => {
   await timer.getByRole('button', { name: 'Stop timer' }).click();
 });
 
+test('undoing a discard while another timer runs restores the entry stopped on the grid', async ({ page, data }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await timer.getByLabel('Description').fill('Started by mistake');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  const discarded = await nextRunning(api, null);
+  await timer.getByRole('button', { name: 'Discard running entry' }).click();
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  await timer.getByLabel('Description').fill('Started on purpose');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  const kept = await nextRunning(api, discarded.id);
+
+  // Only one timer runs, so the restored entry stops now, snapped to the time resolution.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.entry-line', { has: page.locator('input[value="Started by mistake"]') })).toHaveCount(1);
+  const all = await api.entries();
+  expect(all.filter((entry) => entry.stop === null).map((entry) => entry.id)).toEqual([kept.id]);
+  expectSnapped(all.find((entry) => entry.id === discarded.id)!, discarded.start, (await data.me()).time_resolution_minutes * 60_000);
+  await expect(timer.getByLabel('Description')).toHaveValue('Started on purpose');
+  await timer.getByRole('button', { name: 'Stop timer' }).click();
+});
+
 test('Continue, a favorite and C each replace a running timer', async ({ page, data }) => {
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   await data.createEntry({ description: 'Earlier work', start: `${day}T10:00:00Z`, stop: `${day}T11:15:00Z` });
@@ -99,7 +131,9 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   const timer = page.getByRole('region', { name: 'Timer' });
   const entries = async () => (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'))
     .json() as Promise<Array<{ description: string; start: string; stop: string | null }>>;
-  // Exactly one entry runs, it is `description`, and `previous` stopped when it started.
+  const step = (await data.me()).time_resolution_minutes * 60_000;
+  // Exactly one entry runs, it is `description`, and `previous` stopped when it started, snapped to
+  // the time resolution: its start moves up to half a step and its duration grows by less than one.
   const expectReplaced = async (description: string, previous: string) => {
     await expect(timer.getByLabel('Description')).toHaveValue(description);
     await expect.poll(async () => {
@@ -107,7 +141,8 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
       const running = all.filter((entry) => !entry.stop);
       const stopped = all.find((entry) => entry.description === previous && entry.stop);
       return running.length === 1 && running[0]!.description === description && stopped !== undefined
-        && Date.parse(stopped.stop!) === Date.parse(running[0]!.start);
+        && Math.abs(Date.parse(stopped.stop!) - Date.parse(running[0]!.start) - step / 2) <= step
+        && (Date.parse(stopped.stop!) - Date.parse(stopped.start)) % step === 0;
     }).toBe(true);
   };
 

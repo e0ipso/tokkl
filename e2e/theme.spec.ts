@@ -3,17 +3,17 @@ import { currentAccount, expect, test } from './fixtures.ts';
 import { meWithSession, sessionCookie } from './auth-tests-helpers.ts';
 import { login } from './helpers.ts';
 
-// TT-0073: the theme saved on the server is cached in the browser and applied before React
+// The theme saved on the server is cached in the browser and applied before React
 // mounts, so a dark choice on a light system never flashes the light UI on reload.
-// TT-0098: a blocking script in the head applies that cache, so it holds even when the bundle is slow.
-// TT-0075: the theme picked in Settings decides the page and chart colours.
-// TT-0080: the two media-scoped theme-color metas follow that choice, and "Match the system" restores them.
-// TT-0129: a failed logout request and an expired session also clear the cached theme.
-// TT-0155: when the failed request leaves the user signed in, the reloaded page says so.
+// A blocking script in the head applies that cache, so it holds even when the bundle is slow.
+// The theme picked in Settings decides the page and chart colours.
+// The two media-scoped theme-color metas follow that choice, and "Match the system" restores them.
+// A failed logout request and an expired session also clear the cached theme.
+// When the failed request leaves the user signed in, the reloaded page says so.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const CACHE_KEY = 'tokkl.theme';
-// The cache key before the rename to Tokkl (TT-0113).
+// The cache key before the rename to Tokkl.
 const LEGACY_CACHE_KEY = 'timetrack.theme';
 
 type Theme = 'system' | 'light' | 'dark';

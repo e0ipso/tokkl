@@ -14,7 +14,7 @@ kk_id: practice-theme-tokens-data-theme-and-cached-theme
 kk_derived_from: []
 kk_relates_to:
   - practice-contrast-tables-and-project-colours
-  - practice-e2e-test-workflow
+  - practice-playwright-gotchas-in-the-e2e-specs
   - practice-end-sessions-through-lib-session
 kk_depends_on: []
 kk_confidence: high
@@ -27,10 +27,12 @@ The cached theme lives in localStorage under `tokkl.theme`. A value left under t
 
 `packages/web/src/lib/theme.ts` (imported first by `packages/web/src/main.tsx`) applies the cached value again as a fallback and owns the cache: `applyTheme` (called from `App.tsx` once preferences load) sets the attribute, writes the cache and updates both media-scoped `theme-color` metas in `index.html` (an explicit theme writes its colour into both; "Match the system" restores each tag's own colour). "Match the system" removes the key, and `endSession` in `packages/web/src/lib/session.ts` calls `clearCachedTheme` on logout (successful or not) and when `/me` answers 403. Both keys are spelled in `theme-boot.js` and in `STORAGE_KEY` and `LEGACY_STORAGE_KEY` in `theme.ts`, with comments pointing at each other; change both together. `e2e/theme.spec.ts` fails if they drift.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
-- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 - Related: [practice-end-sessions-through-lib-session](../web-ui-behaviour/practice-end-sessions-through-lib-session.md)
 <!-- kk:related:end -->

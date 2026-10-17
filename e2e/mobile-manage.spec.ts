@@ -88,7 +88,7 @@ test('client and tag dialogs and menus finish by touch on a phone and save what 
 });
 
 // The Projects table is wider than a phone. It must scroll inside its wrapper: anything escaping
-// the wrapper widens the page, and the fixed navigation stretches off screen with it (TT-0064).
+// the wrapper widens the page, and the fixed navigation stretches off screen with it.
 test('the Projects page fits a phone, and its editor and row menu finish by touch', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -136,7 +136,7 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   await expectNoPageOverflow(page);
 });
 
-// TT-0087: the phone header carries the wordmark; bar items are at least 44px each way with
+// The phone header carries the wordmark; bar items are at least 44px each way with
 // labels of 11px or more; the More sheet opens by keyboard and Tab stays inside it.
 test('the bottom bar items are large enough to tap, and the More sheet works by keyboard', async ({ page }) => {
   await login(page);
@@ -158,7 +158,7 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(sheet).toBeVisible();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
   await expect(sheet.getByRole('link', { name: 'Clients', exact: true })).toBeFocused();
-  // The setup account is an admin, so its sheet also holds Admin (TT-0141).
+  // The setup account is an admin, so its sheet also holds Admin.
   for (const name of ['Tags', 'Trash', 'Admin']) {
     await page.keyboard.press('Tab');
     await expect(sheet.getByRole('link', { name, exact: true })).toBeFocused();
@@ -180,7 +180,7 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(more).toHaveAttribute('aria-expanded', 'false');
 });
 
-// TT-0130: the More sheet shows who is signed in above Log out. Long values are cut to one line
+// The More sheet shows who is signed in above Log out. Long values are cut to one line
 // with the full text in title, so the sheet still fits 390x844.
 test('the More sheet names the signed-in user above Log out and cuts long values to fit', async ({ page }) => {
   await login(page);

@@ -15,6 +15,8 @@ export interface Me {
   beginning_of_week: number;
   /** Tokkl only, not in Toggl's /me: the instance role. Only admins reach /api/app/admin. */
   role: UserRole;
+  /** Tokkl only, not in Toggl's /me: the instance time resolution in minutes. Only admins change it. */
+  time_resolution_minutes: number;
 }
 
 export type UserRole = 'admin' | 'user';
@@ -52,6 +54,8 @@ export interface PasswordResetLink {
 export interface InstanceSettings {
   session_days: number;
   invite_days: number;
+  /** Minutes every entry's duration is a multiple of: a divisor of 60, 5 by default. */
+  time_resolution_minutes: number;
 }
 
 export type DurationFormat = 'improved' | 'classic' | 'decimal';

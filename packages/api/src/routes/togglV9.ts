@@ -16,6 +16,7 @@ import {
   createProject, deleteProject, getProject, listProjects, serializeProject, updateProject, type ProjectFilter,
 } from '../models/projects.ts';
 import { ROUNDING_MINUTES } from '../services/reports.ts';
+import { getInstanceSettings } from '../models/settings.ts';
 import { createTag, deleteTag, listTags, serializeTag, updateTag } from '../models/tags.ts';
 import { createTask, deleteTask, getTask, listTasks, serializeTask, updateTask } from '../models/tasks.ts';
 import {
@@ -105,16 +106,21 @@ function paginate<T>(req: Request, items: T[], defaultPerPage: number): T[] {
 }
 
 export function togglV9Routes(deps: Deps): Router {
-  const { db, loginLimiter } = deps;
+  const { db, config, loginLimiter } = deps;
   const api = express.Router();
   api.use(requireAuth(deps));
 
   // ----- /me ------------------------------------------------------------------------------------
   api.get('/me', (req, res) => {
     const user = res.locals.user;
-    // role is Tokkl's own field, the instance role the web app needs to show the admin area.
+    // role and time_resolution_minutes are Tokkl's own fields: the instance role the web app needs to
+    // show the admin area, and the instance time resolution, which only an admin changes.
     // Every Toggl field keeps its name, type and meaning.
-    const body: Record<string, unknown> = { ...serializeUser(user, { includeToken: true }), role: user.role };
+    const body: Record<string, unknown> = {
+      ...serializeUser(user, { includeToken: true }),
+      role: user.role,
+      time_resolution_minutes: getInstanceSettings(db, config).time_resolution_minutes,
+    };
     if (queryFlag(req, 'with_related_data')) {
       const workspaces = listWorkspacesForUser(db, user.id);
       body.workspaces = workspaces.map((ws) => serializeWorkspaceFor(db, user, ws));

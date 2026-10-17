@@ -123,7 +123,7 @@ test('deleting an attached tag takes it off its entries and keeps the entries', 
   expect(await reportChips(page, descriptions)).toEqual({ 'Code walkthrough': ['ops'], 'Design crit': [], Untagged: [] });
 });
 
-// TT-0205: the delete dialog gives focus back to the row's Delete button, and that row goes away,
+// The delete dialog gives focus back to the row's Delete button, and that row goes away,
 // so focus moves to the next row's Delete button, else the previous one, else the page heading.
 test('deleting tags by keyboard keeps focus in the tags list', async ({ page }) => {
   await login(page);

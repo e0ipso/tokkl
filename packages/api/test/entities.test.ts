@@ -85,7 +85,7 @@ test('tasks belong to projects and set the project on entries', async () => {
   assert.equal(task.status, 200);
   assert.equal(task.body.project_id, project.body.id);
 
-  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 60, task_id: task.body.id });
+  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 300, task_id: task.body.id });
   assert.equal(entry.body.project_id, project.body.id);
   const mismatch = await ctx.json('POST', `${base}/time_entries`, {
     start: '2026-10-01T08:00:00Z', duration: 60, task_id: task.body.id, project_id: other.body.id,
@@ -94,7 +94,7 @@ test('tasks belong to projects and set the project on entries', async () => {
 
   const listed = await ctx.json('GET', `${base}/projects/${project.body.id}/tasks`);
   assert.equal(listed.body.length, 1);
-  assert.equal(listed.body[0].tracked_seconds, 60_000);
+  assert.equal(listed.body[0].tracked_seconds, 300_000);
   const done = await ctx.json('PUT', `${base}/projects/${project.body.id}/tasks/${task.body.id}`, { active: false });
   assert.equal(done.body.active, false);
 });
@@ -169,7 +169,7 @@ test('client_id null clears a project client; legacy cid still works', async () 
   assert.equal(renamed.body.client_id, null);
 });
 
-// TT-0008 / TT-0054: hourly rates must be finite, non-negative and at most 1e9.
+// Hourly rates must be finite, non-negative and at most 1e9.
 const BAD_RATES: Array<[string, string]> = [
   ['1e400', 'expected a non-negative number'],
   ['-1', 'expected a non-negative number'],
@@ -245,7 +245,7 @@ test('the largest accepted rates keep report amounts finite', async () => {
   assert.ok(Number.isSafeInteger(totals.body.billable_amount_in_cents));
 });
 
-// TT-0015: project and task totals read the partial live-entry indexes.
+// Project and task totals read the partial live-entry indexes.
 test('project and task totals use the live-entry indexes and count running, not deleted, entries', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
@@ -307,7 +307,7 @@ test('a version 1 database gains the live-entry indexes when opened', () => {
   }
 });
 
-// TT-0020: deleting a client renames colliding projects instead of failing or merging them.
+// Deleting a client renames colliding projects instead of failing or merging them.
 test('deleting a client renames projects whose names collide with unassigned ones', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;

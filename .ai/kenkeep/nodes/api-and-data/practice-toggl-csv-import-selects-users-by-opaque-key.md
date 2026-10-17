@@ -14,6 +14,7 @@ kk_id: practice-toggl-csv-import-selects-users-by-opaque-key
 kk_derived_from: []
 kk_relates_to:
   - practice-json-restore-rules
+  - practice-stopped-entries-snap-to-the-time-resolution-on-write
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -23,10 +24,13 @@ kk_confidence: high
 
 `POST /api/app/import/toggl-csv` takes the selection as repeated `user=<key>` query parameters, one per user (`DataSection.tsx` uses `params.append('user', key)`). Never join keys with commas, since keys can contain them. A key that matches no row, or an empty selection, is a 400. A dry run (`dry_run=true`) without a selection succeeds and lists the users; a real import of a file with more than one user and no selection is a 400.
 
-`e2e/fixtures-data/transfer/toggl-team.csv` is the multi-user fixture.
+Selected rows always go to the caller's account, in its `default_workspace_id`. After the selection checks, `memberWorkspace` answers 403 when the caller is no longer a member of that workspace, dry runs included.
+
+Imported entries keep their exact times; they are not snapped to the time resolution (see `practice-stopped-entries-snap-to-the-time-resolution-on-write`). `e2e/fixtures-data/transfer/toggl-team.csv` is the multi-user fixture.
 
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-json-restore-rules](practice-json-restore-rules.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->

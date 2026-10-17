@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMe, usePreferences } from '../api/hooks.ts';
 import type { DurationFormat } from '../api/types.ts';
 import { formatDuration } from '@tokkl/common/duration';
+import { snapSpan, type SnappedSpan } from '@tokkl/common/snap';
 import { addDays, dateKey, parseDateKey, zonedParts } from '@tokkl/common/time';
 
 export interface Settings {
@@ -12,6 +13,8 @@ export interface Settings {
   beginningOfWeek: number;
   collapseSimilar: boolean;
   shortcuts: boolean;
+  /** Minutes every saved entry's duration is a multiple of, from the instance settings. */
+  timeResolution: number;
 }
 
 export function useSettings(): Settings {
@@ -25,6 +28,7 @@ export function useSettings(): Settings {
     beginningOfWeek: me?.beginning_of_week ?? 1,
     collapseSimilar: prefs?.collapseTimeEntries ?? true,
     shortcuts: prefs?.keyboard_shortcuts_enabled ?? true,
+    timeResolution: me?.time_resolution_minutes ?? 1,
   };
 }
 
@@ -94,6 +98,63 @@ export function duration(seconds: number, settings: Pick<Settings, 'durationForm
 export function entrySeconds(entry: { start: string; stop: string | null }, now: Date): number {
   const end = entry.stop ? Date.parse(entry.stop) : now.getTime();
   return Math.max(0, Math.floor((end - Date.parse(entry.start)) / 1000));
+}
+
+/**
+ * Seconds the server will store for a stopped entry from `start` to `stop`: both cut to whole
+ * seconds, then snapped to the time resolution. Use it to preview an entry before saving; a saved
+ * entry already holds its snapped times, and a running timer shows real seconds (`entrySeconds`).
+ */
+export function snappedSeconds(start: Date, stop: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>): number {
+  const from = wholeSecond(start);
+  const to = wholeSecond(stop);
+  if (to <= from) return 0;
+  const span = snapSpan(from, to, settings.timeResolution, settings.timeZone);
+  return (span.stop.getTime() - span.start.getTime()) / 1000;
+}
+
+/**
+ * The grid point of the time resolution nearest `at`, cut to whole seconds first: where the server
+ * moves a start it saves. Use it to pick one instant that stays put when either side is saved.
+ */
+export function snappedInstant(at: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>): Date {
+  const point = wholeSecond(at);
+  return snapSpan(point, point, settings.timeResolution, settings.timeZone).start;
+}
+
+export interface SplitHalves {
+  first: SnappedSpan;
+  second: SnappedSpan;
+}
+
+/**
+ * The two halves of the stopped entry from `start` to `stop` cut at `at`, as the server will store
+ * them. Both come from the snapped whole, so an entry saved under another resolution splits into
+ * halves that add up to what it would store now. The result is `'outside'` when `at` is not strictly
+ * inside the snapped whole, and `'clock-change'` when the stored halves would not meet at one
+ * instant and add up to the whole.
+ *
+ * A grid point inside the whole normally works. Across a clock change that is not a multiple of
+ * the resolution, such as Lord Howe Island's half hour at a resolution of 60, the grid points on
+ * either side of the change are not a whole number of steps apart. Each half's duration then rounds
+ * up, and the halves would overlap.
+ */
+export function snappedSplit(
+  start: Date, stop: Date, at: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>,
+): SplitHalves | 'outside' | 'clock-change' {
+  const snap = (from: Date, to: Date) => snapSpan(wholeSecond(from), wholeSecond(to), settings.timeResolution, settings.timeZone);
+  const whole = snap(start, stop);
+  const cut = wholeSecond(at);
+  if (cut <= whole.start || cut >= whole.stop) return 'outside';
+  const first = snap(whole.start, cut);
+  const second = snap(cut, whole.stop);
+  const same = (a: Date, b: Date) => a.getTime() === b.getTime();
+  const meets = same(first.start, whole.start) && same(first.stop, second.start) && same(second.stop, whole.stop);
+  return meets ? { first, second } : 'clock-change';
+}
+
+function wholeSecond(date: Date): Date {
+  return new Date(Math.floor(date.getTime() / 1000) * 1000);
 }
 
 export function formatMoney(cents: number, currency: string): string {

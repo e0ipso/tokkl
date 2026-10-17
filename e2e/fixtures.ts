@@ -45,6 +45,7 @@ export function currentAccount(): Account {
 export interface InstanceSettings {
   session_days: number;
   invite_days: number;
+  time_resolution_minutes: number;
 }
 
 export interface NewUser {
@@ -52,6 +53,8 @@ export interface NewUser {
   /** Defaults to a unique address, so leftovers from a failed run never collide. */
   email?: string;
   fullname?: string;
+  /** IANA zone of the account; defaults to Europe/Madrid, like the worker accounts. */
+  timezone?: string;
 }
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
@@ -161,13 +164,18 @@ export class TestData {
     const api = await request.newContext({ baseURL: this.baseURL });
     try {
       await ok(await api.post(url.replace(/^\/invite\//, '/api/app/invites/'), {
-        headers: CSRF, data: { ...account, timezone: 'Europe/Madrid' },
+        headers: CSRF, data: { ...account, timezone: options.timezone ?? 'Europe/Madrid' },
       }));
       return await TestData.signedIn(api, this.baseURL, account);
     } catch (error) {
       await api.dispose();
       throw error;
     }
+  }
+
+  /** Tokkl's own fields on this account's GET /api/v9/me: its instance role and the time resolution. */
+  async me(): Promise<{ role: 'admin' | 'user'; time_resolution_minutes: number }> {
+    return json(this.api.get('/api/v9/me'));
   }
 
   /** Every account on the server, as an admin sees them. */
@@ -180,7 +188,7 @@ export class TestData {
     return json(this.api.get('/api/app/admin/settings'));
   }
 
-  async saveInstanceSettings(settings: InstanceSettings): Promise<void> {
+  async saveInstanceSettings(settings: Partial<InstanceSettings>): Promise<void> {
     await ok(await this.api.put('/api/app/admin/settings', { headers: CSRF, data: settings }));
   }
 

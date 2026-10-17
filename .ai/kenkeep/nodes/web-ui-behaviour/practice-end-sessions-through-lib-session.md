@@ -15,7 +15,7 @@ kk_derived_from: []
 kk_relates_to:
   - practice-theme-tokens-data-theme-and-cached-theme
   - practice-web-ui-survives-background-refetches
-  - practice-password-checks-and-csrf-rules
+  - practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -27,10 +27,12 @@ kk_confidence: high
 
 `qc.clear()` does not notify mounted queries. They keep showing their last result until their component renders again, and later cache operations do not reach them. After `endSession`, either reload the page or re-render the components that read the cleared queries.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-theme-tokens-data-theme-and-cached-theme](../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md)
 - Related: [practice-web-ui-survives-background-refetches](practice-web-ui-survives-background-refetches.md)
-- Related: [practice-password-checks-and-csrf-rules](../api-and-data/practice-password-checks-and-csrf-rules.md)
+- Related: [practice-cookie-writes-and-session-starting-routes-need-the-csrf-header](../api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md)
 <!-- kk:related:end -->

@@ -70,7 +70,7 @@ test('project settings, rate and estimate persist, and archiving hides the proje
   expect(await api.project(project.id)).toMatchObject({ rate: 80, currency: 'USD', estimated_hours: 4, billable: true });
 });
 
-// TT-0199: a dialog opened from a row menu gives focus back to that row's menu button, since the
+// A dialog opened from a row menu gives focus back to that row's menu button, since the
 // menu item that opened it is gone.
 test('closing a dialog opened from the row menu returns focus to the menu button', async ({ page }) => {
   await login(page);
@@ -94,7 +94,7 @@ test('closing a dialog opened from the row menu returns focus to the menu button
   await expect(page.getByRole('button', { name: 'Edit Intranet' })).toHaveCount(0);
 });
 
-// TT-0200: a row that leaves the list after an action from its menu takes the focused menu button
+// A row that leaves the list after an action from its menu takes the focused menu button
 // with it, so focus moves to the next row, else the previous one, else the page heading.
 test('archiving or deleting a project by keyboard keeps focus in the projects list', async ({ page }) => {
   await login(page);
@@ -128,7 +128,7 @@ test('archiving or deleting a project by keyboard keeps focus in the projects li
   await expect(rowMenu(page, 'Beta')).toBeFocused();
 });
 
-// TT-0200: focus moves past a leaving row only when it would otherwise be lost. A user who moves to
+// Focus moves past a leaving row only when it would otherwise be lost. A user who moves to
 // another control while the archive request runs keeps focus there.
 test('archiving a project leaves focus alone when the user moved it while the request ran', async ({ page }) => {
   await login(page);
@@ -162,7 +162,7 @@ test('archiving a project leaves focus alone when the user moved it while the re
   expect((await api.project(beta.id)).active).toBe(false);
 });
 
-// TT-0200: restoring a project under the Archived filter takes its row, and the focused menu button,
+// Restoring a project under the Archived filter takes its row, and the focused menu button,
 // out of the list, so focus moves to another row's menu, else the page heading.
 test('restoring archived projects by keyboard keeps focus in the projects list', async ({ page }) => {
   await login(page);
@@ -279,7 +279,7 @@ async function expectColourOnDotOnly(name: Locator, dot: Locator, hex: string, t
   expect(await dot.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(text);
 }
 
-// TT-0069: no text is painted in a project colour; the colour only marks the dot.
+// No text is painted in a project colour; the colour only marks the dot.
 test('a project colour marks its dot while the entry row, picker and Projects table names stay in the text colour', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);

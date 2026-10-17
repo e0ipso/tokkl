@@ -64,7 +64,8 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
       billable: false, project: 'Website', client: 'Acme', task: null, tags: ['ux'],
     },
     {
-      description: 'Recent import', start: accountTime(recent, '10:00:00'), stop: accountTime(recent, '11:15:00'),
+      // Off the time resolution grid: an import keeps the times in the file.
+      description: 'Recent import', start: accountTime(recent, '10:02:37'), stop: accountTime(recent, '11:17:37'),
       billable: true, project: 'Website', client: 'Acme', task: 'Design', tags: ['ops'],
     },
   ]);
@@ -102,6 +103,14 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   expect(again.entries.map((e) => e.id)).toEqual(account.entries.map((e) => e.id));
   expect(again.projects.map((p) => p.id)).toEqual(account.projects.map((p) => p.id));
   expect(again.tasks.map((t) => t.id)).toEqual(account.tasks.map((t) => t.id));
+
+  // An imported entry snaps to the default 5-minute time resolution the first time it is edited.
+  await page.getByRole('link', { name: 'Timer' }).click();
+  await row.getByLabel('Select entry').check();
+  await page.getByRole('toolbar', { name: 'Bulk actions' }).getByRole('button', { name: 'Non-billable' }).click();
+  await expect(page.getByText('Marked non-billable')).toBeVisible();
+  const edited = (await readAccount(page, data.workspaceId)).entries.find((e) => e.description === 'Recent import')!;
+  expect([edited.start, edited.stop, edited.billable]).toEqual([accountTime(recent, '10:05:00'), accountTime(recent, '11:20:00'), false]);
 });
 
 test('Toggl CSV rows with problems show their reasons and the valid rows still import', async ({ page, data, runtimeErrors }) => {
@@ -145,8 +154,8 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
   expect((await readAccount(page, data.workspaceId)).entries).toHaveLength(2);
 });
 
-// TT-0131: a team export lists its Toggl users, needs a choice, and imports only the chosen rows.
-// TT-0154: User "Alice <alice@example.com>" with no Email and User "Alice" with that Email are two users.
+// A team export lists its Toggl users, needs a choice, and imports only the chosen rows.
+// User "Alice <alice@example.com>" with no Email and User "Alice" with that Email are two users.
 test('a Toggl CSV from several users imports only the users picked in the preview', async ({ page, data }) => {
   await login(page);
   await openSettings(page);

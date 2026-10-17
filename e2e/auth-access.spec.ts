@@ -10,7 +10,7 @@ import {
 
 const NO_ACCESS = 'User does not have access to this resource.';
 
-// TT-0135: every workspace route resolves the workspace through its membership, and a workspace the
+// Every workspace route resolves the workspace through its membership, and a workspace the
 // caller is not in, existing or not, answers the same 403. PUT /me refuses it as the default.
 test('a workspace the account does not belong to is refused on every route and as the default', async ({ data, baseURL }) => {
   const other = data.workspaceId + 1000;
@@ -36,7 +36,7 @@ test('a workspace the account does not belong to is refused on every route and a
   });
 });
 
-// TT-0137: the admin API is for signed-in active admins, and the last active admin cannot be
+// The admin API is for signed-in active admins, and the last active admin cannot be
 // demoted or disabled.
 test('the admin API lists the account and keeps the last active admin', async ({ servers }) => {
   const server = await servers.start({ slot: 5 });
@@ -68,7 +68,7 @@ test('the admin API lists the account and keeps the last active admin', async ({
   expect(await meWithBasic(server.baseURL, basic(ACCOUNT.email, ACCOUNT.password))).toBe(200);
 });
 
-// TT-0137: revoking an account's sessions signs every browser out, the admin's own included, and
+// Revoking an account's sessions signs every browser out, the admin's own included, and
 // leaves its API token working.
 test('revoking sessions logs every browser out and keeps the API token', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 5 });
@@ -101,7 +101,7 @@ async function accountId(api: APIRequestContext, email: string): Promise<number>
   return accounts.find((account) => account.email === email)!.id;
 }
 
-// TT-0140: deleting an account, confirmed by its email, removes it with its private workspace and
+// Deleting an account, confirmed by its email, removes it with its private workspace and
 // signs its browser out. The email is then free for a new, empty account.
 test('deleting an invited account signs it out everywhere and frees its email', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 5 });
@@ -153,7 +153,7 @@ test('deleting an invited account signs it out everywhere and frees its email', 
   });
 });
 
-// TT-0140: an admin cannot delete themselves or the last active admin. Deleting an admin also kills
+// An admin cannot delete themselves or the last active admin. Deleting an admin also kills
 // the invite links they created.
 test('admins cannot delete themselves or the last admin, and a deleted admin\'s invites stop working', async ({ servers }) => {
   const server = await servers.start({ slot: 5 });

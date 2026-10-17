@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { basic, createAccount, expect, logInThroughForm, test } from './auth-tests-helpers.ts';
 
-// TT-0047: API token reveal, copy and reset through account settings. Each scenario runs its own
+// API token reveal, copy and reset through account settings. Each scenario runs its own
 // disposable server, so the shared e2e account keeps its token.
 
 async function openTokenCard(page: Page) {
@@ -51,7 +51,7 @@ test('without the Clipboard API, a failed copy says how to copy by hand', async 
   await expect(page.getByRole('status')).toContainText('Could not copy. Show the token and copy it by hand.');
 });
 
-test('TT-0057: a refused Clipboard API write falls back to the textarea, then to the copy-by-hand hint', async ({ page, servers }) => {
+test('a refused Clipboard API write falls back to the textarea, then to the copy-by-hand hint', async ({ page, servers }) => {
   const server = await servers.start({ slot: 4 });
   const { apiToken } = await createAccount(server.baseURL);
   await page.context().grantPermissions(['clipboard-read'], { origin: server.baseURL });

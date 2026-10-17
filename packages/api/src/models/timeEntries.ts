@@ -1,3 +1,4 @@
+import { snapSpan } from '@tokkl/common/snap';
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
 import { badRequest, conflict, notFound } from '../lib/errors.ts';
@@ -5,6 +6,7 @@ import {
   asBool, isoSeconds, optionalBool, optionalId, optionalString, parseInstant, togglTime,
 } from '../lib/values.ts';
 import { getProjectRef, type ProjectRef } from './projects.ts';
+import { getTimeResolutionMinutes } from './settings.ts';
 import { getTag, resolveTagNames } from './tags.ts';
 import { getTaskRef } from './tasks.ts';
 import type { UserRow } from './users.ts';
@@ -124,6 +126,16 @@ function seconds(date: Date): number {
   return Math.floor(date.getTime() / 1000);
 }
 
+/** `date` truncated to whole seconds, the precision the database stores. */
+function wholeSeconds(date: Date): Date {
+  return new Date(seconds(date) * 1000);
+}
+
+/** Snaps a stopped span to the instance resolution on the clock of the owner's timezone. */
+function snapToResolution(db: Db, user: UserRow, start: Date, stop: Date): { start: Date; stop: Date } {
+  return snapSpan(wholeSeconds(start), wholeSeconds(stop), getTimeResolutionMinutes(db), user.timezone);
+}
+
 function readTagIds(db: Db, wid: number, body: Record<string, unknown>): number[] | undefined {
   let ids: number[] | undefined;
   if (body.tag_ids !== undefined && body.tag_ids !== null) {
@@ -179,22 +191,41 @@ function assertWorkspace(body: Record<string, unknown>, wid: number): void {
   if (bodyWid && bodyWid !== wid) throw badRequest('Workspace ID in the body does not match the URL');
 }
 
-function validate(draft: Draft): void {
-  if (draft.stop) {
-    const duration = seconds(draft.stop) - seconds(draft.start);
-    if (duration < 0) throw badRequest('Stop time must be after start time');
-    if (duration > MAX_DURATION_SECONDS) throw badRequest('Time entries can not be longer than 999 hours');
+/**
+ * Validates a stopped draft and, unless `exact` is set, snaps its start and stop to the instance
+ * resolution. The 999-hour cap applies to the snapped span. A running draft keeps its exact start.
+ */
+function settleSpan(db: Db, user: UserRow, draft: Draft, exact: boolean): void {
+  if (!draft.stop) return;
+  if (seconds(draft.stop) < seconds(draft.start)) throw badRequest('Stop time must be after start time');
+  if (!exact) Object.assign(draft, snapToResolution(db, user, draft.start, draft.stop));
+  if (seconds(draft.stop) - seconds(draft.start) > MAX_DURATION_SECONDS) {
+    throw badRequest('Time entries can not be longer than 999 hours');
   }
 }
 
+/**
+ * Stores the stop of a running entry at `at`, or at its start if `at` is earlier, snapped to the
+ * instance resolution. The stored stop lands up to half a step before `at` or up to one and a half
+ * steps after it, because the start moves to the nearest grid point and the duration rounds up.
+ *
+ * A timer left running past the 999-hour cap stops at the cap instead of failing. A failed stop
+ * would leave it running, and every new timer would fail too, because starting one stops it. 999
+ * hours is a multiple of every resolution, so the clamped span stays on the grid.
+ */
+function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date): void {
+  const start = new Date(entry.start);
+  const span = snapToResolution(db, user, start, at < start ? start : at);
+  const stop = Math.min(span.stop.getTime(), span.start.getTime() + MAX_DURATION_SECONDS * 1000);
+  db.prepare('UPDATE time_entries SET start = ?, stop = ?, updated_at = ? WHERE id = ?')
+    .run(isoSeconds(span.start), isoSeconds(new Date(stop)), nowIso(), entry.id);
+}
+
 /** Stops whatever is running so a new running entry can take its place. */
-function stopRunning(db: Db, userId: number, at: Date, exceptId?: number): void {
-  const running = getRunningEntry(db, userId);
+function stopRunning(db: Db, user: UserRow, at: Date, exceptId?: number): void {
+  const running = getRunningEntry(db, user.id);
   if (!running || running.id === exceptId) return;
-  const start = new Date(running.start);
-  const stop = at < start ? new Date() : at;
-  db.prepare('UPDATE time_entries SET stop = ?, updated_at = ? WHERE id = ?')
-    .run(isoSeconds(stop < start ? start : stop), nowIso(), running.id);
+  stopEntryAt(db, user, running, at < new Date(running.start) ? new Date() : at);
 }
 
 function saveTags(db: Db, id: number, tagIds: number[]): void {
@@ -207,7 +238,17 @@ export function currentTagIds(row: TimeEntryWithMeta): number[] {
   return (JSON.parse(row.tags_json) as Array<{ id: number }>).map((tag) => tag.id);
 }
 
-export function createTimeEntry(db: Db, user: UserRow, wid: number, body: Record<string, unknown>): TimeEntryWithMeta {
+export interface CreateOptions {
+  /**
+   * Keeps the exact start and stop instead of snapping them to the instance resolution. Only the
+   * CSV import and the JSON restore set it, so imported history matches the file.
+   */
+  exact?: boolean;
+}
+
+export function createTimeEntry(
+  db: Db, user: UserRow, wid: number, body: Record<string, unknown>, options: CreateOptions = {},
+): TimeEntryWithMeta {
   return transaction(db, () => {
     assertWorkspace(body, wid);
     const start = body.start === undefined || body.start === null ? new Date() : parseInstant(body.start, 'start');
@@ -228,8 +269,8 @@ export function createTimeEntry(db: Db, user: UserRow, wid: number, body: Record
       billable: billableInput ?? projectBillable,
       tagIds: readTagIds(db, wid, body) ?? [],
     };
-    validate(draft);
-    if (!draft.stop) stopRunning(db, user.id, draft.start);
+    settleSpan(db, user, draft, options.exact === true);
+    if (!draft.stop) stopRunning(db, user, draft.start);
 
     const now = nowIso();
     const createdWith = optionalString(body.created_with, 'created_with', 255) ?? 'api';
@@ -282,8 +323,8 @@ export function updateTimeEntry(
       billable,
       tagIds: applyTagAction(currentTagIds(current), readTagIds(db, wid, body), body.tag_action),
     };
-    validate(draft);
-    if (!draft.stop && currentStop) stopRunning(db, user.id, new Date(), id);
+    settleSpan(db, user, draft, false);
+    if (!draft.stop && currentStop) stopRunning(db, user, new Date(), id);
 
     db.prepare(`
       UPDATE time_entries SET project_id = ?, task_id = ?, description = ?, start = ?, stop = ?, billable = ?,
@@ -301,10 +342,7 @@ export function stopTimeEntry(db: Db, user: UserRow, wid: number, id: number): T
     const current = getTimeEntry(db, user.id, id);
     if (current.workspace_id !== wid) throw notFound('Time entry not found');
     if (current.stop) throw conflict('Time entry already stopped');
-    const start = new Date(current.start);
-    const now = new Date();
-    db.prepare('UPDATE time_entries SET stop = ?, updated_at = ? WHERE id = ?')
-      .run(isoSeconds(now < start ? start : now), nowIso(), id);
+    stopEntryAt(db, user, current, new Date());
     return getTimeEntry(db, user.id, id);
   });
 }
@@ -317,16 +355,15 @@ export function deleteTimeEntry(db: Db, userId: number, wid: number, id: number)
 }
 
 /** Undoes a delete. A restored running entry is stopped if another one started meanwhile. */
-/** Takes `userId`'s entry out of the trash. Refused with 403 once the user has left the entry's workspace. */
-export function restoreTimeEntry(db: Db, userId: number, id: number): TimeEntryWithMeta {
+/** Takes `user`'s entry out of the trash. Refused with 403 once the user has left the entry's workspace. */
+export function restoreTimeEntry(db: Db, user: UserRow, id: number): TimeEntryWithMeta {
   return transaction(db, () => {
-    const current = getTimeEntry(db, userId, id, { includeDeleted: true });
-    memberWorkspace(db, userId, current.workspace_id);
+    const current = getTimeEntry(db, user.id, id, { includeDeleted: true });
+    memberWorkspace(db, user.id, current.workspace_id);
     if (!current.deleted_at) return current;
-    let stop = current.stop;
-    if (!stop && getRunningEntry(db, userId)) stop = isoSeconds(new Date());
-    db.prepare('UPDATE time_entries SET deleted_at = NULL, stop = ?, updated_at = ? WHERE id = ?').run(stop, nowIso(), id);
-    return getTimeEntry(db, userId, id);
+    if (!current.stop && getRunningEntry(db, user.id)) stopEntryAt(db, user, current, new Date());
+    db.prepare('UPDATE time_entries SET deleted_at = NULL, updated_at = ? WHERE id = ?').run(nowIso(), id);
+    return getTimeEntry(db, user.id, id);
   });
 }
 
@@ -370,7 +407,7 @@ function operationToBody(operation: PatchOperation): Record<string, unknown> {
   if (field === 'tags' || field === 'tag_ids') {
     const action = operation.op === 'add' ? 'add' : operation.op === 'remove' ? 'delete' : undefined;
     const value = operation.op === 'remove' && operation.value === undefined ? null : operation.value;
-    if (value === null) return { [field]: [], tag_action: undefined, clearTags: true };
+    if (value === null) return { [field]: [] };
     return { [field]: value, tag_action: action };
   }
   if (operation.op === 'remove') {
@@ -396,16 +433,7 @@ export function patchTimeEntries(
     try {
       for (const raw of operations as PatchOperation[]) {
         if (!raw || typeof raw.op !== 'string' || typeof raw.path !== 'string') throw badRequest('Invalid patch operation');
-        const body = operationToBody(raw);
-        if (body.clearTags) {
-          delete body.clearTags;
-          const current = getTimeEntry(db, user.id, id);
-          if (current.workspace_id !== wid) throw notFound('Time entry not found');
-          saveTags(db, id, []);
-          db.prepare('UPDATE time_entries SET updated_at = ? WHERE id = ?').run(nowIso(), id);
-          continue;
-        }
-        updateTimeEntry(db, user, wid, id, body);
+        updateTimeEntry(db, user, wid, id, operationToBody(raw));
       }
       db.exec('RELEASE patch_entry');
       success.push(id);

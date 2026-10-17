@@ -47,6 +47,16 @@ KCM.SimpleKCM {
                 secretField.text = setup.secret;
             }
         }
+        // Plasma treats the page as saved once saveConfig() returns, but the
+        // wallet answers later. After a refused write the typed secret and
+        // the error stay on the page, and the dialog asks for Apply again,
+        // so closing it prompts instead of dropping the secret. OK closes the
+        // dialog before the answer; Plasma gives a page no way to stop that.
+        onSecretSaveFinished: saved => {
+            if (!saved) {
+                page.configurationChanged();
+            }
+        }
     }
 
     // Load the stored secret for the current address and account, once the

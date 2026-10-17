@@ -15,7 +15,7 @@ kk_id: map-admin-api-and-disabled-accounts
 kk_derived_from: []
 kk_relates_to:
   - map-users-roles-and-workspace-membership
-  - practice-password-checks-and-csrf-rules
+  - practice-password-checks-go-through-failurelimiter-attempt
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -33,7 +33,15 @@ Invites use the `account_tokens` table (migration 5; `kind` is `invite` or `pass
 
 Password resets reuse `account_tokens` with `kind = 'password_reset'` (`createPasswordReset`, `resetPassword`, `findResetUser` in `models/accountTokens.ts`). `POST /users/:id/password-reset` answers `{ url: /reset/<token>, expires_at }` once, the only response with the token. The link lasts `PASSWORD_RESET_HOURS` (24), deletes the account's earlier unused reset links, and a disabled account is a 400. The public routes `GET` and `POST /api/app/password-resets/:token` (in `routes/app.ts`) answer one 404 (`RESET_NOT_FOUND`) for every bad link, and a miss charges the address counter. `GET` returns `{ email }`. `POST` requires the CSRF header first, then in one transaction sets the hash, marks the link used and deletes all of the account's sessions. It starts no session, and the API token is not changed. It then clears the account and account+address failed-login counters but keeps the address counter. The web page is `ResetPasswordPage` at `/reset/:token`, reachable while logged out; it and `InvitePage` share `pages/linkCheck.tsx`, and `AdminPage` shows a new invite or reset link once in its local `NewLink`. See the password node for the stale-hash check.
 
-`GET` and `PUT /settings` read and change the runtime settings in `instance_settings` (migration 4, JSON values, `updated_by` set to NULL when its admin is deleted); `getInstanceSettings` in `models/settings.ts` returns the effective values. `session_days` is the stored value, else `TOKKL_SESSION_DAYS`, else 30, from 1 to 365. `invite_days` is the stored value, else 7, from 1 to 90. An unknown key or a value outside the range is a 400 and stores nothing. New logins and new accounts take the current `session_days`; sessions that exist keep their expiry. Everything else in `Config` (server, paths, setup) stays env-only. To add a setting, add a rule to `SETTING_RULES`.
+`GET` and `PUT /settings` read and change the runtime settings in `instance_settings` (migration 4, JSON values, `updated_by` set to NULL when its admin is deleted); `getInstanceSettings` in `models/settings.ts` returns the effective values. There are three, typed in `InstanceSettings` (`packages/types/index.ts`):
+
+- `session_days`: the stored value, else `TOKKL_SESSION_DAYS`, else 30; an integer from 1 to 365. New logins and new accounts take the current value; sessions that exist keep their expiry.
+- `invite_days`: the stored value, else 7; from 1 to 90.
+- `time_resolution_minutes`: the stored value, else 5; one of the divisors of 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60). Live writes of stopped entries snap to it; see `practice-stopped-entries-snap-to-the-time-resolution-on-write`.
+
+Each entry of `SETTING_RULES` is either a `{ min, max }` range or an `{ allowed }` set, plus a `fallback`. A stored value that fails its rule is ignored on read and the fallback applies. An unknown key or a value that fails its rule is a 400 that names the field (`Invalid time_resolution_minutes: expected one of 1, 2, ...`) and stores nothing. A PUT may carry any subset of the keys. Everything else in `Config` (server, paths, setup) stays env-only. To add a setting, add a key to `InstanceSettings` and a rule to `SETTING_RULES`.
+
+`GET /api/v9/me` (`routes/togglV9.ts`) carries `time_resolution_minutes` next to `role` for every signed-in user, not only admins, as a Tokkl-only field. Clients read the resolution there. In the e2e suite, `saveInstanceSettings` in `e2e/fixtures.ts` takes a `Partial<InstanceSettings>`, and `me()` returns the signed-in account's `role` and `time_resolution_minutes`.
 
 A disabled account is refused on every sign-in path with the same answer as bad credentials: `findSessionUser` ignores its session cookies, Basic auth with its API token or password fails, and form login fails. Use `isActiveUser` when adding another path.
 
@@ -41,5 +49,5 @@ A disabled account is refused on every sign-in path with the same answer as bad 
 # Related
 
 - Related: [map-users-roles-and-workspace-membership](map-users-roles-and-workspace-membership.md)
-- Related: [practice-password-checks-and-csrf-rules](practice-password-checks-and-csrf-rules.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt](password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
 <!-- kk:related:end -->

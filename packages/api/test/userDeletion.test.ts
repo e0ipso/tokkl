@@ -141,6 +141,6 @@ test('a deleted admin\'s pending invites stop working; their used invites and se
   const usedRow = admin.db.prepare("SELECT created_by, user_id FROM account_tokens WHERE used_at IS NOT NULL").get() as Record<string, unknown>;
   assert.equal(usedRow.created_by, null, 'the record of the used invite stays without its creator');
   assert.ok(admin.db.prepare("SELECT 1 FROM users WHERE email = 'dana@example.com'").get(), 'the invited account stays');
-  assert.deepEqual((await admin.json('GET', '/api/app/admin/settings')).body, { session_days: 30, invite_days: 4 });
+  assert.deepEqual((await admin.json('GET', '/api/app/admin/settings')).body, { session_days: 30, invite_days: 4, time_resolution_minutes: 5 });
   assert.equal((admin.db.prepare("SELECT updated_by FROM instance_settings WHERE key = 'invite_days'").get() as Record<string, unknown>).updated_by, null);
 });

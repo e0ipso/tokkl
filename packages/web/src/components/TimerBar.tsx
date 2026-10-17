@@ -6,7 +6,7 @@ import {
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
-import { entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
+import { entrySeconds, formatTime, minutesOfDay, snappedSeconds, today, useNow, useSettings } from '../lib/settings.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
@@ -206,8 +206,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       if (seconds !== null && seconds > 0) {
         // A duration typed into the idle timer saves a finished entry that ends now.
         const stop = new Date();
-        await create.mutateAsync({ ...from, start: new Date(stop.getTime() - seconds * 1000).toISOString(), stop: stop.toISOString() });
-        toast.show(`Added ${formatDuration(seconds)}`);
+        const saved = await create.mutateAsync({ ...from, start: new Date(stop.getTime() - seconds * 1000).toISOString(), stop: stop.toISOString() });
+        // The server snaps the entry to the time resolution, so the toast shows what it stored.
+        toast.show(`Added ${formatDuration(entrySeconds(saved, stop))}`);
         setDraft(EMPTY);
       } else {
         const startAt = new Date();
@@ -253,12 +254,14 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     manualErrors.validate([['start', unreadable === 'start' && message], ['end', unreadable === 'end' && message]]);
     if (!range) return;
     try {
-      await create.mutateAsync({ ...draft, start: range.start.toISOString(), stop: range.stop.toISOString() });
-      toast.show(`Added ${formatDuration((range.stop.getTime() - range.start.getTime()) / 1000)}`);
+      const saved = await create.mutateAsync({ ...draft, start: range.start.toISOString(), stop: range.stop.toISOString() });
+      toast.show(`Added ${formatDuration(entrySeconds(saved, range.stop))}`);
       setDraft(EMPTY);
-      // The next entry starts where this one stopped, which is the next day after midnight.
-      setManualDay(localDay(range.stop, settings.timeZone));
-      setManualStart(formatTime(range.stop, settings));
+      // The next entry starts where the stored one stopped, which is the next day after midnight.
+      // The server snaps the times, so starting at the typed end could overlap the stored entry.
+      const stop = saved.stop ? new Date(saved.stop) : range.stop;
+      setManualDay(localDay(stop, settings.timeZone));
+      setManualStart(formatTime(stop, settings));
       setManualEnd('');
       descriptionRef.current?.focus();
     } catch (error) {
@@ -438,7 +441,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
               onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
             />
             <span className="manual-duration">
-              {manualRange ? formatDuration((manualRange.stop.getTime() - manualRange.start.getTime()) / 1000) : '0:00:00'}
+              {manualRange ? formatDuration(snappedSeconds(manualRange.start, manualRange.stop, settings)) : '0:00:00'}
             </span>
             {manualRange && localDay(manualRange.stop, settings.timeZone) !== manualDay ? <span className="hint">+1 day</span> : null}
             {manualErrors.message('start')}

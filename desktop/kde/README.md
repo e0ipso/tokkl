@@ -210,7 +210,14 @@ The address, sign-in method and email are ordinary widget settings, in the
 Plasma applet configuration. The token or password is saved only in KDE Wallet,
 in the network wallet under the folder `Tokkl`, one entry per instance (and
 email, for password sign-in). If the wallet is disabled, locked or denies
-access, the page and the widget say so and nothing is saved elsewhere.
+access, the page and the widget say so and nothing is saved elsewhere. When
+the wallet refuses to save the secret, the widget shows a wallet error saying
+the new credentials were not saved. After Apply, the page also keeps the
+secret, shows the error and enables Apply again, so closing the dialog asks
+whether to apply or discard. OK closes the dialog before KDE Wallet answers,
+and Plasma gives the page no way to keep it open, so after OK the secret is
+gone and you enter it again. Reconnect from the context menu clears the
+widget's error and uses whatever the wallet still holds.
 
 The widget validates the account with `GET /api/v9/me` and uses its
 `default_workspace_id` for every request. Changing the address, sign-in method,
@@ -530,9 +537,11 @@ The scripts it runs work on their own, for a prepared machine:
 The `kde` job in `.github/workflows/ci.yml` runs once per target, TUXEDO OS
 24.04 (DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
 `scripts/container-check.sh` for the version in `package.json`, then
-`ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`. The
-release job needs both targets, the `core` job and the server and web checks
-to pass.
+`ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`, and the
+`gnome` job runs `desktop/gnome/ci/check.sh` and builds and checks the GNOME
+release files (see `desktop/gnome/README.md`). The release job needs the
+`test` job (the server and web checks), both `kde` targets and the `core`,
+`gnome`, `gnome-extension` and `macos` jobs to pass.
 
 The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
 images pinned by digest, the TUXEDO OS repositories, and the build and test
@@ -568,12 +577,13 @@ Tokkl has one version, the `version` in the root `package.json`. One push to
 main that semantic-release turns into a release produces, under that
 version, the `v<version>` tag, the GitHub release with the DEB and RPM
 attached, and the `ghcr.io/e0ipso/tokkl` Docker image (tagged `<version>`,
-`<major>.<minor>`, `<major>` and `latest`). A push that cuts no release
-produces none of the three. The image publishes in the same `release` job,
-after semantic-release, only when it created a tag; it does not contain the
-companion. The companion sends its version in the User-Agent (`tokkl-kde/<version>`)
-and does not compare it with the server's or refuse a server of another
-version.
+`<major>.<minor>`, `<major>` and `latest`). Later jobs attach the macOS
+companion's DMG to the same release (see `desktop/macos/README.md`). A push
+that cuts no release produces none of these. The image publishes in the
+same `release` job, after semantic-release, only when it created a tag; it
+does not contain the companion. The companion sends its version in the
+User-Agent (`tokkl-kde/<version>`) and does not compare it with the
+server's or refuse a server of another version.
 
 ### Real-server test
 

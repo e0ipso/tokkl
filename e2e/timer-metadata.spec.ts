@@ -28,7 +28,7 @@ test('autocomplete copies project, task, tags and billable into a new running en
 
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Design');
-  // TT-0082: the suggestion the arrows reach is selected and has a 3px bar as well as the tint.
+  // The suggestion the arrows reach is selected and has a 3px bar as well as the tint.
   await timer.getByLabel('Description').press('ArrowDown');
   const highlighted = page.locator('.suggestions').getByRole('option', { selected: true });
   await expect(highlighted).toContainText('Design review');
@@ -48,7 +48,7 @@ test('autocomplete copies project, task, tags and billable into a new running en
   expect((await api.entries()).find((entry) => entry.id === seed.id)).toEqual(seed);
 });
 
-test('Continue and a favorite copy every field and stop the replaced timer at the new start', async ({ page }) => {
+test('Continue and a favorite copy every field and stop the replaced timer at the new start', async ({ page, data }) => {
   await login(page);
   const api = await TimerApi.open(page);
   const { review, standup } = await seedMetadata(api);
@@ -69,7 +69,7 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   expect(metadataOf(continued)).toEqual(metadataOf(review));
   await expect(timer.getByLabel('Description')).toHaveValue('Design review');
 
-  // TT-0076: the chip shows the project after the description and is named by both.
+  // The chip shows the project after the description and is named by both.
   const chip = page.locator('.favorites').getByRole('button', { name: 'Standup, Operations', exact: true });
   await expect(chip.locator('.favorite-project')).toHaveText('Operations');
   await chip.click();
@@ -80,8 +80,14 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   const all = await api.entries();
   const byId = new Map(all.map((entry) => [entry.id, entry]));
   expect(all.filter((entry) => entry.stop === null).map((entry) => entry.id)).toEqual([favorite.id]);
-  expect(instant(byId.get(plain.id)!.stop)).toBe(instant(continued.start));
-  expect(instant(byId.get(continued.id)!.stop)).toBe(instant(favorite.start));
+  // A replaced timer stops at the new start snapped to the time resolution: its start moves up to
+  // half a step and its duration grows by less than one.
+  const step = (await data.me()).time_resolution_minutes * 60_000;
+  for (const [stopped, next] of [[plain, continued], [continued, favorite]] as const) {
+    const saved = byId.get(stopped.id)!;
+    expect(Math.abs(instant(saved.stop) - instant(next.start) - step / 2)).toBeLessThanOrEqual(step);
+    expect((instant(saved.stop) - instant(saved.start)) % step).toBe(0);
+  }
   // Replacing never rewrites the stopped entries' metadata.
   expect(metadataOf(byId.get(plain.id)!)).toEqual(metadataOf(plain));
   expect(metadataOf(byId.get(continued.id)!)).toEqual(metadataOf(review));

@@ -1,0 +1,17 @@
+{
+  "map-kde-plasma-companion-desktop-kde": [
+    "map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types",
+    "map-kde-panel-button-menu-and-project-indicator",
+    "map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes"
+  ],
+  "practice-e2e-test-workflow": [
+    "practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory",
+    "practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard",
+    "practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts",
+    "practice-playwright-gotchas-in-the-e2e-specs"
+  ],
+  "practice-password-checks-and-csrf-rules": [
+    "practice-password-checks-go-through-failurelimiter-attempt",
+    "practice-cookie-writes-and-session-starting-routes-need-the-csrf-header"
+  ]
+}

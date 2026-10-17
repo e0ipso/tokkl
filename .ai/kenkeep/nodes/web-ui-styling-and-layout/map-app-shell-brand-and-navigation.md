@@ -13,7 +13,7 @@ kk_schema_version: 3
 kk_id: map-app-shell-brand-and-navigation
 kk_derived_from: []
 kk_relates_to:
-  - practice-e2e-test-workflow
+  - practice-playwright-gotchas-in-the-e2e-specs
   - practice-contrast-tables-and-project-colours
   - practice-phone-layout-css-gotchas
 kk_depends_on: []
@@ -27,10 +27,12 @@ The art has a navy outline that matches the dark `--bg`, so in dark the `.brand 
 
 Phone e2e specs navigate with `tapNav(page, name)` and `openMore(page)` from `e2e/mobile-tests-helpers.ts`. `tapNav` opens the More sheet first for names in its `MORE_PAGES` set, which repeats the `inMore` items, so update `MORE_PAGES` whenever an `inMore` flag changes.
 
+<!-- Verified against the current code on 2026-10-16. -->
+
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-e2e-test-workflow](../tooling-and-project/practice-e2e-test-workflow.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
 - Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
 <!-- kk:related:end -->

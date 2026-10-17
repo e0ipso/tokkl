@@ -1,0 +1,295 @@
+// Drives the installed extension inside a running GNOME Shell against
+// mock-timer.js and reports every step that fails. shell-driver.js has the
+// helpers that read and operate the panel button.
+//
+//   gjs -m shell-check.js UUID MOCK_TIMER_JS TIMER1_XML
+
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import {exit, programArgs} from 'system';
+import {call, contrastRatio, delay, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
+
+const [uuid, mockTimer, timer1Xml] = programArgs;
+
+const mockCalls = () => JSON.parse(call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Calls',
+    null, '(s)')[0]);
+const mockSet = (name, value) => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Set',
+    new GLib.Variant('(sv)', [name, value]), null);
+
+const checks = steps();
+const {step} = checks;
+const {button, label, menuOpen, sensitive, indicator, pointAtButton, click, press} = panelButton(uuid);
+const lastCall = () => mockCalls().at(-1) ?? [];
+const interfaceSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
+const setInterface = (method, key, value) => {
+    interfaceSettings[method](key, value);
+    Gio.Settings.sync();
+};
+
+// Waits until the indicator matches every field of expected.
+const indicatorIs = (what, expected) => waitFor(what, () => {
+    const shown = indicator();
+    return Object.entries(expected).every(([key, value]) => shown[key] === value) || shown;
+});
+let slot = null;
+const sameSlot = () => {
+    const {width, height} = indicator();
+    if (width !== slot.width || height !== slot.height)
+        throw new Error(`the slot is ${width}x${height}, not ${slot.width}x${slot.height}`);
+};
+
+await step('the extension is enabled without errors', () => waitForEnabled(uuid));
+
+await step('without the service the button says it is not running', async () => {
+    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    const status = shell(`${button}._statusItem.label.text`);
+    if (status !== 'Timer service not running')
+        throw new Error(`status: ${status}`);
+});
+
+await step('without the service the indicator slot is empty and unnamed', async () => {
+    await indicatorIs('an empty slot', {kind: 'empty', fillShown: false, edgeShown: false, accessibleName: ''});
+    slot = indicator();
+    if (!(slot.width > 0 && slot.height > 0))
+        throw new Error(`the slot is ${slot.width}x${slot.height}`);
+});
+
+await step('the button follows a service that starts later', async () => {
+    Gio.Subprocess.new(['gjs', '-m', mockTimer, timer1Xml], Gio.SubprocessFlags.NONE);
+    await waitFor('the ready time', () => label() === '0:00:00' || label());
+});
+
+await step('no project is a dashed square outline named No project', async () => {
+    await indicatorIs('an outline', {kind: 'outline', round: false, fillShown: false, edgeShown: true,
+        accessibleName: 'No project', pulsing: false});
+    sameSlot();
+    const name = shell(`${button}.accessible_name`);
+    if (!name.includes('No project'))
+        throw new Error(`button name: ${name}`);
+});
+
+await step('a primary click starts the timer through the service', async () => {
+    await pointAtButton();
+    const before = mockCalls().length;
+    click(1);
+    await waitFor('Start', () => mockCalls().length > before && lastCall()[0] === 'Start' || mockCalls());
+    if (menuOpen())
+        throw new Error('the click opened the menu');
+});
+
+await step('the panel shows the elapsed time from StartTime', async () => {
+    const start = Math.floor(Date.now() / 1000) - 3725;
+    mockSet('StartTime', new GLib.Variant('x', start));
+    await waitFor('1:02:0x', () => /^1:02:0[5-9]$/.test(label()) || label());
+    const first = label();
+    await waitFor('a tick', () => label() !== first || label(), 3000);
+});
+
+await step('a running entry without a project is a round outline that does not pulse', async () => {
+    await indicatorIs('a round outline', {kind: 'outline', round: true, pulsing: false, fillShown: false,
+        edgeShown: true});
+    sameSlot();
+});
+
+await step('the project is locked while running, billable is not', async () => {
+    await waitFor('locked project', () => sensitive('_projectMenu') === false);
+    if (!sensitive('_billableItem'))
+        throw new Error('billable is insensitive while running');
+    const before = mockCalls().length;
+    shell(`${button}._billableItem.toggle()`);
+    await waitFor('SetBillable', () => mockCalls().length > before && lastCall()[0] === 'SetBillable' &&
+        lastCall()[1] === true || mockCalls());
+    await waitFor('the switch', () => shell(`${button}._billableItem.state`) === true);
+});
+
+await step('a second primary click stops the timer', async () => {
+    click(1);
+    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
+    await waitFor('0:00:00', () => label() === '0:00:00' || label());
+});
+
+await step('a stopped timer lets the menu choose the project', async () => {
+    await waitFor('unlocked project', () => sensitive('_projectMenu') === true);
+    shell(`${button}._projectMenu.menu._getMenuItems()[1].activate(null)`);
+    await waitFor('SetProject 7', () => lastCall()[0] === 'SetProject' && lastCall()[1] === 7 || mockCalls());
+    await waitFor('the title', () => shell(`${button}._projectMenu.label.text`) === 'Project: Website (Acme)' ||
+        shell(`${button}._projectMenu.label.text`));
+});
+
+await step('a chosen project fills a still square with its colour', async () => {
+    await indicatorIs('a filled square', {kind: 'filled', round: false, color: '#3366cc', pulsing: false,
+        fillShown: true, edgeShown: true, fillOpacity: 255, accessibleName: 'Website (Acme)'});
+    sameSlot();
+    const name = shell(`${button}.accessible_name`);
+    if (!name.includes('Website (Acme)'))
+        throw new Error(`button name: ${name}`);
+});
+
+// GNOME Shell turns animations off when it renders in software, as in these
+// containers. The pulse checks lift that for themselves and restore it.
+const animations = () => shell('imports.gi.St.Settings.get().enable_animations');
+let uninhibited = false;
+
+await step('the running dot pulses its fill, and the ring stays opaque', async () => {
+    setInterface('set_boolean', 'enable-animations', true);
+    click(1);
+    await indicatorIs('a running dot', {kind: 'filled', round: true});
+    if (!animations()) {
+        if (indicator().pulsing)
+            throw new Error('the dot pulses while GNOME Shell has animations off');
+        shell('imports.gi.St.Settings.get().uninhibit_animations()');
+        uninhibited = true;
+    }
+    await indicatorIs('a pulsing dot', {kind: 'filled', round: true, pulsing: true});
+    await waitFor('a faded fill', () => indicator().fillOpacity < 160 || indicator());
+    await waitFor('the fill back up', () => indicator().fillOpacity > 200 || indicator());
+    if (indicator().edgeOpacity !== 255)
+        throw new Error(`the ring faded: ${JSON.stringify(indicator())}`);
+    sameSlot();
+});
+
+await step('with enable-animations off the dot stays steady', async () => {
+    setInterface('set_boolean', 'enable-animations', false);
+    try {
+        await indicatorIs('a steady dot', {round: true, pulsing: false, fillOpacity: 255});
+        for (let sample = 0; sample < 10; sample++) {
+            await delay(100);
+            if (indicator().fillOpacity !== 255)
+                throw new Error(`the fill moved: ${JSON.stringify(indicator())}`);
+        }
+    } finally {
+        setInterface('reset', 'enable-animations');
+    }
+    await indicatorIs('the pulse again', {pulsing: true});
+});
+
+if (uninhibited)
+    shell('imports.gi.St.Settings.get().inhibit_animations()');
+
+await step('a stopped timer turns the dot into a still square', async () => {
+    click(1);
+    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
+    await indicatorIs('a still square', {kind: 'filled', round: false, pulsing: false, fillOpacity: 255});
+});
+
+await step('a project still being read leaves the slot empty', async () => {
+    mockSet('IndicatorColor', new GLib.Variant('s', ''));
+    mockSet('IndicatorState', new GLib.Variant('s', 'pending'));
+    await indicatorIs('an empty slot', {kind: 'empty', fillShown: false, edgeShown: false});
+    sameSlot();
+    mockSet('IndicatorState', new GLib.Variant('s', 'project'));
+    mockSet('IndicatorColor', new GLib.Variant('s', '#3366cc'));
+    await indicatorIs('the filled square', {kind: 'filled', color: '#3366cc'});
+});
+
+await step('a running entry on an archived project is named by the indicator and the button', async () => {
+    // The service has read the project, which Projects does not list.
+    mockSet('Running', new GLib.Variant('b', true));
+    mockSet('ChosenProject', new GLib.Variant('x', 42));
+    mockSet('ChosenProjectName', new GLib.Variant('s', 'Legacy'));
+    mockSet('IndicatorColor', new GLib.Variant('s', '#2da608'));
+    await indicatorIs('a named dot', {kind: 'filled', round: true, color: '#2da608', accessibleName: 'Legacy'});
+    const name = shell(`${button}.accessible_name`);
+    if (!name.includes('Legacy') || name.includes('Unavailable project'))
+        throw new Error(`button name: ${name}`);
+    const title = shell(`${button}._projectMenu.label.text`);
+    if (title !== 'Project: Legacy (locked while running)')
+        throw new Error(`title: ${title}`);
+    mockSet('Running', new GLib.Variant('b', false));
+    mockSet('ChosenProject', new GLib.Variant('x', 7));
+    mockSet('ChosenProjectName', new GLib.Variant('s', 'Website'));
+    mockSet('IndicatorColor', new GLib.Variant('s', '#3366cc'));
+    await indicatorIs('the still square', {kind: 'filled', round: false, color: '#3366cc',
+        accessibleName: 'Website (Acme)'});
+});
+
+await step('the ring keeps 3:1 against the top bar in light and dark styles', async () => {
+    // The top bar is see-through in the overview, which GNOME Shell shows
+    // at startup.
+    shell('Main.overview.hide()');
+    await waitFor('the session top bar', () => shell('Main.overview.visible') === false);
+    const results = [];
+    try {
+        for (const scheme of ['default', 'prefer-light', 'prefer-dark']) {
+            setInterface('set_string', 'color-scheme', scheme);
+            await delay(500);
+            const colours = shell(`(() => {
+                const plain = color => ({red: color.red, green: color.green, blue: color.blue, alpha: color.alpha});
+                return {
+                    ring: plain(${button}._projectIndicator._edge.get_theme_node().get_foreground_color()),
+                    bar: plain(Main.panel.get_theme_node().get_background_color()),
+                };
+            })()`);
+            const ratio = contrastRatio(colours.ring, colours.bar);
+            results.push(`${scheme}: ring ${JSON.stringify(colours.ring)} on ${JSON.stringify(colours.bar)} ` +
+                `${ratio.toFixed(2)}:1`);
+            if (colours.bar.alpha !== 255 || ratio < 3)
+                throw new Error(results.join('; '));
+        }
+    } finally {
+        setInterface('reset', 'color-scheme');
+    }
+    print(`# ${results.join('; ')}`);
+});
+
+await step('a change from the service sends nothing back', async () => {
+    const before = mockCalls().length;
+    const billable = shell(`${button}._billableItem.state`);
+    mockSet('Billable', new GLib.Variant('b', !billable));
+    await waitFor('the switch', () => shell(`${button}._billableItem.state`) === !billable);
+    await delay(300);
+    if (mockCalls().length !== before)
+        throw new Error(`unexpected calls: ${JSON.stringify(mockCalls().slice(before))}`);
+});
+
+await step('a secondary click opens the menu and sends nothing', async () => {
+    const before = mockCalls().length;
+    click(3);
+    await waitFor('the menu', () => menuOpen() === true);
+    await delay(300);
+    if (mockCalls().length !== before)
+        throw new Error(`unexpected calls: ${JSON.stringify(mockCalls().slice(before))}`);
+    shell(`${button}.menu.close()`);
+});
+
+await step('Space opens the menu, and its Start item starts the timer', async () => {
+    const before = mockCalls().length;
+    await waitFor('the menu from Space', () => {
+        if (!menuOpen())
+            press('KEY_space');
+        return menuOpen() === true;
+    });
+    if (shell(`${button}._toggleItem.label.text`) !== 'Start')
+        throw new Error('the menu does not offer Start');
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('Start', () => lastCall()[0] === 'Start' || mockCalls().slice(before));
+    shell(`${button}.menu.close()`);
+    click(1);
+    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls().slice(before));
+});
+
+await step('a status other than ready marks the time and disables writes', async () => {
+    mockSet('ErrorString', new GLib.Variant('s', 'Network down'));
+    mockSet('Status', new GLib.Variant('s', 'stale'));
+    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    if (sensitive('_toggleItem') || sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('a write control stayed sensitive');
+    const detail = shell(`${button}._detailItem.label.text`);
+    if (detail !== 'Network down')
+        throw new Error(`detail: ${detail}`);
+    mockSet('Status', new GLib.Variant('s', 'ready'));
+    await waitFor('no mark', () => label() === '0:00:00' || label());
+});
+
+await step('the button says so when the service goes away', async () => {
+    call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Quit', null, null);
+    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    const status = shell(`${button}._statusItem.label.text`);
+    if (status !== 'Timer service not running')
+        throw new Error(`status: ${status}`);
+    if (sensitive('_toggleItem'))
+        throw new Error('Start stayed sensitive');
+});
+
+print(checks.failures ? `${checks.failures} failed` : 'all passed');
+exit(checks.failures ? 1 : 0);

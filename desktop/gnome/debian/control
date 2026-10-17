@@ -1,0 +1,28 @@
+Source: tokkl-timerd
+Section: utils
+Priority: optional
+Maintainer: Tokkl contributors <contributors@example.invalid>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.27),
+               qt6-base-dev (>= 6.10.0~),
+               qtkeychain-qt6-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/e0ipso/tokkl
+Rules-Requires-Root: no
+
+Package: tokkl-timerd
+Architecture: amd64
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
+Recommends: gnome-keyring
+Description: Tokkl timer service for the GNOME Shell extension
+ A session bus service for Tokkl, a self-hosted time tracker with a Toggl
+ Track compatible API. It signs in to an account on a Tokkl server, keeps the
+ running timer, starts and stops it, and sets the project and billable flag
+ of the next or running entry. The Tokkl GNOME Shell extension shows it in
+ the top bar.
+ .
+ It owns org.tokkl.Timer1 and starts on the first call to that name, through
+ its systemd user unit or D-Bus activation. The token or password is stored
+ in the keyring through libsecret. Built for Ubuntu 26.04 LTS amd64 with
+ Qt 6.10.

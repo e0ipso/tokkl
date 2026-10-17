@@ -4,9 +4,9 @@ import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { ACCOUNT_TIME_ZONE, accountTime, recentDate } from './transfer-tests-helpers.ts';
 
-// TT-0085: content that has not arrived is an aria-busy region with a status label, and a failed
-// load is an alert that says what failed and offers "Try again". TT-0112: report tabs and project
-// tasks use the same states. TT-0086: empty lists say what to do next, and the empty entry list
+// Content that has not arrived is an aria-busy region with a status label, and a failed
+// load is an alert that says what failed and offers "Try again". Report tabs and project
+// tasks use the same states. Empty lists say what to do next, and the empty entry list
 // can start a timer or switch to manual mode.
 
 /** Retries of a 5xx answer: TanStack Query tries three times, waiting 1 s and then 2 s. */
@@ -169,7 +169,7 @@ test('the entry list stays on screen and is marked busy while it refetches', asy
 });
 
 test('the entry list keeps its rows and is marked busy while Show more days loads', async ({ page }) => {
-  // TT-0116: the wider range used to replace the whole list with "Loading entries…".
+  // The wider range used to replace the whole list with "Loading entries…".
   const day = recentDate();
   // 20 days ago in the account timezone: outside the first 14 days, inside the next 14.
   const older = new Intl.DateTimeFormat('en-CA', { timeZone: ACCOUNT_TIME_ZONE }).format(new Date(Date.now() - 20 * 24 * 3600 * 1000));

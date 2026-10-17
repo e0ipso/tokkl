@@ -3,7 +3,7 @@ import { EMAIL } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, openMore, tap } from './mobile-tests-helpers.ts';
 
-// TT-0141: the admin area in the web app. The setup account is the e2e server's only admin;
+// The admin area in the web app. The setup account is the e2e server's only admin;
 // the users fixture adds regular accounts through invites, and the data fixture deletes them
 // afterwards.
 
@@ -109,7 +109,7 @@ test('an admin creates an invite, sees its link once, and revokes it', async ({ 
   expect(await data.inviteList()).toEqual([]);
 });
 
-// TT-0143: the admin gets a one-time link and passes it on; the admin never sees or sets the password.
+// The admin gets a one-time link and passes it on; the admin never sees or sets the password.
 test('an admin issues a password reset link, sees it once, and a new one replaces it', async ({ page, data, users }) => {
   const rita = await users.create({ fullname: 'Regular Rita' });
   await login(page);
@@ -121,7 +121,7 @@ test('an admin issues a password reset link, sees it once, and a new one replace
   await reset.click();
   await expect(linkOf).toHaveText(/^http:\/\/127\.0\.0\.1:\d+\/reset\/[\w-]+$/);
   await expect(page.locator('#users')).toContainText('works once, for 24 hours');
-  // TT-0179: a reset does not rotate the API token, so the admin is told it keeps working.
+  // A reset does not rotate the API token, so the admin is told it keeps working.
   await expect(page.locator('#users')).toContainText('Their API token keeps working');
   const first = (await linkOf.textContent())!.split('/reset/')[1]!;
   const check = (token: string) => page.request.get(`/api/app/password-resets/${token}`);
@@ -141,7 +141,7 @@ test('an admin issues a password reset link, sees it once, and a new one replace
   expect(await page.content()).not.toContain(second);
 });
 
-// TT-0141 and TT-0143: the one-time links are shown once, so Copy link must hand over the exact link.
+// The one-time invite and reset links are shown once, so Copy link must hand over the exact link.
 test('Copy link puts the invite link and the reset link on the clipboard', async ({ page, users, baseURL }) => {
   const rita = await users.create();
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL });
@@ -177,7 +177,7 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await inviteDays.fill('3');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
-  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3 });
+  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
   runtimeErrors.allowResponse({
     status: 400, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'invite_days 91 is over the 90-day limit',
@@ -187,7 +187,7 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await expect(await describedError(inviteDays)).toHaveText('Invalid invite_days: expected an integer from 1 to 90');
   await expect(inviteDays).toBeFocused();
   await expect(sessionDays).not.toHaveAttribute('aria-invalid', 'true');
-  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3 });
+  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
   // Typing clears the error; a value that is not a whole number never reaches the server.
   await inviteDays.fill('');
@@ -196,7 +196,45 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await expect(await describedError(inviteDays)).toHaveText('Enter a whole number of days');
 });
 
-// TT-0174: another admin's change arrives with a background refetch while this admin is typing.
+test('an admin saves the time resolution, every account reads it on /me, and a value that does not divide an hour shows the server error', async ({ page, data, users, runtimeErrors }) => {
+  const rita = await users.create();
+  expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 5 });
+  await login(page);
+  await openAdmin(page);
+  const card = page.locator('#instance');
+  const resolution = card.getByLabel('Time resolution (minutes)');
+  await expect(resolution).toHaveValue('5');
+  await expect(card.getByText('Entries are rounded up to this many minutes. Existing entries change only when they are edited.')).toBeVisible();
+
+  await resolution.fill('15');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Instance settings saved')).toBeVisible();
+  expect(await data.instanceSettings()).toEqual({ session_days: 30, invite_days: 7, time_resolution_minutes: 15 });
+  // The admin's save is what a regular account, which cannot read the admin settings, now gets on /me.
+  expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 15 });
+  expect(await data.me()).toMatchObject({ role: 'admin', time_resolution_minutes: 15 });
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
+  await expect(resolution).toHaveValue('15');
+
+  runtimeErrors.allowResponse({
+    status: 400, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'a time resolution of 7 minutes does not divide an hour',
+  });
+  await resolution.fill('7');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(await describedError(resolution))
+    .toHaveText('Invalid time_resolution_minutes: expected one of 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60');
+  await expect(resolution).toBeFocused();
+  await expect(card.getByLabel('Session length (days)')).not.toHaveAttribute('aria-invalid', 'true');
+  expect((await data.instanceSettings()).time_resolution_minutes).toBe(15);
+
+  // A value that is not a whole number never reaches the server, and the message names minutes.
+  await resolution.fill('');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(await describedError(resolution)).toHaveText('Enter a whole number of minutes');
+});
+
+// Another admin's change arrives with a background refetch while this admin is typing.
 test('a refetch keeps an unsaved instance setting and its focus, and updates the untouched one', async ({ page, data }) => {
   await login(page);
   await openAdmin(page);
@@ -217,7 +255,7 @@ test('a refetch keeps an unsaved instance setting and its focus, and updates the
 
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
-  expect(await data.instanceSettings()).toEqual({ session_days: 21, invite_days: 5 });
+  expect(await data.instanceSettings()).toEqual({ session_days: 21, invite_days: 5, time_resolution_minutes: 5 });
   await expect(sessionDays).toHaveValue('21');
   await expect(inviteDays).toHaveValue('5');
 });
@@ -270,7 +308,7 @@ test('a regular user sees no Admin entry, and opening /admin shows the server\'s
   await expect(page.locator('#users')).toHaveCount(0);
 });
 
-// TT-0175: when a row goes away, focus moves to the same control in the next row, else the
+// When a row goes away, focus moves to the same control in the next row, else the
 // previous row, else the section heading. Closing a new link returns focus to what created it.
 test('revoking invites by keyboard keeps focus in the invites section', async ({ page, data }) => {
   for (const note of ['Invite A', 'Invite B', 'Invite C']) await data.createInvite({ role: 'user', note });
@@ -338,7 +376,7 @@ test('deleting users by keyboard keeps focus in the users section', async ({ pag
   await expect(page.locator('#users').getByRole('heading', { name: 'Users' })).toBeFocused();
 });
 
-// TT-0198: a dialog closed without acting gives focus back to the control that opened it.
+// A dialog closed without acting gives focus back to the control that opened it.
 test('closing the delete dialog without deleting returns focus to its Delete button', async ({ page, users }) => {
   const rita = await users.create({ fullname: 'Regular Rita' });
   await login(page);
@@ -367,7 +405,7 @@ test('closing the delete dialog without deleting returns focus to its Delete but
   }
 });
 
-// TT-0202: a field changed back to the server's value is no longer an edit, so a refetch updates it,
+// A field changed back to the server's value is no longer an edit, so a refetch updates it,
 // and saving sends only the fields that are still edited.
 test('an instance setting restored to the server value follows refetches, and saving sends only edited fields', async ({ page, data }) => {
   const before = await data.instanceSettings();
@@ -398,7 +436,9 @@ test('an instance setting restored to the server value follows refetches, and sa
     await data.saveInstanceSettings({ session_days: 90, invite_days: before.invite_days });
     await card.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Instance settings saved')).toBeVisible();
-    expect(await data.instanceSettings()).toEqual({ session_days: 90, invite_days: invite });
+    expect(await data.instanceSettings()).toEqual({
+      session_days: 90, invite_days: invite, time_resolution_minutes: before.time_resolution_minutes,
+    });
     await expect(sessionDays).toHaveValue('90');
     await expect(inviteDays).toHaveValue(String(invite));
   } finally {
@@ -406,7 +446,7 @@ test('an instance setting restored to the server value follows refetches, and sa
   }
 });
 
-// TT-0209: the admin types the old value back while the save is still on its way.
+// The admin types the old value back while the save is still on its way.
 test('a value typed while a save is pending stays after the response, and Save sends it', async ({ page, data }) => {
   const before = await data.instanceSettings();
   const changed = before.session_days === 60 ? 61 : 60;
@@ -441,7 +481,7 @@ test('a value typed while a save is pending stays after the response, and Save s
   await expect(sessionDays).toHaveValue(String(before.session_days));
 });
 
-// TT-0209: when the pending save fails, the server's value has not changed, so a value typed back to
+// When the pending save fails, the server's value has not changed, so a value typed back to
 // it is no longer an edit, while a different value typed meanwhile stays one.
 test('after a failed save, a value typed back to the server value is no longer an edit', async ({ page, data, runtimeErrors }) => {
   const before = await data.instanceSettings();
