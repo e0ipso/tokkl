@@ -113,6 +113,41 @@ jobs:
           persist-credentials: false
       - run: desktop/gnome/ci/check.sh
 
+  # desktop/gnome/extension/ci/check.sh: the GNOME Shell extension in a
+  # headless GNOME Shell against a stand-in for tokkl-timerd, in a pinned
+  # container of a distribution that ships that Shell. One leg per Shell
+  # version, as each takes a few minutes. The first step fails when the
+  # matrix and the shell-version list of metadata.json differ.
+  gnome-extension:
+    name: gnome-extension (Shell ${{ matrix.shell }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: ['46', '47', '48', '49', '50', '51']
+    env:
+      VERSION: ${{ matrix.shell }}
+      LEGS: ${{ strategy.job-total }}
+      METADATA: desktop/gnome/extension/metadata.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the matrix against metadata.json
+        run: |
+          listed="$(jq '."shell-version" | length' "$METADATA")"
+          if [ "$LEGS" != "$listed" ]; then
+            echo "::error::the matrix has $LEGS Shell versions and $METADATA lists $listed"
+            exit 1
+          fi
+          if ! jq -e --arg version "$VERSION" 'any(."shell-version"[]; . == $version)' "$METADATA" > /dev/null; then
+            echo "::error::$METADATA does not list GNOME Shell $VERSION"
+            exit 1
+          fi
+      - run: desktop/gnome/extension/ci/check.sh "$VERSION"
+
   # The macOS menu bar app on a pinned Qt from the Qt installer and a pinned
   # QtKeychain built against it: build Tokkl.app, run CTest (desktop/core's
   # tests included), check the bundle's Info.plist, and start the app once
@@ -180,7 +215,7 @@ jobs:
           kill "$pid"
 
   release:
-    needs: [test, kde, core, gnome, macos]
+    needs: [test, kde, core, gnome, gnome-extension, macos]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency: release
