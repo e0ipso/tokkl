@@ -21,7 +21,7 @@ _None yet._
 ### #auth
 - Open [**Password checks go through FailureLimiter.attempt**](practice-password-checks-go-through-failurelimiter-attempt.md) — Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; new passwords use readNewPassword.
 - Open [**Cookie writes and session-starting routes need the CSRF header**](practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md) — Cookie writes, login, setup, invite accept and password reset need X-Tokkl-CSRF: 1 before any lookup; callers and tests must send it.
-- Open [**Users, roles and workspace membership**](../map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.
+- Open [**Admin API and disabled accounts**](../map-admin-api-and-disabled-accounts.md) — /api/app/admin users, delete, invites and instance settings; public invite routes; last-active-admin rule; where disabled accounts are refused.
 ### #server
 - Open [**Toggl CSV import: choose team-export users by opaque key**](../practice-toggl-csv-import-selects-users-by-opaque-key.md) — Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400.
 - Open [**Parse incoming timestamps with parseInstant**](../practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).

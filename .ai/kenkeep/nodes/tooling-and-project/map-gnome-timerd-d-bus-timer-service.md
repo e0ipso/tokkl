@@ -15,6 +15,7 @@ kk_derived_from: []
 kk_relates_to:
   - map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
   - map-kde-ci-and-release-pipeline
+  - map-gnome-shell-extension-for-tokkl-timerd
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -30,11 +31,12 @@ The interface description is `desktop/gnome/dbus/org.tokkl.Timer1.xml`. It lives
 
 The service may load only Qt Core, Network and DBus. `desktop/gnome/ci/check.sh` removes `qt6-qtbase-gui` from the container and fails the build if `ldd` shows another Qt library. The install ships the program, the D-Bus activation file `org.tokkl.Timer1.service` and the systemd user unit `tokkl-timerd.service`; the activation file names both `Exec=` and `SystemdService=`.
 
-`check.sh` runs in a digest-pinned Fedora 44 container as an unprivileged user, because GNOME Keyring refuses to run as root. It builds, runs CTest (the core's tests plus `timerservice`, `keychainstore` and `activation`) and checks the installed files. Then `desktop/gnome/ci/activation.sh` proves that the first call to the bus name starts the installed service, in two modes. `bus` uses a plain `dbus-daemon`, which runs `Exec=`. `systemd` runs in a privileged container that boots systemd, because dbus-broker can only activate through `SystemdService=`. The `gnome` CI job runs `check.sh`, and the `release` job lists it in `needs`.
+`check.sh` runs in a digest-pinned Fedora 44 container as an unprivileged user, because GNOME Keyring refuses to run as root. It builds, runs CTest (the core's tests plus `timerservice`, `keychainstore` and `activation`) and checks the installed files. Then `desktop/gnome/ci/activation.sh` proves that the first call to the bus name starts the installed service, in two modes. `bus` uses a plain `dbus-daemon`, which runs `Exec=`. `systemd` runs in a privileged container that boots systemd, because dbus-broker can only activate through `SystemdService=`. The `gnome` CI job runs `check.sh`, and the `release` job lists it in `needs`. The panel extension that drives the service is in [map-gnome-shell-extension-for-tokkl-timerd](map-gnome-shell-extension-for-tokkl-timerd.md).
 
 <!-- kk:related:start -->
 # Related
 
 - Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
 - Related: [map-kde-ci-and-release-pipeline](kde-companion/map-kde-ci-and-release-pipeline.md)
+- Related: [map-gnome-shell-extension-for-tokkl-timerd](map-gnome-shell-extension-for-tokkl-timerd.md)
 <!-- kk:related:end -->

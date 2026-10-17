@@ -37,7 +37,7 @@ Password resets reuse `account_tokens` with `kind = 'password_reset'` (`createPa
 
 - `session_days`: the stored value, else `TOKKL_SESSION_DAYS`, else 30; an integer from 1 to 365. New logins and new accounts take the current value; sessions that exist keep their expiry.
 - `invite_days`: the stored value, else 7; from 1 to 90.
-- `time_resolution_minutes`: the stored value, else 5; one of the divisors of 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60).
+- `time_resolution_minutes`: the stored value, else 5; one of the divisors of 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60). Live writes of stopped entries snap to it; see `practice-stopped-entries-snap-to-the-time-resolution-on-write`.
 
 Each entry of `SETTING_RULES` is either a `{ min, max }` range or an `{ allowed }` set, plus a `fallback`. A stored value that fails its rule is ignored on read and the fallback applies. An unknown key or a value that fails its rule is a 400 that names the field (`Invalid time_resolution_minutes: expected one of 1, 2, ...`) and stores nothing. A PUT may carry any subset of the keys. Everything else in `Config` (server, paths, setup) stays env-only. To add a setting, add a key to `InstanceSettings` and a rule to `SETTING_RULES`.
 

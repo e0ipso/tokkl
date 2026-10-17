@@ -15,6 +15,7 @@ kk_derived_from: []
 kk_relates_to:
   - practice-write-paths-validate-refs-not-totals
   - practice-parse-api-timestamps-with-parseinstant
+  - practice-stopped-entries-snap-to-the-time-resolution-on-write
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -25,11 +26,12 @@ kk_confidence: high
 - A record that points at a non-null project, task or other entity that was not imported is skipped with the reason `Its <entity> <id> was not imported`.
 - A running entry is skipped and reported while another timer runs here. Stopping that timer and restoring again imports it.
 - `createTask` refuses archived projects, so task import reactivates an archived project, creates the task, and re-archives it in a `finally` block.
-- Entry `start`/`stop` go through `parseInstant`.
+- Entry `start`/`stop` go through `parseInstant` and are stored exactly as in the file, not snapped to the time resolution. Snapping would move times and break the de-duplication above; see `practice-stopped-entries-snap-to-the-time-resolution-on-write`.
 
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-write-paths-validate-refs-not-totals](practice-write-paths-validate-refs-not-totals.md)
 - Related: [practice-parse-api-timestamps-with-parseinstant](practice-parse-api-timestamps-with-parseinstant.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->

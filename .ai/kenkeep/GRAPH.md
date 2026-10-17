@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:6950a26dcfb4dd8951f316975b2d6a6e1622d3450968dad8151154b120bcd92a'
-node_count: 52
+nodes_hash: 'sha256:f5b7440614d79b5f9ef7df0d6613e0dd58cb892d44de36d1fe2e5ce11d2b732b'
+node_count: 54
 ---
 # kenkeep Graph
 
-Total nodes: 52
+Total nodes: 54
 
 ## map-admin-api-and-disabled-accounts
 
@@ -46,13 +46,21 @@ Total nodes: 52
 - **tags:** kde, desktop, tooling
 - **relates_to:** practice-kde-companion-connection-and-configure-page-rules, map-npm-workspaces-package-layout, map-kde-native-packaging
 
+## map-gnome-shell-extension-for-tokkl-timerd
+
+- **kind:** map
+- **title:** GNOME Shell extension: panel button, versions and the two CI harnesses
+- **path:** tooling-and-project/map-gnome-shell-extension-for-tokkl-timerd.md
+- **tags:** tooling, desktop, gnome, ci, testing
+- **relates_to:** map-gnome-timerd-d-bus-timer-service, map-kde-ci-and-release-pipeline, map-test-and-static-analysis-layout
+
 ## map-gnome-timerd-d-bus-timer-service
 
 - **kind:** map
 - **title:** GNOME timer service: tokkl-timerd and org.tokkl.Timer1
 - **path:** tooling-and-project/map-gnome-timerd-d-bus-timer-service.md
 - **tags:** tooling, desktop, gnome, ci
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline, map-gnome-shell-extension-for-tokkl-timerd
 
 ## map-history-scale-bench
 
@@ -231,7 +239,7 @@ Total nodes: 52
 - **title:** JSON restore: idempotent, skips with reasons, keeps archive state
 - **path:** api-and-data/practice-json-restore-rules.md
 - **tags:** server, import, restore, backup
-- **relates_to:** practice-write-paths-validate-refs-not-totals, practice-parse-api-timestamps-with-parseinstant
+- **relates_to:** practice-write-paths-validate-refs-not-totals, practice-parse-api-timestamps-with-parseinstant, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
 ## practice-kde-companion-connection-and-configure-page-rules
 
@@ -316,6 +324,14 @@ Total nodes: 52
 - **tags:** testing, e2e, workflow
 - **relates_to:** practice-visual-screenshot-baselines
 
+## practice-stopped-entries-snap-to-the-time-resolution-on-write
+
+- **kind:** practice
+- **title:** Stopped entries snap to the instance time resolution on write
+- **path:** api-and-data/practice-stopped-entries-snap-to-the-time-resolution-on-write.md
+- **tags:** server, time, entries, import
+- **relates_to:** map-admin-api-and-disabled-accounts, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant
+
 ## practice-styles-css-loads-last-and-owns-colour-tokens
 
 - **kind:** practice
@@ -354,7 +370,7 @@ Total nodes: 52
 - **title:** Toggl CSV import: choose team-export users by opaque key
 - **path:** api-and-data/practice-toggl-csv-import-selects-users-by-opaque-key.md
 - **tags:** server, api, import, validation
-- **relates_to:** practice-json-restore-rules
+- **relates_to:** practice-json-restore-rules, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
 ## practice-twelve-hour-time-entry-parsing-rules
 

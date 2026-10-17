@@ -14,6 +14,7 @@ kk_id: practice-toggl-csv-import-selects-users-by-opaque-key
 kk_derived_from: []
 kk_relates_to:
   - practice-json-restore-rules
+  - practice-stopped-entries-snap-to-the-time-resolution-on-write
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -25,10 +26,11 @@ kk_confidence: high
 
 Selected rows always go to the caller's account, in its `default_workspace_id`. After the selection checks, `memberWorkspace` answers 403 when the caller is no longer a member of that workspace, dry runs included.
 
-`e2e/fixtures-data/transfer/toggl-team.csv` is the multi-user fixture.
+Imported entries keep their exact times; they are not snapped to the time resolution (see `practice-stopped-entries-snap-to-the-time-resolution-on-write`). `e2e/fixtures-data/transfer/toggl-team.csv` is the multi-user fixture.
 
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-json-restore-rules](practice-json-restore-rules.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->
