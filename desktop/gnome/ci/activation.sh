@@ -46,6 +46,13 @@ case "$mode" in
             [ -S "/run/user/$uid/bus" ] && break
             sleep 1
         done
+        if [ ! -S "/run/user/$uid/bus" ]; then
+            fail "the session bus of builder did not start"
+            systemctl --no-pager --failed >&2
+            systemctl --no-pager status "user@$uid.service" >&2
+            journalctl --no-pager -b -n 40 -u "user@$uid.service" -u "user-runtime-dir@$uid.service" >&2
+            exit "$status"
+        fi
         echo "user manager: $(run systemctl --user is-system-running --wait)"
         echo "session bus: $(run systemctl --user show --property=Id --value dbus.service)"
         ;;

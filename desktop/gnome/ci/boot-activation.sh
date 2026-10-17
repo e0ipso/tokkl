@@ -21,6 +21,13 @@ init=/usr/sbin/init
 
 echo "== booting systemd"
 uid="$(id -u builder)"
+# The check prints to the terminal init inherits. In a privileged container
+# /dev/console can be the host's console rather than this terminal.
+console="$(readlink -f /proc/self/fd/1)"
+case "$console" in
+    /dev/pts/*|/dev/tty*) ;;
+    *) console=/dev/console ;;
+esac
 install -d /var/lib/systemd/linger /etc/systemd/system/user@.service.d
 touch /var/lib/systemd/linger/builder
 printf "%s\n" "[Service]" "Environment=XDG_RUNTIME_DIR=/run/user/%i" \
@@ -29,7 +36,7 @@ printf "%s\n" "[Unit]" "Description=tokkl-timerd activation check" \
     "Wants=user@$uid.service" "After=user@$uid.service" \
     "[Service]" "Type=oneshot" "TimeoutStartSec=300" \
     "ExecStart=$ci_dir/activation.sh systemd" \
-    "StandardOutput=tty" "StandardError=tty" "TTYPath=/dev/console" \
+    "StandardOutput=tty" "StandardError=tty" "TTYPath=$console" \
     "[Install]" "WantedBy=multi-user.target" \
     > /etc/systemd/system/tokkl-activation-check.service
 systemctl enable --quiet tokkl-activation-check.service
