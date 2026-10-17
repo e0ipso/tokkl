@@ -3,7 +3,7 @@
 #
 #   package-release.sh --version <version> --format deb|rpm --output <dir>
 #
-# Run it on the target system (Ubuntu 26.04 for deb, Fedora 44 for rpm) with
+# Run it on the target system (Debian 13 for deb, Fedora 44 for rpm) with
 # the build dependencies installed; scripts/container-check.sh shows how. The
 # version is the Tokkl release version, for example 1.2.0 or 1.2.0-rc.1. The
 # program reports it unchanged; desktop/kde/scripts/native-version.sh gives
@@ -58,7 +58,7 @@ build_deb() {
     copy_source "$tree"
     cp -a "$source_dir/debian" "$tree/"
     cat > "$tree/debian/changelog" <<EOF
-tokkl-timerd ($native_version) resolute; urgency=medium
+tokkl-timerd ($native_version) trixie; urgency=medium
 
   * Tokkl $version.
 

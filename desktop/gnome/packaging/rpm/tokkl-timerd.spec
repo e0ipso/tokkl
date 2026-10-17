@@ -21,7 +21,7 @@ ExclusiveArch:  x86_64
 BuildRequires:  cmake >= 3.27
 BuildRequires:  gcc-c++
 BuildRequires:  systemd-rpm-macros
-BuildRequires:  cmake(Qt6Core) >= 6.10.0
+BuildRequires:  cmake(Qt6Core) >= 6.8.0
 BuildRequires:  cmake(Qt6Network)
 BuildRequires:  cmake(Qt6DBus)
 BuildRequires:  cmake(Qt6Keychain)

@@ -4,10 +4,10 @@
 #
 #   baseline.sh --format deb|rpm
 #
-# deb: TUXEDO OS 24.04 (Ubuntu noble with the TUXEDO OS repositories) with at
-#      least Qt 6.10.2, KDE Frameworks 6.24.0 and Plasma 6.6.6.
+# deb: Debian 13 with at least Qt 6.8.2, KDE Frameworks 6.13.0 and Plasma
+#      6.3.5, the versions it was released with.
 # rpm: Fedora 44 with at least Qt 6.10.2, KDE Frameworks 6.24.0 and Plasma
-#      6.6.0, the CMake minimums; its updates are newer.
+#      6.6.0; its updates are newer.
 #
 # Prints the distribution and one "<part> <package> <version>" line per
 # library on stdout, and failures on stderr.
@@ -37,13 +37,12 @@ fail() { echo "error: $*" >&2; failures=$((failures + 1)); }
 # distribution calls it.
 case "$format" in
     deb)
-        [ "$ID" = ubuntu ] && [ "$VERSION_ID" = 24.04 ] || fail "expected Ubuntu 24.04, found $ID $VERSION_ID"
-        [ -e /etc/apt/sources.list.d/tuxedo-os.sources ] || fail "the TUXEDO OS repositories are missing"
+        [ "$ID" = debian ] && [ "${VERSION_ID-}" = 13 ] || fail "expected Debian 13, found $ID ${VERSION_ID-}"
         owner() { dpkg -S "*/$1.*" 2>/dev/null | head -n 1 | cut -d: -f1; }
         installed() { dpkg-query -W -f '${Version}' "$1"; }
         # True when $1 >= $2 in dpkg order.
         at_least() { dpkg --compare-versions "$1" ge "$2"; }
-        libraries="qt:libQt6Core.so:6.10.2 kf:libKF6Wallet.so:6.24.0 plasma:libPlasma.so:6.6.6"
+        libraries="qt:libQt6Core.so:6.8.2 kf:libKF6Wallet.so:6.13.0 plasma:libPlasma.so:6.3.5"
         ;;
     rpm)
         [ "$ID" = fedora ] && [ "$VERSION_ID" = 44 ] || fail "expected Fedora 44, found $ID $VERSION_ID"

@@ -6,7 +6,7 @@
 #
 # Run it as root on a disposable target system (a container) that has the
 # distribution's repositories, so the package manager can install the runtime
-# dependencies: TUXEDO OS 24.04 for a .deb, Fedora 44 for a .rpm. It changes
+# dependencies: Debian 13 for a .deb, Fedora 44 for a .rpm. It changes
 # the system's packages, so never run it on a real desktop.
 #
 # Steps:

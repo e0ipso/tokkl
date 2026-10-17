@@ -25,27 +25,27 @@ ExclusiveArch:  x86_64
 
 BuildRequires:  cmake >= 3.27
 BuildRequires:  gcc-c++
-BuildRequires:  extra-cmake-modules >= 6.24.0
+BuildRequires:  extra-cmake-modules >= 6.13.0
 BuildRequires:  kf6-rpm-macros
-BuildRequires:  cmake(Qt6Core) >= 6.10.0
+BuildRequires:  cmake(Qt6Core) >= 6.8.0
 BuildRequires:  cmake(Qt6Gui)
 BuildRequires:  cmake(Qt6Network)
 BuildRequires:  cmake(Qt6Qml)
 BuildRequires:  cmake(Qt6Quick)
-BuildRequires:  cmake(KF6Wallet) >= 6.24.0
-BuildRequires:  cmake(KF6Package) >= 6.24.0
+BuildRequires:  cmake(KF6Wallet) >= 6.13.0
+BuildRequires:  cmake(KF6Package) >= 6.13.0
 # KF6PackageConfig.cmake needs KF6CoreAddons, which kf6-kpackage-devel does
 # not pull in on Fedora 44.
-BuildRequires:  cmake(KF6CoreAddons) >= 6.24.0
-BuildRequires:  cmake(Plasma) >= 6.6.0
+BuildRequires:  cmake(KF6CoreAddons) >= 6.13.0
+BuildRequires:  cmake(Plasma) >= 6.3.0
 BuildRequires:  qt6qml(org.kde.kirigami)
 BuildRequires:  qt6qml(org.kde.kcmutils)
 
 # Shared libraries are found by rpm. The widget's QML imports are loaded at
 # run time, so they are listed here.
-Requires:       libplasma%{?_isa} >= 6.6.0
-Requires:       kf6-kirigami%{?_isa} >= 6.24.0
-Requires:       kf6-kcmutils%{?_isa} >= 6.24.0
+Requires:       libplasma%{?_isa} >= 6.3.0
+Requires:       kf6-kirigami%{?_isa} >= 6.13.0
+Requires:       kf6-kcmutils%{?_isa} >= 6.13.0
 Requires:       qt6qml(org.kde.plasma.plasmoid)
 Requires:       qt6qml(org.kde.plasma.core)
 Requires:       qt6qml(org.kde.plasma.components)

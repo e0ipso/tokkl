@@ -4,7 +4,7 @@
 #
 #   container-check.sh --version <version> --output <dir> [--format deb|rpm|zip|all]
 #
-#   deb  tokkl-timerd_<native>_amd64.deb for Ubuntu 26.04 LTS
+#   deb  tokkl-timerd_<native>_amd64.deb for Debian 13
 #   rpm  tokkl-timerd-<native>-1.fc44.x86_64.rpm for Fedora 44
 #   zip  tokkl-gnome-extension-<version>.zip, the GNOME Shell extension
 #
@@ -50,7 +50,7 @@ done
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 native_version="$("$repo/desktop/kde/scripts/native-version.sh" "$version")" || exit 2
 engine="${CONTAINER_ENGINE:-docker}"
-ubuntu="ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7"
+debian="debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5"
 fedora="fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80"
 mkdir -p "$output"
 output="$(cd "$output" && pwd)"
@@ -86,10 +86,10 @@ check_package() {
 for format in $formats; do
     case "$format" in
         deb)
-            echo "== deb: build tokkl-timerd $version in ${ubuntu%@*}"
+            echo "== deb: build tokkl-timerd $version in ${debian%@*}"
             rm -f "$output/tokkl-timerd_${native_version}_amd64.deb"
             # shellcheck disable=SC2016
-            in_container "$ubuntu" '
+            in_container "$debian" '
                 export DEBIAN_FRONTEND=noninteractive
                 apt-get update -qq
                 apt-get install -y -qq --no-install-recommends build-essential debhelper cmake \
@@ -97,8 +97,8 @@ for format in $formats; do
                 echo "Qt $(dpkg-query -W -f "\${Version}" qt6-base-dev)"
                 /repo/desktop/gnome/scripts/package-release.sh --version "$1" --format deb --output /out
             ' bash "$version"
-            echo "== deb: install and check in a clean ${ubuntu%@*}"
-            check_package "$ubuntu" "tokkl-timerd_${native_version}_amd64.deb"
+            echo "== deb: install and check in a clean ${debian%@*}"
+            check_package "$debian" "tokkl-timerd_${native_version}_amd64.deb"
             ;;
         rpm)
             echo "== rpm: build tokkl-timerd $version in ${fedora%@*}"

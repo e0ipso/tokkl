@@ -40,23 +40,24 @@ The companion is for two systems, each with one package:
 
 | System                      | Architecture | Package                                 |
 | --------------------------- | ------------ | --------------------------------------- |
-| TUXEDO OS 24.04             | amd64        | `tokkl-kde_<version>_amd64.deb`         |
+| Debian 13                   | amd64        | `tokkl-kde_<version>_amd64.deb`         |
 | Fedora KDE 44, with updates | x86_64       | `tokkl-kde-<version>-1.fc44.x86_64.rpm` |
 
-Both need Plasma 6.6 or newer, KDE Frameworks 6.24 and Qt 6.10; the exact
+Both need Plasma 6.3 or newer, KDE Frameworks 6.13 and Qt 6.8; the exact
 bounds are under [Requirements](#requirements) and [Packages](#packages).
 Other distributions, releases and architectures are not supported. The manual
 checks cover a Plasma Wayland session; X11 sessions are not checked.
 
 A Tokkl release at <https://github.com/e0ipso/tokkl/releases> that includes
-the companion has both files attached. The two releases so far, v1.0.0 and
-v1.0.1, have no assets (checked 2026-10-16). Until a later release carries
-the packages, build them as [Build and check](#build-and-check) describes.
+the companion has both files attached. v1.1.0 and v1.2.0 have them, but their
+DEB was built for TUXEDO OS 24.04 (checked 2026-10-17); the first DEB built
+for Debian 13 comes with the next release. Until then, build it as
+[Build and check](#build-and-check) describes.
 
 In the directory with the downloaded file:
 
 ```sh
-# TUXEDO OS 24.04
+# Debian 13
 sudo apt install ./tokkl-kde_<version>_amd64.deb      # install or upgrade
 sudo apt remove tokkl-kde                             # remove
 
@@ -100,22 +101,22 @@ before a release.
 | Dependency                                                        | Minimum |
 | ----------------------------------------------------------------- | ------- |
 | CMake                                                             | 3.27    |
-| Qt 6: Core, Network, Qml, Quick (DBus, Test, QuickTest for tests) | 6.10    |
-| Extra CMake Modules; KF6 Wallet, Package, Config                  | 6.24    |
-| KF6 I18n with I18nQml (tests only)                                | 6.24    |
-| QML modules: Kirigami, KCMUtils                                   | 6.24    |
-| Plasma: libplasma, PlasmaQuick                                    | 6.6     |
+| Qt 6: Core, Network, Qml, Quick (DBus, Test, QuickTest for tests) | 6.8     |
+| Extra CMake Modules; KF6 Wallet, Package, Config                  | 6.13    |
+| KF6 I18n with I18nQml, KF6 KirigamiPlatform (tests only)          | 6.13    |
+| QML modules: Kirigami, KCMUtils                                   | 6.13    |
+| Plasma: libplasma, PlasmaQuick                                    | 6.3     |
 
-The minimums cover the two supported targets: TUXEDO OS 24.04 (Qt 6.10.2, KDE
-Frameworks 6.24.0, Plasma 6.6.6) and Fedora KDE 44 (released with Qt 6.10.2,
-KDE Frameworks 6.25.0 and libplasma 6.6.4; see [Packages](#packages) for the
+The minimums are what Debian 13 shipped with (Qt 6.8.2, KDE Frameworks
+6.13.0, Plasma 6.3.5). Fedora KDE 44 is newer (released with Qt 6.10.2, KDE
+Frameworks 6.25.0 and libplasma 6.6.4; see [Packages](#packages) for the
 versions its updates bring). Older Plasma 6 releases are not supported.
 
-Packages on TUXEDO OS 24.04: `cmake extra-cmake-modules qt6-base-dev
+Packages on Debian 13: `cmake extra-cmake-modules qt6-base-dev
 qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and for the tests
-`qml6-module-qttest`, `plasma-desktoptheme` (Plasma's QML components) and
-`dbus-daemon`.
+`libkf6config-dev`, `libkirigami-dev`, `qml6-module-qttest`,
+`plasma-desktoptheme` (Plasma's QML components) and `dbus-daemon`.
 The CI images in `ci/` hold the complete lists for both targets (see
 [CI and releases](#ci-and-releases)).
 
@@ -423,7 +424,7 @@ DESTDIR="$(mktemp -d)" cmake --install desktop/kde/build
 
 With `CMAKE_INSTALL_PREFIX=/usr` the staged tree uses the standard paths:
 
-| Part    | Debian/TUXEDO                                                  | Fedora                                      |
+| Part    | Debian                                                         | Fedora                                      |
 | ------- | -------------------------------------------------------------- | ------------------------------------------- |
 | Widget  | `/usr/share/plasma/plasmoids/com.github.e0ipso.tokkl/`         | same                                        |
 | Backend | `/usr/lib/x86_64-linux-gnu/qt6/qml/com/github/e0ipso/tokkl/backend/` | `/usr/lib64/qt6/qml/com/github/e0ipso/tokkl/backend/` |
@@ -438,16 +439,16 @@ backend at the paths above:
 
 | Package | Target                     | Architecture | Built against                                       |
 | ------- | -------------------------- | ------------ | --------------------------------------------------- |
-| `.deb`  | TUXEDO OS 24.04            | amd64        | Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.6      |
+| `.deb`  | Debian 13                  | amd64        | Qt 6.8.2, KDE Frameworks 6.13.0, Plasma 6.3.5       |
 | `.rpm`  | Fedora KDE 44 with updates | x86_64       | Qt 6.11.2, KDE Frameworks 6.31.0, Plasma 6.7.5      |
 
 The Fedora column is what the Fedora 44 repositories held on 2026-10-16; a
 later build uses whatever its updates hold then. The RPM depends on the Qt it
 was built with, so it needs an updated Fedora 44, not the release media alone.
-These are the only tested targets. Other Ubuntu or Debian releases, other
-Fedora releases, other RPM distributions and other architectures are not
-supported. Stock Ubuntu 24.04 has no KDE Frameworks 6 or Plasma 6, so the
-`.deb` does not install there.
+These are the only tested targets. Other Debian releases, Debian
+derivatives such as Ubuntu, other Fedora releases, other RPM distributions
+and other architectures are not supported. Stock Ubuntu 24.04 has no KDE
+Frameworks 6 or Plasma 6, so the `.deb` does not install there.
 
 The package version is the shared Tokkl version from the root `package.json`;
 there is no separate companion version. The widget metadata carries it
@@ -464,8 +465,8 @@ Dependencies:
 - Libraries (KF6 Wallet, Qt Core, Network and Qml) come from
   `dpkg-shlibdeps` and rpm's own scan.
 - The QML modules the widget imports at run time are declared by hand, since
-  no tool can see them: `org.kde.plasma.*` (in `plasma-desktoptheme` on TUXEDO
-  OS, `libplasma` on Fedora), Kirigami, KCMUtils and Qt Quick, Controls,
+  no tool can see them: `org.kde.plasma.*` (in `plasma-desktoptheme` on
+  Debian, `libplasma` on Fedora), Kirigami, KCMUtils and Qt Quick, Controls,
   Layouts and Templates. Floors follow the CMake minimums.
 - The KDE Wallet daemon is recommended (`kwallet6`, `kf6-kwallet`). Without a
   working wallet the widget shows a KDE Wallet error and keeps no secret
@@ -487,7 +488,7 @@ version="$(node -p 'require("./package.json").version')"
 desktop/kde/scripts/container-check.sh --version "$version" --output "$(mktemp -d)"
 ```
 
-For each format it builds the three stages of `ci/Dockerfile` (TUXEDO OS) or
+For each format it builds the three stages of `ci/Dockerfile` (Debian 13) or
 `ci/fedora.Dockerfile` (Fedora) as `tokkl-kde-ci:<format>-target`, `-build`
 and `-test` (`TOKKL_KDE_CI_IMAGE` changes the name). The containers see
 `desktop/` read-only at `/desktop`, so the build finds `desktop/core`. Then:
@@ -508,10 +509,10 @@ The output directory gets `tokkl-kde_<version>_amd64.deb` and
 
 The scripts it runs work on their own, for a prepared machine:
 
-- `scripts/prepare-target.sh --format deb|rpm [--build-deps]`: adds the TUXEDO
-  OS repositories on Ubuntu 24.04 (the key fingerprint is checked) and, with
-  `--build-deps`, installs the build dependencies from `debian/control` or
-  `packaging/rpm/tokkl-kde.spec`. A second run keeps repositories it finds.
+- `scripts/prepare-target.sh --format deb|rpm [--build-deps]`: fetches the
+  Debian package lists if the system has none and, with `--build-deps`,
+  installs the build dependencies from `debian/control` or
+  `packaging/rpm/tokkl-kde.spec`. A second run keeps the lists it finds.
   Run it as root, only in a container.
 - `scripts/package-release.sh --version <version> --format deb|rpm --output
   <dir>`: builds one package with `dpkg-buildpackage` or `rpmbuild` from a
@@ -534,8 +535,8 @@ The scripts it runs work on their own, for a prepared machine:
 
 ## CI and releases
 
-The `kde` job in `.github/workflows/ci.yml` runs once per target, TUXEDO OS
-24.04 (DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
+The `kde` job in `.github/workflows/ci.yml` runs once per target, Debian 13
+(DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
 `scripts/container-check.sh` for the version in `package.json`, then
 `ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`, and the
 `gnome` job runs `desktop/gnome/ci/check.sh` and builds and checks the GNOME
@@ -544,14 +545,14 @@ release files (see `desktop/gnome/README.md`). The release job needs the
 `gnome`, `gnome-extension` and `macos` jobs to pass.
 
 The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
-images pinned by digest, the TUXEDO OS repositories, and the build and test
-packages. The distribution archives have no snapshots, so a build gets the
+images pinned by digest and the build and test packages. The distribution archives have no snapshots, so a build gets the
 Qt, KDE Frameworks and Plasma packages they hold that day. `ci/baseline.sh`
 prints those versions in every build and fails it when they are older than
-the supported baseline (TUXEDO OS: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma
-6.6.6; Fedora: the CMake minimums). On 2026-10-16 the images had Qt 6.10.2,
-KDE Frameworks 6.24.0 and libplasma 6.6.6 (TUXEDO OS) and Qt 6.11.2, KDE
-Frameworks 6.31.0 and libplasma 6.7.5 (Fedora). To move a base image, update
+the supported baseline (Debian 13: Qt 6.8.2, KDE Frameworks 6.13.0, Plasma
+6.3.5; Fedora: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.0). On 2026-10-17
+the Debian image had Qt 6.8.2, KDE Frameworks 6.13.0 and libplasma 6.3.5; on
+2026-10-16 the Fedora image had Qt 6.11.2, KDE Frameworks 6.31.0 and
+libplasma 6.7.5. To move a base image, update
 its digest in the Dockerfile.
 
 semantic-release builds the release packages through the local plugin
@@ -631,7 +632,7 @@ runs `<build>/tests/realservertest` and run
   Wayland.
 - No KDE Wallet. Every test uses a fake credential store; nothing checks
   that `kwalletd6` stores, unlocks or denies the secret on a real desktop.
-- The packages are installed and loaded in containers, not on TUXEDO OS or
+- The packages are installed and loaded in containers, not on Debian or
   Fedora KDE desktop installations.
 
 Check those by hand on both targets before a release that changes the
@@ -641,7 +642,7 @@ checks and the [real-server test](#real-server-test).
 
 ## Real Plasma smoke checklist
 
-Run this on a Plasma Wayland session of each target (TUXEDO OS 24.04 with the
+Run this on a Plasma Wayland session of each target (Debian 13 with the
 DEB, Fedora KDE 44 with the RPM), with the release's packages and a Tokkl
 instance you can break on purpose. Nothing here is automated, and no run has
 been recorded yet.
