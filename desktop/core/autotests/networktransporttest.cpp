@@ -64,6 +64,21 @@ QByteArray httpResponse(const QByteArray &statusLine, const QByteArray &headers,
         + headers + "\r\n" + body;
 }
 
+// The header fields of a raw request, by lower-case name. Field names are
+// case-insensitive, and Qt 6.8 sends them in lower case.
+QHash<QByteArray, QByteArray> headerFields(const QByteArray &request)
+{
+    QHash<QByteArray, QByteArray> fields;
+    const QList<QByteArray> lines = request.left(request.indexOf("\r\n\r\n")).split('\n');
+    for (qsizetype i = 1; i < lines.size(); ++i) {
+        const qsizetype colon = lines[i].indexOf(':');
+        if (colon > 0) {
+            fields.insert(lines[i].left(colon).toLower(), lines[i].mid(colon + 1).trimmed());
+        }
+    }
+    return fields;
+}
+
 HttpResponse sendAndWait(NetworkTransport &transport, const HttpRequest &request)
 {
     std::optional<HttpResponse> result;
@@ -101,14 +116,15 @@ private Q_SLOTS:
         QCOMPARE(server.requests.size(), 1);
         const QByteArray request = server.requests.first();
         QVERIFY(request.startsWith("GET /prefix/api/v9/me/time_entries/current HTTP/1.1\r\n"));
-        QVERIFY(request.contains("\r\nAuthorization: Basic dDphcGlfdG9rZW4=\r\n"));
-        QVERIFY(request.contains("\r\nAccept: application/json\r\n"));
-        QVERIFY2(request.contains("\r\nUser-Agent: tokkl-test/" TOKKL_VERSION_STRING "\r\n"), request.constData());
+        const QHash<QByteArray, QByteArray> fields = headerFields(request);
+        QCOMPARE(fields.value("authorization"), QByteArray("Basic dDphcGlfdG9rZW4="));
+        QCOMPARE(fields.value("accept"), QByteArray("application/json"));
+        QCOMPARE(fields.value("user-agent"), QByteArray("tokkl-test/" TOKKL_VERSION_STRING));
 
         // A cookie the server set is not sent back.
         sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QCOMPARE(server.requests.size(), 2);
-        QVERIFY(!server.requests.last().contains("Cookie:"));
+        QVERIFY(!headerFields(server.requests.last()).contains("cookie"));
     }
 
     void jsonBody()
@@ -119,7 +135,7 @@ private Q_SLOTS:
         sendAndWait(transport, HttpRequest{"POST", server.url(QStringLiteral("/api/v9/workspaces/7/time_entries")), "Basic eA==", "{\"duration\":-1}"});
         QCOMPARE(server.requests.size(), 1);
         QVERIFY(server.requests.first().startsWith("POST /api/v9/workspaces/7/time_entries "));
-        QVERIFY(server.requests.first().contains("\r\nContent-Type: application/json\r\n"));
+        QCOMPARE(headerFields(server.requests.first()).value("content-type"), QByteArray("application/json"));
     }
 
     void redirectsAreNotFollowed()

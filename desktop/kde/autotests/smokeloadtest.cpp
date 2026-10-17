@@ -14,6 +14,7 @@
 #include <Plasma/Containment>
 #include <Plasma/Corona>
 #include <PlasmaQuick/AppletQuickItem>
+#include <PlasmaQuick/ConfigView>
 
 #include <QDir>
 #include <QFileInfo>
@@ -241,6 +242,18 @@ private Q_SLOTS:
 
     void configPageLoads()
     {
+        // Plasma opens the Configure dialog in a ConfigView. On Plasma 6.3
+        // that view registers org.kde.plasma.configuration, which config.qml
+        // imports; later releases install it as a QML module.
+        TestCorona corona;
+        Plasma::Containment *containment = corona.createContainment(QStringLiteral("tokkl.test.emptycontainment"));
+        QVERIFY(containment);
+        Plasma::Applet *applet = containment->createApplet(plasmoidId);
+        QVERIFY(applet);
+        PlasmaQuick::ConfigView view(applet);
+        // Only the pages' own QML problems count, not the view's.
+        qmlProblems.clear();
+
         QQmlEngine engine;
         auto *localized = new KLocalizedContext(&engine);
         localized->setTranslationDomain(QStringLiteral("plasma_applet_") + plasmoidId);

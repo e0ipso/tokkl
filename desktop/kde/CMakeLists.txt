@@ -75,8 +75,10 @@ if(BUILD_TESTING)
     find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS DBus Test QuickTest)
     # The smoke test loads the widget through libplasma, whose CMake package
     # does not pull in KF6Config itself, and translates the Configure page
-    # with KI18n as Plasma does.
-    find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Config I18n)
+    # with KI18n as Plasma does. The panel test sets Kirigami units through
+    # KirigamiPlatform, which find_package(Plasma) does not bring in on
+    # Plasma 6.3.
+    find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Config I18n KirigamiPlatform)
     find_package(PlasmaQuick ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
     add_subdirectory(autotests)
     add_subdirectory(tests)
