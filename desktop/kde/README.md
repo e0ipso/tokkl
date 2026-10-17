@@ -538,8 +538,9 @@ The `kde` job in `.github/workflows/ci.yml` runs once per target, TUXEDO OS
 24.04 (DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
 `scripts/container-check.sh` for the version in `package.json`, then
 `ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`, and the
-`gnome` job runs `desktop/gnome/ci/check.sh`. The release job needs both
-targets, the `core` and `gnome` jobs and the server and web checks to pass.
+`gnome` job runs `desktop/gnome/ci/check.sh`. The release job needs the
+`test` job (the server and web checks), both `kde` targets and the `core`,
+`gnome`, `gnome-extension` and `macos` jobs to pass.
 
 The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
 images pinned by digest, the TUXEDO OS repositories, and the build and test
@@ -575,12 +576,13 @@ Tokkl has one version, the `version` in the root `package.json`. One push to
 main that semantic-release turns into a release produces, under that
 version, the `v<version>` tag, the GitHub release with the DEB and RPM
 attached, and the `ghcr.io/e0ipso/tokkl` Docker image (tagged `<version>`,
-`<major>.<minor>`, `<major>` and `latest`). A push that cuts no release
-produces none of the three. The image publishes in the same `release` job,
-after semantic-release, only when it created a tag; it does not contain the
-companion. The companion sends its version in the User-Agent (`tokkl-kde/<version>`)
-and does not compare it with the server's or refuse a server of another
-version.
+`<major>.<minor>`, `<major>` and `latest`). Later jobs attach the macOS
+companion's DMG to the same release (see `desktop/macos/README.md`). A push
+that cuts no release produces none of these. The image publishes in the
+same `release` job, after semantic-release, only when it created a tag; it
+does not contain the companion. The companion sends its version in the
+User-Agent (`tokkl-kde/<version>`) and does not compare it with the
+server's or refuse a server of another version.
 
 ### Real-server test
 

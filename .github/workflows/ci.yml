@@ -149,70 +149,35 @@ jobs:
       - run: desktop/gnome/extension/ci/check.sh "$VERSION"
 
   # The macOS menu bar app on a pinned Qt from the Qt installer and a pinned
-  # QtKeychain built against it: build Tokkl.app, run CTest (desktop/core's
-  # tests included), check the bundle's Info.plist, and start the app once
-  # to see that it stays up. The release waits for it but ships no macOS app.
+  # QtKeychain built against it (.github/actions/macos-build): build
+  # Tokkl.app for the version in package.json, run CTest (desktop/core's tests
+  # included), then package it as a DMG and check the DMG, starting the app
+  # from it once to see that it stays up. macos-release packages the release
+  # the same way.
   macos:
     runs-on: macos-latest
     permissions:
       contents: read
-    env:
-      QT_VERSION: 6.11.3
-      QTKEYCHAIN_VERSION: 0.17.0
-      QTKEYCHAIN_COMMIT: 875f77d9f61bd97fd84cca47ce3bc71186dfbd09
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Sets QT_ROOT_DIR and puts the pinned Qt's tools on PATH.
-      - name: Install Qt
-        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
-        with:
-          version: ${{ env.QT_VERSION }}
-          cache: true
-      - name: Build QtKeychain
-        env:
-          SRC: ${{ runner.temp }}/qtkeychain-src
-          PREFIX: ${{ runner.temp }}/qtkeychain
-        run: |
-          git clone --quiet --depth 1 --branch "$QTKEYCHAIN_VERSION" https://github.com/frankosterfeld/qtkeychain.git "$SRC"
-          test "$(git -C "$SRC" rev-parse HEAD)" = "$QTKEYCHAIN_COMMIT"
-          cmake -S "$SRC" -B "$SRC/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" \
-            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DBUILD_TRANSLATIONS=OFF -DBUILD_TESTING=OFF
-          cmake --build "$SRC/build" -j"$(sysctl -n hw.ncpu)"
-          cmake --install "$SRC/build"
-      - name: Build
-        env:
-          BUILD: ${{ runner.temp }}/macos
-          QTKEYCHAIN: ${{ runner.temp }}/qtkeychain
-        run: |
-          cmake -S desktop/macos -B "$BUILD" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR;$QTKEYCHAIN"
-          # The pinned Qt, not another one on the runner.
-          qt_dir=$(sed -n 's/^Qt6_DIR:[A-Z]*=//p' "$BUILD/CMakeCache.txt")
-          case "$qt_dir" in
-            "$QT_ROOT_DIR"/*) ;;
-            *) echo "Qt6_DIR is '$qt_dir', not under $QT_ROOT_DIR" >&2; exit 1 ;;
-          esac
-          cmake --build "$BUILD" -j"$(sysctl -n hw.ncpu)"
+      - id: build
+        uses: ./.github/actions/macos-build
       - name: Test
         env:
-          BUILD: ${{ runner.temp }}/macos
+          BUILD: ${{ steps.build.outputs.build-dir }}
         run: ctest --test-dir "$BUILD" --output-on-failure
-      - name: Check the bundle
+      - name: Package and check the DMG
         env:
-          BUILD: ${{ runner.temp }}/macos
+          APP: ${{ steps.build.outputs.app }}
+          QTKEYCHAIN: ${{ steps.build.outputs.qtkeychain }}
+          OUTPUT: ${{ runner.temp }}/dmg
         run: |
-          app="$BUILD/src/Tokkl.app"
-          plutil -lint "$app/Contents/Info.plist"
-          test "$(plutil -extract LSUIElement raw "$app/Contents/Info.plist")" = true
-          codesign --verify --verbose "$app"
-          # Starts with no settings, so it opens its settings window and
-          # touches no keychain item. It must still be running after a while.
-          "$app/Contents/MacOS/Tokkl" &
-          pid=$!
-          sleep 10
-          kill -0 "$pid"
-          kill "$pid"
+          version="$(jq -r .version package.json)"
+          dmg="$(MACDEPLOYQT="$QT_ROOT_DIR/bin/macdeployqt" desktop/macos/scripts/package-dmg.sh \
+            --app "$APP" --version "$version" --output "$OUTPUT" --libpath "$QTKEYCHAIN/lib")"
+          desktop/macos/scripts/check-dmg.sh "$dmg" "$version"
 
   release:
     needs: [test, kde, core, gnome, gnome-extension, macos]
@@ -222,6 +187,8 @@ jobs:
     permissions:
       contents: write
       packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -237,7 +204,7 @@ jobs:
       # (desktop/kde/ci/semantic-release.js), commits CHANGELOG.md and
       # package.json, tags v<version> and creates the GitHub release with the
       # DEB and RPM attached, or does nothing when the pushed commits warrant
-      # no release.
+      # no release. The macos-release and macos-publish jobs add the DMG.
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -266,3 +233,78 @@ jobs:
           image=ghcr.io/${GITHUB_REPOSITORY,,}
           docker buildx build --push --platform linux/amd64,linux/arm64 \
             -t "$image:$version" -t "$image:${version%.*}" -t "$image:${version%%.*}" -t "$image:latest" .
+
+  # The DMG for the release the release job just made. semantic-release
+  # decides the version on the Linux release runner, and the app builds only
+  # on macOS, so this job runs afterwards: it builds Tokkl.app from the
+  # v<version> tag with that version, packages and checks it as the macos job
+  # does, and hands the DMG to macos-publish. The release is public without
+  # the DMG until macos-publish attaches it. Re-running a failed job attaches
+  # it to the existing release.
+  macos-release:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      # The tag's package.json holds the version semantic-release wrote.
+      - name: Check the version
+        run: |
+          version=${TAG#v}
+          if [ "$(jq -r .version package.json)" != "$version" ]; then
+            echo "::error::package.json at $TAG does not have version $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - id: build
+        uses: ./.github/actions/macos-build
+        with:
+          version: ${{ env.VERSION }}
+          build-type: Release
+      - name: Package and check the DMG
+        env:
+          APP: ${{ steps.build.outputs.app }}
+          QTKEYCHAIN: ${{ steps.build.outputs.qtkeychain }}
+          OUTPUT: ${{ runner.temp }}/dmg
+        run: |
+          dmg="$(MACDEPLOYQT="$QT_ROOT_DIR/bin/macdeployqt" desktop/macos/scripts/package-dmg.sh \
+            --app "$APP" --version "$VERSION" --output "$OUTPUT" --libpath "$QTKEYCHAIN/lib")"
+          test "$dmg" = "$OUTPUT/Tokkl-$VERSION-arm64.dmg"
+          desktop/macos/scripts/check-dmg.sh "$dmg" "$VERSION"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos-dmg
+          path: ${{ runner.temp }}/dmg/Tokkl-${{ env.VERSION }}-arm64.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  # Attaches the DMG to the v<version> release. Kept apart from macos-release
+  # so the job that builds third-party code holds no write token.
+  macos-publish:
+    needs: [release, macos-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: macos-dmg
+          path: ${{ runner.temp }}/dmg
+      - name: Attach the DMG to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIR: ${{ runner.temp }}/dmg
+        run: |
+          dmg="$DIR/Tokkl-${TAG#v}-arm64.dmg"
+          test -f "$dmg"
+          gh release upload "$TAG" "$dmg#Tokkl for macOS 13 or later (Apple silicon)" \
+            --repo "$GITHUB_REPOSITORY" --clobber

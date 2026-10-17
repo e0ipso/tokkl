@@ -140,6 +140,18 @@ A Plasma 6 panel widget for TUXEDO OS 24.04 (amd64) and Fedora KDE 44 (x86_64). 
 
 It ships as a DEB and an RPM attached to each GitHub release that includes it, under the same version as the server and the Docker image. The Docker image does not contain it. As of 2026-10-16 no release has carried the packages; the guide says how to build them. The packages are under the MIT license, like the rest of Tokkl. Installation, setup, behavior, the build and a manual Plasma checklist are in [desktop/kde/README.md](desktop/kde/README.md).
 
+## macOS menu bar companion
+
+A menu bar app for Macs with Apple silicon and macOS 13 or later. It shows the running timer's time in the menu bar, starts and stops it with a click, and sets the project and billable flag. It keeps the API token or password in the macOS Keychain.
+
+It ships as `Tokkl-<version>-arm64.dmg`, attached to each GitHub release that includes it, under the same version as the server and the Docker image. It is signed ad hoc, not with an Apple Developer ID, and is not notarized, so remove the quarantine flag after you drag it to `/Applications`:
+
+```sh
+xattr -cr /Applications/Tokkl.app
+```
+
+Installation, setup and the build are in [desktop/macos/README.md](desktop/macos/README.md).
+
 ## Development
 
 Requires Node.js 24 or newer.
@@ -159,7 +171,7 @@ npm run icons      # derives the served icons from docs/brand (needs ImageMagick
 
 The KDE companion is a separate CMake project that no npm script builds. To build and test it, run `cmake -S desktop/kde -B desktop/kde/build`, `cmake --build desktop/kde/build` and `ctest --test-dir desktop/kde/build` (needs Qt 6.10 and KDE Frameworks 6.24; [details](desktop/kde/README.md#configure-build-and-test)). It builds on `desktop/core`, the timer and connection core the desktop companions share. That project needs only Qt 6.10 Core, Network and Test, and the same three commands pointed at `desktop/core` build and test it on its own.
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)) and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)), the macOS companion's DMG, which a later job attaches to the same release (see [desktop/macos/README.md](desktop/macos/README.md#releases)), and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
 
 The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
 
