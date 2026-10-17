@@ -61,6 +61,24 @@ test('a span across a DST change keeps its rounded duration as elapsed time', ()
   assert.equal(minutesBetween(spring), 60);
 });
 
+test('the start stays on the clock grid across a DST change of half an hour', () => {
+  const lordHowe = (start: string, stop: string, minutes: number) => snap(start, stop, minutes, 'Australia/Lord_Howe');
+  // Lord Howe Island springs forward from 02:00 (UTC+10:30) to 02:30 (UTC+11) at 15:30 UTC on
+  // 2026-10-03. Local 01:00 is 14:30 UTC, 02:00 never happens and local 03:00 is 16:00 UTC.
+  assert.deepEqual(lordHowe('2026-10-03T15:20:00Z', '2026-10-03T15:25:00Z', 60), ['2026-10-03T16:00:00.000Z', '2026-10-03T17:00:00.000Z']);
+  assert.deepEqual(lordHowe('2026-10-03T15:10:00Z', '2026-10-03T15:25:00Z', 60), ['2026-10-03T14:30:00.000Z', '2026-10-03T15:30:00.000Z']);
+  // Local 02:30 exists on that day, and it is on the grid at a resolution of 30.
+  assert.deepEqual(lordHowe('2026-10-03T15:20:00Z', '2026-10-03T15:25:00Z', 30), ['2026-10-03T15:30:00.000Z', '2026-10-03T16:00:00.000Z']);
+  // It falls back from 02:00 (UTC+11) to 01:30 (UTC+10:30) at 15:00 UTC on 2026-04-04. Local 01:00
+  // is 14:00 UTC and local 02:00 is 15:30 UTC; a tie between them goes to the later one.
+  assert.deepEqual(lordHowe('2026-04-04T14:40:00Z', '2026-04-04T14:45:00Z', 60), ['2026-04-04T14:00:00.000Z', '2026-04-04T15:00:00.000Z']);
+  assert.deepEqual(lordHowe('2026-04-04T15:10:00Z', '2026-04-04T15:15:00Z', 60), ['2026-04-04T15:30:00.000Z', '2026-04-04T16:30:00.000Z']);
+  assert.deepEqual(lordHowe('2026-04-04T14:45:00Z', '2026-04-04T14:50:00Z', 60), ['2026-04-04T15:30:00.000Z', '2026-04-04T16:30:00.000Z']);
+  // Local 01:30 happens twice, at 14:30 and 15:00 UTC, and both are on the grid at 30.
+  assert.deepEqual(lordHowe('2026-04-04T14:50:00Z', '2026-04-04T14:55:00Z', 30), ['2026-04-04T15:00:00.000Z', '2026-04-04T15:30:00.000Z']);
+  assert.deepEqual(lordHowe('2026-04-04T14:35:00Z', '2026-04-04T14:40:00Z', 30), ['2026-04-04T14:30:00.000Z', '2026-04-04T15:00:00.000Z']);
+});
+
 test('only divisors of 60 are resolutions, and a stop before the start is refused', () => {
   for (const minutes of [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]) assert.equal(isTimeResolution(minutes), true, String(minutes));
   for (const minutes of [0, -5, 7, 45, 90, 120, 2.5, Number.NaN]) assert.equal(isTimeResolution(minutes), false, String(minutes));
