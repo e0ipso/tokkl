@@ -36,6 +36,12 @@ else
     esac
     output="tty"
 fi
+# user@.service runs the systemd-user PAM stack, whose pam_unix account check
+# reads /etc/shadow through the setuid helper unix_chkpwd. On GitHub's rootful
+# Docker that helper cannot open /etc/shadow, so the user manager fails with
+# 224/PAM. This container is thrown away after the check, so move the shadow
+# entries back into /etc/passwd and let pam_unix skip the shadow lookup.
+pwunconv
 install -d /var/lib/systemd/linger /etc/systemd/system/user@.service.d
 touch /var/lib/systemd/linger/builder
 printf "%s\n" "[Service]" "Environment=XDG_RUNTIME_DIR=/run/user/%i" \
