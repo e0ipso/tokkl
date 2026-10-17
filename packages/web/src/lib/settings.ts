@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMe, usePreferences } from '../api/hooks.ts';
 import type { DurationFormat } from '../api/types.ts';
 import { formatDuration } from '@tokkl/common/duration';
+import { snapSpan } from '@tokkl/common/snap';
 import { addDays, dateKey, parseDateKey, zonedParts } from '@tokkl/common/time';
 
 export interface Settings {
@@ -12,6 +13,8 @@ export interface Settings {
   beginningOfWeek: number;
   collapseSimilar: boolean;
   shortcuts: boolean;
+  /** Minutes every saved entry's duration is a multiple of, from the instance settings. */
+  timeResolution: number;
 }
 
 export function useSettings(): Settings {
@@ -25,6 +28,7 @@ export function useSettings(): Settings {
     beginningOfWeek: me?.beginning_of_week ?? 1,
     collapseSimilar: prefs?.collapseTimeEntries ?? true,
     shortcuts: prefs?.keyboard_shortcuts_enabled ?? true,
+    timeResolution: me?.time_resolution_minutes ?? 1,
   };
 }
 
@@ -94,6 +98,19 @@ export function duration(seconds: number, settings: Pick<Settings, 'durationForm
 export function entrySeconds(entry: { start: string; stop: string | null }, now: Date): number {
   const end = entry.stop ? Date.parse(entry.stop) : now.getTime();
   return Math.max(0, Math.floor((end - Date.parse(entry.start)) / 1000));
+}
+
+/**
+ * Seconds the server will store for a stopped entry from `start` to `stop`: both cut to whole
+ * seconds, then snapped to the time resolution. Use it to preview an entry before saving; a saved
+ * entry already holds its snapped times, and a running timer shows real seconds (`entrySeconds`).
+ */
+export function snappedSeconds(start: Date, stop: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>): number {
+  const from = Math.floor(start.getTime() / 1000) * 1000;
+  const to = Math.floor(stop.getTime() / 1000) * 1000;
+  if (to <= from) return 0;
+  const span = snapSpan(new Date(from), new Date(to), settings.timeResolution, settings.timeZone);
+  return (span.stop.getTime() - span.start.getTime()) / 1000;
 }
 
 export function formatMoney(cents: number, currency: string): string {

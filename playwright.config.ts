@@ -36,7 +36,7 @@ if (!dataDir) {
 // change instance settings, compare screenshots of the admin page, or start disposable servers on
 // the fixed ports E2E_PORT + 50 to + 59. They run one at a time on their own server, alongside the
 // parallel project.
-const INSTANCE_SPECS = /\/(admin-page|visual|worker-accounts|auth-(access|browser|invite|reset|sessions|token))\.spec\.ts$/;
+const INSTANCE_SPECS = /\/(admin-page|timer-resolution|visual|worker-accounts|auth-(access|browser|invite|reset|sessions|token))\.spec\.ts$/;
 
 function server(serverPort: number, serverDataDir: string) {
   return {

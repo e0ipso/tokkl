@@ -4,7 +4,7 @@ import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { addDays } from '@tokkl/common/time';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
-import { entrySeconds, formatTime, minutesOfDay, useNow, useSettings } from '../lib/settings.ts';
+import { entrySeconds, formatTime, minutesOfDay, snappedSeconds, useNow, useSettings } from '../lib/settings.ts';
 import { parseTimeOfDay } from '../lib/timeOfDay.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
@@ -25,7 +25,10 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const [day, setDay] = useState(localDay(entry.start, settings.timeZone));
   const [startText, setStartText] = useState(formatTime(entry.start, settings));
   const [endText, setEndText] = useState(entry.stop ? formatTime(entry.stop, settings) : '');
-  const [durationText, setDurationText] = useState(formatDuration(entrySeconds(entry, now)));
+  // Saving snaps the entry to the time resolution, so the duration shows the snapped length.
+  const [durationText, setDurationText] = useState(formatDuration(
+    entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : entrySeconds(entry, now),
+  ));
   // What the fields showed when the editor opened, and the duration last derived from start/end.
   // Times are typed to the minute, so unchanged fields must not be sent back: that would drop the
   // seconds, or pick the wrong hour when a DST change makes a wall time ambiguous.
@@ -62,7 +65,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
 
   const syncDuration = (next: { start: Date; stop: Date | null } | null) => {
     if (!next?.stop || (!startChanged && !endChanged)) return;
-    const text = formatDuration((next.stop.getTime() - next.start.getTime()) / 1000);
+    const text = formatDuration(snappedSeconds(next.start, next.stop, settings));
     setDurationText(text);
     setSyncedDuration(text);
   };
@@ -72,7 +75,9 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     const seconds = parseDuration(durationText);
     if (seconds === null || !range) return;
     const start = startChanged ? range.start : new Date(entry.start);
-    setEndText(formatTime(new Date(start.getTime() + seconds * 1000), settings));
+    const stop = new Date(start.getTime() + seconds * 1000);
+    setEndText(formatTime(stop, settings));
+    setDurationText(formatDuration(snappedSeconds(start, stop, settings)));
   };
 
   const save = async () => {
@@ -116,17 +121,24 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     }
   };
 
-  const split = async () => {
-    if (!entry.stop) return;
-    const minutes = parseTimeOfDay(splitText, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
-    if (minutes === null) return void fields.validate([['split', 'Enter a split time like 10:30']]);
+  /** The instant a typed split time names inside a stopped entry, or why it names none. */
+  const splitPoint = (text: string, stop: string): Date | 'unreadable' | 'outside' => {
+    const minutes = parseTimeOfDay(text, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
+    if (minutes === null) return 'unreadable';
     const startDay = localDay(entry.start, settings.timeZone);
     let at = instantAt(startDay, minutes, settings.timeZone);
     // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
     // DST shift when the clocks change that night.
     if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
-    const outside = at <= new Date(entry.start) || at >= new Date(entry.stop);
-    if (!fields.validate([['split', outside && 'The split time must fall inside the entry']])) return;
+    return at <= new Date(entry.start) || at >= new Date(stop) ? 'outside' : at;
+  };
+  const splitAt = entry.stop ? splitPoint(splitText, entry.stop) : null;
+
+  const split = async () => {
+    if (!entry.stop) return;
+    const at = splitPoint(splitText, entry.stop);
+    const problem = at === 'unreadable' ? 'Enter a split time like 10:30' : at === 'outside' && 'The split time must fall inside the entry';
+    if (!fields.validate([['split', problem]]) || !(at instanceof Date)) return;
     try {
       // Create the second half first: if that fails, the original entry is untouched.
       const second = await create.mutateAsync({
@@ -234,6 +246,13 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
                 <Icon name="split" size={16} /> Split
               </button>
             </div>
+            {splitAt instanceof Date && entry.stop ? (
+              // Each half is snapped to the time resolution when it is saved.
+              <p className="hint">
+                Splits into {formatDuration(snappedSeconds(new Date(entry.start), splitAt, settings))} and{' '}
+                {formatDuration(snappedSeconds(splitAt, new Date(entry.stop), settings))}.
+              </p>
+            ) : null}
             {fields.message('split')}
           </div>
         ) : null}
