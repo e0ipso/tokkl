@@ -208,12 +208,17 @@ function settleSpan(db: Db, user: UserRow, draft: Draft, exact: boolean): void {
  * Stores the stop of a running entry at `at`, or at its start if `at` is earlier, snapped to the
  * instance resolution. The stored stop lands up to half a step before `at` or up to one and a half
  * steps after it, because the start moves to the nearest grid point and the duration rounds up.
+ *
+ * A timer left running past the 999-hour cap stops at the cap instead of failing. A failed stop
+ * would leave it running, and every new timer would fail too, because starting one stops it. 999
+ * hours is a multiple of every resolution, so the clamped span stays on the grid.
  */
 function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date): void {
   const start = new Date(entry.start);
   const span = snapToResolution(db, user, start, at < start ? start : at);
+  const stop = Math.min(span.stop.getTime(), span.start.getTime() + MAX_DURATION_SECONDS * 1000);
   db.prepare('UPDATE time_entries SET start = ?, stop = ?, updated_at = ? WHERE id = ?')
-    .run(isoSeconds(span.start), isoSeconds(span.stop), nowIso(), entry.id);
+    .run(isoSeconds(span.start), isoSeconds(new Date(stop)), nowIso(), entry.id);
 }
 
 /** Stops whatever is running so a new running entry can take its place. */
@@ -402,7 +407,7 @@ function operationToBody(operation: PatchOperation): Record<string, unknown> {
   if (field === 'tags' || field === 'tag_ids') {
     const action = operation.op === 'add' ? 'add' : operation.op === 'remove' ? 'delete' : undefined;
     const value = operation.op === 'remove' && operation.value === undefined ? null : operation.value;
-    if (value === null) return { [field]: [], tag_action: undefined, clearTags: true };
+    if (value === null) return { [field]: [] };
     return { [field]: value, tag_action: action };
   }
   if (operation.op === 'remove') {
@@ -428,16 +433,7 @@ export function patchTimeEntries(
     try {
       for (const raw of operations as PatchOperation[]) {
         if (!raw || typeof raw.op !== 'string' || typeof raw.path !== 'string') throw badRequest('Invalid patch operation');
-        const body = operationToBody(raw);
-        if (body.clearTags) {
-          delete body.clearTags;
-          const current = getTimeEntry(db, user.id, id);
-          if (current.workspace_id !== wid) throw notFound('Time entry not found');
-          saveTags(db, id, []);
-          db.prepare('UPDATE time_entries SET updated_at = ? WHERE id = ?').run(nowIso(), id);
-          continue;
-        }
-        updateTimeEntry(db, user, wid, id, body);
+        updateTimeEntry(db, user, wid, id, operationToBody(raw));
       }
       db.exec('RELEASE patch_entry');
       success.push(id);

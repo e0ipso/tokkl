@@ -492,6 +492,43 @@ test('the 999-hour cap applies to the snapped duration', async () => {
   assert.equal(updated.body, 'Time entries can not be longer than 999 hours');
 });
 
+test('a timer left running past 999 hours stops at the cap, by hand or by a new timer', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const longAgo = new Date(Math.floor(Date.now() / 1000) * 1000 - 1000 * 3600 * 1000).toISOString();
+
+  const byHand = await ctx.json('POST', url, { start: longAgo, duration: -1 });
+  const stopped = await ctx.json('PATCH', `${url}/${byHand.body.id}/stop`);
+  assert.equal(stopped.status, 200);
+  assert.equal(stopped.body.duration, 999 * 3600);
+  assert.equal((Date.parse(stopped.body.start) / 1000) % 300, 0);
+  assertStored(ctx, stopped.body, stopped.body.start, stopped.body.stop);
+
+  const forgotten = await ctx.json('POST', url, { start: longAgo, duration: -1 });
+  const next = await ctx.json('POST', url, { start: new Date().toISOString(), duration: -1 });
+  assert.equal(next.status, 200);
+  assert.equal(next.body.stop, null);
+  const old = (await ctx.json('GET', `/api/v9/me/time_entries/${forgotten.body.id}`)).body;
+  assert.equal(old.duration, 999 * 3600);
+  assertStored(ctx, old, old.start, old.stop);
+});
+
+test('bulk PATCH that removes every tag snaps the span like any other edit', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  for (const path of ['/tags', '/tag_ids']) {
+    const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 600, tags: ['client'] });
+    ctx.db.prepare('UPDATE time_entries SET start = ?, stop = ? WHERE id = ?')
+      .run('2026-10-14T09:02:31.000Z', '2026-10-14T09:13:07.000Z', entry.body.id);
+
+    const patched = await ctx.json('PATCH', `${url}/${entry.body.id}`, [{ op: 'remove', path }]);
+    assert.deepEqual(patched.body, { success: [entry.body.id], failure: [] }, path);
+    const read = (await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body;
+    assert.deepEqual(read.tags, [], path);
+    assertStored(ctx, read, '2026-10-14T09:05:00+00:00', '2026-10-14T09:20:00+00:00');
+  }
+});
+
 test('an entry stored off the grid stays as it is until it is edited', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
