@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/e0ipso/tokkl/compare/v1.2.0...v1.2.1) (2026-10-17)
+
+### Bug Fixes
+
+* **api:** restore Toggl request compatibility ([91f479d](https://github.com/e0ipso/tokkl/commit/91f479d7cd5d0d8b30b154d7a74c794fda98f559))
+* **web:** explicitly restore a client's projects ([4692799](https://github.com/e0ipso/tokkl/commit/46927994f6c9fcb4d41ef92c1b6c7ebca2aa4317))
+
 ## [1.2.0](https://github.com/e0ipso/tokkl/compare/v1.1.0...v1.2.0) (2026-10-17)
 
 ### Features
