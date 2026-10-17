@@ -103,7 +103,7 @@ export function ClientsPage() {
     },
   });
   const restore = useAction<Client>({
-    mutationFn: (client) => api.post(wsPath(wid, 'clients', client.id, 'restore')),
+    mutationFn: (client) => api.post(wsPath(wid, 'clients', client.id, 'restore'), { restore_all_projects: true }),
     invalidate: CLIENT_KEYS,
     success: (_result, client) => `Restored ${client.name} and its projects`,
     // The menu button that ran the action had focus; keep it in the list unless the user has moved on.
