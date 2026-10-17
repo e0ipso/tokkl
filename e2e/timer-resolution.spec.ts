@@ -1,5 +1,5 @@
 import { expect, test } from './admin-tests-helpers.ts';
-import { login } from './helpers.ts';
+import { login, loginAs } from './helpers.ts';
 import { TimerApi, instant, madridWallClock } from './timer-tests-helpers.ts';
 
 // The time resolution belongs to the whole server, so these scenarios run in the instance project.
@@ -100,4 +100,26 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
     .map((entry) => [instant(entry.start), instant(entry.stop)])
     .sort(([a], [b]) => a! - b!);
   expect(halves).toEqual([[start, start + 30 * MINUTE], [start + 30 * MINUTE, start + 75 * MINUTE]]);
+});
+
+test('across a half-hour clock change the stored start stays on the local hour grid', async ({ page, data, users }) => {
+  await data.saveInstanceSettings({ time_resolution_minutes: 60 });
+  // Lord Howe Island springs forward from 02:00 (UTC+10:30) to 02:30 (UTC+11) on 2026-10-04, so
+  // local 02:30 is off the hour grid and the grid point nearest 01:50 is 03:00.
+  const user = await users.create({ timezone: 'Australia/Lord_Howe' });
+  await loginAs(page, user.account);
+  const api = await TimerApi.open(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+
+  await timer.getByRole('button', { name: 'Manual mode' }).click();
+  await timer.getByLabel('Description').fill('Island call');
+  await timer.getByLabel('Date').fill('2026-10-04');
+  await timer.getByLabel('Start time').fill('1:50');
+  await timer.getByLabel('End time').fill('1:55');
+  await expect(timer.locator('.manual-duration')).toHaveText('1:00:00');
+  await timer.getByRole('button', { name: 'Add entry' }).click();
+  await expect(page.getByText('Added 1:00:00')).toBeVisible();
+  const saved = (await api.entries()).find((entry) => entry.description === 'Island call')!;
+  expect([instant(saved.start), instant(saved.stop)]).toEqual([Date.parse('2026-10-03T16:00:00Z'), Date.parse('2026-10-03T17:00:00Z')]);
+  await expect(timer.getByLabel('Start time')).toHaveValue('04:00');
 });

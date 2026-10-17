@@ -56,6 +56,11 @@ export class TimerApi {
     return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, created_with: 'e2e' } })));
   }
 
+  /** Seeds a running entry, as another device that started a timer at `start` would. */
+  async startTimer(entry: Partial<Metadata> & { start: string }): Promise<EntryView> {
+    return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, duration: -1, created_with: 'e2e' } })));
+  }
+
   async current(): Promise<EntryView | null> {
     const entry = await ok<EntryView | null>(await this.page.request.get('/api/v9/me/time_entries/current'));
     return entry ? view(entry) : null;

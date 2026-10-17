@@ -53,6 +53,8 @@ export interface NewUser {
   /** Defaults to a unique address, so leftovers from a failed run never collide. */
   email?: string;
   fullname?: string;
+  /** IANA zone of the account; defaults to Europe/Madrid, like the worker accounts. */
+  timezone?: string;
 }
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
@@ -162,7 +164,7 @@ export class TestData {
     const api = await request.newContext({ baseURL: this.baseURL });
     try {
       await ok(await api.post(url.replace(/^\/invite\//, '/api/app/invites/'), {
-        headers: CSRF, data: { ...account, timezone: 'Europe/Madrid' },
+        headers: CSRF, data: { ...account, timezone: options.timezone ?? 'Europe/Madrid' },
       }));
       return await TestData.signedIn(api, this.baseURL, account);
     } catch (error) {

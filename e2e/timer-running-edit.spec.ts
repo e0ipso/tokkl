@@ -1,8 +1,9 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-import { instant, madridWallClock, metadataOf, nextRunning, TimerApi } from './timer-tests-helpers.ts';
+import { expectSnapped, instant, madridWallClock, metadataOf, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
 // A running entry is edited in place (docs/PRD.md T6): same ID, still running, every field kept.
+// A timer forgotten past the 999-hour cap still stops, at the cap.
 
 test('editing a running entry keeps its ID, leaves it running and survives reload', async ({ page }) => {
   await login(page);
@@ -162,4 +163,22 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
   expect(all.map((entry) => entry.id)).toEqual([running.id]);
   expect(metadataOf(all[0]!)).toEqual({ description: 'Focus block two', project_id: null, task_id: null, tags: ['remote'], billable: false });
   expect(all[0]!.stop).toBeNull();
+});
+
+test('a timer left running past 999 hours stops at the cap instead of failing', async ({ page, data }) => {
+  const step = (await data.me()).time_resolution_minutes * 60_000;
+  await login(page);
+  const api = await TimerApi.open(page);
+  const start = new Date(Date.now() - 1000 * 3_600_000).toISOString();
+  const forgotten = await api.startTimer({ description: 'Forgotten', start });
+  await page.reload();
+
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await expect(timer.getByRole('button', { name: /elapsed, edit start time$/ })).toHaveText(/^1000:00:\d\d$/);
+  await timer.getByRole('button', { name: 'Stop timer' }).click();
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  expect(await api.current()).toBeNull();
+  const saved = (await api.entries()).find((entry) => entry.id === forgotten.id)!;
+  expectSnapped(saved, start, step);
+  expect(instant(saved.stop) - instant(saved.start)).toBe(999 * 3_600_000);
 });
