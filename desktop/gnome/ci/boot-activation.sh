@@ -23,7 +23,7 @@ echo "== booting systemd"
 uid="$(id -u builder)"
 # The check prints to the terminal init inherits. In a privileged container
 # /dev/console can be the host's console rather than this terminal.
-console="$(readlink -f /proc/self/fd/1)"
+console="$(readlink -f "/proc/$$/fd/1")"
 case "$console" in
     /dev/pts/*|/dev/tty*) ;;
     *) console=/dev/console ;;
