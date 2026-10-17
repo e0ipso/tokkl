@@ -4,13 +4,25 @@ import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { addDays } from '@tokkl/common/time';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
-import { entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, useNow, useSettings } from '../lib/settings.ts';
+import {
+  entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, snappedSplit, useNow, useSettings, type SplitHalves,
+} from '../lib/settings.ts';
 import { parseTimeOfDay } from '../lib/timeOfDay.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { Modal } from './Overlay.tsx';
 import { ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
+
+const SPLIT_PROBLEMS = {
+  unreadable: 'Enter a split time like 10:30',
+  outside: 'The split time must fall inside the entry',
+  'clock-change': 'The clocks change during this entry, so it can\'t be split at that time',
+} as const;
+
+function spanSeconds(span: { start: Date; stop: Date }): number {
+  return (span.stop.getTime() - span.start.getTime()) / 1000;
+}
 
 /** Full editor for one entry: every field, plus duplicate, split and delete. */
 export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () => void }) {
@@ -122,11 +134,11 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   };
 
   /**
-   * Where a typed split time cuts a stopped entry, or why it cuts nowhere. The time moves to the
-   * nearest grid point of the time resolution, so both halves keep it as their shared boundary
-   * when the server snaps them; the entry's own start and stop stay as they are.
+   * The halves a typed split time cuts a stopped entry into, as the server will store them, or why
+   * it cuts nowhere. The time moves to the nearest grid point of the time resolution, so both halves
+   * keep it as their shared boundary when the server snaps them.
    */
-  const splitPoint = (text: string, stop: string): Date | 'unreadable' | 'outside' => {
+  const splitHalves = (text: string, stop: string): SplitHalves | 'unreadable' | 'outside' | 'clock-change' => {
     const minutes = parseTimeOfDay(text, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
     if (minutes === null) return 'unreadable';
     const startDay = localDay(entry.start, settings.timeZone);
@@ -134,26 +146,26 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
     // DST shift when the clocks change that night.
     if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
-    at = snappedInstant(at, settings);
-    return at <= new Date(entry.start) || at >= new Date(stop) ? 'outside' : at;
+    return snappedSplit(new Date(entry.start), new Date(stop), snappedInstant(at, settings), settings);
   };
-  const splitAt = entry.stop ? splitPoint(splitText, entry.stop) : null;
+  const halves = entry.stop ? splitHalves(splitText, entry.stop) : null;
 
   const split = async () => {
     if (!entry.stop) return;
-    const at = splitPoint(splitText, entry.stop);
-    const problem = at === 'unreadable' ? 'Enter a split time like 10:30' : at === 'outside' && 'The split time must fall inside the entry';
-    if (!fields.validate([['split', problem]]) || !(at instanceof Date)) return;
+    const result = splitHalves(splitText, entry.stop);
+    const problem = typeof result === 'string' && SPLIT_PROBLEMS[result];
+    if (!fields.validate([['split', problem]]) || typeof result === 'string') return;
+    const { first, second } = result;
     try {
       // Create the second half first: if that fails, the original entry is untouched.
-      const second = await create.mutateAsync({
+      const created = await create.mutateAsync({
         description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-        billable: entry.billable, start: at.toISOString(), stop: entry.stop,
+        billable: entry.billable, start: second.start.toISOString(), stop: second.stop.toISOString(),
       });
       try {
-        await update.mutateAsync({ id: entry.id, stop: at.toISOString() });
+        await update.mutateAsync({ id: entry.id, start: first.start.toISOString(), stop: first.stop.toISOString() });
       } catch (error) {
-        await remove.mutateAsync(second.id).catch(() => undefined);
+        await remove.mutateAsync(created.id).catch(() => undefined);
         throw error;
       }
       toast.show('Entry split in two');
@@ -251,11 +263,9 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
                 <Icon name="split" size={16} /> Split
               </button>
             </div>
-            {splitAt instanceof Date && entry.stop ? (
-              // Each half is snapped to the time resolution when it is saved.
+            {halves !== null && typeof halves !== 'string' ? (
               <p className="hint">
-                Splits into {formatDuration(snappedSeconds(new Date(entry.start), splitAt, settings))} and{' '}
-                {formatDuration(snappedSeconds(splitAt, new Date(entry.stop), settings))}.
+                Splits into {formatDuration(spanSeconds(halves.first))} and {formatDuration(spanSeconds(halves.second))}.
               </p>
             ) : null}
             {fields.message('split')}
