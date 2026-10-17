@@ -92,7 +92,12 @@ class Timer1 {
         if (state.Running || (projectId !== 0 && !state.Projects.some(p => p.id === projectId)))
             return false;
         const project = state.Projects.find(p => p.id === projectId);
-        set({ChosenProject: projectId, Billable: project ? project.billable : false});
+        set({
+            ChosenProject: projectId,
+            Billable: project ? project.billable : false,
+            IndicatorState: project ? 'project' : 'none',
+            IndicatorColor: project ? project.color : '',
+        });
         return true;
     }
 

@@ -2,3 +2,9 @@
 .tokkl-elapsed {
   font-feature-settings: "tnum";
 }
+
+/* The project indicator's slot, the size of a top bar icon. */
+.tokkl-project-indicator {
+  width: 16px;
+  height: 16px;
+}

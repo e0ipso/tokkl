@@ -26,7 +26,7 @@ The extension needs GNOME Shell 46, 47, 48, 49, 50 or 51. Pack it, install the p
 
 ```sh
 gnome-extensions pack desktop/gnome/extension --force --out-dir=/tmp \
-    --extra-source=indicator.js --extra-source=timer1.js
+    --extra-source=indicator.js --extra-source=projectindicator.js --extra-source=timer1.js
 gnome-extensions install --force /tmp/tokkl@e0ipso.github.com.shell-extension.zip
 ```
 
@@ -48,6 +48,8 @@ The extension keeps the instance URL, sign-in method and email that the service 
 
 The button shows the running entry's elapsed time, or `0:00:00` while stopped. While the service is loading or saving, the time ends with `…`. When the service is not configured, offline, refused or failing, or not running at all, the time ends with `!` and the first menu lines say why.
 
+Before the time sits the project indicator, for the running entry's project or the next start's while stopped, drawn as the KDE panel draws it. A dot pulses while an entry runs and a still square shows while stopped. The project's colour fills it inside a thin ring in the top bar's text colour, which keeps the ring at the top bar's own text contrast whatever the project colour: 21:1 on the dark top bar and at least 13.5:1 on the light one in GNOME Shell 46 to 51. A project whose colour is not `#rrggbb` is filled with the text colour. No project draws a dashed outline of the dot or the square, and while the project is still being read the slot stays empty. The slot has the same size in every state, so the time never moves. Only the dot's fill pulses; the ring and the dashed outline stay solid. The pulse stops when animations are off: the Reduce Animation setting (`org.gnome.desktop.interface enable-animations`), or GNOME Shell turning them off itself, for example when it renders in software. The indicator's accessible name, and the button's, name the project or say No project, so the colour is never the only sign.
+
 Click the time to start a stopped timer or stop a running one. Right-click, or tap on a touch screen, for the menu. From the keyboard, focus the top bar (Ctrl+Alt+Tab) and press Space, Return or Down on the button: the menu opens, and Start or Stop is its first item.
 
 - Project sets the project of the next start. It is locked while an entry runs, because the service refuses to change it then: stop the entry and start a new one.
@@ -62,7 +64,7 @@ Two Shell differences matter to the button. From 50 on, the panel button opens i
 
 ## Check it
 
-`extension/timer1.js` holds the parts that need no GNOME Shell: the interface the extension expects, elapsed time and the status words. Node runs its tests, and `npm test` includes them:
+`extension/timer1.js` and `extension/projectindicator.js` hold the parts that need no GNOME Shell: the interface the extension expects, elapsed time, the status words and what the project indicator draws. Node runs its tests, and `npm test` includes them:
 
 ```sh
 node --test 'desktop/gnome/extension/**/*.test.js'

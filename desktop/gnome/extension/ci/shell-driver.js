@@ -105,6 +105,21 @@ export function panelButton(uuid) {
         menuOpen: () => shell(`${button}.menu.isOpen`),
         sensitive: item => shell(`${button}.${item}.sensitive`),
 
+        // What the project indicator shows, and the state of its actors.
+        indicator: () => shell(`(() => {
+            const indicator = ${button}._projectIndicator;
+            return {
+                ...indicator.shape,
+                accessibleName: indicator.accessible_name,
+                fillShown: indicator._fill.visible,
+                edgeShown: indicator._edge.visible,
+                fillOpacity: indicator._fill.opacity,
+                edgeOpacity: indicator._edge.opacity,
+                width: indicator.width,
+                height: indicator.height,
+            };
+        })()`),
+
         async pointAtButton() {
             await waitFor('the pointer over the button', () => {
                 shell(`(() => {${pointerCode}})()`);
@@ -133,4 +148,18 @@ export function panelButton(uuid) {
             keyboard.notify_keyval(GLib.get_monotonic_time(), Clutter.${keyval}, Clutter.KeyState.RELEASED);
         })()`),
     };
+}
+
+// The WCAG 2 contrast ratio of two colours with red, green and blue from 0
+// to 255.
+export function contrastRatio(a, b) {
+    const luminance = ({red, green, blue}) => {
+        const linear = channel => {
+            const value = channel / 255;
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        };
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue);
+    };
+    const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (light + 0.05) / (dark + 0.05);
 }

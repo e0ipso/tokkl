@@ -7,7 +7,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {exit, programArgs} from 'system';
-import {call, delay, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
+import {call, contrastRatio, delay, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
 
 const [uuid, mockTimer, timer1Xml] = programArgs;
 
@@ -18,8 +18,25 @@ const mockSet = (name, value) => call('org.tokkl.Timer1', '/org/tokkl/Timer1', '
 
 const checks = steps();
 const {step} = checks;
-const {button, label, menuOpen, sensitive, pointAtButton, click, press} = panelButton(uuid);
+const {button, label, menuOpen, sensitive, indicator, pointAtButton, click, press} = panelButton(uuid);
 const lastCall = () => mockCalls().at(-1) ?? [];
+const interfaceSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
+const setInterface = (method, key, value) => {
+    interfaceSettings[method](key, value);
+    Gio.Settings.sync();
+};
+
+// Waits until the indicator matches every field of expected.
+const indicatorIs = (what, expected) => waitFor(what, () => {
+    const shown = indicator();
+    return Object.entries(expected).every(([key, value]) => shown[key] === value) || shown;
+});
+let slot = null;
+const sameSlot = () => {
+    const {width, height} = indicator();
+    if (width !== slot.width || height !== slot.height)
+        throw new Error(`the slot is ${width}x${height}, not ${slot.width}x${slot.height}`);
+};
 
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
@@ -30,9 +47,25 @@ await step('without the service the button says it is not running', async () => 
         throw new Error(`status: ${status}`);
 });
 
+await step('without the service the indicator slot is empty and unnamed', async () => {
+    await indicatorIs('an empty slot', {kind: 'empty', fillShown: false, edgeShown: false, accessibleName: ''});
+    slot = indicator();
+    if (!(slot.width > 0 && slot.height > 0))
+        throw new Error(`the slot is ${slot.width}x${slot.height}`);
+});
+
 await step('the button follows a service that starts later', async () => {
     Gio.Subprocess.new(['gjs', '-m', mockTimer, timer1Xml], Gio.SubprocessFlags.NONE);
     await waitFor('the ready time', () => label() === '0:00:00' || label());
+});
+
+await step('no project is a dashed square outline named No project', async () => {
+    await indicatorIs('an outline', {kind: 'outline', round: false, fillShown: false, edgeShown: true,
+        accessibleName: 'No project', pulsing: false});
+    sameSlot();
+    const name = shell(`${button}.accessible_name`);
+    if (!name.includes('No project'))
+        throw new Error(`button name: ${name}`);
 });
 
 await step('a primary click starts the timer through the service', async () => {
@@ -50,6 +83,12 @@ await step('the panel shows the elapsed time from StartTime', async () => {
     await waitFor('1:02:0x', () => /^1:02:0[5-9]$/.test(label()) || label());
     const first = label();
     await waitFor('a tick', () => label() !== first || label(), 3000);
+});
+
+await step('a running entry without a project is a round outline that does not pulse', async () => {
+    await indicatorIs('a round outline', {kind: 'outline', round: true, pulsing: false, fillShown: false,
+        edgeShown: true});
+    sameSlot();
 });
 
 await step('the project is locked while running, billable is not', async () => {
@@ -75,6 +114,101 @@ await step('a stopped timer lets the menu choose the project', async () => {
     await waitFor('SetProject 7', () => lastCall()[0] === 'SetProject' && lastCall()[1] === 7 || mockCalls());
     await waitFor('the title', () => shell(`${button}._projectMenu.label.text`) === 'Project: Website (Acme)' ||
         shell(`${button}._projectMenu.label.text`));
+});
+
+await step('a chosen project fills a still square with its colour', async () => {
+    await indicatorIs('a filled square', {kind: 'filled', round: false, color: '#3366cc', pulsing: false,
+        fillShown: true, edgeShown: true, fillOpacity: 255, accessibleName: 'Website (Acme)'});
+    sameSlot();
+    const name = shell(`${button}.accessible_name`);
+    if (!name.includes('Website (Acme)'))
+        throw new Error(`button name: ${name}`);
+});
+
+// GNOME Shell turns animations off when it renders in software, as in these
+// containers. The pulse checks lift that for themselves and restore it.
+const animations = () => shell('imports.gi.St.Settings.get().enable_animations');
+let uninhibited = false;
+
+await step('the running dot pulses its fill, and the ring stays opaque', async () => {
+    setInterface('set_boolean', 'enable-animations', true);
+    click(1);
+    await indicatorIs('a running dot', {kind: 'filled', round: true});
+    if (!animations()) {
+        if (indicator().pulsing)
+            throw new Error('the dot pulses while GNOME Shell has animations off');
+        shell('imports.gi.St.Settings.get().uninhibit_animations()');
+        uninhibited = true;
+    }
+    await indicatorIs('a pulsing dot', {kind: 'filled', round: true, pulsing: true});
+    await waitFor('a faded fill', () => indicator().fillOpacity < 160 || indicator());
+    await waitFor('the fill back up', () => indicator().fillOpacity > 200 || indicator());
+    if (indicator().edgeOpacity !== 255)
+        throw new Error(`the ring faded: ${JSON.stringify(indicator())}`);
+    sameSlot();
+});
+
+await step('with enable-animations off the dot stays steady', async () => {
+    setInterface('set_boolean', 'enable-animations', false);
+    try {
+        await indicatorIs('a steady dot', {round: true, pulsing: false, fillOpacity: 255});
+        for (let sample = 0; sample < 10; sample++) {
+            await delay(100);
+            if (indicator().fillOpacity !== 255)
+                throw new Error(`the fill moved: ${JSON.stringify(indicator())}`);
+        }
+    } finally {
+        setInterface('reset', 'enable-animations');
+    }
+    await indicatorIs('the pulse again', {pulsing: true});
+});
+
+if (uninhibited)
+    shell('imports.gi.St.Settings.get().inhibit_animations()');
+
+await step('a stopped timer turns the dot into a still square', async () => {
+    click(1);
+    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
+    await indicatorIs('a still square', {kind: 'filled', round: false, pulsing: false, fillOpacity: 255});
+});
+
+await step('a project still being read leaves the slot empty', async () => {
+    mockSet('IndicatorColor', new GLib.Variant('s', ''));
+    mockSet('IndicatorState', new GLib.Variant('s', 'pending'));
+    await indicatorIs('an empty slot', {kind: 'empty', fillShown: false, edgeShown: false});
+    sameSlot();
+    mockSet('IndicatorState', new GLib.Variant('s', 'project'));
+    mockSet('IndicatorColor', new GLib.Variant('s', '#3366cc'));
+    await indicatorIs('the filled square', {kind: 'filled', color: '#3366cc'});
+});
+
+await step('the ring keeps 3:1 against the top bar in light and dark styles', async () => {
+    // The top bar is see-through in the overview, which GNOME Shell shows
+    // at startup.
+    shell('Main.overview.hide()');
+    await waitFor('the session top bar', () => shell('Main.overview.visible') === false);
+    const results = [];
+    try {
+        for (const scheme of ['default', 'prefer-light', 'prefer-dark']) {
+            setInterface('set_string', 'color-scheme', scheme);
+            await delay(500);
+            const colours = shell(`(() => {
+                const plain = color => ({red: color.red, green: color.green, blue: color.blue, alpha: color.alpha});
+                return {
+                    ring: plain(${button}._projectIndicator._edge.get_theme_node().get_foreground_color()),
+                    bar: plain(Main.panel.get_theme_node().get_background_color()),
+                };
+            })()`);
+            const ratio = contrastRatio(colours.ring, colours.bar);
+            results.push(`${scheme}: ring ${JSON.stringify(colours.ring)} on ${JSON.stringify(colours.bar)} ` +
+                `${ratio.toFixed(2)}:1`);
+            if (colours.bar.alpha !== 255 || ratio < 3)
+                throw new Error(results.join('; '));
+        }
+    } finally {
+        setInterface('reset', 'color-scheme');
+    }
+    print(`# ${results.join('; ')}`);
 });
 
 await step('a change from the service sends nothing back', async () => {
