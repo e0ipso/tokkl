@@ -4,7 +4,7 @@
 # it links, and that the first call to org.tokkl.Timer1 starts it, on a plain
 # dbus-daemon and then through the systemd user unit. It changes the
 # system's packages, so scripts/container-check.sh runs it in a privileged
-# throwaway container of the target (Ubuntu 26.04 or Fedora 44) with the
+# throwaway container of the target (Debian 13 or Fedora 44) with the
 # repository at /repo, as root. The last step boots systemd as process 1;
 # the container exits with the result of the activation check.
 #

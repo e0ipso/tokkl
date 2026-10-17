@@ -30,8 +30,8 @@ set_tests_properties(kdeconnection kdewallet-disabled PROPERTIES
 # from tokklcore, wired to the fakes of desktop/core; the test never loads
 # main.qml, the real connection, KDE Wallet or a plugin copy of the backend.
 # Kept out of bin/, where the build-tree backend module lives.
-# KF6::KirigamiPlatform, which find_package(Plasma) brings in, lets the
-# fixture set Kirigami.Units.longDuration for the reduced-motion test.
+# KF6::KirigamiPlatform lets the fixture set Kirigami.Units.longDuration for
+# the reduced-motion test.
 set(_panel_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-panel")
 ecm_add_test(panelquicktest.cpp
     TEST_NAME panel

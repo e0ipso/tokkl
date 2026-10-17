@@ -10,7 +10,7 @@
 
 cmake_minimum_required(VERSION 3.27...3.31)
 
-set(TOKKL_QT_MIN_VERSION "6.10.0")
+set(TOKKL_QT_MIN_VERSION "6.8.0")
 
 # The shared desktop core (tokklcore and its tests). Package builds point
 # this at the copy next to their source tree.

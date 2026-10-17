@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.27...3.31)
 
-set(TOKKL_CORE_QT_MIN_VERSION "6.10.0")
+set(TOKKL_CORE_QT_MIN_VERSION "6.8.0")
 
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/TokklVersion.cmake)
 

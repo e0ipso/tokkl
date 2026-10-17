@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Tokkl contributors <contributors@example.invalid>
 Build-Depends: debhelper-compat (= 13),
                cmake (>= 3.27),
-               qt6-base-dev (>= 6.10.0~),
+               qt6-base-dev (>= 6.8.0~),
                qtkeychain-qt6-dev
 Standards-Version: 4.7.0
 Homepage: https://github.com/e0ipso/tokkl
@@ -24,5 +24,4 @@ Description: Tokkl timer service for the GNOME Shell extension
  .
  It owns org.tokkl.Timer1 and starts on the first call to that name, through
  its systemd user unit or D-Bus activation. The token or password is stored
- in the keyring through libsecret. Built for Ubuntu 26.04 LTS amd64 with
- Qt 6.10.
+ in the keyring through libsecret. Built for Debian 13 amd64 with Qt 6.8.

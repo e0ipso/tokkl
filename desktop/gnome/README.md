@@ -9,10 +9,10 @@ Both are standalone. The npm workspaces, `npm run build` and the server image do
 
 ## Install the service
 
-Each GitHub release carries `tokkl-timerd` as a DEB for Ubuntu 26.04 LTS (amd64) and an RPM for Fedora 44 (x86_64), under the same version as the server, the Docker image and the other desktop apps. As of 2026-10-17 no release has carried them; build from source until one does. Download the one for your system from the release and install it with its dependencies:
+Each GitHub release carries `tokkl-timerd` as a DEB for Debian 13 (amd64) and an RPM for Fedora 44 (x86_64), under the same version as the server, the Docker image and the other desktop apps. v1.2.0 was the first release with them, and its DEB was built for Ubuntu 26.04 LTS (checked 2026-10-17); the first DEB built for Debian 13 comes with the next release. Download the one for your system from the release and install it with its dependencies:
 
 ```sh
-sudo apt install ./tokkl-timerd_<version>_amd64.deb            # Ubuntu 26.04
+sudo apt install ./tokkl-timerd_<version>_amd64.deb            # Debian 13
 sudo dnf install ./tokkl-timerd-<version>-1.fc44.x86_64.rpm     # Fedora 44
 ```
 
@@ -22,7 +22,7 @@ The package installs `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1
 
 ### Build the service from source
 
-You need CMake 3.27 or later, a C++ compiler, Qt 6.10 or later (Core, Network, DBus) and QtKeychain for Qt 6. On Fedora that is `cmake gcc-c++ qt6-qtbase-devel qtkeychain-qt6-devel`.
+You need CMake 3.27 or later, a C++ compiler, Qt 6.8 or later (Core, Network, DBus) and QtKeychain for Qt 6. On Debian 13 that is `cmake g++ qt6-base-dev qtkeychain-qt6-dev`, on Fedora `cmake gcc-c++ qt6-qtbase-devel qtkeychain-qt6-devel`.
 
 ```sh
 cmake -S desktop/gnome -B desktop/gnome/build -DCMAKE_INSTALL_PREFIX=/usr
@@ -113,7 +113,7 @@ desktop/gnome/scripts/container-check.sh --version 1.2.0 --output /var/tmp/gnome
 desktop/gnome/scripts/container-check.sh --version 1.2.0 --output /var/tmp/gnome --format rpm
 ```
 
-- `deb` and `rpm`: `scripts/package-release.sh` builds `tokkl-timerd` for the version in a pinned Ubuntu 26.04 or Fedora 44 image, from `debian/` or `packaging/rpm/tokkl-timerd.spec`. The program reports the version unchanged; the package version comes from `desktop/kde/scripts/native-version.sh`, as for the KDE packages. `scripts/check-package.sh` then installs the package in a fresh container of the same image with only its declared dependencies, checks its version, files and libraries, and checks that the first call to `org.tokkl.Timer1` starts the service, on a plain `dbus-daemon` and through the systemd user unit with systemd booted in the container.
+- `deb` and `rpm`: `scripts/package-release.sh` builds `tokkl-timerd` for the version in a pinned Debian 13 or Fedora 44 image, from `debian/` or `packaging/rpm/tokkl-timerd.spec`. The program reports the version unchanged; the package version comes from `desktop/kde/scripts/native-version.sh`, as for the KDE packages. `scripts/check-package.sh` then installs the package in a fresh container of the same image with only its declared dependencies, checks its version, files and libraries, and checks that the first call to `org.tokkl.Timer1` starts the service, on a plain `dbus-daemon` and through the systemd user unit with systemd booted in the container.
 - `zip`: `scripts/pack-extension.sh` packs the extension with `gnome-extensions pack` in a Fedora 44 image with GNOME Shell. It sets `version-name` in `metadata.json` to the version, checks that the zip holds the extension's files and nothing else, and installs it into a throwaway home. extensions.gnome.org accepts a `version-name` of 1 to 16 letters, digits, dots and spaces, so the script refuses a pre-release version such as `1.2.0-rc.1`. The release branch (`main`) makes only plain versions.
 
 The `gnome` CI job runs all three for the version in `package.json`, and the release waits for it. After semantic-release has made a release, the `gnome-release` job builds them again from the `v<version>` tag with that version, and `gnome-publish` attaches them to the GitHub release with `gh release upload --clobber`. The release is public without them until then, and re-running a failed job attaches them to the existing release. `gnome-release` holds no write token; only `gnome-publish` can write to the release.

@@ -60,7 +60,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: TUXEDO OS 24.04
+          - target: Debian 13
             format: deb
           - target: Fedora KDE 44
             format: rpm
@@ -104,7 +104,7 @@ jobs:
   # the Qt libraries the service loads, its installed files, and D-Bus
   # activation of the installed service with and without systemd. Then the
   # release files for the version in package.json: the tokkl-timerd DEB
-  # (Ubuntu 26.04) and RPM (Fedora 44), each installed on a clean target and
+  # (Debian 13) and RPM (Fedora 44), each installed on a clean target and
   # activated on the session bus, and the extension zip. gnome-release builds
   # them for the release the same way.
   gnome:
@@ -393,7 +393,7 @@ jobs:
             exit 1
           fi
           gh release upload "$TAG" \
-            "${debs[0]}#tokkl-timerd DEB for Ubuntu 26.04 LTS (amd64)" \
+            "${debs[0]}#tokkl-timerd DEB for Debian 13 (amd64)" \
             "${rpms[0]}#tokkl-timerd RPM for Fedora 44 (x86_64)" \
             "$zip#Tokkl GNOME Shell extension (GNOME Shell 46 to 51)" \
             --repo "$GITHUB_REPOSITORY" --clobber

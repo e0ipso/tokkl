@@ -86,7 +86,7 @@ test('gnome-publish attaches the DEB, the RPM and the zip with their labels', (t
     'release',
     'upload',
     'v1.2.3',
-    `${box.dir}/${DEB}#tokkl-timerd DEB for Ubuntu 26.04 LTS (amd64)`,
+    `${box.dir}/${DEB}#tokkl-timerd DEB for Debian 13 (amd64)`,
     `${box.dir}/${RPM}#tokkl-timerd RPM for Fedora 44 (x86_64)`,
     `${box.dir}/${ZIP}#Tokkl GNOME Shell extension (GNOME Shell 46 to 51)`,
     '--repo',
@@ -105,7 +105,7 @@ test('gnome-publish matches the native version of a prerelease, not the tag', (t
   [deb, rpm, 'tokkl-gnome-extension-1.3.0-rc.1.zip'].forEach((name) => box.put(name));
   const result = runStep(box, GNOME_PUBLISH, { TAG: 'v1.3.0-rc.1' });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.gh?.[3], `${box.dir}/${deb}#tokkl-timerd DEB for Ubuntu 26.04 LTS (amd64)`);
+  assert.equal(result.gh?.[3], `${box.dir}/${deb}#tokkl-timerd DEB for Debian 13 (amd64)`);
   assert.equal(result.gh?.[4], `${box.dir}/${rpm}#tokkl-timerd RPM for Fedora 44 (x86_64)`);
 });
 
