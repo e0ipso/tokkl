@@ -9,6 +9,19 @@ Both are standalone. The npm workspaces, `npm run build` and the server image do
 
 ## Install the service
 
+Each GitHub release carries `tokkl-timerd` as a DEB for Ubuntu 26.04 LTS (amd64) and an RPM for Fedora 44 (x86_64), under the same version as the server, the Docker image and the other desktop apps. As of 2026-10-17 no release has carried them; build from source until one does. Download the one for your system from the release and install it with its dependencies:
+
+```sh
+sudo apt install ./tokkl-timerd_<version>_amd64.deb            # Ubuntu 26.04
+sudo dnf install ./tokkl-timerd-<version>-1.fc44.x86_64.rpm     # Fedora 44
+```
+
+The RPM depends on the Qt it was built with, so it needs an updated Fedora 44, not the release media. A pre-release version such as `1.2.0-rc.1` is packaged as `1.2.0~rc1`, which sorts before `1.2.0`.
+
+The package installs `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1.service`, the systemd user unit `tokkl-timerd.service` and the interface description, and runs no scripts. Nothing has to be started by hand: the first call to `org.tokkl.Timer1`, which the extension makes when it is enabled, starts the service. Its log is in `journalctl --user -u tokkl-timerd`. To remove it, remove the `tokkl-timerd` package.
+
+### Build the service from source
+
 You need CMake 3.27 or later, a C++ compiler, Qt 6.10 or later (Core, Network, DBus) and QtKeychain for Qt 6. On Fedora that is `cmake gcc-c++ qt6-qtbase-devel qtkeychain-qt6-devel`.
 
 ```sh
@@ -18,11 +31,17 @@ ctest --test-dir desktop/gnome/build --output-on-failure
 sudo cmake --install desktop/gnome/build
 ```
 
-The install adds `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1.service`, the systemd user unit `tokkl-timerd.service` and the interface description. Nothing has to be started by hand: the first call to `org.tokkl.Timer1`, which the extension makes when it is enabled, starts the service. Its log is in `journalctl --user -u tokkl-timerd`.
+The install adds the same files as the package.
 
 ## Install the extension
 
-The extension needs GNOME Shell 46, 47, 48, 49, 50 or 51. Pack it, install the package for your user and enable it:
+The extension needs GNOME Shell 46, 47, 48, 49, 50 or 51. Each GitHub release carries it as `tokkl-gnome-extension-<version>.zip`. Install it for your user:
+
+```sh
+gnome-extensions install --force tokkl-gnome-extension-<version>.zip
+```
+
+To use the extension from a checkout instead, pack it first:
 
 ```sh
 gnome-extensions pack desktop/gnome/extension --force --out-dir=/tmp \
@@ -36,7 +55,7 @@ On Wayland, GNOME Shell only finds a newly installed extension after a restart: 
 gnome-extensions enable tokkl@e0ipso.github.com
 ```
 
-To upgrade, pack and install again, then log out and in. To remove it, run `gnome-extensions uninstall tokkl@e0ipso.github.com`.
+To upgrade, install the new zip, then log out and in. To remove it, run `gnome-extensions uninstall tokkl@e0ipso.github.com`.
 
 ## Connect to Tokkl
 
@@ -84,3 +103,28 @@ The `gnome-extension` CI job runs it, one leg per Shell version, and the release
 `extension/ci/realservice.sh` checks the same panel end to end on GNOME Shell 50: `ci/realservice.test.ts` serves a Tokkl server on 127.0.0.1 with the API's test fixtures, a Fedora 44 container on the host's network builds the real `tokkl-timerd`, configures it with a token kept in a GNOME Keyring of its own, and `ci/realservice-check.js` starts and stops an entry from the panel. The script then checks that the server holds that one entry, with the chosen project, billable switched on while it ran, and the stop snapped to the time resolution. It needs Docker, Node.js 24 and `npm ci` on the host. CI does not run it.
 
 `ci/check.sh` builds and tests the service in a Fedora 44 container and checks its install and D-Bus activation. The `gnome` CI job runs it.
+
+## Releases
+
+The release files are built by the scripts in `scripts/`, which run in throwaway containers so the host's packages are never touched:
+
+```sh
+desktop/gnome/scripts/container-check.sh --version 1.2.0 --output /var/tmp/gnome           # all three
+desktop/gnome/scripts/container-check.sh --version 1.2.0 --output /var/tmp/gnome --format rpm
+```
+
+- `deb` and `rpm`: `scripts/package-release.sh` builds `tokkl-timerd` for the version in a pinned Ubuntu 26.04 or Fedora 44 image, from `debian/` or `packaging/rpm/tokkl-timerd.spec`. The program reports the version unchanged; the package version comes from `desktop/kde/scripts/native-version.sh`, as for the KDE packages. `scripts/check-package.sh` then installs the package in a fresh container of the same image with only its declared dependencies, checks its version, files and libraries, and checks that the first call to `org.tokkl.Timer1` starts the service, on a plain `dbus-daemon` and through the systemd user unit with systemd booted in the container.
+- `zip`: `scripts/pack-extension.sh` packs the extension with `gnome-extensions pack` in a Fedora 44 image with GNOME Shell. It sets `version-name` in `metadata.json` to the version, checks that the zip holds the extension's files and nothing else, and installs it into a throwaway home. extensions.gnome.org accepts a `version-name` of 1 to 16 letters, digits, dots and spaces, so the script refuses a pre-release version such as `1.2.0-rc.1`. The release branch (`main`) makes only plain versions.
+
+The `gnome` CI job runs all three for the version in `package.json`, and the release waits for it. After semantic-release has made a release, the `gnome-release` job builds them again from the `v<version>` tag with that version, and `gnome-publish` attaches them to the GitHub release with `gh release upload --clobber`. The release is public without them until then, and re-running a failed job attaches them to the existing release. `gnome-release` holds no write token; only `gnome-publish` can write to the release.
+
+### Publish on extensions.gnome.org
+
+The upload is manual, and the release does not wait for it or for the review:
+
+1. Download `tokkl-gnome-extension-<version>.zip` from the `v<version>` GitHub release.
+2. Sign in at <https://extensions.gnome.org/> with the account that owns `tokkl@e0ipso.github.com`. The first upload creates the extension under the account that sends it.
+3. Open <https://extensions.gnome.org/upload/>, choose the zip, accept the license terms and upload it. extensions.gnome.org gives it the next integer version and shows `version-name`.
+4. Wait for the review. Reviewers read the code by hand, which can take days. The description says the extension needs the `tokkl-timerd` service; point the reviewers to the release's DEB and RPM if they ask how to run it.
+
+Until the review passes, the zip on the GitHub release is the way to install the extension.

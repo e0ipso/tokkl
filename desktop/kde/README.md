@@ -538,7 +538,8 @@ The `kde` job in `.github/workflows/ci.yml` runs once per target, TUXEDO OS
 24.04 (DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
 `scripts/container-check.sh` for the version in `package.json`, then
 `ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`, and the
-`gnome` job runs `desktop/gnome/ci/check.sh`. The release job needs the
+`gnome` job runs `desktop/gnome/ci/check.sh` and builds and checks the GNOME
+release files (see `desktop/gnome/README.md`). The release job needs the
 `test` job (the server and web checks), both `kde` targets and the `core`,
 `gnome`, `gnome-extension` and `macos` jobs to pass.
 

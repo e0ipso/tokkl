@@ -102,7 +102,11 @@ jobs:
   # desktop/gnome (tokkl-timerd on desktop/core) in a pinned Fedora 44
   # container with QtKeychain and GNOME Keyring and no Qt Gui runtime: CTest,
   # the Qt libraries the service loads, its installed files, and D-Bus
-  # activation of the installed service with and without systemd.
+  # activation of the installed service with and without systemd. Then the
+  # release files for the version in package.json: the tokkl-timerd DEB
+  # (Ubuntu 26.04) and RPM (Fedora 44), each installed on a clean target and
+  # activated on the session bus, and the extension zip. gnome-release builds
+  # them for the release the same way.
   gnome:
     runs-on: ubuntu-latest
     permissions:
@@ -112,6 +116,10 @@ jobs:
         with:
           persist-credentials: false
       - run: desktop/gnome/ci/check.sh
+      - name: Package and check
+        env:
+          OUTPUT: ${{ runner.temp }}/gnome
+        run: desktop/gnome/scripts/container-check.sh --version "$(jq -r .version package.json)" --output "$OUTPUT"
 
   # desktop/gnome/extension/ci/check.sh: the GNOME Shell extension in a
   # headless GNOME Shell against a stand-in for tokkl-timerd, in a pinned
@@ -204,7 +212,9 @@ jobs:
       # (desktop/kde/ci/semantic-release.js), commits CHANGELOG.md and
       # package.json, tags v<version> and creates the GitHub release with the
       # DEB and RPM attached, or does nothing when the pushed commits warrant
-      # no release. The macos-release and macos-publish jobs add the DMG.
+      # no release. The macos-release and macos-publish jobs add the DMG, and
+      # gnome-release and gnome-publish the tokkl-timerd DEB and RPM and the
+      # GNOME Shell extension zip.
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -307,4 +317,83 @@ jobs:
           dmg="$DIR/Tokkl-${TAG#v}-arm64.dmg"
           test -f "$dmg"
           gh release upload "$TAG" "$dmg#Tokkl for macOS 13 or later (Apple silicon)" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+  # The tokkl-timerd DEB and RPM and the GNOME Shell extension zip for the
+  # release the release job just made, built from the v<version> tag with
+  # that version and checked as the gnome job checks them. They go to
+  # gnome-publish, which attaches them. The release is public without them
+  # until then. Re-running a failed job attaches them to the existing
+  # release. extensions.gnome.org is not part of the release: its upload and
+  # review are manual (desktop/gnome/README.md).
+  gnome-release:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          persist-credentials: false
+      # The tag's package.json holds the version semantic-release wrote.
+      - name: Check the version
+        run: |
+          version=${TAG#v}
+          if [ "$(jq -r .version package.json)" != "$version" ]; then
+            echo "::error::package.json at $TAG does not have version $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: Package and check
+        env:
+          OUTPUT: ${{ runner.temp }}/gnome
+        run: desktop/gnome/scripts/container-check.sh --version "$VERSION" --output "$OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gnome-release
+          path: |
+            ${{ runner.temp }}/gnome/tokkl-timerd_*_amd64.deb
+            ${{ runner.temp }}/gnome/tokkl-timerd-*.x86_64.rpm
+            ${{ runner.temp }}/gnome/tokkl-gnome-extension-${{ env.VERSION }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  # Attaches the GNOME files to the v<version> release. Kept apart from
+  # gnome-release so the job that builds third-party code holds no write
+  # token.
+  gnome-publish:
+    needs: [release, gnome-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: gnome-release
+          path: ${{ runner.temp }}/gnome
+      - name: Attach the GNOME files to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIR: ${{ runner.temp }}/gnome
+        run: |
+          version=${TAG#v}
+          shopt -s nullglob
+          debs=("$DIR"/tokkl-timerd_*_amd64.deb)
+          rpms=("$DIR"/tokkl-timerd-*.x86_64.rpm)
+          zip="$DIR/tokkl-gnome-extension-$version.zip"
+          if [ "${#debs[@]}" != 1 ] || [ "${#rpms[@]}" != 1 ] || [ ! -f "$zip" ]; then
+            echo "::error::expected one DEB, one RPM and $zip in $DIR"
+            ls -l "$DIR"
+            exit 1
+          fi
+          gh release upload "$TAG" \
+            "${debs[0]}#tokkl-timerd DEB for Ubuntu 26.04 LTS (amd64)" \
+            "${rpms[0]}#tokkl-timerd RPM for Fedora 44 (x86_64)" \
+            "$zip#Tokkl GNOME Shell extension (GNOME Shell 46 to 51)" \
             --repo "$GITHUB_REPOSITORY" --clobber

@@ -152,6 +152,12 @@ xattr -cr /Applications/Tokkl.app
 
 Installation, setup and the build are in [desktop/macos/README.md](desktop/macos/README.md).
 
+## GNOME companion
+
+A GNOME Shell extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives. The top bar button shows the running timer, starts and stops it with a click, and sets the project and billable flag. The service keeps the API token or password in the keyring.
+
+It ships as a DEB of `tokkl-timerd` for Ubuntu 26.04 LTS (amd64), an RPM for Fedora 44 (x86_64) and `tokkl-gnome-extension-<version>.zip`, attached to each GitHub release that includes them, under the same version as the server and the Docker image. As of 2026-10-17 no release has carried them; the guide says how to build them. Installation, setup and the build are in [desktop/gnome/README.md](desktop/gnome/README.md).
+
 ## Development
 
 Requires Node.js 24 or newer.
@@ -171,7 +177,7 @@ npm run icons      # derives the served icons from docs/brand (needs ImageMagick
 
 The KDE companion is a separate CMake project that no npm script builds. To build and test it, run `cmake -S desktop/kde -B desktop/kde/build`, `cmake --build desktop/kde/build` and `ctest --test-dir desktop/kde/build` (needs Qt 6.10 and KDE Frameworks 6.24; [details](desktop/kde/README.md#configure-build-and-test)). It builds on `desktop/core`, the timer and connection core the desktop companions share. That project needs only Qt 6.10 Core, Network and Test, and the same three commands pointed at `desktop/core` build and test it on its own.
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)), the macOS companion's DMG, which a later job attaches to the same release (see [desktop/macos/README.md](desktop/macos/README.md#releases)), and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). `npm install` sets up a commit-msg hook that runs commitlint, and CI lints every PR's commits and every push to main. Commits that credit an AI tool or a co-author (`Co-authored-by:`, "Generated with Claude Code" and the like) are rejected. Every push to main runs the checks, the KDE companion's included, and then semantic-release. `feat`, `fix`, `perf`, `refactor` and `revert` commits cut a release (a breaking change cuts a major one): a version bump, a changelog entry, a GitHub release with the KDE companion's DEB and RPM attached (see [desktop/kde/README.md](desktop/kde/README.md#ci-and-releases)), the macOS companion's DMG, which a later job attaches to the same release (see [desktop/macos/README.md](desktop/macos/README.md#releases)), the GNOME companion's DEB, RPM and extension zip, also attached by later jobs (see [desktop/gnome/README.md](desktop/gnome/README.md#releases)), and a container image. `docs`, `build`, `ci`, `test`, `style` and `chore` commits do not.
 
 The repo is an npm workspaces monorepo. Run every script from the repo root. The server runs TypeScript directly through Node's type stripping, so only the web app has a build step. Layout:
 

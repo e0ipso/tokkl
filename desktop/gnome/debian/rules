@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# The shared Tokkl release version (semver, for example 1.2.0 or 1.2.0-rc.1).
+# scripts/package-release.sh sets it, writes debian/changelog to match and
+# copies desktop/core into core/.
+ifeq ($(strip $(TOKKL_VERSION)),)
+$(error TOKKL_VERSION is not set; build with scripts/package-release.sh)
+endif
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DTOKKL_VERSION=$(TOKKL_VERSION) -DTOKKL_CORE_DIR=$(CURDIR)/core -DBUILD_TESTING=OFF
+
+# The tests need a private session bus and GNOME Keyring and run in CI
+# (ci/check.sh), not in package builds.
+override_dh_auto_test:
