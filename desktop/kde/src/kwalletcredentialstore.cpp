@@ -90,9 +90,7 @@ void KWalletCredentialStore::write(const QString &key, const QString &secret, QO
         if (wallet) {
             result.status = wallet->writePassword(key, secret) == 0 ? CredentialResult::Status::Ok : CredentialResult::Status::Failed;
         }
-        if (result.ok()) {
-            Q_EMIT secretChanged(key);
-        }
+        reportWrite(key, result);
         if (guard) {
             deliver(guard, done, result);
         }

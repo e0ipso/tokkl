@@ -28,6 +28,10 @@ namespace Tokkl
 // Changing a setting or the stored secret starts a new generation: account
 // data and next-start choices are cleared at once, requests in flight are
 // aborted, and replies issued under an older generation are dropped.
+//
+// When the store refuses to write a secret for this account, also after the
+// settings page that asked for it is gone, the connection drops the account
+// and reports WalletError, so the user learns that the secret was not saved.
 class Connection : public QObject
 {
     Q_OBJECT
@@ -173,11 +177,19 @@ private:
         QString instanceKey;
         Me me;
     };
+    // A write the store refused, kept until the next reload so a failure that
+    // arrives before the matching settings is still shown. No secret.
+    struct FailedWrite {
+        QString key;
+        CredentialResult::Status status;
+    };
 
     void settingsChanged();
     void scheduleReload();
     void reload();
     void onSecretChanged(const QString &key);
+    void onSecretWriteFailed(const QString &key, const CredentialResult &result);
+    void showFailedWrite(CredentialResult::Status status);
     void authenticate(bool explicitRequest);
     void handleMe(const HttpResponse &response);
     void refuseCredentials(const ApiError &error);
@@ -227,6 +239,7 @@ private:
     QByteArray m_authorization;
     bool m_authPaused = false;
     bool m_reloadScheduled = false;
+    std::optional<FailedWrite> m_failedWrite;
 
     State m_state = Unconfigured;
     QString m_error;

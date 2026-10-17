@@ -211,11 +211,13 @@ Plasma applet configuration. The token or password is saved only in KDE Wallet,
 in the network wallet under the folder `Tokkl`, one entry per instance (and
 email, for password sign-in). If the wallet is disabled, locked or denies
 access, the page and the widget say so and nothing is saved elsewhere. When
-Apply cannot save the secret, the page keeps it, shows the wallet error and
-enables Apply again, so closing the dialog asks whether to apply or discard.
-OK closes the dialog before KDE Wallet answers, and Plasma gives the page no
-way to keep it open, so a secret OK could not save is lost without a message
-on the page. Use Apply when the wallet may refuse.
+the wallet refuses to save the secret, the widget shows a wallet error saying
+the new credentials were not saved. After Apply, the page also keeps the
+secret, shows the error and enables Apply again, so closing the dialog asks
+whether to apply or discard. OK closes the dialog before KDE Wallet answers,
+and Plasma gives the page no way to keep it open, so after OK the secret is
+gone and you enter it again. Reconnect from the context menu clears the
+widget's error and uses whatever the wallet still holds.
 
 The widget validates the account with `GET /api/v9/me` and uses its
 `default_workspace_id` for every request. Changing the address, sign-in method,

@@ -58,6 +58,7 @@ Connection::Connection(Transport *transport, CredentialStore *store, const QStri
     connect(&m_retryTimer, &QTimer::timeout, this, &Connection::refreshAccount);
     if (m_store) {
         connect(m_store, &CredentialStore::secretChanged, this, &Connection::onSecretChanged);
+        connect(m_store, &CredentialStore::secretWriteFailed, this, &Connection::onSecretWriteFailed);
     }
 }
 
@@ -333,6 +334,11 @@ void Connection::reload()
     }
     const quint64 generation = m_generation;
     const QString key = currentCredentialKey();
+    const std::optional<FailedWrite> failedWrite = std::exchange(m_failedWrite, std::nullopt);
+    if (failedWrite && failedWrite->key == key) {
+        showFailedWrite(failedWrite->status);
+        return;
+    }
     m_store->read(key, this, [this, generation, key](const CredentialResult &result) {
         if (generation != m_generation || key != currentCredentialKey()) {
             return;
@@ -360,13 +366,42 @@ void Connection::reload()
 
 void Connection::onSecretChanged(const QString &key)
 {
+    if (m_failedWrite && m_failedWrite->key == key) {
+        m_failedWrite.reset();
+    }
     if (m_instance.isValid() && key == currentCredentialKey()) {
         settingsChanged();
     }
 }
 
+void Connection::onSecretWriteFailed(const QString &key, const CredentialResult &result)
+{
+    if (m_instance.isValid() && key == currentCredentialKey()) {
+        m_failedWrite.reset();
+        showFailedWrite(result.status);
+        return;
+    }
+    // The settings for that key may still be on their way, as when a
+    // settings page saves the secret before the settings.
+    m_failedWrite = FailedWrite{key, result.status};
+}
+
+void Connection::showFailedWrite(CredentialResult::Status status)
+{
+    // A new generation, so a read issued before the failure cannot replace
+    // this error. What the store now holds for the key is not what the user
+    // entered, so nothing is validated or written with it.
+    resetAccount();
+    m_retryTimer.stop();
+    m_hasSecret = false;
+    m_secret.clear();
+    m_authorization.clear();
+    setState(WalletError, tr("The new credentials were not saved. %1").arg(credentialMessage(CredentialResult{status, {}})));
+}
+
 void Connection::reconnect()
 {
+    m_failedWrite.reset();
     m_authPaused = false;
     if (m_reloadScheduled) {
         return;

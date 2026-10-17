@@ -121,8 +121,8 @@ public:
         result.status = failure;
         if (failure == Tokkl::CredentialResult::Status::Ok) {
             secrets.insert(key, secret);
-            Q_EMIT secretChanged(key);
         }
+        reportWrite(key, result);
         later(context, done, result);
     }
 

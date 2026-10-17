@@ -84,9 +84,7 @@ void KeychainCredentialStore::write(const QString &key, const QString &secret, Q
     connect(job, &QKeychain::Job::finished, this, [this, guard, done, key, job] {
         CredentialResult result;
         result.status = statusFor(job->error());
-        if (result.ok()) {
-            Q_EMIT secretChanged(key);
-        }
+        reportWrite(key, result);
         if (guard) {
             deliver(guard, done, result);
         }
