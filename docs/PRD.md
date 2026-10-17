@@ -101,7 +101,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | M2 | Start and end time fields accept `9`, `930`, `9:30`, `17.45`, `9a`, `4pm`. 12-hour users get Toggl's AM/PM guess (closest to now for the start, always after the start for the end). | MUST | Done |
 | M3 | An end time earlier than the start rolls to the next day. The entry counts toward its start date, as in Toggl. | MUST | Done |
 | M4 | One duration grammar everywhere: bare integer = minutes, `h:mm[:ss]`, unit suffixes (`1h 30m`, `90m`, `45s`), decimal hours with `.` or `,`. Toggl's timer and timesheet disagree on a bare `5`; this app does not. | MUST | Done |
-| M5 | After adding a manual entry, the next start time defaults to the previous end, so a day can be logged in sequence. | SHOULD | Done |
+| M5 | After adding a manual entry, the next start time defaults to the stored end of that entry, after snapping to the time resolution, so a day can be logged in sequence. | SHOULD | Done |
 | M6 | Overlapping entries are allowed, as in Toggl, and flagged with a marker in the list. | SHOULD | Done |
 
 ### 5.3 Entry list and editing
