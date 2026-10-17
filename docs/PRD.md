@@ -4,7 +4,7 @@ A self-hosted time tracker that copies the parts of Toggl Track one person uses,
 
 - Owner: Tokkl contributors
 - Status: v0.1 built (see the status column in each table)
-- Last updated: 2026-10-16
+- Last updated: 2026-10-17
 
 ## 1. Why this exists
 
@@ -79,7 +79,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | T1 | Start a timer from an empty bar; fill description, project, tags and billable before or after starting. | MUST | Done |
-| T2 | Exactly one running entry. Starting a new one stops the old one at the new start time. Enforced by a partial unique index in SQLite, not only in code. | MUST | Done |
+| T2 | Exactly one running entry. Starting a new one stops the old one at the new start time, snapped to the time resolution (section 6.3). Enforced by a partial unique index in SQLite, not only in code. | MUST | Done |
 | T3 | Stop from the bar, with `S`, or through the API. Stopping a stopped entry returns 409 like Toggl. | MUST | Done |
 | T4 | Continue: a play button on any past entry, and `C` for the latest one, creates a new entry with the same description, project, task, tags and billable flag. | MUST | Done |
 | T5 | Description autocomplete from recent entries; picking one copies project, task, tags and billable. | MUST | Done |
@@ -146,7 +146,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | R5 | Detailed: one row per entry, sortable, editable by click. | MUST | Done |
 | R6 | Weekly grid: projects by days with row and column totals. | SHOULD | Done |
 | R7 | Billable amounts from project rate, falling back to the workspace default rate. | SHOULD | Done |
-| R8 | Rounding per entry (up, nearest, down; 1 to 240 minutes), as a report setting that never changes stored data. The app's reports always apply the workspace setting; Toggl API report calls round only when asked, as in Toggl. | SHOULD | Done |
+| R8 | Rounding per entry (up, nearest, down; 1 to 240 minutes), as a report setting that never changes stored data. Stored entries snap on write to the instance time resolution (A14), not to this setting, and report rounding applies on top of the stored durations. With a rounding step that is not a multiple of the resolution, a report can show durations that are not multiples of the resolution. The app's reports always apply the workspace setting; Toggl API report calls round only when asked, as in Toggl. | SHOULD | Done |
 | R9 | CSV export of detailed and summary reports, never plan-gated. | MUST | Done |
 | R10 | Report state in the URL so a report can be bookmarked. Toggl removed this in 2025. | MUST | Done |
 | R11 | "All time" preset, from the first entry to today (up to ten years). | MUST | Done |
@@ -184,7 +184,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, its sessions end, and its data stays. Admins can also sign an account out of every browser without disabling it; its API token keeps working. | SHOULD | Done |
 | A12 | Admins delete an account together with its workspace and everything in it, after typing the account's email to confirm. An admin cannot delete their own account or the last active admin. A workspace that has another member stays. | SHOULD | Done |
 | A13 | Admins create password-reset links for an account and share them by hand. A link works once, expires after 24 hours, and replaces the account's earlier unused link. Using it signs the account out of every session. It does not change the account's API token, which the user resets separately (`POST /me/reset_token`). | SHOULD | Done |
-| A14 | Admins edit instance settings: session lifetime (1 to 365 days), invite lifetime (1 to 90 days) and time resolution (a divisor of 60 minutes, 5 by default). A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. | COULD | Done |
+| A14 | Admins edit instance settings: session lifetime (1 to 365 days), invite lifetime (1 to 90 days) and the time resolution `time_resolution_minutes` (a divisor of 60 minutes, 5 by default), which any signed-in client can read from `GET /api/v9/me`. A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. A new resolution applies to entries written after the change; existing entries change only when they are next edited. | COULD | Done |
 | A15 | Admins manage accounts only and cannot read other users' time data. Workspace access depends on membership, never on the instance role, so an admin gets 403 on another account's workspace. | MUST | Done |
 
 ### 5.8 Clients and devices
@@ -233,8 +233,8 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 
 - Responses are bare JSON objects or arrays with explicit `null`s. No `{"data": ...}` envelope (that was v8).
 - Errors are JSON-encoded strings, e.g. `"Time entry already stopped"`, with 400, 403, 404 or 409.
-- Timestamps go out as RFC 3339 UTC with `+00:00`; any RFC 3339 offset is accepted on input. Times are stored with second precision.
-- Every API write that stores a stopped entry (create, update, stop, bulk `PATCH`, and stopping the running entry when a new one starts) snaps it to the instance time resolution on the clock of the owner's timezone. The duration rounds up to a multiple of the resolution, the start moves to the nearest grid point, and the response returns the stored values, so `stop - start` equals `duration`. A running entry keeps its exact start until it stops. When a new timer stops it, its stored stop lands up to half a step before the new start or up to one and a half steps after it. CSV import and JSON restore keep the times in the file, and existing entries change only when they are next edited.
+- Timestamps go out as RFC 3339 UTC with `+00:00`; any RFC 3339 offset is accepted on input.
+- Every API write that stores a stopped entry (create, update, stop, bulk `PATCH`, stopping the running entry when a new one starts, and undoing the delete of a running entry while another one runs) snaps it to the instance time resolution on the clock of the owner's timezone. The duration rounds up to a multiple of the resolution, so the padding is always less than one step. The start moves to the nearest grid point, and the stop follows it by the rounded duration. The response returns the stored values, so `stop - start` equals `duration`. A running entry keeps its exact start until it stops. When a new timer stops it, its stored stop lands up to half a step before the new start or up to one and a half steps after it. A timer that has run for more than 999 hours, the longest entry the API accepts, stops at 999 hours. CSV import and JSON restore keep the times in the file, and existing entries change only when they are next edited.
 - Legacy field aliases are emitted and accepted: `wid`/`workspace_id`, `pid`/`project_id`, `tid`/`task_id`, `uid`/`user_id`, `cid`/`client_id`.
 - A running entry has `stop: null` and `duration` equal to minus its start in Unix seconds. That satisfies clients computing `now + duration` (the documented v8-era rule) and clients that only test `duration < 0`.
 - Any negative `duration` on create means "running". `created_with` is accepted but optional (Toggl requires it).
@@ -304,11 +304,11 @@ The web UI is a client of the same Toggl-compatible API it exposes. Every timer 
 
 ### 8.3 Data model
 
-All instants are UTC ISO 8601 strings with second precision; calendar days are computed in the user's timezone at query time.
+All instants are UTC ISO 8601 strings; calendar days are computed in the user's timezone at query time. A stopped entry written through the API starts on the instance time resolution grid and lasts a multiple of it (section 6.3).
 
 - `users`: email, name, scrypt password hash, API token, timezone, first day of week, preferences JSON (Toggl preference keys plus favorites), `role` (`admin` or `user`, default `user`), `disabled_at` (null while the account is active).
 - `sessions`: SHA-256 of the session token, expiry. The raw token exists only in the cookie.
-- `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`, `time_resolution_minutes`), with who changed them. A key with no row uses its default.
+- `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`, and `time_resolution_minutes`, a divisor of 60 that defaults to 5), with who changed them. A key with no row uses its default.
 - `account_tokens`: one-time invite and password-reset links. Only the SHA-256 of the token is stored, with its kind, the invited role or the target account, the creator, expiry and use time.
 - `workspaces`: one private workspace per account. Default currency, default rate, report rounding.
 - `workspace_users`: workspace and user, with a `role` of `owner` or `member`. The primary key is the pair. Workspace settings stay with the owner.
