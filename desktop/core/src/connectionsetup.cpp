@@ -175,7 +175,9 @@ void ConnectionSetup::loadSecret()
 
 void ConnectionSetup::saveSecret()
 {
-    saveSecret(this, [](bool) { });
+    saveSecret(this, [this](bool saved) {
+        Q_EMIT secretSaveFinished(saved);
+    });
 }
 
 void ConnectionSetup::saveSecret(QObject *context, std::function<void(bool saved)> done)

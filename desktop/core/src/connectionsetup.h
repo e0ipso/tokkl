@@ -72,7 +72,7 @@ public:
     // another account is dropped.
     Q_INVOKABLE void loadSecret();
     // Saves the field under the current account, when it differs from what
-    // is stored there.
+    // is stored there, then emits secretSaveFinished.
     Q_INVOKABLE void saveSecret();
     // As saveSecret(), then calls done with true once the store has kept the
     // secret or when there was nothing to write, and with false when the
@@ -90,6 +90,9 @@ Q_SIGNALS:
     void busyChanged();
     void secretChanged();
     void walletErrorChanged();
+    // The save that saveSecret() started is over, with the same value and
+    // timing as the done callback of the other overload.
+    void secretSaveFinished(bool saved);
     void testFinished();
 
 private:
