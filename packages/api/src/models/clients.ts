@@ -1,7 +1,7 @@
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
-import { asBool, optionalString, requireName, togglTime } from '../lib/values.ts';
+import { asBool, optionalBool, optionalString, requireName, togglTime } from '../lib/values.ts';
 
 export interface ClientRow {
   id: number;
@@ -69,6 +69,28 @@ export function setClientArchived(db: Db, wid: number, id: number, archived: boo
     .all(id, archived ? 1 : 0) as Array<{ id: number }>;
   db.prepare('UPDATE projects SET active = ?, updated_at = ? WHERE client_id = ?').run(archived ? 0 : 1, now, id);
   return projects.map((p) => p.id);
+}
+
+/** Restores only the projects requested by the caller, or every project when explicitly asked. */
+export function restoreClient(db: Db, wid: number, id: number, body: Record<string, unknown>): ClientRow {
+  getClient(db, wid, id);
+  const all = optionalBool(body.restore_all_projects, 'restore_all_projects') ?? false;
+  const projects = body.projects ?? [];
+  if (!Array.isArray(projects) || projects.length > 1000
+    || projects.some((pid) => !Number.isSafeInteger(pid) || pid <= 0)) throw badRequest('Invalid projects');
+  const belongs = db.prepare('SELECT id FROM projects WHERE id = ? AND workspace_id = ? AND client_id = ?');
+  for (const pid of projects) {
+    if (!belongs.get(pid, wid, id)) throw badRequest('Project does not belong to the client');
+  }
+  const now = nowIso();
+  db.prepare('UPDATE clients SET archived = 0, updated_at = ? WHERE id = ?').run(now, id);
+  if (all) {
+    db.prepare('UPDATE projects SET active = 1, updated_at = ? WHERE workspace_id = ? AND client_id = ?').run(now, wid, id);
+  } else {
+    const restore = db.prepare('UPDATE projects SET active = 1, updated_at = ? WHERE id = ?');
+    for (const pid of projects) restore.run(now, pid);
+  }
+  return getClient(db, wid, id);
 }
 
 const PROJECT_NAME_MAX = 255;

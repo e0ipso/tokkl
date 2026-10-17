@@ -204,7 +204,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 
 ### 6.1 What compatible means here
 
-A client that lets you change the base URL can talk to this server with no other change. The server implements the Track API v9 endpoints one account touches and the Reports API v3 endpoints that clients call most.
+A client that lets you change the base URL and uses the supported endpoints and parameters can talk to this server. The server implements a subset of Track API v9 and Reports API v3. An endpoint marked Done below does not mean every Toggl parameter or feature on that endpoint is implemented. The behavior details and limits below define the supported contract.
 
 Base URLs:
 
@@ -246,8 +246,20 @@ Authentication matches Toggl: HTTP Basic with `<api_token>:api_token` or `<email
 - `/me/time_entries/current` returns `200 null` when nothing runs, as Toggl's fixtures show.
 - Project and tag lists honor `page`/`per_page` when sent and return everything otherwise. Toggl pages by default (151 projects per page); one account's lists fit in one response.
 - Task `tracked_seconds` is in milliseconds, because Toggl documents it that way.
+- Workspace client lists default to active clients. `status=archived` and `status=both` select other states. Client restore accepts `projects` and `restore_all_projects`; without either, it restores the client alone.
+- `since` filters retained records on `/me/clients`, `/me/projects`, `/me/tags`, `/me/tasks`, `/me/workspaces`, workspace projects and workspace tasks. The include-archived and include-done switches still apply. `/me/tasks` applies `offset` and `per_page` after filtering. Workspace tasks sort by `name` or `created_at`, in `ASC` or `DESC` order, before pagination.
+- Time-entry `start_date` replaces the date in `start`. When a request supplies both `stop` and `duration`, they must agree with `start` before the span is snapped; inconsistent requests return 400 without changing data.
+- Reports filter by `user_ids`, `project_ids`, `client_ids`, `task_ids`, `tag_ids`, `time_entry_ids`, `description`, `billable`, `min_duration_seconds` and `max_duration_seconds`. Duration bounds apply to stored time before report rounding. A `user_ids` selection excluding the signed-in account returns no entries. Totals accept `day`, `week` and `month` through `granularity` or `resolution`; `granularity` takes precedence.
 
 ### 6.4 Honest limits
+
+Compatibility has these limits in addition to the unimplemented endpoint families above:
+
+- Stopped-entry snapping is a deliberate difference from Toggl. It applies to API clients too, even at the smallest supported resolution of one minute. Running entries retain their exact start until stopped. API writes also allow a missing `start` or `created_with`, and default billable state to the project's setting.
+- Catalog deletions are permanent. Catalog `since` queries cannot return deleted projects, clients, tags or tasks as tombstones, and workspace `since` does not track membership changes. Use full catalog refreshes to discover removals. Deleted time entries do have tombstones through `/me/time_entries?since=...`.
+- Project listing supports `active`, `billable`, `name`/`search`, `client_ids`, `since`, `page` and `per_page`. Project-ID, status, template, assignment and sort filters are not implemented. Workspace tasks do not implement `start_date` or `end_date` filters. Client-specific preferences share the account's preference record.
+- Reports return only the signed-in account's stopped entries. Detailed pagination supports `first_row_number`, as recommended by Toggl's Reports overview; `first_id` and `first_timestamp` cursors are not implemented. Detailed grouping through `grouped`, rate splitting through `distinguish_rates`, group filters, amount-hiding options and nested audit options are not implemented. Detailed rows always include metadata. Weekly reports cover at most seven days. Detailed CSV uses Toggl's column layout; summary CSV uses Tokkl's `Group`, `Sub group`, `Duration` layout. PDF and XLSX exports are not implemented.
+- Integration, sharing and external-reference fields, user country, and workspace settings other than name, currency, default rate and rounding are not persisted. Unknown fields can be ignored, so callers must stay within the supported parameters.
 
 Most end-user Toggl apps hardcode `api.track.toggl.com`. Of 24 clients checked, these let you change the base URL:
 
@@ -257,6 +269,14 @@ Most end-user Toggl apps hardcode `api.track.toggl.com`. Of 24 clients checked, 
 - `toggl_python`, through `base_url=` (Track API only)
 
 The Raycast extension, the Obsidian plugin, both `toggl-cli` projects, the Alfred workflow, n8n, Timery and Toggl's own apps do not. Pointing them at the server would need DNS overrides plus a certificate they trust for `api.track.toggl.com`. That is untested and out of scope. The realistic value of compatibility is: your own scripts, the libraries above, Home Assistant or iOS Shortcuts built against Toggl's documented API, and a migration path that keeps those working.
+
+### 6.5 Compatibility verification
+
+The supported contract was compared with Toggl's official documentation on 2026-10-17: [Me](https://engineering.toggl.com/docs/track/api/me/), [preferences](https://engineering.toggl.com/docs/track/api/preferences/), [time entries](https://engineering.toggl.com/docs/track/api/time_entries/), [workspaces](https://engineering.toggl.com/docs/track/api/workspaces/), [projects](https://engineering.toggl.com/docs/track/api/projects/), [tasks](https://engineering.toggl.com/docs/track/api/tasks/), [clients](https://engineering.toggl.com/docs/track/api/clients/), [tags](https://engineering.toggl.com/docs/track/api/tags/), [detailed reports](https://engineering.toggl.com/docs/track/reports/detailed_reports/), [summary reports](https://engineering.toggl.com/docs/track/reports/summary_reports/) and [weekly reports](https://engineering.toggl.com/docs/track/reports/weekly_reports/).
+
+`packages/api/test/togglCompatibility.test.ts` guards the defaults and request semantics corrected by that comparison. It runs through real local HTTP requests, with a second account and both inline and worker-backed report execution, alongside the existing authentication, entity, timer and report tests in `npm test`. Run just the API suite with `npm run test --workspace=@tokkl/api`.
+
+This verifies Tokkl against the documented subset. It does not compare responses with an authenticated live Toggl account, certify third-party libraries, or automatically discover future upstream changes. When the upstream API changes or support expands, review these references and update the contract tests and limits together.
 
 ## 7. Decisions on ambiguous Toggl behavior
 

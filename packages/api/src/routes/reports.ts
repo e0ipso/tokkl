@@ -68,8 +68,11 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/search/time_entries/totals', async (req, res) => {
     const { ws, body, filter } = v3Filter(req, res);
-    const granularity = body.granularity === 'week' || body.granularity === 'month' ? body.granularity
-      : resolutionFor(filter.startDate, filter.endDate);
+    const requestedResolution = body.granularity ?? body.resolution;
+    if (requestedResolution != null && requestedResolution !== 'day' && requestedResolution !== 'week' && requestedResolution !== 'month') {
+      throw badRequest("Invalid granularity or resolution: expected 'day', 'week' or 'month'");
+    }
+    const granularity = requestedResolution ?? resolutionFor(filter.startDate, filter.endDate);
     await send(deps, res, ws, { kind: 'v3-totals', filter, granularity, withGraph: Boolean(body.with_graph) });
   });
 
