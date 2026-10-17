@@ -196,11 +196,13 @@ Right-click the widget and choose Configure, then Connection:
   they are saved, and reports "Connected as <name>, workspace <id>". It needs
   an address and a secret on screen.
 
-Token sign-in is the default. Use it unless you want the widget to follow the
-account's password: rotating the token under Settings → API token in Tokkl
-makes the saved one fail, and the widget shows Sign-in refused until you
-save the new token. A password reset through an admin's link does not change
-the token, but it does change the password that email sign-in sends.
+Token sign-in is the default. Rotating the token under Settings → API token in
+Tokkl makes the saved one fail, and the widget shows Sign-in refused until you
+save the new token. Changing the account's password, or setting a new one
+through an admin's reset link, replaces the token too, so a saved token fails
+the same way. Sign in to Tokkl with the new password, copy the new token from
+Settings → API token and save it here. With email sign-in, save the new
+password instead.
 
 The page loads the saved token or password of the address, sign-in method and
 email on screen. Changing any of them clears a loaded or saved secret, so it

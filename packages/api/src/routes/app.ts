@@ -129,7 +129,10 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   // The email tells the holder which account the link is for; holding the link already grants it.
   app.get('/password-resets/:token', (req, res) => res.json({ email: resetFor(req).user.email }));
 
-  /** Sets a new password and signs the account out everywhere. No session starts; the user logs in next. */
+  /**
+   * Sets a new password, replaces the API token and signs the account out everywhere. No session
+   * starts; the user logs in next and reads the new token from GET /me.
+   */
   app.post('/password-resets/:token', async (req, res) => {
     requireCsrfHeader(req);
     const { token, user } = resetFor(req);

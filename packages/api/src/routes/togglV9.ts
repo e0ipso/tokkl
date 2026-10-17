@@ -182,16 +182,21 @@ export function togglV9Routes(deps: Deps): Router {
       if (owner && owner.id !== user.id) throw badRequest('Email already in use');
     }
 
-    db.prepare(`
-      UPDATE users SET email = ?, fullname = ?, timezone = ?, beginning_of_week = ?, default_workspace_id = ?,
-        password_hash = ?, updated_at = ?
-      WHERE id = ?
-    `).run(email ?? user.email, fullname ?? user.fullname, timezone ?? user.timezone, beginningOfWeek,
-      defaultWorkspaceId ?? user.default_workspace_id, passwordHash, nowIso(), user.id);
-    // A new password signs out every other browser; the one making the change stays signed in.
-    if (passwordHash !== user.password_hash) {
-      deleteOtherSessions(db, user.id, res.locals.authMethod === 'session' ? res.locals.sessionToken : undefined);
-    }
+    transaction(db, () => {
+      db.prepare(`
+        UPDATE users SET email = ?, fullname = ?, timezone = ?, beginning_of_week = ?, default_workspace_id = ?,
+          password_hash = ?, updated_at = ?
+        WHERE id = ?
+      `).run(email ?? user.email, fullname ?? user.fullname, timezone ?? user.timezone, beginningOfWeek,
+        defaultWorkspaceId ?? user.default_workspace_id, passwordHash, nowIso(), user.id);
+      // A new password replaces the API token, so a token saved on a lost or leaked device stops working,
+      // and signs out every other browser; the one making the change stays signed in. The response
+      // carries the new token, so a caller signed in with the old one can go on with it.
+      if (passwordHash !== user.password_hash) {
+        db.prepare('UPDATE users SET api_token = ? WHERE id = ?').run(generateApiToken(), user.id);
+        deleteOtherSessions(db, user.id, res.locals.authMethod === 'session' ? res.locals.sessionToken : undefined);
+      }
+    });
     return res.json(serializeUser(getUser(db, user.id)!, { includeToken: true }));
   });
 

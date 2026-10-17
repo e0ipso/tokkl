@@ -173,17 +173,17 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 |---|---|---|---|
 | A1 | First-run setup code, printed in the server log, creates the first admin. Whoever reaches the server first cannot claim it without reading the log. The code creates only the first admin. | MUST | Done |
 | A2 | Email and password login; session cookie (HttpOnly, SameSite=Lax, Secure behind HTTPS). `GET /me` also returns the account's `role`, which the web app uses to show the Admin page. | MUST | Done |
-| A3 | Change password (signs out other sessions), email, name. | MUST | Done |
+| A3 | Change password (signs out other sessions and replaces the API token), email, name. | MUST | Done |
 | A4 | Timezone, first day of week, date format, 12/24-hour time, duration format (improved, classic, decimal). | MUST | Done |
 | A5 | Theme: system, light, dark. | SHOULD | Done |
-| A6 | API token: view, copy, reset. | SHOULD | Done |
+| A6 | API token: view, copy, reset. Changing the password, or setting a new one through a reset link (A13), replaces it. `PUT /me` returns the new token in its response, also when the request signed in with the old one. | SHOULD | Done |
 | A7 | Keyboard shortcuts toggle and `?` help overlay. | SHOULD | Done |
 | A8 | TOTP two-factor login. | SHOULD | Planned |
 | A9 | Two account roles, admin and user. The first account is an admin. An admin changes any account's role, but the server always keeps at least one active admin. | MUST | Done |
 | A10 | Admins create invite links, choose the new account's role, and share the link by hand. A link works once and expires after the invite lifetime (7 days by default). Opening it lets one person create an account with a private workspace. Admins list and revoke unused links. The server sends no email. | MUST | Done |
 | A11 | Admins disable and re-enable accounts. A disabled account cannot sign in or use the API, its sessions end, and its data stays. Admins can also sign an account out of every browser without disabling it; its API token keeps working. | SHOULD | Done |
 | A12 | Admins delete an account together with its workspace and everything in it, after typing the account's email to confirm. An admin cannot delete their own account or the last active admin. A workspace that has another member stays. | SHOULD | Done |
-| A13 | Admins create password-reset links for an account and share them by hand. A link works once, expires after 24 hours, and replaces the account's earlier unused link. Using it signs the account out of every session. It does not change the account's API token, which the user resets separately (`POST /me/reset_token`). | SHOULD | Done |
+| A13 | Admins create password-reset links for an account and share them by hand. A link works once, expires after 24 hours, and replaces the account's earlier unused link. Using it signs the account out of every session and replaces the account's API token, so a saved token stops working. The user logs in with the new password and reads the new token from `GET /me`. | SHOULD | Done |
 | A14 | Admins edit instance settings: session lifetime (1 to 365 days), invite lifetime (1 to 90 days) and the time resolution `time_resolution_minutes` (a divisor of 60 minutes, 5 by default), which any signed-in client can read from `GET /api/v9/me`. A saved session lifetime replaces `TOKKL_SESSION_DAYS` and applies to new sessions only. A new resolution applies to entries written after the change; existing entries change only when they are next edited. | COULD | Done |
 | A15 | Admins manage accounts only and cannot read other users' time data. Workspace access depends on membership, never on the instance role, so an admin gets 403 on another account's workspace. | MUST | Done |
 
@@ -343,7 +343,7 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 ### 8.4 Security
 
 - Passwords: scrypt (N=2^15, r=8, p=1), constant-time comparison.
-- API token: 128 random bits, shown in settings, resettable.
+- API token: 128 random bits, shown in settings, resettable. A password change through `PUT /me` or a reset link replaces it in the same transaction as the new password, so a token saved on a lost device or leaked elsewhere stops working. `PUT /me` returns the new token.
 - Sessions: 256-bit random token, only its hash stored, 30-day default expiry (an admin can change it, A14), HttpOnly and SameSite=Lax cookie, `Secure` when served over HTTPS.
 - CSRF: cookie-authenticated writes must send `X-Tokkl-CSRF: 1` (the pre-rename `X-Timetrack-CSRF: 1` is still accepted), which a cross-site form cannot set and which needs a CORS preflight this server never grants. Login, setup, invite acceptance and password-reset acceptance need it too, because they set or change credentials without a session. Logout needs it only when a session is active. Requests with HTTP Basic auth are exempt.
 - Brute force: failed password attempts are counted over 15 minutes, across the login form, Basic auth and password change. The limits are 10 failures per account and client address, 50 per account and 100 per client address. A successful login resets the account-and-address and account counters, never the address counter. Setup code attempts keep their own per-address counter, limited to 10. Behind a trusted proxy the address is the last `X-Forwarded-For` hop, which the client cannot forge. Invite and password-reset links share the per-address counter: each unknown, expired, used or revoked token counts as a failure, and a blocked address gets 429 before the lookup, so tokens cannot be guessed at speed. Using a reset link also clears the account's earlier failures. Unknown emails still run a scrypt check, so response time does not reveal whether an account exists. A disabled account fails like a wrong password.
