@@ -81,6 +81,33 @@ test('using a link sets the password, ends every session of the account and star
   assert.ok(resetRows(admin)[0]!.used_at, 'the link is marked used');
 });
 
+test('using a link replaces the API token, and GET /me hands out the new one after logging in', async () => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const saved = bob.user.api_token;
+  assert.equal((await bob.request('GET', '/api/v9/me')).status, 200);
+  const created = await issue(admin, bob.user.id);
+
+  const response = await use(admin, created.token);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+  assert.equal(response.headers.get('set-cookie'), null, 'no session is started');
+
+  assert.equal((await bob.request('GET', '/api/v9/me')).status, 403, 'the saved token stops working');
+  assert.equal((await admin.request('GET', '/api/v9/me')).status, 200, "other accounts' tokens stay");
+
+  const loggedIn = await login(admin, 'bob@example.com', NEW_PASSWORD);
+  assert.equal(loggedIn.status, 200);
+  const me = await meWith(admin, loggedIn.headers.get('set-cookie')!.split(';')[0]!);
+  assert.equal(me.status, 200);
+  const replacement = ((await me.json()) as { api_token: string }).api_token;
+  assert.notEqual(replacement, saved);
+  const withReplacement = await anonymous(admin, 'GET', '/api/v9/me', undefined, {
+    authorization: `Basic ${Buffer.from(`${replacement}:api_token`).toString('base64')}`,
+  });
+  assert.equal(withReplacement.status, 200, 'the replacement token signs in');
+});
+
 test('a reset without the CSRF header is refused before the lookup and the limiter', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });

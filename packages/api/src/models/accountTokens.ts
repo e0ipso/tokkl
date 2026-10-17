@@ -1,6 +1,6 @@
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
-import { generateSessionToken, sha256 } from '../auth/crypto.ts';
+import { generateApiToken, generateSessionToken, sha256 } from '../auth/crypto.ts';
 import { deleteOtherSessions } from '../auth/sessions.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import { togglTime } from '../lib/values.ts';
@@ -137,16 +137,18 @@ export function findResetUser(db: Db, token: string): UserRow | undefined {
 }
 
 /**
- * Sets the password of the account behind a reset `token`, marks the token used and deletes every
- * session of the account, in one transaction. The token and the account are checked again inside it,
- * so two requests cannot both use one link, and an account disabled meanwhile is refused.
+ * Sets the password of the account behind a reset `token`, replaces its API token, marks the reset
+ * token used and deletes every session of the account, in one transaction. The token and the account
+ * are checked again inside it, so two requests cannot both use one link, and an account disabled
+ * meanwhile is refused.
  */
 export function resetPassword(db: Db, token: string, passwordHash: string): UserRow {
   return transaction(db, () => {
     const user = findResetUser(db, token);
     if (!user) throw notFound(RESET_NOT_FOUND);
     const now = nowIso();
-    db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(passwordHash, now, user.id);
+    db.prepare('UPDATE users SET password_hash = ?, api_token = ?, updated_at = ? WHERE id = ?')
+      .run(passwordHash, generateApiToken(), now, user.id);
     db.prepare('UPDATE account_tokens SET used_at = ? WHERE token_hash = ?').run(now, sha256(token));
     deleteOtherSessions(db, user.id);
     return user;

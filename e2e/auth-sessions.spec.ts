@@ -56,6 +56,12 @@ test('changing the password keeps this browser logged in and logs the other one 
     await card.getByLabel('Repeat new password').fill(NEW_PASSWORD);
     await card.getByRole('button', { name: 'Change password' }).click();
     await expect(page.getByRole('status')).toContainText('Password changed. Other browsers were logged out.');
+    // A new password replaces the API token, and the token card shows the new one without a reload.
+    const replacement = (await (await page.request.get(`${server.baseURL}/api/v9/me`)).json()).api_token;
+    expect(replacement).not.toBe(apiToken);
+    const tokenCard = page.locator('#api-token');
+    await tokenCard.getByRole('button', { name: 'Show' }).click();
+    await expect(tokenCard.getByLabel('API token', { exact: true })).toHaveText(replacement);
 
     // This browser keeps its session for reads, writes and a reload.
     await page.reload();
@@ -77,9 +83,9 @@ test('changing the password keeps this browser logged in and logs the other one 
 
     expect(await loginStatus(server.baseURL, ACCOUNT.password)).toBe(403);
     expect(await loginStatus(server.baseURL, NEW_PASSWORD)).toBe(200);
-    // API tokens are not tied to the password: the same token keeps working.
-    expect(await meWithBasic(server.baseURL, basic(apiToken, 'api_token'))).toBe(200);
-    expect((await (await page.request.get(`${server.baseURL}/api/v9/me`)).json()).api_token).toBe(apiToken);
+    // The old API token stops working and the new one signs in.
+    expect(await meWithBasic(server.baseURL, basic(apiToken, 'api_token'))).toBe(403);
+    expect(await meWithBasic(server.baseURL, basic(replacement, 'api_token'))).toBe(200);
   } finally {
     await otherErrors.verify(testInfo);
     await otherContext.close();
@@ -113,7 +119,7 @@ test('a password change over Basic auth revokes every cookie session', async ({ 
 
   expect(await meWithBasic(server.baseURL, basic(ACCOUNT.email, ACCOUNT.password))).toBe(403);
   expect(await meWithBasic(server.baseURL, basic(ACCOUNT.email, NEW_PASSWORD))).toBe(200);
-  expect(await meWithBasic(server.baseURL, basic(apiToken, 'api_token'))).toBe(200);
+  expect(await meWithBasic(server.baseURL, basic(apiToken, 'api_token'))).toBe(403);
 });
 
 test('a session cookie stops working after the 30-day lifetime', async ({ servers }) => {

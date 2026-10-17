@@ -106,13 +106,23 @@ for (const [phase, nth] of [['current-password check', CHECK], ['new-password ha
   });
 }
 
-test('an API-token password change is refused when a reset commits while it hashes, though the token still works', async () => {
+const apiToken = (ctx: TestContext, userId: number) =>
+  (ctx.db.prepare('SELECT api_token FROM users WHERE id = ?').get(userId) as { api_token: string }).api_token;
+
+test('an API-token password change is refused when a reset commits while it hashes, and keeps the reset\'s token', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const during = duringScrypt(HASH, await resetLink(admin, bob.user.id));
+  const useReset = await resetLink(admin, bob.user.id);
+  let issued = '';
+  const during = duringScrypt(HASH, async () => {
+    await useReset();
+    issued = apiToken(admin, bob.user.id);
+  });
   await assertRefused(await bob.request('PUT', '/api/v9/me', changeBody));
   await during;
-  assert.equal((await bob.request('GET', '/api/v9/me')).status, 200);
+  assert.notEqual(issued, bob.user.api_token, 'the reset replaced the token');
+  assert.equal(apiToken(admin, bob.user.id), issued, 'the refused change replaced nothing');
+  assert.equal((await bob.request('GET', '/api/v9/me')).status, 403, 'the token from before the reset stops working');
   await assertOnlyPasswordWorks(admin, NEW_PASSWORD);
 });
 

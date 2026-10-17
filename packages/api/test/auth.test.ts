@@ -173,6 +173,37 @@ test('PUT /me changes the password only with the current one', async () => {
   assert.equal(login.status, 200);
 });
 
+test('a password change through PUT /me replaces the API token and returns the new one', async () => {
+  const ctx = await setup();
+  const old = ctx.user.api_token;
+  const changed = await ctx.json('PUT', '/api/v9/me', { current_password: PASSWORD, password: 'new password 1' });
+  assert.equal(changed.status, 200, 'the old token can still make the change');
+  const replacement = changed.body.api_token as string;
+  assert.match(replacement, /^[0-9a-f]{32}$/);
+  assert.notEqual(replacement, old);
+  assert.equal(getUser(ctx.db, ctx.user.id)!.api_token, replacement, 'the response carries the stored token');
+
+  const me = (token: string) => ctx.request('GET', '/api/v9/me', undefined, { authorization: basic(token, 'api_token') });
+  assert.equal((await me(old)).status, 403, 'the old token stops working');
+  const fresh = await me(replacement);
+  assert.equal(fresh.status, 200, 'the new token signs in');
+  assert.equal((await fresh.json() as { api_token: string }).api_token, replacement);
+});
+
+test('PUT /me without a password change keeps the exact API token', async () => {
+  const ctx = await setup();
+  const updated = await ctx.json('PUT', '/api/v9/me', { timezone: 'Europe/Madrid' });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.timezone, 'Europe/Madrid');
+  assert.equal(updated.body.api_token, ctx.user.api_token);
+
+  const refused = await ctx.json('PUT', '/api/v9/me', { current_password: 'nope', password: 'new password 1' });
+  assert.equal(refused.status, 400, 'a refused password change writes nothing either');
+
+  assert.equal(getUser(ctx.db, ctx.user.id)!.api_token, ctx.user.api_token);
+  assert.equal((await ctx.request('GET', '/api/v9/me')).status, 200, 'the token still signs in');
+});
+
 /** createFirstAdmin refuses a second account, so tests that need one insert it directly. */
 function insertSecondUser(db: Db, owner: UserRow, email: string): UserRow {
   const result = db.prepare(`
