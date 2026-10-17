@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/e0ipso/tokkl/compare/v1.2.1...v1.3.0) (2026-10-17)
+
+### Features
+
+* **desktop:** build the DEBs for Debian 13 ([45fc4a5](https://github.com/e0ipso/tokkl/commit/45fc4a59575754a8a20891c6eb29fd47f7fa30e7))
+
 ## [1.2.1](https://github.com/e0ipso/tokkl/compare/v1.2.0...v1.2.1) (2026-10-17)
 
 ### Bug Fixes
