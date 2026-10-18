@@ -152,6 +152,22 @@ test('CSV import rejects impossible dates instead of rolling them over', async (
   assert.deepEqual(result.errors.map((e: any) => e.row), [2, 3]);
 });
 
+test('CSV import takes a duration up to 999 hours and refuses longer ones and unknown units', async () => {
+  const ctx = await setup();
+  const csv = [
+    'Description,Start date,Start time,End date,End time,Duration',
+    'At the limit,2026-03-02,09:00:00,,,999:00:00',
+    'One second over,2026-03-02,10:00:00,,,999:00:01',
+    'Over in hours,2026-03-02,11:00:00,,,1000h',
+    'Prototype key,2026-03-02,12:00:00,,,1 constructor',
+  ].join('\n');
+  const result = await (await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  assert.equal(result.created, 1);
+  assert.deepEqual(result.errors, [3, 4, 5].map((row) => ({ row, message: 'Invalid end time or duration' })));
+  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-03-01&end_date=2026-04-15')).body;
+  assert.deepEqual(entries.map((e: any) => [e.description, e.duration]), [['At the limit', 999 * 3600]]);
+});
+
 test('CSV import keeps a user apart from one whose User cell spells out a name and email', async () => {
   const ctx = await setup();
   const csv = [
