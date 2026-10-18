@@ -26,6 +26,8 @@ commitlint normally skips every rule for messages that match its default ignore 
 
 `.husky/commit-msg` runs `npx --no -- commitlint --edit "$1"`. Husky installs through the root `prepare` script, which sets `core.hooksPath` to the relative `.husky/_` in the shared git config. A git worktree that has not run `npm ci` has no `.husky/_`, so git runs no hooks there. A commit with a forbidden trailer succeeds in the worktree and is rejected later, when it is replayed in a checkout that has the hooks. Check messages by hand when committing from such a worktree.
 
+`scripts/commitlint.test.ts` (run by `npm test`) commits in a `mkdtemp` repository with the real `.husky/commit-msg` hook. The fixture needs four things to be hermetic. Husky reads `$XDG_CONFIG_HOME/husky/init.sh` before it checks `HUSKY`, so `XDG_CONFIG_HOME` points at an empty directory. Every `GIT_*` and `HUSKY*` variable is stripped from the environment, so a run from inside a git hook cannot reach the real checkout and a `HUSKY=0` cannot disable the hook. `GIT_CONFIG_GLOBAL=/dev/null` and `GIT_CONFIG_NOSYSTEM=1` ignore user and system git config. The `node_modules` symlink is unlinked before `rmSync`, so the recursive delete cannot follow it into the real one. `git merge --log` lists the merged commits newest first.
+
 <!-- kk:related:start -->
 # Related
 

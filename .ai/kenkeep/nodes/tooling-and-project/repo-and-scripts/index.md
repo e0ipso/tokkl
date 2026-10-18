@@ -43,6 +43,7 @@ _None._
 ### #common
 - Open [**UI time math uses account-local wall-clock helpers**](../../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
+- Open [**Parser cases live in packages/common/fixtures JSON, not in TS asserts**](../testing/practice-parser-cases-live-in-shared-json-fixtures.md) — duration, timeOfDay and snap cases are a cross-client contract in JSON; add parser cases there, not in TS tests.
 ### #config
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) — Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work.
 ### #git

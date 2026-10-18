@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:4a01729fa723efae68dcff3df30a350831e5090fb8f0dfa45bc18475df03a4c3'
-node_count: 58
+nodes_hash: 'sha256:0ff67d48d08755161ed9eadb78a6da9266956ecb838ca6ee830c0075bee91ec3'
+node_count: 59
 ---
 # kenkeep Graph
 
-Total nodes: 58
+Total nodes: 59
 
 ## map-admin-api-and-disabled-accounts
 
@@ -294,6 +294,14 @@ Total nodes: 58
 - **path:** web-ui-behaviour/practice-parse-duration-returns-null-over-999-hours.md
 - **tags:** time, parsing, validation
 - **relates_to:** practice-twelve-hour-time-entry-parsing-rules, practice-web-previews-and-editor-show-snapped-durations
+
+## practice-parser-cases-live-in-shared-json-fixtures
+
+- **kind:** practice
+- **title:** Parser cases live in packages/common/fixtures JSON, not in TS asserts
+- **path:** tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md
+- **tags:** testing, common, parsing
+- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout
 
 ## practice-password-checks-go-through-failurelimiter-attempt
 

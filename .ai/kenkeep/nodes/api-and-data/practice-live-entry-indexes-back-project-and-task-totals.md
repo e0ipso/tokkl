@@ -20,4 +20,4 @@ Project and task tracked-time totals sum live (not deleted) entries per project 
 
 `packages/api/test/entities.test.ts` runs `EXPLAIN QUERY PLAN` on the totals queries and asserts they use these indexes. If you change the shape of the totals SQL, keep the `deleted_at IS NULL` and `project_id`/`task_id` predicates the partial indexes match, or the test fails.
 
-Migrations are an append-only array; `openDatabase` in `packages/api/src/db/index.ts` applies entries past `PRAGMA user_version` and bumps it. Add schema changes as a new array entry, never by editing an applied one. The test that opens a version 1 database checks `user_version` against both `MIGRATIONS.length` and the literal count (5), so a new migration also updates that number.
+Migrations are an append-only array; `openDatabase` in `packages/api/src/db/index.ts` applies entries past `PRAGMA user_version` and bumps it. Add schema changes as a new array entry, never by editing an applied one. The test that opens a version 1 database checks `user_version` against both `MIGRATIONS.length` and the literal count (6), so a new migration also updates that number.
