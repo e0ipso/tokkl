@@ -1,35 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatDuration, parseDuration } from './duration.ts';
+import durationFixture from './fixtures/duration.json' with { type: 'json' };
 
-test('parseDuration accepts the formats people type', () => {
-  const cases: Array<[string, number | null]> = [
-    ['1:30', 5400],
-    ['0:05:30', 330],
-    ['90', 5400],
-    ['1.5', 5400],
-    ['1,5h', 5400],
-    ['1h 30m', 5400],
-    ['1h30m', 5400],
-    ['2 hours 15 min', 8100],
-    ['45s', 45],
-    ['', null],
-    ['abc', null],
-    ['1:75', null],
-    ['1x', null],
-    ['1h foo', null],
-    ['1 constructor', null],
-    ['2 CONSTRUCTOR', null],
-    ['9'.repeat(310), null],
-    ['9'.repeat(310) + 'h', null],
-    ['999999999999', null],
-    ['999h', 3596400],
-    ['999:00:01', null],
-  ];
-  for (const [input, expected] of cases) {
-    assert.equal(parseDuration(input), expected, `input ${JSON.stringify(input)}`);
-  }
-});
+interface DurationCase {
+  name: string;
+  input: string;
+  expected: number | null;
+}
+
+const durationCases: DurationCase[] = durationFixture;
+
+for (const { name, input, expected } of durationCases) {
+  test(`parseDuration: ${name}`, () => {
+    assert.equal(parseDuration(input), expected);
+  });
+}
 
 test('formatDuration renders each Toggl duration format', () => {
   assert.equal(formatDuration(3906, 'improved'), '1:05:06');

@@ -1,0 +1,107 @@
+[
+  {
+    "name": "\"1:30\" is 5400 seconds",
+    "input": "1:30",
+    "expected": 5400
+  },
+  {
+    "name": "\"0:05:30\" is 330 seconds",
+    "input": "0:05:30",
+    "expected": 330
+  },
+  {
+    "name": "\"90\" is 5400 seconds",
+    "input": "90",
+    "expected": 5400
+  },
+  {
+    "name": "\"1.5\" is 5400 seconds",
+    "input": "1.5",
+    "expected": 5400
+  },
+  {
+    "name": "\"1,5h\" is 5400 seconds",
+    "input": "1,5h",
+    "expected": 5400
+  },
+  {
+    "name": "\"1h 30m\" is 5400 seconds",
+    "input": "1h 30m",
+    "expected": 5400
+  },
+  {
+    "name": "\"1h30m\" is 5400 seconds",
+    "input": "1h30m",
+    "expected": 5400
+  },
+  {
+    "name": "\"2 hours 15 min\" is 8100 seconds",
+    "input": "2 hours 15 min",
+    "expected": 8100
+  },
+  {
+    "name": "\"45s\" is 45 seconds",
+    "input": "45s",
+    "expected": 45
+  },
+  {
+    "name": "empty string is rejected",
+    "input": "",
+    "expected": null
+  },
+  {
+    "name": "\"abc\" is rejected",
+    "input": "abc",
+    "expected": null
+  },
+  {
+    "name": "\"1:75\" is rejected",
+    "input": "1:75",
+    "expected": null
+  },
+  {
+    "name": "\"1x\" is rejected",
+    "input": "1x",
+    "expected": null
+  },
+  {
+    "name": "\"1h foo\" is rejected",
+    "input": "1h foo",
+    "expected": null
+  },
+  {
+    "name": "\"1 constructor\" is rejected",
+    "input": "1 constructor",
+    "expected": null
+  },
+  {
+    "name": "\"2 CONSTRUCTOR\" is rejected",
+    "input": "2 CONSTRUCTOR",
+    "expected": null
+  },
+  {
+    "name": "310 characters ending in \"9\" is rejected",
+    "input": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+    "expected": null
+  },
+  {
+    "name": "311 characters ending in \"h\" is rejected",
+    "input": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999h",
+    "expected": null
+  },
+  {
+    "name": "\"999999999999\" is rejected",
+    "input": "999999999999",
+    "expected": null
+  },
+  {
+    "name": "\"999h\" is 3596400 seconds",
+    "input": "999h",
+    "expected": 3596400
+  },
+  {
+    "name": "\"999:00:01\" is rejected",
+    "input": "999:00:01",
+    "expected": null
+  }
+]
