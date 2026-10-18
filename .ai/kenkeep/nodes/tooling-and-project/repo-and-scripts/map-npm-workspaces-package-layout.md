@@ -21,7 +21,7 @@ kk_confidence: high
 ---
 The repo is an npm workspaces monorepo (`"workspaces": ["packages/*"]`):
 
-- `packages/common` (`@tokkl/common`): code shared by the server and the browser. It has no build step; `package.json` `exports` map subpaths straight to `.ts` files (`@tokkl/common/time`, `/duration`, `/colors`). Import it by those subpaths, never by a relative path into the package.
+- `packages/common` (`@tokkl/common`): code shared by the server and the browser. It has no build step; `package.json` `exports` map subpaths straight to `.ts` files (`@tokkl/common/time`, `/timeOfDay`, `/duration`, `/snap`, `/colors`). Import it by those subpaths, never by a relative path into the package.
 - `packages/api` (`@tokkl/api`): the Node server, `src/` and `test/`.
 - `packages/web` (`@tokkl/web`): the React app, with its own `index.html`, `public/`, `tsconfig.json` and `vite.config.ts`.
 - `packages/types` (`@tokkl/types`): type-only declarations in one `index.ts`, the JSON shapes the web app reads from and sends to the API plus value shapes used by common. It must hold no runtime code (no enums, no values), so every import is `import type` and erases when Node strips types. `packages/web/src/api/types.ts` re-exports all of it. The server imports only the types its output matches exactly (`DurationFormat`, `ImportResult`, `ImportUser`). `Task.tracked_seconds` is in milliseconds despite the name, copying Toggl.

@@ -22,6 +22,8 @@ A second custom rule, `no-ticket-id-in-header` (also an error), rejects a header
 
 The local rules also cap the subject (the text after `type(scope): `) at 72 characters with `subject-max-length`, an error. The whole header and every body and footer line are capped at 100. The preset also warns, without failing, when the body or the footer does not start after a blank line, so put an empty line before trailers such as `Refs:`.
 
+commitlint normally skips every rule for messages that match its default ignore list (merges, `Revert "..."`, `fixup!`/`squash!`, bare versions), and its merge pattern matches a "Merge branch" line anywhere in the message. The config therefore sets `defaultIgnores: false` and supplies one `ignores` function that applies the default list to the first line only, and only when the whole message also passes both custom rules. Reverts, fixups, squashes, amends and merges get no bypass from the two custom rules, and a non-Conventional subject with a "Merge branch" line in its body fails the format rules. `scripts/commitlint.test.ts` loads the config with `@commitlint/load` and lints with `@commitlint/lint`.
+
 `.husky/commit-msg` runs `npx --no -- commitlint --edit "$1"`. Husky installs through the root `prepare` script, which sets `core.hooksPath` to the relative `.husky/_` in the shared git config. A git worktree that has not run `npm ci` has no `.husky/_`, so git runs no hooks there. A commit with a forbidden trailer succeeds in the worktree and is rejected later, when it is replayed in a checkout that has the hooks. Check messages by hand when committing from such a worktree.
 
 <!-- kk:related:start -->

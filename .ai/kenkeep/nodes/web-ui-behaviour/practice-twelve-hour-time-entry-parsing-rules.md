@@ -16,7 +16,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-Typed clock times go through `parseTimeOfDay` in `packages/web/src/lib/timeOfDay.ts`. For 12-hour users the rules are:
+Typed clock times go through `parseTimeOfDay` in `packages/common/timeOfDay.ts` (web imports it from `@tokkl/common/timeOfDay`). For 12-hour users the rules are:
 
 - An explicit suffix (`9am`, `9pm`, `12am`) is authoritative and never second-guessed.
 - An end time without a suffix resolves to the first AM/PM occurrence after the start (the `after` option), so 11pm to "1" is 1 AM. `resolveRange` in `packages/web/src/lib/entryTime.ts` then rolls the stop over to the next calendar day in the account time zone when needed.
