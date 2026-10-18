@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfWeek } from '@tokkl/common/time';
@@ -16,10 +16,22 @@ import { useToast } from './Toast.tsx';
 const HOUR_HEIGHT = 48;
 const SNAP_MINUTES = 15;
 const MIN_BLOCK_MINUTES = 15;
+// A touch drag starts after a hold, so a plain finger still scrolls the grid.
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_TOLERANCE_PX = 10;
 
 type Drag =
   | { kind: 'create'; day: string; fromMinute: number; toMinute: number }
   | { kind: 'move' | 'resize'; entry: TimeEntry; day: string; originY: number; startMinute: number; endMinute: number; deltaMinutes: number };
+
+/** A touch that is being held on a column or block, and the drag it becomes if the hold completes. */
+interface LongPress {
+  next: Drag;
+  pointerId: number;
+  x: number;
+  y: number;
+  timer: number;
+}
 
 function snap(minutes: number): number {
   return Math.max(0, Math.min(24 * 60, Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES));
@@ -91,6 +103,11 @@ export function WeekCalendar() {
   const toast = useToast();
   const [editing, setEditing] = useState<TimeEntry | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
+  // Mirrors drag for handlers that run before React re-renders. A touch fires pointer up and then
+  // pointer leave in one go, so finishDrag clears the ref first and the gesture saves at most once.
+  const dragRef = useRef<Drag | null>(null);
+  const longPress = useRef<LongPress | null>(null);
+  const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const stripButtons = useRef<(HTMLButtonElement | null)[]>([]);
   // Where a day-mode gesture on the grid began, until pointer up decides whether it was a swipe.
@@ -100,6 +117,49 @@ export function WeekCalendar() {
   useEffect(() => {
     scroller.current?.scrollTo({ top: 7 * HOUR_HEIGHT });
   }, []);
+
+  // React's touch handlers are passive and touch-action can't change mid-gesture, so only a native
+  // non-passive touchmove listener can keep the grid from scrolling once a touch drag is active.
+  useEffect(() => {
+    const element = root.current;
+    const onTouchMove = (event: TouchEvent) => {
+      // A touch that lands during a fling stays uncancelable; the browser keeps that one as a scroll.
+      if (dragRef.current && event.cancelable) event.preventDefault();
+    };
+    element?.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => {
+      element?.removeEventListener('touchmove', onTouchMove);
+      if (longPress.current) window.clearTimeout(longPress.current.timer);
+    };
+  }, []);
+
+  const updateDrag = (next: Drag | null) => {
+    dragRef.current = next;
+    setDrag(next);
+  };
+
+  const cancelLongPress = () => {
+    if (!longPress.current) return;
+    window.clearTimeout(longPress.current.timer);
+    longPress.current = null;
+  };
+
+  // Mouse and pen drags start at once. A touch waits out the hold; a lift, a scroll or a finger
+  // that wanders past the tolerance before then leaves the gesture to the browser.
+  const beginDrag = (event: PointerEvent, next: Drag) => {
+    if (event.pointerType !== 'touch') {
+      updateDrag(next);
+      return;
+    }
+    cancelLongPress();
+    const timer = window.setTimeout(() => {
+      longPress.current = null;
+      // The held finger is dragging now, so its travel must not count as a swipe on pointer up.
+      swipeStart.current = null;
+      updateDrag(next);
+    }, LONG_PRESS_MS);
+    longPress.current = { next, pointerId: event.pointerId, x: event.clientX, y: event.clientY, timer };
+  };
 
   const selectDay = (day: string) => {
     if (day !== selectedDay) setSlide(day > selectedDay ? 'next' : 'previous');
@@ -123,9 +183,10 @@ export function WeekCalendar() {
     ((clientY - column.getBoundingClientRect().top) / HOUR_HEIGHT) * 60;
 
   const finishDrag = async () => {
-    const current = drag;
-    setDrag(null);
+    cancelLongPress();
+    const current = dragRef.current;
     if (!current) return;
+    updateDrag(null);
     try {
       if (current.kind === 'create') {
         // A plain click (no drag) does nothing; creating needs a dragged range.
@@ -178,7 +239,20 @@ export function WeekCalendar() {
   const gestureEditsNothing = !drag || (drag.kind === 'create' && drag.fromMinute === drag.toMinute);
 
   return (
-    <div className={`calendar${dayMode ? ' day-mode' : ''}`} onPointerUp={() => void finishDrag()} onPointerLeave={() => drag && void finishDrag()}>
+    <div
+      ref={root}
+      className={`calendar${dayMode ? ' day-mode' : ''}`}
+      onPointerMove={(event) => {
+        const press = longPress.current;
+        if (press && press.pointerId === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > LONG_PRESS_TOLERANCE_PX) {
+          cancelLongPress();
+        }
+      }}
+      onPointerUp={() => void finishDrag()}
+      onPointerLeave={() => void finishDrag()}
+      // The browser took the touch for a scroll, so a held or dragged block goes back where it was.
+      onPointerCancel={() => { cancelLongPress(); updateDrag(null); }}
+    >
       <div className="calendar-toolbar">
         {dayMode ? (
           <>
@@ -261,6 +335,8 @@ export function WeekCalendar() {
             className="calendar-grid"
             style={{ height: 24 * HOUR_HEIGHT }}
             data-slide={dayMode && slide ? slide : undefined}
+            // Android Chrome opens a context menu on a long press; a right-click still gets one.
+            onContextMenu={(event) => { if (longPress.current || dragRef.current) event.preventDefault(); }}
           >
             <div className="calendar-gutter">
               {Array.from({ length: 24 }, (_, hour) => (
@@ -276,17 +352,17 @@ export function WeekCalendar() {
                 onPointerDown={(event) => {
                   if (event.button !== 0 || (event.target as HTMLElement).closest('.calendar-block')) return;
                   const minute = snap(minuteAt(event.clientY, event.currentTarget));
-                  setDrag({ kind: 'create', day, fromMinute: minute, toMinute: minute });
+                  beginDrag(event, { kind: 'create', day, fromMinute: minute, toMinute: minute });
                 }}
                 onPointerMove={(event) => {
                   if (!drag) return;
                   if (drag.kind === 'create' && drag.day === day) {
-                    setDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget)) });
+                    updateDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget)) });
                   } else if (drag.kind !== 'create') {
                     const snapped = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
                     // A day-mode move stays on the shown day; the week view lets a block cross midnight.
                     const delta = dayMode && drag.kind === 'move' ? clampDayMove(snapped, drag.startMinute, drag.endMinute) : snapped;
-                    if (delta !== drag.deltaMinutes) setDrag({ ...drag, deltaMinutes: delta });
+                    if (delta !== drag.deltaMinutes) updateDrag({ ...drag, deltaMinutes: delta });
                   }
                 }}
               >
@@ -324,7 +400,7 @@ export function WeekCalendar() {
                         if (event.button !== 0) return;
                         event.stopPropagation();
                         const resize = (event.target as HTMLElement).classList.contains('calendar-resize');
-                        setDrag({
+                        beginDrag(event, {
                           kind: resize ? 'resize' : 'move', entry: block.entry, day, originY: event.clientY,
                           startMinute: block.top, endMinute: block.bottom, deltaMinutes: 0,
                         });
