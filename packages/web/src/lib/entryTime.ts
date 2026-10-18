@@ -1,5 +1,5 @@
 import { addDays, dateKey, parseDateKey, zonedToUtc } from '@tokkl/common/time';
-import { parseTimeOfDay } from './timeOfDay.ts';
+import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 
 /** Combines a date key and minutes after midnight in `timeZone` into an instant. */
 export function instantAt(key: string, minutes: number, timeZone: string): Date {

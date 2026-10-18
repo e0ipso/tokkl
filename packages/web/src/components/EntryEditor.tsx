@@ -3,11 +3,11 @@ import { useCreateEntry, useDeleteEntry, useProjects, useRestoreEntry, useUpdate
 import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { addDays } from '@tokkl/common/time';
+import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import {
   entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, snappedSplit, useNow, useSettings, type SplitHalves,
 } from '../lib/settings.ts';
-import { parseTimeOfDay } from '../lib/timeOfDay.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { Modal } from './Overlay.tsx';
