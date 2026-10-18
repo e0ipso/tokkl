@@ -399,7 +399,7 @@ export function togglV9Routes(deps: Deps): Router {
     const ws = workspaceFor(db, req, res);
     const mode = query(req, 'teDeletionMode');
     transaction(db, () => deleteProject(db, ws.id, parseId(req.params.pid), mode === 'delete'));
-    return res.json(parseId(req.params.pid));
+    return res.status(200).end();
   });
 
   // Tasks
