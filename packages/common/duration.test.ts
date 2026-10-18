@@ -18,6 +18,13 @@ test('parseDuration accepts the formats people type', () => {
     ['1:75', null],
     ['1x', null],
     ['1h foo', null],
+    ['1 constructor', null],
+    ['2 CONSTRUCTOR', null],
+    ['9'.repeat(310), null],
+    ['9'.repeat(310) + 'h', null],
+    ['999999999999', null],
+    ['999h', 3596400],
+    ['999:00:01', null],
   ];
   for (const [input, expected] of cases) {
     assert.equal(parseDuration(input), expected, `input ${JSON.stringify(input)}`);
