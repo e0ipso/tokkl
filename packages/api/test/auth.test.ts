@@ -96,6 +96,28 @@ test('first-run setup needs the setup code and only works once', async () => {
   assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false });
 });
 
+test('setup stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
+  const attempt = async (timezone: unknown) => {
+    const db = openDatabase(':memory:');
+    const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+    const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' };
+    const response = await app.request('/api/app/setup', {
+      method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' },
+      body: JSON.stringify(timezone === undefined ? account : { ...account, timezone }),
+    });
+    const rows = db.prepare('SELECT timezone FROM users').all() as { timezone: string }[];
+    return { status: response.status, body: await response.json() as unknown, zones: rows.map((row) => row.timezone) };
+  };
+
+  assert.deepEqual(await attempt('europe/madrid'), { status: 200, body: { ok: true }, zones: ['Europe/Madrid'] });
+  assert.deepEqual(await attempt('utc'), { status: 200, body: { ok: true }, zones: ['UTC'] });
+  assert.deepEqual(await attempt(undefined), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'no timezone');
+  assert.deepEqual(await attempt(''), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'an empty timezone');
+  for (const timezone of ['+02:00', '-0500', 'Bogus/Zone', 42]) {
+    assert.deepEqual(await attempt(timezone), { status: 400, body: 'Invalid timezone', zones: [] }, String(timezone));
+  }
+});
+
 /** A cross-site form with enctype="text/plain" can post a JSON body, but it cannot set a CSRF header. */
 const textPlain = (body: unknown, headers: Record<string, string> = {}): RequestInit => ({
   method: 'POST', headers: { 'content-type': 'text/plain', ...headers }, body: JSON.stringify(body),
@@ -202,6 +224,28 @@ test('PUT /me without a password change keeps the exact API token', async () => 
 
   assert.equal(getUser(ctx.db, ctx.user.id)!.api_token, ctx.user.api_token);
   assert.equal((await ctx.request('GET', '/api/v9/me')).status, 200, 'the token still signs in');
+});
+
+test('PUT /me stores and returns the canonical timezone name', async () => {
+  const ctx = await setup();
+  for (const [sent, stored] of [['europe/madrid', 'Europe/Madrid'], ['utc', 'UTC'], ['Etc/UTC', 'UTC']] as const) {
+    const updated = await ctx.json('PUT', '/api/v9/me', { timezone: sent });
+    assert.equal(updated.status, 200, sent);
+    assert.equal(updated.body.timezone, stored, sent);
+    assert.equal(getUser(ctx.db, ctx.user.id)!.timezone, stored, sent);
+    assert.equal((await ctx.json('GET', '/api/v9/me')).body.timezone, stored, sent);
+  }
+});
+
+test('PUT /me refuses offset IDs and unknown timezones and changes nothing', async () => {
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const before = getUser(ctx.db, ctx.user.id)!;
+  for (const timezone of ['+02:00', '-0500', '\u221205:00', 'Bogus/Zone']) {
+    const refused = await ctx.json('PUT', '/api/v9/me', { timezone, fullname: 'Changed' });
+    assert.equal(refused.status, 400, timezone);
+    assert.equal(refused.body, 'Invalid timezone', timezone);
+  }
+  assert.deepEqual(getUser(ctx.db, ctx.user.id), before);
 });
 
 /** createFirstAdmin refuses a second account, so tests that need one insert it directly. */

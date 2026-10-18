@@ -1,8 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addClockMinutes, addDays, clockMinutes, clockSpanOnDay, dateKey, startOfDay, startOfWeek, zonedToUtc,
+  addClockMinutes, addDays, canonicalTimeZone, clockMinutes, clockSpanOnDay, dateKey, startOfDay, startOfWeek, zonedToUtc,
 } from './time.ts';
+
+test('canonicalTimeZone folds case and returns the name Intl resolves', () => {
+  assert.equal(canonicalTimeZone('Europe/Madrid'), 'Europe/Madrid');
+  assert.equal(canonicalTimeZone('europe/madrid'), 'Europe/Madrid');
+  assert.equal(canonicalTimeZone('AMERICA/NEW_YORK'), 'America/New_York');
+});
+
+test('canonicalTimeZone maps the UTC aliases to UTC', () => {
+  for (const name of ['UTC', 'utc', 'Etc/UTC', 'etc/utc', 'GMT', 'Etc/GMT']) assert.equal(canonicalTimeZone(name), 'UTC', name);
+});
+
+test('canonicalTimeZone refuses offset IDs, also the ones Intl accepts', () => {
+  for (const name of ['+02:00', '-0500', '-05:00', '\u221205:00', '+23:59', '+00:00']) assert.equal(canonicalTimeZone(name), null, name);
+});
+
+test('canonicalTimeZone refuses names Intl does not know', () => {
+  for (const name of ['', 'Bogus/Zone', 'Europe/Nowhere', 'Z', ' Europe/Madrid']) assert.equal(canonicalTimeZone(name), null, name);
+});
 
 test('startOfDay handles DST transitions', () => {
   // Europe/Madrid switches to CEST on 2026-03-29.

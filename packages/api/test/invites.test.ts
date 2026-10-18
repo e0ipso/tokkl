@@ -135,6 +135,29 @@ test('accepting an invite creates the account, its workspace and membership, and
   assert.deepEqual({ ...nameless }, { role: 'user', name: 'My workspace' });
 });
 
+test('accepting an invite stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
+  const admin = await setup();
+  const zoneOf = (email: string) => (admin.db.prepare('SELECT timezone FROM users WHERE email = ?').get(email) as { timezone: string }).timezone;
+
+  const created = await invite(admin);
+  const before = counts(admin);
+  for (const timezone of ['+02:00', '-0500', 'Bogus/Zone']) {
+    const refused = await accept(admin, created.token, { email: 'ana@example.com', timezone });
+    assert.equal(refused.status, 400, timezone);
+    assert.equal(await refused.json(), 'Invalid timezone', timezone);
+    assert.equal(refused.headers.get('set-cookie'), null, timezone);
+  }
+  assert.deepEqual(counts(admin), before, 'no account was created');
+  assert.equal((await accept(admin, created.token, { email: 'ana@example.com', timezone: 'europe/madrid' })).status, 200,
+    'the invite stayed usable');
+  assert.equal(zoneOf('ana@example.com'), 'Europe/Madrid');
+
+  assert.equal((await accept(admin, (await invite(admin)).token, { email: 'utc@example.com', timezone: 'utc' })).status, 200);
+  assert.equal(zoneOf('utc@example.com'), 'UTC');
+  assert.equal((await accept(admin, (await invite(admin)).token, { email: 'none@example.com', timezone: undefined })).status, 200);
+  assert.equal(zoneOf('none@example.com'), 'UTC', 'no timezone');
+});
+
 test('a failure inside the acceptance leaves no account, workspace, membership or used token', async () => {
   const admin = await setup();
   const created = await invite(admin);

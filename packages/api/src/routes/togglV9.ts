@@ -8,7 +8,7 @@ import type { Deps } from '../http/context.ts';
 import { clientAddress, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
 import { badRequest, forbidden, tooManyRequests } from '../lib/errors.ts';
 import { optionalId, optionalRate, optionalString, parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
-import { isValidTimeZone, startOfDay } from '@tokkl/common/time';
+import { canonicalTimeZone, startOfDay } from '@tokkl/common/time';
 import {
   createClient, deleteClient, getClient, listClients, restoreClient, serializeClient, setClientArchived, updateClient,
 } from '../models/clients.ts';
@@ -147,8 +147,9 @@ export function togglV9Routes(deps: Deps): Router {
     const email = optionalString(body.email, 'email', 255)?.trim();
     if (email !== undefined && !/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Invalid email');
     const fullname = optionalString(body.fullname, 'fullname', 255);
-    const timezone = optionalString(body.timezone, 'timezone', 64);
-    if (timezone !== undefined && !isValidTimeZone(timezone)) throw badRequest('Invalid timezone');
+    const requestedZone = optionalString(body.timezone, 'timezone', 64);
+    const timezone = requestedZone === undefined ? undefined : canonicalTimeZone(requestedZone);
+    if (timezone === null) throw badRequest('Invalid timezone');
     let beginningOfWeek = user.beginning_of_week;
     if (body.beginning_of_week !== undefined) {
       if (!Number.isInteger(body.beginning_of_week) || (body.beginning_of_week as number) < 0 || (body.beginning_of_week as number) > 6) {
