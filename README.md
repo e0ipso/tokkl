@@ -90,6 +90,14 @@ docker logs tokkl    # prints the setup code on first start
 
 The container runs as the image's `node` user (UID 1000). To run it as another UID, pass `--user` and mount a directory that UID owns; the app files are read-only, and `/data` is the only place it writes. Pass settings from [Configuration](#configuration) with `-e`. The image sets `TOKKL_DATA_DIR` to `/data`.
 
+For a throwaway database, such as a test run, mount a tmpfs with a mode the `node` user can write to:
+
+```sh
+docker run -d --name tokkl-test -p 8080:8080 --tmpfs /data:mode=1777 ghcr.io/e0ipso/tokkl:1
+```
+
+A plain `--tmpfs /data` does not work. It replaces the image's `/data` with a directory owned by root, so the server cannot create its database and exits at start. The data is gone when the container stops.
+
 ## Configuration
 
 | Variable | Default | Meaning |
