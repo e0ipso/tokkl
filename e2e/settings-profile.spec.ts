@@ -29,3 +29,32 @@ test('a timezone set through the API in another case shows under its canonical n
   await expect(profile.getByLabel('Timezone')).toHaveValue('Europe/Madrid');
   await expect(notice).toHaveCount(0);
 });
+
+// Chromium resolves a zone to its older tz name (Asia/Calcutta, Europe/Kiev), as the server's
+// Node does. Firefox resolves it to the current one (Asia/Kolkata, Europe/Kyiv). This script gives
+// Chromium Firefox's naming, so the browser and the stored name are two names for one zone.
+const FIREFOX_ZONE_NAMES = { 'Asia/Calcutta': 'Asia/Kolkata', 'Europe/Kiev': 'Europe/Kyiv' };
+
+for (const [stored, browser] of Object.entries(FIREFOX_ZONE_NAMES)) {
+  test.describe(`a browser that resolves its zone to ${browser}`, () => {
+    test.use({ timezoneId: browser });
+
+    test(`does not show the zone notice for an account stored as ${stored}`, async ({ page, users }) => {
+      await page.addInitScript((names) => {
+        const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+        Intl.DateTimeFormat.prototype.resolvedOptions = function (this: Intl.DateTimeFormat) {
+          const options = resolvedOptions.call(this);
+          return { ...options, timeZone: names[options.timeZone] ?? options.timeZone };
+        };
+      }, FIREFOX_ZONE_NAMES as Record<string, string>);
+      const user = await users.create();
+      await loginAs(page, user.account);
+      await setZoneThroughApi(page, browser);
+      await page.goto('/settings');
+      const profile = page.getByRole('form', { name: 'Profile' });
+      await expect(profile.getByLabel('Timezone')).toHaveValue(stored);
+      expect(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)).toBe(browser);
+      await expect(profile.getByRole('note')).toHaveCount(0);
+    });
+  });
+}
