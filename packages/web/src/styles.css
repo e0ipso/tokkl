@@ -99,6 +99,10 @@
    which sit on its own tint inside ("block tint (worst)", over the 14 palette colours and muted)
    and on surface or calendar-today outside. The ghost block drawn while dragging to create is a
    primary bar on state-selected. Block text and bars are in the table at .project-dot.
+   Below 760px the calendar shows one day under a strip of the week's days (.calendar-strip): text
+   and muted on surface-2, with border between the days; the selected day is text on
+   state-selected with a primary underline (primary on state-selected, other), and today's weekday
+   is the same on-primary on primary badge as the week heads.
    The entry-row Project placeholder (.add-project, text) and the empty-tags icon (.entry-tags,
    other) are muted at full opacity, so the muted on surface, surface-2 and state-selected rows
    above are their pairs. Fading them with opacity breaks those ratios.
@@ -368,7 +372,7 @@ code, kbd {
    class in markup. Its own rule further down sets only what differs, such as a larger radius. */
 /* Surface: a panel on --surface with the standard border and radius. */
 .surface, .timer-bar, .suggestions, .favorite, .day-group, .bulk-bar, .popover, .modal, .auth-card,
-.calendar-head, .calendar-body, .card, .table-wrap, .search-box, .select-button, .splash .page-state, .error-page .page-state {
+.calendar-head, .calendar-strip, .calendar-body, .card, .table-wrap, .search-box, .select-button, .splash .page-state, .error-page .page-state {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
 }
 /* Row button: a borderless, full-width row in a list or menu, --surface-2 on hover. */
@@ -989,6 +993,36 @@ table.table { width: 100%; border-collapse: collapse; }
   .calendar-day-head span { letter-spacing: 0; }
   .calendar-day-head.today span { padding: 0 4px; }
 }
+/* Day mode. WeekCalendar sets .day-mode below 760px (DAY_MODE_QUERY) and renders one column for
+   the selected day under a strip of the week's seven days, which replaces the day heads. The
+   hour rows stay 48px. The grid never outgrows the body here, so hiding sideways overflow only
+   stops the slide below from scrolling it. */
+.calendar.day-mode .calendar-grid { grid-template-columns: 40px minmax(0, 1fr); }
+.calendar.day-mode .calendar-body { overflow-x: hidden; }
+.calendar-strip {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  background: var(--surface-2); border-bottom: none; border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.calendar-strip-day {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; min-height: 44px;
+  padding: 6px 2px 4px; border: none; border-left: 1px solid var(--border); border-bottom: 3px solid transparent;
+  background: transparent; cursor: pointer; font-family: var(--font-display); font-stretch: 70%;
+}
+.calendar-strip-day:first-child { border-left: none; border-top-left-radius: var(--radius-md); }
+.calendar-strip-day:last-child { border-top-right-radius: var(--radius-md); }
+.calendar-strip-day > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-strip-weekday { font-size: var(--text-sm); font-weight: 800; text-transform: uppercase; }
+.calendar-strip-date { font-size: var(--text-xs); font-weight: 600; color: var(--muted); }
+.calendar-strip-day small { color: var(--muted); font-weight: 700; }
+/* The selected day is marked by its underline and heavier text as well as by the colour. */
+.calendar-strip-day[aria-pressed='true'] { background: var(--state-selected); border-bottom-color: var(--primary); }
+.calendar-strip-day[aria-pressed='true'] .calendar-strip-date, .calendar-strip-day[aria-pressed='true'] small { color: var(--text); font-weight: 800; }
+.calendar-strip-day.today .calendar-strip-weekday { padding: 0 4px; border-radius: var(--radius-pill); background: var(--primary); color: var(--on-primary); }
+/* A day change slides the grid in from the side it came from. The first render has no data-slide,
+   so nothing moves on load. */
+.calendar.day-mode .calendar-grid[data-slide='next'] { --calendar-slide-from: 24px; animation: calendar-slide-in var(--duration-base) var(--ease); }
+.calendar.day-mode .calendar-grid[data-slide='previous'] { --calendar-slide-from: -24px; animation: calendar-slide-in var(--duration-base) var(--ease); }
+@keyframes calendar-slide-in { from { opacity: 0; transform: translateX(var(--calendar-slide-from)); } }
 
 .overlap-mark {
   display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--radius-pill);

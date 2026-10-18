@@ -3,7 +3,10 @@ import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
-import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings } from '../lib/settings.ts';
+import { DAY_MODE_QUERY, classifySwipe, clampDayMove, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
+import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
+import { useMediaQuery } from '../lib/useMediaQuery.ts';
+import { arrowTarget } from './arrowKeys.ts';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
 import { LoadError, Loading } from './PageState.tsx';
@@ -72,8 +75,14 @@ export function WeekCalendar() {
   const settings = useSettings();
   const now = useNow(60_000);
   const todayKey = today(settings.timeZone);
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(todayKey, settings.beginningOfWeek));
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  // Below 760px the grid shows one day; the week it belongs to still loads, for the strip's totals.
+  const dayMode = useMediaQuery(DAY_MODE_QUERY);
+  const [selectedDay, setSelectedDay] = useState(todayKey);
+  // The side the shown day came in from; the grid remounts per day, so the slide plays once.
+  const [slide, setSlide] = useState<SwipeDirection | null>(null);
+  const weekStart = startOfWeek(selectedDay, settings.beginningOfWeek);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const days = useMemo(() => (dayMode ? [selectedDay] : weekDays), [dayMode, selectedDay, weekDays]);
   // A week that has not loaded shows the Loading state over the grid, not an empty week.
   const { data, isLoading, error, refetch } = useEntries(addDays(weekStart, -1), addDays(weekStart, 7));
   const entries = useMemo(() => data ?? [], [data]);
@@ -83,23 +92,32 @@ export function WeekCalendar() {
   const [editing, setEditing] = useState<TimeEntry | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const stripButtons = useRef<(HTMLButtonElement | null)[]>([]);
+  // Where a day-mode gesture on the grid began, until pointer up decides whether it was a swipe.
+  const swipeStart = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   const blocks = useMemo(() => layout(entries, days, settings.timeZone, now), [entries, days, settings.timeZone, now]);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: 7 * HOUR_HEIGHT });
   }, []);
 
+  const selectDay = (day: string) => {
+    if (day !== selectedDay) setSlide(day > selectedDay ? 'next' : 'previous');
+    setSelectedDay(day);
+  };
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || document.querySelector('.modal, .popover')) return;
       if (event.key.toLowerCase() === 't' && !event.ctrlKey && !event.metaKey) {
-        setWeekStart(startOfWeek(todayKey, settings.beginningOfWeek));
+        selectDay(todayKey);
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [todayKey, settings.beginningOfWeek]);
+    // selectDay reads selectedDay, so the listener is renewed when the day changes.
+  }, [todayKey, selectedDay]);
 
   const minuteAt = (clientY: number, column: HTMLElement) =>
     ((clientY - column.getBoundingClientRect().top) / HOUR_HEIGHT) * 60;
@@ -146,41 +164,104 @@ export function WeekCalendar() {
     }
   };
 
-  const shiftWeek = (weeks: number) => setWeekStart(addDays(weekStart, weeks * 7));
+  // The arrows step one day in day mode and one week otherwise; stepping the selected day by seven
+  // keeps the derived week start on the same weekday, so the week view moves a whole week.
+  const step = (direction: 1 | -1) => selectDay(stepDay(selectedDay, dayMode ? direction : direction * 7));
+  const dayTotal = (day: string) => entries
+    .filter((entry) => localDay(entry.start, settings.timeZone) === day)
+    .reduce((sum, entry) => sum + entrySeconds(entry, now), 0);
   const weekTotal = entries
-    .filter((entry) => { const day = localDay(entry.start, settings.timeZone); return day >= weekStart && day <= days[6]!; })
+    .filter((entry) => { const day = localDay(entry.start, settings.timeZone); return day >= weekStart && day <= weekDays[6]!; })
     .reduce((sum, entry) => sum + entrySeconds(entry, now), 0);
   const nowMinute = minutesOfDay(now, settings.timeZone);
+  // A gesture that edits nothing (no drag, or a create drag that never grew) can still be a swipe.
+  const gestureEditsNothing = !drag || (drag.kind === 'create' && drag.fromMinute === drag.toMinute);
 
   return (
-    <div className="calendar" onPointerUp={() => void finishDrag()} onPointerLeave={() => drag && void finishDrag()}>
+    <div className={`calendar${dayMode ? ' day-mode' : ''}`} onPointerUp={() => void finishDrag()} onPointerLeave={() => drag && void finishDrag()}>
       <div className="calendar-toolbar">
-        <button type="button" className="icon-button" aria-label="Previous week" onClick={() => shiftWeek(-1)}><Icon name="chevronLeft" /></button>
-        <button type="button" className="button button-ghost" onClick={() => setWeekStart(startOfWeek(todayKey, settings.beginningOfWeek))} title="This week (T)">
-          This week
-        </button>
-        <button type="button" className="icon-button" aria-label="Next week" onClick={() => shiftWeek(1)}><Icon name="chevronRight" /></button>
-        <span className="calendar-range">{shortDate(days[0]!)} to {shortDate(days[6]!)}</span>
+        {dayMode ? (
+          <>
+            <button type="button" className="icon-button" aria-label="Previous day" onClick={() => step(-1)}><Icon name="chevronLeft" /></button>
+            <button type="button" className="button button-ghost" onClick={() => selectDay(todayKey)} title="Current day (T)">
+              Current day
+            </button>
+            <button type="button" className="icon-button" aria-label="Next day" onClick={() => step(1)}><Icon name="chevronRight" /></button>
+            <span className="calendar-range">{weekdayName(selectedDay)}, {shortDate(selectedDay)}</span>
+          </>
+        ) : (
+          <>
+            <button type="button" className="icon-button" aria-label="Previous week" onClick={() => step(-1)}><Icon name="chevronLeft" /></button>
+            <button type="button" className="button button-ghost" onClick={() => selectDay(todayKey)} title="This week (T)">
+              This week
+            </button>
+            <button type="button" className="icon-button" aria-label="Next week" onClick={() => step(1)}><Icon name="chevronRight" /></button>
+            <span className="calendar-range">{shortDate(weekDays[0]!)} to {shortDate(weekDays[6]!)}</span>
+          </>
+        )}
         <span className="spacer" />
         <span className="muted">Week total <strong>{duration(weekTotal, settings)}</strong></span>
       </div>
-      <div className="calendar-head">
-        <div className="calendar-gutter" />
-        {days.map((day) => {
-          const total = entries
-            .filter((entry) => localDay(entry.start, settings.timeZone) === day)
-            .reduce((sum, entry) => sum + entrySeconds(entry, now), 0);
-          return (
+      {dayMode ? (
+        // The week's days as one Tab stop: arrows, Home and End move between them and select.
+        <div className="calendar-strip" role="group" aria-label="Days of the week">
+          {weekDays.map((day, index) => (
+            <button
+              key={day}
+              ref={(element) => { stripButtons.current[index] = element; }}
+              type="button"
+              className={`calendar-strip-day${day === todayKey ? ' today' : ''}`}
+              aria-pressed={day === selectedDay}
+              aria-label={`${weekdayName(day)} ${shortDate(day)}, ${duration(dayTotal(day), settings)}`}
+              tabIndex={day === selectedDay ? 0 : -1}
+              onClick={() => selectDay(day)}
+              onKeyDown={(event) => {
+                const next = arrowTarget(event.key, index, weekDays.length);
+                if (next === null) return;
+                event.preventDefault();
+                selectDay(weekDays[next]!);
+                stripButtons.current[next]?.focus();
+              }}
+            >
+              <span className="calendar-strip-weekday">{weekdayName(day)}</span>
+              <span className="calendar-strip-date">{shortDate(day)}</span>
+              <small>{duration(dayTotal(day), settings)}</small>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="calendar-head">
+          <div className="calendar-gutter" />
+          {weekDays.map((day) => (
             <div key={day} className={`calendar-day-head${day === todayKey ? ' today' : ''}`}>
               <span>{dayLabel(day, todayKey)}</span>
-              <small>{duration(total, settings)}</small>
+              <small>{duration(dayTotal(day), settings)}</small>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
       <div className="calendar-frame">
-        <div className="calendar-body" ref={scroller}>
-          <div className="calendar-grid" style={{ height: 24 * HOUR_HEIGHT }}>
+        <div
+          className="calendar-body"
+          ref={scroller}
+          onPointerDown={(event) => {
+            if (dayMode && event.isPrimary) swipeStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+          }}
+          onPointerUp={(event) => {
+            const start = swipeStart.current;
+            swipeStart.current = null;
+            if (!dayMode || !start || start.pointerId !== event.pointerId || !gestureEditsNothing) return;
+            const direction = classifySwipe(event.clientX - start.x, event.clientY - start.y);
+            if (direction) step(direction === 'next' ? 1 : -1);
+          }}
+          onPointerCancel={() => { swipeStart.current = null; }}
+        >
+          <div
+            key={dayMode ? selectedDay : 'week'}
+            className="calendar-grid"
+            style={{ height: 24 * HOUR_HEIGHT }}
+            data-slide={dayMode && slide ? slide : undefined}
+          >
             <div className="calendar-gutter">
               {Array.from({ length: 24 }, (_, hour) => (
                 <span key={hour} style={{ top: hour * HOUR_HEIGHT }}>
@@ -202,7 +283,9 @@ export function WeekCalendar() {
                   if (drag.kind === 'create' && drag.day === day) {
                     setDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget)) });
                   } else if (drag.kind !== 'create') {
-                    const delta = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+                    const snapped = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+                    // A day-mode move stays on the shown day; the week view lets a block cross midnight.
+                    const delta = dayMode && drag.kind === 'move' ? clampDayMove(snapped, drag.startMinute, drag.endMinute) : snapped;
                     if (delta !== drag.deltaMinutes) setDrag({ ...drag, deltaMinutes: delta });
                   }
                 }}
