@@ -25,7 +25,7 @@ The data is synthetic: three clients, five projects and five weeks of weekday en
 
 ![Timer with a running entry and day-grouped history](docs/screenshots/desktop-timer.png)
 
-**Calendar.** A week view in the account's timezone. Drag on an empty slot to add an entry, drag a block to move it, or drag its bottom edge to change the end.
+**Calendar.** A week view in the account's timezone. On screens narrower than 760px it shows one day, with the week's days and their totals in a strip above. There, arrows or a sideways swipe move one day, across weeks. Drag on an empty slot to add an entry, drag a block to move it, or drag its bottom edge to change the end. On a touchscreen, press and hold before dragging. `T` jumps to today in the day view, or to this week in the week view.
 
 ![Week calendar](docs/screenshots/desktop-calendar.png)
 

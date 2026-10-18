@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Switch, useLocation, useRoute } from 'wouter';
 import { ApiError, api } from './api/client.ts';
@@ -12,6 +12,7 @@ import { formatDuration } from '@tokkl/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
 import { endSession, logOut, takeLogoutFailure } from './lib/session.ts';
 import { applyTheme } from './lib/theme.ts';
+import { useMediaQuery } from './lib/useMediaQuery.ts';
 import { AdminPage } from './pages/AdminPage.tsx';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { InvitePage } from './pages/InvitePage.tsx';
@@ -43,17 +44,6 @@ const NAV: NavItem[] = [
 
 /** The phone breakpoint; styles.css uses the same max-width for the bottom bar. */
 const PHONE_QUERY = '(max-width: 760px)';
-
-function useMediaQuery(query: string): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
-      const list = window.matchMedia(query);
-      list.addEventListener('change', onChange);
-      return () => list.removeEventListener('change', onChange);
-    },
-    () => window.matchMedia(query).matches,
-  );
-}
 
 /**
  * Applies the saved theme once preferences load. Until then the cached theme stays:

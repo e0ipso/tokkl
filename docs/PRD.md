@@ -117,7 +117,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | L7 | Trash page: list deleted entries, restore, delete forever, empty trash. Toggl has no trash. | SHOULD | Done |
 | L8 | Bulk select across days: set project, add tags, set billable, delete. Toggl limits bulk edit to one day on the timer page. | SHOULD | Done |
 | L9 | History without a 90-day cap: "show 14 more days" keeps loading older entries. | MUST | Done |
-| L10 | Calendar (week) view with drag to create, move and resize; `T` jumps to this week. | SHOULD | Done |
+| L10 | Calendar with drag to create, move and resize. At 760px and wider it shows a week view; below 760px it shows a day view with a strip of the week's days and their totals. In the day view, arrows and horizontal swipes move one day and cross weeks. Touch drags start after a long press in both views; mouse drags start immediately. `T` jumps to today in the day view and to this week in the week view. | SHOULD | Done |
 | L11 | Timesheet grid view (projects by weekdays, type hours into cells). | COULD | Planned |
 | L12 | Free-text notes on an entry. Toggl lacks this. | COULD | Planned |
 
