@@ -141,6 +141,47 @@ test('the entry editor refuses durations over 999 hours and unknown units withou
   expect([saved.start, saved.stop]).toEqual([entry.start, entry.stop]);
 });
 
+test('the timer bar refuses an unreadable duration instead of starting a timer', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  const duration = timer.getByLabel('Duration');
+
+  // Over 999 hours is as unreadable as text that is no duration at all; Enter and the button agree.
+  for (const [text, submit] of [['1000h', 'enter'], ['forever', 'click']] as const) {
+    await duration.fill(text);
+    await expectValid(duration);
+    if (submit === 'enter') await duration.press('Enter');
+    else await timer.getByRole('button', { name: 'Start timer' }).click();
+    await expectFieldError(page, duration, 'Check the duration');
+    await expect(duration).toHaveValue(text);
+    await expect(duration).toBeFocused();
+  }
+  // Enter in the description checks the duration too, and moves focus to it.
+  await timer.getByLabel('Description').fill('Not started');
+  await timer.getByLabel('Description').press('Enter');
+  await expectFieldError(page, duration, 'Check the duration');
+  await expect(duration).toBeFocused();
+  await expect(timer.getByRole('button', { name: 'Stop timer' })).toHaveCount(0);
+  expect(await api.entries()).toEqual([]);
+
+  // A readable duration saves a stopped entry and clears the field and its error.
+  await duration.fill('20m');
+  await expectValid(duration);
+  await duration.press('Enter');
+  await expect(page.getByText('Added 0:20:00')).toBeVisible();
+  await expect(duration).toHaveValue('');
+  const saved = await api.entries();
+  expect(saved.map((entry) => [entry.description, entry.duration])).toEqual([['Not started', 1200]]);
+
+  // An empty duration still starts a running timer.
+  await timer.getByLabel('Description').fill('Running');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+  await expect.poll(async () => (await api.entries()).filter((entry) => entry.description === 'Running').map((entry) => entry.stop))
+    .toEqual([null]);
+});
+
 test('the project editor marks every invalid field and focuses the first', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: 'Projects' }).click();

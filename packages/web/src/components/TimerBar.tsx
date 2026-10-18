@@ -117,6 +117,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const [manualEnd, setManualEnd] = useState('');
   const manualErrors = useFieldErrors<'start' | 'end'>();
   const [timerDuration, setTimerDuration] = useState('');
+  const timerErrors = useFieldErrors<'duration'>();
   const descriptionRef = useRef<HTMLInputElement>(null);
   // The description's blur hides the suggestions after a delay, so a click on one still lands.
   // A later focus cancels that pending hide, and a focus that comes from a closing picker does not
@@ -199,9 +200,15 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     // A double click or key repeat must not start two entries before the first one shows up.
     if (starting.current || create.isPending) return;
     if (current && (!replace || stopEntry.isPending || remove.isPending)) return;
+    // An empty duration starts a running timer; text that does not parse is an error, not empty.
+    const typed = !current && timerDuration.trim() !== '';
+    const seconds = typed ? parseDuration(timerDuration) : null;
+    if (!timerErrors.validate([['duration', typed && seconds === null && 'Check the duration']])) {
+      setShowSuggestions(false);
+      return;
+    }
     starting.current = true;
     try {
-      const seconds = !current && timerDuration ? parseDuration(timerDuration) : null;
       setShowSuggestions(false);
       if (seconds !== null && seconds > 0) {
         // A duration typed into the idle timer saves a finished entry that ends now.
@@ -462,6 +469,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
           </>
         ) : (
           <input
+            {...timerErrors.field('duration')}
             className="timer-clock timer-clock-input"
             aria-label="Duration"
             placeholder="0:00:00"
@@ -524,6 +532,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             </>
           )}
         </div>
+        {!manual && !current ? timerErrors.message('duration') : null}
       </div>
 
       {picker === 'project' ? (
