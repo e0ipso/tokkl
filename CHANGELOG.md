@@ -1,3 +1,16 @@
+## [1.4.0](https://github.com/e0ipso/tokkl/compare/v1.3.1...v1.4.0) (2026-10-18)
+
+### Features
+
+* **web:** add day-view calendar helpers and document the day view ([2cc523d](https://github.com/e0ipso/tokkl/commit/2cc523ddd76792aec626869bbfce0cc056423fe5)), closes [#19](https://github.com/e0ipso/tokkl/issues/19)
+* **web:** show one day at a time in the calendar below 760px ([1f81d3d](https://github.com/e0ipso/tokkl/commit/1f81d3d0a925db799fe6f0d4827c3c068c95d1c2)), closes [#19](https://github.com/e0ipso/tokkl/issues/19)
+* **web:** start calendar touch drags after a long press ([77b197e](https://github.com/e0ipso/tokkl/commit/77b197e0ab7172518ec4d65c1dab3ccc3924a386)), closes [#19](https://github.com/e0ipso/tokkl/issues/19)
+
+### Bug Fixes
+
+* **web:** keep day-view moves on the day and swipe from blocks ([162ae80](https://github.com/e0ipso/tokkl/commit/162ae80e4ff1dcc186bbbbb33cc0795405d00563)), closes [#19](https://github.com/e0ipso/tokkl/issues/19)
+* **web:** open a tapped calendar block's editor on touch ([577c217](https://github.com/e0ipso/tokkl/commit/577c21775dede9fb49df5a813a86f1c992fbe291)), closes [#19](https://github.com/e0ipso/tokkl/issues/19)
+
 ## [1.3.1](https://github.com/e0ipso/tokkl/compare/v1.3.0...v1.3.1) (2026-10-17)
 
 ### Bug Fixes
