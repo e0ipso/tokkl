@@ -82,8 +82,9 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await expectNoPageOverflow(page);
 });
 
-// The seven day columns share the phone width, so long names truncate inside them.
-test('the week calendar fits a phone screen with long block and favourite names', async ({ page }) => {
+// A phone shows one day, today, under a strip of the week's seven days, so long names truncate
+// inside the day's column and the strip keeps all seven days on screen.
+test('the day calendar fits a phone screen with long block and favourite names', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
   await login(page);
   const api = await TimerApi.open(page);
@@ -98,17 +99,23 @@ test('the week calendar fits a phone screen with long block and favourite names'
   await expectFits(page.locator('.favorite').first());
   await tap(page.getByRole('button', { name: 'Calendar' }));
   await expect(page.locator('.calendar-column.today')).toBeVisible();
+  await expect(page.locator('.calendar-column')).toHaveCount(1);
   await expectNoPageOverflow(page);
-  // The toolbar and the scrolling calendar body fit the screen. scrollIntoViewIfNeeded
+  // The toolbar, the strip and the scrolling calendar body fit the screen. scrollIntoViewIfNeeded
   // stops about a pixel short of the body's bottom edge, so centre the body first.
   await expectFits(page.locator('.calendar-toolbar'));
+  const strip = page.getByRole('group', { name: 'Days of the week' });
+  await expectFits(strip);
+  await expectFits(strip.getByRole('button').last());
   const body = page.locator('.calendar-body');
   await body.evaluate((element) => element.scrollIntoView({ block: 'center' }));
   await expectFits(body);
-  await expectFits(page.locator('.calendar-day-head').last());
   const blocks = page.locator('.calendar-column.today').getByRole('group', { name: `${description}, Customer onboarding programme` });
   await expect(blocks).toHaveCount(2);
-  for (const block of await blocks.all()) await expectFits(block);
+  for (const block of await blocks.all()) {
+    await expect(block).toBeVisible();
+    await expectFits(block);
+  }
 });
 
 // On a phone the bulk bar sticks to the top of the screen, with its count, while the

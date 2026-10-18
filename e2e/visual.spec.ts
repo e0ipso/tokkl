@@ -40,7 +40,14 @@ interface Capture {
 
 const PAGES: readonly Capture[] = [
   { name: 'timer-list', path: '/', timerView: 'list', ready: (page) => page.locator('.entry-list').getByRole('button', { name: 'Roadmap' }) },
-  { name: 'timer-calendar', path: '/', timerView: 'calendar', ready: (page) => page.locator('.calendar-grid').getByText('Planning').first() },
+  {
+    name: 'timer-calendar',
+    path: '/',
+    timerView: 'calendar',
+    // A phone shows only today, which has no entry; the strip's total for the "Planning" day shows the week has loaded.
+    ready: (page) => page.locator('.calendar-grid').getByText('Planning').first()
+      .or(page.getByRole('group', { name: 'Days of the week' }).getByRole('button', { name: 'Wed 15 Jul, 1:00:00' })),
+  },
   {
     name: 'reports-summary',
     path: '/reports?from=2026-07-13&to=2026-07-19',
