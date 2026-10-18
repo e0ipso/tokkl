@@ -47,6 +47,18 @@ export async function dragBy(page: Page, target: Locator, hours: number): Promis
   await page.mouse.up();
 }
 
+/** The time-entry saves the page sends, in order: POST for a create, PUT for an edit. */
+export function entryWrites(page: Page): string[] {
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (['POST', 'PUT'].includes(request.method()) && /^\/api\/v9\/workspaces\/\d+\/time_entries(\/\d+)?$/.test(path)) {
+      writes.push(request.method());
+    }
+  });
+  return writes;
+}
+
 /** The start and stop the server has stored for an entry. */
 export async function savedTimes(page: Page, id: number): Promise<{ start: string; stop: string | null }> {
   const saved = await (await page.request.get(`/api/v9/me/time_entries/${id}`)).json() as { start: string; stop: string | null };

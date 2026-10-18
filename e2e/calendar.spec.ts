@@ -3,7 +3,7 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { openCalendar } from './history-calendar-tests-helpers.ts';
-import { calendarBodyBox, touchSwipe } from './history-calendar-tests-helpers.ts';
+import { calendarBodyBox, entryWrites, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
 import { PHONE, tap } from './mobile-tests-helpers.ts';
 // Its `api` fixture puts the account's first weekday back after each scenario.
 import { test as testWithSettings } from './report-tests-helpers.ts';
@@ -243,6 +243,31 @@ test.describe('on a phone', () => {
     await page.keyboard.press('t');
     await expectDayView(page, 'Sun, 21 Jun', 'Sun 21 Jun, 1:00:00', thisWeek);
     await expect(sunday).toBeVisible();
+  });
+
+  test('a swipe that starts on a block changes the day and saves nothing', async ({ page, data }) => {
+    // Madrid, Wednesday 2026-06-17: 09:00-10:00 CEST.
+    const entry = await data.createEntry({ description: 'Swiped block', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
+    await page.clock.setFixedTime(new Date('2026-06-17T10:00:00Z'));
+    await login(page);
+    await openCalendar(page);
+    await expect(page.locator('.calendar-range')).toHaveText('Wed, 17 Jun');
+    const writes = entryWrites(page);
+    // With 07:00 at the top of the grid, the block sits below the part the sticky timer bar covers.
+    await scrollCalendarTo(page, 7);
+    await calendarBodyBox(page);
+    const block = (await todayBlock(page, 'Swiped block').boundingBox())!;
+    const y = block.y + block.height / 2;
+
+    // The finger lands on the block and wanders sideways before the long press, so it is a swipe,
+    // not a move: the next day comes in and the block stays where it was.
+    await touchSwipe(page, { x: block.x + block.width * 0.8, y }, { x: block.x + block.width * 0.2, y });
+    await expect(page.locator('.calendar-range')).toHaveText('Thu, 18 Jun');
+    await expect(page.locator('.calendar-column')).toHaveCount(1);
+    await expect(page.locator('.calendar-block')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Edit entry' })).toHaveCount(0);
+    expect(writes).toEqual([]);
+    expect(await savedTimes(page, entry.id)).toEqual({ start: '2026-06-17T07:00:00+00:00', stop: '2026-06-17T08:00:00+00:00' });
   });
 });
 

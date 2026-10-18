@@ -2,8 +2,8 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  HOUR, calendarBodyBox, dragBy, expectBrowserTimeZone, openCalendar, px, savedTimes, scrollCalendarTo, todayBlock,
-  touchLongPressDrag, touchSwipe, type Point,
+  HOUR, calendarBodyBox, dragBy, entryWrites, expectBrowserTimeZone, openCalendar, px, savedTimes, scrollCalendarTo,
+  todayBlock, touchLongPressDrag, touchSwipe, type Point,
 } from './history-calendar-tests-helpers.ts';
 import { PHONE } from './mobile-tests-helpers.ts';
 
@@ -103,18 +103,6 @@ test('a move and a resize on the Madrid autumn clock change follow the clock aft
   await expect(resize).toHaveCSS('height', px(150));
   await expect(resize).toHaveAttribute('title', 'Autumn resize, 3:30:00\n00:30 – 03:00');
 });
-
-/** The time-entry saves the page sends, in order: POST for a create, PUT for an edit. */
-function entryWrites(page: Page): string[] {
-  const writes: string[] = [];
-  page.on('request', (request) => {
-    const path = new URL(request.url()).pathname;
-    if (['POST', 'PUT'].includes(request.method()) && /^\/api\/v9\/workspaces\/\d+\/time_entries(\/\d+)?$/.test(path)) {
-      writes.push(request.method());
-    }
-  });
-  return writes;
-}
 
 /** The middle of `target` in viewport pixels, read once the calendar body is centred on screen. */
 async function middleOf(page: Page, target: Locator): Promise<Point> {

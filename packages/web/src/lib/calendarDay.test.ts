@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addDays, clockSpanOnDay, startOfWeek } from '@tokkl/common/time';
-import { SWIPE_MIN_PX, SWIPE_RATIO, clampDayMove, classifySwipe, stepDay } from './calendarDay.ts';
+import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
+import { SWIPE_MIN_PX, SWIPE_RATIO, clampDayMove, classifySwipe, fitMoveInDay, stepDay } from './calendarDay.ts';
 
 const MADRID = 'Europe/Madrid';
 
@@ -65,6 +65,58 @@ test('clampDayMove never pushes a block against the drag', () => {
   assert.equal(clampDayMove(0, 1438, 1443), 0);
   assert.equal(clampDayMove(15, 1438, 1443), 0);
   assert.equal(clampDayMove(-15, 1438, 1443), -15);
+});
+
+test('fitMoveInDay pulls a move back so the entry ends at midnight on the Madrid autumn clock change', () => {
+  // Sunday 2026-10-25 lasts 25 hours in Madrid: the day ends at 23:00Z, not 22:00Z.
+  const dayEnd = startOfDay('2026-10-26', MADRID).getTime();
+  assert.equal(dayEnd - startOfDay('2026-10-25', MADRID).getTime(), 25 * 3_600_000);
+  // 00:00 CEST to 04:00 CET: 240 clock minutes, but five elapsed hours.
+  const start = new Date('2026-10-24T22:00:00Z');
+  const stop = new Date('2026-10-25T03:00:00Z');
+  const duration = stop.getTime() - start.getTime();
+  assert.equal(duration, 5 * 3_600_000);
+  assert.deepEqual(clockSpanOnDay(start, stop, '2026-10-25', MADRID), { top: 0, bottom: 240 });
+
+  // 1200 clock minutes down passes clampDayMove, but 20:00 plus five hours is 01:00 on Monday.
+  const movedStart = addClockMinutes(start, 1200, MADRID).getTime();
+  assert.equal(new Date(movedStart).toISOString(), '2026-10-25T19:00:00.000Z');
+  assert.ok(movedStart + duration > dayEnd);
+  const fitted = fitMoveInDay(movedStart, duration, stop.getTime(), dayEnd);
+  assert.equal(new Date(fitted).toISOString(), '2026-10-25T18:00:00.000Z');
+  assert.equal(fitted + duration, dayEnd);
+  // The pulled-back start is still later than where the entry came from.
+  assert.ok(fitted > start.getTime());
+});
+
+test('fitMoveInDay leaves a move alone when the entry still ends on the shown day', () => {
+  const dayEnd = startOfDay('2026-10-26', MADRID).getTime();
+  const start = new Date('2026-10-24T22:00:00Z');
+  const stop = new Date('2026-10-25T03:00:00Z');
+  const duration = stop.getTime() - start.getTime();
+  // 600 clock minutes down is 10:00 to 15:00 CET.
+  const tenOClock = addClockMinutes(start, 600, MADRID).getTime();
+  assert.equal(fitMoveInDay(tenOClock, duration, stop.getTime(), dayEnd), tenOClock);
+  // A move that ends exactly at midnight already fits.
+  const flush = dayEnd - duration;
+  assert.equal(fitMoveInDay(flush, duration, stop.getTime(), dayEnd), flush);
+  // Moving earlier never needs a correction.
+  const earlier = addClockMinutes(start, -60, MADRID).getTime();
+  assert.equal(fitMoveInDay(earlier, duration, stop.getTime(), dayEnd), earlier);
+});
+
+test('fitMoveInDay leaves an entry that already ran past midnight alone', () => {
+  // 23:00 CEST on Saturday the 24th to 04:00 CET on Sunday the 25th, shown on Saturday.
+  const dayEnd = startOfDay('2026-10-25', MADRID).getTime();
+  const start = new Date('2026-10-24T21:00:00Z');
+  const stop = new Date('2026-10-25T03:00:00Z');
+  const duration = stop.getTime() - start.getTime();
+  assert.deepEqual(clockSpanOnDay(start, stop, '2026-10-24', MADRID), { top: 1380, bottom: 1440 });
+  assert.ok(stop.getTime() > dayEnd);
+  // Saturday only lets it move earlier; it still ends on Sunday and must not be pulled back.
+  const earlier = addClockMinutes(start, -60, MADRID).getTime();
+  assert.ok(earlier + duration > dayEnd);
+  assert.equal(fitMoveInDay(earlier, duration, stop.getTime(), dayEnd), earlier);
 });
 
 test('stepDay crosses into the adjacent week for either first weekday', () => {

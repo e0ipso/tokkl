@@ -40,6 +40,19 @@ export function clampDayMove(delta: number, top: number, bottom: number): number
 }
 
 /**
+ * The start to save for a day-mode move. clampDayMove works in clock minutes, but a moved entry
+ * keeps its elapsed duration, and on the 25-hour autumn day an entry lasts longer than the clock
+ * minutes it covers, so a move the clamp allows can still end after `dayEndMs` (the first instant
+ * of the next day). The start then comes back so the entry ends exactly at the day's end. An entry
+ * whose original stop was already past the day's end is cut off at midnight on the shown day; it
+ * can only move earlier and may still end the next day, so it is left alone.
+ */
+export function fitMoveInDay(movedStartMs: number, durationMs: number, originalStopMs: number, dayEndMs: number): number {
+  if (originalStopMs > dayEndMs || movedStartMs + durationMs <= dayEndMs) return movedStartMs;
+  return dayEndMs - durationMs;
+}
+
+/**
  * The day `step` days from `day`: ±1 in day mode, ±7 in week mode. Date keys step by calendar
  * day, so the clock changes never skip or repeat a day.
  */

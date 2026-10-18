@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
-import { addClockMinutes, addDays, clockSpanOnDay, startOfWeek } from '@tokkl/common/time';
+import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
-import { DAY_MODE_QUERY, classifySwipe, clampDayMove, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
+import { DAY_MODE_QUERY, classifySwipe, clampDayMove, fitMoveInDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { arrowTarget } from './arrowKeys.ts';
@@ -211,12 +211,18 @@ export function WeekCalendar() {
       const start = new Date(current.entry.start);
       if (current.kind === 'move') {
         // The start lands on the dropped slot; the entry keeps its elapsed duration.
-        const movedStart = addClockMinutes(start, current.deltaMinutes, settings.timeZone);
-        const duration = current.entry.stop ? Date.parse(current.entry.stop) - start.getTime() : null;
+        let movedStart = addClockMinutes(start, current.deltaMinutes, settings.timeZone).getTime();
+        const stop = current.entry.stop ? Date.parse(current.entry.stop) : null;
+        if (dayMode && stop !== null) {
+          // The clamp kept the clock span on the day, but on a 25-hour day the elapsed duration
+          // can still carry the stop into the next day.
+          const dayEnd = startOfDay(addDays(current.day, 1), settings.timeZone).getTime();
+          movedStart = fitMoveInDay(movedStart, stop - start.getTime(), stop, dayEnd);
+        }
         await update.mutateAsync({
           id: current.entry.id,
-          start: movedStart.toISOString(),
-          ...(duration !== null ? { stop: new Date(movedStart.getTime() + duration).toISOString() } : {}),
+          start: new Date(movedStart).toISOString(),
+          ...(stop !== null ? { stop: new Date(movedStart + stop - start.getTime()).toISOString() } : {}),
         });
       } else if (current.entry.stop) {
         const dropped = addClockMinutes(new Date(current.entry.stop), current.deltaMinutes, settings.timeZone).getTime();
@@ -321,7 +327,8 @@ export function WeekCalendar() {
         <div
           className="calendar-body"
           ref={scroller}
-          onPointerDown={(event) => {
+          // Capture phase: a block stops its pointer down from bubbling, but a swipe may start on it.
+          onPointerDownCapture={(event) => {
             if (dayMode && event.isPrimary) swipeStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
           }}
           onPointerUp={(event) => {
