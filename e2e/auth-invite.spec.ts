@@ -55,7 +55,8 @@ test('an invited person creates an account in the browser and lands on the timer
 
   const me = await page.request.get(`${server.baseURL}/api/v9/me`);
   expect(me.status()).toBe(200);
-  expect(await me.json()).toMatchObject({ email: 'invited@auth.example', fullname: 'Invited Person' });
+  // The form sends the browser's zone (Europe/Madrid in playwright.config.ts) and the account keeps it.
+  expect(await me.json()).toMatchObject({ email: 'invited@auth.example', fullname: 'Invited Person', timezone: 'Europe/Madrid' });
 
   // The link is spent: opening it again shows the error instead of the form.
   runtimeErrors.allowResponse({ status: 404, method: 'GET', path: /^\/api\/app\/invites\/[^/]+$/, reason: 'a used invite token' });

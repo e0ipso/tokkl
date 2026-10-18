@@ -115,6 +115,32 @@ test('the entry editor shows time, duration and split errors on their fields', a
   await expectFieldError(page, duration, 'Check the duration');
 });
 
+test('the entry editor refuses durations over 999 hours and unknown units without saving', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const entry = await api.createEntry({ description: 'Bounded', start: `${day}T09:00:00Z`, stop: `${day}T10:00:00Z` });
+  await page.reload();
+
+  const row = page.locator('.entry-line', { has: page.locator('input[value="Bounded"]') });
+  await row.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  const duration = editor.getByLabel('Duration');
+
+  // "constructor" is not a unit, even though every plain object has a property of that name.
+  for (const text of ['1000h', '1 constructor']) {
+    await duration.fill(text);
+    await expectValid(duration);
+    await editor.getByRole('button', { name: 'Save' }).click();
+    await expectFieldError(page, duration, 'Check the duration');
+    await expect(duration).toBeFocused();
+  }
+  await expect(editor).toBeVisible();
+  const saved = await api.entry(entry.id);
+  expect([saved.start, saved.stop]).toEqual([entry.start, entry.stop]);
+});
+
 test('the project editor marks every invalid field and focuses the first', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: 'Projects' }).click();
