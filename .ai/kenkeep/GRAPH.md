@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:0ff67d48d08755161ed9eadb78a6da9266956ecb838ca6ee830c0075bee91ec3'
+nodes_hash: 'sha256:2cfd62019158bca699ce4e2120f000600992cf57646513da4969af9d2d183805'
 node_count: 59
 ---
 # kenkeep Graph
@@ -324,6 +324,7 @@ Total nodes: 59
 - **title:** Playwright gotchas in the e2e specs
 - **path:** tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md
 - **tags:** testing, playwright
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write
 
 ## practice-preferences-validated-by-known-key
 

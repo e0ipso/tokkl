@@ -3,14 +3,15 @@ type: practice
 title: Playwright gotchas in the e2e specs
 description: >-
   200 is not proof a file exists; clock.install not pauseAt; phone helpers,
-  expectFits, cellTexts polling, networkidle limits.
+  expectFits, cellTexts polling, networkidle limits; group entries on a past day.
 tags:
   - testing
   - playwright
 kk_schema_version: 3
 kk_id: practice-playwright-gotchas-in-the-e2e-specs
 kk_derived_from: []
-kk_relates_to: []
+kk_relates_to:
+  - practice-stopped-entries-snap-to-the-time-resolution-on-write
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -25,5 +26,6 @@ kk_confidence: high
 - `cellTexts(rows)` in `e2e/report-tests-helpers.ts` waits for the first row, so a loading table is not read as empty, then reads every row once. When more rows may still arrive, poll it: `expect.poll(() => cellTexts(rows))`. Treat any one-shot table read the same way.
 - `page.waitForLoadState('networkidle')` resolves once the page has reached network idle, and immediately if it already has, so it cannot show that a page has no request loop. Count the requests, wait through a quiet window and check the count has not grown, as the logout test in `e2e/theme.spec.ts` does with `/api/v9/me`.
 - Chromium's mobile emulation snaps a touch on bare margin to a nearby control. To close a popover the way a finger does, use `tapOutside` on plain text away from the popover, such as a heading.
+- A spec that expects a timer entry to group with another entry "today" breaks near local midnight, and faking the browser clock does not help because the server stamps start and stop from its own clock. Midnight can pass mid-test, and a stopped timer whose start fell in the last half step of a day (2.5 minutes at the default 5-minute resolution) snaps forward to 0:00 of the next day (see `practice-stopped-entries-snap-to-the-time-resolution-on-write`). Put every entry the assertion groups on a fixed past day instead, as `e2e/features.spec.ts` does. Take the day from `madridWallClock(new Date(Date.now() - 3 * DAY_MS)).day` in `e2e/timer-tests-helpers.ts`, fill the form's `Date` field with it (`getByLabel('Date', { exact: true })`), and seed any companion entry on that day with `TimerApi.createEntry` at noon UTC, which is the same day in Europe/Madrid, then `page.reload()`.
 
-<!-- Verified against the current code on 2026-10-16. -->
+<!-- Verified against the current code on 2026-10-19. -->
