@@ -183,8 +183,11 @@ export function WeekCalendar() {
     ((clientY - column.getBoundingClientRect().top) / HOUR_HEIGHT) * 60;
 
   const finishDrag = async () => {
+    const press = longPress.current;
     cancelLongPress();
     const current = dragRef.current;
+    // A touch that lifts before the long press fires is a tap, and a tapped block opens like a click.
+    if (!current && press && press.next.kind !== 'create') setEditing(press.next.entry);
     if (!current) return;
     updateDrag(null);
     try {
