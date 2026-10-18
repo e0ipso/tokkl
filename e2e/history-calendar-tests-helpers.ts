@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { CDPSession, Locator, Page } from '@playwright/test';
 import { expect } from './fixtures.ts';
 
 /**
@@ -51,4 +51,75 @@ export async function dragBy(page: Page, target: Locator, hours: number): Promis
 export async function savedTimes(page: Page, id: number): Promise<{ start: string; stop: string | null }> {
   const saved = await (await page.request.get(`/api/v9/me/time_entries/${id}`)).json() as { start: string; stop: string | null };
   return { start: saved.start, stop: saved.stop };
+}
+
+/** A point in viewport CSS pixels, where CDP places touches. */
+export interface Point {
+  x: number;
+  y: number;
+}
+
+// One CDP session per page. page.touchscreen only taps; CDP touches go through Chromium's input
+// pipeline, so they respect touch-action and scroll what is under the finger.
+const touchSessions = new WeakMap<Page, Promise<CDPSession>>();
+
+async function touch(page: Page, type: 'touchStart' | 'touchMove' | 'touchEnd', point?: Point): Promise<void> {
+  let session = touchSessions.get(page);
+  if (!session) {
+    session = page.context().newCDPSession(page);
+    touchSessions.set(page, session);
+  }
+  // A lifted finger leaves no touch points.
+  await (await session).send('Input.dispatchTouchEvent', { type, touchPoints: point ? [{ x: point.x, y: point.y }] : [] });
+}
+
+/** Slides a held finger from `from` to `to` in even moves about a frame apart. */
+async function touchMoves(page: Page, from: Point, to: Point, steps: number): Promise<void> {
+  for (let step = 1; step <= steps; step++) {
+    await touch(page, 'touchMove', { x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps });
+    await page.waitForTimeout(16);
+  }
+}
+
+/**
+ * Rests the finger for a moment, then lifts it. A finger that lifts while still moving makes
+ * Chromium fling, and a touch that lands during the fling only stops it: a tap then fires no click,
+ * and a long-press drag scrolls the grid instead, because its touch events can't be cancelled.
+ */
+async function lift(page: Page): Promise<void> {
+  await page.waitForTimeout(100);
+  await touch(page, 'touchEnd');
+}
+
+/**
+ * Scrolls the page until the calendar body is in the middle of the screen and returns its box.
+ * CDP touches take viewport coordinates, so read the box this way right before a gesture.
+ */
+export async function calendarBodyBox(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
+  const body = page.locator('.calendar-body');
+  await body.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  return (await body.boundingBox())!;
+}
+
+/**
+ * A finger that lands on `from`, slides to `to` in `steps` moves (ten by default), rests and lifts.
+ * Sideways it is a swipe; up or down it scrolls a `touch-action: pan-y` element like a real finger.
+ * The resting finger starts no fling, so the next gesture can follow at once.
+ */
+export async function touchSwipe(page: Page, from: Point, to: Point, { steps = 10 }: { steps?: number } = {}): Promise<void> {
+  await touch(page, 'touchStart', from);
+  await touchMoves(page, from, to, steps);
+  await lift(page);
+}
+
+/**
+ * A finger held still on `from` for `holdMs`, longer than the calendar's 500 ms long press, then
+ * dragged to `to` in ten moves, rested and lifted. The hold is a real wait: page.clock.setFixedTime
+ * leaves timers running, so the app's long-press timer fires during it.
+ */
+export async function touchLongPressDrag(page: Page, from: Point, to: Point, holdMs = 600): Promise<void> {
+  await touch(page, 'touchStart', from);
+  await page.waitForTimeout(holdMs);
+  await touchMoves(page, from, to, 10);
+  await lift(page);
 }
