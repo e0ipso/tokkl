@@ -1,11 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { createApp } from '../src/app.ts';
 import { generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
 import {
   ACCOUNT_ADDRESS_LIMIT, accountCounters, FailureLimiter, normalizeEmail, passwordCounters, SETUP_CODE_LIMIT,
 } from '../src/auth/rateLimit.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
+import { MIGRATIONS } from '../src/db/migrations.ts';
 import { createFirstAdmin, getUser, type UserRow } from '../src/models/users.ts';
 import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
@@ -246,6 +251,42 @@ test('PUT /me refuses offset IDs and unknown timezones and changes nothing', asy
     assert.equal(refused.body, 'Invalid timezone', timezone);
   }
   assert.deepEqual(getUser(ctx.db, ctx.user.id), before);
+});
+
+test('opening a version 5 database rewrites stored timezones to their canonical names once', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-v5-zones-'));
+  try {
+    const path = join(dir, 'v5.sqlite');
+    const old = new DatabaseSync(path);
+    for (const sql of MIGRATIONS.slice(0, 5)) old.exec(sql);
+    old.exec('PRAGMA user_version = 5');
+    const insert = old.prepare(`
+      INSERT INTO users (email, password_hash, api_token, timezone, created_at, updated_at)
+      VALUES (?, 'hash', ?, ?, '2026-10-01T08:00:00.000Z', '2026-10-01T08:00:00.000Z')
+    `);
+    const zones = ['europe/madrid', 'utc', 'Etc/UTC', 'Europe/Madrid', '+02:00', 'Bogus/Zone'];
+    zones.forEach((zone, i) => insert.run(`user${i}@example.com`, generateApiToken(), zone));
+    old.close();
+
+    const stored = (db: Db) => db.prepare('SELECT timezone, updated_at FROM users ORDER BY id').all()
+      .map((row) => ({ ...row }));
+    const version = (db: Db) => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+
+    const db = openDatabase(path);
+    assert.equal(version(db), MIGRATIONS.length);
+    assert.deepEqual(stored(db), ['Europe/Madrid', 'UTC', 'UTC', 'Europe/Madrid', '+02:00', 'Bogus/Zone']
+      .map((timezone) => ({ timezone, updated_at: '2026-10-01T08:00:00.000Z' })));
+    // A loose name written after the upgrade shows whether a later start migrates again.
+    db.prepare("UPDATE users SET timezone = 'utc' WHERE email = 'user1@example.com'").run();
+    db.close();
+
+    const reopened = openDatabase(path);
+    assert.equal(version(reopened), MIGRATIONS.length);
+    assert.equal(stored(reopened)[1]!.timezone, 'utc', 'a second start runs no migration');
+    reopened.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 /** createFirstAdmin refuses a second account, so tests that need one insert it directly. */

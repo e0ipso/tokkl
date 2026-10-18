@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { canonicalTimeZone } from '@tokkl/common/time';
 import { MIGRATIONS } from './migrations.ts';
 
 export type Db = DatabaseSync;
@@ -13,8 +14,16 @@ export function openDatabase(path: string): Db {
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 5000');
   db.exec('PRAGMA synchronous = NORMAL');
+  registerFunctions(db);
   migrate(db);
   return db;
+}
+
+/** SQL functions that migrations and queries may call. Register them before migrate() runs. */
+function registerFunctions(db: Db): void {
+  // NULL for values canonicalTimeZone rejects (offset IDs, unknown names) and for non-text values.
+  db.function('canonical_time_zone', { deterministic: true }, (name) =>
+    typeof name === 'string' ? canonicalTimeZone(name) : null);
 }
 
 function migrate(db: Db): void {

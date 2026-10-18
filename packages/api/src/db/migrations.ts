@@ -179,4 +179,12 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX account_tokens_user ON account_tokens(user_id);
   CREATE INDEX account_tokens_created_by ON account_tokens(created_by);
   `,
+  // Rewrites stored timezones to their canonical name, as writes now store them. canonical_time_zone
+  // is registered in db/index.ts and follows the ICU of the Node running the migration. Names it
+  // rejects, such as offset IDs and unknown zones, stay as they are rather than becoming UTC.
+  // updated_at is left alone: the account did not change, only the spelling of its zone.
+  `
+  UPDATE users SET timezone = canonical_time_zone(timezone)
+    WHERE canonical_time_zone(timezone) IS NOT NULL AND canonical_time_zone(timezone) <> timezone;
+  `,
 ];
