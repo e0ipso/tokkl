@@ -25,6 +25,9 @@ endforeach()
 plasma_install_package("${_build_dir}" ${TOKKL_PLASMOID_ID})
 
 # The widget picker resolves KPlugin.Icon through the system icon theme.
-install(FILES contents/images/tokkl.png
-    DESTINATION "${KDE_INSTALL_ICONDIR}/hicolor/96x96/apps"
-    RENAME "${TOKKL_PLASMOID_ID}.png")
+# icons/ stays out of the widget package, which copies only contents/.
+foreach(_size IN ITEMS 32 48 64 96 128 256)
+    install(FILES icons/tokkl-${_size}.png
+        DESTINATION "${KDE_INSTALL_ICONDIR}/hicolor/${_size}x${_size}/apps"
+        RENAME "${TOKKL_PLASMOID_ID}.png")
+endforeach()

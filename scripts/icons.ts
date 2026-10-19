@@ -2,8 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// Derives the served brand images in packages/web/public from the owner's artwork in docs/brand.
-// Run it with `npm run icons` after replacing a file in docs/brand and commit the outputs with it.
+// Derives the brand images that Tokkl ships from the owner's artwork in docs/brand: the web app's
+// icons and wordmarks in packages/web/public, the README wordmarks in docs/brand and the KDE
+// widget's icons in desktop/kde/package. Run it with `npm run icons` after replacing a file in
+// docs/brand and commit the outputs with it.
 //
 // Resizing and palette reduction use ImageMagick 7 (`magick`). Chromium can resize but cannot
 // write a palette PNG, and the larger manifest icons and the 2x wordmark only fit the size budgets
@@ -12,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const BRAND = fileURLToPath(new URL('../docs/brand/', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../packages/web/public/', import.meta.url));
+const KDE_PACKAGE = fileURLToPath(new URL('../desktop/kde/package/', import.meta.url));
 /** The icon pack's web root. Every served icon keeps its path from here under packages/web/public. */
 const ICON_PACK = `${BRAND}icon-pack/web/public/`;
 
@@ -23,6 +26,17 @@ const ICON_PACK = `${BRAND}icon-pack/web/public/`;
  */
 const WORDMARK_SOURCE = `${BRAND}wordmark-pack/source/tokkl-wordmark-clock-master.png`;
 const WORDMARK_CROP = ['-trim', '+repage', '-bordercolor', 'none', '-border', '4'];
+
+/**
+ * The icon pack's master artwork. The clock is taller than wide inside its transparent square, so
+ * the KDE icons trim it to its alpha bounds and centre it on a square transparent canvas as tall as
+ * the art, which fills the icon without distorting it.
+ */
+const MASTER = `${BRAND}icon-pack/source/master-export.png`;
+const MASTER_SQUARE = [
+  ...['-trim', '+repage'],
+  ...['-background', 'none', '-gravity', 'center', '-extent', '%[fx:max(w,h)]x%[fx:max(w,h)]'],
+];
 
 const STRIP = ['-strip', '-define', 'png:exclude-chunks=date,time'];
 const PALETTE = ['-colors', '256'];
@@ -87,4 +101,21 @@ const wordmarks: [string[], string][] = [
 ];
 for (const [resize, out] of wordmarks) {
   magick([WORDMARK_SOURCE, ...WORDMARK_CROP, ...resize, ...PALETTE], out);
+}
+
+// The KDE widget shows contents/images/tokkl.png on the panel, and the packages install the hicolor
+// icons for the widget picker, which finds them through KPlugin.Icon in metadata.json. All are
+// full-colour RGBA PNGs. The 96px hicolor icon is a copy of tokkl.png: the smokeload test and
+// check-package.sh require them to match.
+const kdeLogo = `${KDE_PACKAGE}contents/images/tokkl.png`;
+const kdeIcon = (size: number) => `${KDE_PACKAGE}icons/tokkl-${size}.png`;
+mkdirSync(`${KDE_PACKAGE}icons`, { recursive: true });
+magick([MASTER, ...MASTER_SQUARE, '-resize', '96x96'], kdeLogo, 'png32');
+for (const size of [32, 48, 64, 96, 128, 256]) {
+  if (size === 96) {
+    copyFileSync(kdeLogo, kdeIcon(size));
+    console.log(`wrote ${kdeIcon(size)}`);
+  } else {
+    magick([MASTER, ...MASTER_SQUARE, '-resize', `${size}x${size}`], kdeIcon(size), 'png32');
+  }
 }

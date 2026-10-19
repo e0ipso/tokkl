@@ -97,7 +97,8 @@ target_compile_definitions(smokeload PRIVATE
     TOKKL_BACKEND_URI="${TOKKL_BACKEND_URI}"
     TOKKL_VERSION_STRING="${TOKKL_RESOLVED_VERSION}"
     TOKKL_STAGED_PLASMOID_DIR="${_staged_datadir}/plasma/plasmoids/${TOKKL_PLASMOID_ID}"
-    TOKKL_STAGED_BACKEND_DIR="${_staged_qmldir}/${_backend_path}")
+    TOKKL_STAGED_BACKEND_DIR="${_staged_qmldir}/${_backend_path}"
+    TOKKL_STAGED_ICON_DIR="${_stage_dir}${KDE_INSTALL_FULL_ICONDIR}")
 
 # Offscreen, with private XDG dirs so the user's own widgets, settings and
 # caches neither shadow the staged files nor get written to.

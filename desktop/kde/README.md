@@ -173,7 +173,10 @@ come from `desktop/core`.
 - `stage-install`, `smokeload`, `stage-cleanup`: install into
   `<build>/autotests/stage` with `DESTDIR`, then load the widget, its
   configuration schema and Configure page, and the backend from there in an
-  offscreen Plasma session. The test uses its own XDG directories, so widgets
+  offscreen Plasma session. `smokeload` also checks that the widget picker
+  icon is installed at 32, 48, 64, 96, 128 and 256 px, that the icon theme
+  finds all six, and that the 96 px file is a copy of
+  `contents/images/tokkl.png`. The test uses its own XDG directories, so widgets
   installed in your home directory do not interfere.
 - `appstreamtest`: added by Extra CMake Modules when `appstreamcli` is installed.
 
@@ -266,7 +269,7 @@ data and stops until you choose Reconnect or change the settings.
 
 ## Panel
 
-The panel shows the Tokkl icon, a running (playing) or stopped symbol, the
+The panel shows the Tokkl clock logo, a running (playing) or stopped symbol, the
 project indicator, the elapsed time and, unless everything is ready, a symbol
 for the state. Each state also has its own words in the tooltip, the menu and
 the accessible description, so none relies on color: Not configured, Loading,
@@ -418,6 +421,28 @@ It fails when the core needs Qt Gui, a KDE library or any Qt library other
 than Core, Network and Test. It needs Docker, or another engine set in
 `CONTAINER_ENGINE`.
 
+## Icons
+
+The panel button and the widget picker show the full-colour clock logo. Both
+come from the icon pack's master artwork,
+`docs/brand/icon-pack/source/master-export.png`, through `npm run icons`
+(`scripts/icons.ts`, which needs ImageMagick 7). The script trims the artwork
+to its alpha bounds, centres it on a square transparent canvas and writes:
+
+- `package/contents/images/tokkl.png`, 96 px, which the panel button shows.
+- `package/icons/tokkl-<size>.png` at 32, 48, 64, 96, 128 and 256 px. The
+  build installs each as
+  `<icon dir>/hicolor/<size>x<size>/apps/com.github.e0ipso.tokkl.png`, where
+  the widget picker finds it through `Icon` in `package/metadata.json`. The
+  96 px file is a copy of `tokkl.png`. `icons/` is not part of the widget
+  package. hicolor declares its `256x256/apps` directory scalable down to
+  64 px, so a desktop may draw the 96 px picker icon from the 256 px file.
+
+To change the icons, run `npm run icons` from the repository root and commit
+the files it writes. A second run writes the same bytes. Plasma keeps the
+widget it has loaded, so after installing new icons restart plasmashell or log
+out and back in before checking them.
+
 ## Staged install
 
 ```sh
@@ -430,14 +455,15 @@ With `CMAKE_INSTALL_PREFIX=/usr` the staged tree uses the standard paths:
 | ------- | -------------------------------------------------------------- | ------------------------------------------- |
 | Widget  | `/usr/share/plasma/plasmoids/com.github.e0ipso.tokkl/`         | same                                        |
 | Backend | `/usr/lib/x86_64-linux-gnu/qt6/qml/com/github/e0ipso/tokkl/backend/` | `/usr/lib64/qt6/qml/com/github/e0ipso/tokkl/backend/` |
+| Icons   | `/usr/share/icons/hicolor/<size>x<size>/apps/com.github.e0ipso.tokkl.png` | same                                        |
 
 The backend goes to Qt's own QML directory (`KDE_INSTALL_QMLDIR`), so the
 path follows the distribution's Qt layout.
 
 ## Packages
 
-Two native packages, both named `tokkl-kde`, ship the widget and the compiled
-backend at the paths above:
+Two native packages, both named `tokkl-kde`, ship the widget, the compiled
+backend and the widget picker icons at the paths above:
 
 | Package | Target                     | Architecture | Built against                                       |
 | ------- | -------------------------- | ------------ | --------------------------------------------------- |
@@ -560,7 +586,7 @@ The scripts it runs work on their own, for a prepared machine:
   required; `debian/changelog` is written from it at build time.
 - `scripts/check-package.sh --version <version> --package <file> [--previous
   <file>] [--load-test <dir>]`: inspects the package (name, version,
-  architecture, MIT license, widget and backend paths, dependencies, no
+  architecture, MIT license, widget, backend and icon paths, dependencies, no
   maintainer scripts), installs it on a clean system, checks the stamped widget version,
   the backend's libraries and the package manager's verify, removes it, then
   installs the previous package, upgrades and removes again (purging on
@@ -739,8 +765,11 @@ Install and load:
       version.
 - [ ] Add Widgets lists Tokkl, and the widget goes onto a horizontal panel.
       Record the menu path you used and whether a log out was needed.
-- [ ] The panel shows the Tokkl icon, the stopped symbol, a dashed square,
-      `0:00:00` and the Not configured symbol. The tooltip reads "Tokkl:
+- [ ] Restart plasmashell (`systemctl --user restart
+      plasma-plasmashell.service`) or log out and back in. The panel button
+      and the Tokkl entry in Add Widgets show the clock logo in full colour.
+- [ ] The panel shows the Tokkl clock logo, the stopped symbol, a dashed
+      square, `0:00:00` and the Not configured symbol. The tooltip reads "Tokkl:
       Stopped 0:00:00 · No project · Not configured · Set the instance URL and
       credentials in the widget settings." and shows the version.
 - [ ] Configure opens on Connection. Test Connection is disabled until an

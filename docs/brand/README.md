@@ -1,6 +1,6 @@
 # Brand assets
 
-This directory holds Tokkl's brand artwork. `npm run icons` reads some of it and writes the served icons under `packages/web/public` (it needs ImageMagick 7).
+This directory holds Tokkl's brand artwork. `npm run icons` reads some of it and writes the served icons under `packages/web/public` and the KDE widget's icons under `desktop/kde/package` (it needs ImageMagick 7).
 
 ## Wordmark
 
@@ -21,13 +21,14 @@ This directory holds Tokkl's brand artwork. `npm run icons` reads some of it and
 
 ## Icon pack
 
-`icon-pack/` is the clock icon pack. Its own `icon-pack/README.md` has the integration details. Each kind of client takes one subdirectory:
+`icon-pack/` is the clock icon pack. Its own `icon-pack/README.md` has the integration details. Each kind of client takes one part of it:
 
 | Client | Take | Notes |
 | --- | --- | --- |
 | Browsers and installed web apps | `icon-pack/web/public` | Favicon, `any` and maskable PNGs, Apple touch icons and a web app manifest. `icon-pack/web/head-snippet.html` has the tags for the document `<head>`. |
 | Android launcher | `icon-pack/android/res` | Merged into the app module's `src/main/res`. It holds the adaptive icon definitions (`mipmap-anydpi-v26`, and `mipmap-anydpi-v33` with a monochrome layer for themed icons), the foreground and monochrome layers and the legacy launcher PNGs at mdpi through xxxhdpi, and the background colour in `values`. The Android app copies this directory from here. |
 | Store listings | `icon-pack/store/google-play-512.png` | The 512 px Google Play listing icon. It is separate from the launcher resources. |
+| KDE Plasma widget | `icon-pack/source/master-export.png` | `npm run icons` trims the artwork to its alpha bounds, centres it on a square transparent canvas and writes the panel logo and the hicolor widget picker icons. `desktop/kde/README.md` lists the files. |
 
 The rest of the pack is `source/` (the master artwork the exports come from), `previews/`, `scripts/build.mjs`, and `checks.json`, `inventory.json` and `validation-report.json`, which record the geometry checks and the size and SHA-256 of every file.
 

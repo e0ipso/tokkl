@@ -62,7 +62,12 @@ package="$(realpath "$package")"
 
 plasmoid_id="com.github.e0ipso.tokkl"
 widget_dir="/usr/share/plasma/plasmoids/$plasmoid_id"
-icon_file="/usr/share/icons/hicolor/96x96/apps/$plasmoid_id.png"
+# The widget picker's icon in every hicolor size the package installs; the
+# 96px one is a copy of the panel logo in the widget.
+icon_dir=/usr/share/icons
+icon_sizes="32 48 64 96 128 256"
+icon_file() { echo "$icon_dir/hicolor/${1}x${1}/apps/$plasmoid_id.png"; }
+icon_files="$(for size in $icon_sizes; do icon_file "$size"; done)"
 
 case "$package" in
     *.deb)
@@ -97,7 +102,7 @@ esac
 expected_files="$widget_dir/metadata.json
 $widget_dir/contents/ui/main.qml
 $widget_dir/contents/config/main.xml
-$icon_file
+$icon_files
 $backend_dir/qmldir
 $backend_dir/libtokklbackend.so
 $backend_dir/tokklbackend.qmltypes
@@ -263,7 +268,7 @@ check_installed() { # <native version> <semver> <file>
         [ "$metadata" = "$semver_want" ]
     expect "widget picker icon matches the bundled logo" \
         "widget picker icon is missing or differs from the bundled logo" \
-        same_contents "$icon_file" "$widget_dir/contents/images/tokkl.png"
+        same_contents "$(icon_file 96)" "$widget_dir/contents/images/tokkl.png"
     expect "backend qmldir names com.github.e0ipso.tokkl.backend" \
         "backend qmldir does not name com.github.e0ipso.tokkl.backend" \
         grep -qx "module com.github.e0ipso.tokkl.backend" "$backend_dir/qmldir"
@@ -314,6 +319,7 @@ check_loads() {
         XDG_CACHE_HOME="$home/cache" XDG_STATE_HOME="$home/state" \
         QT_QPA_PLATFORM=xcb QT_QUICK_BACKEND=software \
         TOKKL_SMOKE_PLASMOID_DIR="$widget_dir" TOKKL_SMOKE_BACKEND_DIR="$backend_dir" \
+        TOKKL_SMOKE_ICON_DIR="$icon_dir" \
         dbus-run-session -- xvfb-run -a "$load_test/smokeload") || status=$?
     rm -rf "$home"
     if [ "$status" -eq 0 ]; then
@@ -325,7 +331,9 @@ check_loads() {
 
 check_removed() {
     expect "tokkl-kde is not installed" "tokkl-kde is still installed" [ -z "$(installed_version)" ]
-    expect "widget picker icon is gone" "widget picker icon is left behind" [ ! -e "$icon_file" ]
+    while IFS= read -r path; do
+        expect "$path is gone" "$path is left behind" [ ! -e "$path" ]
+    done <<<"$icon_files"
     for dir in "$widget_dir" "$(dirname "$(dirname "$backend_dir")")"; do
         expect "$dir is gone" "$dir is left behind" [ ! -e "$dir" ]
     done
