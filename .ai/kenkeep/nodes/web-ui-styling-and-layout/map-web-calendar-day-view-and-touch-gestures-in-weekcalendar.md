@@ -16,6 +16,7 @@ kk_derived_from:
   - '935c3ad4-996d-4ce0-b165-4aaf8e23c62e:map:0'
 kk_relates_to:
   - practice-week-calendar-hour-height-agrees-in-three-places
+  - practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top
   - practice-ui-time-math-uses-wall-clock-helpers
   - practice-phone-layout-css-gotchas
   - practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
@@ -36,6 +37,7 @@ When changing this, verify:
 # Related
 
 - Related: [practice-week-calendar-hour-height-agrees-in-three-places](practice-week-calendar-hour-height-agrees-in-three-places.md)
+- Related: [practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top](practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md)
 - Related: [practice-ui-time-math-uses-wall-clock-helpers](../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md)
 - Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
 - Related: [practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard](../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md)

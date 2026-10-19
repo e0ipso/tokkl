@@ -15,10 +15,11 @@ kk_derived_from: []
 kk_relates_to:
   - practice-preferences-validated-by-known-key
   - practice-parser-cases-live-in-shared-json-fixtures
+  - map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
 kk_depends_on: []
 kk_confidence: high
 ---
-`packages/common/pomodoro.ts`, exported as `@tokkl/common/pomodoro` (`./pomodoro` in the package's `exports`), holds the Pomodoro cycle rules: `workPhase`, `nextBreak`, `breakPhase`, `nextWorkPhase` and `nextCompletedCount`, which takes a `CycleEvent` (`workEnded`, `workStopped`, `breakEnded` with its kind, `idle` with `lastActiveAt` and `now`). The functions read no clock and keep no state; the caller passes lengths, counts and instants. They take a `PomodoroSettings` (`workMinutes`, `shortBreakMinutes`, `longBreakMinutes`, `longBreakEvery`), not the stored `pomodoro_*` preference keys, so a caller maps the preferences onto it. Bad input throws `RangeError`.
+`packages/common/pomodoro.ts`, exported as `@tokkl/common/pomodoro` (`./pomodoro` in the package's `exports`), holds the Pomodoro cycle rules: `workPhase`, `nextBreak`, `breakPhase`, `nextWorkPhase` and `nextCompletedCount`, which takes a `CycleEvent` (`workEnded`, `workStopped`, `breakEnded` with its kind, `idle` with `lastActiveAt` and `now`). The functions read no clock and keep no state; the caller passes lengths, counts and instants. They take a `PomodoroSettings` (`workMinutes`, `shortBreakMinutes`, `longBreakMinutes`, `longBreakEvery`), not the stored `pomodoro_*` preference keys, so a caller maps the preferences onto it. Bad input throws `RangeError`. The web app's driver over these functions is `map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider`.
 
 `packages/common/fixtures/pomodoro.json` is the contract for these functions, and Tokkl for Android checks its port against it. Change a rule in the JSON first (see `practice-parser-cases-live-in-shared-json-fixtures`); `packages/common/fixtures/README.md` documents each function's `input` fields.
 
@@ -34,4 +35,5 @@ Settled rules:
 
 - Related: [practice-preferences-validated-by-known-key](../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
 - Related: [practice-parser-cases-live-in-shared-json-fixtures](../tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md)
+- Related: [map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider](map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md)
 <!-- kk:related:end -->

@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:6546e231b13d650329e8ba363d4a50a3028cfc5a35ef6f038a168460b2fe45fd'
-node_count: 77
+nodes_hash: 'sha256:efd876fde5ef0bfbaca1b4918c5085d2fc136aa6689dd182bf71eeef8f1d629c'
+node_count: 79
 ---
 # kenkeep Graph
 
-Total nodes: 77
+Total nodes: 79
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -165,7 +165,7 @@ Total nodes: 77
 - **title:** Pomodoro cycle functions in packages/common/pomodoro.ts
 - **path:** web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md
 - **tags:** common, pomodoro, timer, fixtures
-- **relates_to:** practice-preferences-validated-by-known-key, practice-parser-cases-live-in-shared-json-fixtures
+- **relates_to:** practice-preferences-validated-by-known-key, practice-parser-cases-live-in-shared-json-fixtures, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -230,7 +230,7 @@ Total nodes: 77
 - **title:** Web calendar day view and touch gestures in WeekCalendar
 - **path:** web-ui-styling-and-layout/map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md
 - **tags:** web, calendar, touch, mobile, e2e
-- **relates_to:** practice-week-calendar-hour-height-agrees-in-three-places, practice-ui-time-math-uses-wall-clock-helpers, practice-phone-layout-css-gotchas, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
+- **relates_to:** practice-week-calendar-hour-height-agrees-in-three-places, practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top, practice-ui-time-math-uses-wall-clock-helpers, practice-phone-layout-css-gotchas, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 - **derived_from:** 935c3ad4-996d-4ce0-b165-4aaf8e23c62e:map:0
 
 ## map-web-page-state-and-field-error-components
@@ -241,6 +241,14 @@ Total nodes: 77
 - **tags:** web, a11y, react, components, forms, e2e
 - **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 
+## map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
+
+- **kind:** map
+- **title:** Web Pomodoro: pomodoroCycle.ts, usePomodoro and the app-wide PomodoroProvider
+- **path:** web-ui-behaviour/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
+- **tags:** web, pomodoro, timer, localstorage
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key
+
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
 - **kind:** practice
@@ -248,6 +256,14 @@ Total nodes: 77
 - **path:** tooling-and-project/repo-and-scripts/practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md
 - **tags:** brand, assets, docs
 - **relates_to:** map-app-icons-script
+
+## practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top
+
+- **kind:** practice
+- **title:** Calendar lanes follow stored spans; zero-length markers draw on top
+- **path:** web-ui-styling-and-layout/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md
+- **tags:** web, calendar, css
+- **relates_to:** map-web-calendar-day-view-and-touch-gestures-in-weekcalendar, practice-ui-time-math-uses-wall-clock-helpers, practice-week-calendar-hour-height-agrees-in-three-places, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
 ## practice-client-deletion-keeps-projects
 
