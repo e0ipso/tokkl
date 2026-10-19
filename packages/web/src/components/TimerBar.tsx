@@ -226,7 +226,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   // Set while this bar pauses or resumes. The current entry refetches in the middle of both, and
   // that answer must not end the chain before the bar records the change.
   // Shared with the Pomodoro, which pauses the entry at the end of a work phase.
-  const { busy: chainBusy, barPause, pomodoro } = useTimerCoordination();
+  const { busy: chainBusy, barPause, pausing, pomodoro } = useTimerCoordination();
   // Set while Resume's start request is pending, and whether Stop was pressed in that time.
   const resumePending = useRef(false);
   const stopAfterResume = useRef(false);
@@ -324,8 +324,15 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     }
   };
 
-  /** Stop ends the pause chain. While paused every entry is already stopped, so nothing is sent. */
+  /**
+   * Stop ends the pause chain. While paused every entry is already stopped, so nothing is sent.
+   * While a pause is stopping the entry, Stop leaves the request to it and the pause ends the chain.
+   */
   const stop = async () => {
+    if (pausing.current) {
+      pausing.current.stopAfter = true;
+      return;
+    }
     if (!current) {
       // The clone does not exist yet; Resume stops it once its start returns.
       if (resumePending.current) stopAfterResume.current = true;
@@ -341,14 +348,24 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const pause = async () => {
     if (!current || chainBusy.current) return;
     chainBusy.current = true;
+    const pending = { stopAfter: false };
+    pausing.current = pending;
     try {
+      // A failed stop leaves the entry running, and a Stop pressed meanwhile with it; the error
+      // toast says so.
       const stopped = await stopRunning();
       if (!stopped) return;
-      const next = pauseChain(chainRef.current, stopped, Date.now());
       setTimerDuration('');
+      if (pending.stopAfter) {
+        endChain();
+        setDraft(EMPTY);
+        return;
+      }
+      const next = pauseChain(chainRef.current, stopped, Date.now());
       setChain(next);
       setDraft(next.snapshot);
     } finally {
+      pausing.current = null;
       chainBusy.current = false;
     }
   };

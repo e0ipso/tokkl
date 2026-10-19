@@ -1,8 +1,8 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { login, loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
-import { instant, metadataOf, nextRunning, TimerApi, type EntryView, type Metadata } from './timer-tests-helpers.ts';
+import { holdNextStop, instant, metadataOf, nextRunning, TimerApi, type EntryView, type Metadata } from './timer-tests-helpers.ts';
 
 // Pause stops the running entry and Resume starts a clone of it. The clock adds up the chain of
 // stopped entries and the running clone until Stop. Stopped entries snap to the time resolution,
@@ -209,6 +209,29 @@ test('Stop pressed while Resume is starting the clone leaves no timer running', 
   await expect(ui.resume).toHaveCount(0);
   await expect(ui.timer.getByLabel('Duration')).toHaveValue('');
   await expect(ui.timer.getByLabel('Duration')).toHaveAttribute('placeholder', '0:00:00');
+  expect(await storedChains(page)).toEqual([]);
+});
+
+test('Stop pressed while Pause is stopping the entry sends no second stop and ends the chain', async ({ page, users }) => {
+  await loginAs(page, (await users.create()).account);
+  const api = await TimerApi.open(page);
+  await seedRunning(page, api);
+  const ui = bar(page);
+  await expect(ui.pause).toBeVisible();
+
+  const held = await holdNextStop(page);
+  await ui.pause.click();
+  await held.sent;
+  await ui.stop.click();
+  held.release();
+
+  await expect(ui.start).toBeVisible();
+  await expect(ui.resume).toHaveCount(0);
+  expect(held.stops.count).toBe(1);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(await api.current()).toBeNull();
+  expect(await api.entries()).toHaveLength(1);
+  await expect(ui.timer.getByLabel('Description')).toHaveValue('');
   expect(await storedChains(page)).toEqual([]);
 });
 

@@ -126,3 +126,35 @@ export function expectSnapped(saved: Pick<EntryView, 'start' | 'stop'>, exactSta
   expect(Math.abs(start - instant(exactStart))).toBeLessThanOrEqual(step / 2);
   expect((instant(saved.stop) - start) % step).toBe(0);
 }
+
+const STOP_REQUEST = /\/time_entries\/\d+\/stop(?:\?|$)/;
+
+/**
+ * Holds the answer to the next stop request, as a slow network would: the server stops the entry
+ * at once, and the page sees the response only after `release()`. Later stop requests pass straight
+ * through. Requests matching `alsoHold`, such as a current-entry poll, wait for `release()` before
+ * they reach the server. `stops.count` counts every stop request; `sent` resolves on the first one.
+ */
+export async function holdNextStop(
+  page: Page,
+  alsoHold?: RegExp,
+): Promise<{ sent: Promise<unknown>; release: () => void; stops: { count: number } }> {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const stops = { count: 0 };
+  if (alsoHold) {
+    await page.route(alsoHold, async (route) => {
+      await gate;
+      await route.continue();
+    });
+  }
+  await page.route(STOP_REQUEST, async (route) => {
+    stops.count += 1;
+    if (stops.count > 1) return route.continue();
+    const response = await route.fetch();
+    await gate;
+    return route.fulfill({ response });
+  });
+  const sent = page.waitForRequest((request) => request.method() === 'PATCH' && STOP_REQUEST.test(request.url()));
+  return { sent, release, stops };
+}

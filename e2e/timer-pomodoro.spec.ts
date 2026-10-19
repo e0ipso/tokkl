@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test, type ExtraUsers } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
-import { TimerApi } from './timer-tests-helpers.ts';
+import { holdNextStop, TimerApi } from './timer-tests-helpers.ts';
 
 // The Pomodoro in the timer bar. Work phases count accrued running time, breaks count elapsed time
 // on this device, and a phase end rings the bell once and shows a banner. page.clock jumps the
@@ -282,6 +282,28 @@ test('phases that end while another page is open ring there, pause the entry, an
   expect(entries.map((entry) => entry.description)).toEqual(['Reading reports', 'Reading reports']);
   expect(entries.filter((entry) => entry.stop === null)).toHaveLength(1);
   expect(await ui.plays()).toBe(2);
+});
+
+test('Stop pressed while the end of a work phase is pausing the entry sends no second stop', async ({ page, users }) => {
+  const { api, ui } = await open(page, users, { stopAtEnd: true });
+  await startTimer(ui, 'Stopped at the bell');
+  // The jump also fires the 30-second poll of the running entry; on a slow network it answers late too.
+  const held = await holdNextStop(page, /\/api\/v9\/me\/time_entries\/current/);
+  await page.clock.fastForward(WORK * 1000);
+  await held.sent;
+  await ui.stop.click();
+  held.release();
+
+  await expect(ui.start).toBeVisible();
+  await expect(ui.resume).toHaveCount(0);
+  expect(held.stops.count).toBe(1);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(await api.current()).toBeNull();
+  expect(await page.evaluate(() => Object.keys(window.localStorage).filter((key) => key.startsWith('tokkl.pauseChain.')))).toEqual([]);
+  // The work phase ended before Stop, so its break runs on.
+  await expect(ui.banner).toHaveText(/Work phase over/);
+  await expectCountdown(ui, 'Short break', SHORT);
+  expect(await ui.plays()).toBe(1);
 });
 
 test('with the Pomodoro off, the timer bar shows no countdown, banner or bell', async ({ page, users }) => {

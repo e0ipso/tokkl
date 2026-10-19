@@ -9,17 +9,28 @@ import { readTabChain, writeTabChain } from './tabChain.ts';
 import { useToast } from './Toast.tsx';
 import { usePomodoro, type Pomodoro } from './usePomodoro.ts';
 
+export interface PendingPause {
+  stopAfter: boolean;
+}
+
 interface TimerCoordination {
   /** Set while a pause or resume is in flight, from the timer bar or the Pomodoro. */
   busy: RefObject<boolean>;
   /** The timer bar's Pause while the bar is mounted. It also saves a description still being edited. */
   barPause: RefObject<(() => Promise<void>) | null>;
+  /**
+   * Set while a pause is stopping the entry. Stop pressed meanwhile sets `stopAfter` instead of
+   * sending its own stop, and the pause then ends the chain rather than recording the pause.
+   */
+  pausing: RefObject<PendingPause | null>;
   pomodoro: Pomodoro;
 }
 
 const OFF: Pomodoro = { countdown: () => null, banner: null, dismiss: () => undefined };
 
-const Coordination = createContext<TimerCoordination>({ busy: { current: false }, barPause: { current: null }, pomodoro: OFF });
+const Coordination = createContext<TimerCoordination>({
+  busy: { current: false }, barPause: { current: null }, pausing: { current: null }, pomodoro: OFF,
+});
 
 /** What the timer bar shares with the Pomodoro that runs on every page. */
 export function useTimerCoordination(): TimerCoordination {
@@ -47,6 +58,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   useNow(1000);
   const busy = useRef(false);
   const barPause = useRef<(() => Promise<void>) | null>(null);
+  const pausing = useRef<PendingPause | null>(null);
   // The running entry whose work phase ended, until it is paused.
   const pauseFor = useRef<number | null>(null);
 
@@ -62,12 +74,15 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
 
   const pauseHere = async (entry: TimeEntry) => {
     busy.current = true;
+    const pending: PendingPause = { stopAfter: false };
+    pausing.current = pending;
     try {
       const stopped = await stopEntry.mutateAsync(entry.id);
-      writeTabChain(accountId, pauseChain(readTabChain(accountId), stopped, Date.now()));
+      writeTabChain(accountId, pending.stopAfter ? null : pauseChain(readTabChain(accountId), stopped, Date.now()));
     } catch (error) {
       toast.error(error);
     } finally {
+      pausing.current = null;
       busy.current = false;
     }
   };
@@ -82,7 +97,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
     else void pauseHere(current);
   });
 
-  return <Coordination.Provider value={{ busy, barPause, pomodoro }}>{children}</Coordination.Provider>;
+  return <Coordination.Provider value={{ busy, barPause, pausing, pomodoro }}>{children}</Coordination.Provider>;
 }
 
 const PHASE_ENDED: Record<PhaseEnd, string> = {
