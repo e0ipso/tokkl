@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:1265f93ef44c41cc445d32ced137dd67f4a18be6a777c178472d8f9ae7c7ff6c'
-node_count: 75
+nodes_hash: 'sha256:6546e231b13d650329e8ba363d4a50a3028cfc5a35ef6f038a168460b2fe45fd'
+node_count: 77
 ---
 # kenkeep Graph
 
-Total nodes: 75
+Total nodes: 77
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -21,7 +21,7 @@ Total nodes: 75
 - **title:** Brand images: npm run icons derives every served file from docs/brand
 - **path:** tooling-and-project/repo-and-scripts/map-app-icons-script.md
 - **tags:** tooling, pwa, icons, imagemagick, maskable, wordmark, web
-- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-app-shell-brand-and-navigation, map-test-and-static-analysis-layout, map-pwa-manifest-and-head-icon-links
+- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-app-shell-brand-and-navigation, map-test-and-static-analysis-layout, map-pwa-manifest-and-head-icon-links, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
 
 ## map-app-report-endpoints
 
@@ -158,6 +158,14 @@ Total nodes: 75
 - **path:** tooling-and-project/repo-and-scripts/map-npm-workspaces-package-layout.md
 - **tags:** monorepo, workspaces, layout, tooling, common, api, web, types
 - **relates_to:** map-test-and-static-analysis-layout
+
+## map-pomodoro-cycle-functions-in-packages-common
+
+- **kind:** map
+- **title:** Pomodoro cycle functions in packages/common/pomodoro.ts
+- **path:** web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md
+- **tags:** common, pomodoro, timer, fixtures
+- **relates_to:** practice-preferences-validated-by-known-key, practice-parser-cases-live-in-shared-json-fixtures
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -355,7 +363,7 @@ Total nodes: 75
 - **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
 - **path:** tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md
 - **tags:** kde, desktop
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership, practice-web-timer-bar-pause-chain-rules
 
 ## practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
 
@@ -419,7 +427,7 @@ Total nodes: 75
 - **title:** Parser cases live in packages/common/fixtures JSON, not in TS asserts
 - **path:** tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md
 - **tags:** testing, common, parsing
-- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout
+- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout, map-pomodoro-cycle-functions-in-packages-common
 
 ## practice-password-checks-go-through-failurelimiter-attempt
 
@@ -450,6 +458,7 @@ Total nodes: 75
 - **title:** Preferences: known keys validated, unknown keys stored verbatim
 - **path:** api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common
 
 ## practice-readme-describes-the-current-project-never-its-history
 
@@ -547,6 +556,7 @@ Total nodes: 75
 - **title:** UI time math uses account-local wall-clock helpers
 - **path:** web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md
 - **tags:** web, time, dst, calendar, common
+- **relates_to:** practice-web-previews-and-editor-show-snapped-durations
 
 ## practice-v9-deletes-answer-an-empty-200
 
@@ -570,6 +580,14 @@ Total nodes: 75
 - **path:** web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md
 - **tags:** web, time, timer, entries
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-api-and-disabled-accounts
+
+## practice-web-timer-bar-pause-chain-rules
+
+- **kind:** practice
+- **title:** Web timer bar pause chain: pauseChain.ts, per-account storage, ending rules
+- **path:** web-ui-behaviour/practice-web-timer-bar-pause-chain-rules.md
+- **tags:** web, timer, pause, localstorage
+- **relates_to:** practice-end-sessions-through-lib-session, practice-web-ui-survives-background-refetches, practice-kde-timer-controller-rules
 
 ## practice-web-ui-survives-background-refetches
 

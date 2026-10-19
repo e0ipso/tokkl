@@ -2,8 +2,8 @@
 type: map
 title: 'Brand images: npm run icons derives every served file from docs/brand'
 description: >-
-  icons.ts copies or quantises the served icons from icon-pack/web/public and
-  crops the wordmark master with ImageMagick 7; no test reruns it.
+  icons.ts copies or quantises the web icons, renders the KDE widget icons from
+  the icon master and crops the wordmark with ImageMagick 7; no test reruns it.
 tags:
   - tooling
   - pwa
@@ -22,6 +22,7 @@ kk_relates_to:
   - map-app-shell-brand-and-navigation
   - map-test-and-static-analysis-layout
   - map-pwa-manifest-and-head-icon-links
+  - map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -33,7 +34,11 @@ The favicons and Apple touch icons are small, so `copiedIcons` copies nine of th
 
 Palette reduction drops the master's faintest edge pixels (its top row is at most 4/255 opaque). The visible art in `tokkl-wordmark-full.png` therefore sits 9 px from the top, 6 from the left and 4 from the right and bottom, while the canvas still matches the crop. Measure the crop on the master, not on an output.
 
-No committed test runs the script. Importing `icons.ts` runs `magick` and writes into the checkout, CI's test job installs no ImageMagick, and only the same ImageMagick build reproduces the committed bytes (7.1.1-43 does). `scripts/icons.test.ts`, part of `npm test`, decodes the committed PNGs in plain Node with `node:zlib` instead. For the wordmark it checks that the master's alpha bounds plus 4 px give `tokkl-wordmark-full.png`, that `WORDMARK_RATIO` equals that file's ratio and the 260, 520 and 640 files keep it, and that all four are 8-bit palette PNGs with only `IHDR`, `PLTE`, `tRNS`, `IDAT` and `IEND` chunks. It reads `WORDMARK_RATIO` with a regex, so keep the line as `const WORDMARK_RATIO = <height> / <width>;`. For each manifest icon it checks that the pack file at the same path has the same dimensions and a mean RGBA channel error of at most 2 of 255 (`MAX_MEAN_CHANNEL_ERROR`), and that the served file is an 8-bit, non-interlaced palette PNG of at most 256 colours with no chunks beyond those five. `magick compare -metric MAE <pack file> <served file> null:` puts the committed icons at 0.37 to 0.86 of 255 (it prints the figure normalised to 0 to 1 in brackets) and a different pack icon of the same size at about 25, which is the case the bound catches. The script resolves its paths from its own location, so to rerun it without touching the checkout, copy `scripts/icons.ts` and `docs/` into a temporary directory with an empty `packages/web/public/` and run it there.
+The KDE widget's icons come from the icon pack's master, `docs/brand/icon-pack/source/master-export.png` (`MASTER`). `MASTER_SQUARE` trims it to its alpha bounds and centres it on a transparent square as tall as the art, and the script writes full-colour RGBA PNGs (`png32:`): `desktop/kde/package/contents/images/tokkl.png` (96 px, the panel logo) and `desktop/kde/package/icons/tokkl-<n>.png` for 32, 48, 64, 96, 128 and 256 px. `tokkl-96.png` is a byte copy of `tokkl.png`, and both `desktop/kde/autotests/smokeloadtest.cpp` and `desktop/kde/scripts/check-package.sh` require them to match. `desktop/kde/package/CMakeLists.txt` installs each size as `hicolor/<n>x<n>/apps/<plasmoid id>.png` for the widget picker, which finds it through `KPlugin.Icon`; `icons/` stays out of the widget package, which copies only `contents/`.
+
+Do not test which file the icon theme draws for a size. hicolor's `256x256/apps` directory is `Type=Scalable` with `MinSize=64`, so the theme may draw any size from 64 px up from the 256 px file, and a lookup for 96 px can come back drawn from `tokkl-256.png`. The smokeload test therefore compares the 96 px files byte for byte and checks that `QIcon::fromTheme` lists all six sizes. The widget picker and the panel after a plasmashell restart are checked by hand.
+
+No committed test runs the script. Importing `icons.ts` runs `magick` and writes into the checkout, CI's test job installs no ImageMagick, and only the same ImageMagick build reproduces the committed bytes (7.1.1-43 does). `scripts/icons.test.ts`, part of `npm test`, decodes the committed PNGs in plain Node with `node:zlib` instead. For the wordmark it checks that the master's alpha bounds plus 4 px give `tokkl-wordmark-full.png`, that `WORDMARK_RATIO` equals that file's ratio and the 260, 520 and 640 files keep it, and that all four are 8-bit palette PNGs with only `IHDR`, `PLTE`, `tRNS`, `IDAT` and `IEND` chunks. It reads `WORDMARK_RATIO` with a regex, so keep the line as `const WORDMARK_RATIO = <height> / <width>;`. For each manifest icon it checks that the pack file at the same path has the same dimensions and a mean RGBA channel error of at most 2 of 255 (`MAX_MEAN_CHANNEL_ERROR`), and that the served file is an 8-bit, non-interlaced palette PNG of at most 256 colours with no chunks beyond those five. `magick compare -metric MAE <pack file> <served file> null:` puts the committed icons at 0.37 to 0.86 of 255 (it prints the figure normalised to 0 to 1 in brackets) and a different pack icon of the same size at about 25, which is the case the bound catches. The script resolves its paths from its own location, so to rerun it without touching the checkout, copy `scripts/icons.ts` and `docs/` into a temporary directory with an empty `packages/web/public/` and `desktop/kde/package/contents/images/` (the script creates only the `brand/` and `icons/` directories) and run it there.
 
 <!-- Verified against the current code on 2026-10-19. -->
 
@@ -46,4 +51,5 @@ No committed test runs the script. Importing `icons.ts` runs `magick` and writes
 - Related: [map-app-shell-brand-and-navigation](../../web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md)
 - Related: [map-test-and-static-analysis-layout](../testing/map-test-and-static-analysis-layout.md)
 - Related: [map-pwa-manifest-and-head-icon-links](../../web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md)
+- Related: [map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes](../kde-companion/plasma-companion/map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes.md)
 <!-- kk:related:end -->

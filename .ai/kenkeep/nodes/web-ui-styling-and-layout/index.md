@@ -66,7 +66,7 @@ _None._
 ### #fonts
 - Open [**Display font is the bundled Anybody; one reduced-motion block ends styles.css**](practice-display-font-and-reduced-motion.md) — Anybody ships from packages/web/public/fonts with declared axis ranges and a crossorigin preload. One reduced-motion block ends styles.css.
 ### #icons
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](../tooling-and-project/repo-and-scripts/map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](../tooling-and-project/repo-and-scripts/map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE widget icons from the icon master and crops the wordmark with ImageMagick 7; no test reruns it.
 - Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
 ### #layout
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](../tooling-and-project/repo-and-scripts/map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
@@ -81,7 +81,7 @@ _None._
 - Open [**Contrast tables in styles.css; project colours never paint text**](practice-contrast-tables-and-project-colours.md) — New colour pairs get a computed row in the styles.css contrast table. No opacity on text. A project hex only sets --project-color.
 - Open [**Deleting a client detaches its projects and never merges them**](../api-and-data/reports-and-totals/practice-client-deletion-keeps-projects.md) — deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N".
 ### #pwa
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](../tooling-and-project/repo-and-scripts/map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](../tooling-and-project/repo-and-scripts/map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE widget icons from the icon master and crops the wordmark with ImageMagick 7; no test reruns it.
 - Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
 ### #reports
 - Open [**Web app report endpoints under /api/app/report**](../api-and-data/reports-and-totals/map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
@@ -99,11 +99,11 @@ _None._
 ### #timer
 - Open [**Web UI state must survive background refetches**](../web-ui-behaviour/practice-web-ui-survives-background-refetches.md) — Entry rows keep a stable key, the timer bar syncs on every mirrored field, and focus or visibility triggers a refetch.
 - Open [**Web previews and the entry editor show the snapped duration**](../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md) — Previews use snappedSeconds and snappedInstant with the /me resolution; toasts and chained starts use the server-returned entry.
-- Open [**Bulk bar sticks under the timer bar through --timer-bar-height**](practice-timer-bar-height-drives-sticky-bulk-bar.md) — TimerBar writes --timer-bar-height on <html>; .bulk-bar sticks at it; phones zero it while entries are selected.
+- Open [**Web timer bar pause chain: pauseChain.ts, per-account storage, ending rules**](../web-ui-behaviour/practice-web-timer-bar-pause-chain-rules.md) — Pause stops the entry, Resume starts a clone; the chain lives in localStorage per account and ends on Stop, sign-out or a foreign entry.
 ### #tokens
 - Open [**styles.css loads last and owns the colour tokens**](practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals.
 ### #touch
 - Open [**Web calendar day view and touch gestures in WeekCalendar**](map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md) — Below 760px WeekCalendar shows one day under a week strip; touch drags start after a 500 ms long press, mouse drags at once.
 ### #wordmark
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](../tooling-and-project/repo-and-scripts/map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](../tooling-and-project/repo-and-scripts/map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE widget icons from the icon master and crops the wordmark with ImageMagick 7; no test reruns it.
 - Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.

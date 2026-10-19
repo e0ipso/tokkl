@@ -11,7 +11,7 @@
 - Load [`plasma-companion/`](plasma-companion/index.md) for more information on the desktop/core and desktop/kde projects, the panel UI and the CTest suite; read before changing desktop CMake, panel QML or desktop tests.
 
 ## Conventions (how we build)
-- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) to learn about: TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry; the project is locked while running, billable edits it with a partial PUT. #kde #desktop
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) to learn about: TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start or resume, keeps a pause chain; the project is locked while running or paused. #kde #desktop
 
 ## Components (what exists)
 - Open [**KDE CI job and release: kde matrix, real-server test, semantic-release plugin**](map-kde-ci-and-release-pipeline.md) to learn about: The kde CI job builds, tests and checks the DEB and RPM in pinned containers; the release builds each on its own leg, then a gate attaches both to v<version>. #tooling #kde #ci #release
@@ -23,7 +23,7 @@
 
 ### #kde
 - Open [**KDE panel: button, menu and project indicator**](plasma-companion/map-kde-panel-button-menu-and-project-indicator.md) — PanelButton and PanelMenu wiring, keyboard and mouse bindings, Open Tokkl URL, and the project indicator's ring, pulse and reduced motion.
-- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry; the project is locked while running, billable edits it with a partial PUT.
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start or resume, keeps a pause chain; the project is locked while running or paused.
 - Open [**desktop/core and desktop/kde: CMake projects, libraries and QML types**](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md) — tokklcore is Qt-only in desktop/core; tokklkde adds KWallet; QML_FOREIGN types; version from root package.json; README guide.
 ### #tooling
 - Open [**KDE CI job and release: kde matrix, real-server test, semantic-release plugin**](map-kde-ci-and-release-pipeline.md) — The kde CI job builds, tests and checks the DEB and RPM in pinned containers; the release builds each on its own leg, then a gate attaches both to v<version>.
@@ -43,7 +43,7 @@
 - Open [**Tokkl KDE live widgets reload with plasmashell**](plasma-companion/map-tokkl-kde-live-widgets-reload-with-plasmashell.md) — Tokkl runs inside plasmashell; package metadata and the logo can refresh while an existing process keeps the old widget QML loaded.
 ### #desktop
 - Open [**KDE panel: button, menu and project indicator**](plasma-companion/map-kde-panel-button-menu-and-project-indicator.md) — PanelButton and PanelMenu wiring, keyboard and mouse bindings, Open Tokkl URL, and the project indicator's ring, pulse and reduced motion.
-- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start, gates writes on a known entry; the project is locked while running, billable edits it with a partial PUT.
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start or resume, keeps a pause chain; the project is locked while running or paused.
 - Open [**desktop/core and desktop/kde: CMake projects, libraries and QML types**](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md) — tokklcore is Qt-only in desktop/core; tokklkde adds KWallet; QML_FOREIGN types; version from root package.json; README guide.
 ### #docker
 - Open [**KDE CI dependency images: image-id.sh identity, Actions cache, weekly refresh**](map-kde-ci-dependency-image-cache.md) — container-check.sh reuses images labelled with image-id.sh's hash; CI caches them per format and rebuilds them weekly or after gh cache delete.
