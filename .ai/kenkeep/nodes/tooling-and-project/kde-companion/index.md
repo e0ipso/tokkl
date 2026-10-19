@@ -35,7 +35,7 @@
 - Open [**KDE CI job and release: kde matrix, real-server test, semantic-release plugin**](map-kde-ci-and-release-pipeline.md) — The kde CI job builds, tests and checks the DEB and RPM in pinned containers; the release builds each on its own leg, then a gate attaches both to v<version>.
 ### #ci
 - Open [**GNOME timer service: tokkl-timerd and org.tokkl.Timer1**](../map-gnome-timerd-d-bus-timer-service.md) — tokkl-timerd is a headless Qt service on the shared core; D-Bus contract rules, activation and the check.sh container.
-- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](../map-gnome-shell-extension-for-tokkl-timerd.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; check.sh mock harness, realservice.sh real service.
+- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](../map-gnome-shell-extension-for-tokkl-timerd.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; Shell 51 key controller; check.sh mock harness; realservice.sh.
 - Open [**macOS menu bar app: portable library, Objective-C++ shims and CI**](../map-macos-menu-bar-app.md) — desktop/macos: a Linux-testable Qt library and three macOS shims; click and menu actions, the bundle icon, NSStatusItem, the CI job.
 ### #packaging
 - Open [**KDE native packaging: DEB, RPM and the version mapping**](map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.

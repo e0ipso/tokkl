@@ -16,7 +16,7 @@
 
 ## Components (what exists)
 - Open [**GNOME timer service: tokkl-timerd and org.tokkl.Timer1**](map-gnome-timerd-d-bus-timer-service.md) to learn about: tokkl-timerd is a headless Qt service on the shared core; D-Bus contract rules, activation and the check.sh container. #tooling #desktop #gnome #ci
-- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](map-gnome-shell-extension-for-tokkl-timerd.md) to learn about: desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; check.sh mock harness, realservice.sh real service. #tooling #desktop #gnome #ci #testing
+- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](map-gnome-shell-extension-for-tokkl-timerd.md) to learn about: desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; Shell 51 key controller; check.sh mock harness; realservice.sh. #tooling #desktop #gnome #ci #testing
 - Open [**Container image ghcr.io/e0ipso/tokkl**](map-container-image-ghcr-io-e0ipso-tokkl.md) to learn about: Multi-arch image built from the root Dockerfile and pushed by the CI release job when semantic-release tags; writes only to /data. #docker #release #ci #deployment
 - Open [**macOS menu bar app: portable library, Objective-C++ shims and CI**](map-macos-menu-bar-app.md) to learn about: desktop/macos: a Linux-testable Qt library and three macOS shims; click and menu actions, the bundle icon, NSStatusItem, the CI job. #tooling #desktop #macos #ci
 
@@ -24,7 +24,7 @@
 
 ### #ci
 - Open [**GNOME timer service: tokkl-timerd and org.tokkl.Timer1**](map-gnome-timerd-d-bus-timer-service.md) — tokkl-timerd is a headless Qt service on the shared core; D-Bus contract rules, activation and the check.sh container.
-- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](map-gnome-shell-extension-for-tokkl-timerd.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; check.sh mock harness, realservice.sh real service.
+- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](map-gnome-shell-extension-for-tokkl-timerd.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; Shell 51 key controller; check.sh mock harness; realservice.sh.
 - Open [**macOS menu bar app: portable library, Objective-C++ shims and CI**](map-macos-menu-bar-app.md) — desktop/macos: a Linux-testable Qt library and three macOS shims; click and menu actions, the bundle icon, NSStatusItem, the CI job.
 ### #desktop
 - Open [**KDE panel: button, menu and project indicator**](kde-companion/plasma-companion/map-kde-panel-button-menu-and-project-indicator.md) — PanelButton and PanelMenu: clicks and keys, the Start or Stop item, the Open Tokkl URL, and the project indicator's shapes and pulse.
@@ -36,7 +36,7 @@
 - Open [**GNOME timer service: tokkl-timerd and org.tokkl.Timer1**](map-gnome-timerd-d-bus-timer-service.md) — tokkl-timerd is a headless Qt service on the shared core; D-Bus contract rules, activation and the check.sh container.
 ### #gnome
 - Open [**GNOME timer service: tokkl-timerd and org.tokkl.Timer1**](map-gnome-timerd-d-bus-timer-service.md) — tokkl-timerd is a headless Qt service on the shared core; D-Bus contract rules, activation and the check.sh container.
-- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](map-gnome-shell-extension-for-tokkl-timerd.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; check.sh mock harness, realservice.sh real service.
+- Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](map-gnome-shell-extension-for-tokkl-timerd.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; Shell 51 key controller; check.sh mock harness; realservice.sh.
 ### #debian
 - Open [**Target Debian for Debian-family desktop packages, not niche distros**](practice-target-debian-for-debian-family-desktop-packages-not-niche-distros.md) — DEB builds for the desktop companions target stock Debian; niche distros like TUXEDO OS are not targets. Ubuntu is the fallback.
 ### #deployment
