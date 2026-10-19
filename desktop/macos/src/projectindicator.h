@@ -9,14 +9,15 @@ namespace Tokkl
 class TimerController;
 
 // The project indicator next to the elapsed time in the menu bar, as the KDE
-// panel draws it. It shows the core's chosenProjectId: the running entry's
-// project, or the next start's while stopped. The app adds no rule of its
-// own; this decides what to draw and the platform draws it.
+// panel draws it. It shows the core's chosenProjectId: the running or paused
+// entry's project, or the next start's while stopped. The app adds no rule of
+// its own; this decides what to draw and the platform draws it.
 //
-// A dot while an entry runs and a still square while stopped. The project
-// colour fills the shape inside a ring in the menu bar's text colour, which
-// keeps the edge visible on light and dark menu bars whatever the project
-// colour. A project without a valid colour is filled with the text colour.
+// A dot while an entry runs and a still square while paused or stopped. The
+// project colour fills the shape inside a ring in the menu bar's text colour,
+// which keeps the edge visible on light and dark menu bars whatever the
+// project colour. A project without a valid colour is filled with the text
+// colour.
 // No project draws a dashed outline of the shape, and a project still being
 // read leaves the slot empty. The slot has the same size in every state, so
 // the elapsed time never moves.
@@ -43,7 +44,7 @@ struct ProjectIndicator {
     static constexpr double pulseMinimum = 0.35;
 
     Kind kind = Kind::Empty;
-    // A dot while the timer runs, a square while it is stopped.
+    // A dot while the timer runs, a square while it is paused or stopped.
     bool round = false;
     // The project colour as #rrggbb, or empty for the text colour.
     QString color;

@@ -33,7 +33,7 @@ public:
     virtual bool reduceMotion() const = 0;
 
 Q_SIGNALS:
-    // A primary click: start or stop the timer.
+    // A primary click: pause, resume or start the timer.
     void activated();
     // The system's reduced motion setting changed.
     void reduceMotionChanged();

@@ -13,6 +13,7 @@ namespace Tokkl
 
 class Clock;
 class Connection;
+class SettingsChainStore;
 class CredentialStore;
 class LoginItem;
 class SettingsWindow;
@@ -26,9 +27,10 @@ class Transport;
 // and the settings window. main.mm hands it the NSStatusItem, the Keychain store, the
 // SMAppService login item and the network; tests hand it fakes.
 //
-// A primary click on the item starts a stopped timer or stops a running one,
-// as the menu's Start or Stop does. Timer state, requests and the project and
-// billable rules stay in TimerController.
+// A primary click on the item pauses a running timer, resumes a paused one
+// and starts a stopped one. The menu's Start Timer starts a new entry and its
+// Stop Timer ends the chain. Timer state, requests, the pause chain and the
+// project and billable rules stay in TimerController.
 class MenuBarApp : public QObject
 {
     Q_OBJECT
@@ -41,7 +43,9 @@ public:
     static Transport *createTransport(QObject *parent = nullptr);
 
     // Uses the given parts; the app owns none of them. A null clock is the
-    // system clock; a null login item hides the toggle.
+    // system clock; a null login item hides the toggle. The timer keeps its
+    // pause chain in settings, so a relaunch keeps the total; with null
+    // settings it keeps the chain in memory only.
     MenuBarApp(Transport *transport,
                CredentialStore *store,
                StatusItem *statusItem,
@@ -78,6 +82,7 @@ private:
     QPointer<StatusItem> m_statusItem;
     QPointer<QSettings> m_settings;
     std::unique_ptr<Connection> m_connection;
+    std::unique_ptr<SettingsChainStore> m_chainStore;
     std::unique_ptr<TimerController> m_timer;
     std::unique_ptr<StatusMenu> m_menu;
     std::unique_ptr<SettingsWindow> m_settingsWindow;

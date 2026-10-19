@@ -1,6 +1,6 @@
 # Tokkl for the macOS menu bar
 
-A menu bar app for Tokkl. It shows the running timer's elapsed time in the menu bar, and a click starts or stops the timer. It is built on the shared desktop core in `desktop/core`, the same timer and API client the KDE companion uses.
+A menu bar app for Tokkl. It shows the timer's elapsed time in the menu bar, and a click starts, pauses or resumes the timer. It is built on the shared desktop core in `desktop/core`, the same timer and API client the KDE companion uses.
 
 ## Installing
 
@@ -20,14 +20,15 @@ The app is signed ad hoc, not with an Apple Developer ID, and is not notarized. 
 
 ## Using it
 
-Click the time to start a stopped timer or stop a running one. A new entry goes on the project selected in the menu.
+Click the time to start a stopped timer. A new entry goes on the project selected in the menu. A click on a running timer pauses it, and the next click resumes it with a new entry that copies the paused entry's description, project, task, tags and billable flag. While paused, the time stands still. After a resume it counts on from that total, through every pause, until you stop the timer. Quitting and reopening the app keeps the total.
 
-Right-click or Control-click for the menu. It shows the timer state and has Start or Stop, Project, Billable, Reconnect, Open Tokkl, Settings and Quit.
+Right-click or Control-click for the menu. It shows the timer state (Running, Paused or Stopped) and has Start Timer or Stop Timer, Project, Billable, Reconnect, Open Tokkl, Settings and Quit.
 
-- Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. The project of a running entry is locked. To switch, stop the entry and start a new one.
-- Billable sets the next start too. While an entry runs, it changes that entry.
+- Start Timer starts a new entry while the timer is stopped. Stop Timer stops a running or paused timer, and the next start counts from 0:00. While paused, Stop sends nothing to the server, because the paused entry is already stopped.
+- Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. The project of a running or paused entry is locked. To switch, stop the timer and start a new entry.
+- Billable sets the next start too. While an entry runs, it changes that entry. While paused, it is locked.
 
-A small shape before the time shows the project: the running entry's, or the one the next start will use. A dot pulses while the timer runs, and a still square shows while it is stopped. The project colour fills it inside a ring in the menu bar's text colour. A dashed outline means no project, and the space stays empty while the project is still loading. With Reduce Motion on, the dot does not pulse. The tooltip and VoiceOver name the project, so the colour is never the only clue.
+A small shape before the time shows the project: the running or paused entry's, or the one the next start will use. A dot pulses while the timer runs, and a still square shows while it is paused or stopped. The project colour fills it inside a ring in the menu bar's text colour. A dashed outline means no project, and the space stays empty while the project is still loading. With Reduce Motion on, the dot does not pulse. The tooltip and VoiceOver name the project, so the colour is never the only clue.
 
 While the timer is loading or saving, the time ends with `…`. When it is offline, refused or failing, the time ends with `!`, and the tooltip and the first menu line say why.
 
