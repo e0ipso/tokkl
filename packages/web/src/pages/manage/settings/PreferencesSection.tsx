@@ -7,6 +7,7 @@ import { useToast } from '../../../components/Toast.tsx';
 import { formatDate, formatTime, today, useSettings } from '../../../lib/settings.ts';
 import { formatDuration } from '@tokkl/common/duration';
 import { DEFAULT_POMODORO_SETTINGS } from '@tokkl/common/pomodoro';
+import { AllowNotifications } from './AllowNotifications.tsx';
 import { SettingsCard } from './SettingsCard.tsx';
 
 const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD.MM.YYYY', 'DD-MM-YYYY', 'MM-DD-YYYY'] as const;
@@ -240,6 +241,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
           />
           <span>Stop the timer at the end of a work phase</span>
         </label>
+        <AllowNotifications />
       </div>
     </SettingsCard>
   );

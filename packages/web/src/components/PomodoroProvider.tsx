@@ -4,7 +4,8 @@ import { keys, useCurrentEntry, useMe, usePreferences, useStopEntry } from '../a
 import type { TimeEntry } from '../api/types.ts';
 import { useNow } from '../lib/settings.ts';
 import { isPaused, pause as pauseChain, type PauseChain } from './pauseChain.ts';
-import type { PhaseEnd, TimerView } from './pomodoroCycle.ts';
+import { PHASE_ENDED } from './phaseNotification.ts';
+import type { TimerView } from './pomodoroCycle.ts';
 import { readTabChain, writeTabChain } from './tabChain.ts';
 import { useToast } from './Toast.tsx';
 import { usePomodoro, type Pomodoro } from './usePomodoro.ts';
@@ -129,19 +130,14 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   return <Coordination.Provider value={{ busy, barPause, pausing, pausedAt, pomodoro }}>{children}</Coordination.Provider>;
 }
 
-const PHASE_ENDED: Record<PhaseEnd, string> = {
-  work: 'Work phase over. Time for a break.',
-  short: 'Short break over. Back to work.',
-  long: 'Long break over. Back to work.',
-};
-
 /** The banner for the last phase end, shown until it is dismissed. */
 export function PomodoroBanner() {
   const { pomodoro } = useTimerCoordination();
   if (!pomodoro.banner) return null;
+  const { title, body } = PHASE_ENDED[pomodoro.banner];
   return (
     <div className="pomodoro-banner" role="status">
-      <span>{PHASE_ENDED[pomodoro.banner]}</span>
+      <span>{title}. {body}</span>
       <button type="button" className="button button-ghost" onClick={pomodoro.dismiss}>Dismiss</button>
     </div>
   );

@@ -1,14 +1,17 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test, type ExtraUsers } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
+import {
+  clickNotification, focusCalls, permissionRequests, setHidden, shownNotifications, stubNotifications, type NotificationSetup,
+} from './notification-tests-helpers.ts';
 import { holdNextStop, TimerApi } from './timer-tests-helpers.ts';
 
 // The Pomodoro in the timer bar. Work phases count accrued running time, breaks count elapsed time
 // on this device, and a phase end rings the bell once and shows a banner. page.clock jumps the
 // browser's time with fastForward; it keeps running at normal speed in between, so countdowns are
 // checked within a few seconds. The server keeps real time, which is why the lengths are short.
-// Each scenario signs in as its own extra account, because the data fixture does not put the
-// Pomodoro preferences back on the worker's account.
+// Each scenario signs in as an extra account of its own. The data fixture also puts the worker
+// account's Pomodoro preferences back to their defaults after every test.
 
 const WORK = 120;
 const SHORT = 60;
@@ -26,10 +29,13 @@ interface Setup {
   longBreakEvery?: number;
   enabled?: boolean;
   rejectPlay?: boolean;
+  /** Stubs window.Notification and the page's visibility; see stubNotifications. */
+  notifications?: NotificationSetup;
 }
 
 /** Signs in as a new account with the Pomodoro set up, a fake clock and a play() stub that counts rings. */
-async function open(page: Page, users: ExtraUsers, { stopAtEnd, longBreakEvery = 4, enabled = true, rejectPlay = false }: Setup) {
+async function open(page: Page, users: ExtraUsers, { stopAtEnd, longBreakEvery = 4, enabled = true, rejectPlay = false, notifications }: Setup) {
+  if (notifications) await stubNotifications(page, notifications);
   await page.addInitScript((reject) => {
     window.bellPlays = [];
     HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
@@ -293,6 +299,57 @@ test('a rejected play() raises no page error and the banner still shows', async 
   expect(await ui.plays()).toBe(1);
   // The runtimeErrors fixture fails the test on any page error or console error.
 });
+
+test('with notifications allowed, a phase end in a hidden tab shows one notification that a click closes, and a visible tab shows none', async ({ page, users }) => {
+  const { ui } = await open(page, users, { stopAtEnd: false, notifications: { permission: 'granted' } });
+  await startTimer(ui, 'Background work');
+  await setHidden(page, true);
+
+  await page.clock.fastForward(WORK * 1000);
+  await expect.poll(() => shownNotifications(page)).toEqual([{ title: 'Work phase over', body: 'Time for a break.', closed: false }]);
+  expect(await ui.plays()).toBe(1);
+  // The tick that follows the end shows no second one.
+  await page.clock.fastForward(5_000);
+  expect(await shownNotifications(page)).toHaveLength(1);
+
+  expect(await focusCalls(page)).toBe(0);
+  await clickNotification(page, 0);
+  expect(await focusCalls(page)).toBe(1);
+  expect((await shownNotifications(page))[0]!.closed).toBe(true);
+
+  await page.clock.fastForward(SHORT * 1000);
+  await expect.poll(() => shownNotifications(page)).toHaveLength(2);
+  expect((await shownNotifications(page))[1]).toEqual({ title: 'Short break over', body: 'Back to work.', closed: false });
+
+  // Back in view, the banner and the bell cover the next phase end.
+  await setHidden(page, false);
+  await page.clock.fastForward(WORK * 1000);
+  await expect(ui.banner).toHaveText(/Work phase over/);
+  await expect.poll(() => ui.plays()).toBe(3);
+  expect(await shownNotifications(page)).toHaveLength(2);
+  // Nothing asks for permission on load or at a phase end.
+  expect(await permissionRequests(page)).toBe(0);
+});
+
+for (const [name, notifications] of [
+  ['notifications not asked for yet', { permission: 'default' }],
+  ['notifications denied', { permission: 'denied' }],
+  ['no Notification in the browser', { support: 'missing' }],
+  ['a Notification constructor that throws', { permission: 'granted', support: 'throws' }],
+  ['a page served over plain HTTP', { permission: 'granted', secure: false }],
+] as const satisfies readonly (readonly [string, NotificationSetup])[]) {
+  test(`with ${name}, a phase end in a hidden tab shows no notification and raises no page error`, async ({ page, users }) => {
+    const { ui } = await open(page, users, { stopAtEnd: false, notifications });
+    await startTimer(ui, 'Background work');
+    await setHidden(page, true);
+    await page.clock.fastForward(WORK * 1000);
+    await expect(ui.banner).toHaveText(/Work phase over/);
+    expect(await ui.plays()).toBe(1);
+    expect(await shownNotifications(page)).toEqual([]);
+    expect(await permissionRequests(page)).toBe(0);
+    // The runtimeErrors fixture fails the test on any page error or console error.
+  });
+}
 
 test('phases that end while another page is open ring there, pause the entry, and do not ring again back on the timer', async ({ page, users }) => {
   const { api, ui } = await open(page, users, { stopAtEnd: true });

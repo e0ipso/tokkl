@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { notifyPhaseEnd } from './phaseNotification.ts';
 import {
   IDLE_STATE, advance, countdown, nextDeadline, parseState, pomodoroConfig, pomodoroKey, readStored, sameState, writeStored,
   type Countdown, type PhaseEnd, type PomodoroPreferences, type PomodoroState, type TimerView,
@@ -127,7 +128,11 @@ export function usePomodoro({ accountId, prefs, prefsSaving, timer, busy, onWork
     if (!timer || busy.current) return;
     const result = advance(sync(), timer, Date.now(), config);
     store(result.state);
-    if (result.rang) ring();
+    if (result.rang) {
+      ring();
+      // The banner names the last phase that ended, and so does the notification.
+      if (result.state.banner) notifyPhaseEnd(result.state.banner);
+    }
     if (result.workEnded && config.stopAtEnd) onWorkEnded();
   });
 

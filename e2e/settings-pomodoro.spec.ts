@@ -3,9 +3,10 @@ import { describedError } from './admin-tests-helpers.ts';
 import { expect, test, type ExtraUsers } from './fixtures.ts';
 import { loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, tap } from './mobile-tests-helpers.ts';
+import { permissionRequests, stubNotifications, type NotificationSetup } from './notification-tests-helpers.ts';
 
-// The Pomodoro group of the Preferences card on /settings edits the six pomodoro_* preferences.
-// The worker accounts' preferences outlive a scenario, so every scenario signs in as its own account.
+// The Pomodoro group of the Preferences card on /settings edits the six pomodoro_* preferences and
+// asks for permission to show notifications. Every scenario signs in as an account of its own.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const PREFERENCES_PATH = /^\/api\/v9\/me\/preferences$/;
@@ -33,6 +34,9 @@ function group(page: Page) {
     longBreak: pomodoro.getByLabel('Long break (minutes)'),
     every: pomodoro.getByLabel('Long break every (work phases)'),
     stopAtEnd: pomodoro.getByRole('checkbox', { name: 'Stop the timer at the end of a work phase' }),
+    allowNotifications: pomodoro.getByRole('button', { name: 'Allow notifications' }),
+    // The line under the button, which takes its place once the browser answers.
+    notificationStatus: pomodoro.getByText(/^(Shows a notification|Notifications (are|need)|This browser can't)/),
   };
 }
 
@@ -264,16 +268,63 @@ test('after a failed save, only a value typed back to the stored one stops being
   await expect(form.longBreak).toHaveValue('20');
 });
 
+test('Allow notifications asks for permission only when clicked, saves nothing and then says they are allowed', async ({ page, users }) => {
+  await stubNotifications(page, { permission: 'default', answer: 'granted' });
+  const form = await openSettings(page, users);
+  await expect(form.allowNotifications).toHaveAccessibleDescription(/phase ends while Tokkl is in a background tab/);
+  expect(await permissionRequests(page)).toBe(0);
+
+  const saves: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && PREFERENCES_PATH.test(new URL(request.url()).pathname)) saves.push(request.url());
+  });
+  await form.allowNotifications.click();
+  await expect(form.allowNotifications).toHaveCount(0);
+  // Focus stays in the group, on the line that replaced the button.
+  await expect(form.notificationStatus).toHaveText(/^Notifications are allowed\./);
+  await expect(form.notificationStatus).toBeFocused();
+  expect(await permissionRequests(page)).toBe(1);
+  expect(saves).toEqual([]);
+});
+
+for (const [name, answer] of [['dismissed', 'default'], ['failed', 'rejects']] as const) {
+  test(`a ${name} permission request keeps the button and raises no page error`, async ({ page, users }) => {
+    await stubNotifications(page, { permission: 'default', answer });
+    const form = await openSettings(page, users);
+    await form.allowNotifications.click();
+    await expect.poll(() => permissionRequests(page)).toBe(1);
+    await expect(form.allowNotifications).toBeVisible();
+    await expect(form.notificationStatus).toHaveText(/phase ends while Tokkl is in a background tab/);
+    // The runtimeErrors fixture fails the test on any page error or console error.
+  });
+}
+
+for (const [name, notifications, status] of [
+  ['allowed', { permission: 'granted' }, /^Notifications are allowed\./],
+  ['blocked', { permission: 'denied' }, /^Notifications are blocked\. Allow them in the browser's site settings/],
+  ['unsupported', { support: 'missing' }, /^This browser can't show notifications\.$/],
+  ['refused over plain HTTP', { permission: 'denied', secure: false }, /^Notifications need HTTPS\./],
+] as const satisfies readonly (readonly [string, NotificationSetup, RegExp])[]) {
+  test(`with notifications ${name}, the group says so and offers no button`, async ({ page, users }) => {
+    await stubNotifications(page, notifications);
+    const form = await openSettings(page, users);
+    await expect(form.notificationStatus).toHaveText(status);
+    await expect(form.allowNotifications).toHaveCount(0);
+    expect(await permissionRequests(page)).toBe(0);
+  });
+}
+
 test.describe('on a phone', () => {
   test.use(PHONE);
 
   test('the group fits the screen, with and without field errors, and saves by touch', async ({ page, users, runtimeErrors }) => {
+    await stubNotifications(page);
     const form = await openSettings(page, users);
     runtimeErrors.allowResponse({
       status: 400, method: 'POST', path: PREFERENCES_PATH, reason: 'a Pomodoro value is out of range',
     });
     await expectNoPageOverflow(page);
-    for (const control of [form.enabled, form.work, form.shortBreak, form.longBreak, form.every, form.stopAtEnd, form.save]) {
+    for (const control of [form.enabled, form.work, form.shortBreak, form.longBreak, form.every, form.stopAtEnd, form.allowNotifications, form.save]) {
       await expectFits(control);
     }
 
