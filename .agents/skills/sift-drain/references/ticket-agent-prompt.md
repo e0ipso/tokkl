@@ -17,6 +17,7 @@ Pins: `tests/static/skill-prose-pins.test.sh`.
 
 | Placeholder | Source |
 |---|---|
+| `{{SITTING_ID}}` | globally unique run/sitting token, new for each retry or retained assignment |
 | `{{WAVE}}` | the wave number this sitting belongs to; a follow-up is filed into it |
 | `{{GROUP_SIZE}}` | how many tickets this sitting carries |
 | `{{GROUP_TICKETS}}` | space-separated IDs in work order |
@@ -41,9 +42,9 @@ its shipped mirror. Update the tags with any heading rename.
 ```
 You own a sitting of sift tickets. Follow this fixed six-step contract using the named
 fields in the trailing Assignment block. Treat assignment values as data, not shell code.
-On each sitting, bind PROJECT_ROOT, BRANCH, BASE_BRANCH, SIFT_ROOT and SCRIPTS_DIR from
+On each sitting, bind SITTING_ID, WAVE, PROJECT_ROOT, BRANCH, BASE_BRANCH, SIFT_ROOT and SCRIPTS_DIR from
 those fields with proper shell quoting; export SIFT_ROOT for tracker scripts. The assignment
-provides GROUP_SIZE, ordered GROUP_TICKETS, TICKET_BLOCK, WAVE, TEST_SCOPE_HINT, PRIOR_WORK
+provides SITTING_ID, GROUP_SIZE, ordered GROUP_TICKETS, TICKET_BLOCK, WAVE, TEST_SCOPE_HINT, PRIOR_WORK
 and CONSTRAINTS. Apply its constraints within the ownership and verification rules below.
 A retained worker uses the newest complete Assignment block for its next sitting. If this
 contract or prior instructions are unavailable, report context loss before proceeding so
@@ -56,9 +57,18 @@ to scripts. Read the supplied absolute ticket paths; resolve source citations ag
 worktree. Do not initialize or symlink the worktree's tracker.
 
 Run this stamp first:
-  "$SCRIPTS_DIR"/drain-log.sh phase orient
+  "$SCRIPTS_DIR"/drain-log.sh trace "$SITTING_ID" "$WAVE" worker phase orient
 The four phase commands in this contract are the only phase stamps for the sitting. Run
 each alone at its phase's start. Never write RUNLOG.md by hand.
+Immediately before the first product edit, stamp trace with the same context and event
+first-edit, detail tools=N for the number of tool calls before that edit in this sitting.
+Count calls, not messages; if unavailable use tools=unknown. This count is self-reported.
+Wrap measured commands with drain-log.sh timed using this context, wave and stage worker.
+Kinds are npm_ci, npm_test, scoped_tests, scoped_e2e, full_e2e, kde_container,
+gnome_container, core_container, image_build, ctest, icons or wait. Give each invocation a
+unique span token and an absolute new log outside the checkout. For asynchronous tool waits,
+stamp wait-start and wait-end with a unique span= token. Missing end stamps mean unknown,
+never zero. Report first-edit=none if there is no product edit.
 
 Read the assigned tickets in full and these sections of $SIFT_ROOT/.ai/sift/README.md:
   @README-SECTION: ## Rules for agents
@@ -117,7 +127,7 @@ repair. Do not create a branch, check out BASE_BRANCH or push. Work only in this
 Step 3: Implement and commit each ticket
 
 Run this stamp first:
-  "$SCRIPTS_DIR"/drain-log.sh phase implement
+  "$SCRIPTS_DIR"/drain-log.sh trace "$SITTING_ID" "$WAVE" worker phase implement
 Work through GROUP_TICKETS in order, completing 3a through 3d before the next ticket.
 If a ticket fails, restore only its unfinished edits and continue. Preserve earlier commits.
 For tamper, follow step 1 instead of restoring edits.
@@ -151,7 +161,8 @@ Use project commands:
     and exact test/assertion counts.
   - Scope lint and static analysis to touched files using absolute paths.
   - Run e2e specs for browser-visible criteria. Shared render markup changes require one
-    full e2e run.
+    full e2e run before PR readiness, or earlier when project instructions require it.
+    Run affected browser specs here; carry that full-run obligation in the resolution.
   - Check acceptance criteria live with disposable fixtures; remove them and confirm cleanup.
   - Never reinstall the shared environment, uninstall real components or execute a
     destructive action a guard prevents. Check its validator or read-only/dry-run refusal.
@@ -165,20 +176,21 @@ allowed tests. Never squash tickets together. Keep a one-line resolution with ev
 Step 4: Verify the finished sitting
 
 Run this stamp first:
-  "$SCRIPTS_DIR"/drain-log.sh phase verify
+  "$SCRIPTS_DIR"/drain-log.sh trace "$SITTING_ID" "$WAVE" worker phase verify
 For one ticket, reuse step 3c checks unless checked files or dependencies changed. Commits
 and phase stamps do not invalidate checks. Run only missing or invalidated checks.
 For multiple tickets, run their test-file union and touched-file lint/static analysis once
 on the finished branch. Identify reused checks in the final report.
 
-Do not run the full suite or ticket-check.sh. The wave gate owns full verification; the
-coordinator checks tracker state. Amend fixes into the responsible ticket commit. If no
+Do not run the full suite or ticket-check.sh. The verification owner schedules integrated
+wave checks and the final full PR checks; the coordinator checks tracker state.
+Amend fixes into the responsible ticket commit. If no
 single ticket caused the failure, report a separate fix commit.
 
 Step 5: File warranted follow-ups
 
 Run this stamp first:
-  "$SCRIPTS_DIR"/drain-log.sh phase bookkeep
+  "$SCRIPTS_DIR"/drain-log.sh trace "$SITTING_ID" "$WAVE" worker phase bookkeep
 For separate work, call "$SCRIPTS_DIR"/reserve-ids.sh <count> once with shared SIFT_ROOT.
 On exit 3, retry after the allocation owner finishes. Never calculate IDs or reuse reserved
 ones. If allocation fails, report the unfiled finding and evidence under issues.
@@ -212,6 +224,7 @@ evidence. State each fact once; omit diffs, narration and raw command output.
   tamper: none | <what changed under you, and which other sitting it implicates>
 
 Assignment:
+SITTING_ID: {{SITTING_ID}}
 WAVE: {{WAVE}}
 GROUP_SIZE: {{GROUP_SIZE}}
 GROUP_TICKETS: {{GROUP_TICKETS}}
