@@ -28,7 +28,7 @@ Right-click or Control-click for the menu. It shows the timer state (Running, Pa
 - Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. The project of a running or paused entry is locked. To switch, stop the timer and start a new entry.
 - Billable sets the next start too. While an entry runs, it changes that entry. While paused, it is locked.
 
-A small shape before the time shows the project: the running or paused entry's, or the one the next start will use. A dot pulses while the timer runs, and a still square shows while it is paused or stopped. The project colour fills it inside a ring in the menu bar's text colour. A dashed outline means no project, and the space stays empty while the project is still loading. With Reduce Motion on, the dot does not pulse. The tooltip and VoiceOver name the project, so the colour is never the only clue.
+A small shape before the time shows the project: the running or paused entry's, or the one the next start will use. A dot shows while the timer runs or is paused, and it pulses only while the timer runs. A still square shows while it is stopped. The project colour fills it inside a ring in the menu bar's text colour. A dashed outline means no project, and the space stays empty while the project is still loading. With Reduce Motion on, the dot does not pulse. The tooltip and VoiceOver name the project, so the colour is never the only clue.
 
 While the timer is loading or saving, the time ends with `…`. When it is offline, refused or failing, the time ends with `!`, and the tooltip and the first menu line say why.
 

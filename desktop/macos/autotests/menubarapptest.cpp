@@ -462,10 +462,12 @@ private Q_SLOTS:
         QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)"))->isEnabled());
         QVERIFY(menu.billableAction()->isChecked());
         QVERIFY(!menu.billableAction()->isEnabled());
-        // A still square in the project colour.
+        // A still dot in the project colour. Only a running dot pulses.
         QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
-        QVERIFY(!f.item.indicator.round);
+        QVERIFY(f.item.indicator.round);
         QVERIFY(!f.item.indicator.pulsing);
+        QCOMPARE(f.item.indicator.color, QStringLiteral("#06aaf5"));
+        QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
     }
 
     // The next click resumes: a new entry that copies the paused one, and the
@@ -500,6 +502,9 @@ private Q_SLOTS:
         QTRY_COMPARE(f.item.title, QStringLiteral("0:10"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
         QCOMPARE(f.app.statusMenu()->startStopAction()->text(), QStringLiteral("Stop Timer"));
+        // The dot pulses again.
+        QVERIFY(f.item.indicator.round);
+        QVERIFY(f.item.indicator.pulsing);
         f.advance(60);
         QCOMPARE(f.item.title, QStringLiteral("0:11"));
         QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:11")));
@@ -626,6 +631,10 @@ private Q_SLOTS:
         QVERIFY(menu.stateAction()->text().startsWith(QStringLiteral("Stopped 0:00")));
         QVERIFY2(f.item.accessibleName.startsWith(QStringLiteral("Start the Tokkl timer, ")), qPrintable(f.item.accessibleName));
         QVERIFY(!f.settings.childGroups().contains(QStringLiteral("PauseChain")));
+        // The paused dot gives way to the stopped square.
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QVERIFY(!f.item.indicator.round);
+        QVERIFY(!f.item.indicator.pulsing);
 
         f.item.click();
         QCOMPARE(f.transport.requests.size(), before + 1);
