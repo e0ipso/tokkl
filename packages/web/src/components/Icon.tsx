@@ -1,6 +1,7 @@
 const PATHS: Record<string, string> = {
   play: 'M8 5v14l11-7z',
   stop: 'M7 7h10v10H7z',
+  pause: 'M7 5h3v14H7zM14 5h3v14h-3z',
   plus: 'M12 5v14M5 12h14',
   clock: 'M12 7v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
@@ -36,7 +37,7 @@ const PATHS: Record<string, string> = {
 export type IconName = keyof typeof PATHS;
 
 export function Icon({ name, size = 18, title, className }: { name: IconName; size?: number; title?: string; className?: string }) {
-  const filled = name === 'play' || name === 'stop';
+  const filled = name === 'play' || name === 'stop' || name === 'pause';
   return (
     <svg
       className={className}
