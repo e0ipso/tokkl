@@ -74,7 +74,7 @@ const sameSlot = () => {
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
 await step('the button shows the packed clock logo, then the project indicator, then the time', async () => {
-    const shown = shell(`(() => {
+    const logo = () => shell(`(() => {
         const button = ${button};
         const file = button._logo.gicon.get_file();
         const packed = Main.extensionManager.lookup(${JSON.stringify(uuid)}).dir.get_child('tokkl.png');
@@ -92,13 +92,18 @@ await step('the button shows the packed clock logo, then the project indicator, 
             order,
         };
     })()`);
+    const shown = logo();
     if (!shown.packed)
         throw new Error(`the logo is not ${shown.path}: ${JSON.stringify(shown)}`);
     if (JSON.stringify(shown.order) !== JSON.stringify(['logo', 'indicator', 'time']))
         throw new Error(`order: ${JSON.stringify(shown.order)}`);
-    if (shown.styleClass !== 'system-status-icon' || !shown.visible || shown.drawn !== 1 ||
-        !(shown.width > 0 && shown.height > 0))
-        throw new Error(`the logo is not drawn: ${JSON.stringify(shown)}`);
+    // GNOME Shell can enable the extension while it is still starting up,
+    // before the top bar is shown, and the logo is drawn only after that.
+    await waitFor('the drawn logo', () => {
+        const now = logo();
+        return (now.styleClass === 'system-status-icon' && now.visible && now.drawn === 1 &&
+            now.width > 0 && now.height > 0) || now;
+    });
     // The installed image is the one in the checkout.
     const [, installed] = GLib.file_get_contents(shown.path);
     const [ci] = GLib.filename_from_uri(import.meta.url);
