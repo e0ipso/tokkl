@@ -50,7 +50,13 @@ jobs:
   # desktop/kde/ci: CTest (desktop/core's tests included), the DEB or RPM
   # with installation, loading, upgrade and removal checks, then the
   # real-server test. The version is the one in package.json; the release
-  # job builds its own packages.
+  # job builds its own packages. The dependency images (target, build and
+  # test) come from the Actions cache when one holds them for the current
+  # inputs (desktop/kde/ci/image-id.sh) and are saved there after a build.
+  # TOKKL_KDE_CI_REFRESH is the ISO week of the commit, so the images are
+  # rebuilt against the moving distribution archives at least once a week.
+  # Caches saved by a pull request are visible to that pull request only;
+  # the release jobs read the ones saved on main.
   kde:
     name: kde (${{ matrix.target }})
     runs-on: ubuntu-latest
@@ -75,12 +81,29 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Identify the dependency images
+        id: images
+        run: |
+          refresh="$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%G-W%V)"
+          echo "TOKKL_KDE_CI_REFRESH=$refresh" >> "$GITHUB_ENV"
+          echo "id=$(TOKKL_KDE_CI_REFRESH="$refresh" desktop/kde/ci/image-id.sh --format "$FORMAT")" >> "$GITHUB_OUTPUT"
+      - id: restore-images
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/kde-images/${{ matrix.format }}-${{ steps.images.outputs.id }}.tar
+          key: kde-images-${{ matrix.format }}-${{ steps.images.outputs.id }}
       - name: Test, package and check
         env:
           OUTPUT: ${{ runner.temp }}/kde
+          TOKKL_KDE_CI_IMAGE_CACHE: ${{ runner.temp }}/kde-images
         run: |
           version="$(node -p 'require("./package.json").version')"
           desktop/kde/scripts/container-check.sh --version "$version" --format "$FORMAT" --output "$OUTPUT"
+      - if: steps.restore-images.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/kde-images/${{ matrix.format }}-${{ steps.images.outputs.id }}.tar
+          key: kde-images-${{ matrix.format }}-${{ steps.images.outputs.id }}
       - name: Real-server test
         env:
           OUTPUT: ${{ runner.temp }}/kde
@@ -208,6 +231,25 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
 
+      # The dependency images the kde job saved for the same inputs, read
+      # only: the release never saves images.
+      - name: Identify the dependency images
+        id: images
+        run: |
+          refresh="$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%G-W%V)"
+          echo "TOKKL_KDE_CI_REFRESH=$refresh" >> "$GITHUB_ENV"
+          for format in deb rpm; do
+            echo "$format=$(TOKKL_KDE_CI_REFRESH="$refresh" desktop/kde/ci/image-id.sh --format "$format")" >> "$GITHUB_OUTPUT"
+          done
+      - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/kde-images/deb-${{ steps.images.outputs.deb }}.tar
+          key: kde-images-deb-${{ steps.images.outputs.deb }}
+      - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.temp }}/kde-images/rpm-${{ steps.images.outputs.rpm }}.tar
+          key: kde-images-rpm-${{ steps.images.outputs.rpm }}
+
       # Bumps the version, builds and checks the KDE packages for it
       # (desktop/kde/ci/semantic-release.js), commits CHANGELOG.md and
       # package.json, tags v<version> and creates the GitHub release with the
@@ -218,6 +260,7 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKKL_KDE_CI_IMAGE_CACHE: ${{ runner.temp }}/kde-images
         run: npx --no -- semantic-release
 
       # A new release leaves its tag on HEAD.

@@ -24,6 +24,16 @@
 # TOKKL_KDE_CI_IMAGE names the images (default tokkl-kde-ci). They stay
 # after the run, for ci/realserver.sh; remove them with docker image rm.
 # CONTAINER_ENGINE defaults to docker.
+#
+# The images carry the identity printed by ci/image-id.sh in the label
+# org.tokkl.kde-ci.inputs, and images that carry the current identity are
+# reused without a build. Set TOKKL_KDE_CI_REFRESH to a new value to rebuild
+# them against the distribution archives as they are now. With
+# TOKKL_KDE_CI_IMAGE_CACHE set to a directory, images missing from the engine
+# are loaded from <dir>/<format>-<identity>.tar when it exists, and images
+# built in this run are saved there; CI keeps that file between runners.
+# Each target container fetches the package lists again
+# (scripts/prepare-target.sh --refresh), as the image may be older.
 
 set -euo pipefail
 
@@ -72,6 +82,8 @@ fi
 
 engine="${CONTAINER_ENGINE:-docker}"
 image="${TOKKL_KDE_CI_IMAGE:-tokkl-kde-ci}"
+image_cache="${TOKKL_KDE_CI_IMAGE_CACHE:-}"
+inputs_label=org.tokkl.kde-ci.inputs
 mkdir -p "$output/previous"
 output="$(cd "$output" && pwd)"
 build_env=()
@@ -92,9 +104,35 @@ for format in $formats; do
     fi
 
     echo "== $format: images from $(basename "$dockerfile")"
-    for stage in target build test; do
-        "$engine" build -q -f "$dockerfile" --target "$stage" -t "$image:$format-$stage" "$source_dir"
-    done
+    images_started=$SECONDS
+    inputs="$("$source_dir/ci/image-id.sh" --format "$format")"
+    images_ready() {
+        local stage
+        for stage in target build test; do
+            [ "$("$engine" image inspect --format "{{ index .Config.Labels \"$inputs_label\" }}" \
+                "$image:$format-$stage" 2>/dev/null)" = "$inputs" ] || return 1
+        done
+    }
+    archive="${image_cache:+$image_cache/$format-$inputs.tar}"
+    if images_ready; then
+        echo "image hit: $image:$format-{target,build,test} already have inputs $inputs"
+    elif [ -n "$archive" ] && [ -f "$archive" ] && "$engine" load -q -i "$archive" && images_ready; then
+        echo "image hit: loaded $image:$format-{target,build,test} for inputs $inputs from $archive"
+    else
+        echo "image miss: building $image:$format-{target,build,test} for inputs $inputs"
+        for stage in target build test; do
+            "$engine" build -q -f "$dockerfile" --target "$stage" -t "$image:$format-$stage" \
+                --label "$inputs_label=$inputs" \
+                --build-arg "TOKKL_KDE_CI_REFRESH=${TOKKL_KDE_CI_REFRESH:-}" "$source_dir"
+        done
+        if [ -n "$archive" ]; then
+            mkdir -p "$image_cache"
+            "$engine" save -o "$archive.partial" "$image:$format-target" "$image:$format-build" "$image:$format-test"
+            mv "$archive.partial" "$archive"
+            echo "saved the images to $archive"
+        fi
+    fi
+    echo "== $format: images ready in $((SECONDS - images_started))s"
     "$engine" run --rm "$image:$format-build" cat /opt/tokkl-kde/baseline.txt
 
     echo "== $format: build and run CTest for $version"
@@ -136,6 +174,7 @@ for format in $formats; do
     "$engine" run --rm \
         -v "$desktop_dir:/desktop:ro" -v "$output:/out:ro" \
         "$image:$format-target" bash -euc '
+            /desktop/kde/scripts/prepare-target.sh --format "$2" --refresh
             /desktop/kde/scripts/check-package.sh --version "$1" --package '"$new"' --previous '"$old"' \
                 --load-test "/out/tests/$2"
         ' bash "$version" "$format"

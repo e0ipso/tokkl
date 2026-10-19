@@ -493,7 +493,20 @@ desktop/kde/scripts/container-check.sh --version "$version" --output "$(mktemp -
 For each format it builds the three stages of `ci/Dockerfile` (Debian 13) or
 `ci/fedora.Dockerfile` (Fedora) as `tokkl-kde-ci:<format>-target`, `-build`
 and `-test` (`TOKKL_KDE_CI_IMAGE` changes the name). The containers see
-`desktop/` read-only at `/desktop`, so the build finds `desktop/core`. Then:
+`desktop/` read-only at `/desktop`, so the build finds `desktop/core`.
+
+The images are labelled with the identity that `ci/image-id.sh --format
+deb|rpm` prints: a SHA-256 over the Dockerfile (which pins the base image by
+digest), each file it copies (`scripts/prepare-target.sh`, `debian/control`
+or the RPM spec, `ci/baseline.sh`) and `TOKKL_KDE_CI_REFRESH`. Images that
+carry the current identity are reused without a build, and the log says
+`image hit` or `image miss`. The distribution archives move while those
+files stay the same, so set `TOKKL_KDE_CI_REFRESH` to a new value (any
+string; the build receives it too) to rebuild the images against the archives
+as they are now. With `TOKKL_KDE_CI_IMAGE_CACHE=<dir>`, missing images are
+loaded from `<dir>/<format>-<identity>.tar` when it exists, and images built
+in the run are saved there. Each target container fetches the package lists
+again before the checks, since its image may be days old. Then:
 
 1. In the test image, configures and builds the project with the version and
    runs CTest under Xvfb and a DBus session. The `smokeload` and
@@ -511,10 +524,12 @@ The output directory gets `tokkl-kde_<version>_amd64.deb` and
 
 The scripts it runs work on their own, for a prepared machine:
 
-- `scripts/prepare-target.sh --format deb|rpm [--build-deps]`: fetches the
-  Debian package lists if the system has none and, with `--build-deps`,
-  installs the build dependencies from `debian/control` or
-  `packaging/rpm/tokkl-kde.spec`. A second run keeps the lists it finds.
+- `scripts/prepare-target.sh --format deb|rpm [--build-deps] [--refresh]`:
+  fetches the Debian package lists if the system has none and, with
+  `--build-deps`, installs the build dependencies from `debian/control` or
+  `packaging/rpm/tokkl-kde.spec`. A second run keeps the lists it finds;
+  `--refresh` fetches the package lists or the Fedora repository metadata
+  again.
   Run it as root, only in a container.
 - `scripts/package-release.sh --version <version> --format deb|rpm --output
   <dir>`: builds one package with `dpkg-buildpackage` or `rpmbuild` from a
@@ -548,7 +563,21 @@ release files (see `desktop/gnome/README.md`). The release job needs the
 
 The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
 images pinned by digest and the build and test packages. The distribution archives have no snapshots, so a build gets the
-Qt, KDE Frameworks and Plasma packages they hold that day. `ci/baseline.sh`
+Qt, KDE Frameworks and Plasma packages they hold that day.
+
+CI keeps the images between runners in the GitHub Actions cache, one entry
+per format under the key `kde-images-<format>-<identity>`, holding the
+`docker save` archive of the three images. Each `kde` job restores its entry,
+runs `scripts/container-check.sh` with `TOKKL_KDE_CI_IMAGE_CACHE`, and saves
+the entry when the restore missed. CI sets `TOKKL_KDE_CI_REFRESH` to the ISO
+week of the commit (`<year>-W<week>`), so the images follow the archives at least
+weekly and the jobs of one run agree on the identity. To rebuild sooner, for
+example when a cached build environment falls behind the target, delete the
+entries with `gh cache delete <key>` (`gh cache list --key kde-images-` lists
+them); the next run builds and saves new ones. Actions caches are scoped by
+branch: an entry saved by a pull request is visible only to that pull
+request, and the release reads entries saved on main and never saves any, so
+pull request code cannot change the images a release uses. `ci/baseline.sh`
 prints those versions in every build and fails it when they are older than
 the supported baseline (Debian 13: Qt 6.8.2, KDE Frameworks 6.13.0, Plasma
 6.3.5; Fedora: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.0). On 2026-10-17
