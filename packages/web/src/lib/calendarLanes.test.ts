@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assignLanes, type LaneBlock } from './calendarLanes.ts';
+import { assignLanes, heightClearingMarkers, type LaneBlock } from './calendarLanes.ts';
 
 interface Named extends LaneBlock {
   name: string;
@@ -102,4 +102,44 @@ test('zero-length entries at one instant inside a longer entry each take a lane 
 
 test('no blocks, no lanes', () => {
   assert.deepEqual(assignLanes([]), []);
+});
+
+// An hour is 48px, so a minute is 0.8px, and a block is never drawn under 6px.
+const PX_PER_MINUTE = 48 / 60;
+const MIN_HEIGHT = 6;
+
+/** The height each named block needs, after laying the blocks out. */
+function clearances(blocks: Named[]): Record<string, number> {
+  const laid = assignLanes(blocks);
+  return Object.fromEntries(laid.map((b) => [b.name, heightClearingMarkers(b, laid, PX_PER_MINUTE, MIN_HEIGHT)]));
+}
+
+test('a block that starts with a zero-length entry is drawn tall enough to show below it', () => {
+  assert.deepEqual(clearances([block('switch', 540, 540), block('short', 540, 545)]), { switch: 6, short: 12 });
+  assert.deepEqual(clearances([block('short', 540, 550), block('switch', 540, 540)]), { switch: 6, short: 12 });
+  // A longer block gets the same floor, which its own height already clears.
+  assert.deepEqual(clearances([block('switch', 540, 540), block('next', 540, 600)]), { switch: 6, next: 12 });
+});
+
+test('a block that starts just under a zero-length entry keeps the rest of the marker clear', () => {
+  // Four minutes is 3.2px under the marker's top, leaving 2.8px of the marker's 6px to cover it.
+  const near = clearances([block('switch', 540, 540), block('short', 544, 549)]);
+  assert.ok(Math.abs(near.short! - 8.8) < 1e-9, String(near.short));
+  // From 7.5 minutes down the marker no longer reaches the block.
+  assert.deepEqual(clearances([block('switch', 540, 540), block('short', 548, 553)]), { switch: 6, short: 6 });
+});
+
+test('only zero-length entries at or above a block, in its part of the column, raise its height', () => {
+  // The marker is below the block, so it never covers it.
+  assert.deepEqual(clearances([block('short', 540, 545), block('switch', 545, 545)]), { short: 6, switch: 6 });
+  // The marker sits in the other lane of a longer entry, beside the block.
+  const beside = assignLanes([block('long', 500, 600), block('switch', 540, 540), block('inner', 540, 545)]);
+  assert.deepEqual(beside.map((b) => `${b.name}:${b.lane}/${b.lanes}`), ['long:0/2', 'switch:1/2', 'inner:1/2']);
+  assert.equal(heightClearingMarkers(beside[0]!, beside, PX_PER_MINUTE, MIN_HEIGHT), 6);
+  assert.equal(heightClearingMarkers(beside[2]!, beside, PX_PER_MINUTE, MIN_HEIGHT), 12);
+  // Several markers at one instant sit side by side and still cover the whole width of the block.
+  assert.deepEqual(
+    clearances([block('one', 540, 540), block('two', 540, 540), block('short', 540, 545)]),
+    { one: 6, two: 6, short: 12 },
+  );
 });

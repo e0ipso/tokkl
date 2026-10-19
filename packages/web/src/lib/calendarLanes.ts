@@ -47,3 +47,25 @@ export function assignLanes<T extends LaneBlock>(blocks: T[]): T[] {
   flush();
   return sorted;
 }
+
+/** Whether two blocks cover any of the same width of the column, given their lanes. */
+function sharesWidth(a: LaneBlock, b: LaneBlock): boolean {
+  return a.lane / a.lanes < (b.lane + 1) / b.lanes && b.lane / b.lanes < (a.lane + 1) / a.lanes;
+}
+
+/**
+ * The height in pixels a block is drawn at least, so that `minHeight` pixels of it show below every
+ * zero-length block over its start. A zero-length block is drawn `minHeight` tall from its start and
+ * sits above the blocks it shares the column with, so a block that starts at or just under one would
+ * otherwise be hidden by it. A zero-length block needs `minHeight` itself. `pxPerMinute` converts
+ * the blocks' clock minutes to pixels.
+ */
+export function heightClearingMarkers(block: LaneBlock, blocks: readonly LaneBlock[], pxPerMinute: number, minHeight: number): number {
+  if (block.top === block.bottom) return minHeight;
+  let height = minHeight;
+  for (const other of blocks) {
+    if (other.top !== other.bottom || other.top > block.top || !sharesWidth(other, block)) continue;
+    height = Math.max(height, 2 * minHeight - (block.top - other.top) * pxPerMinute);
+  }
+  return height;
+}

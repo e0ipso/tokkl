@@ -3,7 +3,7 @@ import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
-import { assignLanes } from '../lib/calendarLanes.ts';
+import { assignLanes, heightClearingMarkers } from '../lib/calendarLanes.ts';
 import { DAY_MODE_QUERY, classifySwipe, clampDayMove, dragStep, droppedMinute, fitMoveInDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
@@ -46,6 +46,8 @@ interface Block {
   bottom: number;
   lane: number;
   lanes: number;
+  /** The least height to draw, in pixels: tall enough to show below a zero-length marker over its start. */
+  minHeight: number;
 }
 
 /** Lays out the part of each entry that falls on each day, side by side where their stored spans overlap. */
@@ -54,9 +56,11 @@ function layout(entries: TimeEntry[], days: string[], timeZone: string, now: Dat
   for (const day of days) {
     const onDay = entries.flatMap((entry): Block[] => {
       const span = clockSpanOnDay(new Date(entry.start), entry.stop ? new Date(entry.stop) : now, day, timeZone);
-      return span ? [{ entry, day, top: span.top, bottom: span.bottom, lane: 0, lanes: 1 }] : [];
+      return span ? [{ entry, day, top: span.top, bottom: span.bottom, lane: 0, lanes: 1, minHeight: MIN_BLOCK_HEIGHT }] : [];
     });
-    blocks.push(...assignLanes(onDay));
+    const laid = assignLanes(onDay);
+    for (const block of laid) block.minHeight = heightClearingMarkers(block, laid, HOUR_HEIGHT / 60, MIN_BLOCK_HEIGHT);
+    blocks.push(...laid);
   }
   return blocks;
 }
@@ -387,10 +391,10 @@ export function WeekCalendar() {
                   return (
                     <div
                       key={`${block.entry.id}-${day}`}
-                      className={`calendar-block${block.entry.stop ? '' : ' running'}${storedHeight < MIN_BLOCK_HEIGHT ? ' thin' : ''}${active ? ' dragging' : ''}`}
+                      className={`calendar-block${block.entry.stop ? '' : ' running'}${storedHeight < MIN_BLOCK_HEIGHT ? ' thin' : ''}${storedHeight === 0 ? ' marker' : ''}${active ? ' dragging' : ''}`}
                       style={{
                         top: (top / 60) * HOUR_HEIGHT,
-                        height: Math.max(storedHeight, MIN_BLOCK_HEIGHT),
+                        height: Math.max(storedHeight, active ? MIN_BLOCK_HEIGHT : block.minHeight),
                         left: `calc(${block.lane * width}% + 2px)`,
                         width: `calc(${width}% - 4px)`,
                         ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),

@@ -215,6 +215,42 @@ test('a zero-length entry at local midnight is drawn on the day it starts and op
   await expect(page.getByRole('dialog', { name: 'Edit entry' }).getByLabel('Description')).toHaveValue('Midnight switch');
 });
 
+// A zero-length entry is a thin bar over a short entry that starts at the same instant. The bar
+// stays on top and the short entry is drawn tall enough to show below it, so each opens its own editor.
+test('a zero-length entry and a short entry starting with it both open their own editor', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid, Wednesday 2026-06-17 (CEST): 09:00 to 09:00 and 09:00 to 09:05, 11:00 to 11:00 and 11:00 to 11:10.
+  await data.createEntry({ description: 'Switch nine', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Short five', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:05:00Z' });
+  await data.createEntry({ description: 'Switch eleven', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T09:00:00Z' });
+  await data.createEntry({ description: 'Short ten', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T09:10:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 8);
+
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  for (const [marker, short] of [['Switch nine', 'Short five'], ['Switch eleven', 'Short ten']] as const) {
+    const markerBlock = todayBlock(page, marker);
+    const shortBlock = todayBlock(page, short);
+    await expect(markerBlock).toHaveCSS('height', '6px');
+    const markerBox = (await markerBlock.boundingBox())!;
+    const shortBox = (await shortBlock.boundingBox())!;
+    expect(shortBox.y).toBeCloseTo(markerBox.y, 1);
+
+    // Playwright clicks only where the block is the topmost element.
+    await markerBlock.click();
+    await expect(editor.getByLabel('Description')).toHaveValue(marker);
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+    // At least 6px of the short entry show below the marker, and the click lands there.
+    expect(shortBox.y + shortBox.height).toBeGreaterThanOrEqual(markerBox.y + markerBox.height + 6);
+    await shortBlock.click({ position: { x: shortBox.width / 2, y: shortBox.height - 3 } });
+    await expect(editor.getByLabel('Description')).toHaveValue(short);
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+  }
+});
+
 // The running block and the now line use --state-running, the running block is dashed so
 // colour is not its only mark, and only today's day head is a filled badge.
 test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {
