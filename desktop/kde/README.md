@@ -1,10 +1,10 @@
 # Tokkl KDE companion
 
 A Plasma 6 panel widget for Tokkl. It shows the running timer in the panel,
-starts and stops it with a click, and sets the project and billable flag. It
-is a client of the Toggl-compatible API of one Tokkl instance and keeps
-nothing locally except its settings; the API token or password is in KDE
-Wallet.
+starts, pauses and resumes it with a click, stops it from its menu, and sets
+the project and billable flag. It is a client of the Toggl-compatible API of
+one Tokkl instance and keeps nothing locally except its settings and a
+paused timer's chain; the API token or password is in KDE Wallet.
 
 It has two parts:
 
@@ -113,9 +113,9 @@ Frameworks 6.25.0 and libplasma 6.6.4; see [Packages](#packages) for the
 versions its updates bring). Older Plasma 6 releases are not supported.
 
 Packages on Debian 13: `cmake extra-cmake-modules qt6-base-dev
-qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
-qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and for the tests
-`libkf6config-dev`, `libkirigami-dev`, `qml6-module-qttest`,
+qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6config-dev
+libkf6i18n-dev qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and
+for the tests `libkirigami-dev`, `qml6-module-qttest`,
 `plasma-desktoptheme` (Plasma's QML components) and `dbus-daemon`.
 The CI images in `ci/` hold the complete lists for both targets (see
 [CI and releases](#ci-and-releases)).
@@ -146,8 +146,8 @@ come from `desktop/core`.
   (`PanelButton.qml`, `ProjectIndicator.qml`, `PanelMenu.qml`) in QtQuickTest, from the QML tests in `autotests/qml/`, offscreen. The
   backend types come from `tokklcore` wired to the fake clock, transport and
   credential store; the test never loads `main.qml`, the real connection or a
-  copy of the backend plugin. It covers clicks and keys, the menu and its
-  focus, billable defaults, edits of a running entry, paging, archived
+  copy of the backend plugin. It covers clicks and keys, pause, resume and
+  Stop from the menu, the menu and its focus, billable defaults, edits of a running entry, paging, archived
   projects, every state, disabled controls and account switches.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
@@ -275,9 +275,9 @@ its own words in the tooltip, the menu and the accessible description, so none
 relies on color: Not configured, Loading, Connected, Saving, Offline (the last
 known state), Sign-in refused and Error.
 
-The project indicator shows the running entry's project, or the next start's
-while stopped. A dot pulses while an entry runs and a still square shows while
-stopped. The project's colour fills it inside a thin ring in the theme's text
+The project indicator shows the running or paused entry's project, or the
+next start's while stopped. A dot pulses while an entry runs, a still dot
+shows while paused and a still square while stopped. The project's colour fills it inside a thin ring in the theme's text
 colour, which keeps well over 3:1 against the panel in Breeze Light and Breeze
 Dark whatever the project colour. A project whose colour is not `#rrggbb` is
 filled with the text colour. No project draws a dashed outline of the dot or
@@ -292,24 +292,34 @@ never the only sign.
 | --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Not configured  | configure          | No address or no saved secret. Open Configure.                                                                                                                           |
 | Loading         | network-connect    | Reading the secret, validating the account or making the first current-entry read.                                                                                       |
-| Connected       | none               | Ready. Start, stop, Project and Billable work.                                                                                                                           |
-| Saving          | view-refresh       | A start, stop or edit is on its way, or its outcome is not known yet. Clicks are ignored.                                                                                |
+| Connected       | none               | Ready. Start, pause, resume, stop, Project and Billable work.                                                                                                            |
+| Saving          | view-refresh       | A start, pause, resume, stop or edit is on its way, or its outcome is not known yet. Clicks are ignored.                                                                 |
 | Offline         | network-disconnect | The instance cannot be reached after a successful connection. The last entry stays, marked stale, and reads are retried.                                                 |
 | Sign-in refused | dialog-password    | The instance answered 403 to the credentials: a wrong or rotated token, a wrong password or a disabled account. Nothing is retried until Reconnect or a settings change. |
 | Error           | dialog-error       | The wallet, the settings, a rate limit, a lost workspace, or a connection that never succeeded. The menu and tooltip give the text.                                      |
 
-- Left click, Space or Return starts or stops the timer. Tab focuses the item
-  and a frame shows the focus.
+- Left click, Space or Return pauses a running timer, resumes a paused one and
+  starts a stopped one, and Stop is in the menu. The accessible name says
+  what a press does: "Pause the Tokkl timer", "Resume the Tokkl timer" or
+  "Start the Tokkl timer". Tab focuses the item and a frame shows the focus.
 - Right click, the Menu key or Shift+F10 opens the menu. It is a separate
-  window, so the panel does not clip it. It shows the state, then Project,
-  Billable, Reconnect, Open Tokkl and Configure Tokkl. The arrow keys move,
-  Right opens Project, Return or Space chooses and Escape closes.
+  window, so the panel does not clip it. It shows the state, then Start or
+  Stop, Project, Billable, Reconnect, Open Tokkl and Configure Tokkl. The
+  arrow keys move, Right opens Project, Return or Space chooses and Escape
+  closes.
+- The menu's Stop, shown while running or paused, ends the timer and its
+  pause chain, so the next start counts from `0:00`. While stopped the item
+  reads Start. Stop while paused sends nothing, because no entry runs on the
+  server.
+- While paused, the menu's state line and the tooltip say Paused with the
+  chain total, and Project and Billable are disabled: a resume copies the
+  paused entry's project and billable flag.
 - Project lists No project and the active projects of the workspace, up to
   100 pages of 200; a longer list is cut short, with a note in the menu that
-  points to Open Tokkl. The running entry's archived project is shown,
-  checked and disabled, but is never offered for new work. Project is
-  disabled while an entry runs: its project stays fixed, and changing it
-  means stopping and starting a new entry. The menu title names the current
+  points to Open Tokkl. The running or paused entry's archived project is
+  shown, checked and disabled, but is never offered for new work. Project is
+  disabled while an entry runs or is paused: its project stays fixed, and
+  changing it means stopping and starting a new entry. The menu title names the current
   project.
 - Choosing a project applies its billable default, or nonbillable for No
   project; changing Billable afterwards overrides it. The choices apply to
@@ -369,12 +379,23 @@ sets its `connection` to the widget's `TokklConnection`.
   an empty description and the selected project and billable choice. Stop
   sends `PATCH /api/v9/workspaces/{wid}/time_entries/{id}/stop` for the
   running entry.
+- Pause stops the running entry the same way and keeps what the server's stop
+  reply says: description, project, task, tags and billable flag. Resume
+  starts a clone of that entry at the current time. The elapsed time is then
+  the chain total, the seconds the server stored for the paused entries plus
+  the clone's running time, and it stays frozen while paused. The chain ends
+  on Stop, when another client stops the clone or starts another entry, and
+  on a change of instance, account or secret. The widget keeps it in the
+  `PauseChain` group of its own section of
+  `~/.config/plasma-org.kde.plasma.desktop-appletsrc`, outside its settings,
+  so a plasmashell restart keeps the total. A stored chain of another
+  instance, account or workspace is dropped.
 - Start and stop stay disabled until a read of the current entry for the
   account and workspace has succeeded, so a start never splits a timer that
   is already running on the server. A failed first read keeps them disabled.
-- One start or stop runs at a time and clicks meanwhile are ignored. A read
-  sent before a start or stop cannot overwrite its result. When a start or
-  stop gets no clear answer (no response, timeout, 5xx or an unreadable body)
+- One start, pause, resume or stop runs at a time and clicks meanwhile are
+  ignored. A read sent before one cannot overwrite its result. When one gets
+  no clear answer (no response, timeout, 5xx or an unreadable body)
   the timer stays busy until a read shows what the server did; it never sends
   the request again. A 409 or 404 on stop just reads the entry again.
 - Connection failures keep the last entry, marked stale. After a failed read
@@ -798,14 +819,29 @@ Timer:
 
 - [ ] Left click starts the timer. The panel shows `0:00`, then `0:01` a
       minute later, and the web app shows the entry running.
-- [ ] Left click again stops it. The count stops and the web app shows a
-      stopped entry.
-- [ ] Tab to the widget: a frame shows. Space and Return start and stop it.
+- [ ] Left click again pauses it. The count stops, the web app shows a
+      stopped entry, and the tooltip and the menu's state line say Paused
+      with the same time.
+- [ ] Left click again resumes it. The web app shows a new running entry
+      with the paused entry's description, project, tags and billable flag,
+      and the panel counts on from the paused time.
+- [ ] Tab to the widget: a frame shows. Space and Return pause and resume it.
+      With a screen reader, the button reads "Pause the Tokkl timer" while
+      running, "Resume the Tokkl timer" while paused and "Start the Tokkl
+      timer" while stopped.
+- [ ] Choose Stop in the menu while running: the web app shows the entry
+      stopped, the panel shows `0:00` and the item reads Start. The next
+      click starts a new entry from `0:00`. Pause, then choose Stop: the web
+      app shows no new request, and the panel shows `0:00`.
+- [ ] Pause, then restart plasmashell (`systemctl --user restart
+      plasma-plasmashell.service`): the panel still says Paused with the
+      same time, and a click resumes from it.
 - [ ] Start in the web app: the panel shows it running within 30 seconds.
       Stop it in the web app: the panel stops.
 - [ ] Start on a project: a dot in the project's colour pulses left of the
-      time, and the tooltip names the project. Stop: a still square stays.
-      Check the dot against the panel in Breeze Light and Breeze Dark.
+      time, and the tooltip names the project. Pause: the dot stays, still,
+      in the same colour and ring. Stop: a still square stays. Check the dot
+      against the panel in Breeze Light and Breeze Dark.
 - [ ] Set the animation speed in System Settings to Instant: the dot stops
       pulsing and stays solid. Set it back: it pulses again.
 - [ ] Suspend and resume with the timer running: the elapsed time matches the
@@ -817,14 +853,15 @@ Menu:
       window that the panel does not clip. Try the panel at the top, bottom,
       left and right of the screen, and at 100% and 200% scaling.
 - [ ] Arrow keys move, Right opens Project, Return and Space choose and
-      Escape closes. The menu shows the state, then Project, Billable,
-      Reconnect, Open Tokkl and Configure Tokkl.
+      Escape closes. The menu shows the state, then Start or Stop, Project,
+      Billable, Reconnect, Open Tokkl and Configure Tokkl.
 - [ ] While stopped, choosing the billable project turns Billable on, the
       nonbillable project turns it off, and toggling Billable afterwards
       sticks. Start: the web app shows that project and billable flag.
 - [ ] While running, Project is disabled. Toggling Billable changes the same
       entry in the web app, with the same description, tags and start, and
-      does not create another entry.
+      does not create another entry. While paused, Project and Billable are
+      both disabled.
 - [ ] Stop. The next start is preselected with the stopped entry's project.
       Repeat after changing the running entry's project in the web app
       first: the panel stop preselects the changed project.

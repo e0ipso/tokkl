@@ -55,7 +55,9 @@ include(ECMFindQmlModule)
 include(FeatureSummary)
 
 find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Gui Network Qml Quick)
-find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Wallet Package)
+# The backend keeps the pause chain in the applet's KConfig group. libplasma's
+# CMake package does not pull in KF6Config, which its link interface names.
+find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Wallet Package Config)
 find_package(Plasma ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
 
 # QML modules the widget and its Configure page import at runtime.
@@ -73,12 +75,10 @@ add_subdirectory(package)
 
 if(BUILD_TESTING)
     find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS DBus Test QuickTest)
-    # The smoke test loads the widget through libplasma, whose CMake package
-    # does not pull in KF6Config itself, and translates the Configure page
-    # with KI18n as Plasma does. The panel test sets Kirigami units through
-    # KirigamiPlatform, which find_package(Plasma) does not bring in on
-    # Plasma 6.3.
-    find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Config I18n KirigamiPlatform)
+    # The smoke test translates the Configure page with KI18n as Plasma does.
+    # The panel test sets Kirigami units through KirigamiPlatform, which
+    # find_package(Plasma) does not bring in on Plasma 6.3.
+    find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS I18n KirigamiPlatform)
     find_package(PlasmaQuick ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
     add_subdirectory(autotests)
     add_subdirectory(tests)

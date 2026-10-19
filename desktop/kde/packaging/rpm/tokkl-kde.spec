@@ -33,6 +33,7 @@ BuildRequires:  cmake(Qt6Network)
 BuildRequires:  cmake(Qt6Qml)
 BuildRequires:  cmake(Qt6Quick)
 BuildRequires:  cmake(KF6Wallet) >= 6.13.0
+BuildRequires:  cmake(KF6Config) >= 6.13.0
 BuildRequires:  cmake(KF6Package) >= 6.13.0
 # KF6PackageConfig.cmake needs KF6CoreAddons, which kf6-kpackage-devel does
 # not pull in on Fedora 44.

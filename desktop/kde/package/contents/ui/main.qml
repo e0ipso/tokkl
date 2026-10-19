@@ -18,9 +18,17 @@ PlasmoidItem {
         email: Plasmoid.configuration.email
     }
 
-    // The running entry, its elapsed time and the start/stop actions.
+    // The running entry, its elapsed time, the pause chain and the start,
+    // pause, resume and stop actions.
     readonly property TokklTimer timer: TokklTimer {
         connection: root.connection
+    }
+
+    // Keeps the pause chain in this widget's configuration, so a plasmashell
+    // restart keeps its total.
+    readonly property TokklChainStore chainStore: TokklChainStore {
+        applet: Plasmoid
+        timer: root.timer
     }
 
     readonly property StatusText words: StatusText {

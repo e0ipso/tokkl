@@ -9,7 +9,12 @@ import com.github.e0ipso.tokkl.backend
 QtObject {
     required property TokklTimer timer
 
-    readonly property string runText: timer.running ? i18nc("@info:status timer", "Running") : i18nc("@info:status timer", "Stopped")
+    readonly property string runText: {
+        if (timer.running) {
+            return i18nc("@info:status timer", "Running");
+        }
+        return timer.paused ? i18nc("@info:status timer", "Paused") : i18nc("@info:status timer", "Stopped");
+    }
 
     readonly property string statusText: {
         switch (timer.status) {
@@ -44,14 +49,15 @@ QtObject {
         }
     }
 
-    // The project name for the menu title, including an archived one.
+    // The project name for the menu title, including the archived project of
+    // the running or paused entry.
     readonly property string projectText: {
         const id = timer.chosenProjectId;
         if (id === null || id === undefined) {
             return i18nc("@item:inmenu", "No project");
         }
         const project = timer.entryProject;
-        if (timer.running && project && project.id === id) {
+        if ((timer.running || timer.paused) && project && project.id === id) {
             return projectLabel(project);
         }
         for (const candidate of timer.projects) {

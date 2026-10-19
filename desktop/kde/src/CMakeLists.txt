@@ -4,9 +4,12 @@
 # tokklkde library adds KDE Wallet and the types QML creates; qmltypes.h
 # gives the classes their QML names.
 
-# The KDE side: the KDE Wallet store and the connection types the widget
-# creates from QML, which inject it.
+# The KDE side: the KDE Wallet store, the connection types the widget
+# creates from QML, which inject it, and the pause chain store in the
+# widget's own configuration.
 add_library(tokklkde STATIC
+    appletchainstore.cpp
+    appletchainstore.h
     kdeconnection.cpp
     kdeconnection.h
     kwalletcredentialstore.cpp
@@ -18,6 +21,7 @@ target_link_libraries(tokklkde
         tokklcore
     PRIVATE
         KF6::Wallet
+        Plasma::Plasma
 )
 qt6_extract_metatypes(tokklkde)
 

@@ -142,6 +142,15 @@ TestCase {
         compare(menu.itemAt(menu.currentIndex), item, "highlighted with the keyboard");
     }
 
+    // Highlights the Project submenu's entry with the arrow keys.
+    function moveToProject() {
+        const menu = button.menu;
+        for (let i = 0; i <= menu.count && menu.itemAt(menu.currentIndex).subMenu !== menu.projectMenu; ++i) {
+            keyClick(Qt.Key_Down);
+        }
+        compare(menu.itemAt(menu.currentIndex).subMenu, menu.projectMenu, "Project highlighted with the keyboard");
+    }
+
     function projectItem(name) {
         const menu = button.menu.projectMenu;
         for (let i = 0; i < menu.count; ++i) {
@@ -155,8 +164,7 @@ TestCase {
 
     function chooseProjectWithKeyboard(name) {
         openMenu();
-        const projectEntry = button.menu.itemAt(button.menu.currentIndex);
-        compare(projectEntry.subMenu, button.menu.projectMenu, "the first entry is the Project submenu");
+        moveToProject();
         keyClick(Qt.Key_Right);
         tryVerify(() => button.menu.projectMenu.opened, 3000, "Project opens");
         moveTo(button.menu.projectMenu, projectItem(name));
@@ -207,7 +215,7 @@ TestCase {
         compare(label.text, "0:01");
         verify(label.visible);
         compare(button.words.runText, "Running");
-        compare(button.Accessible.name, "Stop the Tokkl timer");
+        compare(button.Accessible.name, "Pause the Tokkl timer");
         verify(button.Accessible.description.indexOf("Running 0:01") === 0, button.Accessible.description);
 
         // Whole minutes: the label changes when the next minute starts.
@@ -218,32 +226,151 @@ TestCase {
         compare(label.text, "0:02");
     }
 
-    function test_leftClickAndSpaceStartAndStop() {
-        connectAccount(instanceA, 3, 7);
-        compare(button.words.runText, "Stopped");
-        compare(button.Accessible.name, "Start the Tokkl timer");
+    // A running entry as the server stores it once stopped: the seconds it
+    // ran, and the fields a resume copies.
+    function stoppedEntry(id, projectId, billable, seconds) {
+        return entry(id, 7, projectId, billable, {
+            start: fixture.clockIso(-seconds),
+            stop: fixture.clockIso(),
+            duration: seconds
+        });
+    }
 
+    function checkWords(runText, name) {
+        compare(button.words.runText, runText);
+        compare(button.Accessible.name, name);
+        verify(button.Accessible.description.indexOf(runText + " " + button.timer.elapsedText) === 0, button.Accessible.description);
+        compare(button.menu.stateItem.text, runText + " " + button.timer.elapsedText + " · Connected");
+    }
+
+    function test_clickPausesSpaceResumesAndMenuStops() {
+        connectAccount(instanceA, 3, 7);
+        const label = findChild(button, "elapsedLabel");
+        checkWords("Stopped", "Start the Tokkl timer");
+        compare(button.menu.runItem.text, "Start");
+        verify(button.menu.runItem.enabled);
+        verify(button.timer.chooseProject(11));
+
+        // A click starts.
         mouseClick(button, 5, 5, Qt.LeftButton);
         const start = waitFor("POST", "/workspaces/7/time_entries");
         const body = fixture.request(start).body;
-        compare(body.project_id, null, "No project at first");
-        compare(body.billable, false, "nonbillable at first");
+        compare(body.project_id, 11);
+        compare(body.billable, true, "Alpha's billable default");
         compare(button.timer.status, TokklTimer.Busy);
         compare(button.words.statusText, "Saving");
-
-        fixture.respond(start, 200, JSON.stringify(entry(9, 7, null, false, {
+        const running = entry(9, 7, 11, true, {
             start: fixture.clockIso()
-        })));
-        answer("GET", "/me/time_entries/current", 200, entry(9, 7, null, false, {
-            start: fixture.clockIso()
-        }));
-        tryCompare(button.timer, "running", true);
+        });
+        fixture.respond(start, 200, JSON.stringify(running));
+        answer("GET", "/me/time_entries/current", 200, running);
         tryCompare(button.timer, "canWrite", true);
+        verify(button.timer.running);
+        fixture.advance(125000);
+        compare(label.text, "0:02");
+        checkWords("Running", "Pause the Tokkl timer");
+        compare(button.menu.runItem.text, "Stop");
+        verify(indicator().round);
+        verify(indicator().pulsing);
 
+        // A click pauses: the entry stops and its time is kept.
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        fixture.respond(waitFor("PATCH", "/time_entries/9/stop"), 200, JSON.stringify(stoppedEntry(9, 11, true, 125)));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        tryCompare(button.timer, "canWrite", true);
+        verify(button.timer.paused);
+        verify(!button.timer.running);
+        checkWords("Paused", "Resume the Tokkl timer");
+        verify(button.words.summary.indexOf("Paused 0:02 · Alpha") === 0, button.words.summary);
+        compare(button.menu.runItem.text, "Stop");
+        verify(button.menu.runItem.enabled);
+        verify(!button.menu.projectMenu.enabled, "the paused entry's project stays");
+        verify(!button.menu.billableItem.enabled, "the paused entry's billable flag stays");
+        verify(button.menu.billableItem.checked);
+        compare(button.menu.projectMenu.title, "Project: Alpha");
+        verify(indicator().round, "a dot while paused");
+        verify(!indicator().pulsing, "a still dot");
+        compare(indicator().fillOpacity, 1);
+        compare(indicator().fillColor, Qt.color("#06aaf5"));
+        fixture.advance(120000);
+        compare(label.text, "0:02", "frozen while paused");
+
+        // Space resumes with a clone of the paused entry.
         button.forceActiveFocus(Qt.TabFocusReason);
         keyClick(Qt.Key_Space);
-        const stop = waitFor("PATCH", "/time_entries/9/stop");
-        verify(stop > start);
+        const resume = waitFor("POST", "/workspaces/7/time_entries");
+        verify(resume > start);
+        const clone = fixture.request(resume).body;
+        compare(clone.description, "Write the report");
+        compare(clone.project_id, 11);
+        compare(clone.task_id, 41);
+        compare(clone.tags, ["deep work", "q4"]);
+        compare(clone.billable, true);
+        compare(clone.start, fixture.clockIso());
+        const resumed = entry(10, 7, 11, true, {
+            start: fixture.clockIso()
+        });
+        fixture.respond(resume, 200, JSON.stringify(resumed));
+        answer("GET", "/me/time_entries/current", 200, resumed);
+        tryCompare(button.timer, "canWrite", true);
+        verify(button.timer.running);
+        verify(!button.timer.paused);
+        compare(label.text, "0:02", "counts on from the paused total");
+        fixture.advance(55000);
+        compare(label.text, "0:03");
+        checkWords("Running", "Pause the Tokkl timer");
+        verify(indicator().pulsing);
+
+        // Stop in the menu ends the chain.
+        openMenu();
+        compare(button.menu.itemAt(button.menu.currentIndex), button.menu.runItem, "Stop is highlighted first");
+        compare(button.menu.runItem.text, "Stop");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
+        fixture.respond(waitFor("PATCH", "/time_entries/10/stop"), 200, JSON.stringify(stoppedEntry(10, 11, true, 55)));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        tryCompare(button.timer, "canWrite", true);
+        verify(!button.timer.running);
+        verify(!button.timer.paused);
+        compare(label.text, "0:00");
+        checkWords("Stopped", "Start the Tokkl timer");
+        compare(button.menu.runItem.text, "Start");
+        verify(!indicator().round, "a square while stopped");
+
+        // The next click starts a new entry from 0:00.
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        const next = waitFor("POST", "/workspaces/7/time_entries");
+        verify(next > resume);
+        compare(fixture.request(next).body.description, "", "a new entry, not a clone");
+        const fresh = entry(11, 7, 11, true, {
+            start: fixture.clockIso()
+        });
+        fixture.respond(next, 200, JSON.stringify(fresh));
+        answer("GET", "/me/time_entries/current", 200, fresh);
+        tryCompare(button.timer, "running", true);
+        compare(label.text, "0:00");
+    }
+
+    function test_stopWhilePausedSendsNothing() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(stoppedEntry(5, 12, false, 65)));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        tryCompare(button.timer, "canWrite", true);
+        verify(button.timer.paused);
+        const before = fixture.requestCount;
+
+        openMenu();
+        compare(button.menu.itemAt(button.menu.currentIndex), button.menu.runItem);
+        compare(button.menu.runItem.text, "Stop");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
+        verify(!button.timer.paused);
+        compare(fixture.requestCount, before, "nothing runs on the server, so nothing is sent");
+        compare(findChild(button, "elapsedLabel").text, "0:00");
+        checkWords("Stopped", "Start the Tokkl timer");
+        verify(button.menu.projectMenu.enabled, "Project is a choice again");
+        verify(button.menu.billableItem.enabled);
     }
 
     function test_keyboardFocusIsVisible() {
@@ -264,7 +391,8 @@ TestCase {
         connectAccount(instanceA, 3, 7);
         openMenu();
         const menu = button.menu;
-        compare(menu.itemAt(menu.currentIndex).subMenu, menu.projectMenu, "Project is highlighted first");
+        compare(menu.itemAt(menu.currentIndex), menu.runItem, "Start is highlighted first");
+        compare(menu.runItem.text, "Start");
         compare(menu.projectMenu.title, "Project: No project");
         verify(!menu.stateItem.enabled, "the state line is not a choice");
         compare(menu.stateItem.text, "Stopped 0:00 · Connected");
@@ -278,6 +406,7 @@ TestCase {
             }
             keyClick(Qt.Key_Down);
         }
+        verify(labels.indexOf("Start") >= 0, labels);
         verify(labels.indexOf("Project: No project") >= 0, labels);
         verify(labels.indexOf("Billable") >= 0, labels);
         verify(labels.indexOf("Reconnect") >= 0, labels);
@@ -579,6 +708,7 @@ TestCase {
         verify(button.words.detailText.length > 0);
         openMenu();
         const menu = button.menu;
+        verify(!menu.runItem.enabled, "nothing to start");
         verify(!menu.projectMenu.enabled);
         verify(!menu.billableItem.enabled);
         verify(!menu.openItem.enabled, "no address to open");

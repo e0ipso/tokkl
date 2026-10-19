@@ -5,6 +5,7 @@ Maintainer: Tokkl contributors <contributors@example.invalid>
 Build-Depends: debhelper-compat (= 13),
                cmake (>= 3.27),
                extra-cmake-modules (>= 6.13.0~),
+               libkf6config-dev (>= 6.13.0~),
                libkf6package-dev (>= 6.13.0~),
                libkf6wallet-dev (>= 6.13.0~),
                libplasma-dev (>= 6.3.0~),
