@@ -156,6 +156,43 @@ test('a zero-length entry shares its successor\'s lane and both stay clickable, 
   expect(late.x).toBeGreaterThanOrEqual(early.x + early.width);
 });
 
+// Quick switches inside one half step store several zero-length entries on one grid point. They
+// sit side by side so each stays clickable, and the entry that starts there keeps its full width.
+test('zero-length entries at one instant sit side by side and each opens its own editor', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid, Wednesday 2026-06-17 (CEST): two switches at 09:00, then an entry that starts there.
+  await data.createEntry({ description: 'Switch one', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Switch two', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Follow-up', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 8);
+
+  // Blocks are laid out inside the column's 1px left border.
+  const inner = (await page.locator('.calendar-column.today').boundingBox())!.width - 1;
+  const one = todayBlock(page, 'Switch one');
+  const two = todayBlock(page, 'Switch two');
+  await expect(one).toHaveCSS('top', px(9 * 60));
+  await expect(two).toHaveCSS('top', px(9 * 60));
+  const oneBox = (await one.boundingBox())!;
+  const twoBox = (await two.boundingBox())!;
+  const successorBox = (await todayBlock(page, 'Follow-up').boundingBox())!;
+  expect(oneBox.width).toBeCloseTo(inner / 2 - 4, 1);
+  expect(twoBox.width).toBeCloseTo(oneBox.width, 1);
+  // Side by side, in either order.
+  expect(Math.abs(twoBox.x - oneBox.x)).toBeGreaterThanOrEqual(oneBox.width);
+  expect(successorBox.width).toBeCloseTo(inner - 4, 1);
+
+  // Playwright clicks only where the block is the topmost element.
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  for (const [block, description] of [[one, 'Switch one'], [two, 'Switch two']] as const) {
+    await block.click();
+    await expect(editor.getByLabel('Description')).toHaveValue(description);
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+  }
+});
+
 // The running block and the now line use --state-running, the running block is dashed so
 // colour is not its only mark, and only today's day head is a filled badge.
 test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {

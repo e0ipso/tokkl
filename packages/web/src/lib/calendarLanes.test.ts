@@ -70,6 +70,36 @@ test('a lane is reused once its block ends, and each cluster counts its own lane
   );
 });
 
+test('zero-length entries at one instant take separate lanes', () => {
+  assert.deepEqual(placed([block('one', 540, 540), block('two', 540, 540)]), ['one:0/2', 'two:1/2']);
+  assert.deepEqual(
+    placed([block('one', 540, 540), block('two', 540, 540), block('three', 540, 540)]),
+    ['one:0/3', 'two:1/3', 'three:2/3'],
+  );
+});
+
+test('zero-length entries at different instants stay in one lane', () => {
+  assert.deepEqual(placed([block('one', 540, 540), block('two', 545, 545)]), ['one:0/1', 'two:0/1']);
+});
+
+test('zero-length entries at one instant do not widen the entry that starts there or the one that ends there', () => {
+  assert.deepEqual(
+    placed([block('next', 540, 600), block('two', 540, 540), block('one', 540, 540)]),
+    ['two:0/2', 'one:1/2', 'next:0/1'],
+  );
+  assert.deepEqual(
+    placed([block('before', 480, 540), block('one', 540, 540), block('two', 540, 540)]),
+    ['before:0/1', 'one:0/2', 'two:1/2'],
+  );
+});
+
+test('zero-length entries at one instant inside a longer entry each take a lane beside it', () => {
+  assert.deepEqual(
+    placed([block('long', 500, 600), block('one', 540, 540), block('two', 540, 540)]),
+    ['long:0/3', 'one:1/3', 'two:2/3'],
+  );
+});
+
 test('no blocks, no lanes', () => {
   assert.deepEqual(assignLanes([]), []);
 });
