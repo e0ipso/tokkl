@@ -252,7 +252,8 @@ test('a zero-length entry and a short entry starting with it both open their own
 });
 
 // The running block and the now line use --state-running, the running block is dashed so
-// colour is not its only mark, and only today's day head is a filled badge.
+// colour is not its only mark, and only today's day head is a filled badge: the timer's orange
+// sticker inverted, so the mark is a shape as well as a colour.
 test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
@@ -278,8 +279,9 @@ test('the running block and the now line use the running colour, and today is a 
   await expect(page.locator('.calendar-column.today .calendar-now')).toHaveCSS('background-color', running);
 
   const badge = page.locator('.calendar-day-head.today span');
-  await expect(badge).toHaveCSS('background-color', await token('--primary'));
-  await expect(badge).toHaveCSS('color', await token('--on-primary'));
+  await expect(badge).toHaveCSS('background-color', await token('--on-hue'));
+  await expect(badge).toHaveCSS('color', await token('--hue-orange'));
+  await expect(page.locator('.calendar-day-head.today')).toHaveCSS('background-color', await token('--hue-orange'));
   await expect(page.locator('.calendar-day-head:not(.today) span').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
 });
 

@@ -82,6 +82,29 @@
    wordmark-halo on bg, surface,         other     --        5.26 AA
      texture and scene (worst)
    wordmark outline on wordmark-halo     other     --       10.54 AA
+   on-hue on hue-orange                  text    5.83 AA     5.83 AA
+   on-hue on hue-sky                     text    8.82 AA     8.82 AA
+   on-hue on hue-yellow                  text   15.68 AA    15.68 AA
+   on-hue on hue-pink                    text    5.33 AA     5.33 AA
+   on-hue-violet on hue-violet           text    5.67 AA     5.67 AA
+   on-hue on hue-violet (not used)       text    3.50 --     3.50 --
+   hue-orange on surface                 other   3.40 AA     5.36 AA
+   hue-sky on surface                    other   2.25 --     8.10 AA
+   hue-violet on surface                 other   5.67 AA     3.22 AA
+   hue-yellow on surface                 other   1.26 --    14.41 AA
+   hue-pink on surface                   other   3.72 AA     4.89 AA
+   hue-orange on bg                      other   3.34 AA     5.83 AA
+   hue-sky on bg                         other   2.21 --     8.82 AA
+   hue-violet on bg                      other   5.57 AA     3.50 AA
+   hue-yellow on bg                      other   1.24 --    15.68 AA
+   hue-pink on bg                        other   3.66 AA     5.33 AA
+   hue-violet on surface-2               other   5.01 AA     2.78 --
+   hue on texture (worst)                other   1.00 --     2.01 --
+   sticker-outline on surface            other  19.88 AA       --
+   sticker-outline on bg                 other  19.54 AA       --
+   border on texture (worst)             other  15.63 AA     3.42 AA
+   on-section-hue on section-hue (worst) text    5.33 AA     5.33 AA
+   section-hue on on-section-hue (worst) text    5.33 AA     5.33 AA
    Primary is a fill and has its own text token. Links, the picker's create row, the group count,
    the Active status chip, the report filter chip's value and the report amount are primary-text;
    fills, bars, borders, rings and icons stay primary, which needs only the 3:1 of the primary rows.
@@ -101,8 +124,8 @@
    at 4.99 (#c7af14) in light and 4.84 (#990099) in dark, above the 3:1 the table at .project-dot
    asks for. The active report filter chip is on-primary on primary, and the share bars and the
    tab marker are primary on surface-2 and on bg.
-   On the week calendar the day heads are text and muted on a surface-2 band, and today's label is
-   an on-primary on primary badge (primary on surface-2 for the badge's edge). The hour lines are
+   On the week calendar the day heads are day stickers on surface (see the hue note below), and
+   today's label is an inverted badge, section-hue on on-section-hue. The hour lines are
    border on surface, or on calendar-today in today's column. The now line and its dot are
    state-running on calendar-today. A running block has a state-running bar and dashed outline,
    which sit on its own tint inside ("block tint (worst)", over the 14 palette colours and primary,
@@ -128,7 +151,7 @@
    icon alike, and the favourite number disc is on-primary on primary. The timer bar's chips are
    outlined in border, primary or the project mix on surface (the border and primary rows, and the
    table at .project-dot); the idle clock's placeholder is muted on surface.
-   In the entry list the day band is text on surface-2. A row's tag pill is text on surface-2 with
+   In the entry list each day is headed by a day sticker on surface. A row's tag pill is text on surface-2 with
    a border outline, a set project is outlined in the project mix (the table at .project-dot), and
    the group count is primary-text on surface in a primary border, or on-primary on primary while
    the group is open.
@@ -145,8 +168,9 @@
    so the two never overlap; within each band every pixel lies between surface and the strongest
    token, and the texture rows above give the worst case for the nav labels (muted) and for the
    signed-in user above Log out (name in text, email in muted). The sidebar's
-   edge line is border on bg on the page side. The active nav link is a primary block with on-primary text and icon, and its running dot turns on-primary too:
-   the pink dot on primary is only 1.32:1 in light and 1.26:1 in dark.
+   edge line is border on bg on the page side. The active nav link is a section-hue block with
+   on-section-hue text and icon, and its running dot turns on-section-hue too: the running pink dot
+   on orange is only 1.32:1 in light and 1.09:1 in dark.
    The auth page and the splash use the scene tokens over bg, full-bleed. Only the wordmark sits on
    that texture; the form, the loading label and the errors sit on surface cards, so the surface
    rows apply to them. Where the scene gradients overlap, every channel stays between the lowest
@@ -172,7 +196,22 @@
    close button. A settings card's header strip uses the sidebar texture tokens over surface: the
    glow fades out by 60% and the stripes fill only the right 30%, so they never overlap. The title
    (text) sits on the glow, or on a stripe if a narrow card wraps it that far; the texture-glow and
-   texture-stripe rows cover both. Inputs and the token value sit below the strip on plain surface. The chosen colour swatch has a text ring outside a surface gap (text on surface). */
+   texture-stripe rows cover both. Inputs and the token value sit below the strip on plain surface. The chosen colour swatch has a text ring outside a surface gap (text on surface).
+   Section hues (the hue tokens, mapped to section-hue and on-section-hue by data-section). They
+   fill the active nav item, in the sidebar (on its texture), the phone bar and the More sheet (on
+   surface), and the day stickers, which sit on surface. Text and icons on a hue are on-hue, or
+   on-hue-violet on violet; the "on-section-hue on section-hue" row is the worst of those pairs, and
+   the same pairs reversed give today's badge on the week calendar. The fills marked -- do not
+   reach 3:1 by themselves, so an outline draws the edge: on a nav item a 2px border outline in both
+   themes (border on surface or on texture, light and dark), and on a day sticker the
+   sticker-outline, the ink in light and none in dark, where every hue clears 3:1 on surface. Dark
+   violet is under 3:1 on surface-2, which is why the calendar's day-head band is surface. The
+   select-all box on a day sticker has a 2px on-section-hue ring and fills with on-section-hue when
+   checked (the worst on-section-hue row).
+   Panels and cards have a 2px border and a 3px offset shadow in border, so the border on bg and
+   border on surface rows give both: the ink in light, #8c86c0 in dark.
+   The strip in the wordmark's gradient under page titles and in the phone header is decoration
+   and needs no ratio. */
 :root {
   color-scheme: light dark;
 
@@ -187,8 +226,8 @@
   --text: light-dark(#08061f, #ffffff);
   --muted: light-dark(#4d4a5c, #b9b5d6);
   --border: light-dark(#08061f, #8c86c0);
-  /* Primary is a fill (buttons, the active nav link, bars, rings); text in the primary colour reads
-     primary-text, since light primary is 3.40:1 on surface, enough for a fill but not for text. */
+  /* Primary is a fill (buttons, bars, rings); text in the primary colour reads primary-text, since
+     light primary is 3.40:1 on surface, enough for a fill but not for text. */
   --primary: light-dark(#f05a00, #ff6500);
   --on-primary: light-dark(#08061f, #08061f);
   --primary-text: light-dark(#b23c00, #ff8a3d);
@@ -215,7 +254,9 @@
   --success: light-dark(#4a8049, #80e36b);
   /* The amber #ff9500; light mixes it with 34% ink to reach 4.5:1 as text on surface and bg. */
   --warning: light-dark(#ab640b, #ff9500);
-  --shadow: 0 8px 24px light-dark(rgb(28 26 43 / 0.14), rgb(0 0 0 / 0.5));
+  /* A hard offset shadow with no blur, like the wordmark's letters: the ink in light and border in
+     dark, so the border rows in the table give its ratios. */
+  --shadow: 3px 3px 0 var(--border);
   /* The ink, stronger in dark so it still dims the dark surfaces. */
   --backdrop: light-dark(rgb(8 6 31 / 0.45), rgb(8 6 31 / 0.7));
   /* What a project colour is mixed with for its dot and border: the ink in light, white in dark;
@@ -271,6 +312,23 @@
      outline matches bg. It is the dark muted, a pale tint of the violet. See the wordmark note in
      the table. */
   --wordmark-halo: light-dark(transparent, #b9b5d6);
+
+  /* Section hues, the wordmark's and the same in both themes. Each NAV section in App.tsx names one
+     through data-section, and the rules after the Shell heading map it to --section-hue and
+     --on-section-hue. Content on a hue is on-hue (the ink), except on violet, which takes
+     on-hue-violet (white): the ink is only 3.50:1 there. */
+  --hue-orange: #f05a00;
+  --hue-sky: #00b9fa;
+  --hue-violet: #8722ff;
+  --hue-yellow: #ffe600;
+  --hue-pink: #ff008c;
+  --on-hue: #08061f;
+  --on-hue-violet: #ffffff;
+  /* The outline of a hue sticker: the ink in light, where sky (2.25:1) and yellow (1.26:1) do not
+     reach 3:1 against surface by themselves; none in dark, where every hue does. */
+  --sticker-outline: light-dark(#08061f, transparent);
+  /* The wordmark's full gradient, drawn as a strip under page titles and in the phone header. */
+  --spectrum-strip: linear-gradient(to right, #ffe900, #ff9500, #ff008c, #00dfd5, #00b9fa, #8722ff, #eb00d5);
 
   /* Type. The root size is relative, so the browser's font size setting scales the whole app. */
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -420,6 +478,12 @@ code, kbd {
 .calendar-head, .calendar-strip, .calendar-body, .card, .table-wrap, .search-box, .select-button, .splash .page-state, .error-page .page-state {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
 }
+/* Panel: a surface drawn as a sticker, with a 2px border and the hard offset shadow (the ink in
+   light, border in dark; see --shadow). Fields and select buttons keep the plain 1px border. */
+.surface, .timer-bar, .suggestions, .day-group, .bulk-bar, .popover, .modal, .auth-card, .calendar-head,
+.calendar-strip, .calendar-body, .card, .table-wrap, .splash .page-state, .error-page .page-state {
+  border-width: 2px; box-shadow: var(--shadow);
+}
 /* Row button: a borderless, full-width row in a list or menu, --surface-2 on hover. */
 .row-button, .nav-link, .suggestion, .picker-item, .menu button {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
@@ -490,6 +554,17 @@ input.entry-duration:is(:hover, :focus) {
 
 /* Shell */
 .shell { display: flex; min-height: 100vh; }
+/* Section hues. App.tsx puts data-section on every nav item and on the page's main element, so
+   the active nav item and the page's stickers share one hue. The pages inside More (Clients, Tags,
+   Trash, Admin) take More's pink, also in the desktop sidebar that lists them: on a phone they are
+   reached through More, whose button carries the active fill while one is open, so the page, its
+   nav item and that button agree. Own hues would need four more, and the wordmark has only cyan
+   and magenta left. */
+[data-section='timer'] { --section-hue: var(--hue-orange); --on-section-hue: var(--on-hue); }
+[data-section='reports'] { --section-hue: var(--hue-sky); --on-section-hue: var(--on-hue); }
+[data-section='projects'] { --section-hue: var(--hue-violet); --on-section-hue: var(--on-hue-violet); }
+[data-section='settings'] { --section-hue: var(--hue-yellow); --on-section-hue: var(--on-hue); }
+[data-section='more'] { --section-hue: var(--hue-pink); --on-section-hue: var(--on-hue); }
 .sidebar {
   position: sticky; top: 0; height: 100vh; width: var(--sidebar); flex-shrink: 0;
   display: flex; flex-direction: column; gap: 2px; padding: 16px 10px;
@@ -513,12 +588,17 @@ input.entry-duration:is(:hover, :focus) {
 .sidebar .brand { padding: 6px 10px 20px; }
 .nav-link { gap: 10px; padding: 9px 10px; border-radius: var(--radius-md); color: var(--muted); text-decoration: none; }
 .nav-link:hover:not(.active) { color: var(--text); }
-/* The active link is a filled primary block in bold with a heavier icon, so the fill colour is not
-   the only sign; aria-current="page" says the same to screen readers. */
-.nav-link.active, .nav-link.active:hover { background: var(--primary); color: var(--on-primary); font-weight: 800; }
+/* The active link is filled with its section's hue, in bold with a heavier icon, so the fill colour
+   is not the only sign; aria-current="page" says the same to screen readers. A 2px border outline
+   draws its edge in both themes: the ink in light, where sky and yellow are under 3:1 on surface,
+   and border in dark, where violet is 2.72:1 on the sidebar's glow. */
+.nav-link.active, .nav-link.active:hover {
+  background: var(--section-hue); color: var(--on-section-hue); font-weight: 800;
+  box-shadow: inset 0 0 0 2px var(--border);
+}
 .nav-link.active .nav-icon { stroke-width: 2.6; }
 .running-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--state-running); margin-left: auto; animation: pulse 1.6s infinite; }
-.nav-link.active .running-dot { background: var(--on-primary); }
+.nav-link.active .running-dot { background: currentColor; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 /* The signed-in user above Log out, in the sidebar and the More sheet. One line each, cut with an
    ellipsis; App.tsx puts the full value in title. */
@@ -529,18 +609,26 @@ input.entry-duration:is(:hover, :focus) {
 .content { flex: 1; min-width: 0; padding: 24px clamp(12px, 3vw, 40px) 80px; }
 .page { max-width: 1100px; margin: 0 auto; }
 .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-5); flex-wrap: wrap; }
-/* Page titles: the display face, black weight and capitals. */
+/* Page titles: the display face, black weight and capitals, over a strip in the wordmark's
+   gradient as wide as the title. The strip is decoration and needs no ratio. */
 .page-header h1 {
   margin: 0; font-size: var(--text-3xl); font-weight: 900; line-height: 1;
   text-transform: uppercase; letter-spacing: 0.02em;
 }
+.page-header h1::after {
+  content: ''; display: block; height: 6px; margin-top: var(--space-2);
+  border-radius: var(--radius-pill); background: var(--spectrum-strip);
+}
 
 /* Phone: a header strip with the wordmark, a five-item bottom bar and the More sheet (App.tsx renders
-   these only under the same max-width). */
+   these only under the same max-width). The header ends in a 4px strip of the wordmark's gradient,
+   the timer page's only one, since it has no page header. */
 .phone-header {
-  display: flex; align-items: center; min-height: 44px; padding: 6px 12px;
+  display: flex; align-items: center; min-height: 44px; padding: 6px 12px 10px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(to right, var(--texture-glow), transparent 70%), var(--surface);
+  background:
+    var(--spectrum-strip) bottom / 100% 4px no-repeat,
+    linear-gradient(to right, var(--texture-glow), transparent 70%), var(--surface);
 }
 .more-backdrop, .more-sheet { display: none; }
 @media (max-width: 760px) {
@@ -733,18 +821,27 @@ input.entry-duration:is(:hover, :focus) {
 .project-label-client::before { content: '• '; }
 .tag-chip { display: inline-block; font-size: var(--text-sm); padding: 1px 8px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); }
 
-/* Entry list. Each day is a surface panel under a surface-2 band with the day and its total in
-   display type. Rows are data, so nothing textured sits behind them. */
+/* Entry list. Each day is a surface panel headed by a day sticker: a pill in the section's hue
+   with the day and its total in display type, in on-section-hue, and the sticker outline. Rows are
+   data, so nothing textured sits behind them.
+   Day stickers (here and the week calendar's day heads) take the section's hue rather than cycling
+   through the hues: a hue then means one thing, where you are, and a different hue per day would
+   suggest the days differ in kind. The week view already names each day, and a page then has one
+   text pair on its stickers, not five. */
 .entry-list { display: flex; flex-direction: column; gap: var(--space-5); }
 .day-group { overflow: visible; border-width: 2px; border-radius: var(--radius-lg); }
 .day-header {
-  display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4);
-  background: var(--surface-2); border-bottom: 2px solid var(--border);
-  border-radius: calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px) 0 0;
+  display: flex; align-items: center; gap: var(--space-3); margin: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
+  background: var(--section-hue); color: var(--on-section-hue); border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 2px var(--sticker-outline);
 }
 .day-header h3 { flex: 1; min-width: 0; font-size: var(--text-lg); font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
 .day-total { font-size: var(--text-xl); font-weight: 800; line-height: 1; }
 .day-select { display: inline-flex; }
+/* The select-all box on the sticker: checked it fills with on-section-hue, and a ring in the same
+   colour draws its edge against the hue (the on-hue rows in the table). */
+.day-select input { accent-color: var(--on-section-hue); box-shadow: 0 0 0 2px var(--on-section-hue); }
 .entries { list-style: none; margin: 0; padding: 0; }
 .entries.nested { background: var(--surface-2); }
 .entries.nested .entry-line { padding-left: 40px; }
@@ -853,7 +950,7 @@ input.entry-duration:is(:hover, :focus) {
   border-width: 2px; border-radius: var(--radius-lg); box-shadow: var(--shadow);
 }
 .modal-wide { width: min(820px, 100%); }
-/* The header is a surface-2 band with the title in the display face, like the entry list's day band. */
+/* The header is a surface-2 band with the title in the display face. */
 .modal-header {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
   padding: 10px 10px 10px 18px; background: var(--surface-2); border-bottom: 2px solid var(--border);
@@ -990,22 +1087,26 @@ table.table { width: 100%; border-collapse: collapse; }
 .calendar-toolbar .button { min-height: 40px; padding: 6px 16px; border-width: 2px; border-radius: var(--radius-pill); font-weight: 700; }
 .calendar-range { font-size: var(--text-lg); font-weight: 800; margin-left: var(--space-1); }
 .calendar-head, .calendar-grid { display: grid; grid-template-columns: 56px repeat(7, minmax(90px, 1fr)); }
-.calendar-head { background: var(--surface-2); border-bottom: none; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.calendar-head { border-bottom: none; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+/* Each day head is a day sticker (see the entry list): the section's hue with on-section-hue text,
+   the total included, and the sticker outline. */
 .calendar-day-head {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0;
-  padding: 6px 8px; border-left: 1px solid var(--border);
+  margin: 4px 2px; padding: 4px 8px; border-radius: var(--radius-md);
+  background: var(--section-hue); color: var(--on-section-hue); box-shadow: inset 0 0 0 2px var(--sticker-outline);
 }
 .calendar-day-head span, .calendar-day-head small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-day-head span { font-size: var(--text-sm); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
-.calendar-day-head small { color: var(--muted); font-weight: 700; }
-/* Today's label is a filled badge, so the day is marked by its shape as well as its colour. */
-.calendar-day-head.today span { padding: 0 6px; border-radius: var(--radius-pill); background: var(--primary); color: var(--on-primary); }
+.calendar-day-head small { font-weight: 700; }
+/* Today's label is an inverted badge, the hue on an on-section-hue fill, so the day is marked by
+   its shape as well as its colour on every hue. */
+.calendar-day-head.today span { padding: 0 6px; border-radius: var(--radius-pill); background: var(--on-section-hue); color: var(--section-hue); }
 .calendar-body { height: min(70vh, 720px); overflow: auto; border-radius: 0 0 var(--radius-md) var(--radius-md); }
 /* The loading or error state covers the whole grid, so an unloaded week never looks empty. */
 .calendar-frame { position: relative; }
 .calendar-state {
   position: absolute; inset: 0; z-index: 5; background: var(--surface);
-  border: 1px solid var(--border); border-radius: 0 0 var(--radius-md) var(--radius-md);
+  border: 2px solid var(--border); border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 .calendar-grid { position: relative; }
 .calendar-gutter { position: relative; }
@@ -1061,7 +1162,7 @@ table.table { width: 100%; border-collapse: collapse; }
   /* The seven days share the phone width; with 90px columns the header widened the page. */
   .calendar-head, .calendar-grid { grid-template-columns: 40px repeat(7, minmax(0, 1fr)); }
   /* A narrower width of the display face keeps "Today" and the day totals whole in a 45px column. */
-  .calendar-day-head { padding: 4px; font-stretch: 70%; }
+  .calendar-day-head { margin: 3px 1px; padding: 4px; font-stretch: 70%; }
   .calendar-day-head span { letter-spacing: 0; }
   .calendar-day-head.today span { padding: 0 4px; }
 }

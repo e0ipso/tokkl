@@ -26,21 +26,25 @@ import { TagsPage } from './pages/TagsPage.tsx';
 import { TimerPage } from './pages/TimerPage.tsx';
 import { TrashPage } from './pages/TrashPage.tsx';
 
-type NavItem = { href: string; label: string; icon: IconName; inMore?: true; adminOnly?: true };
+/** A section's hue: styles.css maps each to a fill and the text colour on it (data-section). */
+type Section = 'timer' | 'reports' | 'projects' | 'settings' | 'more';
+
+type NavItem = { href: string; label: string; icon: IconName; section: Section; inMore?: true; adminOnly?: true };
 
 /**
  * Every page in the navigation. On phones the inMore items move from the bottom bar into the More
- * sheet. adminOnly items show only to admins; the server still refuses everyone else.
+ * sheet, and they take More's hue. adminOnly items show only to admins; the server still refuses
+ * everyone else.
  */
 const NAV: NavItem[] = [
-  { href: '/', label: 'Timer', icon: 'timer' },
-  { href: '/reports', label: 'Reports', icon: 'chart' },
-  { href: '/projects', label: 'Projects', icon: 'folder' },
-  { href: '/clients', label: 'Clients', icon: 'users', inMore: true },
-  { href: '/tags', label: 'Tags', icon: 'tag', inMore: true },
-  { href: '/trash', label: 'Trash', icon: 'trash', inMore: true },
-  { href: '/admin', label: 'Admin', icon: 'shield', inMore: true, adminOnly: true },
-  { href: '/settings', label: 'Settings', icon: 'settings' },
+  { href: '/', label: 'Timer', icon: 'timer', section: 'timer' },
+  { href: '/reports', label: 'Reports', icon: 'chart', section: 'reports' },
+  { href: '/projects', label: 'Projects', icon: 'folder', section: 'projects' },
+  { href: '/clients', label: 'Clients', icon: 'users', section: 'more', inMore: true },
+  { href: '/tags', label: 'Tags', icon: 'tag', section: 'more', inMore: true },
+  { href: '/trash', label: 'Trash', icon: 'trash', section: 'more', inMore: true },
+  { href: '/admin', label: 'Admin', icon: 'shield', section: 'more', inMore: true, adminOnly: true },
+  { href: '/settings', label: 'Settings', icon: 'settings', section: 'settings' },
 ];
 
 /** The phone breakpoint; styles.css uses the same max-width for the bottom bar. */
@@ -181,7 +185,14 @@ function Shell() {
   const navLink = (item: NavItem, onClick?: () => void) => {
     const active = isActive(item.href);
     return (
-      <Link key={item.href} href={item.href} className={`nav-link${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined} onClick={onClick}>
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`nav-link${active ? ' active' : ''}`}
+        data-section={item.section}
+        aria-current={active ? 'page' : undefined}
+        onClick={onClick}
+      >
         <Icon name={item.icon} className="nav-icon" />
         <span>{item.label}</span>
         {item.href === '/' && current ? (
@@ -201,6 +212,8 @@ function Shell() {
   const nav = NAV.filter((item) => !item.adminOnly || me?.role === 'admin');
   const moreItems = nav.filter((item) => item.inMore);
   const moreActive = moreItems.some((item) => isActive(item.href));
+  // The open page's section hue; pages read it for their stickers. Every route is in NAV, Admin too.
+  const section = NAV.find((item) => isActive(item.href))?.section ?? 'timer';
 
   return (
     <div className="shell">
@@ -212,6 +225,7 @@ function Shell() {
               ref={moreButton}
               type="button"
               className={`nav-link${moreActive ? ' active' : ''}`}
+              data-section="more"
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((open) => !open)}
@@ -238,7 +252,7 @@ function Shell() {
         )}
       </nav>
       {phone ? <header className="phone-header"><Brand size="sm" /></header> : null}
-      <main className="content">
+      <main className="content" data-section={section}>
         {/* The timer bar shows the Pomodoro banner on the timer page. */}
         {location === '/' ? null : <PomodoroBanner />}
         <ErrorBoundary resetKey={location}>
