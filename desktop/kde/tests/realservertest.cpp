@@ -728,6 +728,67 @@ private Q_SLOTS:
         QVERIFY(!s.timer.currentEntry());
     }
 
+    // A chain with a project and no task: once the project is gone, a resume
+    // is refused with 404 and "Project not found", creates nothing and leaves
+    // the chain paused with the message through the reads that follow.
+    void resumeRefusedForDeletedProject()
+    {
+        const User &q = user(QStringLiteral("a.q"));
+        QVERIFY(q.running && q.running->projectId && !q.running->taskId);
+
+        Session s;
+        s.signIn(q);
+        QTRY_VERIFY_WITH_TIMEOUT(s.ready(q), timeoutMs);
+        QCOMPARE(s.timer.currentEntry()->id, q.running->id);
+
+        QVERIFY(s.timer.pause());
+        QTRY_VERIFY_WITH_TIMEOUT(s.timer.isPaused() && s.timer.canWrite(), timeoutMs);
+        const qint64 paused = s.timer.chainSeconds();
+        QVERIFY2(paused > 0 && paused % resolutionSeconds == 0, qPrintable(QString::number(paused)));
+
+        const QString projectPath = QStringLiteral("/workspaces/%1/projects/%2").arg(q.workspaceId).arg(*q.running->projectId);
+        QCOMPARE(sendRaw("DELETE", q, tokenAuthorization(q), projectPath).status, 200);
+
+        QStringList errors;
+        connect(&s.timer, &TimerController::statusChanged, this, [&s, &errors] {
+            if (!s.timer.errorString().isEmpty() && (errors.isEmpty() || errors.last() != s.timer.errorString())) {
+                errors.append(s.timer.errorString());
+            }
+        });
+        const qsizetype before = s.transport.log.size();
+        QVERIFY(s.timer.resume());
+        QTRY_VERIFY_WITH_TIMEOUT(s.transport.since(before, "POST").size() == 1 && s.transport.since(before, "POST").first()->response, timeoutMs);
+        QCOMPARE(s.transport.since(before, "POST").first()->response->status, 404);
+        // The read that follows the refusal.
+        QTRY_VERIFY_WITH_TIMEOUT(!s.transport.since(before, "GET", QStringLiteral("/me/time_entries/current")).isEmpty()
+                                     && s.transport.since(before, "GET", QStringLiteral("/me/time_entries/current")).last()->response
+                                     && s.timer.canWrite(),
+                                 timeoutMs);
+        QCOMPARE(errors, QStringList{QStringLiteral("Project not found")});
+        QCOMPARE(s.timer.errorString(), QStringLiteral("Project not found"));
+        QCOMPARE(s.timer.status(), TimerController::Error);
+        QVERIFY(s.timer.isPaused());
+        QVERIFY(!s.timer.isRunning());
+        QCOMPARE(s.timer.chainSeconds(), paused);
+
+        s.idle();
+        QCOMPARE(s.transport.since(before, "POST").size(), 1);
+        QCOMPARE(s.timer.errorString(), QStringLiteral("Project not found"));
+        QCOMPARE(s.timer.status(), TimerController::Error);
+        QVERIFY(s.timer.isPaused());
+
+        const qsizetype beforeStop = s.transport.log.size();
+        QVERIFY(s.timer.stop());
+        QCOMPARE(s.timer.status(), TimerController::Ready);
+        QVERIFY(!s.timer.isPaused());
+        QCOMPARE(s.timer.errorString(), QString());
+        s.idle();
+        for (const auto &exchange : s.transport.since(beforeStop)) {
+            QVERIFY2(!isWrite(exchange->request.method), exchange->request.method.constData());
+        }
+        QVERIFY(!s.timer.currentEntry());
+    }
+
     void cleanupTestCase()
     {
         QCOMPARE(heldReplies(QStringLiteral("a")), 0);

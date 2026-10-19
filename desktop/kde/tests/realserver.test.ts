@@ -136,6 +136,14 @@ async function seed(name: string, extra: boolean) {
       { project_id: pProject.id, task_id: pTask.id, tags: ['kde', 'focus'], billable: true });
     users[`${name}.p`] = describeUser(name, p, p.wid, [pProject], pEntry);
     contexts[`${name}.p`] = p;
+
+    // Pauses an entry with a project and no task, then loses the project while paused. The server
+    // checks a task before the project, so only a chain without a task is refused for the project.
+    const q = await addUser(admin, { email: `q@${name}.example.com`, role: 'user' });
+    const qProject = await project(q, q.wid, `${label} q project`);
+    const qEntry = await running(q, q.wid, `${label} q running`, new Date(now - hour), { project_id: qProject.id });
+    users[`${name}.q`] = describeUser(name, q, q.wid, [qProject], qEntry);
+    contexts[`${name}.q`] = q;
   }
   return { admin, users, contexts };
 }
@@ -324,10 +332,12 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     const after = snapshot(a.admin);
     const u = users['a.u']!;
     const p = users['a.p']!;
+    const q = users['a.q']!;
     const disabled = new Set([users['a.dt']!.id, users['a.dp']!.id]);
 
-    // p deleted its task and its project while paused.
-    assert.deepEqual(after.projects, before.a.projects.filter((row) => row.id !== p.running!.project_id));
+    // p deleted its task and its project while paused, and q its project.
+    const deletedProjects = new Set([p.running!.project_id, q.running!.project_id]);
+    assert.deepEqual(after.projects, before.a.projects.filter((row) => !deletedProjects.has(row.id as number)));
     assert.deepEqual(after.tasks, before.a.tasks.filter((row) => row.id !== p.running!.task_id));
     assert.deepEqual(after.workspaces, before.a.workspaces);
     assert.deepEqual(after.memberships, before.a.memberships.filter((row) =>
@@ -344,7 +354,7 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     }
 
     // Every other account's entries, the admin's running one included, are untouched.
-    const others = (row: Row) => row.user_id !== u.id && row.user_id !== p.id;
+    const others = (row: Row) => row.user_id !== u.id && row.user_id !== p.id && row.user_id !== q.id;
     assert.deepEqual(after.entries.filter(others), before.a.entries.filter(others));
     // u started and stopped one entry, and the start answered late created another.
     const mine = after.entries.filter((row) => row.user_id === u.id);
@@ -381,6 +391,18 @@ test('the KDE companion against real Tokkl servers', async (t) => {
       assert.deepEqual(tagNames(a.admin, row.id), p.running!.tags);
     }
     assert.equal(chain[1]!.created_with, 'tokkl-kde');
+
+    // q paused its seeded entry; the resume refused after the project went created nothing.
+    const qChain = after.entries.filter((row) => row.user_id === q.id);
+    const qOriginal = before.a.entries.find((row) => row.id === q.running!.id)!;
+    assert.equal(qChain.length, 1);
+    assert.equal(qChain[0]!.id, q.running!.id);
+    assert.equal(qOriginal.stop, null);
+    assert.notEqual(qChain[0]!.stop, null);
+    assert.deepEqual(without(qChain[0]!, 'start', 'stop', 'duration', 'updated_at', 'project_id'),
+      without(qOriginal, 'start', 'stop', 'duration', 'updated_at', 'project_id'));
+    assert.equal(qChain[0]!.project_id, null);
+    assertSnapped(qChain[0]!, Date.parse(String(qOriginal.start)));
   });
 
   await t.test('instance b changed only by the stop sent after the switch', () => {

@@ -711,7 +711,10 @@ admin API and remove a workspace membership. It checks:
   stay accepted;
 - disabled accounts, with a token and with email and password: the 403 is
   the same as for an unknown token, account data is cleared, writes are
-  refused, and nothing is sent again until the user reconnects.
+  refused, and nothing is sent again until the user reconnects;
+- pause and resume: the clone copies the paused entry's fields, and a resume
+  after the task or the project was deleted is refused with 404, creates
+  nothing and keeps the chain paused with the server's message.
 
 Afterwards the script compares each instance's database with a snapshot
 taken before the run: only the changes the companion was allowed to make are
