@@ -152,6 +152,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       const next = readStoredChain(accountId);
       chainRef.current = next;
       setChainState(next);
+      // With no running entry shown here, the bar shows what Resume will start: the other tab's
+      // snapshot, before any edit made here is saved into it.
+      if (isPaused(next) && shownEntryId.current === null) setDraft(next.snapshot);
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);

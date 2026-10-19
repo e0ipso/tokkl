@@ -212,6 +212,37 @@ test('Stop pressed while Resume is starting the clone leaves no timer running', 
   expect(await storedChains(page)).toEqual([]);
 });
 
+test('a paused chain from another tab fills the draft, and an edit there keeps its metadata on Resume', async ({ page, context }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  // This tab never sees the entry run: its current-entry requests answer that nothing runs, as if
+  // the other tab started and paused it before this tab's next poll.
+  await page.route(CURRENT, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: 'null' }));
+  const { running, metadata } = await seedRunning(page, api);
+  const ui = bar(page);
+  await expect(ui.start).toBeVisible();
+
+  const other = await context.newPage();
+  await other.goto('/');
+  const otherUi = bar(other);
+  await otherUi.pause.click();
+  await expect(otherUi.resume).toBeVisible();
+
+  await expect(ui.resume).toBeVisible();
+  await expect(ui.timer.getByLabel('Description')).toHaveValue(metadata.description);
+  await expect(ui.timer.getByRole('button', { name: 'Billable' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(ui.timer.getByRole('button', { name: 'Tags' })).toHaveAttribute('title', 'focus, web');
+  await expect(ui.timer.getByRole('button', { name: 'Project' })).toContainText('Pause project');
+
+  await ui.timer.getByLabel('Description').fill('Edited in this tab');
+  await ui.timer.getByLabel('Description').blur();
+  await page.unroute(CURRENT);
+  await ui.resume.click();
+  const clone = await nextRunning(api, running.id);
+  expect(metadataOf(clone)).toEqual(metadataOf({ ...metadata, description: 'Edited in this tab' }));
+  await other.close();
+});
+
 test('signing out forgets the paused chain', async ({ page }) => {
   await login(page);
   const api = await TimerApi.open(page);
