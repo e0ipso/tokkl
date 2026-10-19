@@ -1,6 +1,6 @@
 # Tokkl for the macOS menu bar
 
-A menu bar app for Tokkl. It shows the timer's elapsed time in the menu bar, and a click starts, pauses or resumes the timer. It is built on the shared desktop core in `desktop/core`, the same timer and API client the KDE companion uses.
+A menu bar app for Tokkl. It shows the Tokkl clock logo and the timer's elapsed time in the menu bar, and a click starts, pauses or resumes the timer. It is built on the shared desktop core in `desktop/core`, the same timer and API client the KDE companion uses.
 
 ## Installing
 
@@ -28,7 +28,7 @@ Right-click or Control-click for the menu. It shows the timer state (Running, Pa
 - Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. The project of a running or paused entry is locked. To switch, stop the timer and start a new entry.
 - Billable sets the next start too. While an entry runs, it changes that entry. While paused, it is locked.
 
-A small shape before the time shows the project: the running or paused entry's, or the one the next start will use. A dot shows while the timer runs or is paused, and it pulses only while the timer runs. A still square shows while it is stopped. The project colour fills it inside a ring in the menu bar's text colour. A dashed outline means no project, and the space stays empty while the project is still loading. With Reduce Motion on, the dot does not pulse. The tooltip and VoiceOver name the project, so the colour is never the only clue.
+The menu bar item shows the clock logo in full colour, then a small shape for the project, then the time. The shape shows the running or paused entry's project, or the one the next start will use. A dot shows while the timer runs or is paused, and it pulses only while the timer runs. A still square shows while it is stopped. The project colour fills it inside a ring in the menu bar's text colour. A dashed outline means no project, and the space stays empty while the project is still loading. With Reduce Motion on, the dot does not pulse. The tooltip and VoiceOver name the project, so the colour is never the only clue.
 
 While the timer is loading or saving, the time ends with `…`. When it is offline, refused or failing, the time ends with `!`, and the tooltip and the first menu line say why.
 
@@ -57,7 +57,7 @@ ctest --test-dir desktop/macos/build --output-on-failure
 
 The version comes from the root `package.json`. Pass `-DTOKKL_VERSION=<semver>` to override it.
 
-The app icon is the Tokkl clock logo. `npm run icons` renders it from the icon pack's master into the ten PNGs of `resources/Tokkl.iconset`, which are committed. The build packs them into `Tokkl.icns` with `iconutil` and puts it in `Contents/Resources`, and `Info.plist` names it in `CFBundleIconFile`.
+The app icon is the Tokkl clock logo. `npm run icons` renders it from the icon pack's master into the ten PNGs of `resources/Tokkl.iconset`, which are committed. The build packs them into `Tokkl.icns` with `iconutil` and puts it in `Contents/Resources`, and `Info.plist` names it in `CFBundleIconFile`. The menu bar shows the same icon at 16 points. The build compiles `icon_16x16.png` and `icon_16x16@2x.png` into the app as Qt resources.
 
 ## Running
 
@@ -80,9 +80,9 @@ The build signs the bundle ad hoc. An ad hoc signature changes with every build,
 
 ## Layout and tests
 
-- `src/menubarapp.*`, `statusmenu.*`, `statuswords.*`, `projectindicator.*` and `settingswindow.*` are the app without its platform layer. They need only Qt Widgets and the core, so they build and are tested on Linux as well.
+- `src/menubarapp.*`, `statusmenu.*`, `statuswords.*`, `projectindicator.*`, `statusimage.*` and `settingswindow.*` are the app without its platform layer. They need only Qt Widgets and the core, so they build and are tested on Linux as well. `statusimage.*` puts the logo and then the project indicator in the menu bar item's image and sets their sizes.
 - `src/keychaincredentialstore.*` stores secrets through QtKeychain. It builds wherever QtKeychain is installed.
-- `src/macstatusitem.mm`, `macloginitem.mm` and `main.mm` are the macOS layer. They hold the NSStatusItem and the drawing of the project indicator, the SMAppService login item and the wiring. The app does not use `QSystemTrayIcon` because it cannot show text. Its API has an icon and a tooltip only, and Qt's Cocoa backend sets only the status button's image.
+- `src/macstatusitem.mm`, `macloginitem.mm` and `main.mm` are the macOS layer. They hold the NSStatusItem and the drawing of its logo and project indicator, the SMAppService login item and the wiring. The app does not use `QSystemTrayIcon` because it cannot show text. Its API has an icon and a tooltip only, and Qt's Cocoa backend sets only the status button's image.
 
 On a machine without macOS, the same commands build no app but run the tests: `menubarapp`, `infoplist`, the core's tests, and `keychaincredentialstore` when QtKeychain is installed. The `macos` CI job builds and tests the app on `macos-latest` with a pinned Qt from the Qt installer and a pinned QtKeychain built from source, both set up by `.github/actions/macos-build`. It then packages and checks a DMG with the two scripts. The release waits for it.
 

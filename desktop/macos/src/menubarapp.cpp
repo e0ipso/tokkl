@@ -137,7 +137,7 @@ void MenuBarApp::updateItem()
     m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer));
     m_statusItem->setToolTip(StatusWords::summary(*m_timer));
     m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer));
-    m_statusItem->setIndicator(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()));
+    m_statusItem->setImage(StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion())));
 }
 
 }

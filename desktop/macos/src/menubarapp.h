@@ -23,7 +23,7 @@ class TimerController;
 class Transport;
 
 // The menu bar app without its platform layer: the connection and timer from
-// the core, the menu bar item's text, project indicator and click, its menu
+// the core, the menu bar item's text, logo, project indicator and click, its menu
 // and the settings window. main.mm hands it the NSStatusItem, the Keychain store, the
 // SMAppService login item and the network; tests hand it fakes.
 //

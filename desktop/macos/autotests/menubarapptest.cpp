@@ -1,4 +1,4 @@
-// The menu bar app without its platform layer: the item's text and click,
+// The menu bar app without its platform layer: the item's text, image and click,
 // the menu, the settings window and the client name, driven through the
 // core's fake transport, store and clock, a fake menu bar item and a fake
 // login item.
@@ -10,6 +10,7 @@
 #include "loginitem.h"
 #include "menubarapp.h"
 #include "settingswindow.h"
+#include "statusimage.h"
 #include "statusitem.h"
 #include "statusmenu.h"
 #include "statuswords.h"
@@ -18,6 +19,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QFile>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -67,9 +69,10 @@ public:
     {
         menu = value;
     }
-    void setIndicator(const ProjectIndicator &value) override
+    void setImage(const StatusImage &value) override
     {
-        indicator = value;
+        image = value;
+        indicator = value.indicator;
     }
     bool reduceMotion() const override
     {
@@ -93,6 +96,8 @@ public:
     QString toolTip;
     QString accessibleName;
     QMenu *menu = nullptr;
+    StatusImage image;
+    // The indicator in the image.
     ProjectIndicator indicator;
     bool reduce = false;
 };
@@ -818,6 +823,53 @@ private Q_SLOTS:
         QCOMPARE(indicator.fillColor(false), QColor(Qt::black));
         indicator.color = QStringLiteral("#06aaf5");
         QCOMPARE(indicator.fillColor(true), QColor(0x06, 0xaa, 0xf5));
+    }
+
+    // The image before the time holds the clock logo from the app's
+    // iconset, then the project indicator. Both keep their places in every
+    // state, so the time never moves.
+    void imageShowsTheLogoBeforeTheIndicator()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(true, qint64(11))));
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
+        const StatusImage running = f.item.image;
+        QCOMPARE(running.indicator, ProjectIndicator::fromTimer(*f.app.timer(), false));
+        QCOMPARE(running.logoRect, QRect(0, 0, 16, 16));
+        QCOMPARE(running.indicatorRect, QRect(18, 0, 16, 16));
+        QCOMPARE(running.size, QSize(34, 16));
+        QVERIFY(running.logoRect.right() < running.indicatorRect.left());
+
+        // The 16 point app icon at 1x and 2x, the files npm run icons renders.
+        const QStringList files{QStringLiteral("icon_16x16.png"), QStringLiteral("icon_16x16@2x.png")};
+        QCOMPARE(running.logo.size(), files.size());
+        for (qsizetype i = 0; i < files.size(); ++i) {
+            QImage source(QStringLiteral(TOKKL_ICONSET_DIR "/") + files.at(i));
+            QVERIFY2(!source.isNull(), qPrintable(files.at(i)));
+            source.setDevicePixelRatio(double(i + 1));
+            const QImage &logo = running.logo.at(i);
+            QCOMPARE(logo, source);
+            QCOMPARE(logo.deviceIndependentSize(), QSizeF(16, 16));
+            // Full colour, not the single ink of a template image.
+            bool coloured = false;
+            for (int y = 0; y < logo.height() && !coloured; ++y) {
+                for (int x = 0; x < logo.width() && !coloured; ++x) {
+                    const QColor pixel = logo.pixelColor(x, y);
+                    coloured = pixel.alpha() == 255 && pixel.hsvSaturation() > 64;
+                }
+            }
+            QVERIFY2(coloured, qPrintable(files.at(i)));
+        }
+
+        f.app.statusMenu()->startStopAction()->trigger();
+        f.respond(f.last("PATCH", "/stop"), 200, entryBody(false, qint64(11)));
+        QTRY_VERIFY(!f.app.timer()->isRunning());
+        QVERIFY(f.item.image.indicator != running.indicator);
+        QCOMPARE(f.item.image.indicator, f.item.indicator);
+        QCOMPARE(f.item.image.logo, running.logo);
+        QCOMPARE(f.item.image.logoRect, running.logoRect);
+        QCOMPARE(f.item.image.indicatorRect, running.indicatorRect);
+        QCOMPARE(f.item.image.size, running.size);
     }
 
     void openAndSettingsActions()

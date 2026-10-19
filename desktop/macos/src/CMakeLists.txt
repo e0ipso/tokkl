@@ -8,6 +8,8 @@ add_library(tokklmacos STATIC
     projectindicator.h
     settingswindow.cpp
     settingswindow.h
+    statusimage.cpp
+    statusimage.h
     statusitem.h
     statusmenu.cpp
     statusmenu.h
@@ -19,6 +21,20 @@ target_link_libraries(tokklmacos
     PUBLIC
         tokklcore
         Qt6::Widgets
+)
+
+# The iconset npm run icons renders from the icon pack's master.
+set(_iconset "${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset")
+
+# The menu bar logo is the iconset's 16 point icon at 1x and 2x. It is
+# compiled into the library, so the item's image is composed and tested on
+# any platform.
+qt_add_resources(tokklmacos statuslogo
+    PREFIX "/tokkl/logo"
+    BASE "${_iconset}"
+    FILES
+        "${_iconset}/icon_16x16.png"
+        "${_iconset}/icon_16x16@2x.png"
 )
 
 # The QtKeychain credential store: the macOS Keychain on macOS. Built
@@ -49,7 +65,6 @@ if(APPLE)
     # into an icns, which goes to Contents/Resources under the name
     # CFBundleIconFile gives.
     find_program(TOKKL_ICONUTIL iconutil REQUIRED)
-    set(_iconset "${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset")
     set(_icns "${CMAKE_CURRENT_BINARY_DIR}/${TOKKL_BUNDLE_ICON}.icns")
     set(_iconset_pngs)
     foreach(_points 16 32 128 256 512)
