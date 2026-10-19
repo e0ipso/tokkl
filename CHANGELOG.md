@@ -1,3 +1,10 @@
+## [1.4.2](https://github.com/e0ipso/tokkl/compare/v1.4.1...v1.4.2) (2026-10-19)
+
+### Bug Fixes
+
+* **kde:** render timer in panels and on desktop ([8663955](https://github.com/e0ipso/tokkl/commit/866395560f23c92d25e21fe5be99fd57cc7df1b4))
+* **kde:** use Tokkl logo in widget picker ([84c3f3c](https://github.com/e0ipso/tokkl/commit/84c3f3c1024097dc627b39bde60e0f635cb1cdfc))
+
 ## [1.4.1](https://github.com/e0ipso/tokkl/compare/v1.4.0...v1.4.1) (2026-10-19)
 
 ### Bug Fixes
