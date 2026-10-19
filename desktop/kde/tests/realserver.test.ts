@@ -23,7 +23,18 @@ import { addWorkspaceMember } from '../../../packages/api/src/models/workspaces.
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 
-interface Entry { id: number; wid: number; description: string; start: string }
+interface Entry {
+  id: number;
+  wid: number;
+  description: string;
+  start: string;
+  project_id: number | null;
+  task_id: number | null;
+  tags: string[];
+  billable: boolean;
+}
+/** What a running entry carries besides its description and start. */
+interface EntryFields { project_id?: number; task_id?: number; tags?: string[]; billable?: boolean }
 interface FixtureUser {
   instance: string;
   id: number;
@@ -54,12 +65,15 @@ async function project(ctx: TestContext, wid: number, name: string) {
   return ok<{ id: number; name: string }>(ctx, 'POST', `/api/v9/workspaces/${wid}/projects`, { name, active: true });
 }
 
-async function running(ctx: TestContext, wid: number, description: string, start: Date, projectId?: number): Promise<Entry> {
-  const entry = await ok<{ id: number; workspace_id: number; description: string; start: string }>(
+async function running(ctx: TestContext, wid: number, description: string, start: Date, fields: EntryFields = {}): Promise<Entry> {
+  const entry = await ok<Omit<Entry, 'wid'> & { workspace_id: number }>(
     ctx, 'POST', `/api/v9/workspaces/${wid}/time_entries`,
-    { workspace_id: wid, description, start: start.toISOString(), duration: -1, created_with: 'fixture', project_id: projectId },
+    { workspace_id: wid, description, start: start.toISOString(), duration: -1, created_with: 'fixture', ...fields },
   );
-  return { id: entry.id, wid: entry.workspace_id, description: entry.description, start: entry.start };
+  return {
+    id: entry.id, wid: entry.workspace_id, description: entry.description, start: entry.start,
+    project_id: entry.project_id, task_id: entry.task_id, tags: [...entry.tags].sort(), billable: entry.billable,
+  };
 }
 
 function describeUser(instance: string, ctx: TestContext, wid: number, projects: FixtureUser['projects'], entry: Entry | null): FixtureUser {
@@ -82,7 +96,7 @@ async function seed(name: string, extra: boolean) {
 
   const admin = await setup();
   const adminProject = await project(admin, admin.wid, `${label} admin project`);
-  const adminEntry = await running(admin, admin.wid, `${label} admin running`, new Date(now - 3 * hour), adminProject.id);
+  const adminEntry = await running(admin, admin.wid, `${label} admin running`, new Date(now - 3 * hour), { project_id: adminProject.id });
   users[`${name}.admin`] = describeUser(name, admin, admin.wid, [adminProject], adminEntry);
   contexts[`${name}.admin`] = admin;
 
@@ -93,7 +107,7 @@ async function seed(name: string, extra: boolean) {
 
   const s = await addUser(admin, { email: `s@${name}.example.com`, role: 'user' });
   const sProject = await project(s, s.wid, `${label} s project`);
-  const sEntry = await running(s, s.wid, `${label} s running`, new Date(now - (extra ? 2 : 1) * hour), sProject.id);
+  const sEntry = await running(s, s.wid, `${label} s running`, new Date(now - (extra ? 2 : 1) * hour), { project_id: sProject.id });
   users[`${name}.s`] = describeUser(name, s, s.wid, [sProject], sEntry);
   contexts[`${name}.s`] = s;
 
@@ -112,6 +126,16 @@ async function seed(name: string, extra: boolean) {
       users[`${name}.${key}`] = describeUser(name, ctx, ctx.wid, [], entry);
       contexts[`${name}.${key}`] = ctx;
     }
+
+    // Pauses and resumes an entry with a task, tags and the billable flag, then loses the task
+    // and the project while paused.
+    const p = await addUser(admin, { email: `p@${name}.example.com`, role: 'user' });
+    const pProject = await project(p, p.wid, `${label} p project`);
+    const pTask = await ok<{ id: number }>(p, 'POST', `/api/v9/workspaces/${p.wid}/projects/${pProject.id}/tasks`, { name: `${label} p task` });
+    const pEntry = await running(p, p.wid, `${label} p running`, new Date(now - hour),
+      { project_id: pProject.id, task_id: pTask.id, tags: ['kde', 'focus'], billable: true });
+    users[`${name}.p`] = describeUser(name, p, p.wid, [pProject], pEntry);
+    contexts[`${name}.p`] = p;
   }
   return { admin, users, contexts };
 }
@@ -126,8 +150,13 @@ function snapshot(ctx: TestContext) {
     workspaces: rows(ctx, 'workspaces'),
     memberships: rows(ctx, 'workspace_users'),
     projects: rows(ctx, 'projects'),
+    tasks: rows(ctx, 'tasks'),
     entries: rows(ctx, 'time_entries'),
   };
+}
+function tagNames(ctx: TestContext, entryId: unknown): string[] {
+  return ctx.db.prepare('SELECT tags.name FROM time_entry_tags JOIN tags ON tags.id = time_entry_tags.tag_id WHERE time_entry_id = ? ORDER BY tags.name')
+    .all(entryId as number).map((row) => String(row.name));
 }
 const without = (row: Row, ...keys: string[]) => Object.fromEntries(Object.entries(row).filter(([key]) => !keys.includes(key)));
 
@@ -294,9 +323,12 @@ test('the KDE companion against real Tokkl servers', async (t) => {
   await t.test('instance a changed only where the companion was allowed to', () => {
     const after = snapshot(a.admin);
     const u = users['a.u']!;
+    const p = users['a.p']!;
     const disabled = new Set([users['a.dt']!.id, users['a.dp']!.id]);
 
-    assert.deepEqual(after.projects, before.a.projects);
+    // p deleted its task and its project while paused.
+    assert.deepEqual(after.projects, before.a.projects.filter((row) => row.id !== p.running!.project_id));
+    assert.deepEqual(after.tasks, before.a.tasks.filter((row) => row.id !== p.running!.task_id));
     assert.deepEqual(after.workspaces, before.a.workspaces);
     assert.deepEqual(after.memberships, before.a.memberships.filter((row) =>
       !(row.workspace_id === users['a.m']!.wid && row.user_id === users['a.m']!.id)));
@@ -312,7 +344,8 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     }
 
     // Every other account's entries, the admin's running one included, are untouched.
-    assert.deepEqual(after.entries.filter((row) => row.user_id !== u.id), before.a.entries.filter((row) => row.user_id !== u.id));
+    const others = (row: Row) => row.user_id !== u.id && row.user_id !== p.id;
+    assert.deepEqual(after.entries.filter(others), before.a.entries.filter(others));
     // u started and stopped one entry, and the start answered late created another.
     const mine = after.entries.filter((row) => row.user_id === u.id);
     assert.equal(before.a.entries.filter((row) => row.user_id === u.id).length, 0);
@@ -325,6 +358,29 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     // The entry it stopped is snapped to the time resolution; the running one keeps its exact start.
     const stopped = mine.find((row) => row.stop !== null)!;
     assertSnapped(stopped);
+
+    // p paused the seeded entry, resumed one clone of it and paused that. The two resumes refused
+    // after the task and then the project went created nothing. The deletions left both entries
+    // without a project or task; everything else the clone copied is still there.
+    const chain = after.entries.filter((row) => row.user_id === p.id);
+    const original = before.a.entries.find((row) => row.id === p.running!.id)!;
+    assert.equal(chain.length, 2);
+    assert.equal(chain[0]!.id, p.running!.id);
+    assert.deepEqual(without(chain[0]!, 'start', 'stop', 'duration', 'updated_at', 'project_id', 'task_id'),
+      without(original, 'start', 'stop', 'duration', 'updated_at', 'project_id', 'task_id'));
+    assertSnapped(chain[0]!, Date.parse(String(original.start)));
+    assertSnapped(chain[1]!);
+    assert.ok(Date.parse(String(chain[1]!.start)) >= Date.parse(String(chain[0]!.stop)), 'the clone starts after the pause');
+    for (const row of chain) {
+      assert.equal(row.workspace_id, p.wid);
+      assert.equal(row.description, p.running!.description);
+      assert.equal(row.billable, 1);
+      assert.equal(row.project_id, null);
+      assert.equal(row.task_id, null);
+      assert.equal(row.deleted_at, null);
+      assert.deepEqual(tagNames(a.admin, row.id), p.running!.tags);
+    }
+    assert.equal(chain[1]!.created_with, 'tokkl-kde');
   });
 
   await t.test('instance b changed only by the stop sent after the switch', () => {
