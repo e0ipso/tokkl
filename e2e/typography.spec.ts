@@ -136,10 +136,10 @@ test('the wordmark has a halo in dark and none in light', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
-  expect((await filter()).match(/drop-shadow\(rgb\(169, 176, 214\)/g)).toHaveLength(4);
+  expect((await filter()).match(/drop-shadow\(rgb\(185, 181, 214\)/g)).toHaveLength(4);
 
   await page.emulateMedia({ colorScheme: 'light' });
-  await expect.poll(filter).not.toContain('rgb(169, 176, 214)');
+  await expect.poll(filter).not.toContain('rgb(185, 181, 214)');
   expect((await filter()).match(/drop-shadow\(rgba\(0, 0, 0, 0\)/g)).toHaveLength(4);
 });
 

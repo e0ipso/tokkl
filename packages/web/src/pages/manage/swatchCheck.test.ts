@@ -19,13 +19,13 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const tokenHex = { [LIGHT]: '#ffffff', [DARK]: '#0b1026' } as Record<string, string>;
+const tokenHex = { [LIGHT]: '#ffffff', [DARK]: '#08061f' } as Record<string, string>;
 
 test('checkColor puts the dark check on light swatches and the light check on dark ones', () => {
   assert.equal(checkColor('#ffffff'), DARK);
-  assert.equal(checkColor('#f4e7cf'), DARK);
+  assert.equal(checkColor('#fffdf7'), DARK);
   assert.equal(checkColor('#000000'), LIGHT);
-  assert.equal(checkColor('#0b1026'), LIGHT);
+  assert.equal(checkColor('#08061f'), LIGHT);
 });
 
 test('checkColor picks the higher-contrast check for every palette swatch', () => {
@@ -44,5 +44,5 @@ test('the worst palette case matches the figure recorded in manage.css', () => {
   const worst = ratios.reduce((a, b) => (b.ratio < a.ratio ? b : a));
   assert.equal(worst.hex, '#9e5bd9');
   assert.equal(checkColor(worst.hex), DARK);
-  assert.equal(Math.floor(worst.ratio * 100) / 100, 4.43);
+  assert.equal(Math.floor(worst.ratio * 100) / 100, 4.68);
 });

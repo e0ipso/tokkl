@@ -7,98 +7,108 @@
    Recompute it whenever a colour below changes.
 
    pair                                  kind   light       dark
-   text on bg                            text   13.94 AA    16.87 AA
-   muted on bg                           text    6.19 AA     8.83 AA
-   primary on bg                         text    5.31 AA     8.13 AA
-   text on surface                       text   16.39 AA    15.30 AA
-   muted on surface                      text    7.28 AA     8.01 AA
-   primary on surface                    text    6.24 AA     7.37 AA
-   text on surface-2                     text   12.62 AA    13.37 AA
-   muted on surface-2                    text    5.61 AA     7.00 AA
-   primary on surface-2                  text    4.80 AA     6.45 AA
-   text on state-selected                text   13.80 AA    10.46 AA
-   muted on state-selected               text    6.13 AA     5.48 AA
-   primary on state-selected             text    5.25 AA     5.04 AA
-   on-primary on primary                 text    6.49 AA     8.13 AA
-   danger on bg                          text    5.34 AA     6.77 AA
-   danger on surface                     text    6.28 AA     6.14 AA
-   danger on surface-2                   text    4.84 AA     5.37 AA
-   danger on danger-soft                 text    5.21 AA     5.64 AA
-   on-danger on danger                   text    6.53 AA     6.77 AA
-   on-danger at 70% on danger            other   3.89 AA     4.23 AA
-   secondary on surface                  text    5.46 AA    11.03 AA
-   secondary on bg                       text    4.64 AA    12.16 AA
-   success on surface                    text    5.95 AA    13.72 AA
-   success on bg                         text    5.06 AA    15.13 AA
-   warning on surface                    text    5.70 AA    10.62 AA
-   warning on bg                         text    4.84 AA    11.71 AA
-   bg on text                            text   13.94 AA    16.87 AA
-   state-selected on text                text   13.80 AA    10.46 AA
-   chart-tooltip-text on chart-tooltip-bg text   16.39 AA    15.30 AA
-   muted on chart-tooltip-bg             text    7.28 AA     8.01 AA
-   border on bg                          other   3.32 AA     4.27 AA
-   border on surface                     other   3.90 AA     3.87 AA
-   border on surface-2                   other   3.01 AA     3.38 AA
-   state-running on surface              text    4.67 AA     5.63 AA
-   state-running on bg                   other   3.97 AA     6.21 AA
-   state-running on calendar-today       other   4.40 AA     5.01 AA
-   state-running on block tint (worst)   other   3.33 AA     3.95 AA
-   border on calendar-today              other   3.68 AA     3.45 AA
-   state-billable on surface             other   4.83 AA    14.10 AA
-   state-billable on surface-2           other   3.72 AA    12.32 AA
-   state-billable on state-selected      other   4.07 AA     9.64 AA
-   surface on state-billable             other   4.83 AA    14.10 AA
-   accent-pink on surface                other   4.67 AA     5.63 AA
-   accent-lime on surface                other   4.90 AA    14.10 AA
-   chart-billable on surface             other   3.59 AA     5.16 AA
-   chart-other on surface                other   3.44 AA     5.19 AA
-   chart-other on chart-other-wash       other   2.42 --     3.43 --
-   chart-other on chart-band             other   3.03 AA     4.84 AA
-   chart-billable on chart-band          other   3.16 AA     4.81 AA
-   report-head-text on report-head-bg    text    5.67 AA    12.16 AA
-   text on report-zebra                  text   14.44 AA    14.27 AA
-   muted on report-zebra                 text    6.41 AA     7.47 AA
-   primary on report-zebra               text    5.50 AA     6.88 AA
-   state-billable on report-zebra        other   4.26 AA    13.15 AA
-   border on report-zebra                other   3.44 AA     3.61 AA
-   danger on row-hover                   text    5.53 AA     5.73 AA
-   text on texture-glow                  text   13.21 AA    12.23 AA
-   muted on texture-glow                 text    5.87 AA     6.40 AA
-   text on texture-swell                 text   13.83 AA    11.81 AA
-   muted on texture-swell                text    6.14 AA     6.18 AA
-   text on texture-stripe                text   11.88 AA     8.95 AA
-   muted on texture-stripe               text    5.28 AA     4.69 AA
-   text on scene-glow                    text    9.15 AA    10.20 AA
-   text on scene-swell                   text   10.00 AA     9.61 AA
-   text on scene-stripe                  text   11.31 AA    13.82 AA
-   text on scene overlap (worst case)    text    8.28 AA     8.32 AA
-   wordmark outline (#000013, art)       other  10.11 AA     1.10 --
+   text on bg                            text   19.54 AA    19.88 AA
+   muted on bg                           text    8.42 AA    10.07 AA
+   primary-text on bg                    text    5.83 AA     8.47 AA
+   primary on bg                         other   3.34 AA     6.73 AA
+   text on surface                       text   19.88 AA    18.27 AA
+   muted on surface                      text    8.57 AA     9.26 AA
+   primary-text on surface               text    5.93 AA     7.79 AA
+   primary on surface                    other   3.40 AA     6.18 AA
+   text on surface-2                     text   17.59 AA    15.81 AA
+   muted on surface-2                    text    7.58 AA     8.01 AA
+   primary-text on surface-2             text    5.24 AA     6.74 AA
+   primary on surface-2                  other   3.01 AA     5.35 AA
+   text on state-selected                text   18.30 AA    14.01 AA
+   muted on state-selected               text    7.89 AA     7.10 AA
+   primary-text on state-selected        text    5.46 AA     5.97 AA
+   primary on state-selected             other   3.13 AA     4.74 AA
+   on-primary on primary                 text    5.83 AA     6.73 AA
+   on-selected on selected               text   15.68 AA    15.68 AA
+   danger on bg                          text    5.55 AA     6.34 AA
+   danger on surface                     text    5.64 AA     5.83 AA
+   danger on surface-2                   text    4.99 AA     5.04 AA
+   danger on danger-soft                 text    4.53 AA     4.51 AA
+   on-danger on danger                   text    5.64 AA     6.34 AA
+   on-danger at 70% on danger            other   3.45 AA     4.23 AA
+   secondary on surface                  other   3.06 AA    10.88 AA
+   secondary on bg                       other   3.01 AA    11.85 AA
+   success on surface                    text    4.69 AA    11.41 AA
+   success on bg                         text    4.61 AA    12.42 AA
+   warning on surface                    text    4.60 AA     8.30 AA
+   warning on bg                         text    4.52 AA     9.04 AA
+   bg on text                            text   19.54 AA    19.88 AA
+   state-selected on text                text   18.30 AA    14.01 AA
+   chart-tooltip-text on chart-tooltip-bg text   19.88 AA    18.27 AA
+   muted on chart-tooltip-bg             text    8.57 AA     9.26 AA
+   border on bg                          other  19.54 AA     5.95 AA
+   border on surface                     other  19.88 AA     5.46 AA
+   border on surface-2                   other  17.59 AA     4.73 AA
+   state-running on surface              text    4.50 AA     4.89 AA
+   state-running on bg                   other   4.42 AA     5.33 AA
+   state-running on calendar-today       other   4.37 AA     4.54 AA
+   state-running on block tint (worst)   other   3.20 AA     3.62 AA
+   border on calendar-today              other  19.33 AA     5.07 AA
+   state-billable on surface             other   3.93 AA     8.10 AA
+   state-billable on surface-2           other   3.48 AA     7.01 AA
+   state-billable on state-selected      other   3.62 AA     6.22 AA
+   surface on state-billable             other   3.93 AA     8.10 AA
+   accent-pink on surface                other   4.50 AA     4.89 AA
+   accent-lime on surface                other   3.00 AA    11.41 AA
+   chart-billable on surface             other   3.93 AA     8.10 AA
+   chart-other on surface                other   3.40 AA     8.30 AA
+   chart-other on chart-other-wash       other   2.36 --     4.65 --
+   chart-other on chart-band             other   3.20 AA     7.74 AA
+   chart-billable on chart-band          other   3.70 AA     7.56 AA
+   report-head-text on report-head-bg    text    6.48 AA    11.85 AA
+   text on report-zebra                  text   18.72 AA    17.03 AA
+   muted on report-zebra                 text    8.07 AA     8.63 AA
+   primary-text on report-zebra          text    5.58 AA     7.26 AA
+   state-billable on report-zebra        other   3.70 AA     7.56 AA
+   border on report-zebra                other  18.72 AA     5.10 AA
+   danger on row-hover                   text    5.31 AA     5.43 AA
+   text on texture-glow                  text   16.79 AA    15.46 AA
+   muted on texture-glow                 text    7.24 AA     7.83 AA
+   text on texture-swell                 text   17.46 AA    14.62 AA
+   muted on texture-swell                text    7.53 AA     7.41 AA
+   text on texture-stripe                text   15.63 AA    11.43 AA
+   muted on texture-stripe               text    6.74 AA     5.79 AA
+   text on scene-glow                    text   13.88 AA    13.59 AA
+   text on scene-swell                   text   15.09 AA    12.24 AA
+   text on scene-stripe                  text   16.51 AA    17.33 AA
+   text on scene overlap (worst case)    text   12.17 AA    10.38 AA
+   wordmark outline (#000013, art)       other  12.74 AA     1.04 --
      on bg, surface, texture and scene (worst)
-   wordmark-halo on bg, surface,         other     --        4.36 AA
+   wordmark-halo on bg, surface,         other     --        5.26 AA
      texture and scene (worst)
-   wordmark outline on wordmark-halo     other     --        9.77 AA
-   The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
-   separation) on the surface colour in each theme.
+   wordmark outline on wordmark-halo     other     --       10.54 AA
+   Primary is a fill and has its own text token. Links, the picker's create row, the group count,
+   the Active status chip, the report filter chip's value and the report amount are primary-text;
+   fills, bars, borders, rings and icons stay primary, which needs only the 3:1 of the primary rows.
+   In light the chart pair also passes the dataviz palette check (lightness band, chroma,
+   colour-blind separation) on surface. In dark it passes chroma, colour-blind separation and
+   contrast, but the agreed neon pair sits above that check's lightness band (OKLCH L 0.74 and 0.77
+   against 0.67).
    A non-billable chart segment is 3px chart-other stripes over chart-other-wash. The stripes draw
    the segment's edge, so chart-other on surface is its required pair. Stripe on wash is texture
    inside one segment and needs no ratio (--): in light the wash would have to drop from 30% to
-   12% or less to reach 3:1, and then it barely reads as a tint. chart-band is the band behind the
-   hovered or focused column. On surface-2 the light series fell to 2.65 and 2.77, and any mix past
-   50% surface-2 drops chart-other under 3:1 in light, so the band stays faint (1.13:1 on surface in
-   light) and a primary strip under the axis (primary on surface) marks the column as well.
+   10% or less to reach 3:1, and then it barely reads as a tint. chart-band is the band behind the
+   hovered or focused column. It is faint (1.06:1 on surface in light), so a primary strip under the
+   axis (primary on surface) marks the column as well.
    The report tables (reports.css) have a header band of report-head-text on report-head-bg; the
    focus ring on a header control is report-head-text too, so the same row covers it as a non-text
    part. Even rows sit on report-zebra, which is chart-band. A project dot on a zebra row is worst
-   at 4.66 (#c7af14) in light and 4.52 (#990099) in dark, above the 3:1 the table at .project-dot
+   at 4.99 (#c7af14) in light and 4.84 (#990099) in dark, above the 3:1 the table at .project-dot
    asks for. The active report filter chip is on-primary on primary, and the share bars and the
    tab marker are primary on surface-2 and on bg.
    On the week calendar the day heads are text and muted on a surface-2 band, and today's label is
    an on-primary on primary badge (primary on surface-2 for the badge's edge). The hour lines are
    border on surface, or on calendar-today in today's column. The now line and its dot are
    state-running on calendar-today. A running block has a state-running bar and dashed outline,
-   which sit on its own tint inside ("block tint (worst)", over the 14 palette colours and muted)
-   and on surface or calendar-today outside. The ghost block drawn while dragging to create is a
-   primary bar on state-selected. Block text and bars are in the table at .project-dot.
+   which sit on its own tint inside ("block tint (worst)", over the 14 palette colours and primary,
+   the tint of a block with no project) and on surface or calendar-today outside. The ghost block
+   drawn while dragging to create is a primary bar on state-selected. Block text and bars are in
+   the table at .project-dot.
    Below 760px the calendar shows one day under a strip of the week's days (.calendar-strip): text
    and muted on surface-2, with border between the days; the selected day is text on
    state-selected with a primary underline (primary on state-selected, other), and today's weekday
@@ -108,20 +118,24 @@
    above are their pairs. Fading them with opacity breaks those ratios.
    The error toast's text and icon are on-danger on danger; its dismiss button is faded to 70%,
    which is the "on-danger at 70%" row.
-   The "Running" label in the timer bar is state-running text on surface. The billable toggle is a
-   muted outline when off (the muted rows) and a state-billable circle with a surface icon when on;
-   rows can be surface, surface-2 or state-selected. The active mode button's ring is primary on
-   state-selected. The timer bar's start and stop button is on-primary on primary or on-danger on
-   danger, label and icon alike, and the favourite number disc is on-primary on primary. The timer
-   bar's chips are outlined in border, primary or the project mix on surface (the border and
-   primary rows, and the table at .project-dot); the idle clock's placeholder is muted on surface.
+   The "Running" label in the timer bar is state-running text on surface. In light that pair is
+   4.50 with no margin, and state-running on bg and surface-2 is under 4.5:1, so running text stays
+   on surface. The billable toggle is a muted outline when off (the muted rows) and a
+   state-billable circle with a surface icon when on; rows can be surface, surface-2 or
+   state-selected. The active mode button is filled with selected and its icon is on-selected,
+   inside a primary ring that sets it off from the surface around it (primary on surface). The
+   timer bar's start and stop button is on-primary on primary or on-danger on danger, label and
+   icon alike, and the favourite number disc is on-primary on primary. The timer bar's chips are
+   outlined in border, primary or the project mix on surface (the border and primary rows, and the
+   table at .project-dot); the idle clock's placeholder is muted on surface.
    In the entry list the day band is text on surface-2. A row's tag pill is text on surface-2 with
    a border outline, a set project is outlined in the project mix (the table at .project-dot), and
-   the group count is primary on surface, or on-primary on primary while the group is open.
+   the group count is primary-text on surface in a primary border, or on-primary on primary while
+   the group is open.
    The selection bar on selected rows and picker items is primary on
    state-selected; a highlighted suggestion is state-selected too. The outline on the project picker
    option the arrow keys made active is primary on surface-2, or primary on state-selected when that
-   option is also the selected one; the primary text rows above give both ratios.
+   option is also the selected one; the primary rows above give both ratios.
    An inline field error (.field-error) is danger text on surface in cards, modals and the timer bar,
    and danger on bg beside the tag form in the page toolbar. An invalid field's border is danger
    against the surface inside the input and against bg, surface or surface-2 around it. The danger
@@ -132,7 +146,7 @@
    token, and the texture rows above give the worst case for the nav labels (muted) and for the
    signed-in user above Log out (name in text, email in muted). The sidebar's
    edge line is border on bg on the page side. The active nav link is a primary block with on-primary text and icon, and its running dot turns on-primary too:
-   the pink dot on primary is only 1.33:1.
+   the pink dot on primary is only 1.32:1 in light and 1.26:1 in dark.
    The auth page and the splash use the scene tokens over bg, full-bleed. Only the wordmark sits on
    that texture; the form, the loading label and the errors sit on surface cards, so the surface
    rows apply to them. Where the scene gradients overlap, every channel stays between the lowest
@@ -148,12 +162,13 @@
    on the lightest scene overlap) and the outline separates it from the fills.
    The manage pages (Projects, Clients, Tags, Trash, Settings). A table's header band is text on
    surface-2, and a hovered row is row-hover, which is chart-band like report-zebra, so the zebra
-   rows above give its text, muted, primary and border pairs; an over-estimate label on a hovered
-   row is the "danger on row-hover" row. Archived rows are muted text, not faded. The Active status
-   chip is primary text and a primary border on state-selected; the Archived chip is muted text with
-   a dashed muted border on the row (surface or row-hover) and a hollow square instead of a dot, so
-   the shape tells them apart as well as the colour. The active segmented button is primary on
-   state-selected with a primary ring. A modal's header band is text on surface-2, with the muted
+   rows above give its text, muted, primary-text and border pairs; an over-estimate label on a
+   hovered row is the "danger on row-hover" row. Archived rows are muted text, not faded. The Active
+   status chip is primary-text with a primary border on state-selected; the Archived chip is muted
+   text with a dashed muted border on the row (surface or row-hover) and a hollow square instead of
+   a dot, so the shape tells them apart as well as the colour. The active segmented button is
+   on-selected on selected, inside a primary ring that sets it off from the segmented frame's
+   surface (primary on surface). A modal's header band is text on surface-2, with the muted
    close button. A settings card's header strip uses the sidebar texture tokens over surface: the
    glow fades out by 60% and the stripes fill only the right 30%, so they never overlap. The title
    (text) sits on the glow, or on a stripe if a narrow card wraps it that far; the texture-glow and
@@ -161,48 +176,77 @@
 :root {
   color-scheme: light dark;
 
-  /* Colour: sand, ink and sunset orange in light; deep navy with neon counterparts in dark. */
-  --bg: light-dark(#f4e7cf, #0b1026);
-  --surface: light-dark(#fffaf1, #141a36);
-  --surface-2: light-dark(#ecdcbf, #1d2547);
-  --text: light-dark(#1c1a2b, #f3f1ff);
-  --muted: light-dark(#5f5242, #a9b0d6);
-  --border: light-dark(#8f7b5f, #6a76a8);
-  --primary: light-dark(#a8380a, #ff8c42);
-  --on-primary: light-dark(#ffffff, #0b1026);
-  --secondary: light-dark(#00727c, #2ee6e6);
-  --accent-pink: light-dark(#d81b72, #ff4fa8);
-  --accent-lime: light-dark(#4f7a00, #b6ff3b);
-  --danger: light-dark(#b3261e, #ff6b6b);
-  --on-danger: light-dark(#ffffff, #0b1026);
-  --danger-soft: light-dark(#fbe0d9, #3d1626);
-  --success: light-dark(#376e00, #9dff5c);
-  --warning: light-dark(#8a5a00, #ffc24d);
+  /* Colour: the Spectrum palette, taken from the wordmark's hues (docs/brand/wordmark-pack). Light
+     is ink on a warm white with a hot orange primary; dark is the wordmark's ink (#08061f) with
+     neon counterparts. A token the owner did not set names the wordmark hue it comes from. */
+  --bg: light-dark(#fffdf7, #08061f);
+  --surface: light-dark(#ffffff, #14112e);
+  /* Light is #f1eee6 lightened with 15% white: primary on #f1eee6 was 2.94:1, under the 3:1 the
+     share bars, the tab marker, the today badge's edge and the picker outline need. */
+  --surface-2: light-dark(#f3f1ea, #221e40);
+  --text: light-dark(#08061f, #ffffff);
+  --muted: light-dark(#4d4a5c, #b9b5d6);
+  --border: light-dark(#08061f, #8c86c0);
+  /* Primary is a fill (buttons, the active nav link, bars, rings); text in the primary colour reads
+     primary-text, since light primary is 3.40:1 on surface, enough for a fill but not for text. */
+  --primary: light-dark(#f05a00, #ff6500);
+  --on-primary: light-dark(#08061f, #08061f);
+  --primary-text: light-dark(#b23c00, #ff8a3d);
+  /* The fill of the active segmented and mode-switch buttons, with on-selected content. Not the
+     row tint: that is --state-selected, which carries text in both themes. */
+  --selected: light-dark(#ffe600, #ffe600);
+  --on-selected: light-dark(#08061f, #08061f);
+  /* The cyan #00dfd5. Light mixes it with 27% ink, the least that reaches 3:1 on surface and bg for
+     the empty-state icon; the report header band's ink text is 6.48:1 on it. */
+  --secondary: light-dark(#02a4a4, #00dfd5);
+  /* The hot pink, which the running state reads. */
+  --accent-pink: light-dark(#e6007e, #ff008c);
+  /* Lime #80e36b, halfway between the yellow #ffe600 and the cyan #00dfd5, where the wordmark's
+     gradient turns green. Light mixes it with 28% ink to reach 3:1 on surface. */
+  --accent-lime: light-dark(#5ea556, #80e36b);
+  /* Red #ff3346, halfway between the orange #ff6500 and the hot pink #ff008c. Light mixes it with
+     24% ink and dark with 16% white, the least that keeps danger text at 4.5:1 on bg, surface,
+     surface-2, row-hover and danger-soft. On-danger is the light surface and the dark bg. */
+  --danger: light-dark(#c4283d, #ff5464);
+  --on-danger: light-dark(#ffffff, #08061f);
+  /* Danger at 14% (light) and 20% (dark) over surface, mixed in srgb. Recompute it with danger. */
+  --danger-soft: light-dark(#f7e1e4, #431e39);
+  /* The lime above; light mixes it with 45% ink to reach 4.5:1 as text on surface and bg. */
+  --success: light-dark(#4a8049, #80e36b);
+  /* The amber #ff9500; light mixes it with 34% ink to reach 4.5:1 as text on surface and bg. */
+  --warning: light-dark(#ab640b, #ff9500);
   --shadow: 0 8px 24px light-dark(rgb(28 26 43 / 0.14), rgb(0 0 0 / 0.5));
-  --backdrop: light-dark(rgb(28 26 43 / 0.45), rgb(3 5 18 / 0.6));
-  /* What a project colour is mixed with for its dot and border; see the table at .project-dot. */
-  --project-mix: light-dark(#000000, #ffffff);
-  /* The check on a chosen colour swatch, the same in both themes. swatchCheck.ts picks the one with
-     more contrast against the swatch; the worst case is recorded in manage.css. */
+  /* The ink, stronger in dark so it still dims the dark surfaces. */
+  --backdrop: light-dark(rgb(8 6 31 / 0.45), rgb(8 6 31 / 0.7));
+  /* What a project colour is mixed with for its dot and border: the ink in light, white in dark;
+     see the table at .project-dot. */
+  --project-mix: light-dark(#08061f, #ffffff);
+  /* The check on a chosen colour swatch, the same in both themes: white and the ink (the dark bg).
+     swatchCheck.ts picks the one with more contrast against the swatch; the worst case is recorded
+     in manage.css. */
   --swatch-check-light: #ffffff;
-  --swatch-check-dark: #0b1026;
+  --swatch-check-dark: #08061f;
 
   /* State: running and selected have their own colours instead of borrowing danger and accent. */
   --state-running: var(--accent-pink);
-  --state-selected: light-dark(#cdeeea, #1d3b52);
-  --state-billable: light-dark(#4a7c00, #b6ff3b);
+  /* The tint behind selected rows, picker items, suggestions and today's column: the yellow
+     #ffe600 at 30% over surface in light and the violet #8722ff at 30% over surface in dark, mixed
+     in srgb. Recompute it if surface changes. */
+  --state-selected: light-dark(#fff8b3, #37166d);
+  /* The chart's billable sky, so a billable toggle and a billable bar share a colour. */
+  --state-billable: light-dark(#0086d1, #00b9fa);
   /* Today's column on the week calendar: state-selected at 35% over surface. */
   --calendar-today: color-mix(in srgb, var(--state-selected) 35%, var(--surface));
 
-  /* Chart */
-  --chart-billable: light-dark(#0091a8, #0f9bb3);
-  --chart-other: light-dark(#e0601d, #e46a2a);
+  /* Chart: the sky (billable) against the orange in light and the amber in dark (other). */
+  --chart-billable: light-dark(#0086d1, #00b9fa);
+  --chart-other: light-dark(#f05a00, #ff9500);
   /* The wash behind the non-billable stripes: chart-other at 30% over surface, mixed in srgb.
      Recompute both values if either colour changes. */
-  --chart-other-wash: light-dark(#f6ccb1, #523232);
+  --chart-other-wash: light-dark(#fbceb3, #5b3920);
   /* The band behind the hovered or focused column: surface-2 at 50% over surface, mixed in srgb.
      Recompute both values if either colour changes. */
-  --chart-band: light-dark(#f6ebd8, #19203f);
+  --chart-band: light-dark(#f9f8f5, #1b1837);
   --chart-tooltip-bg: var(--surface);
 
   /* Report tables: zebra rows and the header band. */
@@ -214,18 +258,19 @@
 
   /* Texture behind the sidebar and the phone header strip: primary at 14% (glow) and secondary at
      12% (swell) and 22% (stripe) over surface, mixed in srgb. Recompute them if a colour changes. */
-  --texture-glow: light-dark(#f3dfd1, #352a38);
-  --texture-swell: light-dark(#e0eae3, #17324b);
-  --texture-stripe: light-dark(#c7dcd7, #1a475d);
+  --texture-glow: light-dark(#fde8db, #351d28);
+  --texture-swell: light-dark(#e1f4f4, #122a42);
+  --texture-stripe: light-dark(#c7ebeb, #103e53);
   /* Texture behind the auth page and the splash: primary at 28% (glow) and 14% (stripe) and
      secondary at 24% (swell) over bg, mixed in srgb. Recompute them if a colour changes. */
-  --scene-glow: light-dark(#dfb698, #4f332e);
-  --scene-swell: light-dark(#b9cbbb, #134354);
-  --scene-stripe: light-dark(#e9ceb3, #2d212a);
+  --scene-glow: light-dark(#fbcfb2, #4d2116);
+  --scene-swell: light-dark(#c2e8e3, #063a4b);
+  --scene-stripe: light-dark(#fde6d4, #2b131b);
   --chart-tooltip-text: var(--text);
   /* The halo traced around the wordmark image (Brand.tsx). Only dark needs it, where the art's navy
-     outline matches bg. See the wordmark note in the table. */
-  --wordmark-halo: light-dark(transparent, #a9b0d6);
+     outline matches bg. It is the dark muted, a pale tint of the violet. See the wordmark note in
+     the table. */
+  --wordmark-halo: light-dark(transparent, #b9b5d6);
 
   /* Type. The root size is relative, so the browser's font size setting scales the whole app. */
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -303,7 +348,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   outline-offset: 1px;
 }
 input[type='checkbox'] { accent-color: var(--primary); width: 16px; height: 16px; padding: 0; }
-a { color: var(--primary); }
+a { color: var(--primary-text); }
 /* Display face: headings (including empty-state headlines), the running clock and totals. */
 h1, h2, h3, .timer-clock, .timer-summary strong, .day-total, .manual-duration, .empty-state-title,
 .calendar-range, .calendar-day-head, .calendar-block-duration {
@@ -383,8 +428,8 @@ code, kbd {
 .row-button:hover, .nav-link:hover, .suggestion:hover, .picker-item:hover, .picker-item.highlighted, .menu button:hover {
   background: var(--surface-2);
 }
-/* Selected and active: the --state-selected tint. After the hover rule, so it stays on hover. */
-.entry-line.selected, .picker-item.selected, .suggestion.highlighted, .segmented button.active {
+/* Selected: the --state-selected tint. After the hover rule, so it stays on hover. */
+.entry-line.selected, .picker-item.selected, .suggestion.highlighted {
   background: var(--state-selected);
 }
 /* Selected rows, picker items and the keyboard-highlighted suggestion also get a primary bar on the
@@ -395,7 +440,8 @@ code, kbd {
    the only visible sign of what Enter will pick. A selected row that is also active keeps its tint
    and bar under the outline. */
 .picker-item.highlighted { outline: 2px solid var(--primary); outline-offset: -2px; }
-.segmented button.active { color: var(--primary); font-weight: 800; box-shadow: inset 0 0 0 2px var(--primary); }
+/* The active segment: the selected fill with on-selected text in bold, inside a primary ring. */
+.segmented button.active { background: var(--selected); color: var(--on-selected); font-weight: 800; box-shadow: inset 0 0 0 2px var(--primary); }
 /* Figures: the running clock, durations and day totals. Table cells use .num, which only aligns. */
 .timer-clock, .manual-duration, .day-total, .entry-duration { font-variant-numeric: tabular-nums; font-weight: 600; }
 /* Inline edit: a field that reads as plain text until hovered or focused. A running entry's
@@ -439,7 +485,7 @@ input.entry-duration:is(:hover, :focus) {
    so the state shows in the shape and not only the colour. aria-pressed tells screen readers. */
 .billable-toggle { width: 32px; min-width: 32px; padding: 0; border: 1px solid currentColor; border-radius: var(--radius-pill); }
 .billable-toggle.billable, .billable-toggle.billable:hover { background: var(--state-billable); border-color: var(--state-billable); color: var(--surface); }
-.link-button { background: none; border: none; color: var(--primary); cursor: pointer; padding: 0; display: inline-flex; gap: 6px; align-items: center; }
+.link-button { background: none; border: none; color: var(--primary-text); cursor: pointer; padding: 0; display: inline-flex; gap: 6px; align-items: center; }
 .badge { font-size: var(--text-xs); background: var(--primary); color: var(--on-primary); border-radius: var(--radius-pill); padding: 0 5px; }
 
 /* Shell */
@@ -596,13 +642,13 @@ input.entry-duration:is(:hover, :focus) {
 .timer-button.start, .timer-button.add { background: var(--primary); color: var(--on-primary); }
 .timer-button.stop { background: var(--danger); color: var(--on-danger); }
 .timer-button.pause { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 2px var(--border), var(--shadow); }
-/* Timer or manual entry: a segmented pair in a pill frame. The active mode gets a fill, a ring
-   and the primary colour; aria-pressed tells screen readers. While a timer runs the slot holds
+/* Timer or manual entry: a segmented pair in a pill frame. The active mode gets the selected fill,
+   an on-selected icon and a primary ring; aria-pressed tells screen readers. While a timer runs the slot holds
    only the discard button, without the frame. */
 .mode-switch { display: inline-flex; align-items: center; }
 .mode-switch[role='group'] { gap: 2px; padding: 2px; border: 2px solid var(--border); border-radius: var(--radius-pill); }
 .mode-switch .icon-button { height: 32px; min-width: 32px; border-radius: var(--radius-pill); }
-.mode-switch .icon-button.active { background: var(--state-selected); box-shadow: inset 0 0 0 2px var(--primary); }
+.mode-switch .icon-button.active { background: var(--selected); color: var(--on-selected); box-shadow: inset 0 0 0 2px var(--primary); }
 .manual-fields { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .manual-fields input[type='date'] { width: 140px; }
 .time-field { width: 76px; text-align: center; }
@@ -642,36 +688,39 @@ input.entry-duration:is(:hover, :focus) {
 /* Projects & tags */
 /* Project colour. Each site sets --project-color to the project's hex from packages/common/colors.ts and
    the CSS derives every mark from it. Text never takes the project colour; it stays --text.
-   - Dot and border (the same colour): the hex mixed 60% with black in light and white in dark,
-     in srgb, so every palette entry reaches 3:1 as a non-text mark:
+   - Dot and border (the same colour): the hex mixed 60% with --project-mix (the ink in light,
+     white in dark), in srgb, so every palette entry reaches 3:1 as a non-text mark:
      color-mix(in srgb, var(--project-color) 60%, var(--project-mix)).
    - Tint (calendar blocks): the raw hex at 18% over --surface.
 
    Contrast of the dot and border colour (WCAG 2 ratio, rounded down; needs 3:1). "selected" is
    --state-selected, the background of a selected picker item or entry row, and "tint" is the
-   18% calendar tint the border sits on. --bg falls between surface and surface-2 in both themes.
+   18% calendar tint the border sits on. In light --bg falls between surface and surface-2; in
+   dark it is darker than surface, and the dots, mixed with white, contrast more on it. A dot with
+   no project is --muted; a calendar block with no project uses --primary for its tint and bar.
 
                           light                         dark
    colour                surface surf-2 selected tint   surface surf-2 selected tint
-   #0b83d9                 8.28  6.37  6.97  6.62     7.62  6.66  5.21  6.15
-   #9e5bd9                 8.60  6.62  7.24  6.91     7.58  6.62  5.18  6.17
-   #d94182                 8.58  6.61  7.23  6.77     7.23  6.32  4.94  6.07
-   #e36a00                 7.27  5.60  6.13  5.96     8.33  7.28  5.70  6.74
-   #bf7000                 7.97  6.14  6.72  6.49     7.97  6.97  5.45  6.54
-   #c7af14                 5.29  4.07  4.45  4.65    10.76  9.41  7.36  7.81
-   #d92b2b                 9.55  7.36  8.05  7.27     6.35  5.55  4.34  5.62
-   #2da608                 7.07  5.44  5.95  5.82     8.57  7.49  5.86  6.78
-   #06a893                 6.73  5.18  5.67  5.57     8.83  7.72  6.04  6.80
-   #c9806b                 6.87  5.29  5.79  5.78     9.02  7.89  6.17  6.99
-   #465bb3                10.90  8.40  9.18  8.43     6.42  5.61  4.39  5.52
-   #990099                12.56  9.68 10.58  8.96     4.84  4.23  3.31  4.55
-   #566614                11.09  8.54  9.34  8.58     6.38  5.58  4.36  5.60
-   #525266                12.29  9.47 10.36  9.35     5.92  5.17  4.05  5.27
-   --muted (no project)   12.26  9.44 10.33  9.33    11.11  9.71  7.60  7.80
+   #0b83d9                 8.11  7.18  7.47  6.48     8.20  7.09  6.29  6.68
+   #9e5bd9                 8.39  7.42  7.72  6.70     8.14  7.05  6.24  6.66
+   #d94182                 8.52  7.54  7.85  6.70     7.74  6.70  5.94  6.46
+   #e36a00                 7.28  6.44  6.70  5.92     8.94  7.74  6.86  7.24
+   #bf7000                 7.91  7.00  7.28  6.38     8.54  7.39  6.55  7.02
+   #c7af14                 5.30  4.69  4.88  4.65    11.52  9.97  8.83  8.52
+   #d92b2b                 9.58  8.47  8.82  7.26     6.81  5.89  5.22  5.95
+   #2da608                 7.08  6.26  6.52  5.81     9.21  7.97  7.07  7.40
+   #06a893                 6.69  5.92  6.16  5.51     9.48  8.20  7.27  7.47
+   #c9806b                 6.81  6.02  6.27  5.69     9.68  8.38  7.43  7.54
+   #465bb3                10.67  9.44  9.82  8.20     6.89  5.97  5.29  5.97
+   #990099                12.38 10.96 11.40  8.81     5.19  4.49  3.98  4.79
+   #566614                11.00  9.73 10.12  8.45     6.83  5.91  5.24  6.04
+   #525266                12.09 10.70 11.13  9.18     6.32  5.47  4.85  5.63
+   --muted (no project)   12.95 11.46 11.92  9.67    12.43 10.76  9.53  8.67
+   --primary (no project)  7.46  6.60  6.87  5.98     9.29  8.04  7.13  7.42
 
-   Text on the 18% tint, worst of the 14 colours: text 11.69 light, 11.10 dark; muted 5.19 light,
-   5.81 dark (AA). A block with no project is --muted at 18%: text 12.48 light, 10.74 dark; muted
-   5.54 light, 5.62 dark. A stronger tint lowers the muted and border rows, so 18% stays.
+   Text on the 18% tint, worst of the 14 colours: text 14.14 light, 13.51 dark; muted 6.10 light,
+   6.85 dark (AA). A block with no project is --primary at 18%: text 15.93 light, 14.58 dark; muted
+   6.87 light, 7.39 dark. A stronger tint lowers the muted and border rows, so 18% stays.
    Recompute this table whenever the palette, the mix or a surface colour changes. */
 .project-dot {
   display: inline-block; width: 9px; height: 9px; border-radius: var(--radius-pill); flex-shrink: 0;
@@ -736,10 +785,11 @@ input.entry-duration:is(:hover, :focus) {
 .entry-duration { width: 84px; text-align: right; padding: 4px 6px; font-size: var(--text-base); font-weight: 700; }
 .entry-continue { opacity: 0; }
 .entry-line:hover .entry-continue, .entry-continue:focus-visible { opacity: 1; }
-/* The number of entries a grouped row stands for: a primary pill, filled while the group is open. */
+/* The number of entries a grouped row stands for: a primary pill with primary-text figures, filled
+   while the group is open. */
 .count-badge {
   min-width: 30px; height: 28px; padding: 0 var(--space-2); border-radius: var(--radius-pill);
-  border: 2px solid var(--primary); background: var(--surface); color: var(--primary); cursor: pointer;
+  border: 2px solid var(--primary); background: var(--surface); color: var(--primary-text); cursor: pointer;
   font-family: var(--font-display); font-stretch: 85%; font-size: var(--text-base); font-weight: 900;
 }
 .count-badge[aria-expanded='true'] { background: var(--primary); color: var(--on-primary); }
@@ -788,7 +838,7 @@ input.entry-duration:is(:hover, :focus) {
   font-family: var(--font-display); font-stretch: 85%; font-size: var(--text-sm); font-weight: 900;
   text-transform: uppercase; letter-spacing: 0.04em; color: var(--text); padding: 10px 10px 2px;
 }
-.picker-create { color: var(--primary); font-weight: 700; }
+.picker-create { color: var(--primary-text); font-weight: 700; }
 .picker-empty { color: var(--muted); padding: 8px 10px; font-size: var(--text-md); }
 .picker-check input { margin: 0; }
 .menu { display: flex; flex-direction: column; padding: 6px; }

@@ -29,7 +29,7 @@
 .manage-status {
   display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px 1px 7px;
   border: 2px solid var(--primary); border-radius: var(--radius-pill);
-  background: var(--state-selected); color: var(--primary);
+  background: var(--state-selected); color: var(--primary-text);
   font-size: var(--text-xs); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
 }
 .manage-status::before { content: ''; width: 7px; height: 7px; border-radius: var(--radius-pill); background: currentColor; }
@@ -49,9 +49,9 @@
 
 /* Color picker */
 /* The check on the chosen swatch is --swatch-check-light (#ffffff) or --swatch-check-dark
-   (#0b1026), whichever contrasts more with the swatch's hex; ColorField.tsx sets --swatch-check per
+   (#08061f), whichever contrasts more with the swatch's hex; ColorField.tsx sets --swatch-check per
    swatch. The swatch is the raw hex in both themes, so the check is too. Worst case over the 14
-   palette colours (other, needs 3:1; WCAG 2 ratio, rounded down): 4.43, the dark check on #9e5bd9.
+   palette colours (other, needs 3:1; WCAG 2 ratio, rounded down): 4.68, the dark check on #9e5bd9.
    A --text ring outside a surface gap also marks the chosen swatch (text on surface).
    The Custom radio is a pill on the modal surface: its check and the --text border show when it is
    chosen. The color input after the group shows the current color. */

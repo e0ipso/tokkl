@@ -56,7 +56,7 @@
 /* Keep the 2px focus ring clear of the filled pill, so it sits on the page background. */
 .filter-chip.active:focus-visible, .filter-select.active:focus-visible { outline-offset: 2px; }
 .filter-chip-value {
-  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--primary); font-weight: 800;
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--primary-text); font-weight: 800;
 }
 .filter-chip.active .filter-chip-value { color: inherit; }
 .filter-select { padding-right: 10px; }
@@ -104,7 +104,7 @@
   min-width: 0; overflow-wrap: anywhere;
 }
 .report-totals-share { font-size: var(--text-md); font-weight: 600; }
-.report-amount { font-size: var(--text-3xl); font-weight: 900; color: var(--primary); }
+.report-amount { font-size: var(--text-3xl); font-weight: 900; color: var(--primary-text); }
 
 /* Chart */
 .report-chart-card { margin-bottom: 16px; }
