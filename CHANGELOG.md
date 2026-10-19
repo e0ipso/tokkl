@@ -1,3 +1,15 @@
+## [1.4.1](https://github.com/e0ipso/tokkl/compare/v1.4.0...v1.4.1) (2026-10-19)
+
+### Bug Fixes
+
+* **api:** answer project DELETE with an empty 200 ([f4be1df](https://github.com/e0ipso/tokkl/commit/f4be1df322a717e33e8d9f48274ebe4b50570662))
+* **api:** canonicalise stored timezones when the database upgrades ([075c045](https://github.com/e0ipso/tokkl/commit/075c045106fd66aa5af0d876a1955c296a79f2d3))
+* **api:** store canonical timezone names and reject offset IDs ([41bbf61](https://github.com/e0ipso/tokkl/commit/41bbf6136760a290ad941b9b62b38962e31fe90f))
+* **commitlint:** run the custom rules on reverts, fixups and merges ([4008ecf](https://github.com/e0ipso/tokkl/commit/4008ecf4d358f6f6090419124fa1e47736b13de0))
+* **common:** reject unknown units and spans over 999 hours in parseDuration ([a4b825d](https://github.com/e0ipso/tokkl/commit/a4b825d70926f2f1deacbd0d205a7c2620b8adb4))
+* **web:** reject an unreadable timer bar duration ([6cd5edb](https://github.com/e0ipso/tokkl/commit/6cd5edb6e7144650d88a26e8af37f75b1ef0d5cb))
+* **web:** treat alias names of one zone as a match in the profile notice ([ff71cb4](https://github.com/e0ipso/tokkl/commit/ff71cb4e09ebb4dc43bd861a18bed4e0bef4e8ff))
+
 ## [1.4.0](https://github.com/e0ipso/tokkl/compare/v1.3.1...v1.4.0) (2026-10-18)
 
 ### Features
