@@ -76,11 +76,12 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
     await img.decode();
     return img.naturalWidth;
   })).toBeGreaterThan(0);
-  // The decorative icon beside it is too small for the visual baselines to notice if it broke.
-  const icon = page.locator('.brand').first().locator('img[alt=""]');
-  await expect(icon).toHaveAttribute('src', '/brand/icon-96.png');
-  expect(await icon.evaluate(async (img: HTMLImageElement) => {
-    await img.decode();
-    return img.naturalWidth;
-  })).toBe(96);
+  // The brand is the wordmark alone. A small extra image could slip past the visual baselines'
+  // threshold, so every .brand must hold exactly one img, the one named Tokkl.
+  const brands = page.locator('.brand');
+  await expect(brands).not.toHaveCount(0);
+  for (const brand of await brands.all()) {
+    await expect(brand.locator('img')).toHaveCount(1);
+    await expect(brand.locator('img')).toHaveAccessibleName('Tokkl');
+  }
 });

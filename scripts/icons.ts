@@ -49,9 +49,6 @@ copy('icon-maskable-192.png', `${PUBLIC}icon-maskable-192.png`);
 copy('icon-maskable-512.png', `${PUBLIC}icon-maskable-512.png`);
 copy('apple-touch-icon.png', `${PUBLIC}apple-touch-icon.png`);
 
-// Brand.tsx shows the icon at up to 48 CSS pixels, so 96 covers a 2x screen.
-magick([`${BRAND}tokkl-icon-v4-1024.png`, '-resize', '96x96', ...PALETTE], `${PUBLIC}brand/icon-96.png`);
-
 // Brand.tsx shows the wordmark at up to 260 CSS pixels wide; the 520 file is for 2x screens. The
 // 640 copy in docs/brand is the README header, shown 320 wide. The 1645 copy in docs/brand is the
 // crop at full width, for other clients that need the wordmark larger than 640 px.

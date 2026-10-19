@@ -455,11 +455,10 @@ input.entry-duration:is(:hover, :focus) {
     linear-gradient(to top, var(--texture-swell) 60%, transparent) bottom / 100% 30% no-repeat,
     var(--surface);
 }
-/* The brand: the icon beside the wordmark image (Brand.tsx). Four 1px drop-shadows build a solid
-   halo around the letters' silhouette; it is transparent in light. */
-.brand { display: inline-flex; align-items: center; gap: 10px; line-height: 1; }
-.brand img { flex: none; }
-.brand-sm { gap: 8px; }
+/* The brand: the wordmark image alone (Brand.tsx). As a flex container it is as tall as the image,
+   with no line-box gap under it. Four 1px drop-shadows build a solid halo around the letters'
+   silhouette; it is transparent in light. */
+.brand { display: inline-flex; line-height: 1; }
 .brand .wordmark {
   filter:
     drop-shadow(1px 0 0 var(--wordmark-halo)) drop-shadow(-1px 0 0 var(--wordmark-halo))
@@ -901,7 +900,6 @@ table.table { width: 100%; border-collapse: collapse; }
     repeating-linear-gradient(-45deg, transparent 0 22px, var(--scene-stripe) 22px 26px),
     var(--bg);
 }
-.brand-lg { gap: 14px; }
 .auth-card { width: min(400px, 100%); min-width: 0; display: flex; flex-direction: column; gap: 14px; border-radius: var(--radius-lg); padding: 28px; box-shadow: var(--shadow); }
 .auth-card h1 { margin: 0; font-size: var(--text-2xl); }
 .auth-card p { margin: 0; }
