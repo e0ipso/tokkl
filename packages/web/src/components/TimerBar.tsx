@@ -229,6 +229,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   // Set while this bar pauses or resumes. The current entry refetches in the middle of both, and
   // that answer must not end the chain before the bar records the change.
   const chainBusy = useRef(false);
+  // Set while Resume's start request is pending, and whether Stop was pressed in that time.
+  const resumePending = useRef(false);
+  const stopAfterResume = useRef(false);
 
   // The chain ends when the current entry shows another client started a timer, or stopped or
   // replaced the clone.
@@ -326,6 +329,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   /** Stop ends the pause chain. While paused every entry is already stopped, so nothing is sent. */
   const stop = async () => {
     if (!current) {
+      // The clone does not exist yet; Resume stops it once its start returns.
+      if (resumePending.current) stopAfterResume.current = true;
       if (isPaused(chainRef.current)) {
         setChain(null);
         setDraft(EMPTY);
@@ -355,12 +360,27 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     const held = chainRef.current;
     if (!isPaused(held) || chainBusy.current) return;
     chainBusy.current = true;
+    resumePending.current = true;
+    stopAfterResume.current = false;
     try {
       const clone = await start(held.snapshot, { replace: true, resuming: true });
-      // A Stop pressed while the clone was starting has ended the chain; it stays ended.
+      resumePending.current = false;
+      if (clone && stopAfterResume.current) {
+        // Stop was pressed while the clone was starting. That Stop ended the chain; stop the clone
+        // now that it exists, after its start, so the two writes never overlap.
+        ownStart.current = null;
+        try {
+          await stopEntry.mutateAsync(clone.id);
+        } catch (error) {
+          toast.error(error);
+        }
+        return;
+      }
       const latest = chainRef.current;
       if (clone && isPaused(latest)) setChain(resumeChain(latest, clone.id, Date.now()));
     } finally {
+      resumePending.current = false;
+      stopAfterResume.current = false;
       chainBusy.current = false;
     }
   };

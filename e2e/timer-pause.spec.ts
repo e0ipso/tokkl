@@ -177,6 +177,41 @@ test('a reload while paused keeps the chain, and Resume after it clones the entr
   expect(await runningSeconds(ui.runningClock)).toBeLessThan(total + 60);
 });
 
+test('Stop pressed while Resume is starting the clone leaves no timer running', async ({ page }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  await seedRunning(page, api);
+  const ui = bar(page);
+  await ui.pause.click();
+  await expect(ui.resume).toBeVisible();
+  await expect.poll(() => api.current()).toBeNull();
+
+  // Hold the clone's start request, like a slow network, until Stop has been pressed.
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const isStart = (method: string, url: string) => method === 'POST' && /\/time_entries\?/.test(url);
+  await page.route(/\/time_entries\?/, async (route) => {
+    if (isStart(route.request().method(), route.request().url())) await gate;
+    await route.continue();
+  });
+  const sent = page.waitForRequest((request) => isStart(request.method(), request.url()));
+  const created = page.waitForResponse((response) => isStart(response.request().method(), response.url()));
+  await ui.resume.click();
+  await sent;
+  await ui.stop.click();
+  await expect(ui.start).toBeVisible();
+  release();
+  const clone = await (await created).json() as { id: number };
+
+  await expect.poll(async () => (await api.entries()).find((entry) => entry.id === clone.id)?.stop ?? null).not.toBeNull();
+  expect(await api.current()).toBeNull();
+  await expect(ui.start).toBeVisible();
+  await expect(ui.resume).toHaveCount(0);
+  await expect(ui.timer.getByLabel('Duration')).toHaveValue('');
+  await expect(ui.timer.getByLabel('Duration')).toHaveAttribute('placeholder', '0:00:00');
+  expect(await storedChains(page)).toEqual([]);
+});
+
 test('signing out forgets the paused chain', async ({ page }) => {
   await login(page);
   const api = await TimerApi.open(page);
