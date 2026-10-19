@@ -102,10 +102,11 @@ bool loadFixture(QString *error)
         }
         const QJsonValue running = object.value(QStringLiteral("running"));
         if (running.isObject()) {
-            Entry entry{running[QStringLiteral("id")].toInteger(),
-                        running[QStringLiteral("wid")].toInteger(),
-                        running[QStringLiteral("description")].toString(),
-                        QDateTime::fromString(running[QStringLiteral("start")].toString(), Qt::ISODateWithMs)};
+            Entry entry;
+            entry.id = running[QStringLiteral("id")].toInteger();
+            entry.workspaceId = running[QStringLiteral("wid")].toInteger();
+            entry.description = running[QStringLiteral("description")].toString();
+            entry.start = QDateTime::fromString(running[QStringLiteral("start")].toString(), Qt::ISODateWithMs);
             if (running[QStringLiteral("project_id")].isDouble()) {
                 entry.projectId = running[QStringLiteral("project_id")].toInteger();
             }
