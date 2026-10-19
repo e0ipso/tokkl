@@ -19,8 +19,8 @@ _None._
 - Open [**README describes the current project, never its history**](practice-readme-describes-the-current-project-never-its-history.md) to learn about: README.md documents how Tokkl works now. No rename story, upgrade-from-old-name sections, audit dates or how-we-got-here notes. #docs #readme
 
 ## Components (what exists)
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) to learn about: icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it. #tooling #pwa #icons #imagemagick #maskable #wordmark #web
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) to learn about: Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree. #monorepo #workspaces #layout #tooling #common #api #web #types
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) to learn about: scripts/icons.ts makes the served icons from docs/brand and the wordmark from the wordmark pack's raster master with ImageMagick 7; no test reruns it. #tooling #pwa #icons #imagemagick #maskable #wordmark #web
 - Open [**README screenshots: npm run screenshots**](map-readme-screenshots-script.md) to learn about: scripts/screenshots.ts rebuilds the ten docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops. #tooling #docs #screenshots #playwright
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) to learn about: Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work. #server #web #config #rename
 
@@ -74,14 +74,15 @@ _None._
 ### #github
 - Open [**Merge a PR stack bottom-up without retargeting its PRs**](practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs.md) — Merge stacked PRs bottom-up, starting with the one based on main. Don't repoint upper PR bases or close and reopen PRs.
 ### #icons
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts makes the served icons from docs/brand and the wordmark from the wordmark pack's raster master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
+- Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](../../web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
 ### #imagemagick
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts makes the served icons from docs/brand and the wordmark from the wordmark pack's raster master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
 ### #layout
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
 - Open [**Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells**](../../web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md) — Absolute children escape unpositioned scroll wrappers, grid or flex items without min-width: 0 stretch past a phone screen, and wide auto tables wrap every cell.
 ### #maskable
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts makes the served icons from docs/brand and the wordmark from the wordmark pack's raster master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
 ### #monorepo
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
 ### #playwright
@@ -91,7 +92,8 @@ _None._
 ### #pull-requests
 - Open [**Merge a PR stack bottom-up without retargeting its PRs**](practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs.md) — Merge stacked PRs bottom-up, starting with the one based on main. Don't repoint upper PR bases or close and reopen PRs.
 ### #pwa
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts makes the served icons from docs/brand and the wordmark from the wordmark pack's raster master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
+- Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](../../web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
 ### #release
 - Open [**KDE native packaging: DEB, RPM and the version mapping**](../kde-companion/map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.
 - Open [**KDE release upgrade check: previous-package.sh and --previous-package**](../kde-companion/map-kde-release-upgrade-check-from-the-published-predecessor.md) — Release legs upgrade from the newest older published tokkl-kde asset, checked by size and SHA-256, or from a 0.0.0 build when none is usable.
@@ -115,7 +117,7 @@ _None._
 ### #types
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
 ### #wordmark
-- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — scripts/icons.ts makes the served icons from docs/brand and the wordmark from the wordmark pack's raster master with ImageMagick 7; no test reruns it.
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the served icons from icon-pack/web/public and crops the wordmark master with ImageMagick 7; no test reruns it.
 - Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](../../web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.
 ### #workspaces
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.

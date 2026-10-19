@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:5c08ee05c36e391b74b58c7eedaf0b0fb5697d31c1b1e166f51667a39cb6f834'
-node_count: 74
+nodes_hash: 'sha256:1265f93ef44c41cc445d32ced137dd67f4a18be6a777c178472d8f9ae7c7ff6c'
+node_count: 75
 ---
 # kenkeep Graph
 
-Total nodes: 74
+Total nodes: 75
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -21,7 +21,7 @@ Total nodes: 74
 - **title:** Brand images: npm run icons derives every served file from docs/brand
 - **path:** tooling-and-project/repo-and-scripts/map-app-icons-script.md
 - **tags:** tooling, pwa, icons, imagemagick, maskable, wordmark, web
-- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-app-shell-brand-and-navigation, map-test-and-static-analysis-layout
+- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-app-shell-brand-and-navigation, map-test-and-static-analysis-layout, map-pwa-manifest-and-head-icon-links
 
 ## map-app-report-endpoints
 
@@ -158,6 +158,14 @@ Total nodes: 74
 - **path:** tooling-and-project/repo-and-scripts/map-npm-workspaces-package-layout.md
 - **tags:** monorepo, workspaces, layout, tooling, common, api, web, types
 - **relates_to:** map-test-and-static-analysis-layout
+
+## map-pwa-manifest-and-head-icon-links
+
+- **kind:** map
+- **title:** PWA manifest and head icon links, and what e2e/pwa.spec.ts checks
+- **path:** web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md
+- **tags:** pwa, manifest, icons, favicon, web, testing
+- **relates_to:** map-app-icons-script, practice-playwright-gotchas-in-the-e2e-specs, practice-theme-tokens-data-theme-and-cached-theme, map-app-shell-brand-and-navigation
 
 ## map-readme-screenshots-script
 
