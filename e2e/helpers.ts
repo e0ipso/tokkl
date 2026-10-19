@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD, SETUP_CODE, currentAccount, type Account } from './fixtures.ts';
 
 /**
@@ -53,4 +53,28 @@ export function contrast(a: string, b: string): number {
   const la = luminance(a);
   const lb = luminance(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** The hue token in styles.css that each section, as App.tsx names it in data-section, fills with. */
+const SECTION_HUES = { timer: '--hue-orange', reports: '--hue-sky', projects: '--hue-violet', settings: '--hue-yellow', more: '--hue-pink' } as const;
+
+export type Section = keyof typeof SECTION_HUES;
+
+/**
+ * `item` marks the open page in the navigation: it is filled with its section's hue and set in
+ * bold, and the page's main element carries the same section.
+ */
+export async function expectSectionHue(page: Page, item: Locator, section: Section): Promise<void> {
+  const hue = await page.evaluate((token) => {
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = `var(${token})`;
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  }, SECTION_HUES[section]);
+  expect(hue, `${SECTION_HUES[section]} resolves to a colour`).not.toBe('rgba(0, 0, 0, 0)');
+  await expect(item).toHaveCSS('background-color', hue);
+  await expect(item).toHaveCSS('font-weight', '800');
+  await expect(page.getByRole('main')).toHaveAttribute('data-section', section);
 }

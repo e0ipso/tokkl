@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, test } from './fixtures.ts';
+import { currentAccount, expect, test } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 import { holdNextStop, instant, metadataOf, nextRunning, TimerApi, type EntryView, type Metadata } from './timer-tests-helpers.ts';
@@ -177,8 +177,8 @@ test('a reload while paused keeps the chain, and Resume after it clones the entr
   expect(await runningSeconds(ui.runningClock)).toBeLessThan(total + 60);
 });
 
-test('a pause that full storage refuses to save still shows Paused back on the Timer page', async ({ page }) => {
-  // Storage reads work but every chain write throws, as when the quota is full.
+/** Storage reads work but every chain write throws, as when the quota is full. */
+async function refuseChainWrites(page: Page) {
   await page.addInitScript((prefix) => {
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (this: Storage, key: string, value: string) {
@@ -186,6 +186,10 @@ test('a pause that full storage refuses to save still shows Paused back on the T
       setItem.call(this, key, value);
     };
   }, CHAIN_PREFIX);
+}
+
+test('a pause that full storage refuses to save still shows Paused back on the Timer page', async ({ page }) => {
+  await refuseChainWrites(page);
   await login(page);
   const api = await TimerApi.open(page);
   const { running, metadata } = await seedRunning(page, api);
@@ -211,6 +215,41 @@ test('a pause that full storage refuses to save still shows Paused back on the T
   const clone = await nextRunning(api, running.id);
   expect(metadataOf(clone)).toEqual(metadataOf(metadata));
   await expect.poll(() => runningSeconds(ui.runningClock)).toBeGreaterThanOrEqual(total + 1);
+});
+
+// The tab keeps a chain that storage refused only in memory, and the login page loads no new
+// page, so the session end itself must drop it. Logging out reloads the page; an expired session
+// does not. /me stays fresh for a minute, so the page jumps its clock to make the refetch happen.
+test('a pause that full storage refused to save is gone after the session expires and the user logs in again', async ({ page, context }) => {
+  await page.clock.install();
+  await refuseChainWrites(page);
+  await login(page);
+  const api = await TimerApi.open(page);
+  await seedRunning(page, api);
+  const ui = bar(page);
+  await ui.pause.click();
+  await expect(ui.resume).toBeVisible();
+  await expect.poll(() => api.current()).toBeNull();
+  expect(await storedChains(page)).toEqual([]);
+
+  // The browser drops an expired cookie, so the next /me goes without one and gets a 403.
+  await context.clearCookies();
+  await page.clock.fastForward(61_000);
+  const loginHeading = page.getByRole('heading', { name: 'Log in' });
+  // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+  await expect(async () => {
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(loginHeading).toBeVisible({ timeout: 1500 });
+  }).toPass();
+
+  // The same page, with no reload.
+  await page.getByLabel('Email').fill(currentAccount().email);
+  await page.getByLabel('Password').fill(currentAccount().password);
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(ui.start).toBeVisible();
+  await expect(ui.resume).toHaveCount(0);
+  await expect(ui.pausedLabel).toHaveCount(0);
+  await expect(ui.timer.getByLabel('Description')).toHaveValue('');
 });
 
 test('Stop pressed while Resume is starting the clone leaves no timer running', async ({ page }) => {
