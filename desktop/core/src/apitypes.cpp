@@ -387,6 +387,12 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
         {QStringLiteral("workspace_id"), workspaceId},
         {QStringLiteral("project_id"), idJson(entry.projectId)},
     };
+    if (entry.taskId) {
+        object.insert(QStringLiteral("task_id"), *entry.taskId);
+    }
+    if (!entry.tags.isEmpty()) {
+        object.insert(QStringLiteral("tags"), QJsonArray::fromStringList(entry.tags));
+    }
     if (entry.billable) {
         object.insert(QStringLiteral("billable"), *entry.billable);
     }

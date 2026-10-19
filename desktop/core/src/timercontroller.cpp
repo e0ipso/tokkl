@@ -3,15 +3,25 @@
 #include <QRegularExpression>
 
 #include <algorithm>
+#include <cstdlib>
+#include <utility>
 
 namespace Tokkl
 {
+
+namespace
+{
+// A running entry whose start is this close to the one a resume sent is the
+// clone it created. The start travels in whole seconds.
+constexpr qint64 resumeMatchMs = 1000;
+}
 
 TimerController::TimerController(QObject *parent)
     : TimerController(nullptr, parent)
 {
     m_clock = new SystemClock(this);
     connect(m_clock, &Clock::ticked, this, &TimerController::onTick);
+    m_chainStore = new SettingsChainStore(nullptr, this);
 }
 
 TimerController::TimerController(Clock *clock, QObject *parent)
@@ -20,6 +30,7 @@ TimerController::TimerController(Clock *clock, QObject *parent)
 {
     connect(this, &TimerController::selectionChanged, this, &TimerController::choiceChanged);
     connect(this, &TimerController::currentEntryChanged, this, &TimerController::choiceChanged);
+    connect(this, &TimerController::chainChanged, this, &TimerController::choiceChanged);
     // A new next-start project may need its details read.
     connect(this, &TimerController::selectionChanged, this, &TimerController::resolveProject);
     if (m_clock) {
@@ -44,7 +55,7 @@ void TimerController::setConnection(Connection *connection)
     }
     m_connection = connection;
     if (m_connection) {
-        connect(m_connection, &Connection::generationChanged, this, &TimerController::reset);
+        connect(m_connection, &Connection::generationChanged, this, &TimerController::onGenerationChanged);
         connect(m_connection, &Connection::stateChanged, this, &TimerController::onConnectionChanged);
         connect(m_connection, &Connection::accountChanged, this, &TimerController::onConnectionChanged);
         connect(m_connection, &Connection::nextStartChanged, this, &TimerController::selectionChanged);
@@ -54,6 +65,28 @@ void TimerController::setConnection(Connection *connection)
     Q_EMIT connectionChanged();
     Q_EMIT selectionChanged();
     onConnectionChanged();
+}
+
+ChainStore *TimerController::chainStore() const
+{
+    return m_chainStore;
+}
+
+void TimerController::setChainStore(ChainStore *store)
+{
+    if (store == m_chainStore) {
+        return;
+    }
+    m_chainStore = store;
+    // Read the new store with the next current entry.
+    m_chainChecked = false;
+    m_resumeStart = QDateTime();
+    if (m_chain) {
+        m_chain.reset();
+        Q_EMIT chainChanged();
+        updateElapsed();
+        resolveProject();
+    }
 }
 
 bool TimerController::isConnected() const
@@ -172,6 +205,21 @@ QString TimerController::elapsedText() const
     return formatElapsed(m_elapsed);
 }
 
+bool TimerController::isPaused() const
+{
+    return m_chain && m_chain->isPaused();
+}
+
+qint64 TimerController::chainSeconds() const
+{
+    return m_chain ? m_chain->seconds : 0;
+}
+
+std::optional<PauseChain> TimerController::chain() const
+{
+    return m_chain;
+}
+
 QVariantList TimerController::projects() const
 {
     QVariantList list;
@@ -214,15 +262,19 @@ void TimerController::setBillable(bool billable)
 
 QVariant TimerController::chosenProjectId() const
 {
-    if (m_entry) {
-        return m_entry->projectId ? QVariant(*m_entry->projectId) : QVariant::fromValue(nullptr);
+    if (m_entry || isPaused()) {
+        const std::optional<qint64> project = chosenProject();
+        return project ? QVariant(*project) : QVariant::fromValue(nullptr);
     }
     return selectedProjectId();
 }
 
 bool TimerController::chosenBillable() const
 {
-    return m_entry ? m_entry->billable : billable();
+    if (m_entry) {
+        return m_entry->billable;
+    }
+    return isPaused() ? m_chain->billable : billable();
 }
 
 std::optional<Project> TimerController::entryProject() const
@@ -258,7 +310,7 @@ QString TimerController::formatElapsed(qint64 seconds)
 
 bool TimerController::start()
 {
-    if (!canWrite() || m_entry) {
+    if (!canWrite() || m_entry || isPaused()) {
         return false;
     }
     // A default that answers after the start must not replace its choice,
@@ -288,6 +340,16 @@ bool TimerController::start()
 
 bool TimerController::stop()
 {
+    if (isPaused()) {
+        // Nothing runs on the server; the chain only ends here.
+        if (isBusy()) {
+            return false;
+        }
+        m_error.clear();
+        setChain(std::nullopt);
+        Q_EMIT statusChanged();
+        return true;
+    }
     if (!canWrite() || !m_entry) {
         return false;
     }
@@ -310,15 +372,107 @@ bool TimerController::stop()
     return true;
 }
 
+bool TimerController::pause()
+{
+    if (!canWrite() || !m_entry) {
+        return false;
+    }
+    const qint64 entryId = m_entry->id;
+    beginMutation();
+
+    QPointer<TimerController> self(this);
+    const quint64 epoch = m_epoch;
+    m_connection->stopEntry(entryId, [self, epoch, entryId](const ApiResult<TimeEntry> &result) {
+        if (!self || epoch != self->m_epoch) {
+            return;
+        }
+        if (result.ok() && !self->m_workspaceLost && self->m_entry && self->m_entry->id == entryId) {
+            // The stopped entry as the server stored it: a resume copies it,
+            // and its duration adds to the chain.
+            const TimeEntry &stopped = *result.value;
+            PauseChain chain;
+            if (self->m_chain && self->m_chain->runningId == entryId) {
+                chain.seconds = self->m_chain->seconds;
+            }
+            chain.owner = self->chainOwner();
+            chain.seconds += stopped.isRunning() ? 0 : std::max<qint64>(0, stopped.duration);
+            chain.description = stopped.description;
+            chain.projectId = stopped.projectId;
+            chain.taskId = stopped.taskId;
+            chain.tags = stopped.tags;
+            chain.billable = stopped.billable;
+            self->setChain(chain);
+            self->applyEntry(std::nullopt, result.value);
+        }
+        self->finishMutation(result.error, result.ok());
+    });
+    return true;
+}
+
+bool TimerController::resume()
+{
+    if (!canWrite() || m_entry || !isPaused()) {
+        return false;
+    }
+    // As for a start: a default that answers later must not replace the
+    // choice, and a pick lasts only until this start.
+    m_lastEntryRead = 0;
+    m_stopDefault.reset();
+    m_nextStartPicked = false;
+    StartEntry entry;
+    entry.start = m_clock->now().toUTC();
+    entry.description = m_chain->description;
+    entry.projectId = m_chain->projectId;
+    entry.taskId = m_chain->taskId;
+    entry.tags = m_chain->tags;
+    // The paused entry's flag, not the project default the stop applied to
+    // the next start.
+    entry.billable = m_chain->billable;
+    m_resumeStart = entry.start;
+    beginMutation();
+
+    QPointer<TimerController> self(this);
+    const quint64 epoch = m_epoch;
+    m_connection->startEntry(entry, [self, epoch](const ApiResult<TimeEntry> &result) {
+        if (!self || epoch != self->m_epoch) {
+            return;
+        }
+        if (result.ok() && !self->m_workspaceLost) {
+            const bool running = result.value->isRunning();
+            // The reply is the clone.
+            self->m_resumeStart = running ? result.value->start : QDateTime();
+            self->applyEntry(running ? result.value : std::nullopt);
+        } else if (!result.ok() && !self->m_workspaceLost) {
+            switch (result.error.kind) {
+            case ApiError::Kind::Network:
+            case ApiError::Kind::Timeout:
+            case ApiError::Kind::Server:
+            case ApiError::Kind::InvalidResponse:
+                // The server may have created the clone; the read after this
+                // failure tells.
+                break;
+            default:
+                self->m_resumeStart = QDateTime();
+                break;
+            }
+        }
+        self->finishMutation(result.error, result.ok());
+    });
+    return true;
+}
+
 bool TimerController::toggle()
 {
-    return m_entry ? stop() : start();
+    if (m_entry) {
+        return pause();
+    }
+    return isPaused() ? resume() : start();
 }
 
 bool TimerController::chooseProject(const QVariant &projectId)
 {
-    // The project of a running entry is fixed until it stops.
-    if (!canWrite() || m_entry) {
+    // The project of a running or paused entry is fixed until it stops.
+    if (!canWrite() || m_entry || isPaused()) {
         return false;
     }
     std::optional<qint64> project;
@@ -349,7 +503,8 @@ bool TimerController::chooseProject(const QVariant &projectId)
 
 bool TimerController::chooseBillable(bool billable)
 {
-    if (!canWrite()) {
+    // A resume copies the paused entry's flag.
+    if (!canWrite() || isPaused()) {
         return false;
     }
     pickNextStart();
@@ -653,6 +808,7 @@ void TimerController::applyEntry(const std::optional<TimeEntry> &entry, const st
         // Running in another workspace: not part of this context.
         next.reset();
     }
+    followChain(next);
     const bool changed = next.has_value() != m_entry.has_value() || (next && next->toVariantMap() != m_entry->toVariantMap());
     const bool stopped = m_entry.has_value() && !next.has_value();
     std::optional<qint64> stoppedProject;
@@ -681,6 +837,69 @@ void TimerController::applyEntry(const std::optional<TimeEntry> &entry, const st
     }
     updateElapsed();
     resolveProject();
+}
+
+void TimerController::followChain(const std::optional<TimeEntry> &entry)
+{
+    // A lost workspace hides the entry without saying what runs.
+    if (m_workspaceLost || !m_connection || !m_connection->account()) {
+        return;
+    }
+    if (!m_chainChecked) {
+        m_chainChecked = true;
+        std::optional<PauseChain> stored = m_chainStore ? m_chainStore->load() : std::nullopt;
+        if (stored && stored->owner != chainOwner()) {
+            // Another instance, account or workspace.
+            stored.reset();
+            m_chainStore->save(std::nullopt);
+        }
+        if (stored) {
+            setChain(stored);
+        }
+    }
+    const QDateTime resumeStart = std::exchange(m_resumeStart, QDateTime());
+    if (!m_chain) {
+        return;
+    }
+    std::optional<PauseChain> chain = m_chain;
+    if (chain->runningId) {
+        // Stopped by another client, or replaced by another entry.
+        if (!entry || entry->id != *chain->runningId) {
+            chain.reset();
+        }
+    } else if (entry) {
+        if (resumeStart.isValid() && std::abs(entry->start.msecsTo(resumeStart)) < resumeMatchMs) {
+            chain->runningId = entry->id;
+        } else {
+            // Another entry started while paused.
+            chain.reset();
+        }
+    }
+    if (chain != m_chain) {
+        setChain(chain);
+    }
+}
+
+void TimerController::setChain(const std::optional<PauseChain> &chain)
+{
+    if (chain == m_chain) {
+        return;
+    }
+    m_chain = chain;
+    if (m_chainStore) {
+        m_chainStore->save(chain);
+    }
+    Q_EMIT chainChanged();
+    updateElapsed();
+    resolveProject();
+}
+
+QString TimerController::chainOwner() const
+{
+    if (!m_connection || !m_connection->account()) {
+        return QString();
+    }
+    return QStringLiteral("%1 %2 %3").arg(m_connection->webUrl().toString(QUrl::FullyEncoded)).arg(m_connection->account()->id).arg(workspaceId());
 }
 
 void TimerController::applyStopDefault()
@@ -728,6 +947,9 @@ std::optional<qint64> TimerController::chosenProject() const
 {
     if (m_entry) {
         return m_entry->projectId;
+    }
+    if (isPaused()) {
+        return m_chain->projectId;
     }
     return m_connection ? m_connection->nextProjectId() : std::nullopt;
 }
@@ -802,7 +1024,7 @@ void TimerController::resolveProject()
             self->resolveProject();
         });
     }
-    const std::optional<qint64> entryId = m_entry ? m_entry->projectId : std::nullopt;
+    const std::optional<qint64> entryId = m_entry || isPaused() ? chosenProject() : std::nullopt;
     setEntryProject(entryId ? knownProject(*entryId) : std::nullopt);
     updateIndicator();
 }
@@ -879,9 +1101,21 @@ void TimerController::onConnectionChanged()
     Q_EMIT statusChanged();
 }
 
+void TimerController::onGenerationChanged()
+{
+    // Another instance, account or secret, or a sign-out: the account's
+    // chain ends. A stored chain not yet read for this context is kept, for
+    // the account the connection binds at startup.
+    if (m_chainChecked && m_chainStore) {
+        m_chainStore->save(std::nullopt);
+    }
+    reset();
+}
+
 void TimerController::reset()
 {
-    // Another generation, account or connection: nothing carries over.
+    // Another generation, account or connection: nothing carries over. The
+    // stored chain stays; the next context reads it again.
     ++m_epoch;
     m_mutating = false;
     m_reconciling = false;
@@ -906,6 +1140,12 @@ void TimerController::reset()
     m_nextPoll = QDateTime();
     m_error.clear();
     m_lastState = connectionState();
+    m_chainChecked = false;
+    m_resumeStart = QDateTime();
+    if (m_chain) {
+        m_chain.reset();
+        Q_EMIT chainChanged();
+    }
     if (m_entry) {
         m_entry.reset();
         Q_EMIT currentEntryChanged();
@@ -928,7 +1168,15 @@ void TimerController::setError(const QString &error)
 
 void TimerController::updateElapsed()
 {
-    const qint64 elapsed = m_entry && m_clock ? std::max<qint64>(0, m_entry->start.secsTo(m_clock->now())) : 0;
+    qint64 elapsed = 0;
+    if (isPaused()) {
+        elapsed = m_chain->seconds;
+    } else if (m_entry && m_clock) {
+        elapsed = std::max<qint64>(0, m_entry->start.secsTo(m_clock->now()));
+        if (m_chain && m_chain->runningId == m_entry->id) {
+            elapsed += m_chain->seconds;
+        }
+    }
     if (elapsed != m_elapsed) {
         m_elapsed = elapsed;
         Q_EMIT elapsedChanged();

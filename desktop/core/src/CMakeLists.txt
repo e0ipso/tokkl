@@ -1,10 +1,13 @@
 # The tokklcore library: the API client, the credential store interface,
-# connection state and the timer controller. Qt Core and Network only; each
-# companion supplies its own credential store and client name.
+# connection state, the timer controller and its pause chain store. Qt Core
+# and Network only; each companion supplies its own credential store and
+# client name.
 
 add_library(tokklcore STATIC
     apitypes.cpp
     apitypes.h
+    chainstore.cpp
+    chainstore.h
     clock.cpp
     clock.h
     connection.cpp

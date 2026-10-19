@@ -1,6 +1,7 @@
 #pragma once
 
 #include "apitypes.h"
+#include "chainstore.h"
 #include "clock.h"
 #include "connection.h"
 
@@ -17,7 +18,7 @@ namespace Tokkl
 
 // The timer for QML: the running entry of the connection's validated
 // account and workspace, its elapsed time, the project and billable choices
-// for the next start, and start/stop actions.
+// for the next start, and start, stop, pause and resume actions.
 //
 // Elapsed time is recomputed from the entry's server start time on every
 // clock tick, so a sleep or a late tick loses nothing. The current entry is
@@ -53,6 +54,18 @@ namespace Tokkl
 // with one PUT carrying only billable, so the entry is never split. Choosing a
 // project applies its billable default (false for no project); a later
 // billable choice overrides it.
+//
+// pause() stops the running entry and keeps what the stopped entry says:
+// description, project, task, tags and billable flag. resume() starts a clone
+// of it, as the web app's Continue does. The entries a pause and resume
+// produce form a chain, and elapsed time is the chain total: the durations
+// the server stored for its stopped entries plus the running clone's time,
+// frozen while paused. A resume counts as a start: it is never replayed, and
+// a refused one leaves the chain paused. While paused, the project and
+// billable flag are the paused entry's and cannot be chosen. stop() ends the
+// chain; while paused it only clears it. So does another client stopping the
+// clone, a different running entry, and a new connection generation. The
+// chain store keeps the chain for the account across restarts.
 //
 // Everything is tied to the connection's generation. A new instance, account
 // or secret clears the entry, projects, busy state and errors at once, and
@@ -107,9 +120,16 @@ private:
 
     Q_PROPERTY(QVariant currentEntry READ currentEntryVariant NOTIFY currentEntryChanged)
     Q_PROPERTY(bool running READ isRunning NOTIFY currentEntryChanged)
+    // The chain total while a chain runs or is paused.
     Q_PROPERTY(qint64 elapsedSeconds READ elapsedSeconds NOTIFY elapsedChanged)
     // H:MM:SS, as in the web app; 0:00:00 when nothing runs.
     Q_PROPERTY(QString elapsedText READ elapsedText NOTIFY elapsedChanged)
+
+    // A chain is paused: nothing runs, and resume() would start its clone.
+    Q_PROPERTY(bool paused READ isPaused NOTIFY chainChanged)
+    // The seconds the server stored for the chain's stopped entries; 0
+    // without a chain.
+    Q_PROPERTY(qint64 chainSeconds READ chainSeconds NOTIFY chainChanged)
 
     Q_PROPERTY(QVariantList projects READ projects NOTIFY projectsChanged)
     // The connection could not read every active project: projects is a
@@ -120,13 +140,14 @@ private:
     Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId WRITE setSelectedProjectId NOTIFY selectionChanged)
     Q_PROPERTY(bool billable READ billable WRITE setBillable NOTIFY selectionChanged)
 
-    // What the menu shows: the running entry's project and billable flag, or
-    // the choices for the next start when nothing runs.
+    // What the menu shows: the running or paused entry's project and
+    // billable flag, or the choices for the next start when nothing runs.
     Q_PROPERTY(QVariant chosenProjectId READ chosenProjectId NOTIFY choiceChanged)
     Q_PROPERTY(bool chosenBillable READ chosenBillable NOTIFY choiceChanged)
-    // The running entry's project as a project map, also when it is archived
-    // and so missing from projects; null without one or while unresolved. A
-    // project the instance no longer has is a map with an empty name.
+    // The running or paused entry's project as a project map, also when it is
+    // archived and so missing from projects; null without one or while
+    // unresolved. A project the instance no longer has is a map with an
+    // empty name.
     Q_PROPERTY(QVariant entryProject READ entryProjectVariant NOTIFY entryProjectChanged)
     // The project behind chosenProjectId for the panel indicator, and its
     // colour as lowercase #rrggbb. The colour is empty outside the Project
@@ -139,14 +160,21 @@ public:
     // A tick this late means the machine slept or the clock jumped.
     static constexpr int resumeGapMs = 10000;
 
-    // Uses the system clock.
+    // Uses the system clock, and a SettingsChainStore on the application's
+    // default QSettings.
     explicit TimerController(QObject *parent = nullptr);
-    // Uses the given clock; the controller does not own it.
+    // Uses the given clock, which the controller does not own, and no chain
+    // store until setChainStore().
     explicit TimerController(Clock *clock, QObject *parent = nullptr);
     ~TimerController() override;
 
     Connection *connection() const;
     void setConnection(Connection *connection);
+    ChainStore *chainStore() const;
+    // The controller does not own the store. Null keeps the chain in memory
+    // only. Set it before the connection: the stored chain is read with the
+    // first current entry of a connection.
+    void setChainStore(ChainStore *store);
 
     bool isConnected() const;
     QVariantMap account() const;
@@ -164,6 +192,9 @@ public:
     bool isRunning() const;
     qint64 elapsedSeconds() const;
     QString elapsedText() const;
+    bool isPaused() const;
+    qint64 chainSeconds() const;
+    std::optional<PauseChain> chain() const;
 
     QVariantList projects() const;
     bool projectsIncomplete() const;
@@ -180,20 +211,31 @@ public:
 
     static QString formatElapsed(qint64 seconds);
 
-    // Return true when a request was sent.
+    // The actions return true when a request was sent, and stop() while
+    // paused when it cleared the chain.
+    //
+    // Starts a new entry; refused while paused.
     Q_INVOKABLE bool start();
+    // Stops the running entry and ends the chain. While paused it sends
+    // nothing.
     Q_INVOKABLE bool stop();
-    // Stops a running entry, otherwise starts one.
+    // Stops the running entry and keeps the chain paused.
+    Q_INVOKABLE bool pause();
+    // Starts a clone of the paused entry.
+    Q_INVOKABLE bool resume();
+    // Pauses a running entry, resumes a paused chain, otherwise starts.
     Q_INVOKABLE bool toggle();
     // Null, 0 or an active project's id. Returns false when refused: no
-    // write possible now, an entry runs, or not an active project.
+    // write possible now, an entry runs or a chain is paused, or not an
+    // active project.
     Q_INVOKABLE bool chooseProject(const QVariant &projectId);
+    // Refused while a chain is paused.
     Q_INVOKABLE bool chooseBillable(bool billable);
 
 public Q_SLOTS:
     // Reads the current entry and the projects again.
     void refresh();
-    // The session resumed from sleep; refresh at once.
+    // The session woke from sleep; refresh at once. Not resume().
     void resumed();
     // Explicit reconnect: lifts a workspace block and revalidates the account.
     void reconnect();
@@ -204,6 +246,7 @@ Q_SIGNALS:
     void statusChanged();
     void currentEntryChanged();
     void elapsedChanged();
+    void chainChanged();
     void projectsChanged();
     void selectionChanged();
     void choiceChanged();
@@ -213,6 +256,7 @@ Q_SIGNALS:
 private:
     void onTick();
     void onConnectionChanged();
+    void onGenerationChanged();
     void reset();
     void beginMutation();
     void fetchEntry();
@@ -221,6 +265,11 @@ private:
     // stoppedReply is the server's answer to a stop or edit that ended the
     // entry; its project wins over the one last read.
     void applyEntry(const std::optional<TimeEntry> &entry, const std::optional<TimeEntry> &stoppedReply = std::nullopt);
+    // Reads the stored chain once per context, then ends or continues the
+    // chain for the entry that runs now.
+    void followChain(const std::optional<TimeEntry> &entry);
+    void setChain(const std::optional<PauseChain> &chain);
+    QString chainOwner() const;
     void applyStopDefault();
     void setStopDefault(std::optional<qint64> projectId);
     void setNextStart(std::optional<qint64> projectId, bool billable);
@@ -243,6 +292,7 @@ private:
 
     QPointer<Clock> m_clock;
     QPointer<Connection> m_connection;
+    QPointer<ChainStore> m_chainStore;
 
     // Bumped by reset(); callbacks from an earlier epoch do nothing.
     quint64 m_epoch = 0;
@@ -256,6 +306,13 @@ private:
     bool m_entryStale = false;
 
     std::optional<TimeEntry> m_entry;
+    std::optional<PauseChain> m_chain;
+    // The stored chain was read for this context, so the chain it holds is
+    // the account's. A new generation then ends it.
+    bool m_chainChecked = false;
+    // The start time a resume sent, until a reply or the read after it shows
+    // whether the server created the clone.
+    QDateTime m_resumeStart;
     QList<Project> m_projects;
     bool m_projectsIncomplete = false;
     // The project list of this context was read at least once.

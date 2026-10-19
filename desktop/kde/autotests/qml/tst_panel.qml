@@ -550,8 +550,9 @@ TestCase {
             verify(request.method === "GET" || request.method === "PUT", request.method + " " + request.path);
         }
 
-        // Stopped, Project is a choice again.
-        mouseClick(button, 5, 5, Qt.LeftButton);
+        // Stopped, Project is a choice again. A click would pause, which
+        // keeps the project.
+        verify(button.timer.stop());
         fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, true, {
             stop: fixture.clockIso(),
             duration: 65

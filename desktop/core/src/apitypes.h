@@ -68,12 +68,16 @@ struct ListedEntry {
     bool projectBillable = false;
 };
 
-// Body of POST /workspaces/{wid}/time_entries for a running entry.
+// Body of POST /workspaces/{wid}/time_entries for a running entry. A task and
+// tags are sent only when set. Tags go by name, and the server creates a name
+// the workspace lacks.
 struct StartEntry {
     QDateTime start; // sent in UTC
     QString description;
     std::optional<qint64> projectId;
     std::optional<bool> billable;
+    std::optional<qint64> taskId;
+    QStringList tags;
 };
 
 // Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields

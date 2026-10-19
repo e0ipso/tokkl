@@ -8,7 +8,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace Tokkl;
@@ -105,6 +107,28 @@ QByteArray projectPage(int first, int count, qint64 workspace)
 }
 
 const QString startedAt = QStringLiteral("2026-10-16T08:58:55Z"); // 65 s before the fake clock
+
+// An entry of project 11 with the fields a resume copies. The project's
+// default is billable, the entry is not. A duration makes it stopped, with
+// that duration stored.
+QByteArray detailedEntry(qint64 id, const QString &start, std::optional<qint64> duration = std::nullopt)
+{
+    QJsonObject entry = entryObject(id, 7, start, !duration, 11);
+    entry.insert(QStringLiteral("description"), QStringLiteral("Write the report"));
+    entry.insert(QStringLiteral("task_id"), 4);
+    entry.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("focus"), QStringLiteral("client")});
+    if (duration) {
+        const QDateTime begin = QDateTime::fromString(start, Qt::ISODate);
+        entry.insert(QStringLiteral("stop"), begin.addSecs(*duration).toString(Qt::ISODate));
+        entry.insert(QStringLiteral("duration"), *duration);
+    }
+    return json(entry);
+}
+
+QString clockText(const QDateTime &time)
+{
+    return time.toUTC().toString(Qt::ISODate);
+}
 }
 
 class TimerControllerTest : public QObject
@@ -115,11 +139,14 @@ class TimerControllerTest : public QObject
         FakeTransport transport;
         FakeCredentialStore store;
         FakeClock clock;
+        FakeChainStore chains;
         Connection connection{&transport, &store, testClientName()};
         TimerController timer{&clock};
 
-        Fixture()
+        // The chain store outlives the fixture when a test passes its own.
+        explicit Fixture(ChainStore *chainStore = nullptr)
         {
+            timer.setChainStore(chainStore ? chainStore : &chains);
             timer.setConnection(&connection);
         }
 
@@ -189,6 +216,37 @@ class TimerControllerTest : public QObject
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
+    }
+
+    // Pauses the running detailed entry, which the server stores with the
+    // given duration, and answers the read after it.
+    static bool pauseEntry(Fixture &f, qint64 id, const QString &start, qint64 duration)
+    {
+        if (!f.timer.isRunning() || !f.timer.toggle()) {
+            return false;
+        }
+        const qsizetype patch = f.last("PATCH", "/stop");
+        if (!f.unanswered(patch) || !f.transport.requests.at(patch).url.path().endsWith(QStringLiteral("/time_entries/%1/stop").arg(id))) {
+            return false;
+        }
+        f.respond(patch, FakeTransport::answer(200, detailedEntry(id, start, duration)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        return f.timer.isPaused() && !f.timer.isRunning() && !f.timer.isBusy();
+    }
+
+    // Resumes the paused chain; the server creates the clone with the id.
+    // Returns the body of the POST.
+    static QJsonObject resumeEntry(Fixture &f, qint64 id)
+    {
+        if (!f.timer.isPaused() || !f.timer.toggle()) {
+            return {};
+        }
+        const qsizetype post = f.last("POST", "/time_entries");
+        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(post).body).object();
+        const QString start = body.value(QStringLiteral("start")).toString();
+        f.respond(post, FakeTransport::answer(200, detailedEntry(id, start)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, detailedEntry(id, start)));
+        return body;
     }
 
 private Q_SLOTS:
@@ -437,7 +495,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(f.timer.toggle());
+        QVERIFY(f.timer.stop());
         QVERIFY(!f.timer.toggle());
         QVERIFY(!f.timer.stop());
         QCOMPARE(f.find("PATCH", "/stop").size(), 1);
@@ -450,6 +508,341 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
         QVERIFY(f.unanswered(f.last("GET", currentPath)));
+    }
+
+    void pauseAndResumeKeepTheChainTotal()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+
+        // A click pauses: the entry stops, and the server stored 65 s.
+        QVERIFY(f.timer.toggle());
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(!f.timer.resume());
+        QVERIFY(!f.timer.pause());
+        QVERIFY(!f.timer.stop());
+        QCOMPARE(f.find("PATCH", "/stop").size(), 1);
+        QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5/stop"));
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, detailedEntry(5, startedAt, 65)));
+        QVERIFY(f.timer.isPaused());
+        QVERIFY(!f.timer.isRunning());
+        QCOMPARE(f.timer.chainSeconds(), 65);
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+        QCOMPARE(f.timer.elapsedText(), TimerController::formatElapsed(65));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.timer.isPaused());
+        QVERIFY(f.chains.stored.has_value());
+        QVERIFY(f.chains.stored->isPaused());
+
+        // Frozen while paused.
+        for (int i = 0; i < 10; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+
+        // A click resumes with a clone of the paused entry. Billable comes
+        // from the entry, not from the project's default, which the stop
+        // gave the next start.
+        QVERIFY(f.timer.billable());
+        const QDateTime resumedAt = f.clock.now();
+        QVERIFY(f.timer.toggle());
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(!f.timer.stop());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        const qsizetype post = f.last("POST", "/time_entries");
+        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(post).body).object();
+        QCOMPARE(body.value(QStringLiteral("start")).toString(), clockText(resumedAt));
+        QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
+        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(body.value(QStringLiteral("task_id")).toInteger(), 4);
+        QCOMPARE(body.value(QStringLiteral("tags")).toArray(), QJsonArray({QStringLiteral("focus"), QStringLiteral("client")}));
+        QVERIFY(body.contains(QStringLiteral("billable")));
+        QCOMPARE(body.value(QStringLiteral("billable")).toBool(true), false);
+        f.respond(post, FakeTransport::answer(200, detailedEntry(6, clockText(resumedAt))));
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.currentEntry()->id, 6);
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, detailedEntry(6, clockText(resumedAt))));
+        QCOMPARE(f.chains.stored->runningId, 6);
+
+        // Counting on from the stored durations.
+        for (int i = 0; i < 5; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.timer.elapsedSeconds(), 70);
+        QCOMPARE(f.timer.chainSeconds(), 65);
+
+        // A second cycle adds what the server stored for the clone.
+        QVERIFY(pauseEntry(f, 6, clockText(resumedAt), 4));
+        QCOMPARE(f.timer.chainSeconds(), 69);
+        QCOMPARE(f.timer.elapsedSeconds(), 69);
+        const QJsonObject again = resumeEntry(f, 7);
+        QCOMPARE(again.value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
+        QCOMPARE(again.value(QStringLiteral("task_id")).toInteger(), 4);
+        for (int i = 0; i < 3; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.timer.elapsedSeconds(), 72);
+
+        // Stop ends the chain: the next click starts a fresh entry.
+        QVERIFY(f.timer.stop());
+        QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/7/stop"));
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, detailedEntry(7, again.value(QStringLiteral("start")).toString(), 3)));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(!f.timer.isPaused());
+        QVERIFY(!f.timer.isRunning());
+        QCOMPARE(f.timer.chainSeconds(), 0);
+        QCOMPARE(f.timer.elapsedSeconds(), 0);
+        QVERIFY(!f.chains.stored.has_value());
+        QVERIFY(f.timer.toggle());
+        const QJsonObject fresh = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
+        QCOMPARE(fresh.value(QStringLiteral("description")).toString(), QString());
+        QVERIFY(!fresh.contains(QStringLiteral("task_id")));
+        QVERIFY(!fresh.contains(QStringLiteral("tags")));
+        // The stop's default for the next start: the project and its billable default.
+        QCOMPARE(fresh.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(fresh.value(QStringLiteral("billable")).toBool(), true);
+    }
+
+    void choicesAreLockedWhilePaused()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QSignalSpy choice(&f.timer, &TimerController::choiceChanged);
+        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QVERIFY(choice.count() > 0);
+        QVERIFY(f.timer.canWrite());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+        QCOMPARE(f.timer.chosenBillable(), false);
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
+        QCOMPARE(f.timer.entryProject()->id, 11);
+
+        const qsizetype requests = f.transport.requests.size();
+        QVERIFY(!f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QVERIFY(!f.timer.chooseProject(11));
+        QVERIFY(!f.timer.chooseBillable(true));
+        QVERIFY(!f.timer.start());
+        QCOMPARE(f.transport.requests.size(), requests);
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+        QCOMPARE(f.timer.chosenBillable(), false);
+
+        // Stop while paused only clears the chain; choices work again.
+        QVERIFY(f.timer.stop());
+        QCOMPARE(f.transport.requests.size(), requests);
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.chosenBillable(), true);
+        QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(f.timer.chooseBillable(true));
+        QVERIFY(f.timer.chosenBillable());
+        QVERIFY(!f.timer.entryProject().has_value());
+        QCOMPARE(f.transport.requests.size(), requests);
+    }
+
+    void refusedResumeStaysPaused()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+
+        // The project or task went while paused: nothing was created.
+        QVERIFY(f.timer.resume());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(404, "\"Project not found\""));
+        QVERIFY(f.timer.isPaused());
+        QVERIFY(!f.timer.isRunning());
+        QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
+        QCOMPARE(f.timer.status(), TimerController::Error);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.timer.isPaused());
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        QVERIFY(f.timer.isPaused());
+
+        // Stop clears the chain; the next click starts a fresh entry.
+        const qsizetype requests = f.transport.requests.size();
+        QVERIFY(f.timer.stop());
+        QCOMPARE(f.transport.requests.size(), requests);
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.errorString(), QString());
+        QCOMPARE(f.timer.elapsedSeconds(), 0);
+        QVERIFY(f.timer.toggle());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 2);
+        const QJsonObject fresh = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
+        QCOMPARE(fresh.value(QStringLiteral("description")).toString(), QString());
+        QVERIFY(!fresh.contains(QStringLiteral("task_id")));
+    }
+
+    void ambiguousResumeIsNeverReplayed_data()
+    {
+        QTest::addColumn<bool>("created");
+        QTest::newRow("clone created") << true;
+        QTest::newRow("nothing created") << false;
+    }
+
+    void ambiguousResumeIsNeverReplayed()
+    {
+        QFETCH(bool, created);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        const QString resumedAt = clockText(f.clock.now());
+        QVERIFY(f.timer.resume());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("reset")));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(!f.timer.stop());
+
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, created ? detailedEntry(6, resumedAt) : QByteArray("null")));
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        QCOMPARE(f.timer.isRunning(), created);
+        QCOMPARE(f.timer.isPaused(), !created);
+        QCOMPARE(f.timer.chainSeconds(), 65);
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, created ? detailedEntry(6, resumedAt) : QByteArray("null")));
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        QCOMPARE(f.timer.elapsedSeconds(), created ? 95 : 65);
+    }
+
+    void chainEndsWhenAnotherEntryTakesOver_data()
+    {
+        QTest::addColumn<bool>("paused");
+        QTest::addColumn<QByteArray>("current");
+        QTest::addColumn<qint64>("elapsed");
+        QTest::newRow("clone stopped elsewhere") << false << QByteArray("null") << qint64(0);
+        QTest::newRow("another entry replaces the clone") << false << entryBody(99, 7, startedAt) << qint64(95);
+        QTest::newRow("another entry starts while paused") << true << entryBody(99, 7, startedAt) << qint64(95);
+    }
+
+    void chainEndsWhenAnotherEntryTakesOver()
+    {
+        QFETCH(bool, paused);
+        QFETCH(QByteArray, current);
+        QFETCH(qint64, elapsed);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        if (!paused) {
+            QVERIFY(!resumeEntry(f, 6).isEmpty());
+            QVERIFY(f.timer.isRunning());
+        }
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.chainSeconds(), 0);
+        QCOMPARE(f.timer.elapsedSeconds(), elapsed);
+        QVERIFY(!f.chains.stored.has_value());
+    }
+
+    void newGenerationEndsTheChain_data()
+    {
+        QTest::addColumn<bool>("signOut");
+        QTest::newRow("other instance") << false;
+        QTest::newRow("secret removed") << true;
+    }
+
+    void newGenerationEndsTheChain()
+    {
+        QFETCH(bool, signOut);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QSignalSpy chain(&f.timer, &TimerController::chainChanged);
+        if (signOut) {
+            const QString key = credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString());
+            f.store.secrets.remove(key);
+            Q_EMIT f.store.secretChanged(key);
+        } else {
+            f.connection.setInstanceUrl(instanceB);
+        }
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.elapsedSeconds(), 0);
+        QVERIFY(chain.count() > 0);
+        QVERIFY(!f.chains.stored.has_value());
+    }
+
+    void chainSurvivesARestart()
+    {
+        FakeChainStore chains;
+        QString resumedAt;
+        {
+            Fixture f(&chains);
+            QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+            QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        }
+        QVERIFY(chains.stored.has_value());
+        {
+            // Paused across the restart.
+            Fixture f(&chains);
+            QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+            QVERIFY(f.timer.isPaused());
+            QCOMPARE(f.timer.elapsedSeconds(), 65);
+            QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+            const QJsonObject body = resumeEntry(f, 6);
+            QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
+            QCOMPARE(body.value(QStringLiteral("task_id")).toInteger(), 4);
+            resumedAt = body.value(QStringLiteral("start")).toString();
+            QCOMPARE(chains.stored->runningId, 6);
+        }
+        {
+            // Running across the restart: the clone keeps counting on.
+            Fixture f(&chains);
+            f.clock.current = f.clock.current.addSecs(10);
+            QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(6, resumedAt)));
+            QVERIFY(f.timer.isRunning());
+            QCOMPARE(f.timer.chainSeconds(), 65);
+            QCOMPARE(f.timer.elapsedSeconds(), 75);
+        }
+        QVERIFY(chains.stored.has_value());
+        {
+            // Another account does not inherit it.
+            Fixture f(&chains);
+            QVERIFY(connectAccount(f, instanceA, 4, 7, "null"));
+            QVERIFY(!f.timer.isPaused());
+            QCOMPARE(f.timer.elapsedSeconds(), 0);
+            QVERIFY(!chains.stored.has_value());
+        }
+    }
+
+    void settingsChainStoreKeepsTheChain()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QSettings settings(dir.filePath(QStringLiteral("chain.ini")), QSettings::IniFormat);
+        SettingsChainStore store(&settings);
+        QVERIFY(!store.load().has_value());
+
+        PauseChain chain;
+        chain.owner = QStringLiteral("https://a.example.test 3 7");
+        chain.seconds = 65;
+        chain.description = QStringLiteral("Write the report");
+        chain.projectId = 11;
+        chain.taskId = 4;
+        chain.tags = {QStringLiteral("focus")};
+        chain.billable = true;
+        store.save(chain);
+        {
+            QSettings reopened(dir.filePath(QStringLiteral("chain.ini")), QSettings::IniFormat);
+            QCOMPARE(SettingsChainStore(&reopened).load(), chain);
+        }
+        chain.runningId = 6;
+        chain.projectId.reset();
+        chain.taskId.reset();
+        chain.tags.clear();
+        store.save(chain);
+        QCOMPARE(store.load(), chain);
+
+        settings.setValue(QStringLiteral("PauseChain/seconds"), QStringLiteral("many"));
+        QVERIFY(!store.load().has_value());
+        store.save(std::nullopt);
+        QVERIFY(!store.load().has_value());
+        QVERIFY(settings.childGroups().isEmpty());
     }
 
     void projectIsLockedWhileRunning()

@@ -381,7 +381,7 @@ private Q_SLOTS:
         const QByteArray auth = tokenAuthorization(u);
         const QString foreign = QStringLiteral("/workspaces/%1/time_entries").arg(admin.workspaceId);
         const QList<std::tuple<QByteArray, QString, QByteArray>> attempts = {
-            {"POST", foreign, encodeStartEntry(StartEntry{QDateTime::currentDateTimeUtc(), QString(), std::nullopt, false}, admin.workspaceId, QStringLiteral("tokkl-kde"))},
+            {"POST", foreign, encodeStartEntry(StartEntry{QDateTime::currentDateTimeUtc(), QString(), std::nullopt, false, std::nullopt, {}}, admin.workspaceId, QStringLiteral("tokkl-kde"))},
             {"PATCH", foreign + QStringLiteral("/%1/stop").arg(admin.running->id), QByteArray()},
             {"PUT", foreign + QStringLiteral("/%1").arg(admin.running->id), encodeTimeEntryUpdate(TimeEntryUpdate{QStringLiteral("changed by another user"), {}, {}, true, {}})},
         };
