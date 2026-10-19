@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
+
+/** The icon pack's web root, whose files keep their paths when served. */
+const ICON_PACK = fileURLToPath(new URL('../docs/brand/icon-pack/web/public/', import.meta.url));
 
 interface ManifestIcon {
   src: string;
@@ -15,6 +20,7 @@ const MAX_ICON_BYTES = 100 * 1024;
 const MAX_MASKABLE_ICON_BYTES = 128 * 1024;
 
 interface Manifest {
+  id?: unknown;
   name?: unknown;
   start_url?: unknown;
   display?: unknown;
@@ -63,9 +69,13 @@ test('the built app links a local manifest whose icons are real images of the de
   expect(typeof manifest.start_url).toBe('string');
   const startUrl = new URL(manifest.start_url as string, manifestUrl);
   expect(startUrl.origin).toBe(origin);
-  // Without a scope member the browser uses the start URL's directory.
-  const scope = typeof manifest.scope === 'string' ? new URL(manifest.scope, manifestUrl) : new URL('.', startUrl);
-  expect(scope.origin).toBe(origin);
+  // The app's identity and scope are the site root, so an install survives a changed start URL and
+  // every route opens inside the app window. The id resolves against the start URL's origin.
+  expect(typeof manifest.id).toBe('string');
+  expect(new URL(manifest.id as string, startUrl.origin).href).toBe(`${origin}/`);
+  expect(typeof manifest.scope).toBe('string');
+  const scope = new URL(manifest.scope as string, manifestUrl);
+  expect(scope.href).toBe(`${origin}/`);
   expect(startUrl.href.startsWith(scope.href)).toBe(true);
 
   // An installed app opens in the icon pack's background colour.
@@ -88,7 +98,10 @@ test('the built app links a local manifest whose icons are real images of the de
     expect(iconResponse.status(), icon.src).toBe(200);
     // The server answers unknown paths with the HTML app shell, so the type is what proves the file exists.
     expect(iconResponse.headers()['content-type']?.split(';')[0], icon.src).toBe(icon.type);
-    expect((await iconResponse.body()).length, icon.src).toBeLessThan(maskable ? MAX_MASKABLE_ICON_BYTES : MAX_ICON_BYTES);
+    const body = await iconResponse.body();
+    expect(body.length, icon.src).toBeLessThan(maskable ? MAX_MASKABLE_ICON_BYTES : MAX_ICON_BYTES);
+    // Colour type 3 in the IHDR chunk: the manifest icons are palette PNGs, which keeps them in budget.
+    expect(body.readUInt8(25), `${icon.src} PNG colour type`).toBe(3);
 
     const decoded = await decodeImage(page, iconUrl.href);
     const sizes = (icon.sizes ?? '').split(/\s+/).filter(Boolean);
@@ -149,5 +162,41 @@ test('the favicon and apple-touch-icon links resolve to images of their declared
     const decoded = await decodeImage(page, url.href);
     expect(sizes, href).toContain(decoded.size);
     if (rel === 'apple-touch-icon') expect(decoded.minAlpha, href).toBe(255);
+  }
+});
+
+// The favicons and Apple touch icons ship byte for byte from the icon pack, including the 48 px
+// favicon and the 180 px touch icon under /icons/ that index.html does not link. The pack's 1024 px
+// general-purpose icon and the previous root icons are not served, so the server answers them with
+// the HTML app shell.
+test('the served favicons and touch icons are the icon pack files, and retired icons are not served', async ({ page }) => {
+  const copied = [
+    'favicon.ico',
+    'apple-touch-icon.png',
+    'icons/favicon-16.png',
+    'icons/favicon-32.png',
+    'icons/favicon-48.png',
+    'icons/apple-touch-icon-120.png',
+    'icons/apple-touch-icon-152.png',
+    'icons/apple-touch-icon-167.png',
+    'icons/apple-touch-icon-180.png',
+  ];
+  for (const file of copied) {
+    const response = await page.request.get(`/${file}`);
+    expect(response.status(), file).toBe(200);
+    expect((await response.body()).equals(readFileSync(`${ICON_PACK}${file}`)), `${file} matches the icon pack`).toBe(true);
+  }
+
+  const retired = [
+    '/icons/icon-1024.png',
+    '/favicon-32.png',
+    '/icon-192.png',
+    '/icon-512.png',
+    '/icon-maskable-192.png',
+    '/icon-maskable-512.png',
+  ];
+  for (const path of retired) {
+    const response = await page.request.get(path);
+    expect(response.headers()['content-type']?.split(';')[0], path).toBe('text/html');
   }
 });
