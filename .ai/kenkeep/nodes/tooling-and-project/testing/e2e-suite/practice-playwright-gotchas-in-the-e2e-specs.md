@@ -15,7 +15,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-- The static server answers unknown paths with the HTML app shell and status 200, so a 200 does not prove a static file exists. Check the content type, as `e2e/pwa.spec.ts` does for the manifest icons in `packages/web/public/manifest.webmanifest`. Better, decode the image: `e2e/typography.spec.ts` calls `img.decode()` on the brand images and checks `naturalWidth`. That spec also checks that each icon decodes at its declared size and that `start_url` falls inside the scope; the manifest has no `scope` member, so the scope defaults to the directory of `start_url` (`/`).
+- The static server answers unknown paths with the HTML app shell and status 200, so a 200 does not prove a static file exists. Check the content type, as `e2e/pwa.spec.ts` does for the manifest icons in `packages/web/public/manifest.webmanifest`. Better, decode the image: `e2e/typography.spec.ts` calls `img.decode()` on the brand wordmark and checks `naturalWidth`. That spec also checks that each icon decodes at its declared size and that `start_url` falls inside the scope; the manifest has no `scope` member, so the scope defaults to the directory of `start_url` (`/`).
 - To assert that a control does not open the native colour picker, stub `HTMLInputElement.prototype.showPicker` in `page.addInitScript` and count the calls, as `a11y-keyboard.spec.ts` does. The real picker is outside the page and cannot be inspected.
 - `getByRole`/`getByLabel` name matching is a case-insensitive substring match unless you pass `exact: true`.
 - A synthetic `visibilitychange` must be dispatched with `{ bubbles: true }` when fired on `document`, because the focus listener in `packages/web/src/main.tsx` listens on `window`.

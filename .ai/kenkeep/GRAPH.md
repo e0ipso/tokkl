@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:1a2e492ce66e4772640db802513fa9fb36dd94755c412e38ac1d654f39ca5a4a'
-node_count: 71
+nodes_hash: 'sha256:6f5203b55f8e220aa1a05c914f9a51c476d94482956b7859c04f59c00ca51c80'
+node_count: 74
 ---
 # kenkeep Graph
 
-Total nodes: 71
+Total nodes: 74
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -21,7 +21,7 @@ Total nodes: 71
 - **title:** Brand images: npm run icons derives every served file from docs/brand
 - **path:** tooling-and-project/repo-and-scripts/map-app-icons-script.md
 - **tags:** tooling, pwa, icons, imagemagick, maskable, web
-- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs
+- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
 ## map-app-report-endpoints
 
@@ -36,7 +36,7 @@ Total nodes: 71
 - **title:** App shell: Brand.tsx, the wordmark image and the NAV list
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile
-- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines
 
 ## map-container-image-ghcr-io-e0ipso-tokkl
 
@@ -101,7 +101,15 @@ Total nodes: 71
 - **title:** KDE CI job and release: kde matrix, real-server test, semantic-release plugin
 - **path:** tooling-and-project/kde-companion/map-kde-ci-and-release-pipeline.md
 - **tags:** tooling, kde, ci, release
-- **relates_to:** map-kde-native-packaging, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-test-and-static-analysis-layout
+- **relates_to:** map-kde-native-packaging, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-test-and-static-analysis-layout, map-kde-ci-dependency-image-cache, map-kde-release-upgrade-check-from-the-published-predecessor, map-tokkl-kde-live-widgets-reload-with-plasmashell
+
+## map-kde-ci-dependency-image-cache
+
+- **kind:** map
+- **title:** KDE CI dependency images: image-id.sh identity, Actions cache, weekly refresh
+- **path:** tooling-and-project/kde-companion/map-kde-ci-dependency-image-cache.md
+- **tags:** tooling, kde, ci, docker
+- **relates_to:** map-kde-ci-and-release-pipeline, map-kde-native-packaging
 
 ## map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
 
@@ -117,7 +125,7 @@ Total nodes: 71
 - **title:** KDE native packaging: DEB, RPM and the version mapping
 - **path:** tooling-and-project/kde-companion/map-kde-native-packaging.md
 - **tags:** tooling, kde, packaging, release
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline, map-kde-release-upgrade-check-from-the-published-predecessor
 
 ## map-kde-panel-button-menu-and-project-indicator
 
@@ -126,6 +134,14 @@ Total nodes: 71
 - **path:** tooling-and-project/kde-companion/plasma-companion/map-kde-panel-button-menu-and-project-indicator.md
 - **tags:** kde, desktop
 - **relates_to:** practice-kde-timer-controller-rules
+
+## map-kde-release-upgrade-check-from-the-published-predecessor
+
+- **kind:** map
+- **title:** KDE release upgrade check: previous-package.sh and --previous-package
+- **path:** tooling-and-project/kde-companion/map-kde-release-upgrade-check-from-the-published-predecessor.md
+- **tags:** tooling, kde, release, packaging
+- **relates_to:** map-kde-ci-and-release-pipeline, map-kde-native-packaging
 
 ## map-macos-menu-bar-app
 
@@ -208,6 +224,14 @@ Total nodes: 71
 - **path:** web-ui-behaviour/map-web-page-state-and-field-error-components.md
 - **tags:** web, a11y, react, components, forms, e2e
 - **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
+
+## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
+
+- **kind:** practice
+- **title:** docs/brand packs stay as the owner supplied them; never run their rebuilds
+- **path:** tooling-and-project/repo-and-scripts/practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md
+- **tags:** brand, assets, docs
+- **relates_to:** map-app-icons-script
 
 ## practice-client-deletion-keeps-projects
 

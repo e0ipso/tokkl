@@ -25,7 +25,7 @@ A baseline's file name comes from the explicit argument to `toHaveScreenshot` (`
 
 The baselines are rendered by the default Playwright headless shell (revision 1248 for Playwright 1.64.1). Do not set `CHROMIUM_PATH` to the older 1223 build when running them; its output differs. Refresh after an intended change with `npx playwright test visual --update-snapshots=all`. A plain `--update-snapshots` means `changed`, and it can leave a baseline that differs by less than the threshold untouched, so the committed set drifts.
 
-Because the threshold is a ratio of the whole page, a small element can break without failing a baseline. The 30px brand icon is one: `e2e/typography.spec.ts` decodes `/brand/icon-96.png` for that reason. Give any small asset its own check, and decode it, since the static server answers a missing path with the HTML shell and status 200.
+Because the threshold is a ratio of the whole page, a small element can break without failing a baseline. An extra small image in the brand is one: `e2e/typography.spec.ts` checks with `expectWordmarkAlone` that every `.brand` holds exactly one img, named Tokkl, and decodes the wordmark. Give any small asset its own check, and decode it, since the static server answers a missing path with the HTML shell and status 200.
 
 <!-- Verified against the current code on 2026-10-16. -->
 
