@@ -1,6 +1,7 @@
-import type { Locator } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
+import { PHONE } from './mobile-tests-helpers.ts';
 
 // The Anybody variable font ships with the app, is preloaded once, loads under the CSP
 // (font-src 'self') and sets headings, the running clock and totals.
@@ -10,6 +11,19 @@ import { login } from './helpers.ts';
 const FONT = '/fonts/anybody-wdth-wght.woff2';
 
 const fontFamily = (target: Locator) => target.evaluate((el) => getComputedStyle(el).fontFamily);
+
+/**
+ * The brand is the wordmark alone. A small extra image could slip past the visual baselines'
+ * threshold, so every `.brand` on the page must hold exactly one img, the one named Tokkl.
+ */
+async function expectWordmarkAlone(page: Page) {
+  const brands = page.locator('.brand');
+  await expect(brands).not.toHaveCount(0);
+  for (const brand of await brands.all()) {
+    await expect(brand.locator('img')).toHaveCount(1);
+    await expect(brand.locator('img')).toHaveAccessibleName('Tokkl');
+  }
+}
 
 test('the font and its licence are served as files, not the app shell', async ({ request }) => {
   const font = await request.get(FONT);
@@ -76,12 +90,19 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
     await img.decode();
     return img.naturalWidth;
   })).toBeGreaterThan(0);
-  // The brand is the wordmark alone. A small extra image could slip past the visual baselines'
-  // threshold, so every .brand must hold exactly one img, the one named Tokkl.
-  const brands = page.locator('.brand');
-  await expect(brands).not.toHaveCount(0);
-  for (const brand of await brands.all()) {
-    await expect(brand.locator('img')).toHaveCount(1);
-    await expect(brand.locator('img')).toHaveAccessibleName('Tokkl');
-  }
+  await expect(page.locator('.sidebar .brand-md')).toBeVisible();
+  await expectWordmarkAlone(page);
+});
+
+// The test above checks the sidebar's md brand; the login page shows lg and the phone header sm.
+test('the brand is the wordmark alone on the login page and in the phone header', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  await expect(page.locator('.brand-lg')).toBeVisible();
+  await expectWordmarkAlone(page);
+
+  await page.setViewportSize(PHONE.viewport);
+  await login(page);
+  await expect(page.locator('.phone-header .brand-sm')).toBeVisible();
+  await expectWordmarkAlone(page);
 });
