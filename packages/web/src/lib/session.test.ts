@@ -24,6 +24,8 @@ Object.assign(globalThis, {
   },
 });
 const { ApiError } = await import('../api/client.ts');
+const { chainKey } = await import('../components/pauseChain.ts');
+const { readTabChain, writeTabChain } = await import('../components/tabChain.ts');
 const { endSession, logOut, takeLogoutFailure } = await import('./session.ts');
 
 const realFetch = globalThis.fetch;
@@ -90,4 +92,25 @@ test('a session that ends after a failed logout drops the failure message', asyn
   await assert.rejects(logOut(qc));
   endSession(qc);
   assert.equal(takeLogoutFailure(), false, 'the login page does not say the user is still signed in');
+});
+
+test('a session that ends after storage refused a pause leaves no chain for the next sign-in', () => {
+  const localStorage = window.localStorage;
+  const setItem = localStorage.setItem;
+  const paused = {
+    stoppedSeconds: 600, runningId: null, since: 1_600,
+    snapshot: { description: 'Write the spec', project_id: 4, task_id: null, tags: [], billable: false },
+  };
+  localStorage.setItem = () => {
+    throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+  };
+  try {
+    writeTabChain(7, paused);
+    assert.equal(storage.has(chainKey(7)), false, 'storage refused the chain');
+    assert.deepEqual(readTabChain(7), paused, 'the tab keeps it while the session lasts');
+    endSession(qc);
+    assert.equal(readTabChain(7), null, 'signing back in to the same account starts without a chain');
+  } finally {
+    localStorage.setItem = setItem;
+  }
 });

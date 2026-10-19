@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { chainKey, serializeChain, type PauseChain } from './pauseChain.ts';
-import { readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
+import { forgetTabChain, readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
 
 // The tab's chain sits on window.localStorage, which a minimal window stands in for. `mode` blocks
 // storage the way browsers do: `blocked` throws on any access, `full` reads but refuses writes.
@@ -203,4 +203,41 @@ test('with writes refused and no chain stored, the refused chain is still read b
   writeTabChain(7, paused);
   assert.equal(storage.size, 0);
   assert.deepEqual(readTabChain(7), paused);
+});
+
+test('forgetting the tab chain drops a refused write although storage held no chain', () => {
+  reset();
+  mode = 'full';
+  writeTabChain(7, chain(600));
+  assert.equal(storage.size, 0);
+  assert.deepEqual(readTabChain(7), chain(600));
+  forgetTabChain();
+  assert.equal(readTabChain(7), null);
+  mode = 'open';
+  assert.equal(readTabChain(7), null, 'a later sign-in to the same account starts without a chain');
+});
+
+test('forgetting the tab chain drops the chain kept while storage is blocked', () => {
+  reset();
+  mode = 'blocked';
+  writeTabChain(7, chain(600));
+  assert.deepEqual(readTabChain(7), chain(600));
+  forgetTabChain();
+  assert.equal(readTabChain(7), null);
+});
+
+test('forgetting the tab chain leaves stored chains and later writes alone', () => {
+  reset();
+  const stored = chain(60);
+  storage.set(chainKey(8), serializeChain(stored));
+  writeTabChain(7, chain(600));
+  forgetTabChain();
+  assert.deepEqual(readTabChain(8), stored, 'storage is cleared by the session, not by this reset');
+  const { heard, stop } = listen();
+  forgetTabChain();
+  assert.deepEqual(heard, [], 'forgetting tells no listener');
+  const again = chain(900);
+  writeTabChain(7, again);
+  assert.deepEqual(readTabChain(7), again);
+  stop();
 });

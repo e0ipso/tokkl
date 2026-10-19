@@ -61,6 +61,16 @@ export function writeTabChain(accountId: number, chain: PauseChain | null): void
   for (const listener of listeners) listener(accountId, chain);
 }
 
+/**
+ * Drops the chain this tab kept in memory, whichever account it belongs to. The session ends here:
+ * storage is cleared separately, and a chain kept after a refused or blocked write would outlive
+ * it when storage held nothing to change. Listeners hear nothing; the page loads again or the
+ * components that read the chain render again.
+ */
+export function forgetTabChain(): void {
+  memory = null;
+}
+
 /** Calls `listener` after every write in this tab, including the listener's own. */
 export function subscribeTabChain(listener: Listener): () => void {
   listeners.add(listener);

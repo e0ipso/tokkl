@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { forgetChains } from '../components/pauseChain.ts';
 import { forgetPomodoro } from '../components/pomodoroCycle.ts';
+import { forgetTabChain } from '../components/tabChain.ts';
 import { clearCachedTheme } from './theme.ts';
 
 /**
@@ -19,6 +20,8 @@ function forgetLogoutFailure(): void {
 }
 
 function forgetTimerState(): void {
+  // The tab's own copy goes first and outside the try, so blocked storage cannot skip it.
+  forgetTabChain();
   try {
     forgetChains(window.localStorage);
     forgetPomodoro(window.localStorage);
