@@ -177,6 +177,42 @@ test('a reload while paused keeps the chain, and Resume after it clones the entr
   expect(await runningSeconds(ui.runningClock)).toBeLessThan(total + 60);
 });
 
+test('a pause that full storage refuses to save still shows Paused back on the Timer page', async ({ page }) => {
+  // Storage reads work but every chain write throws, as when the quota is full.
+  await page.addInitScript((prefix) => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (this: Storage, key: string, value: string) {
+      if (key.startsWith(prefix)) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      setItem.call(this, key, value);
+    };
+  }, CHAIN_PREFIX);
+  await login(page);
+  const api = await TimerApi.open(page);
+  const { running, metadata } = await seedRunning(page, api);
+  const ui = bar(page);
+  await ui.pause.click();
+  await expect(ui.resume).toBeVisible();
+  await expect.poll(() => api.current()).toBeNull();
+  const total = await storedTotal(api);
+  expect(await storedChains(page)).toEqual([]);
+
+  // Leaving the Timer page unmounts the bar, so coming back reads the chain again.
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await nav.getByRole('link', { name: 'Reports' }).click();
+  await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
+  await expect(ui.timer).toHaveCount(0);
+  await nav.getByRole('link', { name: 'Timer' }).click();
+  await expect(ui.resume).toBeVisible();
+  await expect(ui.pausedLabel).toBeVisible();
+  await expect(ui.pausedClock).toHaveText(clockText(total));
+  await expect(ui.timer.getByLabel('Description')).toHaveValue(metadata.description);
+
+  await ui.resume.click();
+  const clone = await nextRunning(api, running.id);
+  expect(metadataOf(clone)).toEqual(metadataOf(metadata));
+  await expect.poll(() => runningSeconds(ui.runningClock)).toBeGreaterThanOrEqual(total + 1);
+});
+
 test('Stop pressed while Resume is starting the clone leaves no timer running', async ({ page }) => {
   await login(page);
   const api = await TimerApi.open(page);
