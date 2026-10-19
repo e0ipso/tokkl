@@ -193,6 +193,28 @@ test('zero-length entries at one instant sit side by side and each opens its own
   }
 });
 
+// A switch within half a step of local midnight stores a zero-length entry there. It belongs to
+// the day that starts at that midnight, and an entry that ends at midnight stays on its own day.
+test('a zero-length entry at local midnight is drawn on the day it starts and opens its editor', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid midnight between Tuesday 2026-06-16 and Wednesday 2026-06-17 (CEST) is 22:00Z.
+  await data.createEntry({ description: 'Midnight switch', start: '2026-06-16T22:00:00Z', stop: '2026-06-16T22:00:00Z' });
+  await data.createEntry({ description: 'Ends at midnight', start: '2026-06-16T21:00:00Z', stop: '2026-06-16T22:00:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 0);
+
+  const marker = todayBlock(page, 'Midnight switch');
+  await expect(marker).toHaveCSS('top', '0px');
+  await expect(marker).toHaveCSS('height', '6px');
+  await expect(page.locator('.calendar-block', { hasText: 'Midnight switch' })).toHaveCount(1);
+  await expect(page.locator('.calendar-block', { hasText: 'Ends at midnight' })).toHaveCount(1);
+  await expect(todayBlock(page, 'Ends at midnight')).toHaveCount(0);
+
+  await marker.click();
+  await expect(page.getByRole('dialog', { name: 'Edit entry' }).getByLabel('Description')).toHaveValue('Midnight switch');
+});
+
 // The running block and the now line use --state-running, the running block is dashed so
 // colour is not its only mark, and only today's day head is a filled badge.
 test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {
