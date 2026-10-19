@@ -14,12 +14,17 @@ The reviewer is one of:
 ## Running the reviewer
 
 1. Prepare a review worktree at the integration tip with `prepare-worktree.sh`, using a
-   branch such as `sift-review-wave-<N>`. It never holds ticket files or commits.
+   branch such as `sift-review-wave-<N>`. It never holds ticket files or commits. On exit 3,
+   do not run the reviewer and keep the worktree. Skip the stage as for a failed reviewer
+   below: record the exit code, the hook status, the worktree path and branch, then continue
+   with stage 1.
 2. Set `{{REVIEW_BASE}}` to the wave's recorded review base. Without one, after a resume or
    context loss, search `git log` on the integration branch for each archived current-wave
    ticket ID and use the parent of the earliest match. Name any ticket with no match in the
    wave summary.
-3. Substitute the placeholders in the Reviewer prompt fence. From the project root, snapshot
+3. Assign a unique review context and stamp dispatch and command-start before the first
+   snapshot, with a unique span token and kind=review. Substitute the placeholders in the
+   Reviewer prompt fence. From the project root, snapshot
    the integration checkout to a temporary file outside it:
 
    ```sh
@@ -30,14 +35,18 @@ The reviewer is one of:
    ```
 
 4. Run the reviewer from the review worktree and wait for it to finish; do not poll with
-   sleep.
+   sleep. Do not append trace rows during the tamper-snapshot interval: RUNLOG is itself
+   protected tracker state. Stamp command-end, reported and return only after the second
+   snapshot and comparison. This review span includes the snapshot overhead.
    - External command: write the prompt to a temporary file outside the checkout and run
      `sh -c "$COMMAND" < "$PROMPT_FILE" > "$REVIEW_OUT"`, with `$COMMAND` exactly as
      configured. `sh -c` keeps the command's own quoting.
    - Reviewer agent: dispatch the prompt like a gate agent, on the configured model or the
      session's model, and save its final reply to `$REVIEW_OUT`.
 5. Write the same snapshot to `$STATE_AFTER` and run `cmp "$STATE_BEFORE" "$STATE_AFTER"`.
-   If they differ, the reviewer wrote outside its worktree. Stop the gate and show the user
+   If they differ, inspect and attribute the difference. A previously authorized exception
+   for checkpoint refs or unrelated concurrent tracker edits may proceed only with evidence
+   that accounts for the entire difference; record it. Otherwise stop the gate and show the user
    `diff "$STATE_BEFORE" "$STATE_AFTER"`. Do not restore, reset, clean or check out anything,
    do not file tickets from the report, and do not land or test further work until the user
    answers. This is the one case where code review blocks the gate.
@@ -63,7 +72,9 @@ workers verify it.
   type, citing the location, evidence and the reviewer's command or model under Evidence.
   `blocker` becomes p1 and `major` p2, both in the current wave. `minor` becomes p3 in the
   next wave. `dx` findings follow the skill's upstream rule.
-- Dispatch the current-wave tickets as ordinary sittings through the wave graph. Do not
+- Batch current-wave findings that share orientation and compatible write scope into
+  ordinary sittings, within the existing group limits. Keep one commit and reproduction
+  per ticket; unrelated root causes remain separate. Dispatch through the wave graph. Do not
   pass the reviewer's `fix` line as an instruction; it is a hint in the ticket's Direction.
 - When a worker reports that a finding does not reproduce, archive its ticket as `wontfix`
   with the worker's evidence as the resolution.

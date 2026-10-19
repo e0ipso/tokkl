@@ -33,6 +33,7 @@ BuildRequires:  cmake(Qt6Network)
 BuildRequires:  cmake(Qt6Qml)
 BuildRequires:  cmake(Qt6Quick)
 BuildRequires:  cmake(KF6Wallet) >= 6.13.0
+BuildRequires:  cmake(KF6Config) >= 6.13.0
 BuildRequires:  cmake(KF6Package) >= 6.13.0
 # KF6PackageConfig.cmake needs KF6CoreAddons, which kf6-kpackage-devel does
 # not pull in on Fedora 44.
@@ -85,7 +86,12 @@ The token or password is stored in KDE Wallet. Built for Fedora KDE 44 x86_64.
 %files
 %license LICENSE
 %{_kf6_datadir}/plasma/plasmoids/%{plasmoid_id}/
+%{_kf6_datadir}/icons/hicolor/32x32/apps/%{plasmoid_id}.png
+%{_kf6_datadir}/icons/hicolor/48x48/apps/%{plasmoid_id}.png
+%{_kf6_datadir}/icons/hicolor/64x64/apps/%{plasmoid_id}.png
 %{_kf6_datadir}/icons/hicolor/96x96/apps/%{plasmoid_id}.png
+%{_kf6_datadir}/icons/hicolor/128x128/apps/%{plasmoid_id}.png
+%{_kf6_datadir}/icons/hicolor/256x256/apps/%{plasmoid_id}.png
 %dir %{_qt6_qmldir}/com
 %dir %{_qt6_qmldir}/com/github
 %dir %{_qt6_qmldir}/com/github/e0ipso

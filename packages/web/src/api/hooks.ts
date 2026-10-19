@@ -38,6 +38,8 @@ export function usePreferences() {
 export function useSavePreferences() {
   const qc = useQueryClient();
   return useMutation({
+    // The Pomodoro waits for this save to settle before it trusts an optimistic switch-off.
+    mutationKey: keys.preferences,
     mutationFn: (changes: Partial<Preferences>) => api.post<Preferences>(`${v9}/me/preferences`, changes),
     onMutate: (changes) => {
       const previous = qc.getQueryData<Preferences>(keys.preferences);

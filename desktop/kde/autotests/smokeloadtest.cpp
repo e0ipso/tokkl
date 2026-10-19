@@ -3,8 +3,9 @@
 // stages the install and points XDG_DATA_DIRS and QML_IMPORT_PATH at it.
 //
 // scripts/check-package.sh runs the same binary against an installed
-// package: TOKKL_SMOKE_PLASMOID_DIR and TOKKL_SMOKE_BACKEND_DIR then name the
-// installed widget and backend directories that Plasma must resolve.
+// package: TOKKL_SMOKE_PLASMOID_DIR, TOKKL_SMOKE_BACKEND_DIR and
+// TOKKL_SMOKE_ICON_DIR then name the installed widget, backend and icon theme
+// directories that Plasma must resolve.
 
 #include <KConfigLoader>
 #include <KLocalizedContext>
@@ -17,8 +18,10 @@
 #include <PlasmaQuick/ConfigView>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QIcon>
+#include <QImage>
 #include <QMetaProperty>
 #include <QRegularExpression>
 #include <QQmlComponent>
@@ -29,6 +32,7 @@
 #include <QStringList>
 #include <QTest>
 
+#include <algorithm>
 #include <memory>
 
 namespace
@@ -43,6 +47,19 @@ QString expectedDir(const char *variable, const QString &staged)
 }
 const QString stagedPlasmoidDir = expectedDir("TOKKL_SMOKE_PLASMOID_DIR", QStringLiteral(TOKKL_STAGED_PLASMOID_DIR));
 const QString stagedBackendDir = expectedDir("TOKKL_SMOKE_BACKEND_DIR", QStringLiteral(TOKKL_STAGED_BACKEND_DIR));
+const QString stagedIconDir = expectedDir("TOKKL_SMOKE_ICON_DIR", QStringLiteral(TOKKL_STAGED_ICON_DIR));
+
+// The hicolor sizes of the widget picker icon, in pixels.
+const QList<int> pickerIconSizeList = {32, 48, 64, 96, 128, 256};
+QString pickerIconPath(int size)
+{
+    return QStringLiteral("%1/hicolor/%2x%2/apps/%3.png").arg(stagedIconDir).arg(size).arg(plasmoidId);
+}
+QByteArray fileBytes(const QString &path)
+{
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
 
 // QML errors from our package or backend; Qt reports them as warnings.
 QStringList qmlProblems;
@@ -142,6 +159,19 @@ private Q_SLOTS:
         QVERIFY(QFileInfo::exists(stagedBackendDir + QStringLiteral("/libtokklbackend.so")));
     }
 
+    // The widget picker's icon comes in every hicolor size the packages
+    // install, each a square of its directory's size, and the 96px one is
+    // the panel logo.
+    void pickerIconSizes()
+    {
+        for (const int size : pickerIconSizeList) {
+            const QString path = pickerIconPath(size);
+            QVERIFY2(QFileInfo::exists(path), qPrintable(path));
+            QCOMPARE(QImage(path).size(), QSize(size, size));
+        }
+        QCOMPARE(fileBytes(pickerIconPath(96)), fileBytes(stagedPlasmoidDir + QStringLiteral("/contents/images/tokkl.png")));
+    }
+
     void packageMetadata()
     {
         const KPackage::Package package = KPackage::PackageLoader::self()->loadPackage(QStringLiteral("Plasma/Applet"), plasmoidId);
@@ -150,9 +180,19 @@ private Q_SLOTS:
         QCOMPARE(package.metadata().pluginId(), plasmoidId);
         QCOMPARE(package.metadata().version(), version);
         QCOMPARE(package.metadata().iconName(), plasmoidId);
+        // hicolor's 256x256/apps directory is scalable down to 64px, so the
+        // theme may draw any size from 64 up from the 256px file. Check that
+        // it finds every size rather than which file it draws a size from.
         const QIcon icon = QIcon::fromTheme(package.metadata().iconName());
         QVERIFY(!icon.isNull());
-        QCOMPARE(icon.pixmap(96, 96).toImage(), QPixmap(stagedPlasmoidDir + QStringLiteral("/contents/images/tokkl.png")).toImage());
+        QList<int> themeSizes;
+        for (const QSize &size : icon.availableSizes()) {
+            if (!themeSizes.contains(size.width())) {
+                themeSizes.append(size.width());
+            }
+        }
+        std::sort(themeSizes.begin(), themeSizes.end());
+        QCOMPARE(themeSizes, pickerIconSizeList);
         QCOMPARE(QFileInfo(package.filePath("mainscript")).canonicalFilePath(),
                  QFileInfo(stagedPlasmoidDir + QStringLiteral("/contents/ui/main.qml")).canonicalFilePath());
     }
@@ -186,7 +226,7 @@ private Q_SLOTS:
         timerComponent.setData(QStringLiteral("import %1\nTokklTimer {}").arg(backendUri).toUtf8(), QUrl());
         std::unique_ptr<QObject> timer(timerComponent.create());
         QVERIFY2(timer, qPrintable(timerComponent.errorString()));
-        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00"));
         QCOMPARE(timer->property("running").toBool(), false);
         QCOMPARE(timer->property("connected").toBool(), false);
         QCOMPARE(timer->property("canWrite").toBool(), false);
@@ -223,7 +263,7 @@ private Q_SLOTS:
         auto *timer = item->property("timer").value<QObject *>();
         QVERIFY(timer);
         QCOMPARE(timer->property("connection").value<QObject *>(), item->property("connection").value<QObject *>());
-        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00"));
         QCOMPARE(timer->property("canWrite").toBool(), false);
         // Let Plasma select and instantiate the visible representation.
         // Creating the component ourselves misses a compact view that
@@ -239,7 +279,7 @@ private Q_SLOTS:
         QCOMPARE(panel->property("timer").value<QObject *>(), timer);
         auto *label = panel->findChild<QQuickItem *>(QStringLiteral("elapsedLabel"));
         QVERIFY(label);
-        QCOMPARE(label->property("text").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(label->property("text").toString(), QStringLiteral("0:00"));
         QTRY_VERIFY(label->isVisible());
         QTRY_VERIFY(label->width() > 0 && label->height() > 0);
         QTRY_VERIFY(window.contentItem()->contains(label->mapToItem(window.contentItem(), label->boundingRect().center())));

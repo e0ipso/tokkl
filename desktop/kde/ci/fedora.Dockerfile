@@ -14,11 +14,15 @@
 # The base image is pinned by digest. Fedora's updates repository has no
 # snapshots, so the Qt, KDE Frameworks and Plasma versions are whatever it
 # holds on the day of the build; ci/baseline.sh records them and fails the
-# build when they fall below the supported baseline.
+# build when they fall below the supported baseline. scripts/container-check.sh
+# reuses the images until an input in ci/image-id.sh changes.
 
 FROM fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80 AS target
 # Qt warns and falls back to C.UTF-8 under the images' default C locale.
 ENV LANG=C.UTF-8
+# A new value rebuilds every stage against the archive as it is now; see
+# ci/image-id.sh.
+ARG TOKKL_KDE_CI_REFRESH=
 COPY scripts/prepare-target.sh /opt/tokkl-kde/scripts/
 RUN /opt/tokkl-kde/scripts/prepare-target.sh --format rpm
 

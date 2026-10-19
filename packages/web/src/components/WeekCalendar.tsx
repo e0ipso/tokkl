@@ -3,8 +3,9 @@ import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
-import { DAY_MODE_QUERY, classifySwipe, clampDayMove, fitMoveInDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
-import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
+import { assignLanes, heightClearingMarkers } from '../lib/calendarLanes.ts';
+import { DAY_MODE_QUERY, classifySwipe, clampDayMove, dragStep, droppedMinute, fitMoveInDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
+import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { arrowTarget } from './arrowKeys.ts';
 import { EntryEditor } from './EntryEditor.tsx';
@@ -14,8 +15,8 @@ import { projectColorStyle } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
 
 const HOUR_HEIGHT = 48;
-const SNAP_MINUTES = 15;
-const MIN_BLOCK_MINUTES = 15;
+// A block never draws shorter than this, so a zero-length entry is a thin bar at its start.
+const MIN_BLOCK_HEIGHT = 6;
 // A touch drag starts after a hold, so a plain finger still scrolls the grid.
 const LONG_PRESS_MS = 500;
 const LONG_PRESS_TOLERANCE_PX = 10;
@@ -33,8 +34,9 @@ interface LongPress {
   timer: number;
 }
 
-function snap(minutes: number): number {
-  return Math.max(0, Math.min(24 * 60, Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES));
+/** A clock minute rounded to whole drag steps, kept on the day. */
+function snap(minutes: number, step: number): number {
+  return Math.max(0, Math.min(24 * 60, Math.round(minutes / step) * step));
 }
 
 interface Block {
@@ -44,47 +46,28 @@ interface Block {
   bottom: number;
   lane: number;
   lanes: number;
+  /** The least height to draw, in pixels: tall enough to show below a zero-length marker over its start. */
+  minHeight: number;
 }
 
-/** Lays out the part of each entry that falls on each day, side by side where they overlap. */
+/** Lays out the part of each entry that falls on each day, side by side where their stored spans overlap. */
 function layout(entries: TimeEntry[], days: string[], timeZone: string, now: Date): Block[] {
   const blocks: Block[] = [];
   for (const day of days) {
-    const onDay = entries
-      .map((entry) => {
-        const span = clockSpanOnDay(new Date(entry.start), entry.stop ? new Date(entry.stop) : now, day, timeZone);
-        if (!span) return null;
-        return { entry, day, top: span.top, bottom: Math.max(span.bottom, span.top + 5), lane: 0, lanes: 1 };
-      })
-      .filter((block): block is Block => block !== null)
-      .sort((a, b) => a.top - b.top);
-    let cluster: Block[] = [];
-    let clusterEnd = -1;
-    const flush = () => {
-      const lanes = Math.max(1, ...cluster.map((b) => b.lane + 1));
-      for (const block of cluster) block.lanes = lanes;
-      cluster = [];
-    };
-    for (const block of onDay) {
-      if (block.top >= clusterEnd) {
-        flush();
-        clusterEnd = -1;
-      }
-      const used = new Set(cluster.filter((b) => b.bottom > block.top).map((b) => b.lane));
-      let lane = 0;
-      while (used.has(lane)) lane++;
-      block.lane = lane;
-      cluster.push(block);
-      clusterEnd = Math.max(clusterEnd, block.bottom);
-    }
-    flush();
-    blocks.push(...onDay);
+    const onDay = entries.flatMap((entry): Block[] => {
+      const span = clockSpanOnDay(new Date(entry.start), entry.stop ? new Date(entry.stop) : now, day, timeZone);
+      return span ? [{ entry, day, top: span.top, bottom: span.bottom, lane: 0, lanes: 1, minHeight: MIN_BLOCK_HEIGHT }] : [];
+    });
+    const laid = assignLanes(onDay);
+    for (const block of laid) block.minHeight = heightClearingMarkers(block, laid, HOUR_HEIGHT / 60, MIN_BLOCK_HEIGHT);
+    blocks.push(...laid);
   }
   return blocks;
 }
 
 export function WeekCalendar() {
   const settings = useSettings();
+  const stepMinutes = dragStep(settings.timeResolution);
   const now = useNow(60_000);
   const todayKey = today(settings.timeZone);
   // Below 760px the grid shows one day; the week it belongs to still loads, for the strip's totals.
@@ -194,8 +177,9 @@ export function WeekCalendar() {
       if (current.kind === 'create') {
         // A plain click (no drag) does nothing; creating needs a dragged range.
         if (current.toMinute === current.fromMinute) return;
-        const from = Math.min(Math.min(current.fromMinute, current.toMinute), 24 * 60 - MIN_BLOCK_MINUTES);
-        const to = Math.max(current.fromMinute, current.toMinute, from + MIN_BLOCK_MINUTES);
+        // Whole steps from midnight are on the resolution grid, so the range needs no snapping.
+        const from = Math.min(Math.min(current.fromMinute, current.toMinute), 24 * 60 - stepMinutes);
+        const to = Math.max(current.fromMinute, current.toMinute, from + stepMinutes);
         const created = await create.mutateAsync({
           start: instantAt(current.day, from, settings.timeZone).toISOString(),
           stop: instantAt(current.day, Math.min(to, 24 * 60 - 1), settings.timeZone).toISOString(),
@@ -208,16 +192,21 @@ export function WeekCalendar() {
         return;
       }
       // Blocks are drawn on the local clock, so drops move endpoints by clock minutes, not elapsed time.
+      // The dropped boundary then goes to the nearest point of the resolution grid, as the preview
+      // shows it, so an entry imported off the grid lands on it and the server keeps the drop.
       const start = new Date(current.entry.start);
+      const dropAt = (from: Date) => snappedInstant(addClockMinutes(from, current.deltaMinutes, settings.timeZone), settings).getTime();
       if (current.kind === 'move') {
         // The start lands on the dropped slot; the entry keeps its elapsed duration.
-        let movedStart = addClockMinutes(start, current.deltaMinutes, settings.timeZone).getTime();
+        let movedStart = dropAt(start);
         const stop = current.entry.stop ? Date.parse(current.entry.stop) : null;
         if (dayMode && stop !== null) {
           // The clamp kept the clock span on the day, but on a 25-hour day the elapsed duration
-          // can still carry the stop into the next day.
+          // can still carry the stop into the next day. The fit uses the duration the server
+          // stores, rounded up to the resolution, so the stored stop stays on the day too.
           const dayEnd = startOfDay(addDays(current.day, 1), settings.timeZone).getTime();
-          movedStart = fitMoveInDay(movedStart, stop - start.getTime(), stop, dayEnd);
+          const stored = snappedSeconds(start, new Date(stop), settings) * 1000;
+          movedStart = fitMoveInDay(movedStart, stored, stop, dayEnd);
         }
         await update.mutateAsync({
           id: current.entry.id,
@@ -225,9 +214,15 @@ export function WeekCalendar() {
           ...(stop !== null ? { stop: new Date(movedStart + stop - start.getTime()).toISOString() } : {}),
         });
       } else if (current.entry.stop) {
-        const dropped = addClockMinutes(new Date(current.entry.stop), current.deltaMinutes, settings.timeZone).getTime();
-        const stop = Math.max(start.getTime() + MIN_BLOCK_MINUTES * 60_000, dropped);
-        await update.mutateAsync({ id: current.entry.id, stop: new Date(stop).toISOString() });
+        // The server moves an off-grid start to the grid and rounds the duration up from there, so
+        // sending that start too keeps the stop where it was dropped.
+        const gridStart = snappedInstant(start, settings).getTime();
+        const stop = Math.max(gridStart + stepMinutes * 60_000, dropAt(new Date(current.entry.stop)));
+        await update.mutateAsync({
+          id: current.entry.id,
+          ...(gridStart !== start.getTime() ? { start: new Date(gridStart).toISOString() } : {}),
+          stop: new Date(stop).toISOString(),
+        });
       }
     } catch (error) {
       toast.error(error);
@@ -361,15 +356,15 @@ export function WeekCalendar() {
                 className={`calendar-column${day === todayKey ? ' today' : ''}`}
                 onPointerDown={(event) => {
                   if (event.button !== 0 || (event.target as HTMLElement).closest('.calendar-block')) return;
-                  const minute = snap(minuteAt(event.clientY, event.currentTarget));
+                  const minute = snap(minuteAt(event.clientY, event.currentTarget), stepMinutes);
                   beginDrag(event, { kind: 'create', day, fromMinute: minute, toMinute: minute });
                 }}
                 onPointerMove={(event) => {
                   if (!drag) return;
                   if (drag.kind === 'create' && drag.day === day) {
-                    updateDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget)) });
+                    updateDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget), stepMinutes) });
                   } else if (drag.kind !== 'create') {
-                    const snapped = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+                    const snapped = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / stepMinutes) * stepMinutes;
                     // A day-mode move stays on the shown day; the week view lets a block cross midnight.
                     const delta = dayMode && drag.kind === 'move' ? clampDayMove(snapped, drag.startMinute, drag.endMinute) : snapped;
                     if (delta !== drag.deltaMinutes) updateDrag({ ...drag, deltaMinutes: delta });
@@ -382,12 +377,13 @@ export function WeekCalendar() {
                   let top = block.top;
                   let bottom = block.bottom;
                   if (active && drag.kind === 'move') {
-                    top += drag.deltaMinutes;
-                    bottom += drag.deltaMinutes;
+                    top = droppedMinute(block.top, drag.deltaMinutes, settings.timeResolution);
+                    bottom += top - block.top;
                   } else if (active && drag.kind === 'resize') {
-                    bottom = Math.max(top + MIN_BLOCK_MINUTES, bottom + drag.deltaMinutes);
+                    bottom = Math.max(top + stepMinutes, droppedMinute(bottom, drag.deltaMinutes, settings.timeResolution));
                   }
                   const width = 100 / block.lanes;
+                  const storedHeight = ((bottom - top) / 60) * HOUR_HEIGHT;
                   const { description, project_name: projectName } = block.entry;
                   const elapsed = duration(entrySeconds(block.entry, now), settings);
                   const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
@@ -395,10 +391,10 @@ export function WeekCalendar() {
                   return (
                     <div
                       key={`${block.entry.id}-${day}`}
-                      className={`calendar-block${block.entry.stop ? '' : ' running'}${active ? ' dragging' : ''}`}
+                      className={`calendar-block${block.entry.stop ? '' : ' running'}${storedHeight < MIN_BLOCK_HEIGHT ? ' thin' : ''}${storedHeight === 0 ? ' marker' : ''}${active ? ' dragging' : ''}`}
                       style={{
                         top: (top / 60) * HOUR_HEIGHT,
-                        height: Math.max(((bottom - top) / 60) * HOUR_HEIGHT, 6),
+                        height: Math.max(storedHeight, active ? MIN_BLOCK_HEIGHT : block.minHeight),
                         left: `calc(${block.lane * width}% + 2px)`,
                         width: `calc(${width}% - 4px)`,
                         ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),

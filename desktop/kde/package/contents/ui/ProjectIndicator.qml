@@ -5,9 +5,9 @@ import org.kde.kirigami as Kirigami
 
 import com.github.e0ipso.tokkl.backend
 
-// The project of the running entry, or of the next start while stopped, as a
-// small shape in the panel row. A dot pulses while an entry runs and a still
-// square shows while stopped. The project colour fills the shape inside a
+// The project of the running or paused entry, or of the next start while
+// stopped, as a small shape in the panel row. A dot pulses while an entry
+// runs, a still dot shows while paused and a still square while stopped. The project colour fills the shape inside a
 // ring in the theme text colour, which keeps 3:1 against the panel in light
 // and dark themes whatever the project colour. Only the fill pulses; the ring
 // and the dashed outline stay at full opacity, so the edge never fades. A project without a valid
@@ -31,7 +31,7 @@ Item {
 
     readonly property bool filled: timer.indicatorState === TokklTimer.IndicatorState.Project
     readonly property bool dashed: timer.indicatorState === TokklTimer.IndicatorState.None
-    readonly property bool round: timer.running
+    readonly property bool round: timer.running || timer.paused
     readonly property color fillColor: timer.indicatorColor !== "" ? timer.indicatorColor : Kirigami.Theme.textColor
     readonly property color ringColor: Kirigami.Theme.textColor
     readonly property bool pulsing: pulse.running
@@ -105,11 +105,11 @@ Item {
     }
 
     // The pulse of the running dot's fill: the web app's 1.6 s cycle down to
-    // 0.35 opacity and back. Under reduced motion, or while hidden, it stops
-    // at full opacity.
+    // 0.35 opacity and back. While paused, under reduced motion or while
+    // hidden, it stops at full opacity.
     SequentialAnimation {
         id: pulse
-        running: indicator.round && indicator.filled && indicator.shown && !indicator.reducedMotion
+        running: indicator.timer.running && indicator.filled && indicator.shown && !indicator.reducedMotion
         loops: Animation.Infinite
 
         NumberAnimation {

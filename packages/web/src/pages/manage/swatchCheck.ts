@@ -9,7 +9,7 @@ function luminance(hex: string): number {
 
 // The values of --swatch-check-light and --swatch-check-dark in styles.css; change them together.
 const CHECK_LIGHT = luminance('#ffffff');
-const CHECK_DARK = luminance('#0b1026');
+const CHECK_DARK = luminance('#08061f');
 
 /**
  * The check token with the higher contrast against the swatch. The swatch is the raw hex in both

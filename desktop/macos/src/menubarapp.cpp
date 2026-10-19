@@ -1,5 +1,6 @@
 #include "menubarapp.h"
 
+#include "chainstore.h"
 #include "connection.h"
 #include "settingswindow.h"
 #include "statusitem.h"
@@ -34,9 +35,12 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_statusItem(statusItem)
     , m_settings(settings)
     , m_connection(std::make_unique<Connection>(transport, store, clientName()))
+    , m_chainStore(settings ? std::make_unique<SettingsChainStore>(settings) : nullptr)
     , m_timer(clock ? std::make_unique<TimerController>(clock) : std::make_unique<TimerController>())
     , m_settingsWindow(std::make_unique<SettingsWindow>(transport, store, settings, loginItem))
 {
+    // Before the connection: the stored chain is read with its first entry.
+    m_timer->setChainStore(m_chainStore.get());
     m_timer->setConnection(m_connection.get());
     m_menu = std::make_unique<StatusMenu>(m_timer.get());
 
@@ -48,6 +52,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
     for (auto signal : {&TimerController::elapsedChanged,
                         &TimerController::statusChanged,
                         &TimerController::currentEntryChanged,
+                        &TimerController::chainChanged,
                         &TimerController::choiceChanged,
                         &TimerController::projectsChanged,
                         &TimerController::entryProjectChanged,
@@ -132,7 +137,7 @@ void MenuBarApp::updateItem()
     m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer));
     m_statusItem->setToolTip(StatusWords::summary(*m_timer));
     m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer));
-    m_statusItem->setIndicator(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()));
+    m_statusItem->setImage(StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion())));
 }
 
 }

@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:1c20e6600358a87ac3bfa8cc4cf7d5b0e228d96abb44129747337e777a8df8c7'
-node_count: 70
+nodes_hash: 'sha256:93c22a8ceee46d55a8e6446bbcc60abcd5e6fb8aab3bc0f0464b88e5cec4e54b'
+node_count: 81
 ---
 # kenkeep Graph
 
-Total nodes: 70
+Total nodes: 81
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -20,8 +20,8 @@ Total nodes: 70
 - **kind:** map
 - **title:** Brand images: npm run icons derives every served file from docs/brand
 - **path:** tooling-and-project/repo-and-scripts/map-app-icons-script.md
-- **tags:** tooling, pwa, icons, imagemagick, maskable, web
-- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs
+- **tags:** tooling, pwa, icons, imagemagick, maskable, wordmark, web
+- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-app-shell-brand-and-navigation, map-test-and-static-analysis-layout, map-pwa-manifest-and-head-icon-links, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
 
 ## map-app-report-endpoints
 
@@ -35,8 +35,8 @@ Total nodes: 70
 - **kind:** map
 - **title:** App shell: Brand.tsx, the wordmark image and the NAV list
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
-- **tags:** web, navigation, brand, mobile
-- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
+- **tags:** web, navigation, brand, mobile, wordmark
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 
 ## map-container-image-ghcr-io-e0ipso-tokkl
 
@@ -101,7 +101,15 @@ Total nodes: 70
 - **title:** KDE CI job and release: kde matrix, real-server test, semantic-release plugin
 - **path:** tooling-and-project/kde-companion/map-kde-ci-and-release-pipeline.md
 - **tags:** tooling, kde, ci, release
-- **relates_to:** map-kde-native-packaging, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-test-and-static-analysis-layout
+- **relates_to:** map-kde-native-packaging, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-test-and-static-analysis-layout, map-kde-ci-dependency-image-cache, map-kde-release-upgrade-check-from-the-published-predecessor, map-tokkl-kde-live-widgets-reload-with-plasmashell
+
+## map-kde-ci-dependency-image-cache
+
+- **kind:** map
+- **title:** KDE CI dependency images: image-id.sh identity, Actions cache, weekly refresh
+- **path:** tooling-and-project/kde-companion/map-kde-ci-dependency-image-cache.md
+- **tags:** tooling, kde, ci, docker
+- **relates_to:** map-kde-ci-and-release-pipeline, map-kde-native-packaging
 
 ## map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
 
@@ -117,7 +125,7 @@ Total nodes: 70
 - **title:** KDE native packaging: DEB, RPM and the version mapping
 - **path:** tooling-and-project/kde-companion/map-kde-native-packaging.md
 - **tags:** tooling, kde, packaging, release
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline, map-kde-release-upgrade-check-from-the-published-predecessor
 
 ## map-kde-panel-button-menu-and-project-indicator
 
@@ -126,6 +134,14 @@ Total nodes: 70
 - **path:** tooling-and-project/kde-companion/plasma-companion/map-kde-panel-button-menu-and-project-indicator.md
 - **tags:** kde, desktop
 - **relates_to:** practice-kde-timer-controller-rules
+
+## map-kde-release-upgrade-check-from-the-published-predecessor
+
+- **kind:** map
+- **title:** KDE release upgrade check: previous-package.sh and --previous-package
+- **path:** tooling-and-project/kde-companion/map-kde-release-upgrade-check-from-the-published-predecessor.md
+- **tags:** tooling, kde, release, packaging
+- **relates_to:** map-kde-ci-and-release-pipeline, map-kde-native-packaging
 
 ## map-macos-menu-bar-app
 
@@ -142,6 +158,22 @@ Total nodes: 70
 - **path:** tooling-and-project/repo-and-scripts/map-npm-workspaces-package-layout.md
 - **tags:** monorepo, workspaces, layout, tooling, common, api, web, types
 - **relates_to:** map-test-and-static-analysis-layout
+
+## map-pomodoro-cycle-functions-in-packages-common
+
+- **kind:** map
+- **title:** Pomodoro cycle functions in packages/common/pomodoro.ts
+- **path:** web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md
+- **tags:** common, pomodoro, timer, fixtures
+- **relates_to:** practice-preferences-validated-by-known-key, practice-parser-cases-live-in-shared-json-fixtures, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
+
+## map-pwa-manifest-and-head-icon-links
+
+- **kind:** map
+- **title:** PWA manifest and head icon links, and what e2e/pwa.spec.ts checks
+- **path:** web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md
+- **tags:** pwa, manifest, icons, favicon, web, testing
+- **relates_to:** map-app-icons-script, practice-playwright-gotchas-in-the-e2e-specs, practice-theme-tokens-data-theme-and-cached-theme, map-app-shell-brand-and-navigation
 
 ## map-readme-screenshots-script
 
@@ -167,6 +199,15 @@ Total nodes: 70
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-npm-workspaces-package-layout
 
+## map-tokkl-kde-live-widgets-reload-with-plasmashell
+
+- **kind:** map
+- **title:** Tokkl KDE live widgets reload with plasmashell
+- **path:** tooling-and-project/kde-companion/plasma-companion/map-tokkl-kde-live-widgets-reload-with-plasmashell.md
+- **tags:** kde, desktop, packaging, troubleshooting
+- **relates_to:** map-kde-panel-button-menu-and-project-indicator, map-kde-native-packaging
+- **derived_from:** ba6a10d5-e7f0-4f2c-923e-8a293e65c64b:map:0
+
 ## map-tokkl-rename-legacy-name-fallbacks
 
 - **kind:** map
@@ -189,7 +230,7 @@ Total nodes: 70
 - **title:** Web calendar day view and touch gestures in WeekCalendar
 - **path:** web-ui-styling-and-layout/map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md
 - **tags:** web, calendar, touch, mobile, e2e
-- **relates_to:** practice-week-calendar-hour-height-agrees-in-three-places, practice-ui-time-math-uses-wall-clock-helpers, practice-phone-layout-css-gotchas, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
+- **relates_to:** practice-week-calendar-hour-height-agrees-in-three-places, practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top, practice-ui-time-math-uses-wall-clock-helpers, practice-phone-layout-css-gotchas, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 - **derived_from:** 935c3ad4-996d-4ce0-b165-4aaf8e23c62e:map:0
 
 ## map-web-page-state-and-field-error-components
@@ -199,6 +240,30 @@ Total nodes: 70
 - **path:** web-ui-behaviour/map-web-page-state-and-field-error-components.md
 - **tags:** web, a11y, react, components, forms, e2e
 - **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
+
+## map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
+
+- **kind:** map
+- **title:** Web Pomodoro: pomodoroCycle.ts, usePomodoro and the app-wide PomodoroProvider
+- **path:** web-ui-behaviour/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
+- **tags:** web, pomodoro, timer, localstorage, notifications
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key
+
+## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
+
+- **kind:** practice
+- **title:** docs/brand packs stay as the owner supplied them; never run their rebuilds
+- **path:** tooling-and-project/repo-and-scripts/practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md
+- **tags:** brand, assets, docs
+- **relates_to:** map-app-icons-script
+
+## practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top
+
+- **kind:** practice
+- **title:** Calendar lanes follow stored spans; zero-length markers draw on top
+- **path:** web-ui-styling-and-layout/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md
+- **tags:** web, calendar, css
+- **relates_to:** map-web-calendar-day-view-and-touch-gestures-in-weekcalendar, practice-ui-time-math-uses-wall-clock-helpers, practice-week-calendar-hour-height-agrees-in-three-places, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
 ## practice-client-deletion-keeps-projects
 
@@ -227,8 +292,8 @@ Total nodes: 70
 - **kind:** practice
 - **title:** Contrast tables in styles.css; project colours never paint text
 - **path:** web-ui-styling-and-layout/practice-contrast-tables-and-project-colours.md
-- **tags:** web, css, accessibility, contrast, projects
-- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme
+- **tags:** web, css, accessibility, contrast, projects, tokens
+- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 
 ## practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 
@@ -314,7 +379,7 @@ Total nodes: 70
 - **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
 - **path:** tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md
 - **tags:** kde, desktop
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership, practice-web-timer-bar-pause-chain-rules
 
 ## practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
 
@@ -378,7 +443,7 @@ Total nodes: 70
 - **title:** Parser cases live in packages/common/fixtures JSON, not in TS asserts
 - **path:** tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md
 - **tags:** testing, common, parsing
-- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout
+- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout, map-pomodoro-cycle-functions-in-packages-common
 
 ## practice-password-checks-go-through-failurelimiter-attempt
 
@@ -393,7 +458,7 @@ Total nodes: 70
 - **title:** Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells
 - **path:** web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md
 - **tags:** web, css, mobile, layout
-- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break
 
 ## practice-playwright-gotchas-in-the-e2e-specs
 
@@ -409,6 +474,7 @@ Total nodes: 70
 - **title:** Preferences: known keys validated, unknown keys stored verbatim
 - **path:** api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common
 
 ## practice-readme-describes-the-current-project-never-its-history
 
@@ -419,6 +485,14 @@ Total nodes: 70
 - **relates_to:** practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs, map-tokkl-rename-legacy-name-fallbacks
 - **derived_from:** a8ccde73-a7bd-471e-8daf-eafb3524a6fb:practice:0
 
+## practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break
+
+- **kind:** practice
+- **title:** Report totals wrap as a flex row; an Amount figure never breaks
+- **path:** web-ui-styling-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md
+- **tags:** web, css, reports, layout, mobile, e2e
+- **relates_to:** practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, map-readme-screenshots-script
+
 ## practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 
 - **kind:** practice
@@ -426,6 +500,14 @@ Total nodes: 70
 - **path:** tooling-and-project/testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md
 - **tags:** testing, e2e, workflow
 - **relates_to:** practice-visual-screenshot-baselines
+
+## practice-section-hues-data-section-maps-each-nav-section-to-a-hue
+
+- **kind:** practice
+- **title:** Section hues: data-section maps each NAV section to a hue and its text colour
+- **path:** web-ui-styling-and-layout/practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md
+- **tags:** web, css, navigation, contrast, tokens, calendar
+- **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 
 ## practice-stopped-entries-snap-to-the-time-resolution-on-write
 
@@ -506,6 +588,7 @@ Total nodes: 70
 - **title:** UI time math uses account-local wall-clock helpers
 - **path:** web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md
 - **tags:** web, time, dst, calendar, common
+- **relates_to:** practice-web-previews-and-editor-show-snapped-durations
 
 ## practice-v9-deletes-answer-an-empty-200
 
@@ -529,6 +612,14 @@ Total nodes: 70
 - **path:** web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md
 - **tags:** web, time, timer, entries
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-api-and-disabled-accounts
+
+## practice-web-timer-bar-pause-chain-rules
+
+- **kind:** practice
+- **title:** Web timer bar pause chain: pauseChain.ts, per-account storage, ending rules
+- **path:** web-ui-behaviour/practice-web-timer-bar-pause-chain-rules.md
+- **tags:** web, timer, pause, localstorage
+- **relates_to:** practice-end-sessions-through-lib-session, practice-web-ui-survives-background-refetches, practice-kde-timer-controller-rules
 
 ## practice-web-ui-survives-background-refetches
 

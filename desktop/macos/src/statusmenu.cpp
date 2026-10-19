@@ -26,10 +26,15 @@ StatusMenu::StatusMenu(TimerController *timer, QObject *parent)
     m_stateAction = m_menu->addAction(QString());
     m_stateAction->setEnabled(false);
 
-    m_toggleAction = m_menu->addAction(QString());
-    connect(m_toggleAction, &QAction::triggered, this, [this] {
-        if (m_timer) {
-            m_timer->toggle();
+    m_startStopAction = m_menu->addAction(QString());
+    connect(m_startStopAction, &QAction::triggered, this, [this] {
+        if (!m_timer) {
+            return;
+        }
+        if (m_timer->isRunning() || m_timer->isPaused()) {
+            m_timer->stop();
+        } else {
+            m_timer->start();
         }
     });
 
@@ -77,6 +82,7 @@ StatusMenu::StatusMenu(TimerController *timer, QObject *parent)
         connect(m_timer, &TimerController::elapsedChanged, this, &StatusMenu::refreshState);
         for (auto signal : {&TimerController::statusChanged,
                             &TimerController::currentEntryChanged,
+                            &TimerController::chainChanged,
                             &TimerController::projectsChanged,
                             &TimerController::selectionChanged,
                             &TimerController::choiceChanged,
@@ -106,9 +112,9 @@ QAction *StatusMenu::stateAction() const
     return m_stateAction;
 }
 
-QAction *StatusMenu::toggleAction() const
+QAction *StatusMenu::startStopAction() const
 {
-    return m_toggleAction;
+    return m_startStopAction;
 }
 
 QAction *StatusMenu::billableAction() const
@@ -159,7 +165,7 @@ void StatusMenu::refreshState()
         return;
     }
     const QString detail = StatusWords::detailText(*m_timer);
-    m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(m_timer->isRunning()), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
+    m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(*m_timer), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
     m_stateAction->setToolTip(detail);
 }
 
@@ -170,11 +176,18 @@ void StatusMenu::refresh()
     }
     refreshState();
 
-    const bool running = m_timer->isRunning();
-    m_toggleAction->setText(running ? tr("Stop Timer") : tr("Start Timer"));
-    m_toggleAction->setEnabled(m_timer->canWrite());
+    const bool paused = m_timer->isPaused();
+    if (m_timer->isRunning() || paused) {
+        m_startStopAction->setText(tr("Stop Timer"));
+        // A paused chain ends here without a request, so only a mutation in
+        // flight holds it.
+        m_startStopAction->setEnabled(paused ? !m_timer->isBusy() : m_timer->canWrite());
+    } else {
+        m_startStopAction->setText(tr("Start Timer"));
+        m_startStopAction->setEnabled(m_timer->canWrite());
+    }
 
-    m_billableAction->setEnabled(m_timer->canWrite());
+    m_billableAction->setEnabled(m_timer->canWrite() && !paused);
     m_billableAction->setChecked(m_timer->chosenBillable());
 
     m_reconnectAction->setEnabled(m_timer->status() != TimerController::Unconfigured);
@@ -186,8 +199,10 @@ void StatusMenu::refresh()
 
 void StatusMenu::rebuildProjects()
 {
-    // A choice is possible: the timer can write and nothing runs.
-    const bool choosable = m_timer->canWrite() && !m_timer->isRunning();
+    // A choice is possible: the timer can write and nothing runs or is
+    // paused.
+    const bool hasEntry = m_timer->isRunning() || m_timer->isPaused();
+    const bool choosable = m_timer->canWrite() && !hasEntry;
     const QVariant chosen = m_timer->chosenProjectId();
 
     m_projectMenu->setTitle(tr("Project: %1").arg(StatusWords::projectText(*m_timer)));
@@ -211,10 +226,10 @@ void StatusMenu::rebuildProjects()
         refresh();
     });
 
-    // The current entry's archived project: shown and checked, never offered
-    // for new work.
+    // The running or paused entry's archived project: shown and checked,
+    // never offered for new work.
     const QVariantMap entryProject = m_timer->entryProjectVariant().toMap();
-    if (m_timer->isRunning() && !entryProject.isEmpty() && !entryProject.value(QStringLiteral("active")).toBool()) {
+    if (hasEntry && !entryProject.isEmpty() && !entryProject.value(QStringLiteral("active")).toBool()) {
         QAction *archived = m_projectMenu->addAction(StatusWords::projectLabel(entryProject));
         archived->setCheckable(true);
         archived->setChecked(true);

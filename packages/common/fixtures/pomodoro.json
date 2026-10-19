@@ -1,0 +1,865 @@
+[
+  {
+    "name": "work phase that just started has the default 25 minutes left",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 0,
+      "running": true,
+      "now": "2026-10-19T09:00:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 1500,
+      "ended": false,
+      "endsAt": "2026-10-19T09:25:00.000Z"
+    }
+  },
+  {
+    "name": "running work phase ends at now plus the remaining time",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 600,
+      "running": true,
+      "now": "2026-10-19T09:10:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 900,
+      "ended": false,
+      "endsAt": "2026-10-19T09:25:00.000Z"
+    }
+  },
+  {
+    "name": "paused work phase keeps its frozen remaining time and has no end",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 600,
+      "running": false,
+      "now": "2026-10-19T09:40:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 900,
+      "ended": false,
+      "endsAt": null
+    }
+  },
+  {
+    "name": "resumed work phase continues the remaining time from the frozen value",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 600,
+      "running": true,
+      "now": "2026-10-19T09:40:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 900,
+      "ended": false,
+      "endsAt": "2026-10-19T09:55:00.000Z"
+    }
+  },
+  {
+    "name": "resumed work phase a minute later has a minute less left",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 660,
+      "running": true,
+      "now": "2026-10-19T09:41:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 840,
+      "ended": false,
+      "endsAt": "2026-10-19T09:55:00.000Z"
+    }
+  },
+  {
+    "name": "work phase one second before the boundary has not ended",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 1499,
+      "running": true,
+      "now": "2026-10-19T09:24:59Z"
+    },
+    "expected": {
+      "remainingSeconds": 1,
+      "ended": false,
+      "endsAt": "2026-10-19T09:25:00.000Z"
+    }
+  },
+  {
+    "name": "work phase exactly on the boundary has ended",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 1500,
+      "running": true,
+      "now": "2026-10-19T09:25:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 0,
+      "ended": true,
+      "endsAt": "2026-10-19T09:25:00.000Z"
+    }
+  },
+  {
+    "name": "overrun work phase stays at zero and keeps its end",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 1620,
+      "running": true,
+      "now": "2026-10-19T09:27:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 0,
+      "ended": true,
+      "endsAt": "2026-10-19T09:25:00.000Z"
+    }
+  },
+  {
+    "name": "paused work phase on the boundary has ended",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 1500,
+      "running": false,
+      "now": "2026-10-19T09:30:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 0,
+      "ended": true,
+      "endsAt": null
+    }
+  },
+  {
+    "name": "custom 50 minute work phase",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 0,
+      "running": true,
+      "now": "2026-10-19T09:00:00Z"
+    },
+    "options": {
+      "workMinutes": 50
+    },
+    "expected": {
+      "remainingSeconds": 3000,
+      "ended": false,
+      "endsAt": "2026-10-19T09:50:00.000Z"
+    }
+  },
+  {
+    "name": "one minute work phase one second before the boundary",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 59,
+      "running": true,
+      "now": "2026-10-19T09:00:59Z"
+    },
+    "options": {
+      "workMinutes": 1
+    },
+    "expected": {
+      "remainingSeconds": 1,
+      "ended": false,
+      "endsAt": "2026-10-19T09:01:00.000Z"
+    }
+  },
+  {
+    "name": "one minute work phase ends on the boundary",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 60,
+      "running": true,
+      "now": "2026-10-19T09:01:00Z"
+    },
+    "options": {
+      "workMinutes": 1
+    },
+    "expected": {
+      "remainingSeconds": 0,
+      "ended": true,
+      "endsAt": "2026-10-19T09:01:00.000Z"
+    }
+  },
+  {
+    "name": "zero minute work length is rejected",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 0,
+      "running": true,
+      "now": "2026-10-19T09:00:00Z"
+    },
+    "options": {
+      "workMinutes": 0
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "fractional work length is rejected",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": 0,
+      "running": true,
+      "now": "2026-10-19T09:00:00Z"
+    },
+    "options": {
+      "workMinutes": 1.5
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "negative work seconds are rejected",
+    "input": {
+      "function": "workPhase",
+      "workSeconds": -1,
+      "running": true,
+      "now": "2026-10-19T09:00:00Z"
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "first work phase is followed by a short break",
+    "input": {
+      "function": "nextBreak",
+      "completed": 0
+    },
+    "expected": {
+      "kind": "short",
+      "seconds": 300
+    }
+  },
+  {
+    "name": "third work phase is followed by a short break",
+    "input": {
+      "function": "nextBreak",
+      "completed": 2
+    },
+    "expected": {
+      "kind": "short",
+      "seconds": 300
+    }
+  },
+  {
+    "name": "fourth work phase is followed by the default long break",
+    "input": {
+      "function": "nextBreak",
+      "completed": 3
+    },
+    "expected": {
+      "kind": "long",
+      "seconds": 900
+    }
+  },
+  {
+    "name": "custom short break length",
+    "input": {
+      "function": "nextBreak",
+      "completed": 0
+    },
+    "options": {
+      "shortBreakMinutes": 10,
+      "longBreakMinutes": 30,
+      "longBreakEvery": 2
+    },
+    "expected": {
+      "kind": "short",
+      "seconds": 600
+    }
+  },
+  {
+    "name": "long break after every second work phase",
+    "input": {
+      "function": "nextBreak",
+      "completed": 1
+    },
+    "options": {
+      "shortBreakMinutes": 10,
+      "longBreakMinutes": 30,
+      "longBreakEvery": 2
+    },
+    "expected": {
+      "kind": "long",
+      "seconds": 1800
+    }
+  },
+  {
+    "name": "long break after every sixth work phase is not due after the fifth",
+    "input": {
+      "function": "nextBreak",
+      "completed": 4
+    },
+    "options": {
+      "longBreakEvery": 6
+    },
+    "expected": {
+      "kind": "short",
+      "seconds": 300
+    }
+  },
+  {
+    "name": "long break after every sixth work phase",
+    "input": {
+      "function": "nextBreak",
+      "completed": 5
+    },
+    "options": {
+      "longBreakEvery": 6
+    },
+    "expected": {
+      "kind": "long",
+      "seconds": 900
+    }
+  },
+  {
+    "name": "long break every work phase when the cycle has one phase",
+    "input": {
+      "function": "nextBreak",
+      "completed": 0
+    },
+    "options": {
+      "longBreakEvery": 1
+    },
+    "expected": {
+      "kind": "long",
+      "seconds": 900
+    }
+  },
+  {
+    "name": "count above a lowered long-break-every still gets a long break",
+    "input": {
+      "function": "nextBreak",
+      "completed": 3
+    },
+    "options": {
+      "longBreakEvery": 2
+    },
+    "expected": {
+      "kind": "long",
+      "seconds": 900
+    }
+  },
+  {
+    "name": "one minute short break",
+    "input": {
+      "function": "nextBreak",
+      "completed": 0
+    },
+    "options": {
+      "shortBreakMinutes": 1
+    },
+    "expected": {
+      "kind": "short",
+      "seconds": 60
+    }
+  },
+  {
+    "name": "one minute long break with one phase per cycle",
+    "input": {
+      "function": "nextBreak",
+      "completed": 0
+    },
+    "options": {
+      "workMinutes": 1,
+      "shortBreakMinutes": 1,
+      "longBreakMinutes": 1,
+      "longBreakEvery": 1
+    },
+    "expected": {
+      "kind": "long",
+      "seconds": 60
+    }
+  },
+  {
+    "name": "zero long-break-every is rejected",
+    "input": {
+      "function": "nextBreak",
+      "completed": 0
+    },
+    "options": {
+      "longBreakEvery": 0
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "negative completed count is rejected",
+    "input": {
+      "function": "nextBreak",
+      "completed": -1
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "zero minute short break is rejected",
+    "input": {
+      "function": "nextBreak",
+      "completed": 0
+    },
+    "options": {
+      "shortBreakMinutes": 0
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "short break that just started has the default 5 minutes left",
+    "input": {
+      "function": "breakPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "now": "2026-10-19T09:25:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 300,
+      "ended": false,
+      "endsAt": "2026-10-19T09:30:00.000Z"
+    }
+  },
+  {
+    "name": "short break halfway through",
+    "input": {
+      "function": "breakPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "now": "2026-10-19T09:27:30Z"
+    },
+    "expected": {
+      "remainingSeconds": 150,
+      "ended": false,
+      "endsAt": "2026-10-19T09:30:00.000Z"
+    }
+  },
+  {
+    "name": "short break one second before the boundary has not ended",
+    "input": {
+      "function": "breakPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "now": "2026-10-19T09:29:59Z"
+    },
+    "expected": {
+      "remainingSeconds": 1,
+      "ended": false,
+      "endsAt": "2026-10-19T09:30:00.000Z"
+    }
+  },
+  {
+    "name": "short break exactly on the boundary has ended",
+    "input": {
+      "function": "breakPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "now": "2026-10-19T09:30:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 0,
+      "ended": true,
+      "endsAt": "2026-10-19T09:30:00.000Z"
+    }
+  },
+  {
+    "name": "long break uses the default 15 minutes",
+    "input": {
+      "function": "breakPhase",
+      "kind": "long",
+      "startedAt": "2026-10-19T10:40:00Z",
+      "now": "2026-10-19T10:45:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 600,
+      "ended": false,
+      "endsAt": "2026-10-19T10:55:00.000Z"
+    }
+  },
+  {
+    "name": "overrun long break stays at zero and keeps its end",
+    "input": {
+      "function": "breakPhase",
+      "kind": "long",
+      "startedAt": "2026-10-19T10:40:00Z",
+      "now": "2026-10-19T11:00:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 0,
+      "ended": true,
+      "endsAt": "2026-10-19T10:55:00.000Z"
+    }
+  },
+  {
+    "name": "custom 30 minute long break",
+    "input": {
+      "function": "breakPhase",
+      "kind": "long",
+      "startedAt": "2026-10-19T10:40:00Z",
+      "now": "2026-10-19T10:45:00Z"
+    },
+    "options": {
+      "longBreakMinutes": 30
+    },
+    "expected": {
+      "remainingSeconds": 1500,
+      "ended": false,
+      "endsAt": "2026-10-19T11:10:00.000Z"
+    }
+  },
+  {
+    "name": "one minute short break ends on the boundary",
+    "input": {
+      "function": "breakPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:01:00Z",
+      "now": "2026-10-19T09:02:00Z"
+    },
+    "options": {
+      "shortBreakMinutes": 1
+    },
+    "expected": {
+      "remainingSeconds": 0,
+      "ended": true,
+      "endsAt": "2026-10-19T09:02:00.000Z"
+    }
+  },
+  {
+    "name": "one minute long break one second before the boundary",
+    "input": {
+      "function": "breakPhase",
+      "kind": "long",
+      "startedAt": "2026-10-19T09:01:00Z",
+      "now": "2026-10-19T09:01:59Z"
+    },
+    "options": {
+      "longBreakMinutes": 1
+    },
+    "expected": {
+      "remainingSeconds": 1,
+      "ended": false,
+      "endsAt": "2026-10-19T09:02:00.000Z"
+    }
+  },
+  {
+    "name": "now before the break start counts no elapsed time",
+    "input": {
+      "function": "breakPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "now": "2026-10-19T09:24:00Z"
+    },
+    "expected": {
+      "remainingSeconds": 300,
+      "ended": false,
+      "endsAt": "2026-10-19T09:30:00.000Z"
+    }
+  },
+  {
+    "name": "unknown break kind is rejected",
+    "input": {
+      "function": "breakPhase",
+      "kind": "medium",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "now": "2026-10-19T09:25:00Z"
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "short break ending with the timer running starts work at the break's end",
+    "input": {
+      "function": "nextWorkPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "running": true,
+      "now": "2026-10-19T09:31:30Z"
+    },
+    "expected": {
+      "start": "2026-10-19T09:30:00.000Z",
+      "workSeconds": 90
+    }
+  },
+  {
+    "name": "short break ending exactly now with the timer running starts work now",
+    "input": {
+      "function": "nextWorkPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "running": true,
+      "now": "2026-10-19T09:30:00Z"
+    },
+    "expected": {
+      "start": "2026-10-19T09:30:00.000Z",
+      "workSeconds": 0
+    }
+  },
+  {
+    "name": "long break ending with the timer running starts work at the break's end",
+    "input": {
+      "function": "nextWorkPhase",
+      "kind": "long",
+      "startedAt": "2026-10-19T10:40:00Z",
+      "running": true,
+      "now": "2026-10-19T10:56:00Z"
+    },
+    "expected": {
+      "start": "2026-10-19T10:55:00.000Z",
+      "workSeconds": 60
+    }
+  },
+  {
+    "name": "custom long break hands over at its own end",
+    "input": {
+      "function": "nextWorkPhase",
+      "kind": "long",
+      "startedAt": "2026-10-19T10:40:00Z",
+      "running": true,
+      "now": "2026-10-19T11:12:00Z"
+    },
+    "options": {
+      "longBreakMinutes": 30
+    },
+    "expected": {
+      "start": "2026-10-19T11:10:00.000Z",
+      "workSeconds": 120
+    }
+  },
+  {
+    "name": "one minute short break hands over after a minute",
+    "input": {
+      "function": "nextWorkPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:01:00Z",
+      "running": true,
+      "now": "2026-10-19T09:02:05Z"
+    },
+    "options": {
+      "shortBreakMinutes": 1
+    },
+    "expected": {
+      "start": "2026-10-19T09:02:00.000Z",
+      "workSeconds": 5
+    }
+  },
+  {
+    "name": "break that has not ended starts no work phase",
+    "input": {
+      "function": "nextWorkPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "running": true,
+      "now": "2026-10-19T09:29:59Z"
+    },
+    "expected": null
+  },
+  {
+    "name": "break that ends with no timer running starts no work phase",
+    "input": {
+      "function": "nextWorkPhase",
+      "kind": "short",
+      "startedAt": "2026-10-19T09:25:00Z",
+      "running": false,
+      "now": "2026-10-19T09:31:30Z"
+    },
+    "expected": null
+  },
+  {
+    "name": "finished first work phase counts one",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 0,
+      "event": {
+        "type": "workEnded"
+      }
+    },
+    "expected": 1
+  },
+  {
+    "name": "finished fourth work phase counts four",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 3,
+      "event": {
+        "type": "workEnded"
+      }
+    },
+    "expected": 4
+  },
+  {
+    "name": "work phase abandoned by Stop leaves the count unchanged",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 2,
+      "event": {
+        "type": "workStopped"
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "first work phase abandoned by Stop leaves the count at zero",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 0,
+      "event": {
+        "type": "workStopped"
+      }
+    },
+    "expected": 0
+  },
+  {
+    "name": "short break ending keeps the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 2,
+      "event": {
+        "type": "breakEnded",
+        "kind": "short"
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "long break ending resets the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 4,
+      "event": {
+        "type": "breakEnded",
+        "kind": "long"
+      }
+    },
+    "expected": 0
+  },
+  {
+    "name": "long break ending resets the count with one phase per cycle",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 1,
+      "event": {
+        "type": "breakEnded",
+        "kind": "long"
+      }
+    },
+    "options": {
+      "longBreakEvery": 1
+    },
+    "expected": 0
+  },
+  {
+    "name": "idle shorter than the long break keeps the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 2,
+      "event": {
+        "type": "idle",
+        "lastActiveAt": "2026-10-19T09:00:00Z",
+        "now": "2026-10-19T09:10:00Z"
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "idle for exactly the long break keeps the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 2,
+      "event": {
+        "type": "idle",
+        "lastActiveAt": "2026-10-19T09:00:00Z",
+        "now": "2026-10-19T09:15:00Z"
+      }
+    },
+    "expected": 2
+  },
+  {
+    "name": "idle longer than the default long break resets the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 2,
+      "event": {
+        "type": "idle",
+        "lastActiveAt": "2026-10-19T09:00:00Z",
+        "now": "2026-10-19T09:15:01Z"
+      }
+    },
+    "expected": 0
+  },
+  {
+    "name": "idle shorter than a custom 30 minute long break keeps the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 3,
+      "event": {
+        "type": "idle",
+        "lastActiveAt": "2026-10-19T09:00:00Z",
+        "now": "2026-10-19T09:20:00Z"
+      }
+    },
+    "options": {
+      "longBreakMinutes": 30
+    },
+    "expected": 3
+  },
+  {
+    "name": "idle longer than a custom 30 minute long break resets the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 3,
+      "event": {
+        "type": "idle",
+        "lastActiveAt": "2026-10-19T09:00:00Z",
+        "now": "2026-10-19T09:31:00Z"
+      }
+    },
+    "options": {
+      "longBreakMinutes": 30
+    },
+    "expected": 0
+  },
+  {
+    "name": "idle longer than a one minute long break resets the count",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 1,
+      "event": {
+        "type": "idle",
+        "lastActiveAt": "2026-10-19T09:00:00Z",
+        "now": "2026-10-19T09:01:01Z"
+      }
+    },
+    "options": {
+      "longBreakMinutes": 1
+    },
+    "expected": 0
+  },
+  {
+    "name": "fractional completed count is rejected",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 1.5,
+      "event": {
+        "type": "workEnded"
+      }
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "unknown break kind in a break event is rejected",
+    "input": {
+      "function": "nextCompletedCount",
+      "completed": 2,
+      "event": {
+        "type": "breakEnded",
+        "kind": "medium"
+      }
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  }
+]

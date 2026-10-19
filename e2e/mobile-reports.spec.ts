@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { cellTexts, expect, parseCsv, test } from './report-tests-helpers.ts';
+import { cellTexts, expect, expectWholeAmounts, parseCsv, seedWideAmounts, test } from './report-tests-helpers.ts';
 import { login } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, tap, tapDownload, tapOutside } from './mobile-tests-helpers.ts';
 
@@ -157,5 +157,14 @@ test('detailed rows stay one line tall on a phone, with long names cut off and k
   await expect(rows.filter({ hasText: 'Wiki' }).locator('td.detailed-client')).toHaveText('Acme Widget Co');
   for (const height of await rows.evaluateAll((elements) => elements.map((row) => row.getBoundingClientRect().height))) {
     expect(height, 'a detailed row wraps onto a second line').toBeLessThan(56);
+  }
+});
+
+test('each Amount figure stays on one line inside its card on a phone', async ({ page, api }) => {
+  const reports = await seedWideAmounts(api);
+  await login(page);
+  for (const report of reports) {
+    await expectWholeAmounts(page, report);
+    await expectNoPageOverflow(page);
   }
 });

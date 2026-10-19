@@ -138,14 +138,17 @@ export function addClockMinutes(date: Date, minutes: number, timeZone: string): 
  * `key` in `timeZone`; null when the range misses the day. Positions follow the local clock, so a
  * 10:00 entry sits at 600 even on DST days. A start clipped to the day begins at 0 and a stop
  * clipped at the next midnight ends at 1440. Inside the repeated autumn hour, bottom can be lower
- * than top.
+ * than top. An empty range (start equals stop) belongs to the day that contains its instant, so
+ * one at midnight is on the day that starts there, at 0.
  */
 export function clockSpanOnDay(
   start: Date, stop: Date, key: string, timeZone: string,
 ): { top: number; bottom: number } | null {
   const dayStart = startOfDay(key, timeZone).getTime();
   const dayEnd = startOfDay(addDays(key, 1), timeZone).getTime();
-  if (stop.getTime() <= dayStart || start.getTime() >= dayEnd) return null;
+  // A range that stops at the day's first instant ended the day before, unless it is empty there.
+  const endsBeforeDay = stop.getTime() < dayStart || (stop.getTime() === dayStart && start.getTime() !== stop.getTime());
+  if (endsBeforeDay || start.getTime() >= dayEnd) return null;
   return {
     top: start.getTime() < dayStart ? 0 : clockMinutes(start, timeZone),
     bottom: stop.getTime() >= dayEnd ? 24 * 60 : clockMinutes(stop, timeZone),

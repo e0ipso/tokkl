@@ -1,10 +1,10 @@
 # Tokkl KDE companion
 
 A Plasma 6 panel widget for Tokkl. It shows the running timer in the panel,
-starts and stops it with a click, and sets the project and billable flag. It
-is a client of the Toggl-compatible API of one Tokkl instance and keeps
-nothing locally except its settings; the API token or password is in KDE
-Wallet.
+starts, pauses and resumes it with a click, stops it from its menu, and sets
+the project and billable flag. It is a client of the Toggl-compatible API of
+one Tokkl instance and keeps nothing locally except its settings and a
+paused timer's chain; the API token or password is in KDE Wallet.
 
 It has two parts:
 
@@ -113,9 +113,9 @@ Frameworks 6.25.0 and libplasma 6.6.4; see [Packages](#packages) for the
 versions its updates bring). Older Plasma 6 releases are not supported.
 
 Packages on Debian 13: `cmake extra-cmake-modules qt6-base-dev
-qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6i18n-dev
-qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and for the tests
-`libkf6config-dev`, `libkirigami-dev`, `qml6-module-qttest`,
+qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6config-dev
+libkf6i18n-dev qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and
+for the tests `libkirigami-dev`, `qml6-module-qttest`,
 `plasma-desktoptheme` (Plasma's QML components) and `dbus-daemon`.
 The CI images in `ci/` hold the complete lists for both targets (see
 [CI and releases](#ci-and-releases)).
@@ -142,12 +142,17 @@ come from `desktop/core`.
 - `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
   and credential store: ticking, sleep gaps, polling, start and stop requests,
   repeated clicks, conflicts, late replies, failures and account switches.
+- `appletchainstore`: the pause chain store (`TokklChainStore`) in the
+  configuration of an applet that a test corona hosts: saving, reading it back
+  from the appletsrc file, unreadable values, deleting the chain, handing the
+  store to the timer, and a timer on the fakes that resumes its own account's
+  chain and deletes another account's.
 - `panel`: the panel item, its project indicator and its menu
   (`PanelButton.qml`, `ProjectIndicator.qml`, `PanelMenu.qml`) in QtQuickTest, from the QML tests in `autotests/qml/`, offscreen. The
   backend types come from `tokklcore` wired to the fake clock, transport and
   credential store; the test never loads `main.qml`, the real connection or a
-  copy of the backend plugin. It covers clicks and keys, the menu and its
-  focus, billable defaults, edits of a running entry, paging, archived
+  copy of the backend plugin. It covers clicks and keys, pause, resume and
+  Stop from the menu, the menu and its focus, billable defaults, edits of a running entry, paging, archived
   projects, every state, disabled controls and account switches.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
@@ -173,7 +178,10 @@ come from `desktop/core`.
 - `stage-install`, `smokeload`, `stage-cleanup`: install into
   `<build>/autotests/stage` with `DESTDIR`, then load the widget, its
   configuration schema and Configure page, and the backend from there in an
-  offscreen Plasma session. The test uses its own XDG directories, so widgets
+  offscreen Plasma session. `smokeload` also checks that the widget picker
+  icon is installed at 32, 48, 64, 96, 128 and 256 px, that the icon theme
+  finds all six, and that the 96 px file is a copy of
+  `contents/images/tokkl.png`. The test uses its own XDG directories, so widgets
   installed in your home directory do not interfere.
 - `appstreamtest`: added by Extra CMake Modules when `appstreamcli` is installed.
 
@@ -266,15 +274,15 @@ data and stops until you choose Reconnect or change the settings.
 
 ## Panel
 
-The panel shows the Tokkl icon, a running (playing) or stopped symbol, the
-project indicator, the elapsed time and, unless everything is ready, a symbol
-for the state. Each state also has its own words in the tooltip, the menu and
-the accessible description, so none relies on color: Not configured, Loading,
-Connected, Saving, Offline (the last known state), Sign-in refused and Error.
+The panel shows the Tokkl clock logo, the project indicator, the elapsed time
+and, unless everything is ready, a symbol for the state. Each state also has
+its own words in the tooltip, the menu and the accessible description, so none
+relies on color: Not configured, Loading, Connected, Saving, Offline (the last
+known state), Sign-in refused and Error.
 
-The project indicator shows the running entry's project, or the next start's
-while stopped. A dot pulses while an entry runs and a still square shows while
-stopped. The project's colour fills it inside a thin ring in the theme's text
+The project indicator shows the running or paused entry's project, or the
+next start's while stopped. A dot pulses while an entry runs, a still dot
+shows while paused and a still square while stopped. The project's colour fills it inside a thin ring in the theme's text
 colour, which keeps well over 3:1 against the panel in Breeze Light and Breeze
 Dark whatever the project colour. A project whose colour is not `#rrggbb` is
 filled with the text colour. No project draws a dashed outline of the dot or
@@ -289,24 +297,34 @@ never the only sign.
 | --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Not configured  | configure          | No address or no saved secret. Open Configure.                                                                                                                           |
 | Loading         | network-connect    | Reading the secret, validating the account or making the first current-entry read.                                                                                       |
-| Connected       | none               | Ready. Start, stop, Project and Billable work.                                                                                                                           |
-| Saving          | view-refresh       | A start, stop or edit is on its way, or its outcome is not known yet. Clicks are ignored.                                                                                |
+| Connected       | none               | Ready. Start, pause, resume, stop, Project and Billable work.                                                                                                            |
+| Saving          | view-refresh       | A start, pause, resume, stop or edit is on its way, or its outcome is not known yet. Clicks are ignored.                                                                 |
 | Offline         | network-disconnect | The instance cannot be reached after a successful connection. The last entry stays, marked stale, and reads are retried.                                                 |
 | Sign-in refused | dialog-password    | The instance answered 403 to the credentials: a wrong or rotated token, a wrong password or a disabled account. Nothing is retried until Reconnect or a settings change. |
 | Error           | dialog-error       | The wallet, the settings, a rate limit, a lost workspace, or a connection that never succeeded. The menu and tooltip give the text.                                      |
 
-- Left click, Space or Return starts or stops the timer. Tab focuses the item
-  and a frame shows the focus.
+- Left click, Space or Return pauses a running timer, resumes a paused one and
+  starts a stopped one, and Stop is in the menu. The accessible name says
+  what a press does: "Pause the Tokkl timer", "Resume the Tokkl timer" or
+  "Start the Tokkl timer". Tab focuses the item and a frame shows the focus.
 - Right click, the Menu key or Shift+F10 opens the menu. It is a separate
-  window, so the panel does not clip it. It shows the state, then Project,
-  Billable, Reconnect, Open Tokkl and Configure Tokkl. The arrow keys move,
-  Right opens Project, Return or Space chooses and Escape closes.
+  window, so the panel does not clip it. It shows the state, then Start or
+  Stop, Project, Billable, Reconnect, Open Tokkl and Configure Tokkl. The
+  arrow keys move, Right opens Project, Return or Space chooses and Escape
+  closes.
+- The menu's Stop, shown while running or paused, ends the timer and its
+  pause chain, so the next start counts from `0:00`. While stopped the item
+  reads Start. Stop while paused sends nothing, because no entry runs on the
+  server.
+- While paused, the menu's state line and the tooltip say Paused with the
+  chain total, and Project and Billable are disabled: a resume copies the
+  paused entry's project and billable flag.
 - Project lists No project and the active projects of the workspace, up to
   100 pages of 200; a longer list is cut short, with a note in the menu that
-  points to Open Tokkl. The running entry's archived project is shown,
-  checked and disabled, but is never offered for new work. Project is
-  disabled while an entry runs: its project stays fixed, and changing it
-  means stopping and starting a new entry. The menu title names the current
+  points to Open Tokkl. The running or paused entry's archived project is
+  shown, checked and disabled, but is never offered for new work. Project is
+  disabled while an entry runs or is paused: its project stays fixed, and
+  changing it means stopping and starting a new entry. The menu title names the current
   project.
 - Choosing a project applies its billable default, or nonbillable for No
   project; changing Billable afterwards overrides it. The choices apply to
@@ -345,8 +363,9 @@ hand; the tests run offscreen.
 `TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget. QML
 sets its `connection` to the widget's `TokklConnection`.
 
-- The elapsed time (`elapsedText`, `H:MM:SS`) is recomputed every second from
-  the entry's server start time, so time spent asleep is not lost.
+- The elapsed time (`elapsedText`, `H:MM` in whole minutes) is recomputed
+  every second from the entry's server start time, so time spent asleep is
+  not lost.
 - The current entry is read every 30 seconds, after every start or stop,
   after a resume (a clock tick more than 10 seconds late) and when the
   connection comes back. Projects are read on connect, resume and reconnection,
@@ -365,12 +384,23 @@ sets its `connection` to the widget's `TokklConnection`.
   an empty description and the selected project and billable choice. Stop
   sends `PATCH /api/v9/workspaces/{wid}/time_entries/{id}/stop` for the
   running entry.
+- Pause stops the running entry the same way and keeps what the server's stop
+  reply says: description, project, task, tags and billable flag. Resume
+  starts a clone of that entry at the current time. The elapsed time is then
+  the chain total, the seconds the server stored for the paused entries plus
+  the clone's running time, and it stays frozen while paused. The chain ends
+  on Stop, when another client stops the clone or starts another entry, and
+  on a change of instance, account or secret. The widget keeps it in the
+  `PauseChain` group of its own section of
+  `~/.config/plasma-org.kde.plasma.desktop-appletsrc`, outside its settings,
+  so a plasmashell restart keeps the total. A stored chain of another
+  instance, account or workspace is dropped.
 - Start and stop stay disabled until a read of the current entry for the
   account and workspace has succeeded, so a start never splits a timer that
   is already running on the server. A failed first read keeps them disabled.
-- One start or stop runs at a time and clicks meanwhile are ignored. A read
-  sent before a start or stop cannot overwrite its result. When a start or
-  stop gets no clear answer (no response, timeout, 5xx or an unreadable body)
+- One start, pause, resume or stop runs at a time and clicks meanwhile are
+  ignored. A read sent before one cannot overwrite its result. When one gets
+  no clear answer (no response, timeout, 5xx or an unreadable body)
   the timer stays busy until a read shows what the server did; it never sends
   the request again. A 409 or 404 on stop just reads the entry again.
 - Connection failures keep the last entry, marked stale. After a failed read
@@ -418,6 +448,28 @@ It fails when the core needs Qt Gui, a KDE library or any Qt library other
 than Core, Network and Test. It needs Docker, or another engine set in
 `CONTAINER_ENGINE`.
 
+## Icons
+
+The panel button and the widget picker show the full-colour clock logo. Both
+come from the icon pack's master artwork,
+`docs/brand/icon-pack/source/master-export.png`, through `npm run icons`
+(`scripts/icons.ts`, which needs ImageMagick 7). The script trims the artwork
+to its alpha bounds, centres it on a square transparent canvas and writes:
+
+- `package/contents/images/tokkl.png`, 96 px, which the panel button shows.
+- `package/icons/tokkl-<size>.png` at 32, 48, 64, 96, 128 and 256 px. The
+  build installs each as
+  `<icon dir>/hicolor/<size>x<size>/apps/com.github.e0ipso.tokkl.png`, where
+  the widget picker finds it through `Icon` in `package/metadata.json`. The
+  96 px file is a copy of `tokkl.png`. `icons/` is not part of the widget
+  package. hicolor declares its `256x256/apps` directory scalable down to
+  64 px, so a desktop may draw the 96 px picker icon from the 256 px file.
+
+To change the icons, run `npm run icons` from the repository root and commit
+the files it writes. A second run writes the same bytes. Plasma keeps the
+widget it has loaded, so after installing new icons restart plasmashell or log
+out and back in before checking them.
+
 ## Staged install
 
 ```sh
@@ -430,14 +482,15 @@ With `CMAKE_INSTALL_PREFIX=/usr` the staged tree uses the standard paths:
 | ------- | -------------------------------------------------------------- | ------------------------------------------- |
 | Widget  | `/usr/share/plasma/plasmoids/com.github.e0ipso.tokkl/`         | same                                        |
 | Backend | `/usr/lib/x86_64-linux-gnu/qt6/qml/com/github/e0ipso/tokkl/backend/` | `/usr/lib64/qt6/qml/com/github/e0ipso/tokkl/backend/` |
+| Icons   | `/usr/share/icons/hicolor/<size>x<size>/apps/com.github.e0ipso.tokkl.png` | same                                        |
 
 The backend goes to Qt's own QML directory (`KDE_INSTALL_QMLDIR`), so the
 path follows the distribution's Qt layout.
 
 ## Packages
 
-Two native packages, both named `tokkl-kde`, ship the widget and the compiled
-backend at the paths above:
+Two native packages, both named `tokkl-kde`, ship the widget, the compiled
+backend and the widget picker icons at the paths above:
 
 | Package | Target                     | Architecture | Built against                                       |
 | ------- | -------------------------- | ------------ | --------------------------------------------------- |
@@ -493,16 +546,51 @@ desktop/kde/scripts/container-check.sh --version "$version" --output "$(mktemp -
 For each format it builds the three stages of `ci/Dockerfile` (Debian 13) or
 `ci/fedora.Dockerfile` (Fedora) as `tokkl-kde-ci:<format>-target`, `-build`
 and `-test` (`TOKKL_KDE_CI_IMAGE` changes the name). The containers see
-`desktop/` read-only at `/desktop`, so the build finds `desktop/core`. Then:
+`desktop/` read-only at `/desktop`, so the build finds `desktop/core`.
+
+The images are labelled with the identity that `ci/image-id.sh --format
+deb|rpm` prints: a SHA-256 over the Dockerfile (which pins the base image by
+digest), each file it copies (`scripts/prepare-target.sh`, `debian/control`
+or the RPM spec, `ci/baseline.sh`) and `TOKKL_KDE_CI_REFRESH`. Images that
+carry the current identity are reused without a build, and the log says
+`image hit` or `image miss`. The distribution archives move while those
+files stay the same, so set `TOKKL_KDE_CI_REFRESH` to a new value (any
+string; the build receives it too) to rebuild the images against the archives
+as they are now. With `TOKKL_KDE_CI_IMAGE_CACHE=<dir>`, missing images are
+loaded from `<dir>/<format>-<identity>.tar` when it exists, and images built
+in the run are saved there. Each target container fetches the package lists
+again before the checks, since its image may be days old. Then:
 
 1. In the test image, configures and builds the project with the version and
    runs CTest under Xvfb and a DBus session. The `smokeload` and
    `realservertest` binaries go to `tests/<format>/` in the output directory,
    with `packages.txt`, the packages the load check installs.
 2. In the build image, builds the package for the version and for the older
-   `--previous-version` (default 0.0.0, a build of the same source).
+   `--previous-version` (default 0.0.0, a build of the same source), which
+   the upgrade check starts from. With `--previous-package <file>` and a
+   single `--format`, that file is the previous package instead, for
+   example a published release, and nothing else is built for it.
 3. In a fresh target container, runs `scripts/check-package.sh` with the
    load check.
+
+`ci/previous-package.sh --format deb|rpm --version <version> --output
+<dir>` fetches such a file with `gh`: from the newest published release
+older than `<version>` (by the package version order) that has exactly one
+asset for the format with the name pattern above, the label
+`.releaserc.json` gives that format, which names the target, and a SHA-256
+digest. Releases built for another target, such as the DEBs labelled for
+TUXEDO OS, are passed over. It checks the download against the asset's size
+and digest and prints its path. Without `gh`, when the releases or their
+assets cannot be read, with no matching asset, or when the download fails,
+it says why and prints nothing, and the check falls back to the 0.0.0
+build. A file that downloads but does not match its size and digest exits 1.
+The download goes to a scratch directory first, so neither case leaves a
+partial file behind.
+`check-package.sh` then refuses the file before installing anything unless
+it is `tokkl-kde` for the target's architecture (and, for an RPM, the
+target's `%{dist}`, such as `.fc44`) and older than the new package. A run
+on your own machine builds the 0.0.0 package unless you pass
+`--previous-package`.
 
 The output directory gets `tokkl-kde_<version>_amd64.deb` and
 `tokkl-kde-<version>-1.fc44.x86_64.rpm`, plus `previous/` and `tests/`.
@@ -511,10 +599,12 @@ The output directory gets `tokkl-kde_<version>_amd64.deb` and
 
 The scripts it runs work on their own, for a prepared machine:
 
-- `scripts/prepare-target.sh --format deb|rpm [--build-deps]`: fetches the
-  Debian package lists if the system has none and, with `--build-deps`,
-  installs the build dependencies from `debian/control` or
-  `packaging/rpm/tokkl-kde.spec`. A second run keeps the lists it finds.
+- `scripts/prepare-target.sh --format deb|rpm [--build-deps] [--refresh]`:
+  fetches the Debian package lists if the system has none and, with
+  `--build-deps`, installs the build dependencies from `debian/control` or
+  `packaging/rpm/tokkl-kde.spec`. A second run keeps the lists it finds;
+  `--refresh` fetches the package lists or the Fedora repository metadata
+  again.
   Run it as root, only in a container.
 - `scripts/package-release.sh --version <version> --format deb|rpm --output
   <dir>`: builds one package with `dpkg-buildpackage` or `rpmbuild` from a
@@ -523,12 +613,14 @@ The scripts it runs work on their own, for a prepared machine:
   required; `debian/changelog` is written from it at build time.
 - `scripts/check-package.sh --version <version> --package <file> [--previous
   <file>] [--load-test <dir>]`: inspects the package (name, version,
-  architecture, MIT license, widget and backend paths, dependencies, no
+  architecture, MIT license, widget, backend and icon paths, dependencies, no
   maintainer scripts), installs it on a clean system, checks the stamped widget version,
   the backend's libraries and the package manager's verify, removes it, then
   installs the previous package, upgrades and removes again (purging on
-  Debian). Settings and wallet files in a test home directory must not
-  change. With `--load-test`, after the clean install and after the upgrade
+  Debian). Removal takes only `tokkl-kde` away and keeps its dependencies
+  (`dnf remove --no-autoremove` on Fedora; `apt-get remove` keeps them
+  anyway), so the check does not cover dependency autoremove. Settings and
+  wallet files in a test home directory must not change. With `--load-test`, after the clean install and after the upgrade
   it installs the packages in `<dir>/packages.txt` and runs `<dir>/smokeload`
   against the installed files, under Xvfb and `dbus-run-session`: the
   widget, its configuration schema and Configure page load through libplasma
@@ -548,7 +640,21 @@ release files (see `desktop/gnome/README.md`). The release job needs the
 
 The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
 images pinned by digest and the build and test packages. The distribution archives have no snapshots, so a build gets the
-Qt, KDE Frameworks and Plasma packages they hold that day. `ci/baseline.sh`
+Qt, KDE Frameworks and Plasma packages they hold that day.
+
+CI keeps the images between runners in the GitHub Actions cache, one entry
+per format under the key `kde-images-<format>-<identity>`, holding the
+`docker save` archive of the three images. Each `kde` job restores its entry,
+runs `scripts/container-check.sh` with `TOKKL_KDE_CI_IMAGE_CACHE`, and saves
+the entry when the restore missed. CI sets `TOKKL_KDE_CI_REFRESH` to the ISO
+week of the commit (`<year>-W<week>`), so the images follow the archives at least
+weekly and the jobs of one run agree on the identity. To rebuild sooner, for
+example when a cached build environment falls behind the target, delete the
+entries with `gh cache delete <key>` (`gh cache list --key kde-images-` lists
+them); the next run builds and saves new ones. Actions caches are scoped by
+branch: an entry saved by a pull request is visible only to that pull
+request, and the release reads entries saved on main and never saves any, so
+pull request code cannot change the images a release uses. `ci/baseline.sh`
 prints those versions in every build and fails it when they are older than
 the supported baseline (Debian 13: Qt 6.8.2, KDE Frameworks 6.13.0, Plasma
 6.3.5; Fedora: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.0). On 2026-10-17
@@ -557,18 +663,39 @@ the Debian image had Qt 6.8.2, KDE Frameworks 6.13.0 and libplasma 6.3.5; on
 libplasma 6.7.5. To move a base image, update
 its digest in the Dockerfile.
 
-semantic-release builds the release packages through the local plugin
-`ci/semantic-release.js`, listed in `.releaserc.json` after
-`@semantic-release/npm` and before `@semantic-release/git`:
+A push to main releases in three stages, after every check above has
+passed:
 
-- `verifyRelease` refuses a next version that `scripts/native-version.sh`
-  cannot map, before anything is written.
-- `prepare` runs `scripts/container-check.sh` with the next version, so the
-  packages and widget metadata carry it, into `dist/kde`, and fails unless
-  exactly one DEB and one RPM of that version are there. A failure stops the
-  release before the tag is pushed.
-- `@semantic-release/github` attaches `dist/kde/tokkl-kde_*_amd64.deb` and
-  `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it creates.
+1. `release-version` runs `ci/next-release.js`, a semantic-release dry run
+   that prints the next version, or nothing when the pushed commits warrant
+   no release. Then nothing else runs. The dry run checks that
+   semantic-release could push, so this job has the same write token as the
+   release.
+2. `kde-release` runs once per format, each on its own runner, from the same
+   commit: `ci/previous-package.sh` for the predecessor, then
+   `scripts/container-check.sh` for the next version with it (or with the
+   0.0.0 build when there is none, which the log says), with the image cache
+   read-only. Each leg uploads the package and a manifest,
+   `kde-<format>.json`, with the format, version, commit, file name and
+   SHA-256, as the artifact `kde-release-<format>`. A re-run replaces it.
+3. `release` starts only when both legs passed. It downloads both artifacts
+   into `dist/kde` and runs semantic-release, with the local plugin
+   `ci/semantic-release.js` listed in `.releaserc.json` after
+   `@semantic-release/npm` and before `@semantic-release/git`:
+   - `verifyRelease` refuses a next version that `scripts/native-version.sh`
+     cannot map and, in the release job, one other than the version the
+     packages were built for (`TOKKL_KDE_RELEASE_VERSION`).
+   - `prepare` fails unless `dist/kde` holds exactly one DEB and one RPM of
+     that version and their two manifests, and each manifest names that
+     version, the commit being released and the package's SHA-256. A failure
+     stops the release before the tag is pushed.
+   - `@semantic-release/github` attaches `dist/kde/tokkl-kde_*_amd64.deb` and
+     `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it
+     creates.
+
+A failed leg skips the `release` job, so nothing is tagged or published.
+When another release moves main on between the stages, semantic-release in
+the `release` job finds the branch behind and releases nothing.
 
 There is no separate companion version, tag or workflow, and the packages
 are published nowhere else: no app store, KDE Store, Flatpak or distribution
@@ -610,7 +737,10 @@ admin API and remove a workspace membership. It checks:
   stay accepted;
 - disabled accounts, with a token and with email and password: the 403 is
   the same as for an unknown token, account data is cleared, writes are
-  refused, and nothing is sent again until the user reconnects.
+  refused, and nothing is sent again until the user reconnects;
+- pause and resume: the clone copies the paused entry's fields, and a resume
+  after the task or the project was deleted is refused with 404, creates
+  nothing and keeps the chain paused with the server's message.
 
 Afterwards the script compares each instance's database with a snapshot
 taken before the run: only the changes the companion was allowed to make are
@@ -665,9 +795,12 @@ Install and load:
       version.
 - [ ] Add Widgets lists Tokkl, and the widget goes onto a horizontal panel.
       Record the menu path you used and whether a log out was needed.
-- [ ] The panel shows the Tokkl icon, the stopped symbol, a dashed square,
-      `0:00:00` and the Not configured symbol. The tooltip reads "Tokkl:
-      Stopped 0:00:00 · No project · Not configured · Set the instance URL and
+- [ ] Restart plasmashell (`systemctl --user restart
+      plasma-plasmashell.service`) or log out and back in. The panel button
+      and the Tokkl entry in Add Widgets show the clock logo in full colour.
+- [ ] The panel shows the Tokkl clock logo, a dashed square, `0:00` and the
+      Not configured symbol. The tooltip reads "Tokkl:
+      Stopped 0:00 · No project · Not configured · Set the instance URL and
       credentials in the widget settings." and shows the version.
 - [ ] Configure opens on Connection. Test Connection is disabled until an
       address and a secret are on screen.
@@ -689,16 +822,31 @@ Wallet and connection:
 
 Timer:
 
-- [ ] Left click starts the timer. The panel counts up once a second for 10
-      seconds, and the web app shows the entry running.
-- [ ] Left click again stops it. The count stops and the web app shows a
-      stopped entry.
-- [ ] Tab to the widget: a frame shows. Space and Return start and stop it.
+- [ ] Left click starts the timer. The panel shows `0:00`, then `0:01` a
+      minute later, and the web app shows the entry running.
+- [ ] Left click again pauses it. The count stops, the web app shows a
+      stopped entry, and the tooltip and the menu's state line say Paused
+      with the same time.
+- [ ] Left click again resumes it. The web app shows a new running entry
+      with the paused entry's description, project, tags and billable flag,
+      and the panel counts on from the paused time.
+- [ ] Tab to the widget: a frame shows. Space and Return pause and resume it.
+      With a screen reader, the button reads "Pause the Tokkl timer" while
+      running, "Resume the Tokkl timer" while paused and "Start the Tokkl
+      timer" while stopped.
+- [ ] Choose Stop in the menu while running: the web app shows the entry
+      stopped, the panel shows `0:00` and the item reads Start. The next
+      click starts a new entry from `0:00`. Pause, then choose Stop: the web
+      app shows no new request, and the panel shows `0:00`.
+- [ ] Pause, then restart plasmashell (`systemctl --user restart
+      plasma-plasmashell.service`): the panel still says Paused with the
+      same time, and a click resumes from it.
 - [ ] Start in the web app: the panel shows it running within 30 seconds.
       Stop it in the web app: the panel stops.
 - [ ] Start on a project: a dot in the project's colour pulses left of the
-      time, and the tooltip names the project. Stop: a still square stays.
-      Check the dot against the panel in Breeze Light and Breeze Dark.
+      time, and the tooltip names the project. Pause: the dot stays, still,
+      in the same colour and ring. Stop: a still square stays. Check the dot
+      against the panel in Breeze Light and Breeze Dark.
 - [ ] Set the animation speed in System Settings to Instant: the dot stops
       pulsing and stays solid. Set it back: it pulses again.
 - [ ] Suspend and resume with the timer running: the elapsed time matches the
@@ -710,14 +858,15 @@ Menu:
       window that the panel does not clip. Try the panel at the top, bottom,
       left and right of the screen, and at 100% and 200% scaling.
 - [ ] Arrow keys move, Right opens Project, Return and Space choose and
-      Escape closes. The menu shows the state, then Project, Billable,
-      Reconnect, Open Tokkl and Configure Tokkl.
+      Escape closes. The menu shows the state, then Start or Stop, Project,
+      Billable, Reconnect, Open Tokkl and Configure Tokkl.
 - [ ] While stopped, choosing the billable project turns Billable on, the
       nonbillable project turns it off, and toggling Billable afterwards
       sticks. Start: the web app shows that project and billable flag.
 - [ ] While running, Project is disabled. Toggling Billable changes the same
       entry in the web app, with the same description, tags and start, and
-      does not create another entry.
+      does not create another entry. While paused, Project and Billable are
+      both disabled.
 - [ ] Stop. The next start is preselected with the stopped entry's project.
       Repeat after changing the running entry's project in the web app
       first: the panel stop preselects the changed project.

@@ -3,6 +3,7 @@
 // service decides whether it happens.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
@@ -118,9 +119,11 @@ function shapePath(cr, x, y, size, radius) {
 export const TokklIndicator = GObject.registerClass(
 class TokklIndicator extends PanelMenu.Button {
     /**
+     * @param {import('gi://Gio').File} logo the clock logo PNG in the
+     *     extension's directory
      * @param {() => void} openPreferences
      */
-    _init(openPreferences) {
+    _init(logo, openPreferences) {
         super._init(0.5, _('Tokkl timer'));
 
         this._proxy = null;
@@ -129,8 +132,15 @@ class TokklIndicator extends PanelMenu.Button {
         this._syncing = false;
         this._tickId = 0;
 
-        // The button lays out one child.
+        // The button lays out one child: the logo, the project indicator and
+        // the time, in that order. The logo takes the top bar's icon size.
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box'});
+        this._logo = new St.Icon({
+            gicon: new Gio.FileIcon({file: logo}),
+            style_class: 'system-status-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        box.add_child(this._logo);
         this._projectIndicator = new TokklProjectIndicator();
         box.add_child(this._projectIndicator);
         this._label = new St.Label({
@@ -146,15 +156,33 @@ class TokklIndicator extends PanelMenu.Button {
         this._settingsSignal = this._settings.connect('notify::enable-animations', () => this._sync());
 
         // From GNOME Shell 50 on, PanelMenu.Button opens its menu from a
-        // click gesture that takes every button. Primary clicks start and
-        // stop here instead, so that gesture is replaced by one that tells
-        // the buttons apart. Before 50 the button opens the menu from
+        // click gesture that takes every button. Primary clicks pause,
+        // resume and start here instead, so that gesture is replaced by one
+        // that tells the buttons apart. Before 50 the button opens the menu from
         // vfunc_event, which this class overrides below.
         if (this._clickGesture instanceof Clutter.Action) {
             this._clickGesture.set_enabled(false);
             this._ownGesture = new Clutter.ClickGesture({recognize_on_press: true});
             this._ownGesture.connect('recognize', gesture => this._onPress(gesture.get_button()));
             this.add_action(this._ownGesture);
+        }
+
+        // From GNOME Shell 51 on, the menu takes Space, Return and Down from
+        // a key controller on the button, and vfunc_event never sees them. A
+        // controller in the capture phase runs before it, so Space and Return
+        // do what a primary click does here; Down still opens the menu.
+        if (Clutter.KeyController &&
+            this.get_actions().some(action => action instanceof Clutter.KeyController)) {
+            const keys = new Clutter.KeyController();
+            keys.connect('key-press', controller => {
+                const [, symbol] = controller.get_key();
+                const [, pressed, latched, locked] = controller.get_state();
+                if (!this._isActivateKey(symbol, pressed | latched | locked))
+                    return Clutter.EVENT_PROPAGATE;
+                this._onPress(Clutter.BUTTON_PRIMARY);
+                return Clutter.EVENT_STOP;
+            });
+            this.add_action_full('tokkl-activate-keys', Clutter.EventPhase.CAPTURE, keys);
         }
 
         this._buildMenu(openPreferences);
@@ -169,8 +197,10 @@ class TokklIndicator extends PanelMenu.Button {
         this._detailItem.label.clutter_text.line_wrap = true;
         this.menu.addMenuItem(this._detailItem);
 
+        // Start, or Stop while an entry runs or a chain is paused. It never
+        // pauses: Stop ends the chain.
         this._toggleItem = new PopupMenu.PopupMenuItem(_('Start'));
-        this._toggleItem.connect('activate', () => this._toggleTimer());
+        this._toggleItem.connect('activate', () => this._startOrStop());
         this.menu.addMenuItem(this._toggleItem);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -234,6 +264,8 @@ class TokklIndicator extends PanelMenu.Button {
             errorString: this._property('ErrorString', ''),
             running: this._property('Running', false),
             startTime: this._property('StartTime', 0),
+            paused: this._property('Paused', false),
+            chainSeconds: this._property('ChainSeconds', 0),
             indicatorState: this._property('IndicatorState', ''),
             indicatorColor: this._property('IndicatorColor', ''),
             projects: this._property('Projects', []),
@@ -250,36 +282,46 @@ class TokklIndicator extends PanelMenu.Button {
 
         this._words = words;
         this._running = state.running;
+        this._paused = state.paused;
         this._startTime = state.startTime;
+        this._chainSeconds = state.chainSeconds;
         this._projectIndicator.setShape(describeIndicator(state, this._settings.enable_animations, _));
         this._updateElapsed();
         this._syncTick();
 
-        this._statusItem.label.text = words.text;
+        // While paused the line leads with the chain total, then the
+        // connection state, as the KDE and macOS menus do.
+        this._statusItem.label.text = state.paused
+            ? _('Paused %s · %s').format(this._chainTotal(), words.text)
+            : words.text;
         this._detailItem.label.text = words.detail;
         this._detailItem.visible = words.detail.length > 0;
 
-        this._toggleItem.label.text = state.running ? _('Stop') : _('Start');
+        this._toggleItem.label.text = state.running || state.paused ? _('Stop') : _('Start');
         this._toggleItem.setSensitive(ready);
 
         this._syncProjects(state, ready);
 
         // Billable stays editable while an entry runs: the service then
-        // edits that entry.
+        // edits that entry. While paused it shows the paused entry's flag,
+        // which the service refuses to change.
         this._syncing = true;
         this._billableItem.setToggleState(state.billable);
         this._syncing = false;
-        this._billableItem.setSensitive(ready);
+        this._billableItem.setSensitive(ready && !state.paused);
     }
 
     // Project chooses the project of the next start. The service refuses it
-    // while an entry runs, so the submenu is locked then.
+    // while an entry runs or a chain is paused, so the submenu is locked then.
     _syncProjects(state, ready) {
         const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
-        this._projectMenu.label.text = state.running
-            ? _('Project: %s (locked while running)').format(chosen)
-            : _('Project: %s').format(chosen);
-        this._projectMenu.setSensitive(ready && !state.running);
+        if (state.running)
+            this._projectMenu.label.text = _('Project: %s (locked while running)').format(chosen);
+        else if (state.paused)
+            this._projectMenu.label.text = _('Project: %s (locked while paused)').format(chosen);
+        else
+            this._projectMenu.label.text = _('Project: %s').format(chosen);
+        this._projectMenu.setSensitive(ready && !state.running && !state.paused);
 
         const section = this._projectMenu.menu;
         section.removeAll();
@@ -296,12 +338,24 @@ class TokklIndicator extends PanelMenu.Button {
         }
     }
 
-    _updateElapsed() {
+    // The chain total: what the chain's paused entries stored plus the
+    // running entry's own time, frozen while paused.
+    _chainTotal() {
         const now = GLib.get_real_time() / 1_000_000;
-        const elapsed = formatElapsed(this._running ? elapsedSeconds(this._startTime, now) : 0);
+        const running = this._running ? elapsedSeconds(this._startTime, now) : 0;
+        return formatElapsed(this._chainSeconds + running);
+    }
+
+    _updateElapsed() {
+        const elapsed = this._chainTotal();
         this._label.text = `${elapsed}${this._words.mark}`;
 
-        const parts = [this._running ? _('Running %s').format(elapsed) : _('Stopped')];
+        let timer = _('Stopped');
+        if (this._running)
+            timer = _('Running %s').format(elapsed);
+        else if (this._paused)
+            timer = _('Paused %s').format(elapsed);
+        const parts = [timer];
         if (this._projectIndicator.shape.label)
             parts.push(this._projectIndicator.shape.label);
         parts.push(this._words.text);
@@ -324,8 +378,18 @@ class TokklIndicator extends PanelMenu.Button {
         }
     }
 
-    _toggleTimer() {
-        this._call(this._running ? 'Stop' : 'Start', []);
+    // What a primary click and Space or Return on the button do.
+    _pauseResumeOrStart() {
+        if (this._paused)
+            this._call('Resume', []);
+        else if (this._running)
+            this._call('Pause', []);
+        else
+            this._call('Start', []);
+    }
+
+    _startOrStop() {
+        this._call(this._running || this._paused ? 'Stop' : 'Start', []);
     }
 
     _setBillable(state) {
@@ -352,19 +416,37 @@ class TokklIndicator extends PanelMenu.Button {
         });
     }
 
-    // A primary click starts or stops; other buttons and touch open the
-    // menu. Keyboard users get the menu too: PopupMenu opens it on Space,
-    // Return or Down, and Start or Stop is its first item they can choose.
+    // A primary click pauses a running timer, resumes a paused one and
+    // otherwise starts; other buttons and touch open the menu, whose Stop
+    // ends the timer. Space and Return on the focused button do what a
+    // primary click does (see _isActivateKey), and Down opens the menu.
     _onPress(button) {
         if (button === Clutter.BUTTON_PRIMARY) {
             this.menu.close();
-            this._toggleTimer();
+            this._pauseResumeOrStart();
         } else {
             this.menu.toggle();
         }
     }
 
+    // Space or Return without a modifier other than Caps Lock and Num Lock,
+    // the keys PopupMenu would otherwise take to open the menu.
+    _isActivateKey(symbol, modifiers) {
+        if (symbol !== Clutter.KEY_space && symbol !== Clutter.KEY_Return)
+            return false;
+        return (modifiers & Clutter.ModifierType.MODIFIER_MASK &
+            ~Clutter.ModifierType.LOCK_MASK & ~Clutter.ModifierType.MOD2_MASK) === 0;
+    }
+
     vfunc_event(event) {
+        // Before GNOME Shell 51, the event signal, whose handler this is,
+        // comes before the key-press-event signal on which PopupMenu opens
+        // the menu.
+        if (event.type() === Clutter.EventType.KEY_PRESS &&
+            this._isActivateKey(event.get_key_symbol(), event.get_state())) {
+            this._onPress(Clutter.BUTTON_PRIMARY);
+            return Clutter.EVENT_STOP;
+        }
         // From 50 on the gesture handles presses, and St.Widget has no
         // event handler to chain up to.
         if (this._ownGesture)

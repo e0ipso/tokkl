@@ -1,0 +1,4499 @@
+{
+  "passed": true,
+  "check_count": 470,
+  "failed_check_count": 0,
+  "scope": "Static asset and integration-reference verification. No emulator, browser install, or Android app compilation was run.",
+  "images": {
+    "android/res/mipmap-hdpi/ic_launcher.png": {
+      "size": [
+        72,
+        72
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 6385,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "android/res/mipmap-hdpi/ic_launcher_foreground.png": {
+      "size": [
+        162,
+        162
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 12251,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 49.4064773081425,
+      "nonzero_alpha_bbox": [
+        44,
+        38,
+        118,
+        124
+      ],
+      "alpha128_bbox_px": [
+        44,
+        38,
+        118,
+        124
+      ],
+      "alpha128_size_dp": [
+        49.333333333333336,
+        57.333333333333336
+      ]
+    },
+    "android/res/mipmap-hdpi/ic_launcher_monochrome.png": {
+      "size": [
+        162,
+        162
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 3610,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 49.4064773081425,
+      "nonzero_alpha_bbox": [
+        44,
+        38,
+        118,
+        124
+      ],
+      "alpha128_bbox_px": [
+        44,
+        38,
+        118,
+        124
+      ],
+      "alpha128_size_dp": [
+        49.333333333333336,
+        57.333333333333336
+      ]
+    },
+    "android/res/mipmap-mdpi/ic_launcher.png": {
+      "size": [
+        48,
+        48
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 3236,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "android/res/mipmap-mdpi/ic_launcher_foreground.png": {
+      "size": [
+        108,
+        108
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 6154,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 32.7566787083184,
+      "nonzero_alpha_bbox": [
+        30,
+        26,
+        78,
+        82
+      ],
+      "alpha128_bbox_px": [
+        30,
+        26,
+        78,
+        82
+      ],
+      "alpha128_size_dp": [
+        48.0,
+        56.0
+      ]
+    },
+    "android/res/mipmap-mdpi/ic_launcher_monochrome.png": {
+      "size": [
+        108,
+        108
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 2141,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 32.7566787083184,
+      "nonzero_alpha_bbox": [
+        30,
+        26,
+        78,
+        82
+      ],
+      "alpha128_bbox_px": [
+        30,
+        26,
+        78,
+        82
+      ],
+      "alpha128_size_dp": [
+        48.0,
+        56.0
+      ]
+    },
+    "android/res/mipmap-xhdpi/ic_launcher.png": {
+      "size": [
+        96,
+        96
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 10346,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "android/res/mipmap-xhdpi/ic_launcher_foreground.png": {
+      "size": [
+        216,
+        216
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 19871,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 65.73431371817918,
+      "nonzero_alpha_bbox": [
+        58,
+        50,
+        157,
+        165
+      ],
+      "alpha128_bbox_px": [
+        58,
+        50,
+        157,
+        165
+      ],
+      "alpha128_size_dp": [
+        49.5,
+        57.5
+      ]
+    },
+    "android/res/mipmap-xhdpi/ic_launcher_monochrome.png": {
+      "size": [
+        216,
+        216
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 5085,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 65.73431371817918,
+      "nonzero_alpha_bbox": [
+        58,
+        50,
+        157,
+        165
+      ],
+      "alpha128_bbox_px": [
+        58,
+        50,
+        157,
+        165
+      ],
+      "alpha128_size_dp": [
+        49.5,
+        57.5
+      ]
+    },
+    "android/res/mipmap-xxhdpi/ic_launcher.png": {
+      "size": [
+        144,
+        144
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 20593,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "android/res/mipmap-xxhdpi/ic_launcher_foreground.png": {
+      "size": [
+        324,
+        324
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 40350,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 98.47842403288143,
+      "nonzero_alpha_bbox": [
+        87,
+        75,
+        237,
+        249
+      ],
+      "alpha128_bbox_px": [
+        87,
+        75,
+        237,
+        249
+      ],
+      "alpha128_size_dp": [
+        50.0,
+        58.0
+      ]
+    },
+    "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png": {
+      "size": [
+        324,
+        324
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 8387,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 98.47842403288143,
+      "nonzero_alpha_bbox": [
+        87,
+        75,
+        237,
+        249
+      ],
+      "alpha128_bbox_px": [
+        87,
+        75,
+        237,
+        249
+      ],
+      "alpha128_size_dp": [
+        50.0,
+        58.0
+      ]
+    },
+    "android/res/mipmap-xxxhdpi/ic_launcher.png": {
+      "size": [
+        192,
+        192
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 34231,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png": {
+      "size": [
+        432,
+        432
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 66969,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 131.48764200486676,
+      "nonzero_alpha_bbox": [
+        115,
+        99,
+        316,
+        332
+      ],
+      "alpha128_bbox_px": [
+        115,
+        99,
+        316,
+        332
+      ],
+      "alpha128_size_dp": [
+        50.25,
+        58.25
+      ]
+    },
+    "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png": {
+      "size": [
+        432,
+        432
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "bytes": 12025,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null,
+      "nonzero_alpha_radius_px": 131.48764200486676,
+      "nonzero_alpha_bbox": [
+        115,
+        99,
+        316,
+        332
+      ],
+      "alpha128_bbox_px": [
+        115,
+        99,
+        316,
+        332
+      ],
+      "alpha128_size_dp": [
+        50.25,
+        58.25
+      ]
+    },
+    "previews/android-circle.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 51082,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/android-rounded.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 49292,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/android-squircle.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 50059,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/contact-sheet.png": {
+      "size": [
+        1200,
+        1060
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 250192,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/ios-touch-rounded.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 51016,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/themed-dark.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 17727,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/themed-light.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 18942,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/web-maskable-circle.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 36854,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "previews/web-maskable-rounded.png": {
+      "size": [
+        240,
+        240
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 34930,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "source/master-export.png": {
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 1050488,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "source/master-transparent.png": {
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "bytes": 1087016,
+      "png_chunks": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "store/google-play-512.png": {
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 196710,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/apple-touch-icon.png": {
+      "size": [
+        180,
+        180
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 30603,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/apple-touch-icon-120.png": {
+      "size": [
+        120,
+        120
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 14944,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/apple-touch-icon-152.png": {
+      "size": [
+        152,
+        152
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 22462,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/apple-touch-icon-167.png": {
+      "size": [
+        167,
+        167
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 26696,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/apple-touch-icon-180.png": {
+      "size": [
+        180,
+        180
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 30603,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/favicon-16.png": {
+      "size": [
+        16,
+        16
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 615,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/favicon-32.png": {
+      "size": [
+        32,
+        32
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 1718,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/favicon-48.png": {
+      "size": [
+        48,
+        48
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 3236,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/icon-1024.png": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 677399,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/icon-192.png": {
+      "size": [
+        192,
+        192
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 34231,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/icon-512.png": {
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 196710,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/maskable-1024.png": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 469620,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/maskable-192.png": {
+      "size": [
+        192,
+        192
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 22618,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    },
+    "web/public/icons/maskable-512.png": {
+      "size": [
+        512,
+        512
+      ],
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "bytes": 134020,
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "icc_description": null
+    }
+  },
+  "checks": [
+    {
+      "check": "pack_contains_files",
+      "passed": true,
+      "detail": 54
+    },
+    {
+      "check": "nonempty:inventory.json",
+      "passed": true,
+      "detail": 8518
+    },
+    {
+      "check": "nonempty:README.md",
+      "passed": true,
+      "detail": 6813
+    },
+    {
+      "check": "nonempty:checks.json",
+      "passed": true,
+      "detail": 8113
+    },
+    {
+      "check": "nonempty:previews/themed-dark.png",
+      "passed": true,
+      "detail": 17727
+    },
+    {
+      "check": "nonempty:previews/android-squircle.png",
+      "passed": true,
+      "detail": 50059
+    },
+    {
+      "check": "nonempty:previews/ios-touch-rounded.png",
+      "passed": true,
+      "detail": 51016
+    },
+    {
+      "check": "nonempty:previews/android-rounded.png",
+      "passed": true,
+      "detail": 49292
+    },
+    {
+      "check": "nonempty:previews/web-maskable-rounded.png",
+      "passed": true,
+      "detail": 34930
+    },
+    {
+      "check": "nonempty:previews/themed-light.png",
+      "passed": true,
+      "detail": 18942
+    },
+    {
+      "check": "nonempty:previews/android-circle.png",
+      "passed": true,
+      "detail": 51082
+    },
+    {
+      "check": "nonempty:previews/contact-sheet.png",
+      "passed": true,
+      "detail": 250192
+    },
+    {
+      "check": "nonempty:previews/web-maskable-circle.png",
+      "passed": true,
+      "detail": 36854
+    },
+    {
+      "check": "nonempty:store/google-play-512.png",
+      "passed": true,
+      "detail": 196710
+    },
+    {
+      "check": "nonempty:scripts/build.mjs",
+      "passed": true,
+      "detail": 17647
+    },
+    {
+      "check": "nonempty:source/master-transparent.png",
+      "passed": true,
+      "detail": 1087016
+    },
+    {
+      "check": "nonempty:source/generation.json",
+      "passed": true,
+      "detail": 1236
+    },
+    {
+      "check": "nonempty:source/master-export.png",
+      "passed": true,
+      "detail": 1050488
+    },
+    {
+      "check": "nonempty:web/head-snippet.html",
+      "passed": true,
+      "detail": 645
+    },
+    {
+      "check": "nonempty:android/AndroidManifest.icon-snippet.xml",
+      "passed": true,
+      "detail": 184
+    },
+    {
+      "check": "nonempty:web/public/manifest.webmanifest",
+      "passed": true,
+      "detail": 1030
+    },
+    {
+      "check": "nonempty:web/public/favicon.ico",
+      "passed": true,
+      "detail": 15086
+    },
+    {
+      "check": "nonempty:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": 30603
+    },
+    {
+      "check": "nonempty:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": 677399
+    },
+    {
+      "check": "nonempty:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": 26696
+    },
+    {
+      "check": "nonempty:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": 3236
+    },
+    {
+      "check": "nonempty:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": 134020
+    },
+    {
+      "check": "nonempty:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": 469620
+    },
+    {
+      "check": "nonempty:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": 615
+    },
+    {
+      "check": "nonempty:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": 1718
+    },
+    {
+      "check": "nonempty:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": 196710
+    },
+    {
+      "check": "nonempty:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": 22462
+    },
+    {
+      "check": "nonempty:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": 14944
+    },
+    {
+      "check": "nonempty:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": 30603
+    },
+    {
+      "check": "nonempty:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": 22618
+    },
+    {
+      "check": "nonempty:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": 34231
+    },
+    {
+      "check": "nonempty:android/res/values/ic_launcher_background.xml",
+      "passed": true,
+      "detail": 121
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 34231
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 66969
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 12025
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 20593
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 40350
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 8387
+    },
+    {
+      "check": "nonempty:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 3236
+    },
+    {
+      "check": "nonempty:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 6154
+    },
+    {
+      "check": "nonempty:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 2141
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 10346
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 19871
+    },
+    {
+      "check": "nonempty:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 5085
+    },
+    {
+      "check": "nonempty:android/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "passed": true,
+      "detail": 268
+    },
+    {
+      "check": "nonempty:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 6385
+    },
+    {
+      "check": "nonempty:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 12251
+    },
+    {
+      "check": "nonempty:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 3610
+    },
+    {
+      "check": "nonempty:android/res/mipmap-anydpi-v33/ic_launcher.xml",
+      "passed": true,
+      "detail": 337
+    },
+    {
+      "check": "decodes:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        72,
+        72
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        162,
+        162
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          49.333333333333336,
+          57.333333333333336
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.6666666666666666
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 49.4064773081425,
+        "maximum_radius_px": 49.5
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        162,
+        162
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          49.333333333333336,
+          57.333333333333336
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.6666666666666666
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 49.4064773081425,
+        "maximum_radius_px": 49.5
+      }
+    },
+    {
+      "check": "monochrome_one_color:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_rgb_colors": 1
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        48,
+        48
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        108,
+        108
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          48.0,
+          56.0
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 1.0
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 32.7566787083184,
+        "maximum_radius_px": 33.0
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        108,
+        108
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          48.0,
+          56.0
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 1.0
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 32.7566787083184,
+        "maximum_radius_px": 33.0
+      }
+    },
+    {
+      "check": "monochrome_one_color:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_rgb_colors": 1
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        96,
+        96
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        216,
+        216
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          49.5,
+          57.5
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.5
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 65.73431371817918,
+        "maximum_radius_px": 66.0
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        216,
+        216
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          49.5,
+          57.5
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.5
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 65.73431371817918,
+        "maximum_radius_px": 66.0
+      }
+    },
+    {
+      "check": "monochrome_one_color:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_rgb_colors": 1
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        144,
+        144
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        324,
+        324
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          50.0,
+          58.0
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.3333333333333333
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 98.47842403288143,
+        "maximum_radius_px": 99.0
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        324,
+        324
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          50.0,
+          58.0
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.3333333333333333
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 98.47842403288143,
+        "maximum_radius_px": 99.0
+      }
+    },
+    {
+      "check": "monochrome_one_color:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_rgb_colors": 1
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        192,
+        192
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        432,
+        432
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          50.25,
+          58.25
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.25
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 131.48764200486676,
+        "maximum_radius_px": 132.0
+      }
+    },
+    {
+      "check": "decodes:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        432,
+        432
+      ]
+    },
+    {
+      "check": "srgb:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "transparent_layer:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          254
+        ]
+      }
+    },
+    {
+      "check": "android_visible_occupancy:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_size_dp": [
+          50.25,
+          58.25
+        ],
+        "reference_minimum_dp": 48,
+        "raster_tolerance_dp": 0.25
+      }
+    },
+    {
+      "check": "android_safe_circle:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual_radius_px": 131.48764200486676,
+        "maximum_radius_px": 132.0
+      }
+    },
+    {
+      "check": "monochrome_one_color:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "visible_rgb_colors": 1
+      }
+    },
+    {
+      "check": "decodes:previews/android-circle.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/android-rounded.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/android-squircle.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/contact-sheet.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/ios-touch-rounded.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/themed-dark.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/themed-light.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/web-maskable-circle.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:previews/web-maskable-rounded.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:source/master-export.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:source/master-transparent.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "decodes:store/google-play-512.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:store/google-play-512.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          512,
+          512
+        ],
+        "expected": 512
+      }
+    },
+    {
+      "check": "square:store/google-play-512.png",
+      "passed": true,
+      "detail": [
+        512,
+        512
+      ]
+    },
+    {
+      "check": "srgb:store/google-play-512.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:store/google-play-512.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "square:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": [
+        180,
+        180
+      ]
+    },
+    {
+      "check": "srgb:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          120,
+          120
+        ],
+        "expected": 120
+      }
+    },
+    {
+      "check": "square:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": [
+        120,
+        120
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          152,
+          152
+        ],
+        "expected": 152
+      }
+    },
+    {
+      "check": "square:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": [
+        152,
+        152
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          167,
+          167
+        ],
+        "expected": 167
+      }
+    },
+    {
+      "check": "square:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": [
+        167,
+        167
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          180,
+          180
+        ],
+        "expected": 180
+      }
+    },
+    {
+      "check": "square:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": [
+        180,
+        180
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          16,
+          16
+        ],
+        "expected": 16
+      }
+    },
+    {
+      "check": "square:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": [
+        16,
+        16
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          32,
+          32
+        ],
+        "expected": 32
+      }
+    },
+    {
+      "check": "square:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": [
+        32,
+        32
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          48,
+          48
+        ],
+        "expected": 48
+      }
+    },
+    {
+      "check": "square:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": [
+        48,
+        48
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          1024,
+          1024
+        ],
+        "expected": 1024
+      }
+    },
+    {
+      "check": "square:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          192,
+          192
+        ],
+        "expected": 192
+      }
+    },
+    {
+      "check": "square:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": [
+        192,
+        192
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          512,
+          512
+        ],
+        "expected": 512
+      }
+    },
+    {
+      "check": "square:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": [
+        512,
+        512
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          1024,
+          1024
+        ],
+        "expected": 1024
+      }
+    },
+    {
+      "check": "square:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          192,
+          192
+        ],
+        "expected": 192
+      }
+    },
+    {
+      "check": "square:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": [
+        192,
+        192
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "decodes:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": "PNG"
+    },
+    {
+      "check": "filename_dimensions:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          512,
+          512
+        ],
+        "expected": 512
+      }
+    },
+    {
+      "check": "square:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": [
+        512,
+        512
+      ]
+    },
+    {
+      "check": "srgb:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ]
+    },
+    {
+      "check": "opaque:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": [
+        255,
+        255
+      ]
+    },
+    {
+      "check": "android_density_present:mdpi",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-mdpi/ic_launcher.png",
+        "android/res/mipmap-mdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-mdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:mdpi:ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-mdpi/ic_launcher.png",
+        "android/res/mipmap-mdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-mdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:mdpi:ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-mdpi/ic_launcher.png",
+        "android/res/mipmap-mdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-mdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:mdpi:ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-mdpi/ic_launcher.png",
+        "android/res/mipmap-mdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-mdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          48,
+          48
+        ],
+        "expected": 48
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          108,
+          108
+        ],
+        "expected": 108
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          108,
+          108
+        ],
+        "expected": 108
+      }
+    },
+    {
+      "check": "android_density_present:hdpi",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-hdpi/ic_launcher.png",
+        "android/res/mipmap-hdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-hdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:hdpi:ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-hdpi/ic_launcher.png",
+        "android/res/mipmap-hdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-hdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:hdpi:ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-hdpi/ic_launcher.png",
+        "android/res/mipmap-hdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-hdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:hdpi:ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-hdpi/ic_launcher.png",
+        "android/res/mipmap-hdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-hdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          72,
+          72
+        ],
+        "expected": 72
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          162,
+          162
+        ],
+        "expected": 162
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          162,
+          162
+        ],
+        "expected": 162
+      }
+    },
+    {
+      "check": "android_density_present:xhdpi",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xhdpi/ic_launcher.png",
+        "android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xhdpi:ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xhdpi/ic_launcher.png",
+        "android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xhdpi:ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xhdpi/ic_launcher.png",
+        "android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xhdpi:ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xhdpi/ic_launcher.png",
+        "android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          96,
+          96
+        ],
+        "expected": 96
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          216,
+          216
+        ],
+        "expected": 216
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          216,
+          216
+        ],
+        "expected": 216
+      }
+    },
+    {
+      "check": "android_density_present:xxhdpi",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xxhdpi:ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xxhdpi:ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xxhdpi:ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          144,
+          144
+        ],
+        "expected": 144
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          324,
+          324
+        ],
+        "expected": 324
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          324,
+          324
+        ],
+        "expected": 324
+      }
+    },
+    {
+      "check": "android_density_present:xxxhdpi",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xxxhdpi:ic_launcher.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xxxhdpi:ic_launcher_foreground.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_density_asset:xxxhdpi:ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": [
+        "android/res/mipmap-xxxhdpi/ic_launcher.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png"
+      ]
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          192,
+          192
+        ],
+        "expected": 192
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          432,
+          432
+        ],
+        "expected": 432
+      }
+    },
+    {
+      "check": "android_dimensions:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          432,
+          432
+        ],
+        "expected": 432
+      }
+    },
+    {
+      "check": "apple_touch_size:120",
+      "passed": true,
+      "detail": [
+        "web/public/apple-touch-icon.png",
+        "web/public/icons/apple-touch-icon-120.png",
+        "web/public/icons/apple-touch-icon-152.png",
+        "web/public/icons/apple-touch-icon-167.png",
+        "web/public/icons/apple-touch-icon-180.png"
+      ]
+    },
+    {
+      "check": "apple_touch_size:152",
+      "passed": true,
+      "detail": [
+        "web/public/apple-touch-icon.png",
+        "web/public/icons/apple-touch-icon-120.png",
+        "web/public/icons/apple-touch-icon-152.png",
+        "web/public/icons/apple-touch-icon-167.png",
+        "web/public/icons/apple-touch-icon-180.png"
+      ]
+    },
+    {
+      "check": "apple_touch_size:167",
+      "passed": true,
+      "detail": [
+        "web/public/apple-touch-icon.png",
+        "web/public/icons/apple-touch-icon-120.png",
+        "web/public/icons/apple-touch-icon-152.png",
+        "web/public/icons/apple-touch-icon-167.png",
+        "web/public/icons/apple-touch-icon-180.png"
+      ]
+    },
+    {
+      "check": "apple_touch_size:180",
+      "passed": true,
+      "detail": [
+        "web/public/apple-touch-icon.png",
+        "web/public/icons/apple-touch-icon-120.png",
+        "web/public/icons/apple-touch-icon-152.png",
+        "web/public/icons/apple-touch-icon-167.png",
+        "web/public/icons/apple-touch-icon-180.png"
+      ]
+    },
+    {
+      "check": "play_icon_present",
+      "passed": true,
+      "detail": [
+        "store/google-play-512.png"
+      ]
+    },
+    {
+      "check": "play_spec:store/google-play-512.png",
+      "passed": true,
+      "detail": {
+        "size": [
+          512,
+          512
+        ],
+        "mode": "RGBA",
+        "alpha_extrema": [
+          255,
+          255
+        ],
+        "bytes": 196710,
+        "png_chunks": [
+          "IHDR",
+          "sRGB",
+          "IDAT",
+          "IDAT",
+          "IDAT",
+          "IDAT",
+          "IDAT",
+          "IDAT",
+          "IEND"
+        ],
+        "icc_description": null
+      }
+    },
+    {
+      "check": "ico_present",
+      "passed": true,
+      "detail": [
+        "web/public/favicon.ico"
+      ]
+    },
+    {
+      "check": "ico_sizes:web/public/favicon.ico",
+      "passed": true,
+      "detail": [
+        [
+          16,
+          16
+        ],
+        [
+          32,
+          32
+        ],
+        [
+          48,
+          48
+        ]
+      ]
+    },
+    {
+      "check": "ico_decodes:(32, 32)",
+      "passed": true,
+      "detail": [
+        32,
+        32
+      ]
+    },
+    {
+      "check": "ico_decodes:(16, 16)",
+      "passed": true,
+      "detail": [
+        16,
+        16
+      ]
+    },
+    {
+      "check": "ico_decodes:(48, 48)",
+      "passed": true,
+      "detail": [
+        48,
+        48
+      ]
+    },
+    {
+      "check": "webmanifest_present",
+      "passed": true,
+      "detail": [
+        "web/public/manifest.webmanifest"
+      ]
+    },
+    {
+      "check": "manifest_icon:any:192",
+      "passed": true,
+      "detail": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/maskable-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "check": "manifest_icon:any:512",
+      "passed": true,
+      "detail": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/maskable-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "check": "manifest_icon:maskable:192",
+      "passed": true,
+      "detail": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/maskable-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "check": "manifest_icon:maskable:512",
+      "passed": true,
+      "detail": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/icon-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "any"
+        },
+        {
+          "src": "/icons/maskable-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": "/icons/maskable-1024.png",
+          "sizes": "1024x1024",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ]
+    },
+    {
+      "check": "resolves:web/public/manifest.webmanifest:/icons/icon-192.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/icon-192.png"
+    },
+    {
+      "check": "manifest_dimensions:/icons/icon-192.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          192,
+          192
+        ],
+        "declared": "192x192"
+      }
+    },
+    {
+      "check": "resolves:web/public/manifest.webmanifest:/icons/icon-512.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/icon-512.png"
+    },
+    {
+      "check": "manifest_dimensions:/icons/icon-512.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          512,
+          512
+        ],
+        "declared": "512x512"
+      }
+    },
+    {
+      "check": "resolves:web/public/manifest.webmanifest:/icons/icon-1024.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/icon-1024.png"
+    },
+    {
+      "check": "manifest_dimensions:/icons/icon-1024.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          1024,
+          1024
+        ],
+        "declared": "1024x1024"
+      }
+    },
+    {
+      "check": "resolves:web/public/manifest.webmanifest:/icons/maskable-192.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/maskable-192.png"
+    },
+    {
+      "check": "manifest_dimensions:/icons/maskable-192.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          192,
+          192
+        ],
+        "declared": "192x192"
+      }
+    },
+    {
+      "check": "maskable_safe_circle:/icons/maskable-192.png",
+      "passed": true,
+      "detail": {
+        "art_radius_px_tolerance_12": 70.03213548079196,
+        "maximum_radius_px": 76.80000000000001,
+        "background_rgb": [
+          41,
+          19,
+          41
+        ]
+      }
+    },
+    {
+      "check": "resolves:web/public/manifest.webmanifest:/icons/maskable-512.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/maskable-512.png"
+    },
+    {
+      "check": "manifest_dimensions:/icons/maskable-512.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          512,
+          512
+        ],
+        "declared": "512x512"
+      }
+    },
+    {
+      "check": "maskable_safe_circle:/icons/maskable-512.png",
+      "passed": true,
+      "detail": {
+        "art_radius_px_tolerance_12": 191.51631784263188,
+        "maximum_radius_px": 204.8,
+        "background_rgb": [
+          41,
+          19,
+          41
+        ]
+      }
+    },
+    {
+      "check": "resolves:web/public/manifest.webmanifest:/icons/maskable-1024.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/maskable-1024.png"
+    },
+    {
+      "check": "manifest_dimensions:/icons/maskable-1024.png",
+      "passed": true,
+      "detail": {
+        "actual": [
+          1024,
+          1024
+        ],
+        "declared": "1024x1024"
+      }
+    },
+    {
+      "check": "maskable_safe_circle:/icons/maskable-1024.png",
+      "passed": true,
+      "detail": {
+        "art_radius_px_tolerance_12": 385.9566037781968,
+        "maximum_radius_px": 409.6,
+        "background_rgb": [
+          41,
+          19,
+          41
+        ]
+      }
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/manifest.webmanifest",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/manifest.webmanifest"
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/favicon.ico",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/favicon.ico"
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/icons/favicon-32.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/favicon-32.png"
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/icons/favicon-16.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/favicon-16.png"
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/apple-touch-icon-120.png"
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/apple-touch-icon-152.png"
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/icons/apple-touch-icon-167.png"
+    },
+    {
+      "check": "resolves:web/head-snippet.html:/apple-touch-icon.png",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/web/public/apple-touch-icon.png"
+    },
+    {
+      "check": "android_background_opaque",
+      "passed": true,
+      "detail": "#291329"
+    },
+    {
+      "check": "xml_parses:android/AndroidManifest.icon-snippet.xml",
+      "passed": true,
+      "detail": "application"
+    },
+    {
+      "check": "android_ref:android/AndroidManifest.icon-snippet.xml:mipmap/ic_launcher",
+      "passed": true,
+      "detail": [
+        "mipmap",
+        "ic_launcher"
+      ]
+    },
+    {
+      "check": "xml_parses:android/res/values/ic_launcher_background.xml",
+      "passed": true,
+      "detail": "resources"
+    },
+    {
+      "check": "xml_parses:android/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "passed": true,
+      "detail": "adaptive-icon"
+    },
+    {
+      "check": "android_ref:android/res/mipmap-anydpi-v26/ic_launcher.xml:color/ic_launcher_background",
+      "passed": true,
+      "detail": [
+        "color",
+        "ic_launcher_background"
+      ]
+    },
+    {
+      "check": "android_ref:android/res/mipmap-anydpi-v26/ic_launcher.xml:mipmap/ic_launcher_foreground",
+      "passed": true,
+      "detail": [
+        "mipmap",
+        "ic_launcher_foreground"
+      ]
+    },
+    {
+      "check": "adaptive_layers:android/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "passed": true,
+      "detail": [
+        "background",
+        "foreground"
+      ]
+    },
+    {
+      "check": "xml_parses:android/res/mipmap-anydpi-v33/ic_launcher.xml",
+      "passed": true,
+      "detail": "adaptive-icon"
+    },
+    {
+      "check": "android_ref:android/res/mipmap-anydpi-v33/ic_launcher.xml:color/ic_launcher_background",
+      "passed": true,
+      "detail": [
+        "color",
+        "ic_launcher_background"
+      ]
+    },
+    {
+      "check": "android_ref:android/res/mipmap-anydpi-v33/ic_launcher.xml:mipmap/ic_launcher_foreground",
+      "passed": true,
+      "detail": [
+        "mipmap",
+        "ic_launcher_foreground"
+      ]
+    },
+    {
+      "check": "android_ref:android/res/mipmap-anydpi-v33/ic_launcher.xml:mipmap/ic_launcher_monochrome",
+      "passed": true,
+      "detail": [
+        "mipmap",
+        "ic_launcher_monochrome"
+      ]
+    },
+    {
+      "check": "android13_monochrome:android/res/mipmap-anydpi-v33/ic_launcher.xml",
+      "passed": true,
+      "detail": [
+        "background",
+        "foreground",
+        "monochrome"
+      ]
+    },
+    {
+      "check": "adaptive_layers:android/res/mipmap-anydpi-v33/ic_launcher.xml",
+      "passed": true,
+      "detail": [
+        "background",
+        "foreground",
+        "monochrome"
+      ]
+    },
+    {
+      "check": "adaptive_api_versions",
+      "passed": true,
+      "detail": [
+        26,
+        33
+      ]
+    },
+    {
+      "check": "inventory_present",
+      "passed": true,
+      "detail": "/home/e0ipso/Documents/Codex/2026-10-19/to/outputs/tokkl-icon-pack/inventory.json"
+    },
+    {
+      "check": "inventory_file:android/AndroidManifest.icon-snippet.xml",
+      "passed": true,
+      "detail": "android/AndroidManifest.icon-snippet.xml"
+    },
+    {
+      "check": "inventory_bytes:android/AndroidManifest.icon-snippet.xml",
+      "passed": true,
+      "detail": 184
+    },
+    {
+      "check": "inventory_sha256:android/AndroidManifest.icon-snippet.xml",
+      "passed": true,
+      "detail": "53bb3ffde657ccfeab9337eab5f7117f38f0bccc60714f83f1c4fb229c6ab45d"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "passed": true,
+      "detail": "android/res/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "passed": true,
+      "detail": 268
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "passed": true,
+      "detail": "5056b7226b3f58e65a61739e8ab6f5c52099fccee3ae9aad0e8856f31709e3fa"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-anydpi-v33/ic_launcher.xml",
+      "passed": true,
+      "detail": "android/res/mipmap-anydpi-v33/ic_launcher.xml"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-anydpi-v33/ic_launcher.xml",
+      "passed": true,
+      "detail": 337
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-anydpi-v33/ic_launcher.xml",
+      "passed": true,
+      "detail": "5bef67e3eba5c56f6ca0f96173c76e654977bce5ea91f0161fce94c5f52bbef7"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "android/res/mipmap-hdpi/ic_launcher_foreground.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 12251
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "587cf22cc6b0f470fbbad77c6567f956e02c1ebb240779de2ab59c0d27d110ea"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "android/res/mipmap-hdpi/ic_launcher_monochrome.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 3610
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "7e962d0c991688e18e2bd36ffa7db7f294d3b7895d7ed3de5a6e241d01f3e5f2"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "android/res/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 6385
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-hdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "287d4518bbca7ea462b5a4cbdb87eff8624c262f17734a1ce17a18e45f020f04"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "android/res/mipmap-mdpi/ic_launcher_foreground.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 6154
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "6a3e4b82f676f25a63ade8595f9f46404218eb98321c6f98365d5da3d9682e08"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "android/res/mipmap-mdpi/ic_launcher_monochrome.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 2141
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "e3f29b1d59ebb10643b844790dab83713a9a1a1f94d3bc4bd32696134ea7a93e"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "android/res/mipmap-mdpi/ic_launcher.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 3236
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-mdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "1aa0980cf45831631dc3575e94ef4f4d2b55d80adbd2dda182386679f4e3c342"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xhdpi/ic_launcher_foreground.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 19871
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "8b53be2a9383142ed51c6dec5c2acab0bb5d9123feaaeb7d207c103336e8b011"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xhdpi/ic_launcher_monochrome.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 5085
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "c5ba15801cd14ffd5299d6a711cc7ac45da092b6351efe233d1bb6334fb93ea4"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 10346
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "3dd5c4840960eb27cf79513f69324e32f727c603d45171e420c4493a23d88cf7"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xxhdpi/ic_launcher_foreground.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 40350
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "1f236c10e67bb0ca67d89900db19978c5cccb9c553191bb5f4c6635090fe2d1f"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 8387
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "4b259ca40ae122fd2390909ee2ee5cf9916991fe01391eb8fb58301178a17d6b"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 20593
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "16912a3f3908146240fa9f74a9526824660d496217fa8fd66faf733d5b75c266"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": 66969
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "passed": true,
+      "detail": "f30e36e51b979c19d8d7d6d83b6704243d924ae0378e1abd35643b6185d3f990"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": 12025
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "passed": true,
+      "detail": "cf28b8c881e2589926b2ccb897862466cf348d538ee95c8041490e5c0631eedb"
+    },
+    {
+      "check": "inventory_file:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "android/res/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+      "check": "inventory_bytes:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": 34231
+    },
+    {
+      "check": "inventory_sha256:android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "passed": true,
+      "detail": "558af7cdcd5a6dd5cddf67b5f1703c7c26c3766c7ee9ab14b97795c54317170b"
+    },
+    {
+      "check": "inventory_file:android/res/values/ic_launcher_background.xml",
+      "passed": true,
+      "detail": "android/res/values/ic_launcher_background.xml"
+    },
+    {
+      "check": "inventory_bytes:android/res/values/ic_launcher_background.xml",
+      "passed": true,
+      "detail": 121
+    },
+    {
+      "check": "inventory_sha256:android/res/values/ic_launcher_background.xml",
+      "passed": true,
+      "detail": "772c179889bbf487fc0d23cf0515a1a679f2e5df308d79a5218199f31460315d"
+    },
+    {
+      "check": "inventory_file:checks.json",
+      "passed": true,
+      "detail": "checks.json"
+    },
+    {
+      "check": "inventory_bytes:checks.json",
+      "passed": true,
+      "detail": 8113
+    },
+    {
+      "check": "inventory_sha256:checks.json",
+      "passed": true,
+      "detail": "939a2ec30b8227fcc368a2fa8616d33230211f5364420ab58e52c0eec6d1fbb4"
+    },
+    {
+      "check": "inventory_file:previews/android-circle.png",
+      "passed": true,
+      "detail": "previews/android-circle.png"
+    },
+    {
+      "check": "inventory_bytes:previews/android-circle.png",
+      "passed": true,
+      "detail": 51082
+    },
+    {
+      "check": "inventory_sha256:previews/android-circle.png",
+      "passed": true,
+      "detail": "b4ce6bd70bde7a60276c357954fc3defb446284d62b6e739cd4687291e528a69"
+    },
+    {
+      "check": "inventory_file:previews/android-rounded.png",
+      "passed": true,
+      "detail": "previews/android-rounded.png"
+    },
+    {
+      "check": "inventory_bytes:previews/android-rounded.png",
+      "passed": true,
+      "detail": 49292
+    },
+    {
+      "check": "inventory_sha256:previews/android-rounded.png",
+      "passed": true,
+      "detail": "8ad5a88ca589f2de4702530d48c424ecc292985ef7cc952c444ee0d3559089ea"
+    },
+    {
+      "check": "inventory_file:previews/android-squircle.png",
+      "passed": true,
+      "detail": "previews/android-squircle.png"
+    },
+    {
+      "check": "inventory_bytes:previews/android-squircle.png",
+      "passed": true,
+      "detail": 50059
+    },
+    {
+      "check": "inventory_sha256:previews/android-squircle.png",
+      "passed": true,
+      "detail": "961d22a9d1db64766a67a6ae24685ee38121a257ac5f1410e4aded2aad1c1311"
+    },
+    {
+      "check": "inventory_file:previews/contact-sheet.png",
+      "passed": true,
+      "detail": "previews/contact-sheet.png"
+    },
+    {
+      "check": "inventory_bytes:previews/contact-sheet.png",
+      "passed": true,
+      "detail": 250192
+    },
+    {
+      "check": "inventory_sha256:previews/contact-sheet.png",
+      "passed": true,
+      "detail": "a9206687898082bc3e222f2c593c3b03c16303e0d15b86ea6a41715d2ac8a6c4"
+    },
+    {
+      "check": "inventory_file:previews/ios-touch-rounded.png",
+      "passed": true,
+      "detail": "previews/ios-touch-rounded.png"
+    },
+    {
+      "check": "inventory_bytes:previews/ios-touch-rounded.png",
+      "passed": true,
+      "detail": 51016
+    },
+    {
+      "check": "inventory_sha256:previews/ios-touch-rounded.png",
+      "passed": true,
+      "detail": "1be0af4a095e805c04bc920423084cae85b3ec994eaa5f9541275bb4bf62d7ec"
+    },
+    {
+      "check": "inventory_file:previews/themed-dark.png",
+      "passed": true,
+      "detail": "previews/themed-dark.png"
+    },
+    {
+      "check": "inventory_bytes:previews/themed-dark.png",
+      "passed": true,
+      "detail": 17727
+    },
+    {
+      "check": "inventory_sha256:previews/themed-dark.png",
+      "passed": true,
+      "detail": "bbbc3134da1c5bacdfc84b9fd2a394c987013b1fe8c659a7e62a1578134e72a4"
+    },
+    {
+      "check": "inventory_file:previews/themed-light.png",
+      "passed": true,
+      "detail": "previews/themed-light.png"
+    },
+    {
+      "check": "inventory_bytes:previews/themed-light.png",
+      "passed": true,
+      "detail": 18942
+    },
+    {
+      "check": "inventory_sha256:previews/themed-light.png",
+      "passed": true,
+      "detail": "5c71e4955855af7566dcdc544b051ec6479052253844ea408eb31d89500d1bd2"
+    },
+    {
+      "check": "inventory_file:previews/web-maskable-circle.png",
+      "passed": true,
+      "detail": "previews/web-maskable-circle.png"
+    },
+    {
+      "check": "inventory_bytes:previews/web-maskable-circle.png",
+      "passed": true,
+      "detail": 36854
+    },
+    {
+      "check": "inventory_sha256:previews/web-maskable-circle.png",
+      "passed": true,
+      "detail": "d5cc5514ee1398f42e3e1788bfeaf819dceb3c99d034ae672306eadfd51b64a9"
+    },
+    {
+      "check": "inventory_file:previews/web-maskable-rounded.png",
+      "passed": true,
+      "detail": "previews/web-maskable-rounded.png"
+    },
+    {
+      "check": "inventory_bytes:previews/web-maskable-rounded.png",
+      "passed": true,
+      "detail": 34930
+    },
+    {
+      "check": "inventory_sha256:previews/web-maskable-rounded.png",
+      "passed": true,
+      "detail": "37198a876e9ed58eaf454c722cadf0cf7200585f53304bfbaddb7add6b02577c"
+    },
+    {
+      "check": "inventory_file:README.md",
+      "passed": true,
+      "detail": "README.md"
+    },
+    {
+      "check": "inventory_bytes:README.md",
+      "passed": true,
+      "detail": 6813
+    },
+    {
+      "check": "inventory_sha256:README.md",
+      "passed": true,
+      "detail": "89c6fdb4f1eebe9ed6bbae3d3038e2a00639d038275b23fbbf93517c2cd8e2ff"
+    },
+    {
+      "check": "inventory_file:scripts/build.mjs",
+      "passed": true,
+      "detail": "scripts/build.mjs"
+    },
+    {
+      "check": "inventory_bytes:scripts/build.mjs",
+      "passed": true,
+      "detail": 17647
+    },
+    {
+      "check": "inventory_sha256:scripts/build.mjs",
+      "passed": true,
+      "detail": "c94b0f4d4497251f103a469a339ca922f136d23cb38c07514060603ef2820d27"
+    },
+    {
+      "check": "inventory_file:source/generation.json",
+      "passed": true,
+      "detail": "source/generation.json"
+    },
+    {
+      "check": "inventory_bytes:source/generation.json",
+      "passed": true,
+      "detail": 1236
+    },
+    {
+      "check": "inventory_sha256:source/generation.json",
+      "passed": true,
+      "detail": "b5380c88aa440ac23b1fb9369e36172875ae9cf1678376d8f7a1c613f9c079a3"
+    },
+    {
+      "check": "inventory_file:source/master-export.png",
+      "passed": true,
+      "detail": "source/master-export.png"
+    },
+    {
+      "check": "inventory_bytes:source/master-export.png",
+      "passed": true,
+      "detail": 1050488
+    },
+    {
+      "check": "inventory_sha256:source/master-export.png",
+      "passed": true,
+      "detail": "9262a3ff57a17fe0b81cfdff0e617f44483175c45747fdb1bc67ebb30faba55a"
+    },
+    {
+      "check": "inventory_file:source/master-transparent.png",
+      "passed": true,
+      "detail": "source/master-transparent.png"
+    },
+    {
+      "check": "inventory_bytes:source/master-transparent.png",
+      "passed": true,
+      "detail": 1087016
+    },
+    {
+      "check": "inventory_sha256:source/master-transparent.png",
+      "passed": true,
+      "detail": "03431010f5d8c0ae4ac54c41c6332535a4cd63d0e8831a0c848d5553433bc222"
+    },
+    {
+      "check": "inventory_file:store/google-play-512.png",
+      "passed": true,
+      "detail": "store/google-play-512.png"
+    },
+    {
+      "check": "inventory_bytes:store/google-play-512.png",
+      "passed": true,
+      "detail": 196710
+    },
+    {
+      "check": "inventory_sha256:store/google-play-512.png",
+      "passed": true,
+      "detail": "08d5ad147f3e204b39de135024ac1a1843d0409f83308c07c2f2a6e7f765a81e"
+    },
+    {
+      "check": "inventory_file:web/head-snippet.html",
+      "passed": true,
+      "detail": "web/head-snippet.html"
+    },
+    {
+      "check": "inventory_bytes:web/head-snippet.html",
+      "passed": true,
+      "detail": 645
+    },
+    {
+      "check": "inventory_sha256:web/head-snippet.html",
+      "passed": true,
+      "detail": "7d13dac500262e4151d994b87c781c7a2ed0d224ebfcae21aaefca83e695c2fd"
+    },
+    {
+      "check": "inventory_file:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": "web/public/apple-touch-icon.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": 30603
+    },
+    {
+      "check": "inventory_sha256:web/public/apple-touch-icon.png",
+      "passed": true,
+      "detail": "11cec8dd2933029e382a5556b27554e8c5d14037cf4a419e34120a38914103bc"
+    },
+    {
+      "check": "inventory_file:web/public/favicon.ico",
+      "passed": true,
+      "detail": "web/public/favicon.ico"
+    },
+    {
+      "check": "inventory_bytes:web/public/favicon.ico",
+      "passed": true,
+      "detail": 15086
+    },
+    {
+      "check": "inventory_sha256:web/public/favicon.ico",
+      "passed": true,
+      "detail": "a9becfd4d266981f18f0e2b2a65ee61ea3ff9c57bc8536c8cd297a8c621f210a"
+    },
+    {
+      "check": "inventory_file:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": "web/public/icons/apple-touch-icon-120.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": 14944
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/apple-touch-icon-120.png",
+      "passed": true,
+      "detail": "9d1e6db0cf727de7350e0ae9b2a5030b8e0871bdcc17cd8f7ed26ba7bf0ad870"
+    },
+    {
+      "check": "inventory_file:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": "web/public/icons/apple-touch-icon-152.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": 22462
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/apple-touch-icon-152.png",
+      "passed": true,
+      "detail": "058c6812e5f5289630b82763bf53f8542bedd36df837926c7aeee94109e4f320"
+    },
+    {
+      "check": "inventory_file:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": "web/public/icons/apple-touch-icon-167.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": 26696
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/apple-touch-icon-167.png",
+      "passed": true,
+      "detail": "16a3d719f41f2cd6654c92d37dc1e8b3447c41b46ffb1de8e2c40a21119a8519"
+    },
+    {
+      "check": "inventory_file:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": "web/public/icons/apple-touch-icon-180.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": 30603
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/apple-touch-icon-180.png",
+      "passed": true,
+      "detail": "11cec8dd2933029e382a5556b27554e8c5d14037cf4a419e34120a38914103bc"
+    },
+    {
+      "check": "inventory_file:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": "web/public/icons/favicon-16.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": 615
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/favicon-16.png",
+      "passed": true,
+      "detail": "89f8d3bec14cf0b9231509ac1d0dc8e21d1844d524e8ef9d85b70a4dc926b552"
+    },
+    {
+      "check": "inventory_file:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": "web/public/icons/favicon-32.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": 1718
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/favicon-32.png",
+      "passed": true,
+      "detail": "e6f61d7608b11f866dfead58c4c2186a61d93adcb70f62d58668ea93695cd25a"
+    },
+    {
+      "check": "inventory_file:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": "web/public/icons/favicon-48.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": 3236
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/favicon-48.png",
+      "passed": true,
+      "detail": "1aa0980cf45831631dc3575e94ef4f4d2b55d80adbd2dda182386679f4e3c342"
+    },
+    {
+      "check": "inventory_file:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": "web/public/icons/icon-1024.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": 677399
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/icon-1024.png",
+      "passed": true,
+      "detail": "40abe017a28a10b167c703052cd5445493af2c37e7729d9b2c20d5d10a24a2da"
+    },
+    {
+      "check": "inventory_file:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": "web/public/icons/icon-192.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": 34231
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/icon-192.png",
+      "passed": true,
+      "detail": "558af7cdcd5a6dd5cddf67b5f1703c7c26c3766c7ee9ab14b97795c54317170b"
+    },
+    {
+      "check": "inventory_file:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": "web/public/icons/icon-512.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": 196710
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/icon-512.png",
+      "passed": true,
+      "detail": "08d5ad147f3e204b39de135024ac1a1843d0409f83308c07c2f2a6e7f765a81e"
+    },
+    {
+      "check": "inventory_file:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": "web/public/icons/maskable-1024.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": 469620
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/maskable-1024.png",
+      "passed": true,
+      "detail": "1fc7bba81fc165db124c90c5b109937b3742d60bc9142d7f13e2c6b25da09626"
+    },
+    {
+      "check": "inventory_file:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": "web/public/icons/maskable-192.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": 22618
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/maskable-192.png",
+      "passed": true,
+      "detail": "46633f1dace95796386645f59a8c80f02c5ce36354f0893af094275c97b7caeb"
+    },
+    {
+      "check": "inventory_file:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": "web/public/icons/maskable-512.png"
+    },
+    {
+      "check": "inventory_bytes:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": 134020
+    },
+    {
+      "check": "inventory_sha256:web/public/icons/maskable-512.png",
+      "passed": true,
+      "detail": "185f121af41227b1d3bb691cc0eb548183767b66c0d49d93ab15d1a6c9ad2d16"
+    },
+    {
+      "check": "inventory_file:web/public/manifest.webmanifest",
+      "passed": true,
+      "detail": "web/public/manifest.webmanifest"
+    },
+    {
+      "check": "inventory_bytes:web/public/manifest.webmanifest",
+      "passed": true,
+      "detail": 1030
+    },
+    {
+      "check": "inventory_sha256:web/public/manifest.webmanifest",
+      "passed": true,
+      "detail": "6616d35342dd70d10a8928de679584b2cde3a5124e91faaf3d716961e986c518"
+    }
+  ]
+}

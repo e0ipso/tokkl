@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
-import { SWIPE_MIN_PX, SWIPE_RATIO, clampDayMove, classifySwipe, fitMoveInDay, stepDay } from './calendarDay.ts';
+import { addClockMinutes, addDays, clockMinutes, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
+import { SWIPE_MIN_PX, SWIPE_RATIO, clampDayMove, classifySwipe, dragStep, droppedMinute, fitMoveInDay, stepDay } from './calendarDay.ts';
+import { snappedInstant } from './settings.ts';
 
 const MADRID = 'Europe/Madrid';
 
@@ -154,4 +155,47 @@ test('stepDay lands on every day across the Madrid clock changes', () => {
     assert.equal(stepDay(days[1]!, -1), days[0]);
   }
   assert.equal(stepDay('2026-10-19', 7), '2026-10-26');
+});
+
+test('dragStep is the smallest multiple of the resolution that is at least 15 minutes', () => {
+  const steps: Record<number, number> = { 1: 15, 2: 16, 3: 15, 4: 16, 5: 15, 6: 18, 10: 20, 12: 24, 15: 15, 20: 20, 30: 30, 60: 60 };
+  for (const [resolution, step] of Object.entries(steps)) {
+    assert.equal(dragStep(Number(resolution)), step, `resolution ${resolution}`);
+    assert.equal(step % Number(resolution), 0, `resolution ${resolution}`);
+  }
+});
+
+test('droppedMinute keeps an on-grid boundary on the grid and lands an off-grid one on it', () => {
+  // At the default resolution of 5 the step is 15, and an on-grid block moves by whole steps.
+  assert.equal(droppedMinute(9 * 60, dragStep(5), 5), 9 * 60 + 15);
+  assert.equal(droppedMinute(9 * 60 + 7, dragStep(5), 5), 9 * 60 + 20);
+  // At 12, the bottom of 09:00-09:12 goes one 24-minute step to 09:36.
+  assert.equal(droppedMinute(9 * 60 + 12, dragStep(12), 12), 9 * 60 + 36);
+  // An imported 09:07 start moved two steps reaches 09:55 and lands on 10:00; one step back
+  // reaches 08:43 and lands on 08:48.
+  assert.equal(droppedMinute(9 * 60 + 7, 2 * dragStep(12), 12), 10 * 60);
+  assert.equal(droppedMinute(9 * 60 + 7, -dragStep(12), 12), 8 * 60 + 48);
+  // Halfway between two grid points the later one wins, as on the server.
+  assert.equal(droppedMinute(6, 24, 12), 36);
+  // A boundary that has not moved stays where it is, on the grid or not.
+  assert.equal(droppedMinute(9 * 60 + 7, 0, 12), 9 * 60 + 7);
+});
+
+test('droppedMinute shows the clock minute that snappedInstant drops the boundary on', () => {
+  // Wednesday 2026-06-17 in Madrid, from an on-grid 09:00 and from an imported 09:07:30.
+  for (const from of ['2026-06-17T07:00:00Z', '2026-06-17T07:07:30Z']) {
+    const boundary = new Date(from);
+    for (const resolution of [1, 2, 5, 6, 12, 20, 60]) {
+      const settings = { timeZone: MADRID, timeResolution: resolution };
+      for (const steps of [-2, -1, 1, 3]) {
+        const delta = steps * dragStep(resolution);
+        const dropped = snappedInstant(addClockMinutes(boundary, delta, MADRID), settings);
+        assert.equal(
+          droppedMinute(clockMinutes(boundary, MADRID), delta, resolution),
+          clockMinutes(dropped, MADRID),
+          `${from}, resolution ${resolution}, ${steps} steps`,
+        );
+      }
+    }
+  }
 });

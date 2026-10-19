@@ -24,8 +24,8 @@ ProjectIndicator ProjectIndicator::fromTimer(const TimerController &timer, bool 
         indicator.color = timer.indicatorColor();
         break;
     }
-    indicator.round = timer.isRunning();
-    indicator.pulsing = indicator.kind == Kind::Filled && indicator.round && !reduceMotion;
+    indicator.round = timer.isRunning() || timer.isPaused();
+    indicator.pulsing = indicator.kind == Kind::Filled && timer.isRunning() && !reduceMotion;
     indicator.label = StatusWords::projectText(timer);
     return indicator;
 }

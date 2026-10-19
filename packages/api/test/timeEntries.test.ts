@@ -61,17 +61,46 @@ test('starting a second timer stops the first one at the new start, snapped to t
   assert.equal(second.body.billable, true);
   assert.deepEqual(second.body.tags, ['dev']);
 
-  // 73m20s rounds up to 75 minutes at the default resolution of 5, so the first entry overlaps
-  // the second by 100 seconds, less than one step.
+  // 09:13:20 is nearer 09:15 than 09:10 at the default resolution of 5, so the first entry stops there.
   const firstNow = await ctx.json('GET', `/api/v9/me/time_entries/${first.body.id}`);
   assert.equal(firstNow.body.start, '2026-10-14T08:00:00+00:00');
   assert.equal(firstNow.body.stop, '2026-10-14T09:15:00+00:00');
   assert.equal(firstNow.body.duration, 4500);
-  const overlap = (Date.parse(firstNow.body.stop) - Date.parse(second.body.start)) / 1000;
-  assert.ok(overlap > 0 && overlap < 300, `overlap ${overlap}`);
   const current = await ctx.json('GET', '/api/v9/me/time_entries/current');
   assert.equal(current.body.id, second.body.id);
   assert.equal(runningCount(ctx), 1);
+
+  // Once the second entry stops, its start snaps to the point where the first one stopped.
+  const secondNow = await ctx.json('PATCH', `${url}/${second.body.id}/stop`);
+  assert.equal(secondNow.body.start, firstNow.body.stop);
+});
+
+test('a switch between timers is stored back to back on either side of a half step', async () => {
+  for (const [minutes, switchAt, stop] of [
+    [5, '09:12:00', '09:10:00'], [5, '09:12:30', '09:15:00'], [5, '09:13:00', '09:15:00'],
+    [15, '09:22:00', '09:15:00'], [15, '09:22:30', '09:30:00'], [15, '09:23:00', '09:30:00'],
+  ] as const) {
+    const ctx = await setup();
+    await setResolution(ctx, minutes);
+    const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+    const label = `R=${minutes} switch at ${switchAt}`;
+    const first = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: -1 });
+    const second = await ctx.json('POST', url, { start: `2026-10-14T${switchAt}Z`, duration: -1 });
+    const stopped = await ctx.json('PATCH', `${url}/${second.body.id}/stop`);
+    assert.equal(stopped.status, 200, label);
+    const old = (await ctx.json('GET', `/api/v9/me/time_entries/${first.body.id}`)).body;
+    assertStored(ctx, old, '2026-10-14T09:00:00+00:00', `2026-10-14T${stop}+00:00`);
+    assert.equal(stopped.body.start, old.stop, label);
+  }
+});
+
+test('a switch within half a step of the old start stores a zero-length entry', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const first = await ctx.json('POST', url, { start: '2026-10-14T09:00:40Z', duration: -1 });
+  await ctx.json('POST', url, { start: '2026-10-14T09:02:20Z', duration: -1 });
+  const old = (await ctx.json('GET', `/api/v9/me/time_entries/${first.body.id}`)).body;
+  assertStored(ctx, old, '2026-10-14T09:00:00+00:00', '2026-10-14T09:00:00+00:00');
 });
 
 test('concurrent timer starts leave exactly one running entry', async () => {
@@ -452,10 +481,22 @@ test('a running entry keeps its exact start until the stop endpoint snaps it', a
   const stop = Date.parse(stopped.body.stop) / 1000;
   assert.equal(start % 300, 0);
   assert.ok(Math.abs(start - realStart.getTime() / 1000) <= 150, stopped.body.start);
+  // The stop goes to the grid point nearest the moment the request stopped the timer.
+  assert.equal(stop % 300, 0);
+  assert.ok(stop >= before - 150 && stop <= after + 150, stopped.body.stop);
   assert.equal(stopped.body.duration, stop - start);
-  assert.equal(stopped.body.duration % 300, 0);
-  assert.ok(stopped.body.duration >= before - realStart.getTime() / 1000, String(stopped.body.duration));
-  assert.ok(stopped.body.duration < after - realStart.getTime() / 1000 + 300, String(stopped.body.duration));
+  assertStored(ctx, stopped.body, stopped.body.start, stopped.body.stop);
+});
+
+test('the stop endpoint stores one step when the nearest grid point is the start', async () => {
+  const ctx = await setup();
+  await setResolution(ctx, 60);
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const running = await ctx.json('POST', url, { start: new Date().toISOString(), duration: -1 });
+  const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`);
+  assert.equal(stopped.status, 200);
+  assert.equal(stopped.body.duration, 3600);
+  assert.equal((Date.parse(stopped.body.start) / 1000) % 3600, 0);
   assertStored(ctx, stopped.body, stopped.body.start, stopped.body.stop);
 });
 

@@ -8,13 +8,12 @@ import org.kde.plasma.components as PlasmaComponents
 
 import com.github.e0ipso.tokkl.backend
 
-// The panel item: the Tokkl icon, a running or stopped symbol, the project
-// indicator, the elapsed time and, unless the timer is ready, a symbol for
-// its state.
+// The panel item: the Tokkl icon, the project indicator, the elapsed time
+// and, unless the timer is ready, a symbol for its state.
 //
-// Left click, Space or Return starts or stops the timer. Right click, the
-// Menu key or Shift+F10 opens the menu. Tab focuses the item and a frame
-// shows the focus.
+// Left click, Space or Return pauses a running timer, resumes a paused one
+// and starts a stopped one; Stop is in the menu. Right click, the Menu key or
+// Shift+F10 opens the menu. Tab focuses the item and a frame shows the focus.
 MouseArea {
     id: button
 
@@ -66,7 +65,12 @@ MouseArea {
     }
 
     Accessible.role: Accessible.Button
-    Accessible.name: button.timer.running ? i18nc("@action:button", "Stop the Tokkl timer") : i18nc("@action:button", "Start the Tokkl timer")
+    Accessible.name: {
+        if (button.timer.running) {
+            return i18nc("@action:button", "Pause the Tokkl timer");
+        }
+        return button.timer.paused ? i18nc("@action:button", "Resume the Tokkl timer") : i18nc("@action:button", "Start the Tokkl timer");
+    }
     Accessible.description: words.summary
     Accessible.focusable: true
     Accessible.onPressAction: button.timer.toggle()
@@ -82,17 +86,10 @@ MouseArea {
         spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Icon {
+            objectName: "logoIcon"
             Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
             Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
             source: Qt.resolvedUrl("../images/tokkl.png")
-        }
-
-        Kirigami.Icon {
-            id: runIcon
-            objectName: "runIcon"
-            Layout.preferredWidth: Kirigami.Units.iconSizes.small
-            Layout.preferredHeight: Kirigami.Units.iconSizes.small
-            source: button.timer.running ? "media-playback-playing" : "media-playback-stopped"
         }
 
         ProjectIndicator {

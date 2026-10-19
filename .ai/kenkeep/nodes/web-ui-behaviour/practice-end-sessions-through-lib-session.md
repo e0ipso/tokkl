@@ -19,7 +19,9 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`packages/web/src/lib/session.ts` owns the end of a session. `endSession(qc)` clears the TanStack Query cache, the cached theme (`clearCachedTheme`) and any pending logout-failure flag, so the login page and the next user start clean in the system theme. Do not clear these pieces separately elsewhere.
+`packages/web/src/lib/session.ts` owns the end of a session. `endSession(qc)` clears the TanStack Query cache, the cached theme (`clearCachedTheme`), the timer state and any pending logout-failure flag, so the login page and the next user start clean in the system theme. Do not clear these pieces separately elsewhere.
+
+The timer state is the tab's in-memory pause chain (`forgetTabChain` in `packages/web/src/components/tabChain.ts`), then the stored pause chains and Pomodoro cycle (`forgetChains`, `forgetPomodoro`). `forgetTabChain` runs first and outside the storage `try`, so blocked storage cannot skip it. A chain that storage refused lives only in that memory slot, so without this, signing in to the same account again in the same tab with no reload (after a 403 from `/me`) would bring back a pause from the ended session.
 
 `logOut(qc)` posts `/api/app/logout` and calls `endSession` whether or not the request succeeds. On failure it also sets a `sessionStorage` flag and rethrows; either way the callers load a fresh page (`App.tsx` sets `window.location.href = '/'`, `pages/SettingsPage.tsx` reloads). After that load the app is still signed in, and `takeLogoutFailure()` in `App.tsx` turns the flag into an error toast that stays for 60 seconds.
 
@@ -27,7 +29,7 @@ kk_confidence: high
 
 `qc.clear()` does not notify mounted queries. They keep showing their last result until their component renders again, and later cache operations do not reach them. After `endSession`, either reload the page or re-render the components that read the cleared queries.
 
-<!-- Verified against the current code on 2026-10-16. -->
+<!-- Verified against the current code on 2026-10-19. -->
 
 <!-- kk:related:start -->
 # Related

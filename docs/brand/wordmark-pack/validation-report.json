@@ -1,0 +1,3254 @@
+{
+  "passed": true,
+  "check_count": 318,
+  "failed_check_count": 0,
+  "scope": "Static SVG/PDF/EPS portability, references and rasterized SVG boundary checks. Rendered at 640px and 160px widths. Intended usage still requires appropriate variant selection and visual inspection.",
+  "assets": {
+    "svg/tokkl-wordmark-clean.svg": {
+      "paths": 18,
+      "bytes": 107619,
+      "viewbox": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ],
+      "paint_colors": [
+        "#009cf9",
+        "#08061f",
+        "#c8af01",
+        "#f88e11",
+        "#f89702",
+        "#f8cf0a",
+        "#f903b4",
+        "#fa047d",
+        "#fa057b",
+        "#fb0487",
+        "#fc9600",
+        "#ffffff"
+      ],
+      "bounds": [
+        18.481071864297757,
+        5.199275605597385,
+        2065.5808856644308,
+        761.8769874591997
+      ],
+      "render_previews": [
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-clean-640.png",
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-clean-160.png"
+      ]
+    },
+    "svg/tokkl-wordmark-detailed.svg": {
+      "paths": 115,
+      "bytes": 5940714,
+      "viewbox": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ],
+      "paint_colors": [
+        "#000012",
+        "#000014",
+        "#009cf9",
+        "#010001",
+        "#01000a",
+        "#01000e",
+        "#010106",
+        "#01011a",
+        "#011326",
+        "#0164cb",
+        "#01c6fd",
+        "#01cdfd",
+        "#028adc",
+        "#02ccf0",
+        "#02eafd",
+        "#02eefd",
+        "#030508",
+        "#03a1eb",
+        "#03b7dc",
+        "#03bbfc",
+        "#03e0f3",
+        "#03ecf9",
+        "#060103",
+        "#070109",
+        "#08061f",
+        "#090505",
+        "#0a0113",
+        "#0a0525",
+        "#0a0b0b",
+        "#11397e",
+        "#200f25",
+        "#2cd9b1",
+        "#2f9ee0",
+        "#2fefea",
+        "#3a0146",
+        "#4f63ac",
+        "#710f9b",
+        "#803aa5",
+        "#86f8fb",
+        "#89df70",
+        "#8d01c4",
+        "#ae31fb",
+        "#b19b56",
+        "#bb1ffb",
+        "#bd0fc4",
+        "#c10ffb",
+        "#c648a1",
+        "#c8af01",
+        "#d1317f",
+        "#d56a5a",
+        "#e0f6db",
+        "#e1e509",
+        "#e8d618",
+        "#eb09e2",
+        "#ecac4d",
+        "#ed027f",
+        "#ed02c8",
+        "#ed8b2b",
+        "#ef05de",
+        "#f017cf",
+        "#f80683",
+        "#f88e11",
+        "#f89702",
+        "#f8cf0a",
+        "#f903b4",
+        "#fa047d",
+        "#fa057b",
+        "#fa195e",
+        "#fad901",
+        "#fafdfd",
+        "#fb0487",
+        "#fb3699",
+        "#fc3a0a",
+        "#fc5368",
+        "#fc5501",
+        "#fc6801",
+        "#fc6e5d",
+        "#fc8801",
+        "#fc8a48",
+        "#fc9201",
+        "#fc9600",
+        "#fc9b01",
+        "#fca501",
+        "#fcae7c",
+        "#fcaf0c",
+        "#fcb101",
+        "#fcbe01",
+        "#fcc801",
+        "#fcce01",
+        "#fcd605",
+        "#fcd64a",
+        "#fce813",
+        "#fceb64",
+        "#fcf4bf",
+        "#fcf6f8",
+        "#fd7201",
+        "#fd7801",
+        "#fd7d01",
+        "#fd8101",
+        "#fdd201",
+        "#fdd501",
+        "#fdda01",
+        "#fdde01",
+        "#fde10d",
+        "#fdfdf7",
+        "#fdfdfd",
+        "#ffffff"
+      ],
+      "bounds": [
+        18.5,
+        5.5,
+        2065.5,
+        760.5
+      ],
+      "render_previews": [
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-detailed-640.png",
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-detailed-160.png"
+      ]
+    },
+    "svg/tokkl-wordmark-mono-dark.svg": {
+      "paths": 16,
+      "bytes": 53721,
+      "viewbox": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ],
+      "paint_colors": [
+        "#000000"
+      ],
+      "bounds": [
+        43.41300716397393,
+        29.5,
+        2041.1225,
+        754.709347318046
+      ],
+      "render_previews": [
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-mono-dark-640.png",
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-mono-dark-160.png"
+      ]
+    },
+    "svg/tokkl-wordmark-mono-white.svg": {
+      "paths": 16,
+      "bytes": 53721,
+      "viewbox": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ],
+      "paint_colors": [
+        "#ffffff"
+      ],
+      "bounds": [
+        43.41300716397393,
+        29.5,
+        2041.1225,
+        754.709347318046
+      ],
+      "render_previews": [
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-mono-white-640.png",
+        "/home/e0ipso/Documents/Codex/2026-10-19/to/work/tokkl-wordmark-validation/renders/tokkl-wordmark-mono-white-160.png"
+      ]
+    }
+  },
+  "checks": [
+    {
+      "check": "vector_variants_present",
+      "passed": true,
+      "detail": 4
+    },
+    {
+      "check": "variant_exists:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "svg/tokkl-wordmark-detailed.svg"
+    },
+    {
+      "check": "variant_exists:pdf/tokkl-wordmark-detailed.pdf",
+      "passed": true,
+      "detail": "pdf/tokkl-wordmark-detailed.pdf"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-detailed-640.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-detailed-640.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-detailed-1280.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-detailed-1280.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-detailed-2560.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-detailed-2560.png"
+    },
+    {
+      "check": "variant_exists:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "svg/tokkl-wordmark-clean.svg"
+    },
+    {
+      "check": "variant_exists:pdf/tokkl-wordmark-clean.pdf",
+      "passed": true,
+      "detail": "pdf/tokkl-wordmark-clean.pdf"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-clean-640.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-clean-640.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-clean-1280.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-clean-1280.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-clean-2560.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-clean-2560.png"
+    },
+    {
+      "check": "variant_exists:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": "svg/tokkl-wordmark-mono-dark.svg"
+    },
+    {
+      "check": "variant_exists:pdf/tokkl-wordmark-mono-dark.pdf",
+      "passed": true,
+      "detail": "pdf/tokkl-wordmark-mono-dark.pdf"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-mono-dark-640.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-mono-dark-640.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-mono-dark-1280.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-mono-dark-1280.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-mono-dark-2560.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-mono-dark-2560.png"
+    },
+    {
+      "check": "variant_exists:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": "svg/tokkl-wordmark-mono-white.svg"
+    },
+    {
+      "check": "variant_exists:pdf/tokkl-wordmark-mono-white.pdf",
+      "passed": true,
+      "detail": "pdf/tokkl-wordmark-mono-white.pdf"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-mono-white-640.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-mono-white-640.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-mono-white-1280.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-mono-white-1280.png"
+    },
+    {
+      "check": "png_variant_exists:png/tokkl-wordmark-mono-white-2560.png",
+      "passed": true,
+      "detail": "png/tokkl-wordmark-mono-white-2560.png"
+    },
+    {
+      "check": "svg_root:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "{http://www.w3.org/2000/svg}svg"
+    },
+    {
+      "check": "viewbox:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ]
+    },
+    {
+      "check": "actual_paths:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": 18
+    },
+    {
+      "check": "no_raster_scripts_or_fonts:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "no_embedded_data_or_entities:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "Raster data, entities and external style imports are prohibited"
+    },
+    {
+      "check": "unique_ids:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": 6
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:26",
+      "passed": true,
+      "detail": [
+        18.481071864297757,
+        5.199275605597385,
+        2065.5808856644308,
+        761.8769874591997
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "#kkl"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:27",
+      "passed": true,
+      "detail": [
+        865.347122779999,
+        29.5,
+        2041.1225,
+        754.709347318046
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "#t"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:28",
+      "passed": true,
+      "detail": [
+        43.41300716397393,
+        35.34712277999897,
+        565.6859732905912,
+        754.6362712429686
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "#clock"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:29",
+      "passed": true,
+      "detail": [
+        438.08600805506427,
+        195.01099903497453,
+        909.9449526390074,
+        731.0436811296389
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "#hands"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:30",
+      "passed": true,
+      "detail": [
+        683.6861951012706,
+        291.0589581764299,
+        811.9468400778322,
+        448.6081486919782
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "#hands"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:31",
+      "passed": true,
+      "detail": [
+        547.1147192268724,
+        399.05895817642994,
+        646.6789092858833,
+        484.4716122643506
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-clean.svg",
+      "passed": true,
+      "detail": "#hub"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:32",
+      "passed": true,
+      "detail": [
+        644.1992756055973,
+        430.81227579426036,
+        716.725631089433,
+        501.5425930494672
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:33",
+      "passed": true,
+      "detail": [
+        1929.1525355448439,
+        134.34712277999895,
+        2023.9741077075007,
+        220.94715667818696
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:34",
+      "passed": true,
+      "detail": [
+        1537.9304506334986,
+        166.2582248539896,
+        1615.8144488787757,
+        242.9693559344725
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:35",
+      "passed": true,
+      "detail": [
+        201.9975,
+        69.3972661803259,
+        255.0025,
+        123.0025
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:36",
+      "passed": true,
+      "detail": [
+        471.3282042872198,
+        145.0463629089251,
+        524.94104182357,
+        197.94104182357012
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:37",
+      "passed": true,
+      "detail": [
+        1885.8677510031177,
+        426.4741860577872,
+        1934.513314142134,
+        473.591668747228
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:38",
+      "passed": true,
+      "detail": [
+        102.92216761153085,
+        371.15435027103297,
+        161.68391524354053,
+        460.1278640707741
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:39",
+      "passed": true,
+      "detail": [
+        1054.0255937522625,
+        546.0445910856208,
+        1082.7568446834937,
+        615.9298390874235
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:40",
+      "passed": true,
+      "detail": [
+        1628.828503693739,
+        196.2814751529435,
+        1666.043681129639,
+        233.66606470767059
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:41",
+      "passed": true,
+      "detail": [
+        379.93794020778336,
+        422.23471269209267,
+        410.5,
+        453.9298390874234
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:42",
+      "passed": true,
+      "detail": [
+        186.44197822852226,
+        126.37988310641451,
+        212.81444887877544,
+        151.6400472127642
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-clean.svg:43",
+      "passed": true,
+      "detail": [
+        61.281475152943514,
+        43.058958176429904,
+        2005.6033264305006,
+        715.7433352689928
+      ]
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-clean.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          12,
+          8,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-clean.svg:640",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-clean.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          12,
+          8,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-clean.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "alpha_bbox": [
+          3,
+          2,
+          158,
+          60
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-clean.svg:160",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-clean.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "bbox": [
+          3,
+          2,
+          158,
+          60
+        ]
+      }
+    },
+    {
+      "check": "svg_root:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "{http://www.w3.org/2000/svg}svg"
+    },
+    {
+      "check": "viewbox:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ]
+    },
+    {
+      "check": "actual_paths:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": 115
+    },
+    {
+      "check": "no_raster_scripts_or_fonts:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "no_embedded_data_or_entities:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "Raster data, entities and external style imports are prohibited"
+    },
+    {
+      "check": "unique_ids:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": 9
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:5",
+      "passed": true,
+      "detail": [
+        18.5,
+        5.5,
+        2065.5,
+        760.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:29",
+      "passed": true,
+      "detail": [
+        18.5,
+        5.5,
+        2065.5,
+        760.5
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#artwork"
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#kkl"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:31",
+      "passed": true,
+      "detail": [
+        865.347122779999,
+        29.5,
+        2041.1225,
+        754.709347318046
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#t"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:32",
+      "passed": true,
+      "detail": [
+        43.41300716397393,
+        35.34712277999897,
+        565.6859732905912,
+        754.6362712429686
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#clock"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:33",
+      "passed": true,
+      "detail": [
+        438.08600805506427,
+        195.01099903497453,
+        909.9449526390074,
+        731.0436811296389
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#hands"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:34",
+      "passed": true,
+      "detail": [
+        683.6861951012706,
+        291.0589581764299,
+        811.9468400778322,
+        448.6081486919782
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#hands"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:35",
+      "passed": true,
+      "detail": [
+        547.1147192268724,
+        399.05895817642994,
+        646.6789092858833,
+        484.4716122643506
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#hub"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:36",
+      "passed": true,
+      "detail": [
+        644.1992756055973,
+        430.81227579426036,
+        716.725631089433,
+        501.5425930494672
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:37",
+      "passed": true,
+      "detail": [
+        1929.1525355448439,
+        134.34712277999895,
+        2023.9741077075007,
+        220.94715667818696
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:38",
+      "passed": true,
+      "detail": [
+        1537.9304506334986,
+        166.2582248539896,
+        1615.8144488787757,
+        242.9693559344725
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:39",
+      "passed": true,
+      "detail": [
+        201.9975,
+        69.3972661803259,
+        255.0025,
+        123.0025
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:40",
+      "passed": true,
+      "detail": [
+        471.3282042872198,
+        145.0463629089251,
+        524.94104182357,
+        197.94104182357012
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:41",
+      "passed": true,
+      "detail": [
+        1885.8677510031177,
+        426.4741860577872,
+        1934.513314142134,
+        473.591668747228
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:42",
+      "passed": true,
+      "detail": [
+        102.92216761153085,
+        371.15435027103297,
+        161.68391524354053,
+        460.1278640707741
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:43",
+      "passed": true,
+      "detail": [
+        1054.0255937522625,
+        546.0445910856208,
+        1082.7568446834937,
+        615.9298390874235
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:44",
+      "passed": true,
+      "detail": [
+        1628.828503693739,
+        196.2814751529435,
+        1666.043681129639,
+        233.66606470767059
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:45",
+      "passed": true,
+      "detail": [
+        379.93794020778336,
+        422.23471269209267,
+        410.5,
+        453.9298390874234
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:46",
+      "passed": true,
+      "detail": [
+        186.44197822852226,
+        126.37988310641451,
+        212.81444887877544,
+        151.6400472127642
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:47",
+      "passed": true,
+      "detail": [
+        61.281475152943514,
+        43.058958176429904,
+        2005.6033264305006,
+        715.7433352689928
+      ]
+    },
+    {
+      "check": "resolved_fragment:svg/tokkl-wordmark-detailed.svg",
+      "passed": true,
+      "detail": "#artwork"
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:49",
+      "passed": true,
+      "detail": [
+        18.5,
+        5.5,
+        2065.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:50",
+      "passed": true,
+      "detail": [
+        18.5,
+        8.5,
+        2051.5,
+        755.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:51",
+      "passed": true,
+      "detail": [
+        39.5,
+        32.5,
+        2045.5,
+        760.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:52",
+      "passed": true,
+      "detail": [
+        18.5,
+        5.5,
+        2065.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:53",
+      "passed": true,
+      "detail": [
+        63.5,
+        44.5,
+        2004.5,
+        738.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:54",
+      "passed": true,
+      "detail": [
+        1284.5,
+        31.5,
+        2010.5,
+        746.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:55",
+      "passed": true,
+      "detail": [
+        37.5,
+        25.5,
+        2044.5,
+        760.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:56",
+      "passed": true,
+      "detail": [
+        88.5,
+        136.5,
+        2022.5,
+        728.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:57",
+      "passed": true,
+      "detail": [
+        304.5,
+        47.5,
+        1327.5,
+        749.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:58",
+      "passed": true,
+      "detail": [
+        37.5,
+        26.5,
+        2046.5,
+        760.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:59",
+      "passed": true,
+      "detail": [
+        1284.5,
+        33.5,
+        2029.5,
+        710.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:60",
+      "passed": true,
+      "detail": [
+        282.5,
+        47.5,
+        1315.5,
+        707.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:61",
+      "passed": true,
+      "detail": [
+        60.5,
+        50.5,
+        1213.5,
+        754.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:62",
+      "passed": true,
+      "detail": [
+        49.5,
+        92.5,
+        1306.5,
+        753.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:63",
+      "passed": true,
+      "detail": [
+        555.5,
+        120.5,
+        1738.5,
+        749.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:64",
+      "passed": true,
+      "detail": [
+        48.5,
+        49.5,
+        1221.5,
+        753.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:65",
+      "passed": true,
+      "detail": [
+        585.5,
+        181.5,
+        1744.5,
+        739.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:66",
+      "passed": true,
+      "detail": [
+        488.5,
+        41.5,
+        2038.5,
+        753.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:67",
+      "passed": true,
+      "detail": [
+        49.5,
+        93.5,
+        1300.5,
+        732.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:68",
+      "passed": true,
+      "detail": [
+        558.5,
+        80.5,
+        1584.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:69",
+      "passed": true,
+      "detail": [
+        447.5,
+        263.5,
+        1805.5,
+        726.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:70",
+      "passed": true,
+      "detail": [
+        1284.5,
+        31.5,
+        2015.5,
+        709.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:71",
+      "passed": true,
+      "detail": [
+        39.5,
+        33.5,
+        2045.5,
+        756.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:72",
+      "passed": true,
+      "detail": [
+        45.5,
+        70.5,
+        1342.5,
+        723.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:73",
+      "passed": true,
+      "detail": [
+        55.5,
+        37.5,
+        1328.5,
+        752.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:74",
+      "passed": true,
+      "detail": [
+        276.5,
+        49.5,
+        1315.5,
+        706.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:75",
+      "passed": true,
+      "detail": [
+        645.5,
+        136.5,
+        1357.5,
+        724.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:76",
+      "passed": true,
+      "detail": [
+        49.5,
+        35.5,
+        1332.5,
+        752.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:77",
+      "passed": true,
+      "detail": [
+        52.5,
+        40.5,
+        1349.5,
+        740.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:78",
+      "passed": true,
+      "detail": [
+        551.5,
+        144.5,
+        1745.5,
+        751.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:79",
+      "passed": true,
+      "detail": [
+        43.5,
+        34.5,
+        2041.5,
+        754.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:80",
+      "passed": true,
+      "detail": [
+        46.5,
+        48.5,
+        1343.5,
+        749.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:81",
+      "passed": true,
+      "detail": [
+        45.5,
+        35.5,
+        1341.5,
+        748.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:82",
+      "passed": true,
+      "detail": [
+        46.5,
+        35.5,
+        1335.5,
+        748.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:83",
+      "passed": true,
+      "detail": [
+        49.5,
+        35.5,
+        1334.5,
+        753.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:84",
+      "passed": true,
+      "detail": [
+        561.5,
+        82.5,
+        1723.5,
+        744.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:85",
+      "passed": true,
+      "detail": [
+        59.5,
+        36.5,
+        1314.5,
+        751.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:86",
+      "passed": true,
+      "detail": [
+        50.5,
+        107.5,
+        1320.5,
+        725.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:87",
+      "passed": true,
+      "detail": [
+        61.5,
+        40.5,
+        2031.5,
+        745.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:88",
+      "passed": true,
+      "detail": [
+        548.5,
+        133.5,
+        1731.5,
+        739.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:89",
+      "passed": true,
+      "detail": [
+        51.5,
+        39.5,
+        1336.5,
+        741.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:90",
+      "passed": true,
+      "detail": [
+        62.5,
+        48.5,
+        1975.5,
+        738.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:91",
+      "passed": true,
+      "detail": [
+        39.5,
+        32.5,
+        1975.5,
+        756.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:92",
+      "passed": true,
+      "detail": [
+        227.5,
+        38.5,
+        1319.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:93",
+      "passed": true,
+      "detail": [
+        1284.5,
+        30.5,
+        2027.5,
+        738.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:94",
+      "passed": true,
+      "detail": [
+        549.5,
+        115.5,
+        1745.5,
+        749.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:95",
+      "passed": true,
+      "detail": [
+        245.5,
+        38.5,
+        1313.5,
+        742.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:96",
+      "passed": true,
+      "detail": [
+        276.5,
+        37.5,
+        1322.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:97",
+      "passed": true,
+      "detail": [
+        54.5,
+        147.5,
+        1307.5,
+        750.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:98",
+      "passed": true,
+      "detail": [
+        556.5,
+        101.5,
+        1677.5,
+        748.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:99",
+      "passed": true,
+      "detail": [
+        555.5,
+        79.5,
+        1729.5,
+        749.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:100",
+      "passed": true,
+      "detail": [
+        37.5,
+        27.5,
+        2045.5,
+        752.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:101",
+      "passed": true,
+      "detail": [
+        548.5,
+        134.5,
+        1682.5,
+        734.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:102",
+      "passed": true,
+      "detail": [
+        692.5,
+        264.5,
+        1666.5,
+        722.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:103",
+      "passed": true,
+      "detail": [
+        50.5,
+        112.5,
+        1312.5,
+        737.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:104",
+      "passed": true,
+      "detail": [
+        326.5,
+        56.5,
+        1320.5,
+        750.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:105",
+      "passed": true,
+      "detail": [
+        192.5,
+        62.5,
+        1999.5,
+        741.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:106",
+      "passed": true,
+      "detail": [
+        50.5,
+        38.5,
+        1341.5,
+        742.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:107",
+      "passed": true,
+      "detail": [
+        560.5,
+        81.5,
+        1727.5,
+        746.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:108",
+      "passed": true,
+      "detail": [
+        547.5,
+        78.5,
+        1740.5,
+        754.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:109",
+      "passed": true,
+      "detail": [
+        113.5,
+        32.5,
+        1749.5,
+        756.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:110",
+      "passed": true,
+      "detail": [
+        1287.5,
+        139.5,
+        1748.5,
+        677.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:111",
+      "passed": true,
+      "detail": [
+        105.5,
+        29.5,
+        2040.5,
+        754.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:112",
+      "passed": true,
+      "detail": [
+        482.5,
+        66.5,
+        2038.5,
+        700.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:113",
+      "passed": true,
+      "detail": [
+        36.5,
+        28.5,
+        2041.5,
+        755.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:114",
+      "passed": true,
+      "detail": [
+        57.5,
+        36.5,
+        1315.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:115",
+      "passed": true,
+      "detail": [
+        36.5,
+        33.5,
+        1689.5,
+        755.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:116",
+      "passed": true,
+      "detail": [
+        466.5,
+        73.5,
+        2037.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:117",
+      "passed": true,
+      "detail": [
+        866.5,
+        145.5,
+        1378.5,
+        724.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:118",
+      "passed": true,
+      "detail": [
+        53.5,
+        186.5,
+        1751.5,
+        718.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:119",
+      "passed": true,
+      "detail": [
+        88.5,
+        135.5,
+        2023.5,
+        729.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:120",
+      "passed": true,
+      "detail": [
+        131.5,
+        152.5,
+        1944.5,
+        692.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:121",
+      "passed": true,
+      "detail": [
+        438.5,
+        30.5,
+        2040.5,
+        754.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:122",
+      "passed": true,
+      "detail": [
+        546.5,
+        77.5,
+        1714.5,
+        754.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:123",
+      "passed": true,
+      "detail": [
+        55.5,
+        35.5,
+        1997.5,
+        741.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:124",
+      "passed": true,
+      "detail": [
+        559.5,
+        79.5,
+        1644.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:125",
+      "passed": true,
+      "detail": [
+        54.5,
+        78.5,
+        1339.5,
+        708.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:126",
+      "passed": true,
+      "detail": [
+        465.5,
+        78.5,
+        2038.5,
+        658.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:127",
+      "passed": true,
+      "detail": [
+        200.5,
+        244.5,
+        1196.5,
+        666.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:128",
+      "passed": true,
+      "detail": [
+        50.5,
+        52.5,
+        1328.5,
+        743.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:129",
+      "passed": true,
+      "detail": [
+        47.5,
+        54.5,
+        1332.5,
+        743.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:130",
+      "passed": true,
+      "detail": [
+        101.5,
+        54.5,
+        1987.5,
+        747.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:131",
+      "passed": true,
+      "detail": [
+        377.5,
+        35.5,
+        1352.5,
+        754.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:132",
+      "passed": true,
+      "detail": [
+        557.5,
+        78.5,
+        1685.5,
+        753.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:133",
+      "passed": true,
+      "detail": [
+        559.5,
+        106.5,
+        1692.5,
+        751.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:134",
+      "passed": true,
+      "detail": [
+        55.5,
+        223.5,
+        901.5,
+        601.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:135",
+      "passed": true,
+      "detail": [
+        225.5,
+        242.5,
+        1129.5,
+        588.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:136",
+      "passed": true,
+      "detail": [
+        59.5,
+        229.5,
+        824.5,
+        632.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:137",
+      "passed": true,
+      "detail": [
+        87.5,
+        134.5,
+        2023.5,
+        730.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:138",
+      "passed": true,
+      "detail": [
+        105.5,
+        129.5,
+        1977.5,
+        700.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:139",
+      "passed": true,
+      "detail": [
+        480.5,
+        30.5,
+        2039.5,
+        753.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:140",
+      "passed": true,
+      "detail": [
+        914.5,
+        141.5,
+        1737.5,
+        677.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:141",
+      "passed": true,
+      "detail": [
+        430.5,
+        66.5,
+        1988.5,
+        722.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:142",
+      "passed": true,
+      "detail": [
+        482.5,
+        302.5,
+        2032.5,
+        707.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:143",
+      "passed": true,
+      "detail": [
+        1286.5,
+        412.5,
+        1702.5,
+        507.5
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-detailed.svg:144",
+      "passed": true,
+      "detail": [
+        363.5,
+        249.5,
+        812.5,
+        479.5
+      ]
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-detailed.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          12,
+          9,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-detailed.svg:640",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-detailed.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          12,
+          9,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-detailed.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "alpha_bbox": [
+          3,
+          2,
+          158,
+          60
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-detailed.svg:160",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-detailed.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "bbox": [
+          3,
+          2,
+          158,
+          60
+        ]
+      }
+    },
+    {
+      "check": "svg_root:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": "{http://www.w3.org/2000/svg}svg"
+    },
+    {
+      "check": "viewbox:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ]
+    },
+    {
+      "check": "actual_paths:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": 16
+    },
+    {
+      "check": "no_raster_scripts_or_fonts:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "no_embedded_data_or_entities:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": "Raster data, entities and external style imports are prohibited"
+    },
+    {
+      "check": "unique_ids:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": 1
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:3",
+      "passed": true,
+      "detail": [
+        865.347122779999,
+        29.5,
+        2041.1225,
+        754.709347318046
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:4",
+      "passed": true,
+      "detail": [
+        43.41300716397393,
+        35.34712277999897,
+        565.6859732905912,
+        754.6362712429686
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:5",
+      "passed": true,
+      "detail": [
+        438.08600805506427,
+        195.01099903497453,
+        909.9449526390074,
+        731.0436811296389
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:6",
+      "passed": true,
+      "detail": [
+        683.6861951012706,
+        291.0589581764299,
+        811.9468400778322,
+        448.6081486919782
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:7",
+      "passed": true,
+      "detail": [
+        547.1147192268724,
+        399.05895817642994,
+        646.6789092858833,
+        484.4716122643506
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:8",
+      "passed": true,
+      "detail": [
+        644.1992756055973,
+        430.81227579426036,
+        716.725631089433,
+        501.5425930494672
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:9",
+      "passed": true,
+      "detail": [
+        1929.1525355448439,
+        134.34712277999895,
+        2023.9741077075007,
+        220.94715667818696
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:10",
+      "passed": true,
+      "detail": [
+        1537.9304506334986,
+        166.2582248539896,
+        1615.8144488787757,
+        242.9693559344725
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:11",
+      "passed": true,
+      "detail": [
+        201.9975,
+        69.3972661803259,
+        255.0025,
+        123.0025
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:12",
+      "passed": true,
+      "detail": [
+        471.3282042872198,
+        145.0463629089251,
+        524.94104182357,
+        197.94104182357012
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:13",
+      "passed": true,
+      "detail": [
+        1885.8677510031177,
+        426.4741860577872,
+        1934.513314142134,
+        473.591668747228
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:14",
+      "passed": true,
+      "detail": [
+        102.92216761153085,
+        371.15435027103297,
+        161.68391524354053,
+        460.1278640707741
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:15",
+      "passed": true,
+      "detail": [
+        1054.0255937522625,
+        546.0445910856208,
+        1082.7568446834937,
+        615.9298390874235
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:16",
+      "passed": true,
+      "detail": [
+        1628.828503693739,
+        196.2814751529435,
+        1666.043681129639,
+        233.66606470767059
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:17",
+      "passed": true,
+      "detail": [
+        379.93794020778336,
+        422.23471269209267,
+        410.5,
+        453.9298390874234
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-dark.svg:18",
+      "passed": true,
+      "detail": [
+        186.44197822852226,
+        126.37988310641451,
+        212.81444887877544,
+        151.6400472127642
+      ]
+    },
+    {
+      "check": "single_color:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": [
+        "#000000"
+      ]
+    },
+    {
+      "check": "single_ink_color:svg/tokkl-wordmark-mono-dark.svg",
+      "passed": true,
+      "detail": {
+        "actual": [
+          "#000000"
+        ],
+        "expected": [
+          "#000000"
+        ]
+      }
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-mono-dark.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-mono-dark.svg:640",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-mono-dark.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-mono-dark.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "alpha_bbox": [
+          5,
+          4,
+          156,
+          59
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-mono-dark.svg:160",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-mono-dark.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "bbox": [
+          5,
+          4,
+          156,
+          59
+        ]
+      }
+    },
+    {
+      "check": "svg_root:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": "{http://www.w3.org/2000/svg}svg"
+    },
+    {
+      "check": "viewbox:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": [
+        -24.0,
+        -24.0,
+        2115.0,
+        809.0
+      ]
+    },
+    {
+      "check": "actual_paths:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": 16
+    },
+    {
+      "check": "no_raster_scripts_or_fonts:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "no_embedded_data_or_entities:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": "Raster data, entities and external style imports are prohibited"
+    },
+    {
+      "check": "unique_ids:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": 1
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:3",
+      "passed": true,
+      "detail": [
+        865.347122779999,
+        29.5,
+        2041.1225,
+        754.709347318046
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:4",
+      "passed": true,
+      "detail": [
+        43.41300716397393,
+        35.34712277999897,
+        565.6859732905912,
+        754.6362712429686
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:5",
+      "passed": true,
+      "detail": [
+        438.08600805506427,
+        195.01099903497453,
+        909.9449526390074,
+        731.0436811296389
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:6",
+      "passed": true,
+      "detail": [
+        683.6861951012706,
+        291.0589581764299,
+        811.9468400778322,
+        448.6081486919782
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:7",
+      "passed": true,
+      "detail": [
+        547.1147192268724,
+        399.05895817642994,
+        646.6789092858833,
+        484.4716122643506
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:8",
+      "passed": true,
+      "detail": [
+        644.1992756055973,
+        430.81227579426036,
+        716.725631089433,
+        501.5425930494672
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:9",
+      "passed": true,
+      "detail": [
+        1929.1525355448439,
+        134.34712277999895,
+        2023.9741077075007,
+        220.94715667818696
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:10",
+      "passed": true,
+      "detail": [
+        1537.9304506334986,
+        166.2582248539896,
+        1615.8144488787757,
+        242.9693559344725
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:11",
+      "passed": true,
+      "detail": [
+        201.9975,
+        69.3972661803259,
+        255.0025,
+        123.0025
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:12",
+      "passed": true,
+      "detail": [
+        471.3282042872198,
+        145.0463629089251,
+        524.94104182357,
+        197.94104182357012
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:13",
+      "passed": true,
+      "detail": [
+        1885.8677510031177,
+        426.4741860577872,
+        1934.513314142134,
+        473.591668747228
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:14",
+      "passed": true,
+      "detail": [
+        102.92216761153085,
+        371.15435027103297,
+        161.68391524354053,
+        460.1278640707741
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:15",
+      "passed": true,
+      "detail": [
+        1054.0255937522625,
+        546.0445910856208,
+        1082.7568446834937,
+        615.9298390874235
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:16",
+      "passed": true,
+      "detail": [
+        1628.828503693739,
+        196.2814751529435,
+        1666.043681129639,
+        233.66606470767059
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:17",
+      "passed": true,
+      "detail": [
+        379.93794020778336,
+        422.23471269209267,
+        410.5,
+        453.9298390874234
+      ]
+    },
+    {
+      "check": "path_inside_viewbox:svg/tokkl-wordmark-mono-white.svg:18",
+      "passed": true,
+      "detail": [
+        186.44197822852226,
+        126.37988310641451,
+        212.81444887877544,
+        151.6400472127642
+      ]
+    },
+    {
+      "check": "single_color:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": [
+        "#ffffff"
+      ]
+    },
+    {
+      "check": "single_ink_color:svg/tokkl-wordmark-mono-white.svg",
+      "passed": true,
+      "detail": {
+        "actual": [
+          "#ffffff"
+        ],
+        "expected": [
+          "#ffffff"
+        ]
+      }
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-mono-white.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-mono-white.svg:640",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-mono-white.svg:640",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "renders:svg/tokkl-wordmark-mono-white.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "alpha_bbox": [
+          5,
+          4,
+          156,
+          59
+        ]
+      }
+    },
+    {
+      "check": "transparent_background:svg/tokkl-wordmark-mono-white.svg:160",
+      "passed": true,
+      "detail": [
+        0,
+        255
+      ]
+    },
+    {
+      "check": "unclipped_edges:svg/tokkl-wordmark-mono-white.svg:160",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          160,
+          61
+        ],
+        "bbox": [
+          5,
+          4,
+          156,
+          59
+        ]
+      }
+    },
+    {
+      "check": "pdf_parses:pdf/tokkl-wordmark-clean.pdf",
+      "passed": true,
+      "detail": "Title:           Tokkl wordmark with clock O\nSubject:         Vector wordmark artwork. RGB working colors.\nKeywords:        \nAuthor:          Tokkl\nCreator:         anonymous\nProducer:        ReportLab PDF Library - (opensource)\nCreationDate:    Mon Oct 19 09:08:25 2026 CEST\nModDate:         Mon Oct 19 09:08:25 2026 CEST\nCustom Metadata: no\nMetadata Stream: no\nTagged:          no\nUserProperties:  no\nSuspects:        no\nForm:            none\nJavaScript:      no\nPages:           1\nEncrypted:       no\nPage size:       720 x 275.404 pts\nPage rot:        0\nFile size:       49152 bytes\nOptimized:       no\nPDF version:     1.4\n"
+    },
+    {
+      "check": "pdf_no_raster_images:pdf/tokkl-wordmark-clean.pdf",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "pdf_no_live_text:pdf/tokkl-wordmark-clean.pdf",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "pdf_renders:pdf/tokkl-wordmark-clean.pdf",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          12,
+          8,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "pdf_parses:pdf/tokkl-wordmark-detailed.pdf",
+      "passed": true,
+      "detail": "Title:           Tokkl wordmark with clock O\nSubject:         Vector wordmark artwork. RGB working colors.\nKeywords:        \nAuthor:          Tokkl\nCreator:         anonymous\nProducer:        ReportLab PDF Library - (opensource)\nCreationDate:    Mon Oct 19 09:08:25 2026 CEST\nModDate:         Mon Oct 19 09:08:25 2026 CEST\nCustom Metadata: no\nMetadata Stream: no\nTagged:          no\nUserProperties:  no\nSuspects:        no\nForm:            none\nJavaScript:      no\nPages:           1\nEncrypted:       no\nPage size:       720 x 275.404 pts\nPage rot:        0\nFile size:       1826012 bytes\nOptimized:       no\nPDF version:     1.4\n"
+    },
+    {
+      "check": "pdf_no_raster_images:pdf/tokkl-wordmark-detailed.pdf",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "pdf_no_live_text:pdf/tokkl-wordmark-detailed.pdf",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "pdf_renders:pdf/tokkl-wordmark-detailed.pdf",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          12,
+          8,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "pdf_parses:pdf/tokkl-wordmark-mono-dark.pdf",
+      "passed": true,
+      "detail": "Title:           Tokkl wordmark with clock O\nSubject:         Vector wordmark artwork. RGB working colors.\nKeywords:        \nAuthor:          Tokkl\nCreator:         anonymous\nProducer:        ReportLab PDF Library - (opensource)\nCreationDate:    Mon Oct 19 09:11:58 2026 CEST\nModDate:         Mon Oct 19 09:11:58 2026 CEST\nCustom Metadata: no\nMetadata Stream: no\nTagged:          no\nUserProperties:  no\nSuspects:        no\nForm:            none\nJavaScript:      no\nPages:           1\nEncrypted:       no\nPage size:       720 x 275.404 pts\nPage rot:        0\nFile size:       23731 bytes\nOptimized:       no\nPDF version:     1.3\n"
+    },
+    {
+      "check": "pdf_no_raster_images:pdf/tokkl-wordmark-mono-dark.pdf",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "pdf_no_live_text:pdf/tokkl-wordmark-mono-dark.pdf",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "pdf_renders:pdf/tokkl-wordmark-mono-dark.pdf",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "pdf_parses:pdf/tokkl-wordmark-mono-white.pdf",
+      "passed": true,
+      "detail": "Title:           Tokkl wordmark with clock O\nSubject:         Vector wordmark artwork. RGB working colors.\nKeywords:        \nAuthor:          Tokkl\nCreator:         anonymous\nProducer:        ReportLab PDF Library - (opensource)\nCreationDate:    Mon Oct 19 09:08:27 2026 CEST\nModDate:         Mon Oct 19 09:08:27 2026 CEST\nCustom Metadata: no\nMetadata Stream: no\nTagged:          no\nUserProperties:  no\nSuspects:        no\nForm:            none\nJavaScript:      no\nPages:           1\nEncrypted:       no\nPage size:       720 x 275.404 pts\nPage rot:        0\nFile size:       23738 bytes\nOptimized:       no\nPDF version:     1.4\n"
+    },
+    {
+      "check": "pdf_no_raster_images:pdf/tokkl-wordmark-mono-white.pdf",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "check": "pdf_no_live_text:pdf/tokkl-wordmark-mono-white.pdf",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "pdf_renders:pdf/tokkl-wordmark-mono-white.pdf",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "alpha_bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:previews/contact-sheet.png",
+      "passed": true,
+      "detail": 541543
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-clean-640.png",
+      "passed": true,
+      "detail": 75491
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-clean-640.png",
+      "passed": true,
+      "detail": [
+        640,
+        245
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-clean-640.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          12,
+          8,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-clean-640.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          12,
+          8,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-clean-2560.png",
+      "passed": true,
+      "detail": 411624
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-clean-2560.png",
+      "passed": true,
+      "detail": [
+        2560,
+        979
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-clean-2560.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          51,
+          35,
+          2529,
+          951
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-clean-2560.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          2560,
+          979
+        ],
+        "bbox": [
+          51,
+          35,
+          2529,
+          951
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-detailed-1280.png",
+      "passed": true,
+      "detail": 725992
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-detailed-1280.png",
+      "passed": true,
+      "detail": [
+        1280,
+        490
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-detailed-1280.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          25,
+          18,
+          1265,
+          475
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-detailed-1280.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          1280,
+          490
+        ],
+        "bbox": [
+          25,
+          18,
+          1265,
+          475
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-detailed-640.png",
+      "passed": true,
+      "detail": 231591
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-detailed-640.png",
+      "passed": true,
+      "detail": [
+        640,
+        245
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-detailed-640.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          12,
+          9,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-detailed-640.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          12,
+          9,
+          633,
+          238
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-clean-1280.png",
+      "passed": true,
+      "detail": 166272
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-clean-1280.png",
+      "passed": true,
+      "detail": [
+        1280,
+        490
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-clean-1280.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          25,
+          17,
+          1265,
+          476
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-clean-1280.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          1280,
+          490
+        ],
+        "bbox": [
+          25,
+          17,
+          1265,
+          476
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-mono-dark-2560.png",
+      "passed": true,
+      "detail": 115789
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-mono-dark-2560.png",
+      "passed": true,
+      "detail": [
+        2560,
+        979
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-mono-dark-2560.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          81,
+          64,
+          2500,
+          943
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-mono-dark-2560.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          2560,
+          979
+        ],
+        "bbox": [
+          81,
+          64,
+          2500,
+          943
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-mono-dark-640.png",
+      "passed": true,
+      "detail": 19898
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-mono-dark-640.png",
+      "passed": true,
+      "detail": [
+        640,
+        245
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-mono-dark-640.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-mono-dark-640.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-mono-dark-1280.png",
+      "passed": true,
+      "detail": 47309
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-mono-dark-1280.png",
+      "passed": true,
+      "detail": [
+        1280,
+        490
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-mono-dark-1280.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          40,
+          32,
+          1250,
+          472
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-mono-dark-1280.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          1280,
+          490
+        ],
+        "bbox": [
+          40,
+          32,
+          1250,
+          472
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-detailed-2560.png",
+      "passed": true,
+      "detail": 1943816
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-detailed-2560.png",
+      "passed": true,
+      "detail": [
+        2560,
+        979
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-detailed-2560.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          51,
+          35,
+          2529,
+          950
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-detailed-2560.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          2560,
+          979
+        ],
+        "bbox": [
+          51,
+          35,
+          2529,
+          950
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-mono-white-640.png",
+      "passed": true,
+      "detail": 19945
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-mono-white-640.png",
+      "passed": true,
+      "detail": [
+        640,
+        245
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-mono-white-640.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-mono-white-640.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          640,
+          245
+        ],
+        "bbox": [
+          20,
+          16,
+          625,
+          236
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-mono-white-1280.png",
+      "passed": true,
+      "detail": 45757
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-mono-white-1280.png",
+      "passed": true,
+      "detail": [
+        1280,
+        490
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-mono-white-1280.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          40,
+          32,
+          1250,
+          472
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-mono-white-1280.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          1280,
+          490
+        ],
+        "bbox": [
+          40,
+          32,
+          1250,
+          472
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:png/tokkl-wordmark-mono-white-2560.png",
+      "passed": true,
+      "detail": 103069
+    },
+    {
+      "check": "png_dimensions:png/tokkl-wordmark-mono-white-2560.png",
+      "passed": true,
+      "detail": [
+        2560,
+        979
+      ]
+    },
+    {
+      "check": "png_transparent_artwork:png/tokkl-wordmark-mono-white-2560.png",
+      "passed": true,
+      "detail": {
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "bbox": [
+          81,
+          64,
+          2500,
+          943
+        ]
+      }
+    },
+    {
+      "check": "png_unclipped_edges:png/tokkl-wordmark-mono-white-2560.png",
+      "passed": true,
+      "detail": {
+        "dimensions": [
+          2560,
+          979
+        ],
+        "bbox": [
+          81,
+          64,
+          2500,
+          943
+        ]
+      }
+    },
+    {
+      "check": "png_decodes:source/tokkl-wordmark-clock-master.png",
+      "passed": true,
+      "detail": 1950198
+    }
+  ],
+  "visual_review": {
+    "result": "passed",
+    "observations": [
+      "Detailed and clean wordmarks are readable as tokkl at 640px; the o retains the clock counter and hands.",
+      "Clean and monochrome wordmarks remain readable at 160px. Use the standalone clock mark at icon sizes.",
+      "Independent Poppler PDF renders retain the letter forms, gradients and clock geometry.",
+      "Final contact sheet shows color variants on light and dark backgrounds, black on light, and white on dark with no clipping."
+    ],
+    "limitations": [
+      "Detailed color and texture approximate the raster reference.",
+      "Single-ink artwork needs suitable background contrast.",
+      "Commercial printing requires the printer's CMYK or spot-color preparation."
+    ]
+  },
+  "verified_asset_sha256": {
+    "pdf/tokkl-wordmark-clean.pdf": "c043a3705fba43d26a7c4dd49a023ca78c47312c5a99d684e06d51e2847b231c",
+    "pdf/tokkl-wordmark-detailed.pdf": "abb237f7de8db81a752b71ae5d5e5476af8e09f62241bd94af017c8ff8d84b1a",
+    "pdf/tokkl-wordmark-mono-dark.pdf": "3753e029754fa14dbe27531d0c8f6d577f83ab7c70878c85ecbe43e2db1ba7ec",
+    "pdf/tokkl-wordmark-mono-white.pdf": "afdc46835e514fa56eb1ebd7d61d9d908098e8fb1e790a0714413d89ce0f528c",
+    "png/tokkl-wordmark-clean-1280.png": "2dd307f4838ccb9223ea3b912eb61787f6f1e68c38f0afa70c4db65d47057d5b",
+    "png/tokkl-wordmark-clean-2560.png": "133c55dd5119a30f2af0f2bca718cdac0a2431ce0651cde325d83aed418e40f6",
+    "png/tokkl-wordmark-clean-640.png": "06ef6a1bc93c2c7b819746f8a1ffb714785baf208bccde3d70070985d93d2ccf",
+    "png/tokkl-wordmark-detailed-1280.png": "00bb40bd8ea04d86e46a716a4d2187704377d054b140bf77c944786293b43eb7",
+    "png/tokkl-wordmark-detailed-2560.png": "c0ba46c81f3a1391ce806abe4bd14f47ed9a92b5fd4d5dc187648acd85885b5b",
+    "png/tokkl-wordmark-detailed-640.png": "3232b6ff360dcd02ba806af9d434949d419fb6679f4b1be73c7878dd2cd68b89",
+    "png/tokkl-wordmark-mono-dark-1280.png": "9ff3cb8eed9faa033511ebeb4b8bd3fac5aca809b1f681e2b45d979e7f94e962",
+    "png/tokkl-wordmark-mono-dark-2560.png": "360be821155c2141cb5c600c9493ece3f8db4aeaf69e76f353c3c7f4630d4ade",
+    "png/tokkl-wordmark-mono-dark-640.png": "d3176449834fa5bb19d0ad424fb00f2dfdae9d24d1f2b22d6de22543d0ada5f6",
+    "png/tokkl-wordmark-mono-white-1280.png": "66518c598d60c26c3612a91df59d758e26c51487aac9da591f46303be34071ad",
+    "png/tokkl-wordmark-mono-white-2560.png": "51517904c913eb3ac7d042c49784bfeca42d1497cddae50438d73f69b882d6ed",
+    "png/tokkl-wordmark-mono-white-640.png": "d0e8f450b4aeb0378174ed0d2e7e1126941fed06567d715044a956c445a3d955",
+    "previews/contact-sheet.png": "ac890e012d7063d96ee9a5e8311e6f5a494954bc3dd39d96ebfe0abcee7dd185",
+    "source/tokkl-wordmark-clock-master.png": "0d4164b01e9452f10387694cc192e192e57fe0d486e51cb66f3e186e44f858ca",
+    "svg/tokkl-wordmark-clean.svg": "a163e9b97fe536411b10829cb20674955288ef5f211d48f52943d13bcf46a494",
+    "svg/tokkl-wordmark-detailed.svg": "eb358d688863ab8334048e315496d8d0bbc55c328fa3df33ebf2cd478f7412e7",
+    "svg/tokkl-wordmark-mono-dark.svg": "cc36f790ffca9d2812dcacc296ca5e5eddaea2539394b5bd85f80f0fdc07de78",
+    "svg/tokkl-wordmark-mono-white.svg": "be7a84fdd76077987da87a50fdb30c757bf7625b11316096789f3bc2dbb905bb"
+  }
+}

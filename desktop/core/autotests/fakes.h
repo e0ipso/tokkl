@@ -1,8 +1,9 @@
 #pragma once
 
-// Scripted stand-ins for the network and KDE Wallet. Nothing here touches a
-// real host, wallet or configuration file.
+// Scripted stand-ins for the network, KDE Wallet and the pause chain store.
+// Nothing here touches a real host, wallet or configuration file.
 
+#include "chainstore.h"
 #include "clock.h"
 #include "credentialstore.h"
 #include "transport.h"
@@ -145,6 +146,31 @@ private:
             },
             Qt::QueuedConnection);
     }
+};
+
+// Keeps the pause chain in memory and counts the saves.
+class FakeChainStore : public Tokkl::ChainStore
+{
+    Q_OBJECT
+
+public:
+    using Tokkl::ChainStore::ChainStore;
+
+    std::optional<Tokkl::PauseChain> load() override
+    {
+        ++loads;
+        return stored;
+    }
+
+    void save(const std::optional<Tokkl::PauseChain> &chain) override
+    {
+        ++saves;
+        stored = chain;
+    }
+
+    std::optional<Tokkl::PauseChain> stored;
+    int loads = 0;
+    int saves = 0;
 };
 
 // A clock that moves only when the test advances it. Each advance is one tick.

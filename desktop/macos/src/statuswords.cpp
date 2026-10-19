@@ -19,9 +19,12 @@ bool isNullId(const QVariant &id)
 }
 }
 
-QString runText(bool running)
+QString runText(const TimerController &timer)
 {
-    return running ? tr("Running") : tr("Stopped");
+    if (timer.isRunning()) {
+        return tr("Running");
+    }
+    return timer.isPaused() ? tr("Paused") : tr("Stopped");
 }
 
 QString statusText(TimerController::Status status)
@@ -85,7 +88,7 @@ QString projectText(const TimerController &timer)
     }
     const qint64 projectId = id.toLongLong();
     const QVariantMap entryProject = timer.entryProjectVariant().toMap();
-    if (timer.isRunning() && !entryProject.isEmpty() && entryProject.value(QStringLiteral("id")).toLongLong() == projectId) {
+    if ((timer.isRunning() || timer.isPaused()) && !entryProject.isEmpty() && entryProject.value(QStringLiteral("id")).toLongLong() == projectId) {
         return projectLabel(entryProject);
     }
     const QVariantList projects = timer.projects();
@@ -100,7 +103,7 @@ QString projectText(const TimerController &timer)
 
 QString summary(const TimerController &timer)
 {
-    QStringList parts{tr("%1 %2").arg(runText(timer.isRunning()), timer.elapsedText()), projectText(timer), statusText(timer.status())};
+    QStringList parts{tr("%1 %2").arg(runText(timer), timer.elapsedText()), projectText(timer), statusText(timer.status())};
     const QString detail = detailText(timer);
     if (!detail.isEmpty()) {
         parts.append(detail);
@@ -125,7 +128,10 @@ QString menuBarTitle(const TimerController &timer)
 
 QString actionName(const TimerController &timer)
 {
-    return timer.isRunning() ? tr("Stop the Tokkl timer") : tr("Start the Tokkl timer");
+    if (timer.isRunning()) {
+        return tr("Pause the Tokkl timer");
+    }
+    return timer.isPaused() ? tr("Resume the Tokkl timer") : tr("Start the Tokkl timer");
 }
 
 QString itemName(const TimerController &timer)

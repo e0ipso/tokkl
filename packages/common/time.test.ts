@@ -108,6 +108,37 @@ test('clockSpanOnDay on a day whose midnight does not exist', () => {
     { top: 60, bottom: 120 });
 });
 
+test('clockSpanOnDay places an empty range on the day that contains it', () => {
+  // Madrid midnight of 2026-06-17 is 22:00Z the day before. An empty range there starts that day.
+  const midnight = at('2026-06-16T22:00:00Z');
+  assert.deepEqual(clockSpanOnDay(midnight, midnight, '2026-06-17', MADRID), { top: 0, bottom: 0 });
+  assert.equal(clockSpanOnDay(midnight, midnight, '2026-06-16', MADRID), null);
+  // Inside the day, and at the next midnight, which belongs to the next day.
+  const nine = at('2026-06-17T07:00:00Z');
+  assert.deepEqual(clockSpanOnDay(nine, nine, '2026-06-17', MADRID), { top: 540, bottom: 540 });
+  assert.equal(clockSpanOnDay(nine, nine, '2026-06-16', MADRID), null);
+  const nextMidnight = at('2026-06-17T22:00:00Z');
+  assert.equal(clockSpanOnDay(nextMidnight, nextMidnight, '2026-06-17', MADRID), null);
+  assert.deepEqual(clockSpanOnDay(nextMidnight, nextMidnight, '2026-06-18', MADRID), { top: 0, bottom: 0 });
+  // A range that ends at midnight still misses the next day.
+  assert.equal(clockSpanOnDay(at('2026-06-16T21:00:00Z'), midnight, '2026-06-17', MADRID), null);
+  assert.deepEqual(clockSpanOnDay(at('2026-06-16T21:00:00Z'), midnight, '2026-06-16', MADRID), { top: 1380, bottom: 1440 });
+});
+
+test('clockSpanOnDay places an empty range at midnight on days the clocks change', () => {
+  // Madrid, 2026-03-29: midnight is 23:00Z, CET. 2026-10-25: midnight is 22:00Z, CEST.
+  const spring = at('2026-03-28T23:00:00Z');
+  assert.deepEqual(clockSpanOnDay(spring, spring, '2026-03-29', MADRID), { top: 0, bottom: 0 });
+  assert.equal(clockSpanOnDay(spring, spring, '2026-03-28', MADRID), null);
+  const autumn = at('2026-10-24T22:00:00Z');
+  assert.deepEqual(clockSpanOnDay(autumn, autumn, '2026-10-25', MADRID), { top: 0, bottom: 0 });
+  assert.equal(clockSpanOnDay(autumn, autumn, '2026-10-24', MADRID), null);
+  // Santiago, 2026-09-06 has no midnight: its first instant, 04:00Z, is 01:00 on the clock.
+  const first = at('2026-09-06T04:00:00Z');
+  assert.deepEqual(clockSpanOnDay(first, first, '2026-09-06', 'America/Santiago'), { top: 60, bottom: 60 });
+  assert.equal(clockSpanOnDay(first, first, '2026-09-05', 'America/Santiago'), null);
+});
+
 test('addClockMinutes shifts by local clock time across Madrid DST changes', () => {
   // Spring: 01:00 CET plus 120 clock minutes is 03:00 CEST, one hour of elapsed time.
   const one = at('2026-03-29T00:00:00Z');

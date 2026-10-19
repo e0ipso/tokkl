@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-import { expectSnapped, nextRunning, TimerApi } from './timer-tests-helpers.ts';
+import { expectSnapped, instant, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
 test('start and stop a timer with a new project and tag', async ({ page, data }) => {
   await login(page);
@@ -34,7 +34,10 @@ test('start and stop a timer with a new project and tag', async ({ page, data })
   // title's elapsed time above counts from.
   const [stopped] = await api.entries();
   expect(stopped!.id).toBe(running.id);
-  expectSnapped(stopped!, running.start, (await data.me()).time_resolution_minutes * 60_000);
+  const step = (await data.me()).time_resolution_minutes * 60_000;
+  expectSnapped(stopped!, running.start, step);
+  // Stop keeps at least one step, so a timer stopped right after it started is not stored empty.
+  expect(instant(stopped!.stop) - instant(stopped!.start)).toBeGreaterThanOrEqual(step);
   await expect(timer.getByText('Running', { exact: true })).toHaveCount(0);
   await expect(timerLink).toHaveCount(0);
   const row = page.locator('.entry-line').first();
@@ -130,10 +133,10 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   const entries = async () => (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'))
-    .json() as Promise<Array<{ description: string; start: string; stop: string | null }>>;
+    .json() as Promise<Array<{ id: number; description: string; start: string; stop: string | null }>>;
   const step = (await data.me()).time_resolution_minutes * 60_000;
-  // Exactly one entry runs, it is `description`, and `previous` stopped when it started, snapped to
-  // the time resolution: its start moves up to half a step and its duration grows by less than one.
+  // Exactly one entry runs, it is `description`, and `previous` stopped when it started, on the grid
+  // point nearest that start. The running entry keeps its exact start until it stops.
   const expectReplaced = async (description: string, previous: string) => {
     await expect(timer.getByLabel('Description')).toHaveValue(description);
     await expect.poll(async () => {
@@ -141,7 +144,8 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
       const running = all.filter((entry) => !entry.stop);
       const stopped = all.find((entry) => entry.description === previous && entry.stop);
       return running.length === 1 && running[0]!.description === description && stopped !== undefined
-        && Math.abs(Date.parse(stopped.stop!) - Date.parse(running[0]!.start) - step / 2) <= step
+        && Date.parse(stopped.stop!) % step === 0
+        && Math.abs(Date.parse(stopped.stop!) - Date.parse(running[0]!.start)) <= step / 2
         && (Date.parse(stopped.stop!) - Date.parse(stopped.start)) % step === 0;
     }).toBe(true);
   };
@@ -166,6 +170,17 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   expect(await entries()).toHaveLength(5);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+
+  // Once the last one stops, the switches are stored back to back: each entry starts where the one
+  // it replaced stopped.
+  let chain: Array<{ id: number; description: string; start: string; stop: string | null }> = [];
+  await expect.poll(async () => {
+    chain = (await entries()).filter((entry) => Date.parse(entry.start) !== Date.parse(`${day}T10:00:00Z`))
+      .sort((a, b) => a.id - b.id);
+    return chain.every((entry) => entry.stop !== null);
+  }).toBe(true);
+  expect(chain.map((entry) => entry.description)).toEqual(['Running now', 'Earlier work', 'Standup', 'Earlier work']);
+  for (let i = 1; i < chain.length; i++) expect(Date.parse(chain[i]!.start)).toBe(Date.parse(chain[i - 1]!.stop!));
 });
 
 test('a manual entry across the autumn clock change moves the date to its stop day', async ({ page, runtimeErrors }) => {

@@ -1,4 +1,4 @@
-// The menu bar app without its platform layer: the item's text and click,
+// The menu bar app without its platform layer: the item's text, image and click,
 // the menu, the settings window and the client name, driven through the
 // core's fake transport, store and clock, a fake menu bar item and a fake
 // login item.
@@ -10,6 +10,7 @@
 #include "loginitem.h"
 #include "menubarapp.h"
 #include "settingswindow.h"
+#include "statusimage.h"
 #include "statusitem.h"
 #include "statusmenu.h"
 #include "statuswords.h"
@@ -18,6 +19,8 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QFile>
+#include <QImage>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -66,9 +69,10 @@ public:
     {
         menu = value;
     }
-    void setIndicator(const ProjectIndicator &value) override
+    void setImage(const StatusImage &value) override
     {
-        indicator = value;
+        image = value;
+        indicator = value.indicator;
     }
     bool reduceMotion() const override
     {
@@ -92,6 +96,8 @@ public:
     QString toolTip;
     QString accessibleName;
     QMenu *menu = nullptr;
+    StatusImage image;
+    // The indicator in the image.
     ProjectIndicator indicator;
     bool reduce = false;
 };
@@ -181,6 +187,41 @@ QByteArray entryBody(bool running, std::optional<qint64> project = std::nullopt,
         .toJson(QJsonDocument::Compact);
 }
 
+// An entry with everything a resume copies: description, project, task, tags
+// and billable flag. It runs from begin, or stopped after seconds.
+QByteArray chainEntryBody(qint64 id, const QDateTime &begin, std::optional<qint64> seconds = std::nullopt)
+{
+    return QJsonDocument(QJsonObject{
+                             {QStringLiteral("id"), id},
+                             {QStringLiteral("workspace_id"), 7},
+                             {QStringLiteral("project_id"), 11},
+                             {QStringLiteral("task_id"), 21},
+                             {QStringLiteral("billable"), true},
+                             {QStringLiteral("start"), begin.toString(Qt::ISODate)},
+                             {QStringLiteral("stop"), seconds ? QJsonValue(begin.addSecs(*seconds).toString(Qt::ISODate)) : QJsonValue(QJsonValue::Null)},
+                             {QStringLiteral("duration"), seconds ? *seconds : -begin.toSecsSinceEpoch()},
+                             {QStringLiteral("description"), QStringLiteral("Write the report")},
+                             {QStringLiteral("tags"), QJsonArray{QStringLiteral("deep"), QStringLiteral("review")}},
+                         })
+        .toJson(QJsonDocument::Compact);
+}
+
+// A new entry without a project, running from begin.
+QByteArray newEntryBody(qint64 id, const QDateTime &begin)
+{
+    return QJsonDocument(QJsonObject{
+                             {QStringLiteral("id"), id},
+                             {QStringLiteral("workspace_id"), 7},
+                             {QStringLiteral("project_id"), QJsonValue(QJsonValue::Null)},
+                             {QStringLiteral("billable"), false},
+                             {QStringLiteral("start"), begin.toString(Qt::ISODate)},
+                             {QStringLiteral("stop"), QJsonValue(QJsonValue::Null)},
+                             {QStringLiteral("duration"), -begin.toSecsSinceEpoch()},
+                             {QStringLiteral("description"), QString()},
+                         })
+        .toJson(QJsonDocument::Compact);
+}
+
 QByteArray projectsBody()
 {
     return QByteArrayLiteral(
@@ -220,8 +261,10 @@ class MenuBarAppTest : public QObject
     Q_OBJECT
 
     struct Fixture {
-        Fixture()
-            : settings(dir.filePath(QStringLiteral("tokkl.ini")), QSettings::IniFormat)
+        // The settings live in settingsFile, or in a file of the fixture's
+        // own when it is empty.
+        explicit Fixture(const QString &settingsFile = QString())
+            : settings(settingsFile.isEmpty() ? dir.filePath(QStringLiteral("tokkl.ini")) : settingsFile, QSettings::IniFormat)
         {
         }
 
@@ -291,6 +334,33 @@ class MenuBarAppTest : public QObject
                 return app.timer()->canWrite();
             });
         }
+
+        // A click on the running chainEntryBody entry id that began at
+        // begin, the server's stop reply and the read after it.
+        bool pause(qint64 id, const QDateTime &begin)
+        {
+            const qsizetype stop = transport.requests.size();
+            item.click();
+            if (last("PATCH", "/stop") != stop) {
+                return false;
+            }
+            respond(stop, 200, chainEntryBody(id, begin, begin.secsTo(clock.now())));
+            if (!waitFor("GET", "/me/time_entries/current", stop)) {
+                return false;
+            }
+            respond(last("GET", "/me/time_entries/current"), 200, QByteArrayLiteral("null"));
+            return QTest::qWaitFor([&] {
+                return app.timer()->isPaused() && app.timer()->canWrite();
+            });
+        }
+
+        // Moves the clock one tick per second.
+        void advance(int seconds)
+        {
+            for (int i = 0; i < seconds; ++i) {
+                clock.advance(1000);
+            }
+        }
     };
 
 private Q_SLOTS:
@@ -337,7 +407,7 @@ private Q_SLOTS:
         // Nothing to start or stop yet.
         f.item.click();
         QVERIFY(f.transport.requests.isEmpty());
-        QVERIFY(!f.app.statusMenu()->toggleAction()->isEnabled());
+        QVERIFY(!f.app.statusMenu()->startStopAction()->isEnabled());
     }
 
     void titleShowsElapsedTime()
@@ -345,18 +415,28 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(entryBody(true)));
         QVERIFY(!f.app.settingsWindow()->isVisible());
-        QCOMPARE(f.item.title, QStringLiteral("0:01:05"));
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
+        // Whole minutes: the title changes when the next minute starts.
+        for (int i = 0; i < 54; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
         f.clock.advance(1000);
-        QCOMPARE(f.item.title, QStringLiteral("0:01:06"));
-        QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Running 0:01:06 · No project · Connected")), qPrintable(f.item.toolTip));
-        QCOMPARE(f.item.accessibleName, QStringLiteral("Stop the Tokkl timer, No project"));
-        QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:01:06")));
+        QCOMPARE(f.item.title, QStringLiteral("0:02"));
+        QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Running 0:02 · No project · Connected")), qPrintable(f.item.toolTip));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, No project"));
+        QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:02")));
     }
 
-    void clickStopsARunningTimer()
+    // A click on a running timer pauses it: the server stops the entry, the
+    // title keeps the total still, and the words say paused.
+    void clickPausesARunningTimer()
     {
         Fixture f;
-        QVERIFY(f.connect(entryBody(true)));
+        const QDateTime begin = f.clock.now().addSecs(-600);
+        QVERIFY(f.connect(chainEntryBody(5, begin)));
+        QCOMPARE(f.item.title, QStringLiteral("0:10"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
         const qsizetype before = f.transport.requests.size();
         f.item.click();
         QCOMPARE(f.transport.requests.size(), before + 1);
@@ -364,9 +444,75 @@ private Q_SLOTS:
         QCOMPARE(stop.method, QByteArray("PATCH"));
         QCOMPARE(stop.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5/stop"));
         // The item shows the mutation in flight and ignores another click.
-        QCOMPARE(f.item.title, QStringLiteral("0:01:05 …"));
+        QCOMPARE(f.item.title, QStringLiteral("0:10 …"));
         f.item.click();
         QCOMPARE(f.transport.requests.size(), before + 1);
+
+        f.respond(before, 200, chainEntryBody(5, begin, 600));
+        QTRY_VERIFY(f.app.timer()->isPaused());
+        QVERIFY(!f.app.timer()->isRunning());
+        QTRY_COMPARE(f.item.title, QStringLiteral("0:10"));
+        // The total stands still while paused.
+        f.advance(120);
+        QCOMPARE(f.item.title, QStringLiteral("0:10"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Resume the Tokkl timer, Alpha"));
+        QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Paused 0:10 · Alpha · Connected")), qPrintable(f.item.toolTip));
+        StatusMenu &menu = *f.app.statusMenu();
+        QVERIFY2(menu.stateAction()->text().startsWith(QStringLiteral("Paused 0:10")), qPrintable(menu.stateAction()->text()));
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(menu.startStopAction()->isEnabled());
+        // The paused entry's project and billable flag, locked.
+        QCOMPARE(menu.projectMenu()->title(), QStringLiteral("Project: Alpha"));
+        QVERIFY(!menu.projectMenu()->menuAction()->isEnabled());
+        QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)"))->isEnabled());
+        QVERIFY(menu.billableAction()->isChecked());
+        QVERIFY(!menu.billableAction()->isEnabled());
+        // A still dot in the project colour. Only a running dot pulses.
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QVERIFY(f.item.indicator.round);
+        QVERIFY(!f.item.indicator.pulsing);
+        QCOMPARE(f.item.indicator.color, QStringLiteral("#06aaf5"));
+        QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
+    }
+
+    // The next click resumes: a new entry that copies the paused one, and the
+    // title counts on from the paused total.
+    void clickResumesAPausedTimer()
+    {
+        Fixture f;
+        const QDateTime begin = f.clock.now().addSecs(-600);
+        QVERIFY(f.connect(chainEntryBody(5, begin)));
+        QVERIFY(f.pause(5, begin));
+        // The two minutes paused do not count.
+        f.advance(120);
+        QCOMPARE(f.item.title, QStringLiteral("0:10"));
+
+        const qsizetype before = f.transport.requests.size();
+        f.item.click();
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        const HttpRequest resume = f.transport.requests.last();
+        QCOMPARE(resume.method, QByteArray("POST"));
+        QCOMPARE(resume.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries"));
+        const QJsonObject body = jsonBody(resume);
+        QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
+        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(body.value(QStringLiteral("task_id")).toInteger(), 21);
+        QCOMPARE(body.value(QStringLiteral("tags")).toArray(), QJsonArray({QStringLiteral("deep"), QStringLiteral("review")}));
+        QCOMPARE(body.value(QStringLiteral("billable")).toBool(), true);
+        QCOMPARE(body.value(QStringLiteral("duration")).toInt(), -1);
+        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-macos"));
+
+        f.respond(before, 200, chainEntryBody(6, f.clock.now()));
+        QTRY_VERIFY(f.app.timer()->isRunning());
+        QTRY_COMPARE(f.item.title, QStringLiteral("0:10"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
+        QCOMPARE(f.app.statusMenu()->startStopAction()->text(), QStringLiteral("Stop Timer"));
+        // The dot pulses again.
+        QVERIFY(f.item.indicator.round);
+        QVERIFY(f.item.indicator.pulsing);
+        f.advance(60);
+        QCOMPARE(f.item.title, QStringLiteral("0:11"));
+        QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:11")));
     }
 
     // A click on a stopped timer starts an entry on the selected project,
@@ -375,7 +521,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect(QByteArrayLiteral("null"), qint64(12)));
-        QCOMPARE(f.item.title, QStringLiteral("0:00:00"));
+        QCOMPARE(f.item.title, QStringLiteral("0:00"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer, Beta (Acme)"));
         f.item.click();
         const qsizetype start = f.last("POST", "/workspaces/7/time_entries");
@@ -409,7 +555,8 @@ private Q_SLOTS:
         QVERIFY(!f.app.timer()->billable());
         QVERIFY(!menu.billableAction()->isChecked());
 
-        menu.toggleAction()->trigger();
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
+        menu.startStopAction()->trigger();
         const QJsonObject body = jsonBody(f.transport.requests.at(f.last("POST", "/workspaces/7/time_entries")));
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
         QCOMPARE(body.value(QStringLiteral("billable")).toBool(), false);
@@ -422,7 +569,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(entryBody(true, qint64(11))));
         StatusMenu &menu = *f.app.statusMenu();
-        QCOMPARE(menu.toggleAction()->text(), QStringLiteral("Stop Timer"));
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
         QVERIFY(!menu.projectMenu()->menuAction()->isEnabled());
         QCOMPARE(menu.projectMenu()->title(), QStringLiteral("Project: Alpha"));
         QAction *beta = projectAction(menu, QStringLiteral("Beta (Acme)"));
@@ -444,7 +591,139 @@ private Q_SLOTS:
         QCOMPARE(jsonBody(update), QJsonObject({{QStringLiteral("billable"), true}}));
     }
 
-    // The running entry's project: a pulsing dot in its colour. Stopping it
+    // Stop Timer in the menu stops a running timer and ends the chain.
+    void stopTimerStopsARunningTimer()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(true)));
+        StatusMenu &menu = *f.app.statusMenu();
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
+        const qsizetype before = f.transport.requests.size();
+        menu.startStopAction()->trigger();
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        const HttpRequest stop = f.transport.requests.last();
+        QCOMPARE(stop.method, QByteArray("PATCH"));
+        QCOMPARE(stop.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5/stop"));
+
+        f.respond(before, 200, entryBody(false));
+        QTRY_VERIFY(!f.app.timer()->isRunning());
+        QVERIFY(!f.app.timer()->isPaused());
+        QTRY_COMPARE(f.item.title, QStringLiteral("0:00"));
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
+        QVERIFY(menu.stateAction()->text().startsWith(QStringLiteral("Stopped 0:00")));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer, No project"));
+    }
+
+    // Stop Timer while paused ends the chain without a request, and the next
+    // click starts a new entry at 0:00.
+    void stopTimerEndsAPausedChain()
+    {
+        Fixture f;
+        const QDateTime begin = f.clock.now().addSecs(-600);
+        QVERIFY(f.connect(chainEntryBody(5, begin)));
+        QVERIFY(f.pause(5, begin));
+        QVERIFY(f.settings.childGroups().contains(QStringLiteral("PauseChain")));
+        StatusMenu &menu = *f.app.statusMenu();
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
+
+        const qsizetype before = f.transport.requests.size();
+        menu.startStopAction()->trigger();
+        QCOMPARE(f.transport.requests.size(), before);
+        QVERIFY(!f.app.timer()->isPaused());
+        QCOMPARE(f.item.title, QStringLiteral("0:00"));
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
+        QVERIFY(menu.startStopAction()->isEnabled());
+        QVERIFY(menu.stateAction()->text().startsWith(QStringLiteral("Stopped 0:00")));
+        QVERIFY2(f.item.accessibleName.startsWith(QStringLiteral("Start the Tokkl timer, ")), qPrintable(f.item.accessibleName));
+        QVERIFY(!f.settings.childGroups().contains(QStringLiteral("PauseChain")));
+        // The paused dot gives way to the stopped square.
+        QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
+        QVERIFY(!f.item.indicator.round);
+        QVERIFY(!f.item.indicator.pulsing);
+
+        f.item.click();
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        const HttpRequest start = f.transport.requests.last();
+        QCOMPARE(start.method, QByteArray("POST"));
+        QCOMPARE(start.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries"));
+        const QJsonObject body = jsonBody(start);
+        QCOMPARE(body.value(QStringLiteral("description")).toString(), QString());
+        QVERIFY(!body.contains(QStringLiteral("task_id")));
+        f.respond(before, 200, newEntryBody(7, f.clock.now()));
+        QTRY_VERIFY(f.app.timer()->isRunning());
+        QTRY_COMPARE(f.item.title, QStringLiteral("0:00"));
+    }
+
+    void stopTimerEndsAPausedChainOffline_data()
+    {
+        QTest::addColumn<bool>("rateLimited");
+        QTest::newRow("instance unreachable") << false;
+        QTest::newRow("rate limited") << true;
+    }
+
+    // Ending a paused chain sends nothing, so Stop Timer stays enabled when
+    // the poll fails, even while the timer cannot write.
+    void stopTimerEndsAPausedChainOffline()
+    {
+        QFETCH(bool, rateLimited);
+        Fixture f;
+        const QDateTime begin = f.clock.now().addSecs(-600);
+        QVERIFY(f.connect(chainEntryBody(5, begin)));
+        QVERIFY(f.pause(5, begin));
+        const qsizetype poll = f.transport.requests.size();
+        f.advance(30);
+        QCOMPARE(f.last("GET", "/me/time_entries/current"), poll);
+        f.transport.respond(poll,
+                            rateLimited ? FakeTransport::answer(429, "\"Too many requests\"", "120")
+                                        : FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        if (rateLimited) {
+            QTRY_VERIFY(!f.app.timer()->canWrite());
+        } else {
+            QTRY_VERIFY(f.app.timer()->isStale());
+        }
+        QVERIFY(f.app.timer()->isPaused());
+        QVERIFY(!f.app.timer()->isBusy());
+
+        StatusMenu &menu = *f.app.statusMenu();
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(menu.startStopAction()->isEnabled());
+
+        const qsizetype before = f.transport.requests.size();
+        menu.startStopAction()->trigger();
+        QCOMPARE(f.transport.requests.size(), before);
+        QVERIFY(!f.app.timer()->isPaused());
+        QVERIFY(!f.settings.childGroups().contains(QStringLiteral("PauseChain")));
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
+        // Start sends a request, so it waits for the timer to write again.
+        QCOMPARE(menu.startStopAction()->isEnabled(), f.app.timer()->canWrite());
+        QCOMPARE(menu.startStopAction()->isEnabled(), !rateLimited);
+    }
+
+    // The app keeps the chain in its settings, so quitting and opening it
+    // again keeps the paused total.
+    void relaunchKeepsThePausedTotal()
+    {
+        QTemporaryDir dir;
+        const QString file = dir.filePath(QStringLiteral("tokkl.ini"));
+        const QDateTime begin = FakeClock().now().addSecs(-600);
+        {
+            Fixture f(file);
+            QVERIFY(f.connect(chainEntryBody(5, begin)));
+            QVERIFY(f.pause(5, begin));
+        }
+
+        Fixture f(file);
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        QVERIFY(f.app.timer()->isPaused());
+        QCOMPARE(f.item.title, QStringLiteral("0:10"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Resume the Tokkl timer, Alpha"));
+        f.item.click();
+        const HttpRequest resume = f.transport.requests.last();
+        QCOMPARE(resume.method, QByteArray("POST"));
+        QCOMPARE(jsonBody(resume).value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
+    }
+
+    // The running entry's project: a pulsing dot in its colour. Stop Timer
     // leaves a still square.
     void indicatorRunningThenStopped()
     {
@@ -455,11 +734,12 @@ private Q_SLOTS:
         QCOMPARE(f.item.indicator.color, QStringLiteral("#06aaf5"));
         QVERIFY(f.item.indicator.pulsing);
         QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
-        QCOMPARE(f.item.accessibleName, QStringLiteral("Stop the Tokkl timer, Alpha"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
 
-        f.item.click();
+        f.app.statusMenu()->startStopAction()->trigger();
         f.respond(f.last("PATCH", "/stop"), 200, entryBody(false, qint64(11)));
         QTRY_VERIFY(!f.app.timer()->isRunning());
+        QVERIFY(!f.app.timer()->isPaused());
         QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
         QVERIFY(!f.item.indicator.round);
         QVERIFY(!f.item.indicator.pulsing);
@@ -543,6 +823,53 @@ private Q_SLOTS:
         QCOMPARE(indicator.fillColor(false), QColor(Qt::black));
         indicator.color = QStringLiteral("#06aaf5");
         QCOMPARE(indicator.fillColor(true), QColor(0x06, 0xaa, 0xf5));
+    }
+
+    // The image before the time holds the clock logo from the app's
+    // iconset, then the project indicator. Both keep their places in every
+    // state, so the time never moves.
+    void imageShowsTheLogoBeforeTheIndicator()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(true, qint64(11))));
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
+        const StatusImage running = f.item.image;
+        QCOMPARE(running.indicator, ProjectIndicator::fromTimer(*f.app.timer(), false));
+        QCOMPARE(running.logoRect, QRect(0, 0, 16, 16));
+        QCOMPARE(running.indicatorRect, QRect(18, 0, 16, 16));
+        QCOMPARE(running.size, QSize(34, 16));
+        QVERIFY(running.logoRect.right() < running.indicatorRect.left());
+
+        // The 16 point app icon at 1x and 2x, the files npm run icons renders.
+        const QStringList files{QStringLiteral("icon_16x16.png"), QStringLiteral("icon_16x16@2x.png")};
+        QCOMPARE(running.logo.size(), files.size());
+        for (qsizetype i = 0; i < files.size(); ++i) {
+            QImage source(QStringLiteral(TOKKL_ICONSET_DIR "/") + files.at(i));
+            QVERIFY2(!source.isNull(), qPrintable(files.at(i)));
+            source.setDevicePixelRatio(double(i + 1));
+            const QImage &logo = running.logo.at(i);
+            QCOMPARE(logo, source);
+            QCOMPARE(logo.deviceIndependentSize(), QSizeF(16, 16));
+            // Full colour, not the single ink of a template image.
+            bool coloured = false;
+            for (int y = 0; y < logo.height() && !coloured; ++y) {
+                for (int x = 0; x < logo.width() && !coloured; ++x) {
+                    const QColor pixel = logo.pixelColor(x, y);
+                    coloured = pixel.alpha() == 255 && pixel.hsvSaturation() > 64;
+                }
+            }
+            QVERIFY2(coloured, qPrintable(files.at(i)));
+        }
+
+        f.app.statusMenu()->startStopAction()->trigger();
+        f.respond(f.last("PATCH", "/stop"), 200, entryBody(false, qint64(11)));
+        QTRY_VERIFY(!f.app.timer()->isRunning());
+        QVERIFY(f.item.image.indicator != running.indicator);
+        QCOMPARE(f.item.image.indicator, f.item.indicator);
+        QCOMPARE(f.item.image.logo, running.logo);
+        QCOMPARE(f.item.image.logoRect, running.logoRect);
+        QCOMPARE(f.item.image.indicatorRect, running.indicatorRect);
+        QCOMPARE(f.item.image.size, running.size);
     }
 
     void openAndSettingsActions()

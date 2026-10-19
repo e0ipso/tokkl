@@ -2,7 +2,7 @@
  * Runs the GNOME Shell extension against a real tokkl-timerd and a real Tokkl server: this serves
  * an instance built with the API's test fixtures on 127.0.0.1, runs the command that drives the
  * extension (realservice-check.js inside a headless GNOME Shell), then checks that the server's
- * data changed only by the entry the panel started and stopped.
+ * data changed only by the entries the panel started, paused, resumed and stopped.
  *
  *   TOKKL_GNOME_REALSERVICE_COMMAND='["docker", "run", ...]' \
  *     node --test desktop/gnome/extension/ci/realservice.test.ts
@@ -92,7 +92,7 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
     server.close();
   }
 
-  await t.test('the server changed only by the entry the panel started and stopped', () => {
+  await t.test('the server changed only by the entries the panel started, paused, resumed and stopped', () => {
     const after = snapshot(admin);
     assert.deepEqual(after.users, before.users);
     assert.deepEqual(after.workspaces, before.workspaces);
@@ -100,21 +100,25 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
     assert.deepEqual(after.projects, before.projects);
     assert.deepEqual(after.entries.filter((row) => row.user_id !== user.user.id), before.entries);
 
+    // The entry the pause stopped, and the clone the resume started and Stop stopped.
     const mine = after.entries.filter((row) => row.user_id === user.user.id);
-    assert.equal(mine.length, 1, JSON.stringify(mine));
-    const entry = mine[0]!;
-    assert.equal(entry.workspace_id, user.wid);
-    assert.equal(entry.project_id, project.id);
-    assert.equal(entry.created_with, 'tokkl-gnome');
-    // Started with the project's billable default (false), then switched on while running.
-    assert.equal(Number(entry.billable), 1);
-    assert.notEqual(entry.stop, null);
+    assert.equal(mine.length, 2, JSON.stringify(mine));
+    for (const entry of mine) {
+      assert.equal(entry.workspace_id, user.wid);
+      assert.equal(entry.project_id, project.id);
+      assert.equal(entry.created_with, 'tokkl-gnome');
+      // Started with the project's billable default (false), then switched on while running; the
+      // clone copies the paused entry.
+      assert.equal(Number(entry.billable), 1);
+      assert.notEqual(entry.stop, null);
 
-    // Stopping snapped it to the time resolution.
-    const start = Date.parse(String(entry.start));
-    const stop = Date.parse(String(entry.stop));
-    assert.equal(start % RESOLUTION_MS, 0, `start ${entry.start} is on the grid`);
-    assert.ok(stop >= start, `${entry.start} to ${entry.stop}`);
-    assert.equal((stop - start) % RESOLUTION_MS, 0, `${entry.start} to ${entry.stop} is a whole number of steps`);
+      // Stopping snapped it to the time resolution.
+      const start = Date.parse(String(entry.start));
+      const stop = Date.parse(String(entry.stop));
+      assert.equal(start % RESOLUTION_MS, 0, `start ${entry.start} is on the grid`);
+      assert.ok(stop >= start, `${entry.start} to ${entry.stop}`);
+      assert.equal((stop - start) % RESOLUTION_MS, 0, `${entry.start} to ${entry.stop} is a whole number of steps`);
+    }
+    assert.equal(mine[1]!.description, mine[0]!.description);
   });
 });

@@ -10,7 +10,7 @@
 _None._
 
 ## Conventions (how we build)
-- Open [**Preferences: known keys validated, unknown keys stored verbatim**](practice-preferences-validated-by-known-key.md) to learn about: PREFERENCE_RULES in users.ts validates the keys the web app reads; other keys pass through; bad stored values read back as defaults. #server #preferences #validation
+- Open [**Preferences: known keys validated, unknown keys stored verbatim**](practice-preferences-validated-by-known-key.md) to learn about: PREFERENCE_RULES in users.ts validates the keys Tokkl clients read, Pomodoro included; other keys pass through; bad stored values read back as defaults. #server #preferences #validation
 
 ## Components (what exists)
 - Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) to learn about: Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers. #server #database #migrations #auth #workspaces
@@ -41,7 +41,7 @@ _None._
 - Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.
 - Open [**Project and task totals rely on the live-entry partial indexes**](../reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 ### #preferences
-- Open [**Preferences: known keys validated, unknown keys stored verbatim**](practice-preferences-validated-by-known-key.md) — PREFERENCE_RULES in users.ts validates the keys the web app reads; other keys pass through; bad stored values read back as defaults.
+- Open [**Preferences: known keys validated, unknown keys stored verbatim**](practice-preferences-validated-by-known-key.md) — PREFERENCE_RULES in users.ts validates the keys Tokkl clients read, Pomodoro included; other keys pass through; bad stored values read back as defaults.
 ### #settings
 - Open [**Instance settings: /api/app/admin/settings and SETTING_RULES**](map-instance-settings-api-app-admin-settings-and-setting-rules.md) — session_days, invite_days and time_resolution_minutes live in instance_settings, validated by SETTING_RULES; v9 /me exposes the resolution.
 ### #validation

@@ -2,8 +2,8 @@
 type: map
 title: 'macOS menu bar app: portable library, Objective-C++ shims and CI'
 description: >-
-  desktop/macos splits a Linux-testable Qt library from three macOS-only shims;
-  why NSStatusItem; what the macos CI job covers.
+  desktop/macos: a Linux-testable Qt library and three macOS shims; click and
+  menu actions, the bundle icon, NSStatusItem, the CI job.
 tags:
   - tooling
   - desktop
@@ -22,7 +22,11 @@ kk_confidence: high
 
 The code is split so most of it builds and runs on Linux. The platform-neutral library in `src/` (`menubarapp`, `statusmenu`, `statuswords`, `projectindicator`, `settingswindow`, the `StatusItem` and `LoginItem` interfaces) builds on any machine with Qt 6, and its tests (`menubarapp`, `infoplist`, plus the core's) run there. `keychaincredentialstore` is built only when QtKeychain is installed. Only three files need macOS: `macstatusitem.mm` (`NSStatusItem`), `macloginitem.mm` (`SMAppService`) and `main.mm`. Put new logic in the portable library behind those interfaces so it stays testable; keep the shims thin.
 
-`ProjectIndicator` (`projectindicator.h`) decides what the project slot shows: kind (empty while the project loads, outline for no project, filled for a project), shape (dot while running, square while stopped), colour, pulse opacity, reduce-motion and the accessibility label, which reads "<action>, <project>". Its unit test runs on Linux. `macstatusitem.mm` only draws it as the `NSStatusItem` button image, with a ring in the menu bar's text colour (black on a light bar, white on a dark one) so the edge stays visible whatever the project colour, and a 66 ms timer for the pulse. The ring never fades, and Reduce Motion stops the pulse.
+A primary click on the item calls `toggle()` (pause, resume or start). The menu's `startStopAction` (`statusmenu.cpp`) reads Start Timer or, while running or paused, Stop Timer, and calls `start()` or `stop()`. Stop Timer while paused only ends the chain, so it is enabled whenever no mutation is in flight, offline too; `menubarapptest` covers that offline case. The pause chain is kept by a `SettingsChainStore` on the app's `QSettings`.
+
+The bundle icon comes from `desktop/macos/resources/Tokkl.iconset`, the ten PNGs `npm run icons` renders (see `map-app-icons-script`). On macOS the build runs `iconutil -c icns` (found with `find_program(... REQUIRED)`) into `Contents/Resources/Tokkl.icns`; `TOKKL_BUNDLE_ICON` (`Tokkl`) names it, and `cmake/Info.plist.in` sets `CFBundleIconFile` from it. `autotests/infoplisttest.cmake` and `scripts/check-dmg.sh` both check the icon.
+
+`ProjectIndicator` (`projectindicator.h`) decides what the project slot shows: kind (empty while the project loads, outline for no project, filled for a project), shape (dot while running or paused, square while stopped), colour, pulse opacity (only the running dot pulses), reduce-motion and the accessibility label, which reads "<action>, <project>". Its unit test runs on Linux. The portable `StatusImage` (`statusimage.h`, `statusimage.cpp`) composes the button image: the full-colour clock logo at 16 pt, a 2 pt gap, then the 16 pt indicator slot, 34x16 pt in every state so the time never moves. The logo is the iconset's `icon_16x16.png` and `icon_16x16@2x.png`, compiled into the `tokklmacos` library with `qt_add_resources` in `src/CMakeLists.txt`. `MenuBarApp` passes `StatusImage::compose(...)` to `StatusItem::setImage`. `macstatusitem.mm` only draws the parts in their places with `setTemplate:NO`, so the logo keeps its colours, and keeps the indicator's label as `accessibilityDescription`. It draws the indicator with a ring in the menu bar's text colour (black on a light bar, white on a dark one) so the edge stays visible whatever the project colour, and a 66 ms timer for the pulse. The ring never fades, and Reduce Motion stops the pulse.
 
 The Settings window saves in two steps. It calls `ConnectionSetup::saveSecret(context, done)`, whose callback says whether the Keychain write worked, and writes the URL, auth mode and email and closes only when it did. A failed write keeps the window open with the typed secret. A Keychain write can wait for the user to allow access, so the Save button is disabled meanwhile.
 

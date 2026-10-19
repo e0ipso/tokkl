@@ -14,6 +14,8 @@ export const TIMER1_INTERFACE = `<node>
   <interface name="org.tokkl.Timer1">
     <property name="Running" type="b" access="read"/>
     <property name="StartTime" type="x" access="read"/>
+    <property name="Paused" type="b" access="read"/>
+    <property name="ChainSeconds" type="x" access="read"/>
     <property name="IndicatorState" type="s" access="read"/>
     <property name="IndicatorColor" type="s" access="read"/>
     <property name="Projects" type="aa{sv}" access="read"/>
@@ -26,6 +28,12 @@ export const TIMER1_INTERFACE = `<node>
       <arg name="sent" type="b" direction="out"/>
     </method>
     <method name="Stop">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="Pause">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="Resume">
       <arg name="sent" type="b" direction="out"/>
     </method>
     <method name="SetProject">
@@ -63,7 +71,8 @@ export function elapsedSeconds(startTime, nowSeconds) {
 }
 
 /**
- * H:MM:SS, as the other Tokkl desktop apps write elapsed time.
+ * H:MM in whole minutes, as the other Tokkl desktop apps write elapsed time.
+ * The seconds are dropped, not rounded.
  *
  * @param {number} seconds
  * @returns {string}
@@ -72,8 +81,7 @@ export function formatElapsed(seconds) {
     const total = Math.max(0, Math.floor(seconds));
     const hours = Math.floor(total / 3600);
     const minutes = Math.floor((total % 3600) / 60);
-    const rest = total % 60;
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+    return `${hours}:${String(minutes).padStart(2, '0')}`;
 }
 
 /**

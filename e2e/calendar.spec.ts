@@ -3,7 +3,7 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { openCalendar } from './history-calendar-tests-helpers.ts';
-import { calendarBodyBox, entryWrites, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
+import { calendarBodyBox, entryWrites, px, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
 import { PHONE, tap } from './mobile-tests-helpers.ts';
 // Its `api` fixture puts the account's first weekday back after each scenario.
 import { test as testWithSettings } from './report-tests-helpers.ts';
@@ -110,8 +110,150 @@ test('calendar blocks are named by description, project and duration, and short 
   await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
 });
 
+// A switch within half a step of a timer's start stores a zero-length entry, and the next entry
+// starts where it ends. Lanes follow the stored spans, so the pair shares one lane with the thin
+// marker above its successor. Spans that overlap still sit side by side.
+test('a zero-length entry shares its successor\'s lane and both stay clickable, while overlapping entries split lanes', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid, Wednesday 2026-06-17 (CEST): the switch at 09:00, then two overlapping entries from 11:00.
+  await data.createEntry({ description: 'Switch', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Follow-up', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
+  await data.createEntry({ description: 'Early', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T10:00:00Z' });
+  await data.createEntry({ description: 'Late', start: '2026-06-17T09:30:00Z', stop: '2026-06-17T10:30:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 8);
+
+  // Blocks are laid out inside the column's 1px left border.
+  const inner = (await page.locator('.calendar-column.today').boundingBox())!.width - 1;
+  const marker = todayBlock(page, 'Switch');
+  const successor = todayBlock(page, 'Follow-up');
+  await expect(marker).toHaveCSS('top', px(9 * 60));
+  await expect(marker).toHaveCSS('height', '6px');
+  await expect(successor).toHaveCSS('height', px(60));
+  const markerBox = (await marker.boundingBox())!;
+  const successorBox = (await successor.boundingBox())!;
+  expect(markerBox.x).toBeCloseTo(successorBox.x, 1);
+  expect(markerBox.width).toBeCloseTo(successorBox.width, 1);
+  expect(successorBox.width).toBeCloseTo(inner - 4, 1);
+
+  // Playwright clicks only where the block is the topmost element, so each click proves the
+  // marker is not covered by the entry it touches.
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  await marker.click();
+  await expect(editor.getByLabel('Description')).toHaveValue('Switch');
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeHidden();
+  await successor.click();
+  await expect(editor.getByLabel('Description')).toHaveValue('Follow-up');
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeHidden();
+
+  const early = (await todayBlock(page, 'Early').boundingBox())!;
+  const late = (await todayBlock(page, 'Late').boundingBox())!;
+  expect(early.width).toBeCloseTo(inner / 2 - 4, 1);
+  expect(late.width).toBeCloseTo(early.width, 1);
+  expect(late.x).toBeGreaterThanOrEqual(early.x + early.width);
+});
+
+// Quick switches inside one half step store several zero-length entries on one grid point. They
+// sit side by side so each stays clickable, and the entry that starts there keeps its full width.
+test('zero-length entries at one instant sit side by side and each opens its own editor', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid, Wednesday 2026-06-17 (CEST): two switches at 09:00, then an entry that starts there.
+  await data.createEntry({ description: 'Switch one', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Switch two', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Follow-up', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 8);
+
+  // Blocks are laid out inside the column's 1px left border.
+  const inner = (await page.locator('.calendar-column.today').boundingBox())!.width - 1;
+  const one = todayBlock(page, 'Switch one');
+  const two = todayBlock(page, 'Switch two');
+  await expect(one).toHaveCSS('top', px(9 * 60));
+  await expect(two).toHaveCSS('top', px(9 * 60));
+  const oneBox = (await one.boundingBox())!;
+  const twoBox = (await two.boundingBox())!;
+  const successorBox = (await todayBlock(page, 'Follow-up').boundingBox())!;
+  expect(oneBox.width).toBeCloseTo(inner / 2 - 4, 1);
+  expect(twoBox.width).toBeCloseTo(oneBox.width, 1);
+  // Side by side, in either order.
+  expect(Math.abs(twoBox.x - oneBox.x)).toBeGreaterThanOrEqual(oneBox.width);
+  expect(successorBox.width).toBeCloseTo(inner - 4, 1);
+
+  // Playwright clicks only where the block is the topmost element.
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  for (const [block, description] of [[one, 'Switch one'], [two, 'Switch two']] as const) {
+    await block.click();
+    await expect(editor.getByLabel('Description')).toHaveValue(description);
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+  }
+});
+
+// A switch within half a step of local midnight stores a zero-length entry there. It belongs to
+// the day that starts at that midnight, and an entry that ends at midnight stays on its own day.
+test('a zero-length entry at local midnight is drawn on the day it starts and opens its editor', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid midnight between Tuesday 2026-06-16 and Wednesday 2026-06-17 (CEST) is 22:00Z.
+  await data.createEntry({ description: 'Midnight switch', start: '2026-06-16T22:00:00Z', stop: '2026-06-16T22:00:00Z' });
+  await data.createEntry({ description: 'Ends at midnight', start: '2026-06-16T21:00:00Z', stop: '2026-06-16T22:00:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 0);
+
+  const marker = todayBlock(page, 'Midnight switch');
+  await expect(marker).toHaveCSS('top', '0px');
+  await expect(marker).toHaveCSS('height', '6px');
+  await expect(page.locator('.calendar-block', { hasText: 'Midnight switch' })).toHaveCount(1);
+  await expect(page.locator('.calendar-block', { hasText: 'Ends at midnight' })).toHaveCount(1);
+  await expect(todayBlock(page, 'Ends at midnight')).toHaveCount(0);
+
+  await marker.click();
+  await expect(page.getByRole('dialog', { name: 'Edit entry' }).getByLabel('Description')).toHaveValue('Midnight switch');
+});
+
+// A zero-length entry is a thin bar over a short entry that starts at the same instant. The bar
+// stays on top and the short entry is drawn tall enough to show below it, so each opens its own editor.
+test('a zero-length entry and a short entry starting with it both open their own editor', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid, Wednesday 2026-06-17 (CEST): 09:00 to 09:00 and 09:00 to 09:05, 11:00 to 11:00 and 11:00 to 11:10.
+  await data.createEntry({ description: 'Switch nine', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Short five', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:05:00Z' });
+  await data.createEntry({ description: 'Switch eleven', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T09:00:00Z' });
+  await data.createEntry({ description: 'Short ten', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T09:10:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 8);
+
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  for (const [marker, short] of [['Switch nine', 'Short five'], ['Switch eleven', 'Short ten']] as const) {
+    const markerBlock = todayBlock(page, marker);
+    const shortBlock = todayBlock(page, short);
+    await expect(markerBlock).toHaveCSS('height', '6px');
+    const markerBox = (await markerBlock.boundingBox())!;
+    const shortBox = (await shortBlock.boundingBox())!;
+    expect(shortBox.y).toBeCloseTo(markerBox.y, 1);
+
+    // Playwright clicks only where the block is the topmost element.
+    await markerBlock.click();
+    await expect(editor.getByLabel('Description')).toHaveValue(marker);
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+    // At least 6px of the short entry show below the marker, and the click lands there.
+    expect(shortBox.y + shortBox.height).toBeGreaterThanOrEqual(markerBox.y + markerBox.height + 6);
+    await shortBlock.click({ position: { x: shortBox.width / 2, y: shortBox.height - 3 } });
+    await expect(editor.getByLabel('Description')).toHaveValue(short);
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+  }
+});
+
 // The running block and the now line use --state-running, the running block is dashed so
-// colour is not its only mark, and only today's day head is a filled badge.
+// colour is not its only mark, and only today's day head is a filled badge: the timer's orange
+// sticker inverted, so the mark is a shape as well as a colour.
 test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
@@ -137,8 +279,9 @@ test('the running block and the now line use the running colour, and today is a 
   await expect(page.locator('.calendar-column.today .calendar-now')).toHaveCSS('background-color', running);
 
   const badge = page.locator('.calendar-day-head.today span');
-  await expect(badge).toHaveCSS('background-color', await token('--primary'));
-  await expect(badge).toHaveCSS('color', await token('--on-primary'));
+  await expect(badge).toHaveCSS('background-color', await token('--on-hue'));
+  await expect(badge).toHaveCSS('color', await token('--hue-orange'));
+  await expect(page.locator('.calendar-day-head.today')).toHaveCSS('background-color', await token('--hue-orange'));
   await expect(page.locator('.calendar-day-head:not(.today) span').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
 });
 

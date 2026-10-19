@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
+import { screenshotExport } from '../scripts/screenshots-data.ts';
 import { currentAccount, expect, test as base } from './fixtures.ts';
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
@@ -103,6 +104,11 @@ export class ReportApi {
     return (await ok(await this.api.get(`/api/v9/me/time_entries/${id}`))).json();
   }
 
+  /** Restores a JSON export into this account, as Settings does, and returns what it could not import. */
+  async importJson(document: unknown): Promise<{ errors: unknown[] }> {
+    return this.send('post', '/api/app/import/json', document);
+  }
+
   /** Posts without failing on an error status, for compatibility endpoints that refuse a request. */
   async rawPost(path: string, data: unknown): Promise<APIResponse> {
     return this.api.post(path, { headers: CSRF, data });
@@ -204,4 +210,76 @@ export async function cellTexts(rows: ReturnType<Page['locator']>): Promise<stri
 /** An instant as the API takes it, without milliseconds. */
 export function iso(ms: number): string {
   return new Date(ms).toISOString().replace('.000Z', 'Z');
+}
+
+/** Formats money the way the page does, with the browser's locale. */
+export function money(page: Page, cents: number, currency: string): Promise<string> {
+  return page.evaluate(([value, code]) => new Intl.NumberFormat(undefined, { style: 'currency', currency: code as string })
+    .format((value as number) / 100), [cents, currency] as const);
+}
+
+/** A Summary report and the Amount figures it shows, as cents and currency. */
+export interface AmountReport {
+  name: string;
+  path: string;
+  amounts: Array<[cents: number, currency: string]>;
+}
+
+/**
+ * Seeds three Summary reports with wide Amount figures: the README screenshots' last 30 days, one
+ * euro figure with six digits before the decimal point, and six-digit figures in two currencies.
+ */
+export async function seedWideAmounts(api: ReportApi): Promise<AmountReport[]> {
+  // The screenshot data ends with a timer running since July, which the README's figure leaves out.
+  const demo = screenshotExport();
+  const restored = await api.importJson({ ...demo, time_entries: demo.time_entries.filter((entry) => entry.stop !== null) });
+  expect(restored.errors, 'the screenshot data restores without errors').toEqual([]);
+  const retainer = await api.project({ name: 'Retainer', billable: true, rate: 89_000, currency: 'EUR' });
+  const licences = await api.project({ name: 'Licences', billable: true, rate: 76_543, currency: 'USD' });
+  for (const start of ['2026-01-05T08:00:00Z', '2026-02-02T08:00:00Z']) {
+    await api.entry({ description: 'Retainer', project_id: retainer, billable: true, start, stop: start.replace('T08', 'T18') });
+  }
+  await api.entry({ description: 'Licences', project_id: licences, billable: true, start: '2026-02-03T08:00:00Z', stop: '2026-02-03T18:00:00Z' });
+  return [
+    { name: 'the README data', path: '/reports?from=2026-06-17&to=2026-07-16', amounts: [[1_150_790, 'EUR']] },
+    { name: 'six digits', path: '/reports?from=2026-01-05&to=2026-01-11', amounts: [[89_000_000, 'EUR']] },
+    { name: 'two currencies', path: '/reports?from=2026-02-02&to=2026-02-08', amounts: [[89_000_000, 'EUR'], [76_543_000, 'USD']] },
+  ];
+}
+
+/**
+ * Opens the report and checks that each Amount figure is on one line and inside its tile, and that
+ * the tile is inside the viewport. Several currencies may wrap between figures, so each figure is
+ * measured on its own, from the line boxes of its text.
+ */
+export async function expectWholeAmounts(page: Page, report: AmountReport): Promise<void> {
+  await page.goto(report.path);
+  const tile = page.locator('.report-totals > div', { hasText: 'Amount' });
+  const figures = await Promise.all(report.amounts.map(([cents, currency]) => money(page, cents, currency)));
+  await expect(tile.locator('.report-amount'), report.name).toHaveText(figures);
+  const layout = await tile.evaluate((card) => {
+    const box = card.getBoundingClientRect();
+    const left = box.left + card.clientLeft;
+    const right = left + card.clientWidth;
+    return {
+      offscreen: box.right - document.documentElement.clientWidth,
+      figures: [...card.querySelectorAll('.report-amount')].map((figure) => {
+        const range = document.createRange();
+        range.selectNodeContents(figure);
+        const tops = [...range.getClientRects()].filter((rect) => rect.width > 0).map((rect) => rect.top).sort((a, b) => a - b);
+        const text = range.getBoundingClientRect();
+        return {
+          text: figure.textContent,
+          lines: tops.filter((top, index) => index === 0 || top - tops[index - 1]! > 1).length,
+          overflow: Math.max(left - text.left, text.right - right),
+        };
+      }),
+    };
+  });
+  const width = page.viewportSize()!.width;
+  expect(layout.offscreen, `${report.name} at ${width}px: the Amount tile overflows the viewport`).toBeLessThanOrEqual(0.5);
+  for (const figure of layout.figures) {
+    expect(figure.lines, `${report.name} at ${width}px: ${figure.text} lines`).toBe(1);
+    expect(figure.overflow, `${report.name} at ${width}px: ${figure.text} overflows its tile`).toBeLessThanOrEqual(0.5);
+  }
 }

@@ -1,5 +1,5 @@
 import { currentAccount, expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { expectSectionHue, login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, openMore, tap, tapNav } from './mobile-tests-helpers.ts';
 
@@ -178,6 +178,31 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(sheet).toBeHidden();
   await expect(more).toBeFocused();
   await expect(more).toHaveAttribute('aria-expanded', 'false');
+});
+
+// The pages under More take More's hue: the More button carries it while one of them is open,
+// and so does the page's link inside the sheet.
+test('the bottom bar, the More button and the More sheet fill the current page in its section hue', async ({ page }) => {
+  await login(page);
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const more = nav.getByRole('button', { name: 'More', exact: true });
+  await expectSectionHue(page, nav.getByRole('link', { name: 'Timer', exact: true }), 'timer');
+  for (const [name, section] of [['Reports', 'reports'], ['Projects', 'projects'], ['Settings', 'settings'], ['Timer', 'timer']] as const) {
+    await tapNav(page, name);
+    await expectSectionHue(page, nav.getByRole('link', { name, exact: true }), section);
+    await expect(more).not.toHaveClass(/\bactive\b/);
+  }
+  for (const name of ['Clients', 'Tags', 'Trash']) {
+    await tapNav(page, name);
+    await expectSectionHue(page, more, 'more');
+    const sheet = await openMore(page);
+    const link = sheet.getByRole('link', { name, exact: true });
+    await expect(link).toHaveAttribute('aria-current', 'page');
+    await expect(nav.locator('[aria-current]')).toHaveCount(1);
+    await expectSectionHue(page, link, 'more');
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+  }
 });
 
 // The More sheet shows who is signed in above Log out. Long values are cut to one line

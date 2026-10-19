@@ -14,11 +14,15 @@
 # The base image is pinned by digest. The Debian archive is not, so the Qt,
 # KDE Frameworks and Plasma versions are whatever trixie and its updates
 # hold on the day of the build; ci/baseline.sh records them and fails the
-# build when they fall below the supported baseline.
+# build when they fall below the supported baseline. scripts/container-check.sh
+# reuses the images until an input in ci/image-id.sh changes.
 
 FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b00e5f67c2d5 AS target
 # Qt warns and falls back to C.UTF-8 under the images' default C locale.
 ENV LANG=C.UTF-8
+# A new value rebuilds every stage against the archive as it is now; see
+# ci/image-id.sh.
+ARG TOKKL_KDE_CI_REFRESH=
 COPY scripts/prepare-target.sh /opt/tokkl-kde/scripts/
 RUN /opt/tokkl-kde/scripts/prepare-target.sh --format deb
 

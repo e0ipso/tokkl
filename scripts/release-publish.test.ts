@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -198,5 +199,92 @@ for (const job of ['gnome-release', 'macos-release']) {
     assert.equal(result.status, 1);
     assert.match(result.stdout, /::error::package\.json at v1\.2\.3 does not have version 1\.2\.3/);
     assert.equal(readFileSync(githubEnv, 'utf8'), '');
+  });
+}
+
+// kde-release's "Record the package" step runs in a checkout: it compares HEAD with REVISION and
+// maps the version with desktop/kde/scripts/native-version.sh, so the sandbox gets a one-commit
+// repository holding that script.
+const RECORD = runScript('kde-release', 'Record the package');
+
+function recordSandbox(t: { after: (fn: () => void) => void }) {
+  const box = sandbox(t);
+  const scripts = join(box.root, 'desktop', 'kde', 'scripts');
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(join(scripts, 'native-version.sh'), readFileSync(NATIVE_VERSION));
+  chmodSync(join(scripts, 'native-version.sh'), 0o755);
+  const git = (...args: string[]) =>
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args], {
+      cwd: box.root,
+      encoding: 'utf8',
+    }).trim();
+  git('init', '--quiet');
+  git('add', 'desktop');
+  git('commit', '--quiet', '-m', 'test: fixture');
+  const revision = git('rev-parse', 'HEAD');
+  const output = join(box.root, 'kde');
+  mkdirSync(output);
+  const release = join(box.root, 'kde-release');
+  const run = (env: Record<string, string>) => runStep(box, RECORD, { OUTPUT: output, DIR: release, REVISION: revision, ...env });
+  return { box, revision, output, release, run };
+}
+
+const sha256Of = (content: string) => createHash('sha256').update(content).digest('hex');
+
+test('kde-release records the DEB with a manifest of its format, version, revision and SHA-256', (t) => {
+  const { revision, output, release, run } = recordSandbox(t);
+  const name = 'tokkl-kde_1.2.3_amd64.deb';
+  writeFileSync(join(output, name), 'deb bytes');
+  writeFileSync(join(output, 'tokkl-kde_1.2.2_amd64.deb'), 'older deb');
+  const result = run({ FORMAT: 'deb', VERSION: '1.2.3' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readdirSync(release).sort(), ['kde-deb.json', name]);
+  assert.equal(readFileSync(join(release, name), 'utf8'), 'deb bytes');
+  assert.deepEqual(JSON.parse(readFileSync(join(release, 'kde-deb.json'), 'utf8')), {
+    format: 'deb',
+    version: '1.2.3',
+    revision,
+    package: name,
+    sha256: sha256Of('deb bytes'),
+  });
+});
+
+test('kde-release records the RPM of a prerelease under its native version', (t) => {
+  const { revision, output, release, run } = recordSandbox(t);
+  const name = 'tokkl-kde-1.3.0~rc1-1.fc44.x86_64.rpm';
+  writeFileSync(join(output, name), 'rpm bytes');
+  const result = run({ FORMAT: 'rpm', VERSION: '1.3.0-rc.1' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readdirSync(release).sort(), ['kde-rpm.json', name]);
+  assert.deepEqual(JSON.parse(readFileSync(join(release, 'kde-rpm.json'), 'utf8')), {
+    format: 'rpm',
+    version: '1.3.0-rc.1',
+    revision,
+    package: name,
+    sha256: sha256Of('rpm bytes'),
+  });
+});
+
+test('kde-release records nothing when the checkout is not the revision being released', (t) => {
+  const { output, release, run } = recordSandbox(t);
+  writeFileSync(join(output, 'tokkl-kde_1.2.3_amd64.deb'), 'deb bytes');
+  const result = run({ FORMAT: 'deb', VERSION: '1.2.3', REVISION: '0'.repeat(40) });
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /::error::checked out [0-9a-f]{40}, expected 0{40}/);
+  assert.equal(existsSync(release), false);
+});
+
+for (const [format, files] of [
+  ['deb', ['tokkl-kde_1.2.2_amd64.deb']],
+  ['rpm', ['tokkl-kde-1.2.2-1.fc44.x86_64.rpm']],
+  ['rpm', ['tokkl-kde-1.2.3-1.fc43.x86_64.rpm', 'tokkl-kde-1.2.3-1.fc44.x86_64.rpm']],
+] as const) {
+  test(`kde-release records nothing for ${format} when the output holds only ${files.join(' and ')}`, (t) => {
+    const { output, release, run } = recordSandbox(t);
+    files.forEach((name) => writeFileSync(join(output, name), 'bytes'));
+    const result = run({ FORMAT: format, VERSION: '1.2.3' });
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, new RegExp(`::error::expected one tokkl-kde ${format} for 1\\.2\\.3 in `));
+    assert.equal(existsSync(release), false);
   });
 }

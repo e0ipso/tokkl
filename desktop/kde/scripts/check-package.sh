@@ -19,8 +19,14 @@
 #      libplasma under Xvfb and a DBus session: <dir> holds the smokeload
 #      binary built for this target and packages.txt, the packages it needs
 #      (its libraries, Xvfb and DBus), which are installed first.
-#   3. Remove: no widget or backend files are left.
-#   4. With --previous (an older tokkl-kde): install it, upgrade to <file>,
+#   3. Remove: no widget or backend files are left. The removal keeps the
+#      dependencies the install brought in, so dependency autoremove is not
+#      checked.
+#   4. With --previous (an older tokkl-kde, a build of this source or a
+#      published release): before anything is installed, check that it is a
+#      tokkl-kde package for this architecture and, for an RPM, this
+#      distribution release, with a version older than <file>'s. After the
+#      first removal install it, upgrade to <file>,
 #      check that only the new package's files are present, load it again
 #      with --load-test, then remove it (purge on Debian).
 # A fixture home with Plasma applet settings and a KDE Wallet file is created
@@ -56,7 +62,12 @@ package="$(realpath "$package")"
 
 plasmoid_id="com.github.e0ipso.tokkl"
 widget_dir="/usr/share/plasma/plasmoids/$plasmoid_id"
-icon_file="/usr/share/icons/hicolor/96x96/apps/$plasmoid_id.png"
+# The widget picker's icon in every hicolor size the package installs; the
+# 96px one is a copy of the panel logo in the widget.
+icon_dir=/usr/share/icons
+icon_sizes="32 48 64 96 128 256"
+icon_file() { echo "$icon_dir/hicolor/${1}x${1}/apps/$plasmoid_id.png"; }
+icon_files="$(for size in $icon_sizes; do icon_file "$size"; done)"
 
 case "$package" in
     *.deb)
@@ -91,7 +102,7 @@ esac
 expected_files="$widget_dir/metadata.json
 $widget_dir/contents/ui/main.qml
 $widget_dir/contents/config/main.xml
-$icon_file
+$icon_files
 $backend_dir/qmldir
 $backend_dir/libtokklbackend.so
 $backend_dir/tokklbackend.qmltypes
@@ -175,11 +186,15 @@ upgrade_file() {
         dnf upgrade -y -q "$1"
     fi
 }
+# Removes tokkl-kde only. apt-get never removes the dependencies with it; dnf
+# does by default, so --no-autoremove keeps them for the next install in this
+# disposable system. Removing dependencies nothing else needs is the package
+# manager's job, so these checks leave it out.
 remove_package() { # [purge]: Debian only, also drops the package's configuration
     if [ "$format" = deb ]; then
         DEBIAN_FRONTEND=noninteractive apt-get "${1:-remove}" -y -q tokkl-kde
     else
-        dnf remove -y -q tokkl-kde
+        dnf remove -y -q --no-autoremove tokkl-kde
     fi
 }
 target_versions() { # the Qt, KDE Frameworks and Plasma packages installed
@@ -253,7 +268,7 @@ check_installed() { # <native version> <semver> <file>
         [ "$metadata" = "$semver_want" ]
     expect "widget picker icon matches the bundled logo" \
         "widget picker icon is missing or differs from the bundled logo" \
-        same_contents "$icon_file" "$widget_dir/contents/images/tokkl.png"
+        same_contents "$(icon_file 96)" "$widget_dir/contents/images/tokkl.png"
     expect "backend qmldir names com.github.e0ipso.tokkl.backend" \
         "backend qmldir does not name com.github.e0ipso.tokkl.backend" \
         grep -qx "module com.github.e0ipso.tokkl.backend" "$backend_dir/qmldir"
@@ -304,6 +319,7 @@ check_loads() {
         XDG_CACHE_HOME="$home/cache" XDG_STATE_HOME="$home/state" \
         QT_QPA_PLATFORM=xcb QT_QUICK_BACKEND=software \
         TOKKL_SMOKE_PLASMOID_DIR="$widget_dir" TOKKL_SMOKE_BACKEND_DIR="$backend_dir" \
+        TOKKL_SMOKE_ICON_DIR="$icon_dir" \
         dbus-run-session -- xvfb-run -a "$load_test/smokeload") || status=$?
     rm -rf "$home"
     if [ "$status" -eq 0 ]; then
@@ -315,7 +331,9 @@ check_loads() {
 
 check_removed() {
     expect "tokkl-kde is not installed" "tokkl-kde is still installed" [ -z "$(installed_version)" ]
-    expect "widget picker icon is gone" "widget picker icon is left behind" [ ! -e "$icon_file" ]
+    while IFS= read -r path; do
+        expect "$path is gone" "$path is left behind" [ ! -e "$path" ]
+    done <<<"$icon_files"
     for dir in "$widget_dir" "$(dirname "$(dirname "$backend_dir")")"; do
         expect "$dir is gone" "$dir is left behind" [ ! -e "$dir" ]
     done
@@ -349,6 +367,42 @@ head -c 56 /dev/urandom > "$fixture_home/.local/share/kwalletd/kdewallet.salt"
 
 inspect "$package" "$native_version"
 
+# The previous package may come from a download, so it has to be the same
+# package for the same target, and older, before it is installed.
+check_previous() {
+    local field got
+    step "check the previous package $(basename "$previous")"
+    case "$previous" in
+        *."$format") ;;
+        *) echo "error: the previous package $previous is not a .$format" >&2; exit 1 ;;
+    esac
+    for field in Package Architecture Version; do
+        got="$(pkg_field "$previous" "$field" 2>&1)" && [ -n "$got" ] \
+            || { echo "error: cannot read the $field of $previous: $got" >&2; exit 1; }
+        case "$field" in
+            Package) [ "$got" = tokkl-kde ] \
+                || { echo "error: $previous is the package $got, not tokkl-kde" >&2; exit 1; } ;;
+            Architecture) [ "$got" = "$expected_arch" ] \
+                || { echo "error: $previous is for $got, not $expected_arch" >&2; exit 1; } ;;
+            Version) previous_version="$got" ;;
+        esac
+    done
+    if [ "$format" = deb ]; then
+        dpkg --compare-versions "$previous_version" lt "$native_version"
+    else
+        local release dist
+        release="$(rpm -qp --qf '%{RELEASE}' "$previous")"
+        dist="$(rpm --eval '%{?dist}')"
+        [ -n "$dist" ] && [ "${release%"$dist"}" != "$release" ] \
+            || { echo "error: $previous has release $release, not one for this system's $dist" >&2; exit 1; }
+        [ "$(OLD="$previous_version" NEW="$native_version" \
+            rpm --eval '%{lua: print(rpm.vercmp(os.getenv("OLD"), os.getenv("NEW")))}')" = -1 ]
+    fi || { echo "error: previous version $previous_version is not older than $native_version" >&2; exit 1; }
+    pass "previous package is tokkl-kde $previous_version for $expected_arch, older than $native_version"
+}
+previous_version=""
+[ -z "$previous" ] || check_previous
+
 step "clean install of $native_version"
 install_file "$package"
 target_versions
@@ -360,14 +414,6 @@ remove_package
 check_removed
 
 if [ -n "$previous" ]; then
-    previous_version="$(pkg_field "$previous" Version)"
-    if [ "$format" = deb ]; then
-        dpkg --compare-versions "$previous_version" lt "$native_version"
-    else
-        [ "$(OLD="$previous_version" NEW="$native_version" \
-            rpm --eval '%{lua: print(rpm.vercmp(os.getenv("OLD"), os.getenv("NEW")))}')" = -1 ]
-    fi || { fail "previous version $previous_version is not older than $native_version"; exit 1; }
-
     step "install $previous_version, then upgrade to $native_version"
     install_file "$previous"
     got="$(installed_version)"

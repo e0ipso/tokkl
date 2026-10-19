@@ -1,6 +1,6 @@
 ---
 name: sift-drain
-description: Use when the user asks to drain or resume a `.ai/sift` backlog end to end. Coordinate related ticket sittings, land their work, and close each wave with tests and lint.
+description: Use when the user asks to drain or resume a `.ai/sift` backlog end to end. Coordinate related ticket sittings, verify each wave and run full checks before PR handoff.
 ---
 
 # Drain Sift
@@ -79,14 +79,18 @@ scripts/read-context.sh FILE HEADING_OR_--all [PAGE]
 scripts/next-ticket.sh --group   # optional cluster hint for planning a sitting
 scripts/ticket-check.sh
 scripts/reserve-ids.sh <count>
-scripts/prepare-worktree.sh <base> <branch> <absolute-new-path>
+scripts/prepare-worktree.sh <base> <branch> <absolute-new-path>  # exit 3: setup failed, worktree kept
 scripts/drain-log.sh dispatch <TICKET>...
 scripts/drain-log.sh return <TICKET> <STATUS>...
 scripts/drain-log.sh report
+scripts/drain-log.sh trace <context> <wave> <stage> <event> <detail>
+scripts/drain-log.sh timed <context> <wave> <stage> <kind> <span> <log> <command>...
 ```
 
-Pass all tickets in a sitting to one dispatch or return call so they share a timestamp.
-Workers stamp their own phases. `drain-log.sh` alone writes `RUNLOG.md`.
+Use keyed trace rows for new runs, as described in [run-management.md](references/run-management.md).
+Give every worker, gate, review, close and PR readiness pass a unique context ID, including
+retries. Workers stamp their own phases. Legacy dispatch/return commands remain readable. `drain-log.sh`
+alone writes `RUNLOG.md`.
 Use `find` and `command grep`, or no-ignore search, inside the usually ignored tracker.
 
 ## Wave graph
@@ -99,6 +103,11 @@ the integration branch's HEAD as the wave's review base before its first landing
 current-wave ticket is already archived, as on a resume, record nothing; the gate derives
 the base from `git log`.
 
+Before the drain's first landing, record its starting integration commit as `drain-base=`
+in a keyed trace phase row. Preserve that base and the run token on resume; recover them
+from RUNLOG and integration history if context was lost. Final verification covers all
+accumulated drain changes, including completed earlier waves.
+
 Repeat until no dispatchable work remains in this wave:
 
 1. Before every dispatch, run `wave-status.sh` and compare ticket snapshots. Read added or
@@ -107,12 +116,15 @@ Repeat until no dispatchable work remains in this wave:
    snapshot, retaining in-flight owners. On first load, a new wave or
    lost context, read that wave's remaining tickets in full. Dependencies and overlapping
    write scopes create sequential edges. Fill available slots with ready, non-overlapping
-   sittings.
-2. Prepare each branch and worktree using `prepare-worktree.sh` from the original
+   sittings within the resource budget in run-management.md.
+2. Assign a unique SITTING_ID, then prepare its branch and worktree using
+   `prepare-worktree.sh` from the original
    repository. Pass the prepared worktree as `PROJECT_ROOT`, its branch, and the original
    project root as `SIFT_ROOT`. Keep the integration checkout for landings. Workers use
-   absolute shared tracker paths; do not replace their `.ai/sift` with a symlink.
-3. Stamp `drain-log.sh dispatch` immediately before dispatch. For a fresh worker, load the
+   absolute shared tracker paths; do not replace their `.ai/sift` with a symlink. On exit 3,
+   do not dispatch that sitting; report it and keep the worktree (see
+   [run-management.md](references/run-management.md)).
+3. Stamp the sitting's keyed dispatch immediately before launch. For a fresh worker, load the
    placeholder preamble and Template section of [ticket-agent-prompt.md](references/ticket-agent-prompt.md)
    and send the fixed contract first, verbatim, followed by its resolved Assignment block.
    Keep assignment values at the end; prepend no ticket summary or coordinator history. For a related sitting
@@ -125,11 +137,12 @@ Repeat until no dispatchable work remains in this wave:
    Bounded documentation or metadata tasks may use a cheaper tier with lower reasoning
    effort, explicit inputs and checks. Apply reasoning effort only where the harness exposes
    it. Honor user preferences.
-5. On return, handle tamper first, then record each ticket's reported status with
-   `drain-log.sh return`. For each done ticket, cherry-pick its commit with `-n`, set
+5. On return, stamp a keyed reported row immediately. Handle tamper first, then
+   record a return row with each ticket's status.
+   For each done ticket, cherry-pick its commit with `-n`, set
    status, resolution and updated, then move it to the mirrored archive path and delete the
    folders the move emptied. Land one commit per ticket, naming its ID in the message and
-   containing implementation and tracker changes where tracked.
+   containing implementation and tracker changes where tracked. Stamp landed after integration.
 6. Assign every filed follow-up to this or a later wave. Run `ticket-check.sh` after your
    bookkeeping and fix any findings. Report one progress line per ticket and surface every
    self-filed ID. Rewire the graph and dispatch newly ready sittings.
@@ -152,8 +165,8 @@ Do not load [wave-gate.md](references/wave-gate.md) during intake or implementat
 At each gate stage, read only its numbered section and send that stage's resolved fence.
 Load section 3 only for failures and section 4 only when capture is warranted. Load section 5
 at close. The order and skip conditions are below; other stage prompts can stay unread.
-Prepare gate worktrees and branches as for implementation workers. Workers from the
-wave do not continue into the gate or the next wave.
+Prepare gate worktrees and branches as for implementation workers, and handle exit 3 the
+same way. Workers from the wave do not continue into the gate or the next wave.
 
 With code review on, read [code-review.md](references/code-review.md) at the
 gate, then run the reviewer and land its fix tickets before stage 1. Otherwise leave it
@@ -161,27 +174,45 @@ unread.
 
 1. Dispatch the e2e specialist alone, after any code review, when an e2e layer can
    reach this wave's behavior. Otherwise record the skip reason. A skipped authoring pass
-   does not remove the full e2e run when that layer exists.
+   does not remove the full e2e obligation at PR readiness when that layer exists.
 2. Build batch coverage input from waived archived resolutions and deferred unsafe
-   sequences. Dispatch the coverage agent next; it may also carry the full-suite close.
-3. Land returned commits, then verify the integrated state with the full test, lint,
-   static-analysis and applicable e2e suites. Keep raw logs on disk. Report commands,
-   exit codes, available counts, failures and absolute log paths, or no-e2e-layer status.
-4. Group failures by root cause. Reserve IDs and file reported defects before dispatching
-   their fixes. Land fix commits and repeat every full run after the last fix.
-5. Work any remaining p1/p2 tickets filed into this wave before closing. Tickets inserted
-   into an already closed wave become the current wave's tail; their deferred coverage
-   belongs to the next gate. Do not reopen a closed gate.
-6. When green, dispatch one knowledge-capture pass if reports contain durable candidates
-   and the project has a capture skill. Land its commit and post the wave summary.
+   sequences. Dispatch the coverage agent next. Both authoring agents run scoped checks;
+   one verification owner carries integrated checks after their commits land.
+3. Capture durable knowledge before the integrated wave checks, once scoped checks
+   are green and known fixes have landed. Use one pass when reports contain durable
+   candidates and a capture skill exists; otherwise record the skip. Land its commit.
+4. Run the required wave checks on the integrated code, tests and captured knowledge
+   using [verification.md](references/verification.md). Keep affected tests, integration
+   smoke and cheap global checks here; record permitted exhaustive checks for PR readiness
+   in RUNLOG. Explicit project requirements take precedence. Reuse only certified
+   identical-tree checks with matching environment and commands. Keep raw logs on disk.
+   Report commands, exit codes, available counts, failures and absolute log paths, or
+   no-e2e-layer status. Required wave checks must pass before closing. List PR checks pending.
+5. Group failures by root cause. Reserve IDs and file reported defects before dispatching
+   their fixes. Land fix commits together. Reconcile any knowledge superseded by fixes,
+   then repeat the invalidated wave checks after the last mutation. Scoped checks do not
+   discharge deferred full-suite obligations.
+6. Work remaining p1/p2 tickets filed into this wave before closing, returning to capture
+   reconciliation and wave verification after their commits land. Tickets inserted into
+   an already closed wave become the current wave's tail; their deferred coverage belongs
+   to the next gate. Do not reopen a closed gate. Post the wave summary after its checks pass.
 
 Continue into the next wave without a human pause.
 
-## Final report at run end
+## Final PR readiness and report
+
+When no dispatchable work remains, run the Final PR readiness pass in
+[verification.md](references/verification.md). This is required even when every wave closed.
+Reconcile deferred checks with project requirements and the full accumulated drain diff,
+then run required local full suites after the last mutation. Required local failures or
+unavailable checks block local PR readiness. CI-only checks remain explicitly pending for
+the PR and must pass before full green. Keep the project's local/CI split. Do not push or
+open a PR under this skill.
 
 Report wave state, blocked tickets and reasons, all filed tickets, the code review
 choice with per-wave finding counts or skip reasons, and the timing table from
-`drain-log.sh report`.
+`drain-log.sh report`. Include local PR readiness, full-check commands/results/logs and every
+pending local or CI check, including on a paused or blocked handoff.
 
 ## Contract pins
 
@@ -200,6 +231,10 @@ choice with per-wave finding counts or skip reasons, and the timing table from
 @PIN: src/skills/sift-drain/references/wave-gate.md You are the knowledge-capture pass closing Wave {{WAVE}} of the sift roadmap in
 @PIN: src/skills/sift-drain/references/code-review.md You are an independent code reviewer for Wave {{WAVE}} of the sift roadmap in
 @PIN: src/skills/sift-drain/references/code-review.md ## Handling findings
+@PIN: src/skills/sift-drain/references/verification.md ## Choose checks by stage
+@PIN: src/skills/sift-drain/references/verification.md ## Final PR readiness pass
+@PIN: src/skills/sift-drain/scripts/verify-tree.sh clean_tree() {
+@PIN: src/skills/sift-drain/scripts/drain-log.sh trace_row() {
 @PIN: src/skills/sift-drain/references/run-management.md ## Ticket intake
 @PIN: src/skills/sift-drain/references/run-management.md ## Worker check-back
 @PIN: src/skills/sift-drain/references/run-management.md ## Reporting to the user

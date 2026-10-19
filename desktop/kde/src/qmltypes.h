@@ -2,9 +2,10 @@
 
 // QML names for the backend classes. The core classes live in the tokklcore
 // library, which the tests link without QML. QML creates the KDE types from
-// the tokklkde library, which inject KDE Wallet and the network; the core
-// classes they extend have no QML name.
+// the tokklkde library, which inject KDE Wallet, the network and the
+// widget's configuration; the core classes they extend have no QML name.
 
+#include "appletchainstore.h"
 #include "connection.h"
 #include "connectionsetup.h"
 #include "kdeconnection.h"
@@ -34,6 +35,12 @@ struct TokklConnectionSetupForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::KdeConnectionSetup)
     QML_NAMED_ELEMENT(TokklConnectionSetup)
+};
+
+struct TokklChainStoreForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::AppletChainStore)
+    QML_NAMED_ELEMENT(TokklChainStore)
 };
 
 struct TokklTimerForeign {

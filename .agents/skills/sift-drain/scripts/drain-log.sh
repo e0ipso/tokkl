@@ -27,6 +27,8 @@ usage() {
   echo "       drain-log.sh phase orient|implement|verify|bookkeep" >&2
   echo "       drain-log.sh return <TICKET> <STATUS>..." >&2
   echo "       drain-log.sh report" >&2
+  echo "       drain-log.sh trace <context> <wave> <stage> <event> <detail>" >&2
+  echo "       drain-log.sh timed <context> <wave> <stage> <kind> <span> <log> <command>..." >&2
   echo "note: -- ends the options; it may stand in front of the subcommand" >&2
   exit 2
 }
@@ -64,6 +66,11 @@ stamp() {
 # Create the header lazily on the first write.
 ensure_log() {
   [ -f "$LOG" ] || {
+    local draft
+    draft=$(mktemp "$SIFT/.runlog.XXXXXX") || {
+      echo "error: cannot create the run log: $LOG" >&2
+      exit 2
+    }
     {
       echo "# Run log"
       echo
@@ -71,10 +78,20 @@ ensure_log() {
       echo
       echo "| event | ticket | phase | utc | epoch | status |"
       echo "|---|---|---|---|---|---|"
-    } > "$LOG" || {
+    } > "$draft" || {
+      rm -f "$draft"
       echo "error: cannot create the run log: $LOG" >&2
       exit 2
     }
+    chmod +rw "$draft"
+    if ln "$draft" "$LOG" 2>/dev/null; then
+      :
+    elif [ ! -f "$LOG" ]; then
+      rm -f "$draft"
+      echo "error: cannot publish the run log: $LOG" >&2
+      exit 2
+    fi
+    rm -f "$draft"
   }
 }
 
@@ -85,6 +102,72 @@ append_row() {
     echo "error: cannot append to the run log: $LOG" >&2
     exit 2
   }
+}
+
+# Additive trace rows keep the six-column schema. Contexts are caller-assigned,
+# globally unique per sitting, including retries. No clock-based membership.
+trace_row() {
+  stamp
+  ensure_log
+  append_row "trace-$4" "$1" "$2/$3" "$UTC" "$EPOCH" "$5"
+}
+
+trace_args() {
+  local value
+  for value in "$1" "$3" "$4"; do
+    [ "${#value}" -le 100 ] || { echo 'error: trace token too long' >&2; exit 2; }
+    case "$value" in
+      ''|*[![:alnum:]_.:-]*) echo "error: invalid trace token: $value" >&2; exit 2 ;;
+    esac
+  done
+  case "$2" in ''|*[!0-9]*|0) echo 'error: trace wave must be positive' >&2; exit 2 ;; esac
+  case "$5" in
+    *'|'*|*$'\n'*|*$'\r'*) echo 'error: trace detail must be one pipe-free line' >&2; exit 2 ;;
+  esac
+  [ "${#5}" -le 2000 ] || { echo 'error: trace detail too long' >&2; exit 2; }
+}
+
+trace_report() {
+  awk -F'|' '
+    function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+    function field(s, key,   a,n,i) {
+      n = split(s,a," "); for (i=1;i<=n;i++) if (index(a[i],key "=")==1) return substr(a[i],length(key)+2)
+      return ""
+    }
+    /^\| trace-/ {
+      event=trim($2); id=trim($3); stage=trim($4); t=trim($6); detail=trim($7)
+      if (t !~ /^[0-9]+$/) { print "trace corrupt epoch: " id; next }
+      if (!(id in seen)) { order[++n]=id; seen[id]=1; scope[id]=stage }
+      if (event=="trace-dispatch") start[id]=t
+      if (event=="trace-return") finish[id]=t
+      if (event=="trace-first-edit") { edit[id]=t; tools[id]=field(detail,"tools") }
+      if (event=="trace-reported") receipt[id]=t
+      if (event=="trace-landed") landing[id]=t
+      if (event=="trace-metric") metrics[id]=metrics[id] "\n  reported nested metric: " detail
+      if (event=="trace-check") checks[id]=checks[id] "\n  recorded check: " detail
+      if (event=="trace-command-start" || event=="trace-wait-start") {
+        span=field(detail,"span"); k=id SUBSEP span
+        begin[k]=t; kind[k]=field(detail,"kind"); if (event=="trace-wait-start") kind[k]="wait"
+      }
+      if (event=="trace-command-end" || event=="trace-wait-end") {
+        span=field(detail,"span"); k=id SUBSEP span
+        if (k in begin && t>=begin[k]) { duration[id SUBSEP kind[k]]+=t-begin[k]; delete begin[k] }
+        else print "trace orphan or negative span: " id " " span
+      }
+    }
+    END {
+      for (i=1;i<=n;i++) {
+        id=order[i]; print "\ncontext " id " (" scope[id] ")"
+        print "  runtime: " ((id in start && id in finish && finish[id]>=start[id]) ? finish[id]-start[id] "s" : "unknown")
+        print "  orientation: " ((id in start && id in edit && edit[id]>=start[id]) ? edit[id]-start[id] "s; tools=" tools[id] : "unknown; first edit not stamped")
+        print "  report to landing: " ((id in receipt && id in landing && landing[id]>=receipt[id]) ? landing[id]-receipt[id] "s" : "unknown")
+        for (k in duration) { split(k,a,SUBSEP); if (a[1]==id) print "  command " a[2] ": " duration[k] "s (inclusive span sum)" }
+        for (k in begin) { split(k,a,SUBSEP); if (a[1]==id) print "  incomplete span: " a[2] }
+        if (metrics[id]!="") printf "%s\n", metrics[id]
+        if (checks[id]!="") printf "%s\n", checks[id]
+      }
+    }
+  ' "$LOG"
 }
 
 # Report groups using integer arithmetic on epoch; never parse UTC with
@@ -176,6 +259,7 @@ report() {
     {
       event = trim($2); ticket = trim($3); phase = trim($4)
       epoch = trim($6); status = trim($7)
+      if (event ~ /^trace-/) have_trace=1
       if (event != "dispatch" && event != "return" && event != "phase") next
 
       if (epoch !~ /^[0-9]+$/) {
@@ -224,7 +308,8 @@ report() {
       if (og) close_group(-1)
 
       if (nrec == 0) {
-        print "no drain events recorded in " logpath
+        if (have_trace) print "legacy groups: none (keyed trace contexts follow)"
+        else print "no drain events recorded in " logpath
         exit 0
       }
 
@@ -290,6 +375,34 @@ MODE="${1:-}"
 
 # Validate the entire command before creating the header or appending a row.
 case "$MODE" in
+  trace)
+    [ $# -eq 5 ] || usage
+    trace_args "$@"
+    trace_row "$@"
+    ;;
+  timed)
+    [ $# -ge 7 ] || usage
+    context=$1; wave=$2; stage=$3; kind=$4; span=$5; logfile=$6
+    shift 6
+    case "$logfile" in /*) ;; *) echo 'error: timed log must be absolute' >&2; exit 2 ;; esac
+    head=$(git rev-parse HEAD 2>/dev/null) || head=unknown
+    tree=unknown
+    if [ "$head" != unknown ]; then
+      state=$(git status --porcelain --untracked-files=all --ignore-submodules=none) || exit 2
+      if [ -z "$state" ]; then tree=$(git rev-parse 'HEAD^{tree}') || exit 2; fi
+    fi
+    argv=$(printf '%q\n' "$@" | cksum | awk '{print $1 "-" $2}')
+    detail="span=$span kind=$kind commit=$head tree=$tree argv=$argv env=${SIFT_LOG_ENV:-unknown} log=$logfile"
+    trace_args "$context" "$wave" "$stage" command-start "$detail"
+    trace_args "$span" "$wave" "$stage" "$kind" '-'
+    # Refuse to overwrite another run. The caller owns the directory and log.
+    (set -o noclobber; : > "$logfile") || exit 2
+    trace_row "$context" "$wave" "$stage" command-start "$detail"
+    "$@" >> "$logfile" 2>&1
+    result=$?
+    trace_row "$context" "$wave" "$stage" command-end "span=$span exit=$result log=$logfile"
+    exit "$result"
+    ;;
   dispatch)
     [ $# -ge 1 ] || usage
     for arg in "$@"; do require_ticket_id "$arg"; done
@@ -331,6 +444,7 @@ case "$MODE" in
   report)
     [ $# -eq 0 ] || usage
     report
+    trace_report
     exit $?
     ;;
   *) usage ;;

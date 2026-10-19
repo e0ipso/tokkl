@@ -15,7 +15,7 @@ const Timer1Proxy = Gio.DBusProxy.makeProxyWrapper(TIMER1_INTERFACE);
 
 export default class TokklExtension extends Extension {
     enable() {
-        this._indicator = new TokklIndicator(() => this.openPreferences());
+        this._indicator = new TokklIndicator(this.dir.get_child('tokkl.png'), () => this.openPreferences());
         Main.panel.addToStatusArea(this.uuid, this._indicator);
 
         // Creating the proxy starts tokkl-timerd through D-Bus activation

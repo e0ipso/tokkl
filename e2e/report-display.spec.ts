@@ -1,17 +1,11 @@
 import type { Locator, Page } from '@playwright/test';
-import { cellTexts, expect, hms, iso, test, type ReportApi } from './report-tests-helpers.ts';
+import { cellTexts, expect, expectWholeAmounts, hms, iso, money, seedWideAmounts, test, type ReportApi } from './report-tests-helpers.ts';
 import { login } from './helpers.ts';
 
 const WEEK = '/reports?from=2026-01-05&to=2026-01-11';
 
 const total = (page: Page, label: string) => page.locator('.report-totals div', { hasText: label }).locator('dd');
 const tab = (page: Page, name: string) => page.getByRole('tablist', { name: 'Report type' }).getByRole('tab', { name });
-
-/** Formats money the way the page does, with the browser's locale. */
-function money(page: Page, cents: number, currency: string): Promise<string> {
-  return page.evaluate(([value, code]) => new Intl.NumberFormat(undefined, { style: 'currency', currency: code as string })
-    .format((value as number) / 100), [cents, currency] as const);
-}
 
 async function chartRows(page: Page): Promise<string[][]> {
   const details = page.locator('details.chart-data');
@@ -94,6 +88,16 @@ test('summary totals, groups, chart and weekly grid reconcile with known data an
   await expect(total(page, 'Amount')).toHaveText(euros);
   await expect(breakdown.getByRole('columnheader', { name: 'Amount' })).toBeVisible();
   await expect.poll(() => cellTexts(breakdown.locator('tbody tr'))).toEqual([['Beta', '1:30:00', '100.0%', euros]]);
+});
+
+// 768px is a tablet in portrait; 900px and 1280px are narrow and common desktop windows.
+test('each Amount figure stays on one line inside its tile from a tablet to a desktop window', async ({ page, api }) => {
+  const reports = await seedWideAmounts(api);
+  await login(page);
+  for (const width of [1280, 900, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const report of reports) await expectWholeAmounts(page, report);
+  }
 });
 
 // Non-billable bars are striped as well as coloured, the legend is read out, and the

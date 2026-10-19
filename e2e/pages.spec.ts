@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { expectSectionHue, login } from './helpers.ts';
 
 test('every page renders without errors and core management flows work', async ({ page }) => {
   // The runtimeErrors fixture fails this scenario on any page error, console error or failed request.
@@ -57,6 +57,20 @@ test('deleting a client renames its project when a clientless one has the same n
   expect(projects.map((p: { id: number; name: string; client_id: number | null }) => [p.id, p.name, p.client_id]))
     .toEqual(expect.arrayContaining([[kept.id, 'Website', null], [moved.id, 'Website (Acme)', null]]));
   expect(projects).toHaveLength(2);
+});
+
+// The pages that a phone keeps under More take More's hue in the sidebar too.
+test('the sidebar fills the current page in its section hue and main carries that section', async ({ page }) => {
+  await login(page);
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const pages = [['Timer', 'timer'], ['Reports', 'reports'], ['Projects', 'projects'], ['Clients', 'more'], ['Tags', 'more'], ['Trash', 'more'], ['Settings', 'settings']] as const;
+  for (const [name, section] of [...pages, pages[0]]) {
+    const link = nav.getByRole('link', { name, exact: true });
+    await link.click();
+    await expect(link).toHaveAttribute('aria-current', 'page');
+    await expect(nav.locator('[aria-current]')).toHaveCount(1);
+    await expectSectionHue(page, link, section);
+  }
 });
 
 test('logging out from the menu and from settings ends the session', async ({ page }) => {

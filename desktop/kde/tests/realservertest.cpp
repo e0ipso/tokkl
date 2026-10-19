@@ -35,12 +35,18 @@ constexpr int timeoutMs = 15000;
 // How long a check for "nothing else happens" waits in real time, on top of
 // moving the fake clock past several poll intervals.
 constexpr int quietMs = 2000;
+// The instances' default time resolution, in seconds.
+constexpr qint64 resolutionSeconds = 300;
 
 struct Entry {
     qint64 id = 0;
     qint64 workspaceId = 0;
     QString description;
     QDateTime start;
+    std::optional<qint64> projectId;
+    std::optional<qint64> taskId;
+    QStringList tags; // sorted
+    bool billable = false;
 };
 
 struct User {
@@ -96,10 +102,22 @@ bool loadFixture(QString *error)
         }
         const QJsonValue running = object.value(QStringLiteral("running"));
         if (running.isObject()) {
-            user.running = Entry{running[QStringLiteral("id")].toInteger(),
-                                 running[QStringLiteral("wid")].toInteger(),
-                                 running[QStringLiteral("description")].toString(),
-                                 QDateTime::fromString(running[QStringLiteral("start")].toString(), Qt::ISODateWithMs)};
+            Entry entry;
+            entry.id = running[QStringLiteral("id")].toInteger();
+            entry.workspaceId = running[QStringLiteral("wid")].toInteger();
+            entry.description = running[QStringLiteral("description")].toString();
+            entry.start = QDateTime::fromString(running[QStringLiteral("start")].toString(), Qt::ISODateWithMs);
+            if (running[QStringLiteral("project_id")].isDouble()) {
+                entry.projectId = running[QStringLiteral("project_id")].toInteger();
+            }
+            if (running[QStringLiteral("task_id")].isDouble()) {
+                entry.taskId = running[QStringLiteral("task_id")].toInteger();
+            }
+            for (const QJsonValue &tag : running[QStringLiteral("tags")].toArray()) {
+                entry.tags.append(tag.toString());
+            }
+            entry.billable = running[QStringLiteral("billable")].toBool();
+            user.running = entry;
         }
         fixture.users.insert(user.key, user);
     }
@@ -288,6 +306,18 @@ bool isWrite(const QByteArray &method)
 {
     return method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE";
 }
+
+QStringList sorted(QStringList list)
+{
+    list.sort();
+    return list;
+}
+
+// The companion's H:MM, in whole minutes.
+QString hoursAndMinutes(qint64 seconds)
+{
+    return QStringLiteral("%1:%2").arg(seconds / 3600).arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'));
+}
 }
 
 class RealServerTest : public QObject
@@ -381,7 +411,7 @@ private Q_SLOTS:
         const QByteArray auth = tokenAuthorization(u);
         const QString foreign = QStringLiteral("/workspaces/%1/time_entries").arg(admin.workspaceId);
         const QList<std::tuple<QByteArray, QString, QByteArray>> attempts = {
-            {"POST", foreign, encodeStartEntry(StartEntry{QDateTime::currentDateTimeUtc(), QString(), std::nullopt, false}, admin.workspaceId, QStringLiteral("tokkl-kde"))},
+            {"POST", foreign, encodeStartEntry(StartEntry{QDateTime::currentDateTimeUtc(), QString(), std::nullopt, false, std::nullopt, {}}, admin.workspaceId, QStringLiteral("tokkl-kde"))},
             {"PATCH", foreign + QStringLiteral("/%1/stop").arg(admin.running->id), QByteArray()},
             {"PUT", foreign + QStringLiteral("/%1").arg(admin.running->id), encodeTimeEntryUpdate(TimeEntryUpdate{QStringLiteral("changed by another user"), {}, {}, true, {}})},
         };
@@ -589,6 +619,174 @@ private Q_SLOTS:
         }
 
         checkRefusedAndQuiet(s);
+    }
+
+    // Pause and resume against the server. The clone copies the task, the
+    // tags and the billable flag, and the chain total is what the server
+    // stored for the stopped entries. Once the task, and then the project, are
+    // gone, a resume is refused with 404 and the server's message, creates
+    // nothing and leaves the chain paused. The message stays through the
+    // reads that follow; stop then only clears the chain and the message.
+    void pauseAndResume()
+    {
+        const User &p = user(QStringLiteral("a.p"));
+        QVERIFY(p.running && p.running->projectId && p.running->taskId && p.running->billable);
+        QVERIFY(!p.running->tags.isEmpty());
+
+        Session s;
+        s.signIn(p);
+        QTRY_VERIFY_WITH_TIMEOUT(s.ready(p), timeoutMs);
+        const TimeEntry seeded = *s.timer.currentEntry();
+        QCOMPARE(seeded.id, p.running->id);
+        QCOMPARE(seeded.projectId, p.running->projectId);
+        QCOMPARE(seeded.taskId, p.running->taskId);
+        QCOMPARE(sorted(seeded.tags), p.running->tags);
+        QVERIFY(seeded.billable);
+
+        QVERIFY(s.timer.pause());
+        QTRY_VERIFY_WITH_TIMEOUT(s.timer.isPaused() && s.timer.canWrite(), timeoutMs);
+        QVERIFY(!s.timer.isRunning());
+        QVERIFY(!s.timer.currentEntry());
+        const qint64 paused = s.timer.chainSeconds();
+        QVERIFY2(paused > 0 && paused % resolutionSeconds == 0, qPrintable(QString::number(paused)));
+        QCOMPARE(s.timer.elapsedSeconds(), paused);
+        QCOMPARE(s.timer.elapsedText(), hoursAndMinutes(paused));
+
+        const qsizetype beforeResume = s.transport.log.size();
+        QVERIFY(s.timer.resume());
+        QTRY_VERIFY_WITH_TIMEOUT(s.timer.isRunning() && s.timer.canWrite(), timeoutMs);
+        QCOMPARE(s.transport.since(beforeResume, "POST").size(), 1);
+        const TimeEntry clone = *s.timer.currentEntry();
+        QVERIFY(clone.id != seeded.id);
+        QCOMPARE(clone.workspaceId, p.workspaceId);
+        QCOMPARE(clone.description, seeded.description);
+        QCOMPARE(clone.projectId, seeded.projectId);
+        QCOMPARE(clone.taskId, seeded.taskId);
+        QCOMPARE(sorted(clone.tags), p.running->tags);
+        QVERIFY(clone.billable);
+        QVERIFY(!s.timer.isPaused());
+        QCOMPARE(s.timer.chainSeconds(), paused);
+        QVERIFY(s.timer.elapsedSeconds() >= paused);
+
+        // The clone stops seconds after it started; the stop keeps one step.
+        QVERIFY(s.timer.pause());
+        QTRY_VERIFY_WITH_TIMEOUT(s.timer.isPaused() && s.timer.canWrite(), timeoutMs);
+        const qint64 total = s.timer.chainSeconds();
+        QCOMPARE(total, paused + resolutionSeconds);
+        QCOMPARE(s.timer.elapsedText(), hoursAndMinutes(total));
+
+        const QByteArray auth = tokenAuthorization(p);
+        const QString projectPath = QStringLiteral("/workspaces/%1/projects/%2").arg(p.workspaceId).arg(*p.running->projectId);
+        // The server checks the task before the project, so a resume after the
+        // project went with its task is refused for the task too.
+        const QStringList removals = {projectPath + QStringLiteral("/tasks/%1").arg(*p.running->taskId), projectPath};
+        QStringList errors;
+        connect(&s.timer, &TimerController::statusChanged, this, [&s, &errors] {
+            if (!s.timer.errorString().isEmpty() && (errors.isEmpty() || errors.last() != s.timer.errorString())) {
+                errors.append(s.timer.errorString());
+            }
+        });
+        for (const QString &path : removals) {
+            QCOMPARE(sendRaw("DELETE", p, auth, path).status, 200);
+            const qsizetype before = s.transport.log.size();
+            errors.clear();
+            QVERIFY(s.timer.resume());
+            QTRY_VERIFY_WITH_TIMEOUT(s.transport.since(before, "POST").size() == 1 && s.transport.since(before, "POST").first()->response, timeoutMs);
+            QCOMPARE(s.transport.since(before, "POST").first()->response->status, 404);
+            // The read that follows the refusal.
+            QTRY_VERIFY_WITH_TIMEOUT(!s.transport.since(before, "GET", QStringLiteral("/me/time_entries/current")).isEmpty()
+                                         && s.transport.since(before, "GET", QStringLiteral("/me/time_entries/current")).last()->response
+                                         && s.timer.canWrite(),
+                                     timeoutMs);
+            QCOMPARE(errors, QStringList{QStringLiteral("Task not found")});
+            // The read leaves the refusal on show.
+            QCOMPARE(s.timer.errorString(), QStringLiteral("Task not found"));
+            QCOMPARE(s.timer.status(), TimerController::Error);
+            QVERIFY(s.timer.isPaused());
+            QVERIFY(!s.timer.isRunning());
+            QCOMPARE(s.timer.chainSeconds(), total);
+            QCOMPARE(s.timer.elapsedText(), hoursAndMinutes(total));
+        }
+
+        // Polls keep it too, until the next action.
+        s.idle();
+        QCOMPARE(s.timer.errorString(), QStringLiteral("Task not found"));
+        QCOMPARE(s.timer.status(), TimerController::Error);
+        QVERIFY(s.timer.isPaused());
+
+        const qsizetype beforeStop = s.transport.log.size();
+        QVERIFY(s.timer.stop());
+        QCOMPARE(s.timer.status(), TimerController::Ready);
+        QVERIFY(!s.timer.isPaused());
+        QCOMPARE(s.timer.errorString(), QString());
+        QCOMPARE(s.timer.elapsedSeconds(), 0);
+        QCOMPARE(s.timer.elapsedText(), QStringLiteral("0:00"));
+        s.idle();
+        for (const auto &exchange : s.transport.since(beforeStop)) {
+            QVERIFY2(!isWrite(exchange->request.method), exchange->request.method.constData());
+        }
+        QVERIFY(!s.timer.currentEntry());
+    }
+
+    // A chain with a project and no task: once the project is gone, a resume
+    // is refused with 404 and "Project not found", creates nothing and leaves
+    // the chain paused with the message through the reads that follow.
+    void resumeRefusedForDeletedProject()
+    {
+        const User &q = user(QStringLiteral("a.q"));
+        QVERIFY(q.running && q.running->projectId && !q.running->taskId);
+
+        Session s;
+        s.signIn(q);
+        QTRY_VERIFY_WITH_TIMEOUT(s.ready(q), timeoutMs);
+        QCOMPARE(s.timer.currentEntry()->id, q.running->id);
+
+        QVERIFY(s.timer.pause());
+        QTRY_VERIFY_WITH_TIMEOUT(s.timer.isPaused() && s.timer.canWrite(), timeoutMs);
+        const qint64 paused = s.timer.chainSeconds();
+        QVERIFY2(paused > 0 && paused % resolutionSeconds == 0, qPrintable(QString::number(paused)));
+
+        const QString projectPath = QStringLiteral("/workspaces/%1/projects/%2").arg(q.workspaceId).arg(*q.running->projectId);
+        QCOMPARE(sendRaw("DELETE", q, tokenAuthorization(q), projectPath).status, 200);
+
+        QStringList errors;
+        connect(&s.timer, &TimerController::statusChanged, this, [&s, &errors] {
+            if (!s.timer.errorString().isEmpty() && (errors.isEmpty() || errors.last() != s.timer.errorString())) {
+                errors.append(s.timer.errorString());
+            }
+        });
+        const qsizetype before = s.transport.log.size();
+        QVERIFY(s.timer.resume());
+        QTRY_VERIFY_WITH_TIMEOUT(s.transport.since(before, "POST").size() == 1 && s.transport.since(before, "POST").first()->response, timeoutMs);
+        QCOMPARE(s.transport.since(before, "POST").first()->response->status, 404);
+        // The read that follows the refusal.
+        QTRY_VERIFY_WITH_TIMEOUT(!s.transport.since(before, "GET", QStringLiteral("/me/time_entries/current")).isEmpty()
+                                     && s.transport.since(before, "GET", QStringLiteral("/me/time_entries/current")).last()->response
+                                     && s.timer.canWrite(),
+                                 timeoutMs);
+        QCOMPARE(errors, QStringList{QStringLiteral("Project not found")});
+        QCOMPARE(s.timer.errorString(), QStringLiteral("Project not found"));
+        QCOMPARE(s.timer.status(), TimerController::Error);
+        QVERIFY(s.timer.isPaused());
+        QVERIFY(!s.timer.isRunning());
+        QCOMPARE(s.timer.chainSeconds(), paused);
+
+        s.idle();
+        QCOMPARE(s.transport.since(before, "POST").size(), 1);
+        QCOMPARE(s.timer.errorString(), QStringLiteral("Project not found"));
+        QCOMPARE(s.timer.status(), TimerController::Error);
+        QVERIFY(s.timer.isPaused());
+
+        const qsizetype beforeStop = s.transport.log.size();
+        QVERIFY(s.timer.stop());
+        QCOMPARE(s.timer.status(), TimerController::Ready);
+        QVERIFY(!s.timer.isPaused());
+        QCOMPARE(s.timer.errorString(), QString());
+        s.idle();
+        for (const auto &exchange : s.transport.since(beforeStop)) {
+            QVERIFY2(!isWrite(exchange->request.method), exchange->request.method.constData());
+        }
+        QVERIFY(!s.timer.currentEntry());
     }
 
     void cleanupTestCase()

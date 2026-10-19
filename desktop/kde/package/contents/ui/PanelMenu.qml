@@ -6,15 +6,17 @@ import org.kde.plasma.components as PlasmaComponents
 
 import com.github.e0ipso.tokkl.backend
 
-// The panel item's menu: state, Project, Billable, Reconnect, Open Tokkl and
-// Configure. Arrow keys move, Right opens Project, Return or Space triggers
-// and Escape closes.
+// The panel item's menu: state, Start or Stop, Project, Billable, Reconnect,
+// Open Tokkl and Configure. Arrow keys move, Right opens Project, Return or
+// Space triggers and Escape closes.
 //
-// Project sets only the project of the next start and is locked while an
-// entry runs: changing it means stopping and starting a new entry. Billable
-// sets the next start too and, while an entry runs, edits that entry in
-// place. Both are disabled whenever the timer cannot write, so nothing is
-// queued for another account.
+// Stop ends the timer and its pause chain; while paused nothing runs on the
+// server, so it only clears the chain. Project sets only the project of the
+// next start and is locked while an entry runs or is paused: changing it
+// means stopping and starting a new entry. Billable sets the next start too
+// and, while an entry runs, edits that entry in place; while paused the
+// timer refuses it. Both are disabled whenever the timer cannot write, so
+// nothing is queued for another account.
 PlasmaComponents.Menu {
     id: menu
 
@@ -22,6 +24,7 @@ PlasmaComponents.Menu {
     required property StatusText words
 
     property alias stateItem: stateItem
+    property alias runItem: runItem
     property alias projectMenu: projectMenu
     property alias noProjectItem: noProjectItem
     property alias billableItem: billableItem
@@ -65,15 +68,29 @@ PlasmaComponents.Menu {
         Accessible.description: menu.words.detailText
     }
 
+    PlasmaComponents.MenuItem {
+        id: runItem
+
+        // Running or paused: the chain is open until Stop.
+        readonly property bool stops: menu.timer.running || menu.timer.paused
+
+        text: runItem.stops ? i18nc("@action:inmenu", "Stop") : i18nc("@action:inmenu", "Start")
+        icon.name: runItem.stops ? "media-playback-stop" : "media-playback-start"
+        // Stop while paused sends nothing, so it waits only for a mutation.
+        enabled: menu.timer.paused ? !menu.timer.busy : menu.timer.canWrite
+        onTriggered: runItem.stops ? menu.timer.stop() : menu.timer.start()
+    }
+
     PlasmaComponents.Menu {
         id: projectMenu
 
-        readonly property bool hasArchived: menu.timer.running && menu.timer.entryProject !== null && !menu.timer.entryProject.active
+        readonly property bool hasArchived: (menu.timer.running || menu.timer.paused) && menu.timer.entryProject !== null && !menu.timer.entryProject.active
         // Items before the active projects: No project and the archived one.
         readonly property int fixedCount: 1 + (hasArchived ? 1 : 0)
 
-        // A choice is possible: the timer can write and nothing runs.
-        readonly property bool choosable: menu.timer.canWrite && !menu.timer.running
+        // A choice is possible: the timer can write, nothing runs and no
+        // chain is paused.
+        readonly property bool choosable: menu.timer.canWrite && !menu.timer.running && !menu.timer.paused
 
         popupType: T.Popup.Window
         delegate: PlasmaComponents.MenuItem {}
@@ -137,7 +154,7 @@ PlasmaComponents.Menu {
         id: billableItem
         text: i18nc("@option:check", "Billable")
         selected: menu.timer.chosenBillable
-        enabled: menu.timer.canWrite
+        enabled: menu.timer.canWrite && !menu.timer.paused
         onTriggered: menu.timer.chooseBillable(!menu.timer.chosenBillable)
     }
 

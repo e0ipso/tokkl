@@ -69,6 +69,12 @@ const BASELINE_PREFERENCES = {
   timeofday_format: 'H:mm',
   timerView: 'list',
   theme: 'system',
+  pomodoro_enabled: false,
+  pomodoro_focus_interval_in_minutes: 25,
+  pomodoro_break_interval_in_minutes: 5,
+  pomodoro_long_break_interval_in_minutes: 15,
+  pomodoro_long_break_every: 4,
+  pomodoro_stop_timer_at_end: true,
 };
 
 interface SeedEntry {

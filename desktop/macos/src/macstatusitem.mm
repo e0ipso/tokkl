@@ -1,7 +1,9 @@
 #include "macstatusitem.h"
 
 #include <QColor>
+#include <QImage>
 #include <QMenu>
+#include <QRect>
 
 #include <functional>
 #include <utility>
@@ -99,6 +101,31 @@ void paintIndicator(const Tokkl::ProjectIndicator &indicator, double fillOpacity
     [ink setStroke];
     [ring stroke];
 }
+
+// The rect in an unflipped image of the given height, whose origin is at the
+// bottom left.
+NSRect toNSRect(const QRect &rect, int imageHeight)
+{
+    return NSMakeRect(rect.x(), imageHeight - rect.y() - rect.height(), rect.width(), rect.height());
+}
+
+// One NSImage with a representation per image, so AppKit picks the pixels
+// that match the screen.
+NSImage *toNSImage(const QList<QImage> &images, NSSize size)
+{
+    NSImage *image = [[NSImage alloc] initWithSize:size];
+    for (const QImage &pixels : images) {
+        CGImageRef cgImage = pixels.convertToFormat(QImage::Format_ARGB32_Premultiplied).toCGImage();
+        if (!cgImage) {
+            continue;
+        }
+        NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
+        CGImageRelease(cgImage);
+        rep.size = size;
+        [image addRepresentation:rep];
+    }
+    return image;
+}
 }
 
 namespace Tokkl
@@ -108,6 +135,8 @@ struct MacStatusItem::Private {
     NSStatusItem *item = nil;
     TokklStatusItemTarget *target = nil;
     id reduceMotionObserver = nil;
+    // The logo of the current image, made once instead of on every redraw.
+    NSImage *logo = nil;
 };
 
 MacStatusItem::MacStatusItem(QObject *parent)
@@ -145,7 +174,7 @@ MacStatusItem::MacStatusItem(QObject *parent)
 
     // Redraws the pulsing fill about 15 times a second.
     m_pulseTimer.setInterval(66);
-    connect(&m_pulseTimer, &QTimer::timeout, this, &MacStatusItem::drawIndicator);
+    connect(&m_pulseTimer, &QTimer::timeout, this, &MacStatusItem::drawImage);
 
     // Reduce Motion in System Settings → Accessibility → Display.
     d->reduceMotionObserver = [NSWorkspace.sharedWorkspace.notificationCenter
@@ -187,21 +216,24 @@ void MacStatusItem::setMenu(QMenu *menu)
     m_menu = menu;
 }
 
-void MacStatusItem::setIndicator(const ProjectIndicator &indicator)
+void MacStatusItem::setImage(const StatusImage &image)
 {
-    if (m_hasIndicator && indicator == m_indicator) {
+    if (m_hasImage && image == m_image) {
         return;
     }
-    const bool wasPulsing = m_hasIndicator && m_indicator.pulsing;
-    m_indicator = indicator;
-    m_hasIndicator = true;
-    if (!indicator.pulsing) {
+    const bool wasPulsing = m_hasImage && m_image.indicator.pulsing;
+    if (!m_hasImage || image.logo != m_image.logo || image.logoRect.size() != m_image.logoRect.size()) {
+        d->logo = toNSImage(image.logo, NSMakeSize(image.logoRect.width(), image.logoRect.height()));
+    }
+    m_image = image;
+    m_hasImage = true;
+    if (!image.indicator.pulsing) {
         m_pulseTimer.stop();
     } else if (!wasPulsing) {
         m_pulseClock.start();
         m_pulseTimer.start();
     }
-    drawIndicator();
+    drawImage();
 }
 
 bool MacStatusItem::reduceMotion() const
@@ -209,19 +241,27 @@ bool MacStatusItem::reduceMotion() const
     return NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion;
 }
 
-void MacStatusItem::drawIndicator()
+void MacStatusItem::drawImage()
 {
-    const ProjectIndicator indicator = m_indicator;
+    const ProjectIndicator indicator = m_image.indicator;
     const double fillOpacity = indicator.pulsing ? ProjectIndicator::pulseOpacity(m_pulseClock.elapsed()) : 1.0;
-    const CGFloat slot = ProjectIndicator::slotSize;
-    NSImage *image = [NSImage imageWithSize:NSMakeSize(slot, slot)
+    const int height = m_image.size.height();
+    const NSRect logoRect = toNSRect(m_image.logoRect, height);
+    const NSRect indicatorRect = toNSRect(m_image.indicatorRect, height);
+    NSImage *logo = d->logo;
+    NSImage *image = [NSImage imageWithSize:NSMakeSize(m_image.size.width(), height)
                                     flipped:NO
                              drawingHandler:^BOOL(NSRect rect) {
-                                 paintIndicator(indicator, fillOpacity, rect);
+                                 Q_UNUSED(rect);
+                                 [logo drawInRect:logoRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
+                                 paintIndicator(indicator, fillOpacity, indicatorRect);
                                  return YES;
                              }];
     // Draw again for each appearance instead of keeping the first drawing.
     image.cacheMode = NSImageCacheNever;
+    // A template image would lose the logo's colours to the menu bar's.
+    // template is a C++ keyword, so this calls the setter.
+    [image setTemplate:NO];
     // VoiceOver reads the button's label, which also names the project.
     image.accessibilityDescription = indicator.label.toNSString();
     d->item.button.image = image;

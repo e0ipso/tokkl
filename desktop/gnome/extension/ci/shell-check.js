@@ -8,6 +8,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {exit, programArgs} from 'system';
 import {call, contrastRatio, delay, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
+import {formatElapsed} from '../timer1.js';
 
 const [uuid, mockTimer, timer1Xml] = programArgs;
 
@@ -20,6 +21,38 @@ const checks = steps();
 const {step} = checks;
 const {button, label, menuOpen, sensitive, indicator, pointAtButton, click, press} = panelButton(uuid);
 const lastCall = () => mockCalls().at(-1) ?? [];
+const timerProperty = name => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.freedesktop.DBus.Properties', 'Get',
+    new GLib.Variant('(ss)', ['org.tokkl.Timer1', name]), '(v)')[0];
+// The chain total the label should show now.
+const chainTotal = () => {
+    const start = timerProperty('StartTime');
+    const running = timerProperty('Running') && start > 0 ? Math.floor(Date.now() / 1000) - start : 0;
+    return formatElapsed(timerProperty('ChainSeconds') + running);
+};
+const toggleItem = () => shell(`${button}._toggleItem.label.text`);
+const statusLine = () => shell(`${button}._statusItem.label.text`);
+// Waits until the calls since count are exactly the one method, pressing
+// the key again only when nothing arrived: the first key of a new virtual
+// keyboard can be lost while the seat adds the device.
+const pressFor = async (key, method) => {
+    const count = mockCalls().length;
+    for (let attempt = 1; ; attempt++) {
+        press(key);
+        try {
+            await waitFor(`${method} from ${key}`, () => mockCalls().length > count, 2000);
+            break;
+        } catch (error) {
+            if (attempt === 5)
+                throw error;
+        }
+    }
+    await delay(300);
+    const sent = mockCalls().slice(count);
+    if (JSON.stringify(sent) !== JSON.stringify([[method]]))
+        throw new Error(`${key} sent ${JSON.stringify(sent)}, not ${method}`);
+    if (menuOpen())
+        throw new Error(`${key} opened the menu`);
+};
 const interfaceSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
 const setInterface = (method, key, value) => {
     interfaceSettings[method](key, value);
@@ -40,8 +73,57 @@ const sameSlot = () => {
 
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
+await step('the button shows the packed clock logo, then the project indicator, then the time', async () => {
+    const logo = () => shell(`(() => {
+        const button = ${button};
+        const file = button._logo.gicon.get_file();
+        const packed = Main.extensionManager.lookup(${JSON.stringify(uuid)}).dir.get_child('tokkl.png');
+        const order = button._logo.get_parent().get_children().map(child =>
+            child === button._logo ? 'logo' : child === button._projectIndicator ? 'indicator'
+                : child === button._label ? 'time' : child.constructor.name);
+        // The icon keeps its size when the PNG does not decode; only its
+        // child's image content shows that the picture loaded.
+        const image = button._logo.get_first_child()?.content;
+        const decoded = image instanceof imports.gi.St.ImageContent;
+        const [, imageWidth, imageHeight] = decoded ? image.get_preferred_size() : [false, 0, 0];
+        return {
+            packed: file.equal(packed) && packed.query_exists(null),
+            path: packed.get_path(),
+            styleClass: button._logo.style_class,
+            visible: button._logo.visible,
+            drawn: button._logo.get_n_children(),
+            width: button._logo.width,
+            height: button._logo.height,
+            decoded,
+            imageWidth,
+            imageHeight,
+            order,
+        };
+    })()`);
+    const shown = logo();
+    if (!shown.packed)
+        throw new Error(`the logo is not ${shown.path}: ${JSON.stringify(shown)}`);
+    if (JSON.stringify(shown.order) !== JSON.stringify(['logo', 'indicator', 'time']))
+        throw new Error(`order: ${JSON.stringify(shown.order)}`);
+    // GNOME Shell can enable the extension while it is still starting up,
+    // before the top bar is shown, and the logo is drawn only after that.
+    await waitFor('the drawn logo', () => {
+        const now = logo();
+        return (now.styleClass === 'system-status-icon' && now.visible && now.drawn === 1 &&
+            now.width > 0 && now.height > 0 &&
+            now.decoded && now.imageWidth > 0 && now.imageHeight > 0) || now;
+    });
+    // The installed image is the one in the checkout.
+    const [, installed] = GLib.file_get_contents(shown.path);
+    const [ci] = GLib.filename_from_uri(import.meta.url);
+    const [, source] = GLib.file_get_contents(GLib.build_filenamev([GLib.path_get_dirname(ci), '..', 'tokkl.png']));
+    if (GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, installed) !==
+        GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, source))
+        throw new Error(`${shown.path} differs from the extension's tokkl.png`);
+});
+
 await step('without the service the button says it is not running', async () => {
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     const status = shell(`${button}._statusItem.label.text`);
     if (status !== 'Timer service not running')
         throw new Error(`status: ${status}`);
@@ -56,7 +138,7 @@ await step('without the service the indicator slot is empty and unnamed', async 
 
 await step('the button follows a service that starts later', async () => {
     Gio.Subprocess.new(['gjs', '-m', mockTimer, timer1Xml], Gio.SubprocessFlags.NONE);
-    await waitFor('the ready time', () => label() === '0:00:00' || label());
+    await waitFor('the ready time', () => label() === '0:00' || label());
 });
 
 await step('no project is a dashed square outline named No project', async () => {
@@ -78,11 +160,11 @@ await step('a primary click starts the timer through the service', async () => {
 });
 
 await step('the panel shows the elapsed time from StartTime', async () => {
-    const start = Math.floor(Date.now() / 1000) - 3725;
+    // 1:02:55 ago, so the label moves to the next minute within seconds.
+    const start = Math.floor(Date.now() / 1000) - 3775;
     mockSet('StartTime', new GLib.Variant('x', start));
-    await waitFor('1:02:0x', () => /^1:02:0[5-9]$/.test(label()) || label());
-    const first = label();
-    await waitFor('a tick', () => label() !== first || label(), 3000);
+    await waitFor('1:02 or 1:03', () => /^1:0[23]$/.test(label()) || label());
+    await waitFor('the next minute', () => label() === '1:03' || label(), 8000);
 });
 
 await step('a running entry without a project is a round outline that does not pulse', async () => {
@@ -102,10 +184,78 @@ await step('the project is locked while running, billable is not', async () => {
     await waitFor('the switch', () => shell(`${button}._billableItem.state`) === true);
 });
 
-await step('a second primary click stops the timer', async () => {
+await step('a second primary click pauses the timer, and the time holds the chain total', async () => {
+    const before = mockCalls().length;
     click(1);
-    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
-    await waitFor('0:00:00', () => label() === '0:00:00' || label());
+    await waitFor('Pause', () => mockCalls().length > before && lastCall()[0] === 'Pause' || mockCalls());
+    await waitFor('Paused', () => timerProperty('Paused') === true);
+    const total = chainTotal();
+    if (!/^1:0[3-9]$/.test(total))
+        throw new Error(`the chain holds ${total}`);
+    await waitFor('the chain total', () => label() === total || label());
+    const name = shell(`${button}.accessible_name`);
+    if (!name.startsWith(`Paused ${total} · `))
+        throw new Error(`button name: ${name}`);
+    if (menuOpen())
+        throw new Error('the click opened the menu');
+    if (toggleItem() !== 'Stop')
+        throw new Error(`the menu offers ${toggleItem()}`);
+    if (sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('the project or billable stayed sensitive while paused');
+    const title = shell(`${button}._projectMenu.label.text`);
+    if (title !== 'Project: No project (locked while paused)')
+        throw new Error(`title: ${title}`);
+    await delay(1500);
+    if (label() !== total)
+        throw new Error(`the paused time moved to ${label()}`);
+});
+
+await step('a paused timer says Paused with the chain total in the menu status line', async () => {
+    const total = chainTotal();
+    const paused = `Paused ${total} · Connected`;
+    click(3);
+    try {
+        await waitFor('the menu', () => menuOpen() === true);
+        await waitFor('Paused in the status line', () => statusLine() === paused || statusLine());
+        // The connection state stays in the line.
+        mockSet('Status', new GLib.Variant('s', 'stale'));
+        await waitFor('the offline state in the status line',
+            () => statusLine() === `Paused ${total} · Offline, showing the last known state` || statusLine());
+    } finally {
+        mockSet('Status', new GLib.Variant('s', 'ready'));
+        // An open menu would take the next click.
+        shell(`${button}.menu.close()`);
+    }
+    await waitFor('Connected in the status line', () => statusLine() === paused || statusLine());
+});
+
+await step('a primary click resumes, and the time counts on from the chain total', async () => {
+    const before = mockCalls().length;
+    click(1);
+    await waitFor('Resume', () => mockCalls().length > before && lastCall()[0] === 'Resume' || mockCalls());
+    await waitFor('Running', () => timerProperty('Running') === true);
+    await waitFor('the chain total', () => label() === chainTotal() || [label(), chainTotal()]);
+    if (!/^1:0[3-9]$/.test(label()))
+        throw new Error(`the time restarted at ${label()}`);
+    const name = shell(`${button}.accessible_name`);
+    if (!name.startsWith(`Running ${label()} · `))
+        throw new Error(`button name: ${name}`);
+    if (toggleItem() !== 'Stop')
+        throw new Error(`the menu offers ${toggleItem()}`);
+    if (statusLine() !== 'Connected')
+        throw new Error(`status: ${statusLine()}`);
+});
+
+await step('Stop in the menu ends the chain, and the item then reads Start', async () => {
+    const before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('Stop', () => mockCalls().length > before && lastCall()[0] === 'Stop' || mockCalls());
+    await waitFor('0:00', () => label() === '0:00' || label());
+    if (timerProperty('ChainSeconds') !== 0 || timerProperty('Paused'))
+        throw new Error('the chain outlived Stop');
+    await waitFor('Start', () => toggleItem() === 'Start' || toggleItem());
+    if (!shell(`${button}.accessible_name`).startsWith('Stopped · '))
+        throw new Error(`button name: ${shell(`${button}.accessible_name`)}`);
 });
 
 await step('a stopped timer lets the menu choose the project', async () => {
@@ -166,10 +316,17 @@ await step('with enable-animations off the dot stays steady', async () => {
 if (uninhibited)
     shell('imports.gi.St.Settings.get().inhibit_animations()');
 
-await step('a stopped timer turns the dot into a still square', async () => {
+await step('a paused timer turns the dot into a still square, and Stop clears the chain', async () => {
     click(1);
-    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
+    await waitFor('Pause', () => lastCall()[0] === 'Pause' || mockCalls());
     await indicatorIs('a still square', {kind: 'filled', round: false, pulsing: false, fillOpacity: 255});
+    const before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('Stop', () => mockCalls().length > before && lastCall()[0] === 'Stop' || mockCalls());
+    await waitFor('the chain cleared', () => timerProperty('Paused') === false && timerProperty('ChainSeconds') === 0);
+    await waitFor('0:00', () => label() === '0:00' || label());
+    await waitFor('Start', () => toggleItem() === 'Start' || toggleItem());
+    await indicatorIs('the still square', {kind: 'filled', round: false, pulsing: false});
 });
 
 await step('a project still being read leaves the slot empty', async () => {
@@ -252,38 +409,45 @@ await step('a secondary click opens the menu and sends nothing', async () => {
     shell(`${button}.menu.close()`);
 });
 
-await step('Space opens the menu, and its Start item starts the timer', async () => {
+await step('Space and Return do what a primary click does, and Down opens the menu', async () => {
+    await pressFor('KEY_space', 'Start');
+    await waitFor('Running', () => timerProperty('Running') === true);
+    await pressFor('KEY_Return', 'Pause');
+    await waitFor('Paused', () => timerProperty('Paused') === true);
+    await pressFor('KEY_space', 'Resume');
+    await waitFor('Running', () => timerProperty('Running') === true);
     const before = mockCalls().length;
-    await waitFor('the menu from Space', () => {
+    await waitFor('the menu from Down', () => {
         if (!menuOpen())
-            press('KEY_space');
+            press('KEY_Down');
         return menuOpen() === true;
     });
-    if (shell(`${button}._toggleItem.label.text`) !== 'Start')
-        throw new Error('the menu does not offer Start');
+    if (mockCalls().length !== before)
+        throw new Error(`Down sent ${JSON.stringify(mockCalls().slice(before))}`);
+    if (toggleItem() !== 'Stop')
+        throw new Error(`the menu offers ${toggleItem()}`);
     shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Start', () => lastCall()[0] === 'Start' || mockCalls().slice(before));
-    shell(`${button}.menu.close()`);
-    click(1);
     await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls().slice(before));
+    shell(`${button}.menu.close()`);
+    await waitFor('0:00', () => label() === '0:00' || label());
 });
 
 await step('a status other than ready marks the time and disables writes', async () => {
     mockSet('ErrorString', new GLib.Variant('s', 'Network down'));
     mockSet('Status', new GLib.Variant('s', 'stale'));
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     if (sensitive('_toggleItem') || sensitive('_projectMenu') || sensitive('_billableItem'))
         throw new Error('a write control stayed sensitive');
     const detail = shell(`${button}._detailItem.label.text`);
     if (detail !== 'Network down')
         throw new Error(`detail: ${detail}`);
     mockSet('Status', new GLib.Variant('s', 'ready'));
-    await waitFor('no mark', () => label() === '0:00:00' || label());
+    await waitFor('no mark', () => label() === '0:00' || label());
 });
 
 await step('the button says so when the service goes away', async () => {
     call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Quit', null, null);
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     const status = shell(`${button}._statusItem.label.text`);
     if (status !== 'Timer service not running')
         throw new Error(`status: ${status}`);
