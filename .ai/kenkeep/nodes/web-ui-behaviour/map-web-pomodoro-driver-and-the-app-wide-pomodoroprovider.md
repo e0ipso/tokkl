@@ -2,13 +2,14 @@
 type: map
 title: 'Web Pomodoro: pomodoroCycle.ts, usePomodoro and the app-wide PomodoroProvider'
 description: >-
-  The Pomodoro runs on every signed-in page; a per-account cycle that follows
-  the running entry, freezes at a pause and rings a local bell.
+  The Pomodoro runs on every signed-in page; a per-account cycle follows the
+  running entry, freezes on pause, rings and notifies hidden tabs.
 tags:
   - web
   - pomodoro
   - timer
   - localstorage
+  - notifications
 kk_schema_version: 3
 kk_id: map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
 kk_derived_from: []
@@ -30,7 +31,9 @@ Turning the Pomodoro off drops the cycle. The switch-off shows at once and a fai
 
 The bell is `packages/web/public/sounds/pomodoro-bell.mp3`, served from the app's own origin because the Content Security Policy allows media only from `'self'`. Tokkl generated it with FFmpeg; `docs/sounds/README.md` holds the command, the SHA-256 and the MIT licence. It loads on the first ring, and a rejected or throwing `play()` is ignored, since the banner shows either way.
 
-`e2e/timer-pomodoro.spec.ts` and `e2e/settings-pomodoro.spec.ts` cover it. They move the browser clock with `page.clock` while the server keeps real time, so the phase lengths are short and countdowns are checked within a few seconds.
+A phase that ends while the tab is hidden also shows a system notification. `usePomodoro` calls `notifyPhaseEnd` in `packages/web/src/components/phaseNotification.ts` when it raises the banner. That shows one page-level `Notification` tagged `tokkl-pomodoro` and titled from `PHASE_ENDED` (Work phase over, Short break over, Long break over), only when `document.visibilityState` is `hidden` and the permission is `granted`. A visible tab, a missing API, an insecure context (plain HTTP) or a throwing constructor shows nothing and raises no page error. A click focuses the window and closes the notification. There is no service worker. `AllowNotifications.tsx` in the Settings Preferences card is the only code that asks for permission (`requestNotificationAccess`, from its button's click), then moves focus to its status line, which has its own message for the insecure case. Keep the permission request behind that click.
+
+`e2e/timer-pomodoro.spec.ts` and `e2e/settings-pomodoro.spec.ts` cover it. The headless shell reports the notification permission as denied, so these specs replace the API with `stubNotifications` from `e2e/notification-tests-helpers.ts` (an init script, so it runs before the app loads), and `timer-pomodoro.spec.ts` hides the page with its `setHidden`; `phaseNotification.test.ts` unit-tests the pure parts. They move the browser clock with `page.clock` while the server keeps real time, so the phase lengths are short and countdowns are checked within a few seconds.
 
 <!-- kk:related:start -->
 # Related
