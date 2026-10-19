@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { useIsMutating } from '@tanstack/react-query';
-import { useCurrentEntry, useMe, usePreferences, useStopEntry } from '../api/hooks.ts';
+import { keys, useCurrentEntry, useMe, usePreferences, useStopEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { useNow } from '../lib/settings.ts';
 import { isPaused, pause as pauseChain, type PauseChain } from './pauseChain.ts';
@@ -74,6 +74,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const { data: current } = useCurrentEntry();
   const stopEntry = useStopEntry();
   const writes = useIsMutating();
+  const prefsSaving = useIsMutating({ mutationKey: keys.preferences }) > 0;
   const toast = useToast();
   // Moves the cycle on every second; deadlines also wake it between ticks.
   useNow(1000);
@@ -91,6 +92,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const pomodoro = usePomodoro({
     accountId,
     prefs,
+    prefsSaving,
     timer: current === undefined ? null : timerView(current, chain, pausedAt.current),
     busy,
     onWorkEnded: () => {

@@ -352,6 +352,56 @@ test('Stop pressed while the end of a work phase is pausing the entry sends no s
   expect(await ui.plays()).toBe(1);
 });
 
+test('a switch-off whose save fails keeps the cycle, and a confirmed one clears it', async ({ page, users, runtimeErrors }) => {
+  const { ui } = await open(page, users, { stopAtEnd: true });
+  await startTimer(ui, 'Settings detour');
+  await page.clock.fastForward(60_000);
+  await expectCountdown(ui, 'Work', WORK - 60);
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const preferences = page.getByRole('form', { name: 'Preferences' });
+  const enabled = preferences.getByRole('group', { name: 'Pomodoro' }).getByRole('checkbox', { name: 'Enable the Pomodoro cycle' });
+  const save = preferences.getByRole('button', { name: 'Save' });
+  const cycleKey = async () => {
+    const me = await (await page.request.get('/api/v9/me')).json() as { id: number };
+    return page.evaluate((key) => window.localStorage.getItem(key), `tokkl.pomodoro.${me.id}`);
+  };
+
+  // The save fails after a while, so the optimistic switch-off shows first and then rolls back.
+  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/v9\/me\/preferences$/, reason: 'the switch-off save fails on purpose' });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(/\/api\/v9\/me\/preferences$/, async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await gate;
+    return route.fulfill({ status: 500, contentType: 'application/json', body: '"Server error"' });
+  });
+  await nav.getByRole('link', { name: 'Settings' }).click();
+  await enabled.uncheck();
+  const failed = page.waitForResponse((response) => response.request().method() === 'POST' && /\/me\/preferences$/.test(response.url()));
+  await save.click();
+  await expect.poll(cycleKey).not.toBeNull();
+  release();
+  await failed;
+  await nav.getByRole('link', { name: 'Timer' }).click();
+  await expectCountdown(ui, 'Work', WORK - 60);
+  expect(await cycleKey()).not.toBeNull();
+
+  // A switch-off the server confirms drops the cycle; turning it on again starts a fresh phase.
+  await page.unroute(/\/api\/v9\/me\/preferences$/);
+  await nav.getByRole('link', { name: 'Settings' }).click();
+  await enabled.uncheck();
+  const saved = page.waitForResponse((response) => response.request().method() === 'POST' && /\/me\/preferences$/.test(response.url()) && response.ok());
+  await save.click();
+  await saved;
+  await expect.poll(cycleKey).toBeNull();
+  await enabled.check();
+  const again = page.waitForResponse((response) => response.request().method() === 'POST' && /\/me\/preferences$/.test(response.url()) && response.ok());
+  await save.click();
+  await again;
+  await nav.getByRole('link', { name: 'Timer' }).click();
+  await expectCountdown(ui, 'Work', WORK);
+});
+
 test('with the Pomodoro off, the timer bar shows no countdown, banner or bell', async ({ page, users }) => {
   const { api, ui } = await open(page, users, { stopAtEnd: true, enabled: false });
   await startTimer(ui, 'Plain timer');

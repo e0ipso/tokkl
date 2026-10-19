@@ -49,6 +49,8 @@ export interface Pomodoro {
 interface Options {
   accountId: number;
   prefs: PomodoroPreferences | undefined;
+  /** True while a preference save is pending, when `prefs` may hold a value that rolls back. */
+  prefsSaving: boolean;
   /** Whether a timer runs or is paused, or null while the running entry has not loaded. */
   timer: TimerView | null;
   /** True while a pause or resume is in flight, when the running entry is about to change. */
@@ -61,7 +63,7 @@ interface Options {
  * Runs the Pomodoro cycle. It lives in localStorage per account, so a reload and the account's
  * other tabs keep it, and it moves on whenever the caller renders and at each deadline.
  */
-export function usePomodoro({ accountId, prefs, timer, busy, onWorkEnded }: Options): Pomodoro {
+export function usePomodoro({ accountId, prefs, prefsSaving, timer, busy, onWorkEnded }: Options): Pomodoro {
   const config = useMemo(() => pomodoroConfig(prefs), [
     prefs?.pomodoro_enabled, prefs?.pomodoro_focus_interval_in_minutes, prefs?.pomodoro_break_interval_in_minutes,
     prefs?.pomodoro_long_break_interval_in_minutes, prefs?.pomodoro_long_break_every, prefs?.pomodoro_stop_timer_at_end,
@@ -115,8 +117,10 @@ export function usePomodoro({ accountId, prefs, timer, busy, onWorkEnded }: Opti
   useEffect(() => {
     if (!accountId || prefs === undefined) return;
     if (!config) {
-      // Turning the Pomodoro off drops the cycle, so turning it on later starts fresh.
-      store(IDLE_STATE);
+      // Turning the Pomodoro off drops the cycle, so turning it on later starts fresh. The switch-off
+      // shows before the server confirms it, and a failed save rolls it back, so the cycle stays
+      // stored until no save is pending.
+      if (!prefsSaving) store(IDLE_STATE);
       return;
     }
     // Pause and Resume change the running entry in steps; wait until the bar shows the result.
