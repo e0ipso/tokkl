@@ -39,12 +39,15 @@ test('elapsed time counts from StartTime and is 0 when stopped', () => {
     assert.equal(elapsedSeconds(1_700_000_010, 1_700_000_000), 0);
 });
 
-test('elapsed time is written H:MM:SS', () => {
-    assert.equal(formatElapsed(0), '0:00:00');
-    assert.equal(formatElapsed(59), '0:00:59');
-    assert.equal(formatElapsed(3600 + 2 * 60 + 3), '1:02:03');
-    assert.equal(formatElapsed(100 * 3600), '100:00:00');
-    assert.equal(formatElapsed(-5), '0:00:00');
+test('elapsed time is written H:MM in whole minutes', () => {
+    assert.equal(formatElapsed(0), '0:00');
+    assert.equal(formatElapsed(59), '0:00');
+    assert.equal(formatElapsed(60), '0:01');
+    assert.equal(formatElapsed(3599), '0:59');
+    assert.equal(formatElapsed(3600), '1:00');
+    assert.equal(formatElapsed(3600 + 2 * 60 + 3), '1:02');
+    assert.equal(formatElapsed(125 * 3600), '125:00');
+    assert.equal(formatElapsed(-5), '0:00');
 });
 
 test('every Status value has words and a mark', () => {

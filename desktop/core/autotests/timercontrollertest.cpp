@@ -254,7 +254,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(!f.timer.isConnected());
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.start());
         QVERIFY(f.transport.requests.isEmpty());
@@ -274,7 +274,7 @@ private Q_SLOTS:
         QVERIFY(f.timer.errorString().isEmpty());
         // The entry was read before any tick; elapsed is already right.
         QCOMPARE(f.timer.elapsedSeconds(), 65);
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:01:05"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:01"));
 
         f.timer.setSelectedProjectId(11);
         f.timer.setBillable(true);
@@ -285,10 +285,15 @@ private Q_SLOTS:
 
     void formatsElapsed()
     {
-        QCOMPARE(TimerController::formatElapsed(-5), QStringLiteral("0:00:00"));
-        QCOMPARE(TimerController::formatElapsed(59), QStringLiteral("0:00:59"));
-        QCOMPARE(TimerController::formatElapsed(3600 + 61), QStringLiteral("1:01:01"));
-        QCOMPARE(TimerController::formatElapsed(125 * 3600), QStringLiteral("125:00:00"));
+        // Whole minutes: the seconds are dropped, not rounded.
+        QCOMPARE(TimerController::formatElapsed(-5), QStringLiteral("0:00"));
+        QCOMPARE(TimerController::formatElapsed(0), QStringLiteral("0:00"));
+        QCOMPARE(TimerController::formatElapsed(59), QStringLiteral("0:00"));
+        QCOMPARE(TimerController::formatElapsed(60), QStringLiteral("0:01"));
+        QCOMPARE(TimerController::formatElapsed(3599), QStringLiteral("0:59"));
+        QCOMPARE(TimerController::formatElapsed(3600), QStringLiteral("1:00"));
+        QCOMPARE(TimerController::formatElapsed(3600 + 61), QStringLiteral("1:01"));
+        QCOMPARE(TimerController::formatElapsed(125 * 3600), QStringLiteral("125:00"));
     }
 
     void systemClockTicksEverySecond()
@@ -326,12 +331,13 @@ private Q_SLOTS:
         }
         QCOMPARE(f.timer.elapsedSeconds(), 65 + 25); // 25 ticks covered 25.9 s
         QVERIFY(elapsed.count() > 0);
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:01:30"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:01"));
 
         // A clock before the start (skew) never shows negative time.
         f.clock.current = start.addSecs(-30);
         f.clock.advance(0);
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
+        QCOMPARE(f.timer.elapsedSeconds(), 0);
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
     }
 
     void sleepGapKeepsTimeAndRefreshes()
@@ -343,7 +349,8 @@ private Q_SLOTS:
 
         // Two hours asleep: the next tick arrives late.
         f.clock.advance(2 * 3600 * 1000);
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("2:01:06"));
+        QCOMPARE(f.timer.elapsedSeconds(), 2 * 3600 + 66);
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("2:01"));
         // Resume reads the entry and the projects at once.
         QCOMPARE(f.transport.requests.size(), requests + 2);
         QVERIFY(f.unanswered(f.last("GET", currentPath)));
@@ -352,7 +359,7 @@ private Q_SLOTS:
         // The web app stopped the timer meanwhile.
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
         QVERIFY(!f.timer.isRunning());
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
 
         // The explicit hook does the same.
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
@@ -378,7 +385,7 @@ private Q_SLOTS:
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(9, 7, QStringLiteral("2026-10-16T09:00:10Z"))));
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.timer.currentEntry()->id, 9);
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:20"));
+        QCOMPARE(f.timer.elapsedSeconds(), 20);
 
         // Ticks while a read is outstanding do not stack requests.
         for (int i = 0; i < 30; ++i) {
@@ -392,7 +399,8 @@ private Q_SLOTS:
 
         // Edited in the web app: the panel shows the new start.
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(9, 7, QStringLiteral("2026-10-16T08:00:00Z"))));
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("1:01:30"));
+        QCOMPARE(f.timer.elapsedSeconds(), 3690);
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("1:01"));
 
         // A clock set far back counts as a resume and reads at once.
         f.clock.current = f.clock.current.addSecs(-20);
@@ -506,7 +514,7 @@ private Q_SLOTS:
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
         QVERIFY(!f.timer.isRunning());
         QVERIFY(!f.timer.isBusy());
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
         QVERIFY(f.unanswered(f.last("GET", currentPath)));
     }
 
@@ -1379,7 +1387,7 @@ private Q_SLOTS:
         QVERIFY(!f.timer.canWrite());
         QCOMPARE(f.timer.connectionState(), Connection::AuthenticationFailed);
         QVERIFY(!f.timer.errorString().isEmpty());
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
 
         const qsizetype requests = f.transport.requests.size();
         for (int i = 0; i < 90; ++i) {
@@ -1641,7 +1649,7 @@ private Q_SLOTS:
         QVERIFY(f.timer.projects().isEmpty());
         QVERIFY(f.timer.selectedProjectId().isNull());
         QVERIFY(!f.timer.billable());
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00:00"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
 
         // The new account reuses user 3, workspace 7 and entry 5.
         QVERIFY(QTest::qWaitFor([&] {
@@ -1657,7 +1665,7 @@ private Q_SLOTS:
         f.respond(newRead, FakeTransport::answer(200, entryBody(5, 7, QStringLiteral("2026-10-16T08:00:00Z"))));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         QVERIFY(f.timer.isRunning());
-        QCOMPARE(f.timer.elapsedText(), QStringLiteral("1:00:00"));
+        QCOMPARE(f.timer.elapsedText(), QStringLiteral("1:00"));
         QVERIFY(f.timer.selectedProjectId().isNull());
         QVERIFY(!f.timer.billable());
         QVERIFY(!f.timer.isBusy());

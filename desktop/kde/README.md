@@ -348,8 +348,9 @@ hand; the tests run offscreen.
 `TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget. QML
 sets its `connection` to the widget's `TokklConnection`.
 
-- The elapsed time (`elapsedText`, `H:MM:SS`) is recomputed every second from
-  the entry's server start time, so time spent asleep is not lost.
+- The elapsed time (`elapsedText`, `H:MM` in whole minutes) is recomputed
+  every second from the entry's server start time, so time spent asleep is
+  not lost.
 - The current entry is read every 30 seconds, after every start or stop,
   after a resume (a clock tick more than 10 seconds late) and when the
   connection comes back. Projects are read on connect, resume and reconnection,
@@ -769,8 +770,8 @@ Install and load:
       plasma-plasmashell.service`) or log out and back in. The panel button
       and the Tokkl entry in Add Widgets show the clock logo in full colour.
 - [ ] The panel shows the Tokkl clock logo, the stopped symbol, a dashed
-      square, `0:00:00` and the Not configured symbol. The tooltip reads "Tokkl:
-      Stopped 0:00:00 · No project · Not configured · Set the instance URL and
+      square, `0:00` and the Not configured symbol. The tooltip reads "Tokkl:
+      Stopped 0:00 · No project · Not configured · Set the instance URL and
       credentials in the widget settings." and shows the version.
 - [ ] Configure opens on Connection. Test Connection is disabled until an
       address and a secret are on screen.
@@ -792,8 +793,8 @@ Wallet and connection:
 
 Timer:
 
-- [ ] Left click starts the timer. The panel counts up once a second for 10
-      seconds, and the web app shows the entry running.
+- [ ] Left click starts the timer. The panel shows `0:00`, then `0:01` a
+      minute later, and the web app shows the entry running.
 - [ ] Left click again stops it. The count stops and the web app shows a
       stopped entry.
 - [ ] Tab to the widget: a frame shows. Space and Return start and stop it.

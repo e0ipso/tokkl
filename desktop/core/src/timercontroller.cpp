@@ -299,11 +299,9 @@ QString TimerController::indicatorColor() const
 
 QString TimerController::formatElapsed(qint64 seconds)
 {
+    // Whole minutes; the seconds are dropped, not rounded.
     seconds = std::max<qint64>(0, seconds);
-    return QStringLiteral("%1:%2:%3")
-        .arg(seconds / 3600)
-        .arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'))
-        .arg(seconds % 60, 2, 10, QLatin1Char('0'));
+    return QStringLiteral("%1:%2").arg(seconds / 3600).arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'));
 }
 
 // ----- actions -------------------------------------------------------------

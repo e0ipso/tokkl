@@ -122,7 +122,8 @@ private:
     Q_PROPERTY(bool running READ isRunning NOTIFY currentEntryChanged)
     // The chain total while a chain runs or is paused.
     Q_PROPERTY(qint64 elapsedSeconds READ elapsedSeconds NOTIFY elapsedChanged)
-    // H:MM:SS, as in the web app; 0:00:00 when nothing runs.
+    // elapsedSeconds as H:MM in whole minutes; 0:00 when no chain is paused
+    // and nothing runs.
     Q_PROPERTY(QString elapsedText READ elapsedText NOTIFY elapsedChanged)
 
     // A chain is paused: nothing runs, and resume() would start its clone.

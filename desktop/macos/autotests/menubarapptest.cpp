@@ -345,12 +345,17 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(entryBody(true)));
         QVERIFY(!f.app.settingsWindow()->isVisible());
-        QCOMPARE(f.item.title, QStringLiteral("0:01:05"));
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
+        // Whole minutes: the title changes when the next minute starts.
+        for (int i = 0; i < 54; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
         f.clock.advance(1000);
-        QCOMPARE(f.item.title, QStringLiteral("0:01:06"));
-        QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Running 0:01:06 · No project · Connected")), qPrintable(f.item.toolTip));
+        QCOMPARE(f.item.title, QStringLiteral("0:02"));
+        QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Running 0:02 · No project · Connected")), qPrintable(f.item.toolTip));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Stop the Tokkl timer, No project"));
-        QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:01:06")));
+        QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:02")));
     }
 
     void clickStopsARunningTimer()
@@ -364,7 +369,7 @@ private Q_SLOTS:
         QCOMPARE(stop.method, QByteArray("PATCH"));
         QCOMPARE(stop.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5/stop"));
         // The item shows the mutation in flight and ignores another click.
-        QCOMPARE(f.item.title, QStringLiteral("0:01:05 …"));
+        QCOMPARE(f.item.title, QStringLiteral("0:01 …"));
         f.item.click();
         QCOMPARE(f.transport.requests.size(), before + 1);
     }
@@ -375,7 +380,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect(QByteArrayLiteral("null"), qint64(12)));
-        QCOMPARE(f.item.title, QStringLiteral("0:00:00"));
+        QCOMPARE(f.item.title, QStringLiteral("0:00"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer, Beta (Acme)"));
         f.item.click();
         const qsizetype start = f.last("POST", "/workspaces/7/time_entries");

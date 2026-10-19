@@ -226,7 +226,7 @@ private Q_SLOTS:
         timerComponent.setData(QStringLiteral("import %1\nTokklTimer {}").arg(backendUri).toUtf8(), QUrl());
         std::unique_ptr<QObject> timer(timerComponent.create());
         QVERIFY2(timer, qPrintable(timerComponent.errorString()));
-        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00"));
         QCOMPARE(timer->property("running").toBool(), false);
         QCOMPARE(timer->property("connected").toBool(), false);
         QCOMPARE(timer->property("canWrite").toBool(), false);
@@ -263,7 +263,7 @@ private Q_SLOTS:
         auto *timer = item->property("timer").value<QObject *>();
         QVERIFY(timer);
         QCOMPARE(timer->property("connection").value<QObject *>(), item->property("connection").value<QObject *>());
-        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00"));
         QCOMPARE(timer->property("canWrite").toBool(), false);
         // Let Plasma select and instantiate the visible representation.
         // Creating the component ourselves misses a compact view that
@@ -279,7 +279,7 @@ private Q_SLOTS:
         QCOMPARE(panel->property("timer").value<QObject *>(), timer);
         auto *label = panel->findChild<QQuickItem *>(QStringLiteral("elapsedLabel"));
         QVERIFY(label);
-        QCOMPARE(label->property("text").toString(), QStringLiteral("0:00:00"));
+        QCOMPARE(label->property("text").toString(), QStringLiteral("0:00"));
         QTRY_VERIFY(label->isVisible());
         QTRY_VERIFY(label->width() > 0 && label->height() > 0);
         QTRY_VERIFY(window.contentItem()->contains(label->mapToItem(window.contentItem(), label->boundingRect().center())));

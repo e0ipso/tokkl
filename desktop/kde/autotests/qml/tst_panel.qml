@@ -204,15 +204,19 @@ TestCase {
         connectAccount(instanceA, 3, 7, entry(5, 7, null, false));
         verify(button.implicitWidth > 0);
         const label = findChild(button, "elapsedLabel");
-        compare(label.text, "0:01:05");
+        compare(label.text, "0:01");
         verify(label.visible);
         compare(button.words.runText, "Running");
         compare(findChild(button, "runIcon").source, "media-playback-playing");
         compare(button.Accessible.name, "Stop the Tokkl timer");
-        verify(button.Accessible.description.indexOf("Running 0:01:05") === 0, button.Accessible.description);
+        verify(button.Accessible.description.indexOf("Running 0:01") === 0, button.Accessible.description);
 
+        // Whole minutes: the label changes when the next minute starts.
+        for (let i = 0; i < 54; ++i)
+            fixture.advance(1000);
+        compare(label.text, "0:01");
         fixture.advance(1000);
-        compare(label.text, "0:01:06");
+        compare(label.text, "0:02");
     }
 
     function test_leftClickAndSpaceStartAndStop() {
@@ -265,7 +269,7 @@ TestCase {
         compare(menu.itemAt(menu.currentIndex).subMenu, menu.projectMenu, "Project is highlighted first");
         compare(menu.projectMenu.title, "Project: No project");
         verify(!menu.stateItem.enabled, "the state line is not a choice");
-        compare(menu.stateItem.text, "Stopped 0:00:00 · Connected");
+        compare(menu.stateItem.text, "Stopped 0:00 · Connected");
 
         // Every action is reachable with the arrow keys and has a label.
         const labels = [];
@@ -542,7 +546,7 @@ TestCase {
         compare(current.description, "Write the report");
         compare(current.tags, ["deep work", "q4"]);
         verify(current.running);
-        compare(button.timer.elapsedText, "0:01:05", "not split: the start is unchanged");
+        compare(button.timer.elapsedSeconds, 65, "not split: the start is unchanged");
         verify(menu.billableItem.checked);
         verify(!menu.projectMenu.enabled, "still locked after the edit");
         for (let i = before; i < fixture.requestCount; ++i) {
@@ -705,7 +709,7 @@ TestCase {
         verify(!findChild(button, "indicatorOutline").visible);
 
         verify(button.words.summary.indexOf("Alpha") >= 0, button.words.summary);
-        verify(button.Accessible.description.indexOf("Running 0:01:05 · Alpha") === 0, button.Accessible.description);
+        verify(button.Accessible.description.indexOf("Running 0:01 · Alpha") === 0, button.Accessible.description);
     }
 
     function test_stoppedProjectIsAStillSquare() {
@@ -719,7 +723,7 @@ TestCase {
         compare(ind.fillOpacity, 1);
         const fill = findChild(button, "indicatorFill");
         verify(fill.radius < fill.width / 2);
-        verify(button.Accessible.description.indexOf("Stopped 0:00:00 · Alpha") === 0, button.Accessible.description);
+        verify(button.Accessible.description.indexOf("Stopped 0:00 · Alpha") === 0, button.Accessible.description);
 
         // Drawn: the project colour inside, the text colour on the ring.
         const shape = findChild(button, "indicatorShape");
@@ -738,7 +742,7 @@ TestCase {
         verify(!ind.pulsing);
         verify(findChild(button, "indicatorOutline").visible);
         verify(!findChild(button, "indicatorFill").visible);
-        verify(button.Accessible.description.indexOf("Stopped 0:00:00 · No project") === 0, button.Accessible.description);
+        verify(button.Accessible.description.indexOf("Stopped 0:00 · No project") === 0, button.Accessible.description);
         const width = ind.width;
 
         // Drawn: inside its corners, the left side has dashes in the text

@@ -41,7 +41,7 @@ const sameSlot = () => {
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
 await step('without the service the button says it is not running', async () => {
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     const status = shell(`${button}._statusItem.label.text`);
     if (status !== 'Timer service not running')
         throw new Error(`status: ${status}`);
@@ -56,7 +56,7 @@ await step('without the service the indicator slot is empty and unnamed', async 
 
 await step('the button follows a service that starts later', async () => {
     Gio.Subprocess.new(['gjs', '-m', mockTimer, timer1Xml], Gio.SubprocessFlags.NONE);
-    await waitFor('the ready time', () => label() === '0:00:00' || label());
+    await waitFor('the ready time', () => label() === '0:00' || label());
 });
 
 await step('no project is a dashed square outline named No project', async () => {
@@ -78,11 +78,11 @@ await step('a primary click starts the timer through the service', async () => {
 });
 
 await step('the panel shows the elapsed time from StartTime', async () => {
-    const start = Math.floor(Date.now() / 1000) - 3725;
+    // 1:02:55 ago, so the label moves to the next minute within seconds.
+    const start = Math.floor(Date.now() / 1000) - 3775;
     mockSet('StartTime', new GLib.Variant('x', start));
-    await waitFor('1:02:0x', () => /^1:02:0[5-9]$/.test(label()) || label());
-    const first = label();
-    await waitFor('a tick', () => label() !== first || label(), 3000);
+    await waitFor('1:02 or 1:03', () => /^1:0[23]$/.test(label()) || label());
+    await waitFor('the next minute', () => label() === '1:03' || label(), 8000);
 });
 
 await step('a running entry without a project is a round outline that does not pulse', async () => {
@@ -105,7 +105,7 @@ await step('the project is locked while running, billable is not', async () => {
 await step('a second primary click stops the timer', async () => {
     click(1);
     await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
-    await waitFor('0:00:00', () => label() === '0:00:00' || label());
+    await waitFor('0:00', () => label() === '0:00' || label());
 });
 
 await step('a stopped timer lets the menu choose the project', async () => {
@@ -271,19 +271,19 @@ await step('Space opens the menu, and its Start item starts the timer', async ()
 await step('a status other than ready marks the time and disables writes', async () => {
     mockSet('ErrorString', new GLib.Variant('s', 'Network down'));
     mockSet('Status', new GLib.Variant('s', 'stale'));
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     if (sensitive('_toggleItem') || sensitive('_projectMenu') || sensitive('_billableItem'))
         throw new Error('a write control stayed sensitive');
     const detail = shell(`${button}._detailItem.label.text`);
     if (detail !== 'Network down')
         throw new Error(`detail: ${detail}`);
     mockSet('Status', new GLib.Variant('s', 'ready'));
-    await waitFor('no mark', () => label() === '0:00:00' || label());
+    await waitFor('no mark', () => label() === '0:00' || label());
 });
 
 await step('the button says so when the service goes away', async () => {
     call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Quit', null, null);
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     const status = shell(`${button}._statusItem.label.text`);
     if (status !== 'Timer service not running')
         throw new Error(`status: ${status}`);

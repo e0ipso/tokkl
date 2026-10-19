@@ -63,7 +63,8 @@ export function elapsedSeconds(startTime, nowSeconds) {
 }
 
 /**
- * H:MM:SS, as the other Tokkl desktop apps write elapsed time.
+ * H:MM in whole minutes, as the other Tokkl desktop apps write elapsed time.
+ * The seconds are dropped, not rounded.
  *
  * @param {number} seconds
  * @returns {string}
@@ -72,8 +73,7 @@ export function formatElapsed(seconds) {
     const total = Math.max(0, Math.floor(seconds));
     const hours = Math.floor(total / 3600);
     const minutes = Math.floor((total % 3600) / 60);
-    const rest = total % 60;
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+    return `${hours}:${String(minutes).padStart(2, '0')}`;
 }
 
 /**

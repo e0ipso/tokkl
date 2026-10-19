@@ -38,7 +38,7 @@ await step('the extension is enabled without errors', () => waitForEnabled(uuid)
 await step('an unconfigured service marks the button and says so', async () => {
     service = Gio.Subprocess.new([timerd], Gio.SubprocessFlags.NONE);
     await waitFor('Status unconfigured', () => property('Status') === 'unconfigured' || property('Status'));
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     await waitFor('the status', () => statusText() === 'Not configured' || statusText());
     if (sensitive('_toggleItem'))
         throw new Error('Start is sensitive before the service is configured');
@@ -47,7 +47,7 @@ await step('an unconfigured service marks the button and says so', async () => {
 await step('Configure connects the service and the button follows to ready', async () => {
     timer('Configure', new GLib.Variant('(ssss)', [fixture.url, 'token', '', fixture.token]));
     await waitFor('Status ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    await waitFor('no mark', () => label() === '0:00:00' || label());
+    await waitFor('no mark', () => label() === '0:00' || label());
     await waitFor('the status', () => statusText() === 'Connected' || statusText());
     if (!sensitive('_toggleItem'))
         throw new Error('Start stayed insensitive');
@@ -80,9 +80,8 @@ await step('a primary click starts an entry on the server', async () => {
     const start = property('StartTime');
     if (Math.abs(start - before) > 60)
         throw new Error(`StartTime ${start} is not near ${before}`);
-    await waitFor('the running time', () => /^0:00:\d\d$/.test(label()) && property('Status') === 'ready' || label());
-    const first = label();
-    await waitFor('a tick', () => label() !== first || label(), 3000);
+    // Whole minutes: the entry has just started.
+    await waitFor('the running time', () => label() === '0:00' && property('Status') === 'ready' || label());
     await waitFor('the locked project', () => sensitive('_projectMenu') === false);
 });
 
@@ -97,7 +96,7 @@ await step('a second primary click stops the entry on the server', async () => {
     click(1);
     await waitFor('stopped', () => property('Running') === false && property('StartTime') === 0, 30_000);
     await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    await waitFor('0:00:00', () => label() === '0:00:00' || label());
+    await waitFor('0:00', () => label() === '0:00' || label());
     await waitFor('the unlocked project', () => sensitive('_projectMenu') === true);
 });
 
@@ -105,7 +104,7 @@ await step('the button says so when the service goes away', async () => {
     service.force_exit();
     service.wait(null);
     service = null;
-    await waitFor('the mark', () => label() === '0:00:00!' || label());
+    await waitFor('the mark', () => label() === '0:00!' || label());
     if (statusText() !== 'Timer service not running')
         throw new Error(`status: ${statusText()}`);
 });
