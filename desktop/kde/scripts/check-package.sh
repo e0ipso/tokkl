@@ -19,7 +19,9 @@
 #      libplasma under Xvfb and a DBus session: <dir> holds the smokeload
 #      binary built for this target and packages.txt, the packages it needs
 #      (its libraries, Xvfb and DBus), which are installed first.
-#   3. Remove: no widget or backend files are left.
+#   3. Remove: no widget or backend files are left. The removal keeps the
+#      dependencies the install brought in, so dependency autoremove is not
+#      checked.
 #   4. With --previous (an older tokkl-kde): install it, upgrade to <file>,
 #      check that only the new package's files are present, load it again
 #      with --load-test, then remove it (purge on Debian).
@@ -175,11 +177,15 @@ upgrade_file() {
         dnf upgrade -y -q "$1"
     fi
 }
+# Removes tokkl-kde only. apt-get never removes the dependencies with it; dnf
+# does by default, so --no-autoremove keeps them for the next install in this
+# disposable system. Removing dependencies nothing else needs is the package
+# manager's job, so these checks leave it out.
 remove_package() { # [purge]: Debian only, also drops the package's configuration
     if [ "$format" = deb ]; then
         DEBIAN_FRONTEND=noninteractive apt-get "${1:-remove}" -y -q tokkl-kde
     else
-        dnf remove -y -q tokkl-kde
+        dnf remove -y -q --no-autoremove tokkl-kde
     fi
 }
 target_versions() { # the Qt, KDE Frameworks and Plasma packages installed

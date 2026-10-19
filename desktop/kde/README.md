@@ -542,8 +542,10 @@ The scripts it runs work on their own, for a prepared machine:
   maintainer scripts), installs it on a clean system, checks the stamped widget version,
   the backend's libraries and the package manager's verify, removes it, then
   installs the previous package, upgrades and removes again (purging on
-  Debian). Settings and wallet files in a test home directory must not
-  change. With `--load-test`, after the clean install and after the upgrade
+  Debian). Removal takes only `tokkl-kde` away and keeps its dependencies
+  (`dnf remove --no-autoremove` on Fedora; `apt-get remove` keeps them
+  anyway), so the check does not cover dependency autoremove. Settings and
+  wallet files in a test home directory must not change. With `--load-test`, after the clean install and after the upgrade
   it installs the packages in `<dir>/packages.txt` and runs `<dir>/smokeload`
   against the installed files, under Xvfb and `dbus-run-session`: the
   widget, its configuration schema and Configure page load through libplasma
