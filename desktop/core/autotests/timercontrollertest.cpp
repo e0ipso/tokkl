@@ -663,13 +663,17 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
         QCOMPARE(f.timer.status(), TimerController::Error);
+        // The read after the refusal keeps the message and the status.
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
         QVERIFY(f.timer.isPaused());
         QCOMPARE(f.timer.elapsedSeconds(), 65);
+        QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
+        QCOMPARE(f.timer.status(), TimerController::Error);
         poll(f);
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
         QCOMPARE(f.find("POST", "/time_entries").size(), 1);
         QVERIFY(f.timer.isPaused());
+        QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
 
         // Stop clears the chain; the next click starts a fresh entry.
         const qsizetype requests = f.transport.requests.size();
@@ -683,6 +687,36 @@ private Q_SLOTS:
         const QJsonObject fresh = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
         QCOMPARE(fresh.value(QStringLiteral("description")).toString(), QString());
         QVERIFY(!fresh.contains(QStringLiteral("task_id")));
+    }
+
+    void refusedStartKeepsItsMessage()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.start());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(404, "\"Project not found\""));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
+        QCOMPARE(f.timer.status(), TimerController::Error);
+        QVERIFY(f.timer.canWrite());
+
+        // The next choice is a user action and clears it.
+        QVERIFY(f.timer.chooseProject(11));
+        QCOMPARE(f.timer.errorString(), QString());
+        QCOMPARE(f.timer.status(), TimerController::Ready);
+
+        // So does a start that succeeds, after another refusal.
+        QVERIFY(f.timer.start());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(404, "\"Project not found\""));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
+        QVERIFY(f.timer.start());
+        QCOMPARE(f.timer.errorString(), QString());
+        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(21, 7, clockText(f.clock.now()))));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(21, 7, clockText(f.clock.now()))));
+        QVERIFY(f.timer.isRunning());
+        QCOMPARE(f.timer.errorString(), QString());
+        QCOMPARE(f.timer.status(), TimerController::Ready);
     }
 
     void ambiguousResumeIsNeverReplayed_data()

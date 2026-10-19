@@ -285,9 +285,12 @@ private:
     void resolveProject();
     void setEntryProject(const std::optional<Project> &project);
     void updateIndicator();
-    void finishMutation(const ApiError &error, bool succeeded);
+    // start is true for a start or resume.
+    void finishMutation(const ApiError &error, bool succeeded, bool start = false);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
+    // Clears the message of a refused start or resume, on a user action.
+    void clearKeptError();
     void updateElapsed();
     bool readable() const;
 
@@ -337,6 +340,9 @@ private:
     QString m_error;
 
     bool m_mutating = false;
+    // m_error is a refused start's or resume's message, which a successful
+    // read leaves in place.
+    bool m_keepError = false;
     bool m_reconciling = false;
     bool m_workspaceLost = false;
     bool m_rediscoveryUsed = false;

@@ -331,7 +331,7 @@ bool TimerController::start()
         if (result.ok() && !self->m_workspaceLost) {
             self->applyEntry(result.value->isRunning() ? result.value : std::nullopt);
         }
-        self->finishMutation(result.error, result.ok());
+        self->finishMutation(result.error, result.ok(), true);
     });
     return true;
 }
@@ -343,7 +343,7 @@ bool TimerController::stop()
         if (isBusy()) {
             return false;
         }
-        m_error.clear();
+        setError(QString());
         setChain(std::nullopt);
         Q_EMIT statusChanged();
         return true;
@@ -454,7 +454,7 @@ bool TimerController::resume()
                 break;
             }
         }
-        self->finishMutation(result.error, result.ok());
+        self->finishMutation(result.error, result.ok(), true);
     });
     return true;
 }
@@ -494,6 +494,7 @@ bool TimerController::chooseProject(const QVariant &projectId)
             billable = found->billable;
         }
     }
+    clearKeptError();
     pickNextStart();
     setNextStart(project, billable);
     return true;
@@ -505,6 +506,7 @@ bool TimerController::chooseBillable(bool billable)
     if (!canWrite() || isPaused()) {
         return false;
     }
+    clearKeptError();
     pickNextStart();
     m_connection->setNextBillable(billable);
     if (!m_entry || m_entry->billable == billable) {
@@ -542,11 +544,11 @@ void TimerController::beginMutation()
     // Reads issued so far may describe the state before this mutation.
     m_firstValidRead = m_readsIssued + 1;
     m_entryReadPending = 0;
-    m_error.clear();
+    setError(QString());
     Q_EMIT statusChanged();
 }
 
-void TimerController::finishMutation(const ApiError &error, bool succeeded)
+void TimerController::finishMutation(const ApiError &error, bool succeeded, bool start)
 {
     m_mutating = false;
     m_firstValidRead = m_readsIssued + 1;
@@ -585,8 +587,11 @@ void TimerController::finishMutation(const ApiError &error, bool succeeded)
         break;
     default:
         // Answered and refused, for example a 409 for an entry that was
-        // already stopped. Read what the server has now.
+        // already stopped. Read what the server has now. A refused start or
+        // resume created nothing, so the read cannot answer it: its message
+        // stays until the next action.
         setError(error.message);
+        m_keepError = start;
         fetchEntry();
         break;
     }
@@ -654,7 +659,7 @@ void TimerController::reconnect()
     m_workspaceLost = false;
     m_rediscoveryUsed = false;
     m_lastEntryWanted = true;
-    m_error.clear();
+    setError(QString());
     Q_EMIT statusChanged();
     m_connection->reconnect();
     if (isConnected()) {
@@ -711,7 +716,9 @@ void TimerController::fetchEntry()
         self->m_entryKnown = true;
         self->m_entryStale = false;
         self->m_reconciling = false;
-        self->setError(QString());
+        if (!self->m_keepError) {
+            self->setError(QString());
+        }
         self->applyEntry(*result.value);
         if (self->m_lastEntryWanted) {
             // The first read of a connection. A running entry sets the
@@ -1137,7 +1144,7 @@ void TimerController::reset()
     m_lastEntryWanted = true;
     m_lastEntryRead = 0;
     m_nextPoll = QDateTime();
-    m_error.clear();
+    setError(QString());
     m_lastState = connectionState();
     m_chainChecked = false;
     m_resumeStart = QDateTime();
@@ -1163,6 +1170,15 @@ void TimerController::reset()
 void TimerController::setError(const QString &error)
 {
     m_error = error;
+    m_keepError = false;
+}
+
+void TimerController::clearKeptError()
+{
+    if (m_keepError) {
+        setError(QString());
+        Q_EMIT statusChanged();
+    }
 }
 
 void TimerController::updateElapsed()

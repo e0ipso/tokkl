@@ -624,7 +624,8 @@ private Q_SLOTS:
     // tags and the billable flag, and the chain total is what the server
     // stored for the stopped entries. Once the task, and then the project, are
     // gone, a resume is refused with 404 and the server's message, creates
-    // nothing and leaves the chain paused; stop then only clears it.
+    // nothing and leaves the chain paused. The message stays through the
+    // reads that follow; stop then only clears the chain and the message.
     void pauseAndResume()
     {
         const User &p = user(QStringLiteral("a.p"));
@@ -697,14 +698,24 @@ private Q_SLOTS:
                                          && s.timer.canWrite(),
                                      timeoutMs);
             QCOMPARE(errors, QStringList{QStringLiteral("Task not found")});
+            // The read leaves the refusal on show.
+            QCOMPARE(s.timer.errorString(), QStringLiteral("Task not found"));
+            QCOMPARE(s.timer.status(), TimerController::Error);
             QVERIFY(s.timer.isPaused());
             QVERIFY(!s.timer.isRunning());
             QCOMPARE(s.timer.chainSeconds(), total);
             QCOMPARE(s.timer.elapsedText(), hoursAndMinutes(total));
         }
 
+        // Polls keep it too, until the next action.
+        s.idle();
+        QCOMPARE(s.timer.errorString(), QStringLiteral("Task not found"));
+        QCOMPARE(s.timer.status(), TimerController::Error);
+        QVERIFY(s.timer.isPaused());
+
         const qsizetype beforeStop = s.transport.log.size();
         QVERIFY(s.timer.stop());
+        QCOMPARE(s.timer.status(), TimerController::Ready);
         QVERIFY(!s.timer.isPaused());
         QCOMPARE(s.timer.errorString(), QString());
         QCOMPARE(s.timer.elapsedSeconds(), 0);
