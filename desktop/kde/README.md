@@ -142,6 +142,11 @@ come from `desktop/core`.
 - `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
   and credential store: ticking, sleep gaps, polling, start and stop requests,
   repeated clicks, conflicts, late replies, failures and account switches.
+- `appletchainstore`: the pause chain store (`TokklChainStore`) in the
+  configuration of an applet that a test corona hosts: saving, reading it back
+  from the appletsrc file, unreadable values, deleting the chain, handing the
+  store to the timer, and a timer on the fakes that resumes its own account's
+  chain and deletes another account's.
 - `panel`: the panel item, its project indicator and its menu
   (`PanelButton.qml`, `ProjectIndicator.qml`, `PanelMenu.qml`) in QtQuickTest, from the QML tests in `autotests/qml/`, offscreen. The
   backend types come from `tokklcore` wired to the fake clock, transport and

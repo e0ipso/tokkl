@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
@@ -32,6 +32,23 @@ const RESIZED = [
   ['docs/brand/tokkl-wordmark.png', 640],
 ] as const;
 const BORDER = 4;
+/** The desktop icons: full-colour RGBA renders of the icon pack's master on a square canvas. */
+const KDE_LOGO = 'desktop/kde/package/contents/images/tokkl.png';
+const KDE_ICONS = 'desktop/kde/package/icons/';
+const KDE_ICON_SIZES = [32, 48, 64, 96, 128, 256];
+const GNOME_LOGO = 'desktop/gnome/extension/tokkl.png';
+const MACOS_ICONSET = 'desktop/macos/resources/Tokkl.iconset/';
+/** The file names `iconutil -c icns` takes, each with its size in pixels: 16 to 512 points at 1x and 2x. */
+const MACOS_ICONS = [16, 32, 128, 256, 512].flatMap((points) => [
+  [`icon_${points}x${points}.png`, points],
+  [`icon_${points}x${points}@2x.png`, points * 2],
+] as const);
+const DESKTOP_ICONS: [string, number][] = [
+  [KDE_LOGO, 96],
+  ...KDE_ICON_SIZES.map((size): [string, number] => [`${KDE_ICONS}tokkl-${size}.png`, size]),
+  [GNOME_LOGO, 32],
+  ...MACOS_ICONS.map(([name, size]): [string, number] => [`${MACOS_ICONSET}${name}`, size]),
+];
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PALETTE_PNG = 3;
 const RGBA_PNG = 6;
@@ -132,7 +149,7 @@ function alphaBounds(png: Png) {
     }
   }
   assert.ok(right >= 0, 'the image is fully transparent');
-  return { width: right - left + 1, height: bottom - top + 1 };
+  return { left, top, width: right - left + 1, height: bottom - top + 1 };
 }
 
 /** Checks that a PNG is 8-bit, not interlaced, and indexes a palette of at most 256 colours. */
@@ -192,5 +209,32 @@ for (const file of QUANTISED_ICONS) {
     // tRNS is allowed, since it carries the palette's alpha rather than metadata.
     const chunks = [...png.chunks.keys()].filter((type) => type !== 'tRNS').sort();
     assert.deepEqual(chunks, ['IDAT', 'IEND', 'IHDR', 'PLTE']);
+  });
+}
+
+test('the macOS iconset holds exactly the ten files iconutil expects', () => {
+  const names = readdirSync(join(ROOT, MACOS_ICONSET)).sort();
+  assert.deepEqual(names, MACOS_ICONS.map(([name]) => name).sort());
+});
+
+test('the KDE widget ships a hicolor icon at each size, and the 96px one is its panel logo', () => {
+  const names = readdirSync(join(ROOT, KDE_ICONS)).sort();
+  assert.deepEqual(names, KDE_ICON_SIZES.map((size) => `tokkl-${size}.png`).sort());
+  assert.ok(readFileSync(join(ROOT, `${KDE_ICONS}tokkl-96.png`)).equals(readFileSync(join(ROOT, KDE_LOGO))));
+});
+
+for (const [path, size] of DESKTOP_ICONS) {
+  test(`${path} is a ${size}x${size} RGBA PNG with no metadata`, () => {
+    const png = readPng(path);
+    assert.deepEqual([png.width, png.height], [size, size]);
+    assert.deepEqual([png.depth, png.colourType, png.interlace], [8, RGBA_PNG, 0]);
+    assert.deepEqual([...png.chunks.keys()].sort(), ['IDAT', 'IEND', 'IHDR']);
+  });
+
+  test(`${path} fills its height with the logo, centred across`, () => {
+    const bounds = alphaBounds(readPng(path));
+    assert.deepEqual([bounds.top, bounds.height], [0, size], 'the art is as tall as the canvas');
+    const right = size - bounds.left - bounds.width;
+    assert.ok(Math.abs(bounds.left - right) <= 1, `left margin ${bounds.left} and right margin ${right} differ by more than 1px`);
   });
 }

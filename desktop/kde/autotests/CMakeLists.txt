@@ -25,6 +25,16 @@ set(_kde_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-kde")
 set_tests_properties(kdeconnection kdewallet-disabled PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_kde_xdg}/data;XDG_CONFIG_HOME=${_kde_xdg}/config;XDG_CACHE_HOME=${_kde_xdg}/cache;XDG_STATE_HOME=${_kde_xdg}/state")
 
+# The pause chain store in the configuration of an applet that a test corona
+# hosts, read by a timer on the fakes of desktop/core. The corona's appletsrc
+# file stays in the test's own XDG_CONFIG_HOME.
+set(_chain_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-chain")
+ecm_add_test(appletchainstoretest.cpp
+    TEST_NAME appletchainstore
+    LINK_LIBRARIES tokklkde tokklcorefakes Plasma::Plasma KF6::ConfigCore Qt6::Test)
+set_tests_properties(appletchainstore PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_chain_xdg}/data;XDG_CONFIG_HOME=${_chain_xdg}/config;XDG_CACHE_HOME=${_chain_xdg}/cache;XDG_STATE_HOME=${_chain_xdg}/state")
+
 # The panel item, its menu and the Configure page (package/contents/ui),
 # driven by QtQuickTest through the QML tests in qml/. The backend types come
 # from tokklcore, wired to the fakes of desktop/core; the test never loads

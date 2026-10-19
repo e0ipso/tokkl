@@ -649,6 +649,51 @@ private Q_SLOTS:
         QTRY_COMPARE(f.item.title, QStringLiteral("0:00"));
     }
 
+    void stopTimerEndsAPausedChainOffline_data()
+    {
+        QTest::addColumn<bool>("rateLimited");
+        QTest::newRow("instance unreachable") << false;
+        QTest::newRow("rate limited") << true;
+    }
+
+    // Ending a paused chain sends nothing, so Stop Timer stays enabled when
+    // the poll fails, even while the timer cannot write.
+    void stopTimerEndsAPausedChainOffline()
+    {
+        QFETCH(bool, rateLimited);
+        Fixture f;
+        const QDateTime begin = f.clock.now().addSecs(-600);
+        QVERIFY(f.connect(chainEntryBody(5, begin)));
+        QVERIFY(f.pause(5, begin));
+        const qsizetype poll = f.transport.requests.size();
+        f.advance(30);
+        QCOMPARE(f.last("GET", "/me/time_entries/current"), poll);
+        f.transport.respond(poll,
+                            rateLimited ? FakeTransport::answer(429, "\"Too many requests\"", "120")
+                                        : FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        if (rateLimited) {
+            QTRY_VERIFY(!f.app.timer()->canWrite());
+        } else {
+            QTRY_VERIFY(f.app.timer()->isStale());
+        }
+        QVERIFY(f.app.timer()->isPaused());
+        QVERIFY(!f.app.timer()->isBusy());
+
+        StatusMenu &menu = *f.app.statusMenu();
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(menu.startStopAction()->isEnabled());
+
+        const qsizetype before = f.transport.requests.size();
+        menu.startStopAction()->trigger();
+        QCOMPARE(f.transport.requests.size(), before);
+        QVERIFY(!f.app.timer()->isPaused());
+        QVERIFY(!f.settings.childGroups().contains(QStringLiteral("PauseChain")));
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
+        // Start sends a request, so it waits for the timer to write again.
+        QCOMPARE(menu.startStopAction()->isEnabled(), f.app.timer()->canWrite());
+        QCOMPARE(menu.startStopAction()->isEnabled(), !rateLimited);
+    }
+
     // The app keeps the chain in its settings, so quitting and opening it
     // again keeps the paused total.
     void relaunchKeepsThePausedTotal()
