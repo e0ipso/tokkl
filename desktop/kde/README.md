@@ -586,18 +586,37 @@ the Debian image had Qt 6.8.2, KDE Frameworks 6.13.0 and libplasma 6.3.5; on
 libplasma 6.7.5. To move a base image, update
 its digest in the Dockerfile.
 
-semantic-release builds the release packages through the local plugin
-`ci/semantic-release.js`, listed in `.releaserc.json` after
-`@semantic-release/npm` and before `@semantic-release/git`:
+A push to main releases in three stages, after every check above has
+passed:
 
-- `verifyRelease` refuses a next version that `scripts/native-version.sh`
-  cannot map, before anything is written.
-- `prepare` runs `scripts/container-check.sh` with the next version, so the
-  packages and widget metadata carry it, into `dist/kde`, and fails unless
-  exactly one DEB and one RPM of that version are there. A failure stops the
-  release before the tag is pushed.
-- `@semantic-release/github` attaches `dist/kde/tokkl-kde_*_amd64.deb` and
-  `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it creates.
+1. `release-version` runs `ci/next-release.js`, a semantic-release dry run
+   that prints the next version, or nothing when the pushed commits warrant
+   no release. Then nothing else runs. The dry run checks that
+   semantic-release could push, so this job has the same write token as the
+   release.
+2. `kde-release` runs once per format, each on its own runner, from the same
+   commit: `scripts/container-check.sh` for the next version, with the image
+   cache read-only. Each leg uploads the package and a manifest,
+   `kde-<format>.json`, with the format, version, commit, file name and
+   SHA-256, as the artifact `kde-release-<format>`. A re-run replaces it.
+3. `release` starts only when both legs passed. It downloads both artifacts
+   into `dist/kde` and runs semantic-release, with the local plugin
+   `ci/semantic-release.js` listed in `.releaserc.json` after
+   `@semantic-release/npm` and before `@semantic-release/git`:
+   - `verifyRelease` refuses a next version that `scripts/native-version.sh`
+     cannot map and, in the release job, one other than the version the
+     packages were built for (`TOKKL_KDE_RELEASE_VERSION`).
+   - `prepare` fails unless `dist/kde` holds exactly one DEB and one RPM of
+     that version and their two manifests, and each manifest names that
+     version, the commit being released and the package's SHA-256. A failure
+     stops the release before the tag is pushed.
+   - `@semantic-release/github` attaches `dist/kde/tokkl-kde_*_amd64.deb` and
+     `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it
+     creates.
+
+A failed leg skips the `release` job, so nothing is tagged or published.
+When another release moves main on between the stages, semantic-release in
+the `release` job finds the branch behind and releases nothing.
 
 There is no separate companion version, tag or workflow, and the packages
 are published nowhere else: no app store, KDE Store, Flatpak or distribution

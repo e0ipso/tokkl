@@ -1,19 +1,22 @@
 /**
- * semantic-release plugin that builds the tokkl-kde DEB and RPM for the release being made, so they
- * carry the shared Tokkl version and are attached to the same v<version> GitHub release.
+ * semantic-release plugin that releases the tokkl-kde DEB and RPM under the shared Tokkl version and
+ * attaches them to the same v<version> GitHub release. It builds nothing: the release workflow
+ * (.github/workflows/ci.yml) works out the next version with a dry run (ci/next-release.js), builds
+ * and checks each package for it with scripts/container-check.sh on a runner of its own, and puts
+ * both packages in dist/kde, each with a manifest, before semantic-release runs for real.
  *
- * - verifyConditions: the container engine answers.
- * - verifyRelease: scripts/native-version.sh accepts the next version, before the changelog,
- *   package.json, tag or release are written.
- * - prepare: scripts/container-check.sh builds both packages for the next version in the pinned
- *   images and checks them: CTest, installation, loading under Xvfb and DBus, upgrade and
- *   removal. They land in dist/kde, where @semantic-release/github finds them. This plugin runs
- *   before @semantic-release/git, so a failure stops the release before anything is pushed.
- *
- * CONTAINER_ENGINE defaults to docker, as in container-check.sh.
+ * - verifyRelease: scripts/native-version.sh accepts the next version and, when
+ *   TOKKL_KDE_RELEASE_VERSION is set, the next version is that one. It runs in the dry run too,
+ *   before the changelog, package.json, tag or release are written.
+ * - prepare: dist/kde holds exactly one DEB and one RPM of the next version and their manifests,
+ *   kde-deb.json and kde-rpm.json, and nothing else. Each manifest names its format, the version,
+ *   the source revision, the package file and its SHA-256, and must match the package and the
+ *   revision being released (HEAD). This plugin runs before @semantic-release/git, so a failure stops
+ *   the release before anything is pushed.
  */
 import { spawn } from 'node:child_process';
-import { readdirSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const KDE_DIR = 'desktop/kde';
@@ -25,7 +28,6 @@ function run(command, args, { cwd, env }) {
     let stdout = '';
     child.stdout.on('data', (chunk) => {
       stdout += chunk;
-      process.stdout.write(chunk);
     });
     child.on('error', reject);
     child.on('close', (code) => {
@@ -35,29 +37,55 @@ function run(command, args, { cwd, env }) {
   });
 }
 
-export async function verifyConditions(pluginConfig, { cwd, env, logger }) {
-  const engine = env.CONTAINER_ENGINE || 'docker';
-  await run(engine, ['version', '--format', '{{.Server.Version}}'], { cwd, env });
-  logger.log('%s is available to build the KDE packages', engine);
+function nativeVersion(version, context) {
+  return run(join(KDE_DIR, 'scripts/native-version.sh'), [version], context);
 }
 
 export async function verifyRelease(pluginConfig, { cwd, env, nextRelease, logger }) {
-  const native = await run(join(KDE_DIR, 'scripts/native-version.sh'), [nextRelease.version], { cwd, env });
+  const native = await nativeVersion(nextRelease.version, { cwd, env });
+  const expected = env.TOKKL_KDE_RELEASE_VERSION;
+  if (expected && expected !== nextRelease.version) {
+    throw new Error(`The KDE packages were built for ${expected}, but the next release is ${nextRelease.version}`);
+  }
   logger.log('KDE packages for %s will have version %s', nextRelease.version, native);
 }
 
 export async function prepare(pluginConfig, { cwd, env, nextRelease, logger }) {
   const output = join(cwd, OUTPUT_DIR);
-  // Only this release's packages may be attached.
-  rmSync(output, { recursive: true, force: true });
-  await run(join(KDE_DIR, 'scripts/container-check.sh'), ['--version', nextRelease.version, '--output', output], { cwd, env });
-
-  const native = await run(join(KDE_DIR, 'scripts/native-version.sh'), [nextRelease.version], { cwd, env });
-  const files = readdirSync(output).filter((name) => name.endsWith('.deb') || name.endsWith('.rpm')).sort();
-  const deb = `tokkl-kde_${native}_amd64.deb`;
-  const rpm = files.find((name) => name.startsWith(`tokkl-kde-${native}-1.`) && name.endsWith('.x86_64.rpm'));
-  if (files.length !== 2 || !files.includes(deb) || !rpm) {
-    throw new Error(`Expected ${deb} and one tokkl-kde-${native}-1.*.x86_64.rpm in ${OUTPUT_DIR}, found: ${files.join(', ') || 'nothing'}`);
+  const native = await nativeVersion(nextRelease.version, { cwd, env });
+  const revision = await run('git', ['rev-parse', 'HEAD'], { cwd, env });
+  let files = [];
+  try {
+    files = readdirSync(output).sort();
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
   }
-  logger.log('Built and checked %s and %s', deb, rpm);
+
+  const deb = `tokkl-kde_${native}_amd64.deb`;
+  const rpms = files.filter((name) => name.startsWith(`tokkl-kde-${native}-1.`) && name.endsWith('.x86_64.rpm'));
+  const expected = [deb, rpms[0], 'kde-deb.json', 'kde-rpm.json'];
+  const complete = rpms.length === 1 && files.length === expected.length && expected.every((name) => files.includes(name));
+  if (!complete) {
+    throw new Error(
+      `Expected ${deb}, one tokkl-kde-${native}-1.*.x86_64.rpm, kde-deb.json and kde-rpm.json in ${OUTPUT_DIR}, found: ${files.join(', ') || 'nothing'}`,
+    );
+  }
+
+  for (const [format, name] of [['deb', deb], ['rpm', rpms[0]]]) {
+    const manifestFile = `kde-${format}.json`;
+    let manifest;
+    try {
+      manifest = JSON.parse(readFileSync(join(output, manifestFile), 'utf8'));
+    } catch (error) {
+      throw new Error(`${OUTPUT_DIR}/${manifestFile} is not valid JSON: ${error.message}`);
+    }
+    const sha256 = createHash('sha256').update(readFileSync(join(output, name))).digest('hex');
+    const want = { format, version: nextRelease.version, revision, package: name, sha256 };
+    for (const [key, value] of Object.entries(want)) {
+      if (manifest[key] !== value) {
+        throw new Error(`${OUTPUT_DIR}/${manifestFile} has ${key} ${JSON.stringify(manifest[key])}, expected ${JSON.stringify(value)}`);
+      }
+    }
+  }
+  logger.log('Releasing %s and %s, built and checked from %s', deb, rpms[0], revision);
 }
