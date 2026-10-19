@@ -57,6 +57,8 @@ ctest --test-dir desktop/macos/build --output-on-failure
 
 The version comes from the root `package.json`. Pass `-DTOKKL_VERSION=<semver>` to override it.
 
+The app icon is the Tokkl clock logo. `npm run icons` renders it from the icon pack's master into the ten PNGs of `resources/Tokkl.iconset`, which are committed. The build packs them into `Tokkl.icns` with `iconutil` and puts it in `Contents/Resources`, and `Info.plist` names it in `CFBundleIconFile`.
+
 ## Running
 
 ```sh
@@ -72,7 +74,7 @@ desktop/macos/scripts/package-dmg.sh --app desktop/macos/build/src/Tokkl.app \
 desktop/macos/scripts/check-dmg.sh desktop/macos/dist/Tokkl-*.dmg "$(node -p 'require("./package.json").version')"
 ```
 
-It copies the bundle, adds Qt and QtKeychain with `macdeployqt`, signs every binary ad hoc, checks that the copy loads no library from outside the bundle or the system, and packages it with a link to `/Applications`. `check-dmg.sh` mounts the DMG, checks the version and signature, and starts the app from it for ten seconds. `--identity <identity>` signs with a certificate instead.
+It copies the bundle, adds Qt and QtKeychain with `macdeployqt`, signs every binary ad hoc, checks that the copy loads no library from outside the bundle or the system, and packages it with a link to `/Applications`. `check-dmg.sh` mounts the DMG, checks the version, the icon and the signature, and starts the app from it for ten seconds. `--identity <identity>` signs with a certificate instead.
 
 The build signs the bundle ad hoc. An ad hoc signature changes with every build, so the Keychain may ask for access again after a rebuild. Pass `-DTOKKL_CODESIGN_IDENTITY=<identity>` to sign with a certificate from your keychain instead.
 

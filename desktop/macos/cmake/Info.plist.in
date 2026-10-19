@@ -8,6 +8,8 @@
     <string>@TOKKL_BUNDLE_NAME@</string>
     <key>CFBundleExecutable</key>
     <string>@TOKKL_BUNDLE_NAME@</string>
+    <key>CFBundleIconFile</key>
+    <string>@TOKKL_BUNDLE_ICON@</string>
     <key>CFBundleIdentifier</key>
     <string>@TOKKL_BUNDLE_ID@</string>
     <key>CFBundleInfoDictionaryVersion</key>

@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 
 // Derives the brand images that Tokkl ships from the owner's artwork in docs/brand: the web app's
 // icons and wordmarks in packages/web/public, the README wordmarks in docs/brand, the KDE
-// widget's icons in desktop/kde/package and the GNOME extension's logo in desktop/gnome/extension.
-// Run it with `npm run icons` after replacing a file in
-// docs/brand and commit the outputs with it.
+// widget's icons in desktop/kde/package, the GNOME extension's logo in desktop/gnome/extension and
+// the macOS app's iconset in desktop/macos/resources. Run it with `npm run icons` after replacing a
+// file in docs/brand and commit the outputs with it.
 //
 // Resizing and palette reduction use ImageMagick 7 (`magick`). Chromium can resize but cannot
 // write a palette PNG, and the larger manifest icons and the 2x wordmark only fit the size budgets
@@ -17,6 +17,9 @@ const BRAND = fileURLToPath(new URL('../docs/brand/', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../packages/web/public/', import.meta.url));
 const KDE_PACKAGE = fileURLToPath(new URL('../desktop/kde/package/', import.meta.url));
 const GNOME_EXTENSION = fileURLToPath(new URL('../desktop/gnome/extension/', import.meta.url));
+const MACOS_ICONSET = fileURLToPath(
+  new URL('../desktop/macos/resources/Tokkl.iconset/', import.meta.url),
+);
 /** The icon pack's web root. Every served icon keeps its path from here under packages/web/public. */
 const ICON_PACK = `${BRAND}icon-pack/web/public/`;
 
@@ -31,8 +34,8 @@ const WORDMARK_CROP = ['-trim', '+repage', '-bordercolor', 'none', '-border', '4
 
 /**
  * The icon pack's master artwork. The clock is taller than wide inside its transparent square, so
- * the KDE icons trim it to its alpha bounds and centre it on a square transparent canvas as tall as
- * the art, which fills the icon without distorting it.
+ * the KDE, GNOME and macOS icons trim it to its alpha bounds and centre it on a square transparent
+ * canvas as tall as the art, which fills the icon without distorting it.
  */
 const MASTER = `${BRAND}icon-pack/source/master-export.png`;
 const MASTER_SQUARE = [
@@ -125,3 +128,16 @@ for (const size of [32, 48, 64, 96, 128, 256]) {
 // The GNOME extension shows tokkl.png before the project indicator in its top bar button, at the
 // 16px panel icon size. It is a full-colour RGBA PNG at 32px, so it stays sharp at twice that size.
 magick([MASTER, ...MASTER_SQUARE, '-resize', '32x32'], `${GNOME_EXTENSION}tokkl.png`, 'png32');
+
+// The macOS build turns the iconset into Tokkl.icns with `iconutil -c icns`, and Info.plist names
+// it in CFBundleIconFile. iconutil takes the files by these names: each size at 1x and 2x, from 16
+// to 512 points. They are full-colour RGBA PNGs of the logo as it is, not template images.
+mkdirSync(MACOS_ICONSET, { recursive: true });
+for (const points of [16, 32, 128, 256, 512]) {
+  for (const scale of [1, 2]) {
+    const pixels = points * scale;
+    const name = `icon_${points}x${points}${scale === 2 ? '@2x' : ''}.png`;
+    const out = `${MACOS_ICONSET}${name}`;
+    magick([MASTER, ...MASTER_SQUARE, '-resize', `${pixels}x${pixels}`], out, 'png32');
+  }
+}

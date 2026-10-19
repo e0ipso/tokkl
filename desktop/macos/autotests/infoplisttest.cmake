@@ -1,6 +1,7 @@
 # Checks the configured Info.plist: LSUIElement is true, so the app has no
-# Dock icon, and the bundle id and version are the resolved ones. On macOS,
-# plutil also checks that the file is a valid property list.
+# Dock icon, CFBundleIconFile names Tokkl.icns in Contents/Resources, and the
+# bundle id and version are the resolved ones. On macOS, plutil also checks
+# that the file is a valid property list.
 #
 #   cmake -DINFO_PLIST=<file> -DBUNDLE_ID=<id> -DVERSION=<version> -P infoplisttest.cmake
 
@@ -27,6 +28,7 @@ expect_key(LSUIElement "<true/>")
 expect_key(CFBundleIdentifier "<string>${_bundle_id_regex}</string>")
 expect_key(CFBundleVersion "<string>${_version_regex}</string>")
 expect_key(CFBundleExecutable "<string>Tokkl</string>")
+expect_key(CFBundleIconFile "<string>Tokkl</string>")
 
 if(_plist MATCHES "@[A-Za-z_]+@")
     message(FATAL_ERROR "${INFO_PLIST}: unreplaced placeholder ${CMAKE_MATCH_0}")
@@ -39,4 +41,4 @@ if(CMAKE_HOST_APPLE)
     endif()
 endif()
 
-message(STATUS "${INFO_PLIST}: LSUIElement true, ${BUNDLE_ID} ${VERSION}")
+message(STATUS "${INFO_PLIST}: LSUIElement true, icon Tokkl, ${BUNDLE_ID} ${VERSION}")

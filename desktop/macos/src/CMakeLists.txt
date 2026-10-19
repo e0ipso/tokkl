@@ -45,7 +45,26 @@ if(APPLE)
         macstatusitem.mm
         main.mm
     )
-    add_executable(tokkl-macos MACOSX_BUNDLE ${_platform_sources})
+    # The bundle icon: iconutil packs the iconset that npm run icons renders
+    # into an icns, which goes to Contents/Resources under the name
+    # CFBundleIconFile gives.
+    find_program(TOKKL_ICONUTIL iconutil REQUIRED)
+    set(_iconset "${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset")
+    set(_icns "${CMAKE_CURRENT_BINARY_DIR}/${TOKKL_BUNDLE_ICON}.icns")
+    set(_iconset_pngs)
+    foreach(_points 16 32 128 256 512)
+        list(APPEND _iconset_pngs
+            "${_iconset}/icon_${_points}x${_points}.png"
+            "${_iconset}/icon_${_points}x${_points}@2x.png")
+    endforeach()
+    add_custom_command(OUTPUT "${_icns}"
+        COMMAND "${TOKKL_ICONUTIL}" -c icns -o "${_icns}" "${_iconset}"
+        DEPENDS ${_iconset_pngs}
+        COMMENT "Packing ${TOKKL_BUNDLE_ICON}.icns"
+        VERBATIM)
+    set_source_files_properties("${_icns}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+
+    add_executable(tokkl-macos MACOSX_BUNDLE ${_platform_sources} "${_icns}")
     set_source_files_properties(macloginitem.mm macstatusitem.mm main.mm
         PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     set_target_properties(tokkl-macos PROPERTIES
