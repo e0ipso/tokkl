@@ -72,11 +72,11 @@
    text on scene-swell                   text   10.00 AA     9.61 AA
    text on scene-stripe                  text   11.31 AA    13.82 AA
    text on scene overlap (worst case)    text    8.28 AA     8.32 AA
-   wordmark outline (#00011e, art)       other   9.97 AA     1.09 --
+   wordmark outline (#000013, art)       other  10.11 AA     1.10 --
      on bg, surface, texture and scene (worst)
    wordmark-halo on bg, surface,         other     --        4.36 AA
      texture and scene (worst)
-   wordmark outline on wordmark-halo     other     --        9.64 AA
+   wordmark outline on wordmark-halo     other     --        9.77 AA
    The chart pair also passes the dataviz palette check (lightness band, chroma, colour-blind
    separation) on the surface colour in each theme.
    A non-billable chart segment is 3px chart-other stripes over chart-other-wash. The stripes draw
@@ -142,7 +142,7 @@
    not the only sign.
    The wordmark sits on bg (phone header strip), surface and the sidebar texture, and the scene.
    It is the owner's raster artwork (public/brand, from docs/brand): neon letters inside a
-   near-black navy outline (#00011e), which is not a token because it is part of the image. In
+   near-black navy outline (#000013), which is not a token because it is part of the image. In
    light the outline draws the letter edge (worst on the darkest scene overlap) and no halo is
    drawn. In dark the outline matches bg, so a wordmark-halo drop-shadow traces the edge (worst
    on the lightest scene overlap) and the outline separates it from the fills.

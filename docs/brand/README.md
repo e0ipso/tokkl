@@ -4,17 +4,17 @@ This directory holds Tokkl's brand artwork. `npm run icons` reads some of it and
 
 ## Wordmark
 
-- `tokkl-wordmark-v3.png` is the wordmark source.
+- `wordmark-pack/source/tokkl-wordmark-clock-master.png` is the wordmark source.
 - `tokkl-wordmark.png` is a 640 px crop of it. It is the header image of the top-level `README.md`.
-- `tokkl-wordmark-1645.png` is the crop at full width. Clients that need the wordmark larger than 640 px should scale this file down.
+- `tokkl-wordmark-full.png` is the crop at full width, 2059x769. Clients that need the wordmark larger than 640 px should scale this file down.
 
-`npm run icons` writes both crops from the source. See `scripts/icons.ts`.
+`npm run icons` crops the source to its artwork's alpha bounds plus a 4 px transparent margin, then writes both files and the web app's wordmark images from that crop. See `scripts/icons.ts`.
 
 ## Wordmark pack
 
 `wordmark-pack/` is the clock O wordmark pack, in which the clock replaces the letter "o". Its own `wordmark-pack/README.md` has the details.
 
-- `wordmark-pack/source/tokkl-wordmark-clock-master.png` is the pack's raster master. It will be the source of every served wordmark. Until `npm run icons` switches to it, `tokkl-wordmark-v3.png` is still the input.
+- `wordmark-pack/source/tokkl-wordmark-clock-master.png` is the pack's raster master and the source of every served wordmark.
 - `wordmark-pack/svg/tokkl-wordmark-detailed.svg` is the editable master and `wordmark-pack/pdf/tokkl-wordmark-detailed.pdf` is the print master. `wordmark-pack/png/` has the detailed wordmark at 640, 1280 and 2560 px.
 - The pack's clean and mono variants (SVG, PDF and PNG) and its `previews/` are left out on purpose, even though the pack's own README recommends the clean SVG for web use.
 - The Android app takes the master from here.

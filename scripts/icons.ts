@@ -13,8 +13,14 @@ import { fileURLToPath } from 'node:url';
 const BRAND = fileURLToPath(new URL('../docs/brand/', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../packages/web/public/', import.meta.url));
 
-/** The wordmark's letters and paint spots inside the transparent margin of the source, plus 4px. */
-const WORDMARK_CROP = '1645x709+80+91';
+/**
+ * The wordmark pack's raster master, with the clock in place of the "o". Its artwork touches the
+ * top and bottom edges, so the crop trims to the alpha bounds and then adds a 4px transparent
+ * border, which extends the canvas to 2059x769. WORDMARK_RATIO in Brand.tsx is its height over
+ * width, so change both together.
+ */
+const WORDMARK_SOURCE = `${BRAND}wordmark-pack/source/tokkl-wordmark-clock-master.png`;
+const WORDMARK_CROP = ['-trim', '+repage', '-bordercolor', 'none', '-border', '4'];
 
 const STRIP = ['-strip', '-define', 'png:exclude-chunks=date,time'];
 const PALETTE = ['-colors', '256'];
@@ -50,17 +56,14 @@ copy('icon-maskable-512.png', `${PUBLIC}icon-maskable-512.png`);
 copy('apple-touch-icon.png', `${PUBLIC}apple-touch-icon.png`);
 
 // Brand.tsx shows the wordmark at up to 260 CSS pixels wide; the 520 file is for 2x screens. The
-// 640 copy in docs/brand is the README header, shown 320 wide. The 1645 copy in docs/brand is the
-// crop at full width, for other clients that need the wordmark larger than 640 px.
-const wordmarks: [number, string][] = [
-  [260, `${PUBLIC}brand/wordmark-260.png`],
-  [520, `${PUBLIC}brand/wordmark-520.png`],
-  [640, `${BRAND}tokkl-wordmark.png`],
-  [1645, `${BRAND}tokkl-wordmark-1645.png`],
+// 640 copy in docs/brand is the README header, shown 320 wide. tokkl-wordmark-full.png in
+// docs/brand is the crop at full width, for other clients that need the wordmark wider than 640 px.
+const wordmarks: [string[], string][] = [
+  [['-resize', '260x'], `${PUBLIC}brand/wordmark-260.png`],
+  [['-resize', '520x'], `${PUBLIC}brand/wordmark-520.png`],
+  [['-resize', '640x'], `${BRAND}tokkl-wordmark.png`],
+  [[], `${BRAND}tokkl-wordmark-full.png`],
 ];
-for (const [width, out] of wordmarks) {
-  magick(
-    [`${BRAND}tokkl-wordmark-v3.png`, '-crop', WORDMARK_CROP, '+repage', '-resize', `${width}x`, ...PALETTE],
-    out,
-  );
+for (const [resize, out] of wordmarks) {
+  magick([WORDMARK_SOURCE, ...WORDMARK_CROP, ...resize, ...PALETTE], out);
 }
