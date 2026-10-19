@@ -30,6 +30,7 @@ const chainTotal = () => {
     return formatElapsed(timerProperty('ChainSeconds') + running);
 };
 const toggleItem = () => shell(`${button}._toggleItem.label.text`);
+const statusLine = () => shell(`${button}._statusItem.label.text`);
 // Waits until the calls since count are exactly the one method, pressing
 // the key again only when nothing arrived: the first key of a new virtual
 // keyboard can be lost while the seat adds the device.
@@ -195,6 +196,25 @@ await step('a second primary click pauses the timer, and the time holds the chai
         throw new Error(`the paused time moved to ${label()}`);
 });
 
+await step('a paused timer says Paused with the chain total in the menu status line', async () => {
+    const total = chainTotal();
+    const paused = `Paused ${total} · Connected`;
+    click(3);
+    try {
+        await waitFor('the menu', () => menuOpen() === true);
+        await waitFor('Paused in the status line', () => statusLine() === paused || statusLine());
+        // The connection state stays in the line.
+        mockSet('Status', new GLib.Variant('s', 'stale'));
+        await waitFor('the offline state in the status line',
+            () => statusLine() === `Paused ${total} · Offline, showing the last known state` || statusLine());
+    } finally {
+        mockSet('Status', new GLib.Variant('s', 'ready'));
+        // An open menu would take the next click.
+        shell(`${button}.menu.close()`);
+    }
+    await waitFor('Connected in the status line', () => statusLine() === paused || statusLine());
+});
+
 await step('a primary click resumes, and the time counts on from the chain total', async () => {
     const before = mockCalls().length;
     click(1);
@@ -208,6 +228,8 @@ await step('a primary click resumes, and the time counts on from the chain total
         throw new Error(`button name: ${name}`);
     if (toggleItem() !== 'Stop')
         throw new Error(`the menu offers ${toggleItem()}`);
+    if (statusLine() !== 'Connected')
+        throw new Error(`status: ${statusLine()}`);
 });
 
 await step('Stop in the menu ends the chain, and the item then reads Start', async () => {

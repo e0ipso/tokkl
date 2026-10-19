@@ -271,7 +271,11 @@ class TokklIndicator extends PanelMenu.Button {
         this._updateElapsed();
         this._syncTick();
 
-        this._statusItem.label.text = words.text;
+        // While paused the line leads with the chain total, then the
+        // connection state, as the KDE and macOS menus do.
+        this._statusItem.label.text = state.paused
+            ? _('Paused %s · %s').format(this._chainTotal(), words.text)
+            : words.text;
         this._detailItem.label.text = words.detail;
         this._detailItem.visible = words.detail.length > 0;
 
@@ -318,10 +322,14 @@ class TokklIndicator extends PanelMenu.Button {
 
     // The chain total: what the chain's paused entries stored plus the
     // running entry's own time, frozen while paused.
-    _updateElapsed() {
+    _chainTotal() {
         const now = GLib.get_real_time() / 1_000_000;
         const running = this._running ? elapsedSeconds(this._startTime, now) : 0;
-        const elapsed = formatElapsed(this._chainSeconds + running);
+        return formatElapsed(this._chainSeconds + running);
+    }
+
+    _updateElapsed() {
+        const elapsed = this._chainTotal();
         this._label.text = `${elapsed}${this._words.mark}`;
 
         let timer = _('Stopped');
