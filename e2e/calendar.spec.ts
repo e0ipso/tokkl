@@ -3,7 +3,7 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { openCalendar } from './history-calendar-tests-helpers.ts';
-import { calendarBodyBox, entryWrites, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
+import { calendarBodyBox, entryWrites, px, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
 import { PHONE, tap } from './mobile-tests-helpers.ts';
 // Its `api` fixture puts the account's first weekday back after each scenario.
 import { test as testWithSettings } from './report-tests-helpers.ts';
@@ -108,6 +108,52 @@ test('calendar blocks are named by description, project and duration, and short 
 
   const plain = today.getByRole('group', { name: 'Inbox, 0:15:00', exact: true });
   await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
+});
+
+// A switch within half a step of a timer's start stores a zero-length entry, and the next entry
+// starts where it ends. Lanes follow the stored spans, so the pair shares one lane with the thin
+// marker above its successor. Spans that overlap still sit side by side.
+test('a zero-length entry shares its successor\'s lane and both stay clickable, while overlapping entries split lanes', async ({ page, data }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  // Madrid, Wednesday 2026-06-17 (CEST): the switch at 09:00, then two overlapping entries from 11:00.
+  await data.createEntry({ description: 'Switch', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createEntry({ description: 'Follow-up', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
+  await data.createEntry({ description: 'Early', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T10:00:00Z' });
+  await data.createEntry({ description: 'Late', start: '2026-06-17T09:30:00Z', stop: '2026-06-17T10:30:00Z' });
+  await login(page);
+  await openCalendar(page);
+  await scrollCalendarTo(page, 8);
+
+  // Blocks are laid out inside the column's 1px left border.
+  const inner = (await page.locator('.calendar-column.today').boundingBox())!.width - 1;
+  const marker = todayBlock(page, 'Switch');
+  const successor = todayBlock(page, 'Follow-up');
+  await expect(marker).toHaveCSS('top', px(9 * 60));
+  await expect(marker).toHaveCSS('height', '6px');
+  await expect(successor).toHaveCSS('height', px(60));
+  const markerBox = (await marker.boundingBox())!;
+  const successorBox = (await successor.boundingBox())!;
+  expect(markerBox.x).toBeCloseTo(successorBox.x, 1);
+  expect(markerBox.width).toBeCloseTo(successorBox.width, 1);
+  expect(successorBox.width).toBeCloseTo(inner - 4, 1);
+
+  // Playwright clicks only where the block is the topmost element, so each click proves the
+  // marker is not covered by the entry it touches.
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+  await marker.click();
+  await expect(editor.getByLabel('Description')).toHaveValue('Switch');
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeHidden();
+  await successor.click();
+  await expect(editor.getByLabel('Description')).toHaveValue('Follow-up');
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeHidden();
+
+  const early = (await todayBlock(page, 'Early').boundingBox())!;
+  const late = (await todayBlock(page, 'Late').boundingBox())!;
+  expect(early.width).toBeCloseTo(inner / 2 - 4, 1);
+  expect(late.width).toBeCloseTo(early.width, 1);
+  expect(late.x).toBeGreaterThanOrEqual(early.x + early.width);
 });
 
 // The running block and the now line use --state-running, the running block is dashed so

@@ -997,6 +997,9 @@ table.table { width: 100%; border-collapse: collapse; }
 /* The running block keeps its project tint and gets a dashed running-state outline, so it differs
    from the others by the dashes as well as the colour. */
 .calendar-block.running { border: 2px dashed var(--state-running); border-left: 5px solid var(--state-running); }
+/* A block drawn taller than its span (a zero-length entry is a thin bar) sits over the block it
+   touches, so it stays clickable. */
+.calendar-block.thin { z-index: 3; }
 .calendar-block.dragging { opacity: 0.8; box-shadow: var(--shadow); cursor: grabbing; z-index: 4; }
 .calendar-ghost { background: var(--state-selected); border-left-color: var(--primary); pointer-events: none; }
 .calendar-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }

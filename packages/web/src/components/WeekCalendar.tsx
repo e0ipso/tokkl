@@ -3,6 +3,7 @@ import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
+import { assignLanes } from '../lib/calendarLanes.ts';
 import { DAY_MODE_QUERY, classifySwipe, clampDayMove, dragStep, droppedMinute, fitMoveInDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
@@ -14,6 +15,8 @@ import { projectColorStyle } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
 
 const HOUR_HEIGHT = 48;
+// A block never draws shorter than this, so a zero-length entry is a thin bar at its start.
+const MIN_BLOCK_HEIGHT = 6;
 // A touch drag starts after a hold, so a plain finger still scrolls the grid.
 const LONG_PRESS_MS = 500;
 const LONG_PRESS_TOLERANCE_PX = 10;
@@ -45,39 +48,15 @@ interface Block {
   lanes: number;
 }
 
-/** Lays out the part of each entry that falls on each day, side by side where they overlap. */
+/** Lays out the part of each entry that falls on each day, side by side where their stored spans overlap. */
 function layout(entries: TimeEntry[], days: string[], timeZone: string, now: Date): Block[] {
   const blocks: Block[] = [];
   for (const day of days) {
-    const onDay = entries
-      .map((entry) => {
-        const span = clockSpanOnDay(new Date(entry.start), entry.stop ? new Date(entry.stop) : now, day, timeZone);
-        if (!span) return null;
-        return { entry, day, top: span.top, bottom: Math.max(span.bottom, span.top + 5), lane: 0, lanes: 1 };
-      })
-      .filter((block): block is Block => block !== null)
-      .sort((a, b) => a.top - b.top);
-    let cluster: Block[] = [];
-    let clusterEnd = -1;
-    const flush = () => {
-      const lanes = Math.max(1, ...cluster.map((b) => b.lane + 1));
-      for (const block of cluster) block.lanes = lanes;
-      cluster = [];
-    };
-    for (const block of onDay) {
-      if (block.top >= clusterEnd) {
-        flush();
-        clusterEnd = -1;
-      }
-      const used = new Set(cluster.filter((b) => b.bottom > block.top).map((b) => b.lane));
-      let lane = 0;
-      while (used.has(lane)) lane++;
-      block.lane = lane;
-      cluster.push(block);
-      clusterEnd = Math.max(clusterEnd, block.bottom);
-    }
-    flush();
-    blocks.push(...onDay);
+    const onDay = entries.flatMap((entry): Block[] => {
+      const span = clockSpanOnDay(new Date(entry.start), entry.stop ? new Date(entry.stop) : now, day, timeZone);
+      return span ? [{ entry, day, top: span.top, bottom: span.bottom, lane: 0, lanes: 1 }] : [];
+    });
+    blocks.push(...assignLanes(onDay));
   }
   return blocks;
 }
@@ -400,6 +379,7 @@ export function WeekCalendar() {
                     bottom = Math.max(top + stepMinutes, droppedMinute(bottom, drag.deltaMinutes, settings.timeResolution));
                   }
                   const width = 100 / block.lanes;
+                  const storedHeight = ((bottom - top) / 60) * HOUR_HEIGHT;
                   const { description, project_name: projectName } = block.entry;
                   const elapsed = duration(entrySeconds(block.entry, now), settings);
                   const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
@@ -407,10 +387,10 @@ export function WeekCalendar() {
                   return (
                     <div
                       key={`${block.entry.id}-${day}`}
-                      className={`calendar-block${block.entry.stop ? '' : ' running'}${active ? ' dragging' : ''}`}
+                      className={`calendar-block${block.entry.stop ? '' : ' running'}${storedHeight < MIN_BLOCK_HEIGHT ? ' thin' : ''}${active ? ' dragging' : ''}`}
                       style={{
                         top: (top / 60) * HOUR_HEIGHT,
-                        height: Math.max(((bottom - top) / 60) * HOUR_HEIGHT, 6),
+                        height: Math.max(storedHeight, MIN_BLOCK_HEIGHT),
                         left: `calc(${block.lane * width}% + 2px)`,
                         width: `calc(${width}% - 4px)`,
                         ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),
