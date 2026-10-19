@@ -4,4 +4,6 @@ Sam Synthetic,sam@example.com,,Internal,,No such day,No,2026-02-30,09:00:00,2026
 Sam Synthetic,sam@example.com,,Internal,,No such hour,No,2026-05-05,25:00:00,2026-05-05,26:00:00,01:00:00,
 Sam Synthetic,sam@example.com,,Internal,,No end,No,2026-05-05,09:00:00,,,,
 Sam Synthetic,sam@example.com,,Internal,,Ends before it starts,No,2026-05-05,10:00:00,2026-05-05,09:00:00,,
+Sam Synthetic,sam@example.com,,Internal,,Over 999 hours,No,2026-05-05,11:00:00,,,1000:00:00,
+Sam Synthetic,sam@example.com,,Internal,,Unknown unit,No,2026-05-05,12:00:00,,,1 constructor,
 Sam Synthetic,sam@example.com,,Internal,,Valid last,No,2026-05-06,09:00:00,2026-05-06,10:00:00,01:00:00,

@@ -7,7 +7,7 @@ import type { Deps } from '../http/context.ts';
 import { clientAddress, query, readJson, readText } from '../http/context.ts';
 import { badRequest, forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
-import { dateKey, isValidTimeZone } from '@tokkl/common/time';
+import { canonicalTimeZone, dateKey } from '@tokkl/common/time';
 import {
   listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
 } from '../models/timeEntries.ts';
@@ -48,12 +48,20 @@ function requireCsrfHeader(req: Request): void {
   if (!hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
 }
 
+/** A missing or empty timezone means UTC; anything else must be a zone name Intl knows. */
+function readNewAccountTimeZone(value: unknown): string {
+  if (value === undefined || value === '') return 'UTC';
+  const timezone = typeof value === 'string' ? canonicalTimeZone(value) : null;
+  if (timezone === null) throw badRequest('Invalid timezone');
+  return timezone;
+}
+
 /** Reads and checks the account fields of the setup and invite forms. Bad input is a 400. */
 function readNewAccount(body: Record<string, unknown>): NewAccount {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
-  const timezone = typeof body.timezone === 'string' && isValidTimeZone(body.timezone) ? body.timezone : 'UTC';
   if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
+  const timezone = readNewAccountTimeZone(body.timezone);
   return { email, password: readNewPassword(body.password), fullname, timezone };
 }
 

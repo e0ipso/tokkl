@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { request, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD } from './fixtures.ts';
 import { login } from './helpers.ts';
@@ -49,6 +51,28 @@ test('the startup log prints the setup code until the first admin exists', async
   await expect.poll(() => restarted.output()).toContain('tokkl listening on');
   expect(restarted.output()).not.toContain(SETUP_CODE);
   expect(restarted.output()).not.toContain('No admin account yet');
+});
+
+// Older servers stored the zone as typed. The server that opens such a database stores the canonical name.
+test('a restart on an older database shows a zone stored as typed under its canonical name', async ({ page, servers }) => {
+  const old = await servers.start({ slot: 0 });
+  await createAccount(old.baseURL);
+  await old.stop();
+  const db = new DatabaseSync(join(old.dataDir, 'tokkl.sqlite'));
+  try {
+    db.prepare('UPDATE users SET timezone = ? WHERE email = ?').run('asia/tokyo', ACCOUNT.email);
+    db.exec('PRAGMA user_version = 5');
+  } finally {
+    db.close();
+  }
+
+  const upgraded = await servers.start({ slot: 0, dataDir: old.dataDir });
+  await logInThroughForm(page, upgraded.baseURL);
+  expect((await (await page.request.get(`${upgraded.baseURL}/api/v9/me`)).json()).timezone).toBe('Asia/Tokyo');
+  await page.goto(`${upgraded.baseURL}/settings`);
+  const profile = page.getByRole('form', { name: 'Profile' });
+  await expect(profile.getByLabel('Timezone')).toHaveValue('Asia/Tokyo');
+  await expect(profile.getByRole('note')).toContainText('This browser is set to Europe/Madrid, but the account uses Asia/Tokyo.');
 });
 
 // Ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.

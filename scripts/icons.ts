@@ -53,11 +53,13 @@ copy('apple-touch-icon.png', `${PUBLIC}apple-touch-icon.png`);
 magick([`${BRAND}tokkl-icon-v4-1024.png`, '-resize', '96x96', ...PALETTE], `${PUBLIC}brand/icon-96.png`);
 
 // Brand.tsx shows the wordmark at up to 260 CSS pixels wide; the 520 file is for 2x screens. The
-// 640 copy in docs/brand is the README header, shown 320 wide.
+// 640 copy in docs/brand is the README header, shown 320 wide. The 1645 copy in docs/brand is the
+// crop at full width, for other clients that need the wordmark larger than 640 px.
 const wordmarks: [number, string][] = [
   [260, `${PUBLIC}brand/wordmark-260.png`],
   [520, `${PUBLIC}brand/wordmark-520.png`],
   [640, `${BRAND}tokkl-wordmark.png`],
+  [1645, `${BRAND}tokkl-wordmark-1645.png`],
 ];
 for (const [width, out] of wordmarks) {
   magick(

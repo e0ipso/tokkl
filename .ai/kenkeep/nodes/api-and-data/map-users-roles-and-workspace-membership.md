@@ -41,7 +41,7 @@ Shared workspaces are out of scope in `docs/PRD.md`: each account tracks time in
 
 For multi-user API tests, `addUser(ctx, { email, role })` in `packages/api/test/helpers.ts` adds an account that owns its own workspace and returns a `TestContext` signed in as it. Every context on one database shares one app (a `WeakMap` keyed by `Db`), so they also share the rate limiters. `sessionCookie(ctx)` logs in through `/api/app/login` and returns the `tokkl_session=...` pair; send it with `authorization: ''`, or the API token still signs the request in.
 
-`packages/api/test/entities.test.ts` asserts `PRAGMA user_version` equals both `MIGRATIONS.length` and a literal (now 5). A new migration must bump that literal. Migrations 4 and 5 add `instance_settings` and `account_tokens`; see the admin API node.
+`packages/api/test/entities.test.ts` asserts `PRAGMA user_version` equals both `MIGRATIONS.length` and a literal (now 6). A new migration must bump that literal; other upgrade tests compare with `MIGRATIONS.length` only. Migrations 4 and 5 add `instance_settings` and `account_tokens`; see the admin API node. Migration 6 rewrites stored timezones to their canonical names (see the time zone node).
 
 <!-- Verified against the current code on 2026-10-16. -->
 

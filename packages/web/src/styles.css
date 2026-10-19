@@ -831,6 +831,7 @@ input.entry-duration:is(:hover, :focus) {
 input[aria-invalid='true'], select[aria-invalid='true'], textarea[aria-invalid='true'] { border-color: var(--danger); }
 .field-error { color: var(--danger); font-size: var(--text-sm); margin: 0; }
 .manual-fields .field-error { flex-basis: 100%; }
+.timer-controls .field-error { flex-basis: 100%; text-align: right; }
 /* The tag form sits in a toolbar; keep the toolbar's other controls level with the field, not centred on the taller form. */
 .toolbar:has(> form .field-error) { align-items: flex-start; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }

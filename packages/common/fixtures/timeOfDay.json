@@ -1,0 +1,249 @@
+[
+  {
+    "name": "24-hour: \"9\" is minute 540",
+    "input": "9",
+    "expected": 540
+  },
+  {
+    "name": "24-hour: \"09:30\" is minute 570",
+    "input": "09:30",
+    "expected": 570
+  },
+  {
+    "name": "24-hour: \"930\" is minute 570",
+    "input": "930",
+    "expected": 570
+  },
+  {
+    "name": "24-hour: \"1745\" is minute 1065",
+    "input": "1745",
+    "expected": 1065
+  },
+  {
+    "name": "24-hour: \"17.45\" is minute 1065",
+    "input": "17.45",
+    "expected": 1065
+  },
+  {
+    "name": "24-hour: \"23:59:59\" is minute 1439",
+    "input": "23:59:59",
+    "expected": 1439
+  },
+  {
+    "name": "24-hour: \"24\" is rejected",
+    "input": "24",
+    "expected": null
+  },
+  {
+    "name": "24-hour: \"9:75\" is rejected",
+    "input": "9:75",
+    "expected": null
+  },
+  {
+    "name": "24-hour: \"abc\" is rejected",
+    "input": "abc",
+    "expected": null
+  },
+  {
+    "name": "suffix: \"8a\" is minute 480",
+    "input": "8a",
+    "expected": 480
+  },
+  {
+    "name": "suffix: \"4pm\" is minute 960",
+    "input": "4pm",
+    "expected": 960
+  },
+  {
+    "name": "suffix: \"12am\" is minute 0",
+    "input": "12am",
+    "expected": 0
+  },
+  {
+    "name": "suffix: \"12pm\" is minute 720",
+    "input": "12pm",
+    "expected": 720
+  },
+  {
+    "name": "suffix: \"13pm\" is rejected",
+    "input": "13pm",
+    "expected": null
+  },
+  {
+    "name": "12-hour guess: \"11\" at reference 15:00 is 11 AM",
+    "input": "11",
+    "options": {
+      "twelveHour": true,
+      "reference": 900
+    },
+    "expected": 660
+  },
+  {
+    "name": "12-hour guess: \"4\" at reference 15:00 is 4 PM",
+    "input": "4",
+    "options": {
+      "twelveHour": true,
+      "reference": 900
+    },
+    "expected": 960
+  },
+  {
+    "name": "explicit suffix: start \"10am\" is 10:00",
+    "input": "10am",
+    "options": {
+      "twelveHour": true,
+      "reference": 600
+    },
+    "expected": 600
+  },
+  {
+    "name": "explicit suffix: end \"9am\" after 10:00 stays 9 AM (next day)",
+    "input": "9am",
+    "options": {
+      "twelveHour": true,
+      "after": 600
+    },
+    "expected": 540
+  },
+  {
+    "name": "explicit suffix: end \"9pm\" after 22:00 stays 9 PM",
+    "input": "9pm",
+    "options": {
+      "twelveHour": true,
+      "after": 1320
+    },
+    "expected": 1260
+  },
+  {
+    "name": "explicit suffix: end \"12am\" after 10:00 stays midnight",
+    "input": "12am",
+    "options": {
+      "twelveHour": true,
+      "after": 600
+    },
+    "expected": 0
+  },
+  {
+    "name": "explicit suffix: end \"12pm\" after 13:00 stays noon",
+    "input": "12pm",
+    "options": {
+      "twelveHour": true,
+      "after": 780
+    },
+    "expected": 720
+  },
+  {
+    "name": "unsuffixed end: \"1\" after 23:00 is 1 AM across midnight",
+    "input": "1",
+    "options": {
+      "twelveHour": true,
+      "after": 1380
+    },
+    "expected": 60
+  },
+  {
+    "name": "unsuffixed end: \"9\" after 10:00 is 9 PM",
+    "input": "9",
+    "options": {
+      "twelveHour": true,
+      "after": 600
+    },
+    "expected": 1260
+  },
+  {
+    "name": "unsuffixed end: \"9:30\" after 20:00 is 9:30 PM",
+    "input": "9:30",
+    "options": {
+      "twelveHour": true,
+      "after": 1200
+    },
+    "expected": 1290
+  },
+  {
+    "name": "unsuffixed end: \"11\" after 13:00 is 11 PM",
+    "input": "11",
+    "options": {
+      "twelveHour": true,
+      "after": 780
+    },
+    "expected": 1380
+  },
+  {
+    "name": "unsuffixed end: \"8\" after 21:00 is 8 AM the next day",
+    "input": "8",
+    "options": {
+      "twelveHour": true,
+      "after": 1260
+    },
+    "expected": 480
+  },
+  {
+    "name": "unsuffixed end: \"10\" after 9:00 is 10 AM",
+    "input": "10",
+    "options": {
+      "twelveHour": true,
+      "after": 540
+    },
+    "expected": 600
+  },
+  {
+    "name": "unsuffixed end: \"12\" is not ambiguous",
+    "input": "12",
+    "options": {
+      "twelveHour": true,
+      "after": 600
+    },
+    "expected": 720
+  },
+  {
+    "name": "unsuffixed end: \"15\" is not ambiguous",
+    "input": "15",
+    "options": {
+      "twelveHour": true,
+      "after": 1000
+    },
+    "expected": 900
+  },
+  {
+    "name": "unsuffixed end: \"0:30\" is not ambiguous",
+    "input": "0:30",
+    "options": {
+      "twelveHour": true,
+      "after": 1000
+    },
+    "expected": 30
+  },
+  {
+    "name": "24-hour input ignores the end-time guess: \"1\" after 23:00 is 01:00",
+    "input": "1",
+    "options": {
+      "after": 1380
+    },
+    "expected": 60
+  },
+  {
+    "name": "24-hour input ignores the end-time guess: \"9\" after 10:00 is 09:00",
+    "input": "9",
+    "options": {
+      "after": 600
+    },
+    "expected": 540
+  },
+  {
+    "name": "24-hour input ignores the end-time guess: twelveHour false is 09:00",
+    "input": "9",
+    "options": {
+      "twelveHour": false,
+      "after": 600
+    },
+    "expected": 540
+  },
+  {
+    "name": "24-hour input ignores the end-time guess: \"21:00\" after 10:00 is 21:00",
+    "input": "21:00",
+    "options": {
+      "after": 600
+    },
+    "expected": 1260
+  }
+]

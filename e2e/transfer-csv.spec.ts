@@ -123,13 +123,16 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
     'Row 4: Invalid start date or time',
     'Row 5: Invalid end time or duration',
     'Row 6: Stop time must be after start time',
+    // A duration over the 999-hour limit, and one in a unit that does not exist.
+    'Row 7: Invalid end time or duration',
+    'Row 8: Invalid end time or duration',
   ];
 
   await chooseCsv(page, transferFixture('toggl-malformed.csv'));
-  await expect(summary).toContainText('6 rows in the file');
+  await expect(summary).toContainText('8 rows in the file');
   await expect(summary).toContainText('2 entries to import');
-  await expect(summary).toContainText('4 rows with problems');
-  await expect(summary.locator('.import-errors summary')).toHaveText('4 problems');
+  await expect(summary).toContainText('6 rows with problems');
+  await expect(summary.locator('.import-errors summary')).toHaveText('6 problems');
   await expect(problems).toHaveText(reasons);
   await expectEmptyAccount(page, data.workspaceId);
 

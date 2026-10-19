@@ -1,3 +1,4 @@
+import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapSpan } from '@tokkl/common/snap';
 import { parseDateKey } from '@tokkl/common/time';
 import type { Db } from '../db/index.ts';
@@ -14,8 +15,6 @@ import type { UserRow } from './users.ts';
 import { memberWorkspace } from './workspaces.ts';
 
 export const MAX_DESCRIPTION_LENGTH = 3000;
-/** Toggl rejects entries longer than 999 hours. */
-const MAX_DURATION_SECONDS = 999 * 3600;
 
 export interface TimeEntryRow {
   id: number;

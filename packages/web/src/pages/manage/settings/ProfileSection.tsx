@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { canonicalTimeZone } from '@tokkl/common/time';
 import { api } from '../../../api/client.ts';
 import { keys } from '../../../api/hooks.ts';
 import type { Me } from '../../../api/types.ts';
@@ -16,6 +17,12 @@ function timeZones(current: string): string[] {
   zones.add('UTC');
   zones.add(current);
   return [...zones].sort((a, b) => a.localeCompare(b));
+}
+
+// The server stores the name its ICU resolves (Asia/Calcutta) and some browsers resolve the current
+// one (Asia/Kolkata). Resolving both names in this browser makes the two spellings of a zone match.
+function sameZone(a: string, b: string): boolean {
+  return a === b || (canonicalTimeZone(a) ?? a) === (canonicalTimeZone(b) ?? b);
 }
 
 export function ProfileSection({ me }: { me: Me }) {
@@ -66,7 +73,7 @@ export function ProfileSection({ me }: { me: Me }) {
         <p className="hint field-full">
           The account timezone decides which day an entry belongs to in lists, reports and imports. You use the email to log in.
         </p>
-        {browserZone && browserZone !== me.timezone ? (
+        {browserZone && !sameZone(browserZone, me.timezone) ? (
           <div className="settings-notice field-full" role="note">
             <span>
               This browser is set to <strong>{browserZone}</strong>, but the account uses <strong>{me.timezone}</strong>.

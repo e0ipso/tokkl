@@ -8,6 +8,12 @@ import { setup } from './helpers.ts';
 import { openDatabase } from '../src/db/index.ts';
 import { MIGRATIONS } from '../src/db/migrations.ts';
 
+/** Every v9 DELETE answers an empty 200, as Toggl's docs list no response body for them. */
+async function assertEmptyOk(response: Response): Promise<void> {
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), '');
+}
+
 test('clients CRUD, archive cascades to projects, restore', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
@@ -40,7 +46,7 @@ test('clients CRUD, archive cascades to projects, restore', async () => {
   const renamed = await ctx.json('PUT', `${base}/clients/${client.body.id}`, { name: 'ACME Corp' });
   assert.equal(renamed.body.name, 'ACME Corp');
 
-  assert.equal((await ctx.request('DELETE', `${base}/clients/${client.body.id}`)).status, 200);
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/clients/${client.body.id}`));
   const orphan = await ctx.json('GET', `${base}/projects/${project.body.id}`);
   assert.equal(orphan.body.client_id, null);
 });
@@ -70,10 +76,13 @@ test('projects: filters, actual_seconds, delete keeps or removes entries', async
 
   const entries = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02');
   assert.equal(entries.body.length, 1);
-  assert.equal((await ctx.request('DELETE', `${base}/projects/${a.body.id}`)).status, 200);
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${a.body.id}`));
   const kept = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02');
   assert.equal(kept.body.length, 1);
   assert.equal(kept.body[0].project_id, null);
+
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${b.body.id}?teDeletionMode=delete`));
+  assert.equal((await ctx.json('GET', `${base}/projects/${b.body.id}`)).status, 404);
 });
 
 test('tasks belong to projects and set the project on entries', async () => {
@@ -97,6 +106,11 @@ test('tasks belong to projects and set the project on entries', async () => {
   assert.equal(listed.body[0].tracked_seconds, 300_000);
   const done = await ctx.json('PUT', `${base}/projects/${project.body.id}/tasks/${task.body.id}`, { active: false });
   assert.equal(done.body.active, false);
+
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${project.body.id}/tasks/${task.body.id}`));
+  const remaining = await ctx.json('GET', `${base}/projects/${project.body.id}/tasks`);
+  assert.equal(remaining.body.length, 0);
+  assert.equal((await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body.task_id, null);
 });
 
 test('tags: create, rename, duplicate check, delete removes from entries', async () => {
@@ -112,7 +126,7 @@ test('tags: create, rename, duplicate check, delete removes from entries', async
   assert.deepEqual(entry.body.tags, ['urgent']);
   const renamed = await ctx.json('PUT', `${base}/tags/${tag.body.id}`, { name: 'later' });
   assert.equal(renamed.body.name, 'later');
-  assert.equal((await ctx.request('DELETE', `${base}/tags/${tag.body.id}`)).status, 200);
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/tags/${tag.body.id}`));
   const after = await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`);
   assert.deepEqual(after.body.tags, []);
 });
@@ -254,7 +268,7 @@ test('project and task totals use the live-entry indexes and count running, not 
   const entries = `${base}/time_entries`;
   await ctx.json('POST', entries, { start: '2026-10-01T08:00:00Z', duration: 3600, task_id: task.body.id });
   const deleted = await ctx.json('POST', entries, { start: '2026-10-01T10:00:00Z', duration: 1800, task_id: task.body.id });
-  await ctx.request('DELETE', `${entries}/${deleted.body.id}`);
+  await assertEmptyOk(await ctx.request('DELETE', `${entries}/${deleted.body.id}`));
   const runningSince = Math.floor(Date.now() / 1000) - 120;
   await ctx.json('POST', entries, { start: new Date(runningSince * 1000).toISOString(), duration: -1, task_id: task.body.id });
 
@@ -296,7 +310,7 @@ test('a version 1 database gains the live-entry indexes when opened', () => {
     const db = openDatabase(path);
     const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
     assert.equal(user_version, MIGRATIONS.length);
-    assert.equal(user_version, 5);
+    assert.equal(user_version, 6);
     const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'time_entries'").all() as Array<{ name: string }>)
       .map((row) => row.name);
     assert.ok(indexes.includes('time_entries_project_live'), indexes.join());
@@ -314,7 +328,7 @@ test('deleting a client renames projects whose names collide with unassigned one
   const project = (body: Record<string, unknown>) => ctx.json('POST', `${base}/projects`, body).then((r) => r.body);
   const client = (name: string) => ctx.json('POST', `${base}/clients`, { name }).then((r) => r.body);
   const nameOf = async (id: number) => (await ctx.json('GET', `${base}/projects/${id}`)).body.name;
-  const deleteClient = async (id: number) => assert.equal((await ctx.request('DELETE', `${base}/clients/${id}`)).status, 200);
+  const deleteClient = async (id: number) => assertEmptyOk(await ctx.request('DELETE', `${base}/clients/${id}`));
 
   const unassigned = await project({ name: 'Website' });
   const acme = await client('ACME');

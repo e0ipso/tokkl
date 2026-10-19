@@ -27,12 +27,18 @@ function formatterFor(timeZone: string): Intl.DateTimeFormat {
   return formatter;
 }
 
-export function isValidTimeZone(timeZone: string): boolean {
+/**
+ * The name the running ICU gives `name`, so europe/madrid becomes Europe/Madrid and utc becomes UTC,
+ * or null for a name Intl rejects. Offset IDs such as +02:00 are null too: the zone list browsers
+ * offer has none, and java.time refuses offsets past ±18:00 that Intl takes. Backward links follow
+ * ICU, so Asia/Kolkata may come back as Asia/Calcutta.
+ */
+export function canonicalTimeZone(name: string): string | null {
+  if (/^[+\-−]/.test(name)) return null;
   try {
-    formatterFor(timeZone);
-    return true;
+    return new Intl.DateTimeFormat('en-US', { timeZone: name }).resolvedOptions().timeZone;
   } catch {
-    return false;
+    return null;
   }
 }
 

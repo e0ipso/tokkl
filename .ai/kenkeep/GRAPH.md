@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:ee60520588376c876f01a3f36f5c5bd050829e49539b3a99271bda89bb4963d4'
-node_count: 55
+nodes_hash: 'sha256:2cfd62019158bca699ce4e2120f000600992cf57646513da4969af9d2d183805'
+node_count: 59
 ---
 # kenkeep Graph
 
-Total nodes: 55
+Total nodes: 59
 
 ## map-admin-api-and-disabled-accounts
 
@@ -287,6 +287,22 @@ Total nodes: 55
 - **path:** api-and-data/practice-parse-api-timestamps-with-parseinstant.md
 - **tags:** server, validation, time, api
 
+## practice-parse-duration-returns-null-over-999-hours
+
+- **kind:** practice
+- **title:** Durations: over 999 hours is unreadable (null), not clamped
+- **path:** web-ui-behaviour/practice-parse-duration-returns-null-over-999-hours.md
+- **tags:** time, parsing, validation
+- **relates_to:** practice-twelve-hour-time-entry-parsing-rules, practice-web-previews-and-editor-show-snapped-durations
+
+## practice-parser-cases-live-in-shared-json-fixtures
+
+- **kind:** practice
+- **title:** Parser cases live in packages/common/fixtures JSON, not in TS asserts
+- **path:** tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md
+- **tags:** testing, common, parsing
+- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout
+
 ## practice-password-checks-go-through-failurelimiter-attempt
 
 - **kind:** practice
@@ -308,6 +324,7 @@ Total nodes: 55
 - **title:** Playwright gotchas in the e2e specs
 - **path:** tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md
 - **tags:** testing, playwright
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write
 
 ## practice-preferences-validated-by-known-key
 
@@ -348,6 +365,14 @@ Total nodes: 55
 - **tags:** web, css, theme, dark-mode, e2e
 - **relates_to:** practice-contrast-tables-and-project-colours, practice-playwright-gotchas-in-the-e2e-specs, practice-end-sessions-through-lib-session
 
+## practice-time-zone-names-are-stored-in-canonical-form
+
+- **kind:** practice
+- **title:** Time zones: store canonicalTimeZone, reject offset IDs
+- **path:** api-and-data/practice-time-zone-names-are-stored-in-canonical-form.md
+- **tags:** api, time, validation
+- **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-preferences-validated-by-known-key
+
 ## practice-timer-bar-height-drives-sticky-bulk-bar
 
 - **kind:** practice
@@ -386,6 +411,13 @@ Total nodes: 55
 - **title:** UI time math uses account-local wall-clock helpers
 - **path:** web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md
 - **tags:** web, time, dst, calendar, common
+
+## practice-v9-deletes-answer-an-empty-200
+
+- **kind:** practice
+- **title:** Toggl v9 DELETE routes answer an empty 200
+- **path:** api-and-data/practice-v9-deletes-answer-an-empty-200.md
+- **tags:** api, toggl-v9
 
 ## practice-visual-screenshot-baselines
 

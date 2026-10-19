@@ -1,17 +1,25 @@
 import type { DurationFormat } from '@tokkl/types';
 
-const UNIT_SECONDS: Record<string, number> = {
-  h: 3600, hr: 3600, hrs: 3600, hour: 3600, hours: 3600,
-  m: 60, min: 60, mins: 60, minute: 60, minutes: 60,
-  s: 1, sec: 1, secs: 1, second: 1, seconds: 1,
-};
+/** Toggl rejects entries longer than 999 hours. */
+export const MAX_DURATION_SECONDS = 999 * 3600;
+
+const UNIT_SECONDS: ReadonlyMap<string, number> = new Map([
+  ['h', 3600], ['hr', 3600], ['hrs', 3600], ['hour', 3600], ['hours', 3600],
+  ['m', 60], ['min', 60], ['mins', 60], ['minute', 60], ['minutes', 60],
+  ['s', 1], ['sec', 1], ['secs', 1], ['second', 1], ['seconds', 1],
+]);
+
+/** Keeps a parsed total only when it fits the 999-hour limit; also drops NaN and Infinity. */
+function withinLimit(seconds: number): number | null {
+  return seconds <= MAX_DURATION_SECONDS ? seconds : null;
+}
 
 /**
  * Parses what a person types into a duration field and returns whole seconds.
  *
  * Accepted: "1:30" (h:mm), "1:30:15" (h:mm:ss), "90" (minutes), "1.5" or "1,5h"
  * (decimal hours when a unit or separator says so), "1h 30m", "1h30m", "45s".
- * Returns null for anything else.
+ * Returns null for anything else, and for any duration over MAX_DURATION_SECONDS.
  */
 export function parseDuration(raw: string): number | null {
   const input = raw.trim().toLowerCase().replace(',', '.');
@@ -21,24 +29,24 @@ export function parseDuration(raw: string): number | null {
   if (colon) {
     const [, h, m, s] = colon;
     if (Number(m) > 59 || Number(s ?? 0) > 59) return null;
-    return Number(h) * 3600 + Number(m) * 60 + Number(s ?? 0);
+    return withinLimit(Number(h) * 3600 + Number(m) * 60 + Number(s ?? 0));
   }
 
   // A bare integer means minutes, a bare decimal means hours.
-  if (/^\d+$/.test(input)) return Number(input) * 60;
-  if (/^\d*\.\d+$/.test(input)) return Math.round(Number(input) * 3600);
+  if (/^\d+$/.test(input)) return withinLimit(Number(input) * 60);
+  if (/^\d*\.\d+$/.test(input)) return withinLimit(Math.round(Number(input) * 3600));
 
   const unitPattern = /(\d+(?:\.\d+)?|\.\d+)\s*([a-z]+)/g;
   let total = 0;
   let consumed = '';
   for (const match of input.matchAll(unitPattern)) {
-    const seconds = UNIT_SECONDS[match[2]!];
+    const seconds = UNIT_SECONDS.get(match[2]!);
     if (seconds === undefined) return null;
     total += Number(match[1]) * seconds;
     consumed += match[0];
   }
   if (consumed.replace(/\s+/g, '') !== input.replace(/\s+/g, '')) return null;
-  return Math.round(total);
+  return withinLimit(Math.round(total));
 }
 
 function pad(n: number): string {

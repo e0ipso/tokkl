@@ -1,11 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { createApp } from '../src/app.ts';
 import { generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
 import {
   ACCOUNT_ADDRESS_LIMIT, accountCounters, FailureLimiter, normalizeEmail, passwordCounters, SETUP_CODE_LIMIT,
 } from '../src/auth/rateLimit.ts';
 import { openDatabase, type Db } from '../src/db/index.ts';
+import { MIGRATIONS } from '../src/db/migrations.ts';
 import { createFirstAdmin, getUser, type UserRow } from '../src/models/users.ts';
 import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
@@ -94,6 +99,28 @@ test('first-run setup needs the setup code and only works once', async () => {
   assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/);
   assert.equal((await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' })).status, 403);
   assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false });
+});
+
+test('setup stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
+  const attempt = async (timezone: unknown) => {
+    const db = openDatabase(':memory:');
+    const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+    const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' };
+    const response = await app.request('/api/app/setup', {
+      method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' },
+      body: JSON.stringify(timezone === undefined ? account : { ...account, timezone }),
+    });
+    const rows = db.prepare('SELECT timezone FROM users').all() as { timezone: string }[];
+    return { status: response.status, body: await response.json() as unknown, zones: rows.map((row) => row.timezone) };
+  };
+
+  assert.deepEqual(await attempt('europe/madrid'), { status: 200, body: { ok: true }, zones: ['Europe/Madrid'] });
+  assert.deepEqual(await attempt('utc'), { status: 200, body: { ok: true }, zones: ['UTC'] });
+  assert.deepEqual(await attempt(undefined), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'no timezone');
+  assert.deepEqual(await attempt(''), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'an empty timezone');
+  for (const timezone of ['+02:00', '-0500', 'Bogus/Zone', 42]) {
+    assert.deepEqual(await attempt(timezone), { status: 400, body: 'Invalid timezone', zones: [] }, String(timezone));
+  }
 });
 
 /** A cross-site form with enctype="text/plain" can post a JSON body, but it cannot set a CSRF header. */
@@ -202,6 +229,64 @@ test('PUT /me without a password change keeps the exact API token', async () => 
 
   assert.equal(getUser(ctx.db, ctx.user.id)!.api_token, ctx.user.api_token);
   assert.equal((await ctx.request('GET', '/api/v9/me')).status, 200, 'the token still signs in');
+});
+
+test('PUT /me stores and returns the canonical timezone name', async () => {
+  const ctx = await setup();
+  for (const [sent, stored] of [['europe/madrid', 'Europe/Madrid'], ['utc', 'UTC'], ['Etc/UTC', 'UTC']] as const) {
+    const updated = await ctx.json('PUT', '/api/v9/me', { timezone: sent });
+    assert.equal(updated.status, 200, sent);
+    assert.equal(updated.body.timezone, stored, sent);
+    assert.equal(getUser(ctx.db, ctx.user.id)!.timezone, stored, sent);
+    assert.equal((await ctx.json('GET', '/api/v9/me')).body.timezone, stored, sent);
+  }
+});
+
+test('PUT /me refuses offset IDs and unknown timezones and changes nothing', async () => {
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const before = getUser(ctx.db, ctx.user.id)!;
+  for (const timezone of ['+02:00', '-0500', '\u221205:00', 'Bogus/Zone']) {
+    const refused = await ctx.json('PUT', '/api/v9/me', { timezone, fullname: 'Changed' });
+    assert.equal(refused.status, 400, timezone);
+    assert.equal(refused.body, 'Invalid timezone', timezone);
+  }
+  assert.deepEqual(getUser(ctx.db, ctx.user.id), before);
+});
+
+test('opening a version 5 database rewrites stored timezones to their canonical names once', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-v5-zones-'));
+  try {
+    const path = join(dir, 'v5.sqlite');
+    const old = new DatabaseSync(path);
+    for (const sql of MIGRATIONS.slice(0, 5)) old.exec(sql);
+    old.exec('PRAGMA user_version = 5');
+    const insert = old.prepare(`
+      INSERT INTO users (email, password_hash, api_token, timezone, created_at, updated_at)
+      VALUES (?, 'hash', ?, ?, '2026-10-01T08:00:00.000Z', '2026-10-01T08:00:00.000Z')
+    `);
+    const zones = ['europe/madrid', 'utc', 'Etc/UTC', 'Europe/Madrid', '+02:00', 'Bogus/Zone'];
+    zones.forEach((zone, i) => insert.run(`user${i}@example.com`, generateApiToken(), zone));
+    old.close();
+
+    const stored = (db: Db) => db.prepare('SELECT timezone, updated_at FROM users ORDER BY id').all()
+      .map((row) => ({ ...row }));
+    const version = (db: Db) => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+
+    const db = openDatabase(path);
+    assert.equal(version(db), MIGRATIONS.length);
+    assert.deepEqual(stored(db), ['Europe/Madrid', 'UTC', 'UTC', 'Europe/Madrid', '+02:00', 'Bogus/Zone']
+      .map((timezone) => ({ timezone, updated_at: '2026-10-01T08:00:00.000Z' })));
+    // A loose name written after the upgrade shows whether a later start migrates again.
+    db.prepare("UPDATE users SET timezone = 'utc' WHERE email = 'user1@example.com'").run();
+    db.close();
+
+    const reopened = openDatabase(path);
+    assert.equal(version(reopened), MIGRATIONS.length);
+    assert.equal(stored(reopened)[1]!.timezone, 'utc', 'a second start runs no migration');
+    reopened.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 /** createFirstAdmin refuses a second account, so tests that need one insert it directly. */
