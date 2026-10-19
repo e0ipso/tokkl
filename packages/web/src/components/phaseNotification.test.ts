@@ -1,0 +1,164 @@
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { test } from 'node:test';
+import type { PhaseEnd } from './pomodoroCycle.ts';
+import { notificationAccess, notifyPhaseEnd, requestNotificationAccess } from './phaseNotification.ts';
+
+// A minimal window, document and Notification stand in for the browser's. `setup` picks what the
+// page reports: its permission, a permission request's answer, whether the API exists or its
+// constructor throws (as Chrome on Android does), a secure context and the page's visibility.
+interface Setup {
+  permission?: NotificationPermission | 'throws';
+  answer?: NotificationPermission | 'rejects';
+  support?: 'works' | 'missing' | 'throws';
+  secure?: boolean;
+  hidden?: boolean;
+}
+
+const page = { secure: true, hidden: true, focusCalls: 0, requests: 0 };
+Object.assign(globalThis, {
+  window: {
+    get isSecureContext() { return page.secure; },
+    focus: () => void page.focusCalls++,
+  },
+  document: {
+    get visibilityState() { return page.hidden ? 'hidden' : 'visible'; },
+  },
+});
+
+class Shown {
+  title: string;
+  options: NotificationOptions;
+  closed = false;
+  onclick: (() => void) | null = null;
+  constructor(title: string, options: NotificationOptions) {
+    this.title = title;
+    this.options = options;
+  }
+  close() {
+    this.closed = true;
+  }
+}
+
+let shown: Shown[] = [];
+
+function setup({ permission = 'granted', answer = 'granted', support = 'works', secure = true, hidden = true }: Setup = {}) {
+  Object.assign(page, { secure, hidden, focusCalls: 0, requests: 0 });
+  shown = [];
+  if (support === 'missing') {
+    Reflect.deleteProperty(globalThis, 'Notification');
+    return;
+  }
+  let current = permission;
+  function StubNotification(title: string, options: NotificationOptions = {}) {
+    if (support === 'throws') throw new TypeError("Failed to construct 'Notification': Illegal constructor.");
+    const notification = new Shown(title, options);
+    shown.push(notification);
+    return notification;
+  }
+  Object.defineProperty(StubNotification, 'permission', {
+    get() {
+      if (current === 'throws') throw new DOMException('The operation is insecure.', 'SecurityError');
+      return current;
+    },
+  });
+  Object.assign(StubNotification, {
+    async requestPermission() {
+      page.requests++;
+      if (answer === 'rejects') throw new DOMException('The request was refused.', 'NotAllowedError');
+      current = answer;
+      return answer;
+    },
+  });
+  Object.assign(globalThis, { Notification: StubNotification });
+}
+
+test('each phase end shows its own title and body, with the app icon and one shared tag', () => {
+  const phases: [PhaseEnd, string, string][] = [
+    ['work', 'Work phase over', 'Time for a break.'],
+    ['short', 'Short break over', 'Back to work.'],
+    ['long', 'Long break over', 'Back to work.'],
+  ];
+  setup();
+  for (const [phase] of phases) notifyPhaseEnd(phase);
+  assert.deepEqual(shown.map(({ title, options }) => [title, options.body]), phases.map(([, title, body]) => [title, body]));
+  for (const { options } of shown) {
+    assert.equal(options.tag, 'tokkl-pomodoro', 'one tag lets a newer phase end replace an older one');
+    assert.equal(options.icon, '/icons/icon-192.png');
+  }
+  assert.ok(existsSync(new URL('../../public/icons/icon-192.png', import.meta.url)), 'the icon is a file the app serves');
+});
+
+test('a page in view shows no notification, even with permission', () => {
+  setup({ hidden: false });
+  notifyPhaseEnd('work');
+  assert.deepEqual(shown, []);
+});
+
+test('without permission, a secure context or the API, a hidden page shows nothing and never asks', () => {
+  const blocked: Setup[] = [
+    { permission: 'default' },
+    { permission: 'denied' },
+    { permission: 'throws' },
+    { secure: false },
+    { support: 'missing' },
+  ];
+  for (const browser of blocked) {
+    setup(browser);
+    assert.doesNotThrow(() => notifyPhaseEnd('short'), JSON.stringify(browser));
+    assert.deepEqual(shown, [], JSON.stringify(browser));
+    assert.equal(page.requests, 0, `a phase end never requests permission: ${JSON.stringify(browser)}`);
+  }
+});
+
+test('a constructor that throws leaves the page without a notification or an error', () => {
+  setup({ support: 'throws' });
+  assert.doesNotThrow(() => notifyPhaseEnd('long'));
+  assert.deepEqual(shown, []);
+});
+
+test('a click on the notification focuses the tab and closes the notification', () => {
+  setup();
+  notifyPhaseEnd('work');
+  const [notification] = shown;
+  assert.ok(notification?.onclick, 'the notification has a click handler');
+  assert.equal(notification.closed, false);
+  assert.equal(page.focusCalls, 0);
+  notification.onclick();
+  assert.equal(page.focusCalls, 1);
+  assert.equal(notification.closed, true);
+});
+
+test('access reports the permission, or why the page cannot have one', () => {
+  const cases: [Setup, string][] = [
+    [{ permission: 'default' }, 'default'],
+    [{ permission: 'granted' }, 'granted'],
+    [{ permission: 'denied' }, 'denied'],
+    [{ secure: false }, 'insecure'],
+    [{ secure: false, support: 'missing' }, 'insecure'],
+    [{ support: 'missing' }, 'unsupported'],
+    [{ permission: 'throws' }, 'unsupported'],
+  ];
+  for (const [browser, access] of cases) {
+    setup(browser);
+    assert.equal(notificationAccess(), access, JSON.stringify(browser));
+  }
+});
+
+test('a request asks the browser only while the permission is undecided', async () => {
+  const cases: [Setup, string, number][] = [
+    [{ permission: 'default', answer: 'granted' }, 'granted', 1],
+    [{ permission: 'default', answer: 'denied' }, 'denied', 1],
+    [{ permission: 'default', answer: 'default' }, 'default', 1],
+    [{ permission: 'default', answer: 'rejects' }, 'default', 1],
+    [{ permission: 'granted' }, 'granted', 0],
+    [{ permission: 'denied' }, 'denied', 0],
+    [{ permission: 'default', secure: false }, 'insecure', 0],
+    [{ support: 'missing' }, 'unsupported', 0],
+  ];
+  for (const [browser, access, requests] of cases) {
+    setup(browser);
+    assert.equal(await requestNotificationAccess(), access, JSON.stringify(browser));
+    assert.equal(page.requests, requests, `requests for ${JSON.stringify(browser)}`);
+  }
+});
