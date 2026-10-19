@@ -8,7 +8,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 
 ## What it does
 
-- Timer with one running entry, continue, autocomplete, favorites (`1` to `9`), and Toggl's shortcuts (`N`, `S`, `C`, `M`, `?`).
+- Timer with one running entry, pause and resume, Stop, continue, autocomplete, favorites (`1` to `9`), and Toggl's shortcuts (`N`, `S`, `C`, `M`, `?`).
 - A Pomodoro in the web app: work and break countdowns in the timer bar, a long break after every few work phases, a bell and a banner when a phase ends on any page, and an optional pause at the end of each work phase.
 - Manual mode that understands `9`, `930`, `9:30`, `4pm`, entries across midnight, and durations like `1h 30m`, `90`, `1,5h`.
 - Day-grouped history with no 90-day limit, inline edits, grouping of similar entries, bulk edit, duplicate, split, undo and a trash.
@@ -16,7 +16,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 - Summary, detailed and weekly reports with filters, billable amounts, rounding, CSV export, and bookmarkable URLs.
 - Import of Toggl Track's detailed CSV export (safe to repeat), CSV and JSON export, and restore from the JSON export.
 - Works on phones; installable as a PWA.
-- A KDE Plasma panel widget, a macOS menu bar app and a GNOME top bar extension start and stop the timer from the desktop. See [KDE panel companion](#kde-panel-companion), [macOS menu bar companion](#macos-menu-bar-companion) and [GNOME companion](#gnome-companion); the guides are [desktop/kde/README.md](desktop/kde/README.md), [desktop/macos/README.md](desktop/macos/README.md) and [desktop/gnome/README.md](desktop/gnome/README.md).
+- A KDE Plasma panel widget, a macOS menu bar app and a GNOME top bar extension start, pause, resume and stop the timer from the desktop: a click pauses a running timer and resumes a paused one, and Stop is in each companion's menu. See [KDE panel companion](#kde-panel-companion), [macOS menu bar companion](#macos-menu-bar-companion) and [GNOME companion](#gnome-companion); the guides are [desktop/kde/README.md](desktop/kde/README.md), [desktop/macos/README.md](desktop/macos/README.md) and [desktop/gnome/README.md](desktop/gnome/README.md).
 
 ## Screenshots
 
@@ -151,7 +151,7 @@ It ships as a DEB and an RPM attached to each GitHub release that includes it, u
 
 ## macOS menu bar companion
 
-A menu bar app for Macs with Apple silicon and macOS 13 or later. It shows the running timer's time in the menu bar, starts and stops it with a click, and sets the project and billable flag. It keeps the API token or password in the macOS Keychain.
+A menu bar app for Macs with Apple silicon and macOS 13 or later. It shows the running timer's time in the menu bar, starts, pauses and resumes it with a click, stops it from its menu, and sets the project and billable flag. It keeps the API token or password in the macOS Keychain.
 
 It ships as `Tokkl-<version>-arm64.dmg`, attached to each GitHub release that includes it, under the same version as the server and the Docker image. It is signed ad hoc, not with an Apple Developer ID, and is not notarized, so remove the quarantine flag after you drag it to `/Applications`:
 

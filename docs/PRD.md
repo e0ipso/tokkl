@@ -89,7 +89,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | T9 | Running time in the browser tab title. | SHOULD | Done |
 | T10 | Discard a running entry, with undo. | SHOULD | Done |
 | T11 | Favorites: pin up to 9 entries, start them by click or number keys `1` to `9`. | SHOULD | Done (stored in preferences) |
-| T12 | Pause and resume. Toggl has none; continue plus grouping covers it. | COULD | Planned |
+| T12 | Pause and resume. Toggl has none; continue plus grouping covers it. | COULD | Done: the timer bar and the KDE, macOS and GNOME companions pause, resume and stop. Pause stops the entry and Resume starts a clone of it with the same description, project, task, tags and billable flag. The display adds up the chain until Stop, and the next start begins at 0:00. Each client keeps its chain locally, and the API is unchanged. |
 | T13 | Idle detection, reminders, Pomodoro. Idle detection and reminders need a native app or notifications permission. | COULD | Partial: the web app runs the Pomodoro on every page. The timer bar shows the work and break countdowns, a bell and a banner mark each phase end, and the entry can pause at the end of a work phase. Idle detection and reminders are planned. |
 | T14 | Start links (a URL that starts a specific timer, for iOS Shortcuts and bookmarks). | COULD | Planned |
 
