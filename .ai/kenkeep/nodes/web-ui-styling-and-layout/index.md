@@ -20,7 +20,7 @@ _None._
 
 ## Components (what exists)
 - Open [**Shared list controls live in packages/web/src/pages/manage/ui.tsx**](map-shared-list-controls-in-manage-ui.md) to learn about: Reuse SearchBox, Segmented, RowMenu, ConfirmModal and StatusBadge from manage/ui.tsx, and the Shared rules block at the top of styles.css. #web #components #css #reuse
-- Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](map-app-shell-brand-and-navigation.md) to learn about: One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog. #web #navigation #brand #mobile
+- Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](map-app-shell-brand-and-navigation.md) to learn about: One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog. #web #navigation #brand #mobile #wordmark
 - Open [**Web calendar day view and touch gestures in WeekCalendar**](map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md) to learn about: Below 760px WeekCalendar shows one day under a week strip; touch drags start after a 500 ms long press, mouse drags at once. #web #calendar #touch #mobile #e2e
 
 ## By topic
@@ -49,8 +49,8 @@ _None._
 - Open [**Web calendar day view and touch gestures in WeekCalendar**](map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md) — Below 760px WeekCalendar shows one day under a week strip; touch drags start after a 500 ms long press, mouse drags at once.
 - Open [**UI time math uses account-local wall-clock helpers**](../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
 ### #brand
-- Open [**docs/brand packs stay as the owner supplied them; never run their rebuilds**](../tooling-and-project/repo-and-scripts/practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md) — icon-pack and wordmark-pack are the owner's files byte for byte; build.mjs and rebuild.sh rewrite them. Other clients follow docs/brand/README.md.
 - Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.
+- Open [**docs/brand packs stay as the owner supplied them; never run their rebuilds**](../tooling-and-project/repo-and-scripts/practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md) — icon-pack and wordmark-pack are the owner's files byte for byte; build.mjs and rebuild.sh rewrite them. Other clients follow docs/brand/README.md.
 ### #cascade
 - Open [**styles.css loads last and owns the colour tokens**](practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals.
 ### #components
@@ -89,3 +89,6 @@ _None._
 - Open [**styles.css loads last and owns the colour tokens**](practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals.
 ### #touch
 - Open [**Web calendar day view and touch gestures in WeekCalendar**](map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md) — Below 760px WeekCalendar shows one day under a week strip; touch drags start after a 500 ms long press, mouse drags at once.
+### #wordmark
+- Open [**Brand images: npm run icons derives every served file from docs/brand**](../tooling-and-project/repo-and-scripts/map-app-icons-script.md) — scripts/icons.ts makes the served icons from docs/brand and the wordmark from the wordmark pack's raster master with ImageMagick 7; no test reruns it.
+- Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.

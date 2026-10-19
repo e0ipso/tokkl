@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:6f5203b55f8e220aa1a05c914f9a51c476d94482956b7859c04f59c00ca51c80'
+nodes_hash: 'sha256:5c08ee05c36e391b74b58c7eedaf0b0fb5697d31c1b1e166f51667a39cb6f834'
 node_count: 74
 ---
 # kenkeep Graph
@@ -20,8 +20,8 @@ Total nodes: 74
 - **kind:** map
 - **title:** Brand images: npm run icons derives every served file from docs/brand
 - **path:** tooling-and-project/repo-and-scripts/map-app-icons-script.md
-- **tags:** tooling, pwa, icons, imagemagick, maskable, web
-- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
+- **tags:** tooling, pwa, icons, imagemagick, maskable, wordmark, web
+- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-app-shell-brand-and-navigation, map-test-and-static-analysis-layout
 
 ## map-app-report-endpoints
 
@@ -35,8 +35,8 @@ Total nodes: 74
 - **kind:** map
 - **title:** App shell: Brand.tsx, the wordmark image and the NAV list
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
-- **tags:** web, navigation, brand, mobile
-- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines
+- **tags:** web, navigation, brand, mobile, wordmark
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script
 
 ## map-container-image-ghcr-io-e0ipso-tokkl
 
