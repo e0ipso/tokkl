@@ -192,7 +192,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | C1 | Responsive web app usable on a phone: bottom navigation, timer and list on small screens. | MUST | Done |
-| C2 | Installable PWA (manifest, icons). | SHOULD | Partial: the manifest ships the owner-supplied stopwatch icon as 192 and 512 pixel PNGs plus the owner's maskable 192 and 512 pixel PNGs on navy, with a 32 pixel PNG favicon and the owner's opaque navy 180 pixel apple-touch-icon; installing on a phone is untested. |
+| C2 | Installable PWA (manifest, icons). | SHOULD | Partial: the manifest lists the clock icon pack's 192 and 512 pixel PNGs and its maskable 192, 512 and 1024 pixel PNGs. The page links the pack's ICO favicon, its 16 and 32 pixel PNG favicons and its opaque 120, 152, 167 and 180 pixel apple-touch icons. Installing on a phone is untested. |
 | C3 | Cross-device freshness: the running timer refreshes every 30 s and on window focus, entries every 60 s. | MUST | Done |
 | C4 | Offline outbox for timer start/stop/edit in the PWA, with an unsynced marker. Matters more here than for Toggl because a phone off the home network loses the server. | SHOULD | Planned |
 | C5 | Browser extension, desktop tray app. The KDE (C6), macOS (C7) and GNOME (C8) companions are the exceptions; the browser extension stays out. | WON'T (v1) | n/a |

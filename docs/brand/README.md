@@ -41,11 +41,11 @@ This needs Node.js 18 or newer and ImageMagick 7 with `magick` on `PATH`. The sc
 
 ## Served icon inputs
 
-These files are the inputs that `npm run icons` copies or resizes into `packages/web/public`:
+`icon-pack/web/public` is the only source of the icons the web app serves. `npm run icons` writes each file to the same path under `packages/web/public`:
 
-- `tokkl-icon-v4-192.png`, `tokkl-icon-v4-512.png` and `tokkl-icon-v4-1024.png`
-- `tokkl-favicon-v4-32.png`
-- `icon-maskable-192.png` and `icon-maskable-512.png`
-- `apple-touch-icon.png`
+- It copies the favicons and Apple touch icons byte-identical: `favicon.ico`, `apple-touch-icon.png`, `icons/favicon-16.png`, `icons/favicon-32.png`, `icons/favicon-48.png`, `icons/apple-touch-icon-120.png`, `icons/apple-touch-icon-152.png`, `icons/apple-touch-icon-167.png` and `icons/apple-touch-icon-180.png`.
+- It quantises the manifest icons to 256 colours, because as supplied the larger ones exceed the web app's size budgets for icons: `icons/icon-192.png`, `icons/icon-512.png`, `icons/maskable-192.png`, `icons/maskable-512.png` and `icons/maskable-1024.png`.
 
-`tokkl-logo-v4.png` is an icon image that no script or source file reads.
+`icons/icon-1024.png` is not served. Quantised, it is still about 173 KB, over the 100 KB budget.
+
+The web app's manifest follows the pack's `manifest.webmanifest`, but leaves out `icon-1024.png` and keeps the app's own description. `index.html` takes its icon tags from `head-snippet.html` and keeps one theme-color tag per colour scheme instead of the pack's single tag.

@@ -180,7 +180,7 @@ npm run build      # builds the web app into dist/web
 npm run test:e2e   # builds, then runs the Playwright browser tests
 npm run screenshots  # builds, then rewrites docs/screenshots/*.png
 npm run check:tracker-refs  # fails when a tracked file cites a ticket ID or plan path
-npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
+npm run icons      # derives the served icons from docs/brand/icon-pack and the wordmarks from docs/brand/wordmark-pack (needs ImageMagick 7)
 ```
 
 Other clients take their brand assets from [docs/brand](docs/brand/README.md): the wordmark, including a full-width crop for use larger than 640 px, and the icon pack with web, Android launcher and store icons.
@@ -199,7 +199,7 @@ packages/types   @tokkl/types: type declarations for the JSON the API and the we
 e2e/             Playwright tests
 desktop/core/    Shared desktop core: API client, connection state and timer controller, Qt only (its own CMake project)
 desktop/kde/     KDE Plasma panel companion: widget, Qt backend, DEB and RPM packaging, CI images and tests (its own CMake project)
-scripts/         README screenshot and app icon generators
+scripts/         README screenshot generator and the icon and wordmark generator for the docs/brand packs
 bench/           history-scale measurements
 docs/            PRD.md (product requirements), brand/ and screenshots/
 ```
