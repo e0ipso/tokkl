@@ -6,10 +6,24 @@ import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 
 // icons.ts runs ImageMagick when it is imported and writes into the checkout, so these tests read
-// the committed files instead and check them against the crop the script asks for. Rerunning the
-// script is not tested, because CI has no ImageMagick and only the same build writes the same bytes.
+// the committed files instead and check them against the crop and the icon pack files the script
+// reads. Rerunning the script is not tested, because CI has no ImageMagick and only the same build
+// writes the same bytes.
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ICON_PACK = 'docs/brand/icon-pack/web/public/';
+const PUBLIC = 'packages/web/public/';
+/** The manifest icons, which the script reduces to 256 colours and serves from the same path. */
+const QUANTISED_ICONS = [
+  'icons/icon-192.png',
+  'icons/icon-512.png',
+  'icons/maskable-192.png',
+  'icons/maskable-512.png',
+  'icons/maskable-1024.png',
+];
+// Palette reduction moves each channel of a manifest icon by under 1 of 255 on average. A different
+// icon of the pack at the same size is about 24 away, so this bound catches a swapped or stale source.
+const MAX_MEAN_CHANNEL_ERROR = 2;
 const MASTER = 'docs/brand/wordmark-pack/source/tokkl-wordmark-clock-master.png';
 const FULL = 'docs/brand/tokkl-wordmark-full.png';
 const RESIZED = [
@@ -67,33 +81,65 @@ function predict(filter: number, a: number, b: number, c: number) {
   }
 }
 
-/** The smallest box holding every pixel with any opacity, in an 8-bit RGBA PNG. */
-function alphaBounds(png: Png) {
-  assert.deepEqual([png.depth, png.colourType, png.interlace], [8, RGBA_PNG, 0], 'expected 8-bit RGBA without interlacing');
+/** Every pixel of an 8-bit palette or RGBA PNG without interlacing, as RGBA bytes. */
+function rgba(png: Png) {
+  assert.deepEqual([png.depth, png.interlace], [8, 0], 'expected an 8-bit PNG without interlacing');
+  assert.ok([PALETTE_PNG, RGBA_PNG].includes(png.colourType), 'expected a palette or RGBA PNG');
+  const bytesPerPixel = png.colourType === RGBA_PNG ? 4 : 1;
+  const palette = png.chunks.get('PLTE')?.[0] ?? Buffer.alloc(0);
+  const alpha = png.chunks.get('tRNS')?.[0] ?? Buffer.alloc(0);
   const raw = inflateSync(Buffer.concat(png.chunks.get('IDAT') ?? []));
-  const stride = png.width * 4;
+  const stride = png.width * bytesPerPixel;
+  const pixels = new Uint8Array(png.width * png.height * 4);
   let previous = new Uint8Array(stride);
   let row = new Uint8Array(stride);
-  let [left, top, right, bottom] = [png.width, png.height, -1, -1];
   for (let y = 0; y < png.height; y++) {
     const start = y * (stride + 1);
     const filter = raw.readUInt8(start);
     for (let x = 0; x < stride; x++) {
-      const a = x >= 4 ? row[x - 4]! : 0;
+      const a = x >= bytesPerPixel ? row[x - bytesPerPixel]! : 0;
       const b = previous[x]!;
-      const c = x >= 4 ? previous[x - 4]! : 0;
+      const c = x >= bytesPerPixel ? previous[x - bytesPerPixel]! : 0;
       row[x] = raw.readUInt8(start + 1 + x) + predict(filter, a, b, c);
     }
-    for (let x = 0; x < png.width; x++) {
-      if (row[x * 4 + 3]! > 0) {
-        [left, right] = [Math.min(left, x), Math.max(right, x)];
-        [top, bottom] = [Math.min(top, y), Math.max(bottom, y)];
+    const out = pixels.subarray(y * png.width * 4, (y + 1) * png.width * 4);
+    if (png.colourType === RGBA_PNG) {
+      out.set(row);
+    } else {
+      for (let x = 0; x < png.width; x++) {
+        const index = row[x]!;
+        assert.ok(index * 3 < palette.length, `palette index ${index} is outside the PLTE chunk`);
+        out.set(palette.subarray(index * 3, index * 3 + 3), x * 4);
+        // Palette entries past the end of tRNS are opaque.
+        out[x * 4 + 3] = alpha[index] ?? 255;
       }
     }
     [previous, row] = [row, previous];
   }
+  return pixels;
+}
+
+/** The smallest box holding every pixel with any opacity. */
+function alphaBounds(png: Png) {
+  const pixels = rgba(png);
+  let [left, top, right, bottom] = [png.width, png.height, -1, -1];
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < png.width; x++) {
+      if (pixels[(y * png.width + x) * 4 + 3]! > 0) {
+        [left, right] = [Math.min(left, x), Math.max(right, x)];
+        [top, bottom] = [Math.min(top, y), Math.max(bottom, y)];
+      }
+    }
+  }
   assert.ok(right >= 0, 'the image is fully transparent');
   return { width: right - left + 1, height: bottom - top + 1 };
+}
+
+/** Checks that a PNG is 8-bit, not interlaced, and indexes a palette of at most 256 colours. */
+function assertPalettePng(png: Png) {
+  assert.deepEqual([png.depth, png.colourType, png.interlace], [8, PALETTE_PNG, 0]);
+  const palette = png.chunks.get('PLTE')?.[0];
+  assert.ok(palette && palette.length % 3 === 0 && palette.length / 3 <= 256, 'expected a PLTE chunk of at most 256 colours');
 }
 
 test('the full-size wordmark is the master trimmed to its alpha bounds plus a 4px border', () => {
@@ -121,11 +167,30 @@ for (const [path, width] of RESIZED) {
 for (const path of [FULL, ...RESIZED.map(([resized]) => resized)]) {
   test(`${path} is a 256-colour PNG with transparency and no metadata`, () => {
     const png = readPng(path);
-    assert.deepEqual([png.depth, png.colourType, png.interlace], [8, PALETTE_PNG, 0]);
-    const palette = png.chunks.get('PLTE')?.[0];
-    assert.ok(palette && palette.length % 3 === 0 && palette.length / 3 <= 256, 'expected a PLTE chunk of at most 256 colours');
+    assertPalettePng(png);
     assert.ok(png.chunks.has('tRNS'), 'expected a tRNS chunk, so the palette keeps its alpha');
     // No tIME, text or other ancillary chunk, so nothing in the file depends on when it was written.
     assert.deepEqual([...png.chunks.keys()].sort(), ['IDAT', 'IEND', 'IHDR', 'PLTE', 'tRNS']);
+  });
+}
+
+for (const file of QUANTISED_ICONS) {
+  test(`${PUBLIC}${file} is the icon pack's ${file} in 256 colours`, () => {
+    const source = readPng(`${ICON_PACK}${file}`);
+    const icon = readPng(`${PUBLIC}${file}`);
+    assert.deepEqual([icon.width, icon.height], [source.width, source.height]);
+    const [expected, actual] = [rgba(source), rgba(icon)];
+    let error = 0;
+    for (let i = 0; i < expected.length; i++) error += Math.abs(expected[i]! - actual[i]!);
+    const meanError = error / expected.length;
+    assert.ok(meanError <= MAX_MEAN_CHANNEL_ERROR, `mean channel error ${meanError.toFixed(2)} is over ${MAX_MEAN_CHANNEL_ERROR}`);
+  });
+
+  test(`${PUBLIC}${file} is a 256-colour PNG with no metadata`, () => {
+    const png = readPng(`${PUBLIC}${file}`);
+    assertPalettePng(png);
+    // tRNS is allowed, since it carries the palette's alpha rather than metadata.
+    const chunks = [...png.chunks.keys()].filter((type) => type !== 'tRNS').sort();
+    assert.deepEqual(chunks, ['IDAT', 'IEND', 'IHDR', 'PLTE']);
   });
 }
