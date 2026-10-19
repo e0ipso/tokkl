@@ -7,6 +7,7 @@ import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
+import { PomodoroBanner, PomodoroProvider } from './components/PomodoroProvider.tsx';
 import { useToast } from './components/Toast.tsx';
 import { formatDuration } from '@tokkl/common/duration';
 import { entrySeconds, useNow } from './lib/settings.ts';
@@ -238,6 +239,8 @@ function Shell() {
       </nav>
       {phone ? <header className="phone-header"><Brand size="sm" /></header> : null}
       <main className="content">
+        {/* The timer bar shows the Pomodoro banner on the timer page. */}
+        {location === '/' ? null : <PomodoroBanner />}
         <ErrorBoundary resetKey={location}>
         <Switch>
           <Route path="/" component={TimerPage} />
@@ -310,5 +313,6 @@ export function App() {
       </div>
     );
   }
-  return <Shell />;
+  // The Pomodoro runs on every signed-in page, not only where the timer bar is.
+  return <PomodoroProvider><Shell /></PomodoroProvider>;
 }

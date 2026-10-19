@@ -248,6 +248,42 @@ test('a rejected play() raises no page error and the banner still shows', async 
   // The runtimeErrors fixture fails the test on any page error or console error.
 });
 
+test('phases that end while another page is open ring there, pause the entry, and do not ring again back on the timer', async ({ page, users }) => {
+  const { api, ui } = await open(page, users, { stopAtEnd: true });
+  await startTimer(ui, 'Reading reports');
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const banner = page.getByRole('status').filter({ hasText: /phase over|break over/ });
+  await nav.getByRole('link', { name: 'Reports' }).click();
+  await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
+  await expect(ui.timer).toHaveCount(0);
+
+  await page.clock.fastForward(WORK * 1000);
+  await expect(banner).toHaveText(/Work phase over\. Time for a break\./);
+  await expect.poll(() => ui.plays()).toBe(1);
+  await expect.poll(() => api.current()).toBeNull();
+
+  await page.clock.fastForward(SHORT * 1000);
+  await expect(banner).toHaveText(/Short break over\. Back to work\./);
+  await expect.poll(() => ui.plays()).toBe(2);
+
+  await nav.getByRole('link', { name: 'Timer' }).click();
+  await expect(ui.resume).toBeVisible();
+  await expect(ui.banner).toHaveText(/Short break over/);
+  await expect(ui.countdown).toHaveCount(0);
+  expect(await ui.plays()).toBe(2);
+
+  // The pause on the other page left the same chain the Pause button does: Resume clones the entry.
+  await ui.dismiss.click();
+  await expect(banner).toHaveCount(0);
+  await ui.resume.click();
+  await expect(ui.pause).toBeVisible();
+  await expectCountdown(ui, 'Work', WORK);
+  const entries = await api.entries();
+  expect(entries.map((entry) => entry.description)).toEqual(['Reading reports', 'Reading reports']);
+  expect(entries.filter((entry) => entry.stop === null)).toHaveLength(1);
+  expect(await ui.plays()).toBe(2);
+});
+
 test('with the Pomodoro off, the timer bar shows no countdown, banner or bell', async ({ page, users }) => {
   const { api, ui } = await open(page, users, { stopAtEnd: true, enabled: false });
   await startTimer(ui, 'Plain timer');

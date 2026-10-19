@@ -49,17 +49,17 @@ export interface Pomodoro {
 interface Options {
   accountId: number;
   prefs: PomodoroPreferences | undefined;
-  /** What the timer bar shows, or null while the running entry has not loaded. */
+  /** Whether a timer runs or is paused, or null while the running entry has not loaded. */
   timer: TimerView | null;
-  /** True while the bar pauses or resumes, when the running entry is about to change. */
+  /** True while a pause or resume is in flight, when the running entry is about to change. */
   busy: RefObject<boolean>;
-  /** Pauses the running entry at the end of a work phase, when stop-at-end is on. */
+  /** Called when a work phase ends with stop-at-end on, so the caller pauses the running entry. */
   onWorkEnded: () => void;
 }
 
 /**
- * Runs the Pomodoro for the timer bar. The cycle lives in localStorage per account, so a reload and
- * the account's other tabs keep it, and it moves on whenever the bar renders and at each deadline.
+ * Runs the Pomodoro cycle. It lives in localStorage per account, so a reload and the account's
+ * other tabs keep it, and it moves on whenever the caller renders and at each deadline.
  */
 export function usePomodoro({ accountId, prefs, timer, busy, onWorkEnded }: Options): Pomodoro {
   const config = useMemo(() => pomodoroConfig(prefs), [

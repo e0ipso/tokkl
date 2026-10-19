@@ -13,11 +13,12 @@ import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle }
 import { useToast } from './Toast.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 import {
-  chainKey, chainSeconds, isPaused, loadChain, pause as pauseChain, reconcile, resume as resumeChain, sameSnapshot, saveChain,
+  chainKey, chainSeconds, isPaused, pause as pauseChain, reconcile, resume as resumeChain, sameSnapshot,
   withSnapshot, type PauseChain,
 } from './pauseChain.ts';
 import { countdownText, type PhaseEnd } from './pomodoroCycle.ts';
-import { usePomodoro } from './usePomodoro.ts';
+import { PomodoroBanner, useTimerCoordination } from './PomodoroProvider.tsx';
+import { readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
 
 interface Draft {
   description: string;
@@ -30,11 +31,6 @@ interface Draft {
 const EMPTY: Draft = { description: '', project_id: null, task_id: null, tags: [], billable: false };
 
 const PHASE_NAMES: Record<PhaseEnd, string> = { work: 'Work', short: 'Short break', long: 'Long break' };
-const PHASE_ENDED: Record<PhaseEnd, string> = {
-  work: 'Work phase over. Time for a break.',
-  short: 'Short break over. Back to work.',
-  long: 'Long break over. Back to work.',
-};
 
 /**
  * Writes the bar's height to --timer-bar-height on <html> while the bar is mounted. The bulk bar
@@ -52,24 +48,6 @@ function useHeightProperty(ref: RefObject<HTMLElement | null>, property: string)
       root.style.removeProperty(property);
     };
   }, [ref, property]);
-}
-
-function readStoredChain(accountId: number): PauseChain | null {
-  if (!accountId) return null;
-  try {
-    return loadChain(window.localStorage, accountId);
-  } catch {
-    return null;
-  }
-}
-
-function storeChain(accountId: number, chain: PauseChain | null): void {
-  if (!accountId) return;
-  try {
-    saveChain(window.localStorage, accountId, chain);
-  } catch {
-    // Storage can be blocked. The chain then lasts until the page reloads.
-  }
 }
 
 function draftOf(entry: TimeEntry): Draft {
@@ -142,31 +120,38 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   // Pause stops the running entry and Resume starts a clone of it; the chain keeps what to clone
   // and the total, in localStorage per account so a reload keeps it. `chainRef` is set at once, so
   // code after an await reads the chain as it is now.
-  const [chain, setChainState] = useState<PauseChain | null>(() => readStoredChain(accountId));
+  const [chain, setChainState] = useState<PauseChain | null>(() => readTabChain(accountId));
   const chainRef = useRef(chain);
   const setChain = (next: PauseChain | null) => {
     chainRef.current = next;
     setChainState(next);
-    storeChain(accountId, next);
+    writeTabChain(accountId, next);
   };
   const endChain = () => {
     if (chainRef.current) setChain(null);
   };
-  // Another tab of this account paused, resumed or stopped.
+  // Another tab of this account, or the Pomodoro in this one, paused, resumed or stopped.
   useEffect(() => {
     if (!accountId) return;
-    const key = chainKey(accountId);
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== key && event.key !== null) return;
-      const next = readStoredChain(accountId);
+    const adopt = (next: PauseChain | null) => {
       chainRef.current = next;
       setChainState(next);
-      // With no running entry shown here, the bar shows what Resume will start: the other tab's
-      // snapshot, before any edit made here is saved into it.
+      // With no running entry shown here, the bar shows what Resume will start: the other
+      // writer's snapshot, before any edit made here is saved into it.
       if (isPaused(next) && shownEntryId.current === null) setDraft(next.snapshot);
     };
+    const key = chainKey(accountId);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key || event.key === null) adopt(readTabChain(accountId));
+    };
+    const unsubscribe = subscribeTabChain((written, next) => {
+      if (written === accountId && next !== chainRef.current) adopt(next);
+    });
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('storage', onStorage);
+    };
   }, [accountId]);
   const paused = !current && isPaused(chain);
 
@@ -240,7 +225,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
 
   // Set while this bar pauses or resumes. The current entry refetches in the middle of both, and
   // that answer must not end the chain before the bar records the change.
-  const chainBusy = useRef(false);
+  // Shared with the Pomodoro, which pauses the entry at the end of a work phase.
+  const { busy: chainBusy, barPause, pomodoro } = useTimerCoordination();
   // Set while Resume's start request is pending, and whether Stop was pressed in that time.
   const resumePending = useRef(false);
   const stopAfterResume = useRef(false);
@@ -466,14 +452,13 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     },
   }));
 
-  // The Pomodoro counts down beside the clock and pauses the entry at the end of a work phase when
-  // stop-at-end is on, through the same Pause as the button.
-  const pomodoro = usePomodoro({
-    accountId,
-    prefs,
-    timer: current === undefined ? null : { running: current !== null, paused: isPaused(chain) },
-    busy: chainBusy,
-    onWorkEnded: () => void pause(),
+  // While the bar is mounted, the Pomodoro pauses the entry at the end of a work phase through
+  // this Pause, the one the button runs.
+  useEffect(() => {
+    barPause.current = pause;
+    return () => {
+      barPause.current = null;
+    };
   });
   const phaseLeft = pomodoro.countdown(now.getTime());
 
@@ -734,12 +719,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         )}
         {!manual && !current && !paused ? timerErrors.message('duration') : null}
       </div>
-      {pomodoro.banner ? (
-        <div className="pomodoro-banner" role="status">
-          <span>{PHASE_ENDED[pomodoro.banner]}</span>
-          <button type="button" className="button button-ghost" onClick={pomodoro.dismiss}>Dismiss</button>
-        </div>
-      ) : null}
+      <PomodoroBanner />
       <span className="visually-hidden" aria-live="polite">{announcement}</span>
 
       {picker === 'project' ? (
