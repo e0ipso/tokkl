@@ -18,12 +18,14 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QIcon>
 #include <QMetaProperty>
 #include <QRegularExpression>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickWindow>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTest>
 
@@ -115,6 +117,11 @@ private Q_SLOTS:
     void initTestCase()
     {
         previousHandler = qInstallMessageHandler(collectQmlProblems);
+        // Headless sessions have no desktop platform theme to select an
+        // icon theme or its XDG search paths.
+        QIcon::setThemeSearchPaths(QStandardPaths::locateAll(QStandardPaths::GenericDataLocation,
+                                                           QStringLiteral("icons"), QStandardPaths::LocateDirectory));
+        QIcon::setThemeName(QStringLiteral("hicolor"));
     }
 
     void cleanupTestCase()
@@ -142,6 +149,10 @@ private Q_SLOTS:
         QCOMPARE(QDir(package.path()).canonicalPath(), QDir(stagedPlasmoidDir).canonicalPath());
         QCOMPARE(package.metadata().pluginId(), plasmoidId);
         QCOMPARE(package.metadata().version(), version);
+        QCOMPARE(package.metadata().iconName(), plasmoidId);
+        const QIcon icon = QIcon::fromTheme(package.metadata().iconName());
+        QVERIFY(!icon.isNull());
+        QCOMPARE(icon.pixmap(96, 96).toImage(), QPixmap(stagedPlasmoidDir + QStringLiteral("/contents/images/tokkl.png")).toImage());
         QCOMPARE(QFileInfo(package.filePath("mainscript")).canonicalFilePath(),
                  QFileInfo(stagedPlasmoidDir + QStringLiteral("/contents/ui/main.qml")).canonicalFilePath());
     }

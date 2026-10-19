@@ -44,6 +44,7 @@ BuildRequires:  qt6qml(org.kde.kcmutils)
 # Shared libraries are found by rpm. The widget's QML imports are loaded at
 # run time, so they are listed here.
 Requires:       libplasma%{?_isa} >= 6.3.0
+Requires:       hicolor-icon-theme
 Requires:       kf6-kirigami%{?_isa} >= 6.13.0
 Requires:       kf6-kcmutils%{?_isa} >= 6.13.0
 Requires:       qt6qml(org.kde.plasma.plasmoid)
@@ -84,6 +85,7 @@ The token or password is stored in KDE Wallet. Built for Fedora KDE 44 x86_64.
 %files
 %license LICENSE
 %{_kf6_datadir}/plasma/plasmoids/%{plasmoid_id}/
+%{_kf6_datadir}/icons/hicolor/96x96/apps/%{plasmoid_id}.png
 %dir %{_qt6_qmldir}/com
 %dir %{_qt6_qmldir}/com/github
 %dir %{_qt6_qmldir}/com/github/e0ipso

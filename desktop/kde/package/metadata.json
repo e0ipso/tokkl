@@ -11,7 +11,7 @@
         "FormFactors": [
             "desktop"
         ],
-        "Icon": "chronometer",
+        "Icon": "com.github.e0ipso.tokkl",
         "Id": "com.github.e0ipso.tokkl",
         "License": "MIT",
         "Name": "Tokkl",
