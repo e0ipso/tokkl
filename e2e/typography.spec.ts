@@ -106,3 +106,59 @@ test('the brand is the wordmark alone on the login page and in the phone header'
   await expect(page.locator('.phone-header .brand-sm')).toBeVisible();
   await expectWordmarkAlone(page);
 });
+
+/**
+ * Checks that the wordmark at this size is drawn `width` CSS pixels wide and as tall as the
+ * served file's own proportions give, within the 1px the height attribute rounds to. A stale
+ * height in Brand.tsx would squash or stretch the art. Returns the file the browser picked.
+ */
+async function expectWordmarkProportions(page: Page, size: 'sm' | 'md' | 'lg', width: number) {
+  const img = page.locator(`.brand-${size} img`);
+  await expect(img).toBeVisible();
+  const drawn = await img.evaluate(async (el: HTMLImageElement) => {
+    await el.decode();
+    const box = el.getBoundingClientRect();
+    return {
+      width: box.width,
+      height: box.height,
+      ratio: el.naturalHeight / el.naturalWidth,
+      file: new URL(el.currentSrc).pathname,
+    };
+  });
+  expect(drawn.width).toBe(width);
+  expect(Math.abs(drawn.height - width * drawn.ratio)).toBeLessThanOrEqual(1);
+  return drawn.file;
+}
+
+// The art's navy outline matches bg in dark, so dark traces a light halo around it; light has none.
+test('the wordmark has a halo in dark and none in light', async ({ page }) => {
+  const filter = () => page.locator('.brand-lg img').evaluate((el) => getComputedStyle(el).filter);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+  expect((await filter()).match(/drop-shadow\(rgb\(169, 176, 214\)/g)).toHaveLength(4);
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(filter).not.toContain('rgb(169, 176, 214)');
+  expect((await filter()).match(/drop-shadow\(rgba\(0, 0, 0, 0\)/g)).toHaveLength(4);
+});
+
+// lg is drawn 260 wide, so a 1x screen takes the 260 file and a 2x screen the 520 one.
+for (const [scale, lgFile] of [[1, '/brand/wordmark-260.png'], [2, '/brand/wordmark-520.png']] as const) {
+  test.describe(`at ${scale}x`, () => {
+    test.use({ deviceScaleFactor: scale });
+
+    test('the wordmark keeps its proportions at every size', async ({ page }) => {
+      await page.goto('/');
+      await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+      expect(await expectWordmarkProportions(page, 'lg', 260)).toBe(lgFile);
+
+      await login(page);
+      await expectWordmarkProportions(page, 'md', 130);
+
+      await page.setViewportSize(PHONE.viewport);
+      await page.reload();
+      await expectWordmarkProportions(page, 'sm', 84);
+    });
+  });
+}
