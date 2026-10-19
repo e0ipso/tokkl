@@ -222,6 +222,24 @@ test('Continue during a work phase begins a fresh phase for the other entry and 
   expect(await completedCount(page)).toBe(1);
 });
 
+test('a pause whose stop answers after the work length freezes the work time at the pause', async ({ page, users }) => {
+  const { ui } = await open(page, users, { stopAtEnd: true });
+  await startTimer(ui, 'Slow network');
+  await page.clock.fastForward(60_000);
+  const held = await holdNextStop(page);
+  await ui.pause.click();
+  await held.sent;
+  // The answer arrives 70 seconds later, past the two-minute work length.
+  await page.clock.fastForward(70_000);
+  held.release();
+
+  await expect(ui.resume).toBeVisible();
+  await expectCountdown(ui, 'Work', WORK - 60);
+  expect(await ui.plays()).toBe(0);
+  await expect(ui.banner).toHaveCount(0);
+  expect(await completedCount(page)).toBe(0);
+});
+
 test('Stop abandons the work phase without counting it, and the next start begins a fresh phase', async ({ page, users }) => {
   const { ui } = await open(page, users, { stopAtEnd: false, longBreakEvery: 3 });
   await startTimer(ui, 'First');

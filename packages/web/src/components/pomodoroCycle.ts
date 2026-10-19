@@ -51,12 +51,13 @@ export const IDLE_STATE: PomodoroState = Object.freeze({ completed: 0, phase: nu
 /**
  * What the timer shows. `entryId` is the running entry, or null when none runs. `resumed` says the
  * running entry is the pause chain's clone, started by Resume. `paused` is a pause chain waiting
- * for Resume, which Stop would end.
+ * for Resume, which Stop would end, and `pausedAt` is when that pause began, if known.
  */
 export interface TimerView {
   entryId: number | null;
   resumed: boolean;
   paused: boolean;
+  pausedAt: number | null;
 }
 
 export interface Advance {
@@ -120,10 +121,11 @@ function workEndsAt(work: WorkState & { since: number }, settings: PomodoroSetti
  * The cycle at `now`. A running timer with no phase begins a work phase, after the count resets
  * for a long idle spell. A work phase that reaches its length starts the break that `nextBreak`
  * picks, from the instant it ended. With stop-at-end on, the cycle treats the timer as stopped from
- * there, because the caller pauses the entry. A pause freezes the work phase and Resume continues
- * it; Stop abandons it and keeps the count, and so does any other entry that starts running in its
- * place, which then begins a fresh phase. A break that ends while the timer runs hands over to a
- * work phase that starts at the break's end; otherwise the next phase waits for a running timer.
+ * there, because the caller pauses the entry. A pause freezes the work phase at the moment it
+ * began, and Resume continues it. Stop abandons it and keeps the count, and so does any other
+ * entry that starts running in its place, which then begins a fresh phase. A break that ends while
+ * the timer runs hands over to a work phase that starts at the break's end; otherwise the next
+ * phase waits for a running timer.
  */
 export function advance(state: PomodoroState, timer: TimerView, now: number, config: PomodoroConfig): Advance {
   const { settings, stopAtEnd } = config;
@@ -138,9 +140,11 @@ export function advance(state: PomodoroState, timer: TimerView, now: number, con
     if (phase?.type === 'work') {
       // Another entry took over, not the chain's clone: its work starts a phase of its own.
       const replaced = running && phase.entryId !== null && entryId !== phase.entryId && !timer.resumed;
-      const accruedMs = accruedAt(phase, now);
       if (phase.since !== null) {
-        if (workPhase(accruedMs / SECOND_MS, true, at, settings).ended) {
+        // A pause stops the work time when it began, not when the stop's answer arrived.
+        const until = !running && timer.paused && timer.pausedAt !== null ? Math.min(now, Math.max(phase.since, timer.pausedAt)) : now;
+        const accruedMs = accruedAt(phase, until);
+        if (workPhase(accruedMs / SECOND_MS, true, new Date(until), settings).ended) {
           const endedAt = workEndsAt({ ...phase, since: phase.since }, settings);
           const coming = nextBreak(next.completed, settings);
           next = {

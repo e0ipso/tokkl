@@ -10,9 +10,9 @@ const minutes = (n: number) => n * 60_000;
 const at = (m: number) => T0 + minutes(m);
 
 const ENTRY = 41;
-const RUNNING: TimerView = { entryId: ENTRY, resumed: false, paused: false };
-const PAUSED: TimerView = { entryId: null, resumed: false, paused: true };
-const STOPPED: TimerView = { entryId: null, resumed: false, paused: false };
+const RUNNING: TimerView = { entryId: ENTRY, resumed: false, paused: false, pausedAt: null };
+const PAUSED: TimerView = { entryId: null, resumed: false, paused: true, pausedAt: null };
+const STOPPED: TimerView = { entryId: null, resumed: false, paused: false, pausedAt: null };
 
 // 25-minute work phases, 5- and 15-minute breaks, a long break after every second phase.
 const STOP_AT_END: PomodoroConfig = {
@@ -85,6 +85,23 @@ test('a pause freezes the work countdown and Resume continues the remaining time
   assert.deepEqual(run(STOP_AT_END, [[at(55), RUNNING]], resumed).rang, [at(55)]);
 });
 
+test('a pause stops the work time when it began, however late its stop answers', () => {
+  const pausedAt = (ms: number): TimerView => ({ ...PAUSED, pausedAt: ms });
+  const started = run(STOP_AT_END, [[at(0), RUNNING]]).state;
+  // Paused at 20 minutes; the stop answered at 26, past the work length.
+  const late = run(STOP_AT_END, [[at(26), pausedAt(at(20))]], started);
+  assert.deepEqual(late.rang, []);
+  assert.deepEqual(late.state, { ...started, phase: { type: 'work', start: at(0), accruedMs: minutes(20), since: null, entryId: ENTRY } });
+  assert.equal(countdown(late.state, at(26), STOP_AT_END.settings)!.seconds, 300);
+  // A pause after the work length still ends the phase where it ended.
+  const over = run(STOP_AT_END, [[at(27), pausedAt(at(26))]], started);
+  assert.deepEqual(over.rang, [at(27)]);
+  assert.deepEqual(over.state.phase, { type: 'break', kind: 'short', start: at(25) });
+  // A pause instant from before the phase ran again counts nothing more.
+  const resumed = run(STOP_AT_END, [[at(30), RUNNING]], late.state).state;
+  assert.equal((run(STOP_AT_END, [[at(31), pausedAt(at(20))]], resumed).state.phase as { accruedMs: number }).accruedMs, minutes(20));
+});
+
 test('with stop-at-end on, a work phase ends on its length, asks for the pause and starts the break', () => {
   const { state, rang, workEnded } = run(STOP_AT_END, [[at(0), RUNNING], [at(25), RUNNING]]);
   assert.deepEqual(rang, [at(25)]);
@@ -147,7 +164,7 @@ test('Stop abandons the work phase, keeps the count, and the next start begins a
 });
 
 test('another entry that starts running in place of the phase\'s entry begins a fresh phase, uncounted', () => {
-  const OTHER: TimerView = { entryId: 52, resumed: false, paused: false };
+  const OTHER: TimerView = { entryId: 52, resumed: false, paused: false, pausedAt: null };
   const one = run(KEEP_RUNNING, [[at(0), RUNNING], [at(25), RUNNING], [at(30), RUNNING]]).state;
   assert.equal(one.completed, 1);
   // Continue, a favorite or N replaces the running entry 20 minutes into the second phase.
@@ -162,12 +179,12 @@ test('another entry that starts running in place of the phase\'s entry begins a 
 });
 
 test('Resume continues the phase with the chain\'s clone, which has an id of its own', () => {
-  const CLONE: TimerView = { entryId: 63, resumed: true, paused: false };
+  const CLONE: TimerView = { entryId: 63, resumed: true, paused: false, pausedAt: null };
   const paused = run(STOP_AT_END, [[at(0), RUNNING], [at(10), PAUSED]]).state;
   const resumed = run(STOP_AT_END, [[at(15), CLONE]], paused).state;
   assert.deepEqual(resumed.phase, { type: 'work', start: at(0), accruedMs: minutes(10), since: at(15), entryId: 63 });
   // Later polls of the clone keep the phase.
-  assert.deepEqual(run(STOP_AT_END, [[at(16), { ...CLONE, resumed: true }], [at(17), { entryId: 63, resumed: false, paused: false }]], resumed).state.phase,
+  assert.deepEqual(run(STOP_AT_END, [[at(16), { ...CLONE, resumed: true }], [at(17), { entryId: 63, resumed: false, paused: false, pausedAt: null }]], resumed).state.phase,
     resumed.phase);
 });
 

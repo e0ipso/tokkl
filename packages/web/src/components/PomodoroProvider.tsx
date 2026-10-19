@@ -11,6 +11,8 @@ import { usePomodoro, type Pomodoro } from './usePomodoro.ts';
 
 export interface PendingPause {
   stopAfter: boolean;
+  /** When the pause began, in ms. */
+  at: number;
 }
 
 interface TimerCoordination {
@@ -23,18 +25,32 @@ interface TimerCoordination {
    * sending its own stop, and the pause then ends the chain rather than recording the pause.
    */
   pausing: RefObject<PendingPause | null>;
+  /**
+   * When the pause that this tab recorded last began, in ms, so the Pomodoro stops counting work
+   * there and not when the stop's answer arrived. Null once the chain is no longer paused.
+   */
+  pausedAt: RefObject<number | null>;
   pomodoro: Pomodoro;
 }
 
-/** The running entry, whether Resume started it, and whether a pause chain waits for Resume. */
-function timerView(current: TimeEntry | null, chain: PauseChain | null): TimerView {
-  return { entryId: current?.id ?? null, resumed: current !== null && chain?.runningId === current.id, paused: isPaused(chain) };
+/**
+ * The running entry, whether Resume started it, and whether a pause chain waits for Resume. A pause
+ * another tab recorded began about when its chain changed.
+ */
+function timerView(current: TimeEntry | null, chain: PauseChain | null, pausedAt: number | null): TimerView {
+  const paused = isPaused(chain);
+  return {
+    entryId: current?.id ?? null,
+    resumed: current !== null && chain?.runningId === current.id,
+    paused,
+    pausedAt: paused ? pausedAt ?? chain.since : null,
+  };
 }
 
 const OFF: Pomodoro = { countdown: () => null, banner: null, dismiss: () => undefined };
 
 const Coordination = createContext<TimerCoordination>({
-  busy: { current: false }, barPause: { current: null }, pausing: { current: null }, pomodoro: OFF,
+  busy: { current: false }, barPause: { current: null }, pausing: { current: null }, pausedAt: { current: null }, pomodoro: OFF,
 });
 
 /** What the timer bar shares with the Pomodoro that runs on every page. */
@@ -64,13 +80,18 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const busy = useRef(false);
   const barPause = useRef<(() => Promise<void>) | null>(null);
   const pausing = useRef<PendingPause | null>(null);
+  const pausedAt = useRef<number | null>(null);
+  const chain = readTabChain(accountId);
+  useEffect(() => {
+    if (!isPaused(chain)) pausedAt.current = null;
+  });
   // The running entry whose work phase ended, until it is paused.
   const pauseFor = useRef<number | null>(null);
 
   const pomodoro = usePomodoro({
     accountId,
     prefs,
-    timer: current === undefined ? null : timerView(current, readTabChain(accountId)),
+    timer: current === undefined ? null : timerView(current, chain, pausedAt.current),
     busy,
     onWorkEnded: () => {
       pauseFor.current = current?.id ?? null;
@@ -79,10 +100,11 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
 
   const pauseHere = async (entry: TimeEntry) => {
     busy.current = true;
-    const pending: PendingPause = { stopAfter: false };
+    const pending: PendingPause = { stopAfter: false, at: Date.now() };
     pausing.current = pending;
     try {
       const stopped = await stopEntry.mutateAsync(entry.id);
+      if (!pending.stopAfter) pausedAt.current = pending.at;
       writeTabChain(accountId, pending.stopAfter ? null : pauseChain(readTabChain(accountId), stopped, Date.now()));
     } catch (error) {
       toast.error(error);
@@ -102,7 +124,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
     else void pauseHere(current);
   });
 
-  return <Coordination.Provider value={{ busy, barPause, pausing, pomodoro }}>{children}</Coordination.Provider>;
+  return <Coordination.Provider value={{ busy, barPause, pausing, pausedAt, pomodoro }}>{children}</Coordination.Provider>;
 }
 
 const PHASE_ENDED: Record<PhaseEnd, string> = {

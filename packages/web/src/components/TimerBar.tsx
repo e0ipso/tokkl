@@ -226,7 +226,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   // Set while this bar pauses or resumes. The current entry refetches in the middle of both, and
   // that answer must not end the chain before the bar records the change.
   // Shared with the Pomodoro, which pauses the entry at the end of a work phase.
-  const { busy: chainBusy, barPause, pausing, pomodoro } = useTimerCoordination();
+  const { busy: chainBusy, barPause, pausing, pausedAt, pomodoro } = useTimerCoordination();
   // Set while Resume's start request is pending, and whether Stop was pressed in that time.
   const resumePending = useRef(false);
   const stopAfterResume = useRef(false);
@@ -348,7 +348,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const pause = async () => {
     if (!current || chainBusy.current) return;
     chainBusy.current = true;
-    const pending = { stopAfter: false };
+    const pending = { stopAfter: false, at: Date.now() };
     pausing.current = pending;
     try {
       // A failed stop leaves the entry running, and a Stop pressed meanwhile with it; the error
@@ -362,6 +362,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         return;
       }
       const next = pauseChain(chainRef.current, stopped, Date.now());
+      pausedAt.current = pending.at;
       setChain(next);
       setDraft(next.snapshot);
     } finally {
