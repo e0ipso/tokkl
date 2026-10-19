@@ -207,7 +207,6 @@ TestCase {
         compare(label.text, "0:01");
         verify(label.visible);
         compare(button.words.runText, "Running");
-        compare(findChild(button, "runIcon").source, "media-playback-playing");
         compare(button.Accessible.name, "Stop the Tokkl timer");
         verify(button.Accessible.description.indexOf("Running 0:01") === 0, button.Accessible.description);
 
@@ -222,7 +221,6 @@ TestCase {
     function test_leftClickAndSpaceStartAndStop() {
         connectAccount(instanceA, 3, 7);
         compare(button.words.runText, "Stopped");
-        compare(findChild(button, "runIcon").source, "media-playback-stopped");
         compare(button.Accessible.name, "Start the Tokkl timer");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
@@ -679,13 +677,14 @@ TestCase {
         return grabImage(button).pixel(Math.floor(point.x), Math.floor(point.y));
     }
 
-    function test_indicatorSitsBetweenTheRunSymbolAndTheTime() {
+    function test_indicatorSitsBetweenTheLogoAndTheTime() {
         connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
         const ind = indicator();
-        const runIcon = findChild(button, "runIcon");
+        const logo = findChild(button, "logoIcon");
         const label = findChild(button, "elapsedLabel");
         const left = ind.mapToItem(button, 0, 0).x;
-        verify(left >= runIcon.mapToItem(button, runIcon.width, 0).x, "right of the run symbol");
+        verify(logo.width > 0);
+        verify(left >= logo.mapToItem(button, logo.width, 0).x, "right of the logo");
         verify(left + ind.width <= label.mapToItem(button, 0, 0).x, "left of the elapsed time");
         verify(ind.width > 0);
         verify(ind.Accessible.ignored, "decoration only; the words carry the project");

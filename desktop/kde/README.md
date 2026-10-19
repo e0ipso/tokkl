@@ -269,11 +269,11 @@ data and stops until you choose Reconnect or change the settings.
 
 ## Panel
 
-The panel shows the Tokkl clock logo, a running (playing) or stopped symbol, the
-project indicator, the elapsed time and, unless everything is ready, a symbol
-for the state. Each state also has its own words in the tooltip, the menu and
-the accessible description, so none relies on color: Not configured, Loading,
-Connected, Saving, Offline (the last known state), Sign-in refused and Error.
+The panel shows the Tokkl clock logo, the project indicator, the elapsed time
+and, unless everything is ready, a symbol for the state. Each state also has
+its own words in the tooltip, the menu and the accessible description, so none
+relies on color: Not configured, Loading, Connected, Saving, Offline (the last
+known state), Sign-in refused and Error.
 
 The project indicator shows the running entry's project, or the next start's
 while stopped. A dot pulses while an entry runs and a still square shows while
@@ -769,8 +769,8 @@ Install and load:
 - [ ] Restart plasmashell (`systemctl --user restart
       plasma-plasmashell.service`) or log out and back in. The panel button
       and the Tokkl entry in Add Widgets show the clock logo in full colour.
-- [ ] The panel shows the Tokkl clock logo, the stopped symbol, a dashed
-      square, `0:00` and the Not configured symbol. The tooltip reads "Tokkl:
+- [ ] The panel shows the Tokkl clock logo, a dashed square, `0:00` and the
+      Not configured symbol. The tooltip reads "Tokkl:
       Stopped 0:00 · No project · Not configured · Set the instance URL and
       credentials in the widget settings." and shows the version.
 - [ ] Configure opens on Connection. Test Connection is disabled until an
