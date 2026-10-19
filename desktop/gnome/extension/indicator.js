@@ -167,6 +167,24 @@ class TokklIndicator extends PanelMenu.Button {
             this.add_action(this._ownGesture);
         }
 
+        // From GNOME Shell 51 on, the menu takes Space, Return and Down from
+        // a key controller on the button, and vfunc_event never sees them. A
+        // controller in the capture phase runs before it, so Space and Return
+        // do what a primary click does here; Down still opens the menu.
+        if (Clutter.KeyController &&
+            this.get_actions().some(action => action instanceof Clutter.KeyController)) {
+            const keys = new Clutter.KeyController();
+            keys.connect('key-press', controller => {
+                const [, symbol] = controller.get_key();
+                const [, pressed, latched, locked] = controller.get_state();
+                if (!this._isActivateKey(symbol, pressed | latched | locked))
+                    return Clutter.EVENT_PROPAGATE;
+                this._onPress(Clutter.BUTTON_PRIMARY);
+                return Clutter.EVENT_STOP;
+            });
+            this.add_action_full('tokkl-activate-keys', Clutter.EventPhase.CAPTURE, keys);
+        }
+
         this._buildMenu(openPreferences);
         this._sync();
     }
@@ -413,19 +431,19 @@ class TokklIndicator extends PanelMenu.Button {
 
     // Space or Return without a modifier other than Caps Lock and Num Lock,
     // the keys PopupMenu would otherwise take to open the menu.
-    _isActivateKey(event) {
-        const symbol = event.get_key_symbol();
+    _isActivateKey(symbol, modifiers) {
         if (symbol !== Clutter.KEY_space && symbol !== Clutter.KEY_Return)
             return false;
-        const modifiers = event.get_state() & Clutter.ModifierType.MODIFIER_MASK &
-            ~Clutter.ModifierType.LOCK_MASK & ~Clutter.ModifierType.MOD2_MASK;
-        return modifiers === 0;
+        return (modifiers & Clutter.ModifierType.MODIFIER_MASK &
+            ~Clutter.ModifierType.LOCK_MASK & ~Clutter.ModifierType.MOD2_MASK) === 0;
     }
 
     vfunc_event(event) {
-        // The event signal, whose handler this is, comes before the
-        // key-press-event signal on which PopupMenu opens the menu.
-        if (event.type() === Clutter.EventType.KEY_PRESS && this._isActivateKey(event)) {
+        // Before GNOME Shell 51, the event signal, whose handler this is,
+        // comes before the key-press-event signal on which PopupMenu opens
+        // the menu.
+        if (event.type() === Clutter.EventType.KEY_PRESS &&
+            this._isActivateKey(event.get_key_symbol(), event.get_state())) {
             this._onPress(Clutter.BUTTON_PRIMARY);
             return Clutter.EVENT_STOP;
         }

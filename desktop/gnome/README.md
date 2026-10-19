@@ -80,7 +80,7 @@ Click the time to pause a running timer, to resume a paused one, or to start a s
 
 `metadata.json` lists 46 to 51. The extension is an ES module, which GNOME Shell requires from 45 on. 45 is left out because the releases that shipped it, Fedora 39 and Ubuntu 23.10, have reached their end of life. 46 is the version of Ubuntu 24.04 LTS, 48 that of Debian 13, and 50 that of Fedora 44 and Ubuntu 26.04 LTS. 51 is the current release.
 
-Two Shell differences matter to the button. From 50 on, the panel button opens its menu from a click gesture; before 50, from its event handler. The extension handles primary clicks in both, and takes Space and Return in its event handler before the menu sees them. From 50 on, setting the Billable switch from code also reports it as toggled, so the extension ignores toggles it caused itself.
+Three Shell differences matter to the button. From 50 on, the panel button opens its menu from a click gesture; before 50, from its event handler. The extension handles primary clicks in both. From 51 on, the menu takes Space, Return and Down from a key controller on the button. The extension adds a key controller of its own that runs first and takes Space and Return. Before 51 it takes them in its event handler, before the menu sees them. From 50 on, setting the Billable switch from code also reports it as toggled, so the extension ignores toggles it caused itself.
 
 ## Check it
 
