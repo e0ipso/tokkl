@@ -12,8 +12,30 @@ export const SWIPE_MIN_PX = 50;
 export const SWIPE_RATIO = 1.5;
 
 const DAY_MINUTES = 24 * 60;
+/** Calendar drags never step by less than this many minutes. */
+const MIN_DRAG_STEP = 15;
 
 export type SwipeDirection = 'next' | 'previous';
+
+/**
+ * The step, in minutes, that calendar drags move, resize and create entries in, and the shortest
+ * block they leave: the smallest multiple of the time resolution that is at least 15 minutes.
+ * Resolutions of 1, 3, 5 and 15 keep 15, 12 gives 24 and 20 gives 20. Every step is a whole number
+ * of resolutions, so a boundary on the resolution grid stays on it after any number of steps.
+ */
+export function dragStep(resolution: number): number {
+  return Math.ceil(MIN_DRAG_STEP / resolution) * resolution;
+}
+
+/**
+ * Where a dragged boundary at clock minute `minute` lands after moving `delta` minutes: the nearest
+ * multiple of `resolution`, a tie going later, as snappedInstant in settings.ts drops it. An entry
+ * imported off the grid lands on it at the first step. A boundary that has not moved stays put.
+ */
+export function droppedMinute(minute: number, delta: number, resolution: number): number {
+  if (delta === 0) return minute;
+  return Math.round((minute + delta) / resolution) * resolution;
+}
 
 /**
  * Classifies a finished touch gesture from its travel in pixels. Swiping left goes to the next day
