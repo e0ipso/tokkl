@@ -1,0 +1,304 @@
+{
+  "background": "#291329",
+  "originalSource": "source/master-transparent.png",
+  "source": "source/master-export.png",
+  "sourceGeometry": {
+    "width": 1254,
+    "height": 1254,
+    "bounds": {
+      "left": 160,
+      "top": 75,
+      "width": 946,
+      "height": 1099
+    },
+    "visibleBounds": {
+      "left": 161,
+      "top": 75,
+      "width": 944,
+      "height": 1098
+    },
+    "alphaMin": 0,
+    "alphaMax": 255,
+    "alphaPixels": 612118,
+    "nonwhitePixels": 609899,
+    "maxRadius": 618.2895761696133,
+    "bboxRadius": 612.835418362875
+  },
+  "alphaCleanup": "Source alpha <= 8/255 becomes 0. Alpha above this threshold and RGB artwork remain unchanged.",
+  "alphaThreshold": "Every pixel with alpha > 0; radii include the furthest pixel corner.",
+  "android": {
+    "layerDp": 108,
+    "viewportDp": 72,
+    "targetArtworkDiameterDp": 65.8,
+    "safeDiameterDp": 66,
+    "filter": "Triangle"
+  },
+  "colorMetadata": "Exports include a PNG sRGB chunk with perceptual rendering intent.",
+  "maskable": {
+    "targetArtworkDiameterFraction": 0.76,
+    "safeDiameterFraction": 0.8
+  },
+  "checksPassed": true,
+  "records": [
+    {
+      "file": "android/res/mipmap-mdpi/ic_launcher_foreground.png",
+      "size": 108,
+      "type": "android-foreground",
+      "maxRadiusDp": 32.7566787083184,
+      "safeRadiusDp": 33,
+      "alphaMin": 0,
+      "alphaMax": 254,
+      "visibleWidthDp": 48,
+      "visibleHeightDp": 56
+    },
+    {
+      "file": "android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+      "size": 108,
+      "type": "android-monochrome",
+      "maxRadiusDp": 32.7566787083184,
+      "safeRadiusDp": 33,
+      "whiteOnly": true,
+      "alphaPixels": 1813
+    },
+    {
+      "file": "android/res/mipmap-mdpi/ic_launcher.png",
+      "size": 48,
+      "type": "any",
+      "foregroundMaxRadiusPx": 24.413111231467404,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "android/res/mipmap-hdpi/ic_launcher_foreground.png",
+      "size": 162,
+      "type": "android-foreground",
+      "maxRadiusDp": 32.93765153876167,
+      "safeRadiusDp": 33,
+      "alphaMin": 0,
+      "alphaMax": 254,
+      "visibleWidthDp": 49.333333333333336,
+      "visibleHeightDp": 57.333333333333336
+    },
+    {
+      "file": "android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+      "size": 162,
+      "type": "android-monochrome",
+      "maxRadiusDp": 32.93765153876167,
+      "safeRadiusDp": 33,
+      "whiteOnly": true,
+      "alphaPixels": 4123
+    },
+    {
+      "file": "android/res/mipmap-hdpi/ic_launcher.png",
+      "size": 72,
+      "type": "any",
+      "foregroundMaxRadiusPx": 36.05551275463989,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+      "size": 216,
+      "type": "android-foreground",
+      "maxRadiusDp": 32.86715685908959,
+      "safeRadiusDp": 33,
+      "alphaMin": 0,
+      "alphaMax": 254,
+      "visibleWidthDp": 49.5,
+      "visibleHeightDp": 57.5
+    },
+    {
+      "file": "android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+      "size": 216,
+      "type": "android-monochrome",
+      "maxRadiusDp": 32.86715685908959,
+      "safeRadiusDp": 33,
+      "whiteOnly": true,
+      "alphaPixels": 7200
+    },
+    {
+      "file": "android/res/mipmap-xhdpi/ic_launcher.png",
+      "size": 96,
+      "type": "any",
+      "foregroundMaxRadiusPx": 47.169905660283014,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+      "size": 324,
+      "type": "android-foreground",
+      "maxRadiusDp": 32.82614134429381,
+      "safeRadiusDp": 33,
+      "alphaMin": 0,
+      "alphaMax": 254,
+      "visibleWidthDp": 50,
+      "visibleHeightDp": 58
+    },
+    {
+      "file": "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+      "size": 324,
+      "type": "android-monochrome",
+      "maxRadiusDp": 32.82614134429381,
+      "safeRadiusDp": 33,
+      "whiteOnly": true,
+      "alphaPixels": 16101
+    },
+    {
+      "file": "android/res/mipmap-xxhdpi/ic_launcher.png",
+      "size": 144,
+      "type": "any",
+      "foregroundMaxRadiusPx": 69.64194138592059,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+      "size": 432,
+      "type": "android-foreground",
+      "maxRadiusDp": 32.87191050121669,
+      "safeRadiusDp": 33,
+      "alphaMin": 0,
+      "alphaMax": 254,
+      "visibleWidthDp": 50.25,
+      "visibleHeightDp": 58.25
+    },
+    {
+      "file": "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+      "size": 432,
+      "type": "android-monochrome",
+      "maxRadiusDp": 32.87191050121669,
+      "safeRadiusDp": 33,
+      "whiteOnly": true,
+      "alphaPixels": 28567
+    },
+    {
+      "file": "android/res/mipmap-xxxhdpi/ic_launcher.png",
+      "size": 192,
+      "type": "any",
+      "foregroundMaxRadiusPx": 92.65527507918802,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/icon-192.png",
+      "size": 192,
+      "type": "any",
+      "foregroundMaxRadiusPx": 92.65527507918802,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/maskable-192.png",
+      "size": 192,
+      "type": "maskable",
+      "foregroundMaxRadiusPx": 72.94518489934754,
+      "safeRadiusPx": 76.80000000000001,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/icon-512.png",
+      "size": 512,
+      "type": "any",
+      "foregroundMaxRadiusPx": 242.14252001662163,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/maskable-512.png",
+      "size": 512,
+      "type": "maskable",
+      "foregroundMaxRadiusPx": 194.1957775030137,
+      "safeRadiusPx": 204.8,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/icon-1024.png",
+      "size": 1024,
+      "type": "any",
+      "foregroundMaxRadiusPx": 481.57761575887224,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/maskable-1024.png",
+      "size": 1024,
+      "type": "maskable",
+      "foregroundMaxRadiusPx": 388.8701582790842,
+      "safeRadiusPx": 409.6,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/apple-touch-icon-120.png",
+      "size": 120,
+      "type": "any",
+      "foregroundMaxRadiusPx": 58.52349955359813,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/apple-touch-icon-152.png",
+      "size": 152,
+      "type": "any",
+      "foregroundMaxRadiusPx": 73.57309290766564,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/apple-touch-icon-167.png",
+      "size": 167,
+      "type": "any",
+      "foregroundMaxRadiusPx": 80.84862398334309,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/apple-touch-icon-180.png",
+      "size": 180,
+      "type": "any",
+      "foregroundMaxRadiusPx": 87.13208364316787,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/apple-touch-icon.png",
+      "size": 180,
+      "type": "any",
+      "foregroundMaxRadiusPx": 87.13208364316787,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/favicon-16.png",
+      "size": 16,
+      "type": "any",
+      "foregroundMaxRadiusPx": 8.602325267042627,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/favicon-32.png",
+      "size": 32,
+      "type": "any",
+      "foregroundMaxRadiusPx": 16.401219466856723,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "web/public/icons/favicon-48.png",
+      "size": 48,
+      "type": "any",
+      "foregroundMaxRadiusPx": 24.413111231467404,
+      "safeRadiusPx": null,
+      "opaque": true
+    },
+    {
+      "file": "store/google-play-512.png",
+      "size": 512,
+      "type": "any",
+      "foregroundMaxRadiusPx": 242.14252001662163,
+      "safeRadiusPx": null,
+      "opaque": true
+    }
+  ]
+}

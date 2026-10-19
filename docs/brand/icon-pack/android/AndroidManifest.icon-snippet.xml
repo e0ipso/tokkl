@@ -1,0 +1,3 @@
+<!-- Merge android:icon into your existing <application> element. -->
+<application xmlns:android="http://schemas.android.com/apk/res/android"
+    android:icon="@mipmap/ic_launcher" />

@@ -183,7 +183,7 @@ npm run check:tracker-refs  # fails when a tracked file cites a ticket ID or pla
 npm run icons      # derives the served icons from docs/brand (needs ImageMagick 7)
 ```
 
-Other clients that need the wordmark larger than 640 px should scale down `docs/brand/tokkl-wordmark-1645.png`, the full-size cropped wordmark that `npm run icons` writes.
+Other clients take their brand assets from [docs/brand](docs/brand/README.md): the wordmark, including a full-width crop for use larger than 640 px, and the icon pack with web, Android launcher and store icons.
 
 The KDE companion is a separate CMake project that no npm script builds. To build and test it, run `cmake -S desktop/kde -B desktop/kde/build`, `cmake --build desktop/kde/build` and `ctest --test-dir desktop/kde/build` (needs Qt 6.8, KDE Frameworks 6.13 and Plasma 6.3; [details](desktop/kde/README.md#configure-build-and-test)). It builds on `desktop/core`, the timer and connection core the desktop companions share. That project needs only Qt 6.8 Core, Network and Test, and the same three commands pointed at `desktop/core` build and test it on its own.
 

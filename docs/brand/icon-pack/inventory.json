@@ -1,0 +1,267 @@
+[
+  {
+    "file": "android/AndroidManifest.icon-snippet.xml",
+    "bytes": 184,
+    "sha256": "53bb3ffde657ccfeab9337eab5f7117f38f0bccc60714f83f1c4fb229c6ab45d"
+  },
+  {
+    "file": "android/res/mipmap-anydpi-v26/ic_launcher.xml",
+    "bytes": 268,
+    "sha256": "5056b7226b3f58e65a61739e8ab6f5c52099fccee3ae9aad0e8856f31709e3fa"
+  },
+  {
+    "file": "android/res/mipmap-anydpi-v33/ic_launcher.xml",
+    "bytes": 337,
+    "sha256": "5bef67e3eba5c56f6ca0f96173c76e654977bce5ea91f0161fce94c5f52bbef7"
+  },
+  {
+    "file": "android/res/mipmap-hdpi/ic_launcher_foreground.png",
+    "bytes": 12251,
+    "sha256": "587cf22cc6b0f470fbbad77c6567f956e02c1ebb240779de2ab59c0d27d110ea"
+  },
+  {
+    "file": "android/res/mipmap-hdpi/ic_launcher_monochrome.png",
+    "bytes": 3610,
+    "sha256": "7e962d0c991688e18e2bd36ffa7db7f294d3b7895d7ed3de5a6e241d01f3e5f2"
+  },
+  {
+    "file": "android/res/mipmap-hdpi/ic_launcher.png",
+    "bytes": 6385,
+    "sha256": "287d4518bbca7ea462b5a4cbdb87eff8624c262f17734a1ce17a18e45f020f04"
+  },
+  {
+    "file": "android/res/mipmap-mdpi/ic_launcher_foreground.png",
+    "bytes": 6154,
+    "sha256": "6a3e4b82f676f25a63ade8595f9f46404218eb98321c6f98365d5da3d9682e08"
+  },
+  {
+    "file": "android/res/mipmap-mdpi/ic_launcher_monochrome.png",
+    "bytes": 2141,
+    "sha256": "e3f29b1d59ebb10643b844790dab83713a9a1a1f94d3bc4bd32696134ea7a93e"
+  },
+  {
+    "file": "android/res/mipmap-mdpi/ic_launcher.png",
+    "bytes": 3236,
+    "sha256": "1aa0980cf45831631dc3575e94ef4f4d2b55d80adbd2dda182386679f4e3c342"
+  },
+  {
+    "file": "android/res/mipmap-xhdpi/ic_launcher_foreground.png",
+    "bytes": 19871,
+    "sha256": "8b53be2a9383142ed51c6dec5c2acab0bb5d9123feaaeb7d207c103336e8b011"
+  },
+  {
+    "file": "android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
+    "bytes": 5085,
+    "sha256": "c5ba15801cd14ffd5299d6a711cc7ac45da092b6351efe233d1bb6334fb93ea4"
+  },
+  {
+    "file": "android/res/mipmap-xhdpi/ic_launcher.png",
+    "bytes": 10346,
+    "sha256": "3dd5c4840960eb27cf79513f69324e32f727c603d45171e420c4493a23d88cf7"
+  },
+  {
+    "file": "android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
+    "bytes": 40350,
+    "sha256": "1f236c10e67bb0ca67d89900db19978c5cccb9c553191bb5f4c6635090fe2d1f"
+  },
+  {
+    "file": "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
+    "bytes": 8387,
+    "sha256": "4b259ca40ae122fd2390909ee2ee5cf9916991fe01391eb8fb58301178a17d6b"
+  },
+  {
+    "file": "android/res/mipmap-xxhdpi/ic_launcher.png",
+    "bytes": 20593,
+    "sha256": "16912a3f3908146240fa9f74a9526824660d496217fa8fd66faf733d5b75c266"
+  },
+  {
+    "file": "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
+    "bytes": 66969,
+    "sha256": "f30e36e51b979c19d8d7d6d83b6704243d924ae0378e1abd35643b6185d3f990"
+  },
+  {
+    "file": "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
+    "bytes": 12025,
+    "sha256": "cf28b8c881e2589926b2ccb897862466cf348d538ee95c8041490e5c0631eedb"
+  },
+  {
+    "file": "android/res/mipmap-xxxhdpi/ic_launcher.png",
+    "bytes": 34231,
+    "sha256": "558af7cdcd5a6dd5cddf67b5f1703c7c26c3766c7ee9ab14b97795c54317170b"
+  },
+  {
+    "file": "android/res/values/ic_launcher_background.xml",
+    "bytes": 121,
+    "sha256": "772c179889bbf487fc0d23cf0515a1a679f2e5df308d79a5218199f31460315d"
+  },
+  {
+    "file": "checks.json",
+    "bytes": 8113,
+    "sha256": "939a2ec30b8227fcc368a2fa8616d33230211f5364420ab58e52c0eec6d1fbb4"
+  },
+  {
+    "file": "previews/android-circle.png",
+    "bytes": 51082,
+    "sha256": "b4ce6bd70bde7a60276c357954fc3defb446284d62b6e739cd4687291e528a69"
+  },
+  {
+    "file": "previews/android-rounded.png",
+    "bytes": 49292,
+    "sha256": "8ad5a88ca589f2de4702530d48c424ecc292985ef7cc952c444ee0d3559089ea"
+  },
+  {
+    "file": "previews/android-squircle.png",
+    "bytes": 50059,
+    "sha256": "961d22a9d1db64766a67a6ae24685ee38121a257ac5f1410e4aded2aad1c1311"
+  },
+  {
+    "file": "previews/contact-sheet.png",
+    "bytes": 250192,
+    "sha256": "a9206687898082bc3e222f2c593c3b03c16303e0d15b86ea6a41715d2ac8a6c4"
+  },
+  {
+    "file": "previews/ios-touch-rounded.png",
+    "bytes": 51016,
+    "sha256": "1be0af4a095e805c04bc920423084cae85b3ec994eaa5f9541275bb4bf62d7ec"
+  },
+  {
+    "file": "previews/themed-dark.png",
+    "bytes": 17727,
+    "sha256": "bbbc3134da1c5bacdfc84b9fd2a394c987013b1fe8c659a7e62a1578134e72a4"
+  },
+  {
+    "file": "previews/themed-light.png",
+    "bytes": 18942,
+    "sha256": "5c71e4955855af7566dcdc544b051ec6479052253844ea408eb31d89500d1bd2"
+  },
+  {
+    "file": "previews/web-maskable-circle.png",
+    "bytes": 36854,
+    "sha256": "d5cc5514ee1398f42e3e1788bfeaf819dceb3c99d034ae672306eadfd51b64a9"
+  },
+  {
+    "file": "previews/web-maskable-rounded.png",
+    "bytes": 34930,
+    "sha256": "37198a876e9ed58eaf454c722cadf0cf7200585f53304bfbaddb7add6b02577c"
+  },
+  {
+    "file": "README.md",
+    "bytes": 6813,
+    "sha256": "89c6fdb4f1eebe9ed6bbae3d3038e2a00639d038275b23fbbf93517c2cd8e2ff"
+  },
+  {
+    "file": "scripts/build.mjs",
+    "bytes": 17647,
+    "sha256": "c94b0f4d4497251f103a469a339ca922f136d23cb38c07514060603ef2820d27"
+  },
+  {
+    "file": "source/generation.json",
+    "bytes": 1236,
+    "sha256": "b5380c88aa440ac23b1fb9369e36172875ae9cf1678376d8f7a1c613f9c079a3"
+  },
+  {
+    "file": "source/master-export.png",
+    "bytes": 1050488,
+    "sha256": "9262a3ff57a17fe0b81cfdff0e617f44483175c45747fdb1bc67ebb30faba55a"
+  },
+  {
+    "file": "source/master-transparent.png",
+    "bytes": 1087016,
+    "sha256": "03431010f5d8c0ae4ac54c41c6332535a4cd63d0e8831a0c848d5553433bc222"
+  },
+  {
+    "file": "store/google-play-512.png",
+    "bytes": 196710,
+    "sha256": "08d5ad147f3e204b39de135024ac1a1843d0409f83308c07c2f2a6e7f765a81e"
+  },
+  {
+    "file": "validation-report.json",
+    "bytes": 104952,
+    "sha256": "9ad64e83f8b8bfbc34f962df13571106fa36cf17d088abddf80047b081f0d1da"
+  },
+  {
+    "file": "web/head-snippet.html",
+    "bytes": 645,
+    "sha256": "7d13dac500262e4151d994b87c781c7a2ed0d224ebfcae21aaefca83e695c2fd"
+  },
+  {
+    "file": "web/public/apple-touch-icon.png",
+    "bytes": 30603,
+    "sha256": "11cec8dd2933029e382a5556b27554e8c5d14037cf4a419e34120a38914103bc"
+  },
+  {
+    "file": "web/public/favicon.ico",
+    "bytes": 15086,
+    "sha256": "a9becfd4d266981f18f0e2b2a65ee61ea3ff9c57bc8536c8cd297a8c621f210a"
+  },
+  {
+    "file": "web/public/icons/apple-touch-icon-120.png",
+    "bytes": 14944,
+    "sha256": "9d1e6db0cf727de7350e0ae9b2a5030b8e0871bdcc17cd8f7ed26ba7bf0ad870"
+  },
+  {
+    "file": "web/public/icons/apple-touch-icon-152.png",
+    "bytes": 22462,
+    "sha256": "058c6812e5f5289630b82763bf53f8542bedd36df837926c7aeee94109e4f320"
+  },
+  {
+    "file": "web/public/icons/apple-touch-icon-167.png",
+    "bytes": 26696,
+    "sha256": "16a3d719f41f2cd6654c92d37dc1e8b3447c41b46ffb1de8e2c40a21119a8519"
+  },
+  {
+    "file": "web/public/icons/apple-touch-icon-180.png",
+    "bytes": 30603,
+    "sha256": "11cec8dd2933029e382a5556b27554e8c5d14037cf4a419e34120a38914103bc"
+  },
+  {
+    "file": "web/public/icons/favicon-16.png",
+    "bytes": 615,
+    "sha256": "89f8d3bec14cf0b9231509ac1d0dc8e21d1844d524e8ef9d85b70a4dc926b552"
+  },
+  {
+    "file": "web/public/icons/favicon-32.png",
+    "bytes": 1718,
+    "sha256": "e6f61d7608b11f866dfead58c4c2186a61d93adcb70f62d58668ea93695cd25a"
+  },
+  {
+    "file": "web/public/icons/favicon-48.png",
+    "bytes": 3236,
+    "sha256": "1aa0980cf45831631dc3575e94ef4f4d2b55d80adbd2dda182386679f4e3c342"
+  },
+  {
+    "file": "web/public/icons/icon-1024.png",
+    "bytes": 677399,
+    "sha256": "40abe017a28a10b167c703052cd5445493af2c37e7729d9b2c20d5d10a24a2da"
+  },
+  {
+    "file": "web/public/icons/icon-192.png",
+    "bytes": 34231,
+    "sha256": "558af7cdcd5a6dd5cddf67b5f1703c7c26c3766c7ee9ab14b97795c54317170b"
+  },
+  {
+    "file": "web/public/icons/icon-512.png",
+    "bytes": 196710,
+    "sha256": "08d5ad147f3e204b39de135024ac1a1843d0409f83308c07c2f2a6e7f765a81e"
+  },
+  {
+    "file": "web/public/icons/maskable-1024.png",
+    "bytes": 469620,
+    "sha256": "1fc7bba81fc165db124c90c5b109937b3742d60bc9142d7f13e2c6b25da09626"
+  },
+  {
+    "file": "web/public/icons/maskable-192.png",
+    "bytes": 22618,
+    "sha256": "46633f1dace95796386645f59a8c80f02c5ce36354f0893af094275c97b7caeb"
+  },
+  {
+    "file": "web/public/icons/maskable-512.png",
+    "bytes": 134020,
+    "sha256": "185f121af41227b1d3bb691cc0eb548183767b66c0d49d93ab15d1a6c9ad2d16"
+  },
+  {
+    "file": "web/public/manifest.webmanifest",
+    "bytes": 1030,
+    "sha256": "6616d35342dd70d10a8928de679584b2cde3a5124e91faaf3d716961e986c518"
+  }
+]
