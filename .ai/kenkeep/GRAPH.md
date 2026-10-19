@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:f55303aec193791ff062bb15bc6f004bbcaa7d6928c509cec02cbcc804fa88a5'
-node_count: 79
+nodes_hash: 'sha256:b3b7ec82ab14b7abec1363a3189ea5878b6f9bd98c0a01640650f254aa5c6d5e'
+node_count: 81
 ---
 # kenkeep Graph
 
-Total nodes: 79
+Total nodes: 81
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -36,7 +36,7 @@ Total nodes: 79
 - **title:** App shell: Brand.tsx, the wordmark image and the NAV list
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile, wordmark
-- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 
 ## map-container-image-ghcr-io-e0ipso-tokkl
 
@@ -293,7 +293,7 @@ Total nodes: 79
 - **title:** Contrast tables in styles.css; project colours never paint text
 - **path:** web-ui-styling-and-layout/practice-contrast-tables-and-project-colours.md
 - **tags:** web, css, accessibility, contrast, projects, tokens
-- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme
+- **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 
 ## practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 
@@ -458,7 +458,7 @@ Total nodes: 79
 - **title:** Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells
 - **path:** web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md
 - **tags:** web, css, mobile, layout
-- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break
 
 ## practice-playwright-gotchas-in-the-e2e-specs
 
@@ -485,6 +485,14 @@ Total nodes: 79
 - **relates_to:** practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs, map-tokkl-rename-legacy-name-fallbacks
 - **derived_from:** a8ccde73-a7bd-471e-8daf-eafb3524a6fb:practice:0
 
+## practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break
+
+- **kind:** practice
+- **title:** Report totals wrap as a flex row; an Amount figure never breaks
+- **path:** web-ui-styling-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md
+- **tags:** web, css, reports, layout, mobile, e2e
+- **relates_to:** practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, map-readme-screenshots-script
+
 ## practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 
 - **kind:** practice
@@ -492,6 +500,14 @@ Total nodes: 79
 - **path:** tooling-and-project/testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md
 - **tags:** testing, e2e, workflow
 - **relates_to:** practice-visual-screenshot-baselines
+
+## practice-section-hues-data-section-maps-each-nav-section-to-a-hue
+
+- **kind:** practice
+- **title:** Section hues: data-section maps each NAV section to a hue and its text colour
+- **path:** web-ui-styling-and-layout/practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md
+- **tags:** web, css, navigation, contrast, tokens, calendar
+- **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 
 ## practice-stopped-entries-snap-to-the-time-resolution-on-write
 

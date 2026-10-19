@@ -16,6 +16,7 @@ kk_id: practice-contrast-tables-and-project-colours
 kk_derived_from: []
 kk_relates_to:
   - practice-theme-tokens-data-theme-and-cached-theme
+  - practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -33,7 +34,7 @@ The check mark on a chosen colour swatch sits on the raw hex in both themes, so 
 
 The palette is the owner's Spectrum table, taken from the wordmark's hues. A token the owner did not set carries a comment naming the wordmark hue it comes from, and a value moved for AA keeps its reason beside it (light `--surface-2` is `#f3f1ea`, not `#f1eee6`, because primary on `#f1eee6` was 2.94:1). Two token pairs look alike and have separate jobs:
 
-- `--primary` is for fills (buttons, the active nav link, the today badge), bars, borders, rings and icons. Text in the primary colour uses `--primary-text` (`#b23c00` light, `#ff8a3d` dark), because light `--primary` is 3.40:1 on surface, enough for a fill but not for text. Links, link buttons and other primary-coloured text take `--primary-text`.
+- `--primary` is for fills (buttons, badges, the phone day strip's today weekday), bars, borders, rings and icons. The active nav link and the day stickers fill with the section hues instead (`practice-section-hues-data-section-maps-each-nav-section-to-a-hue`). Text in the primary colour uses `--primary-text` (`#b23c00` light, `#ff8a3d` dark), because light `--primary` is 3.40:1 on surface, enough for a fill but not for text. Links, link buttons and other primary-coloured text take `--primary-text`.
 - `--selected` with `--on-selected` content fills the active segmented and mode-switch buttons. `--state-selected` is the tint behind selected rows, picker items and the chosen calendar strip day (`--calendar-today` mixes it with surface), and it carries text in both themes. Do not swap one for the other.
 
 The dark chart pair (`--chart-billable` `#00b9fa`, `--chart-other` `#ff9500`) passes WCAG but sits above the dataviz palette check's lightness band (OKLCH L 0.74 and 0.77). The owner agreed to it, and the comment in the contrast table says so, so a failing lightness check on the dark pair is expected.
@@ -44,4 +45,5 @@ The dark chart pair (`--chart-billable` `#00b9fa`, `--chart-other` `#ff9500`) pa
 # Related
 
 - Related: [practice-theme-tokens-data-theme-and-cached-theme](practice-theme-tokens-data-theme-and-cached-theme.md)
+- Related: [practice-section-hues-data-section-maps-each-nav-section-to-a-hue](practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md)
 <!-- kk:related:end -->
