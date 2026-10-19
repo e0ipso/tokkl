@@ -1,0 +1,10 @@
+{
+  "created": "2026-10-19",
+  "visualEditTool": "Built-in image generation",
+  "prompt": "Use case: precise-object-edit / logo-brand. Create the updated final Tokkl wordmark. Input image1 is the original wordmark EDIT TARGET. Input image2 is the selected standalone clock-O logo to INSERT IN PLACE OF THE EXISTING LETTER O. Exact spelling remains lowercase \"tokkl\": t, clock-shaped o, k, k, l. Preserve the distinctive original letter shapes of t,k,k,l, their spacing/rhythm, forward lean, flowing curves, thick near-black navy outlines, glossy white highlights, paint texture and restrained drips. Preserve original letter colors: t yellow-orange, first k yellow, second k cyan, l violet-magenta. Replace ONLY the original plain pink o with the clock from image2, scaled to the original o's lowercase height and proportion. Keep its tilted pink-to-orange/yellow oval ring, two cyan clock hands, yellow pivot and pink drip fully readable inside the word, harmonizing the overlap with adjacent t and k. The clock is the second letter, not a separate icon beside the word. No extra clock, no duplicate o, no extra letters. Keep all five letters and all edge flourishes fully visible with clear padding. Remove the dark background to genuine transparency, including between letters and inside counters; preserve the navy outline. Wide horizontal wordmark composition, high resolution, around 3:1 aspect ratio. This will be traced into real vector paths: keep edges clean and continuous, major silhouettes and highlights well-defined. No mockup, no caption, no checkerboard painted into the image, no new background.",
+  "references": [
+    "Original Tokkl wordmark supplied by user",
+    "Selected clock-O icon"
+  ],
+  "vectorization": "Local contour tracing and vector path generation; see scripts and README for details."
+}

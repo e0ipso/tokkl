@@ -10,6 +10,15 @@ This directory holds Tokkl's brand artwork. `npm run icons` reads some of it and
 
 `npm run icons` writes both crops from the source. See `scripts/icons.ts`.
 
+## Wordmark pack
+
+`wordmark-pack/` is the clock O wordmark pack, in which the clock replaces the letter "o". Its own `wordmark-pack/README.md` has the details.
+
+- `wordmark-pack/source/tokkl-wordmark-clock-master.png` is the pack's raster master. It will be the source of every served wordmark. Until `npm run icons` switches to it, `tokkl-wordmark-v3.png` is still the input.
+- `wordmark-pack/svg/tokkl-wordmark-detailed.svg` is the editable master and `wordmark-pack/pdf/tokkl-wordmark-detailed.pdf` is the print master. `wordmark-pack/png/` has the detailed wordmark at 640, 1280 and 2560 px.
+- The pack's clean and mono variants (SVG, PDF and PNG) and its `previews/` are left out on purpose, even though the pack's own README recommends the clean SVG for web use.
+- The Android app takes the master from here.
+
 ## Icon pack
 
 `icon-pack/` is the clock icon pack. Its own `icon-pack/README.md` has the integration details. Each kind of client takes one subdirectory:
