@@ -48,7 +48,9 @@ For multi-user API tests, `addUser(ctx, { email, role })` in `packages/api/test/
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-live-entry-indexes-back-project-and-task-totals](practice-live-entry-indexes-back-project-and-task-totals.md)
-- Related: [practice-password-checks-go-through-failurelimiter-attempt](password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
-- Related: [map-admin-api-and-disabled-accounts](map-admin-api-and-disabled-accounts.md)
+- Related: [practice-live-entry-indexes-back-project-and-task-totals](../reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt](../password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
+- Related: [map-admin-api-and-disabled-accounts → map-admin-user-management-api-and-the-last-active-admin-rule](map-admin-user-management-api-and-the-last-active-admin-rule.md)
+- Related: [map-admin-api-and-disabled-accounts → map-instance-settings-api-app-admin-settings-and-setting-rules](map-instance-settings-api-app-admin-settings-and-setting-rules.md)
+- Related: [map-admin-api-and-disabled-accounts → map-invites-and-password-reset-links-in-account-tokens](map-invites-and-password-reset-links-in-account-tokens.md)
 <!-- kk:related:end -->

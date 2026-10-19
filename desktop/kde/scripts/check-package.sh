@@ -56,6 +56,7 @@ package="$(realpath "$package")"
 
 plasmoid_id="com.github.e0ipso.tokkl"
 widget_dir="/usr/share/plasma/plasmoids/$plasmoid_id"
+icon_file="/usr/share/icons/hicolor/96x96/apps/$plasmoid_id.png"
 
 case "$package" in
     *.deb)
@@ -64,7 +65,7 @@ case "$package" in
         expected_arch=amd64
         license_file=/usr/share/doc/tokkl-kde/copyright
         # dpkg-shlibdeps adds the libraries; debian/control adds the QML modules.
-        expected_deps="libkf6wallet6 libqt6core6t64 libqt6network6 libqt6qml6
+        expected_deps="hicolor-icon-theme libkf6wallet6 libqt6core6t64 libqt6network6 libqt6qml6
             plasma-desktoptheme qml6-module-org-kde-kcmutils qml6-module-org-kde-kirigami
             qml6-module-qtqml qml6-module-qtquick qml6-module-qtquick-controls
             qml6-module-qtquick-layouts qml6-module-qtquick-templates"
@@ -75,7 +76,7 @@ case "$package" in
         expected_arch=x86_64
         license_file=/usr/share/licenses/tokkl-kde/LICENSE
         # rpm finds the libraries; the spec adds the QML modules and floors.
-        expected_deps="libKF6Wallet.so.6()(64bit) libQt6Core.so.6()(64bit)
+        expected_deps="hicolor-icon-theme libKF6Wallet.so.6()(64bit) libQt6Core.so.6()(64bit)
             libQt6Network.so.6()(64bit) libQt6Qml.so.6()(64bit) libplasma(x86-64)
             kf6-kirigami(x86-64) kf6-kcmutils(x86-64)
             qt6qml(org.kde.plasma.plasmoid) qt6qml(org.kde.plasma.core)
@@ -90,6 +91,7 @@ esac
 expected_files="$widget_dir/metadata.json
 $widget_dir/contents/ui/main.qml
 $widget_dir/contents/config/main.xml
+$icon_file
 $backend_dir/qmldir
 $backend_dir/libtokklbackend.so
 $backend_dir/tokklbackend.qmltypes
@@ -102,6 +104,9 @@ expect() { # <ok message> <failure message> <command...>
     local ok="$1" bad="$2"
     shift 2
     if "$@"; then pass "$ok"; else fail "$bad"; fi
+}
+same_contents() {
+    [ -f "$1" ] && [ -f "$2" ] && [ "$(sha256sum < "$1")" = "$(sha256sum < "$2")" ]
 }
 step() { echo; echo "== $*"; }
 
@@ -246,6 +251,9 @@ check_installed() { # <native version> <semver> <file>
     expect "widget metadata version $semver_want" \
         "widget metadata version is '$metadata', expected $semver_want" \
         [ "$metadata" = "$semver_want" ]
+    expect "widget picker icon matches the bundled logo" \
+        "widget picker icon is missing or differs from the bundled logo" \
+        same_contents "$icon_file" "$widget_dir/contents/images/tokkl.png"
     expect "backend qmldir names com.github.e0ipso.tokkl.backend" \
         "backend qmldir does not name com.github.e0ipso.tokkl.backend" \
         grep -qx "module com.github.e0ipso.tokkl.backend" "$backend_dir/qmldir"
@@ -307,6 +315,7 @@ check_loads() {
 
 check_removed() {
     expect "tokkl-kde is not installed" "tokkl-kde is still installed" [ -z "$(installed_version)" ]
+    expect "widget picker icon is gone" "widget picker icon is left behind" [ ! -e "$icon_file" ]
     for dir in "$widget_dir" "$(dirname "$(dirname "$backend_dir")")"; do
         expect "$dir is gone" "$dir is left behind" [ ! -e "$dir" ]
     done

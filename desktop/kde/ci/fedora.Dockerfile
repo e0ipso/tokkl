@@ -33,5 +33,5 @@ FROM build AS test
 RUN dnf install -y -q \
         'cmake(Qt6Test)' 'cmake(Qt6QuickTest)' 'cmake(KF6Config)' 'cmake(KF6I18n)' 'cmake(KF6KirigamiPlatform)' \
         'cmake(PlasmaQuick)' 'qt6qml(QtTest)' \
-        appstream dbus-daemon dbus-tools dpkg xorg-x11-server-Xvfb xorg-x11-xauth \
+        appstream dbus-daemon dbus-tools dpkg hicolor-icon-theme xorg-x11-server-Xvfb xorg-x11-xauth \
     && dnf clean all

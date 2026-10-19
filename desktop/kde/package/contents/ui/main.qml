@@ -27,7 +27,9 @@ PlasmoidItem {
         timer: root.timer
     }
 
-    preferredRepresentation: compactRepresentation
+    // Keep the timer inline in the panel. Plasma does not select a compact
+    // representation when no full representation has been provided.
+    preferredRepresentation: fullRepresentation
 
     toolTipMainText: i18n("Tokkl: %1", words.summary)
     toolTipSubText: i18n("Version %1", Companion.version)
@@ -40,7 +42,7 @@ PlasmoidItem {
         }
     ]
 
-    compactRepresentation: PanelButton {
+    fullRepresentation: PanelButton {
         timer: root.timer
         // The configured base URL only: it never holds credentials.
         onOpenRequested: url => Qt.openUrlExternally(url)

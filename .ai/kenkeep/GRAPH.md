@@ -1,19 +1,19 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:2cfd62019158bca699ce4e2120f000600992cf57646513da4969af9d2d183805'
-node_count: 59
+nodes_hash: 'sha256:1c20e6600358a87ac3bfa8cc4cf7d5b0e228d96abb44129747337e777a8df8c7'
+node_count: 70
 ---
 # kenkeep Graph
 
-Total nodes: 59
+Total nodes: 70
 
-## map-admin-api-and-disabled-accounts
+## map-admin-user-management-api-and-the-last-active-admin-rule
 
 - **kind:** map
-- **title:** Admin API and disabled accounts
-- **path:** api-and-data/map-admin-api-and-disabled-accounts.md
-- **tags:** server, auth, admin, invites, settings
-- **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-go-through-failurelimiter-attempt
+- **title:** Admin user management API and the last-active-admin rule
+- **path:** api-and-data/users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md
+- **tags:** server, auth, admin
+- **relates_to:** map-users-roles-and-workspace-membership
 
 ## map-app-icons-script
 
@@ -27,7 +27,7 @@ Total nodes: 59
 
 - **kind:** map
 - **title:** Web app report endpoints under /api/app/report
-- **path:** api-and-data/map-app-report-endpoints.md
+- **path:** api-and-data/reports-and-totals/map-app-report-endpoints.md
 - **tags:** server, reports, api, web
 
 ## map-app-shell-brand-and-navigation
@@ -37,6 +37,15 @@ Total nodes: 59
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile
 - **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas
+
+## map-container-image-ghcr-io-e0ipso-tokkl
+
+- **kind:** map
+- **title:** Container image ghcr.io/e0ipso/tokkl
+- **path:** tooling-and-project/map-container-image-ghcr-io-e0ipso-tokkl.md
+- **tags:** docker, release, ci, deployment
+- **relates_to:** map-npm-workspaces-package-layout, practice-do-not-mark-commits-as-breaking-changes
+- **derived_from:** 5470b272-9bff-4eb0-8fe5-ffc3d686cda3:map:0
 
 ## map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
 
@@ -69,6 +78,22 @@ Total nodes: 59
 - **path:** tooling-and-project/testing/map-history-scale-bench.md
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
+
+## map-instance-settings-api-app-admin-settings-and-setting-rules
+
+- **kind:** map
+- **title:** Instance settings: /api/app/admin/settings and SETTING_RULES
+- **path:** api-and-data/users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md
+- **tags:** server, admin, settings
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write
+
+## map-invites-and-password-reset-links-in-account-tokens
+
+- **kind:** map
+- **title:** Invites and password-reset links in account_tokens
+- **path:** api-and-data/users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md
+- **tags:** server, auth, admin, invites
+- **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-go-through-failurelimiter-attempt, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 
 ## map-kde-ci-and-release-pipeline
 
@@ -154,9 +179,18 @@ Total nodes: 59
 
 - **kind:** map
 - **title:** Users, roles and workspace membership
-- **path:** api-and-data/map-users-roles-and-workspace-membership.md
+- **path:** api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md
 - **tags:** server, database, migrations, auth, workspaces
 - **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-go-through-failurelimiter-attempt, map-admin-api-and-disabled-accounts
+
+## map-web-calendar-day-view-and-touch-gestures-in-weekcalendar
+
+- **kind:** map
+- **title:** Web calendar day view and touch gestures in WeekCalendar
+- **path:** web-ui-styling-and-layout/map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md
+- **tags:** web, calendar, touch, mobile, e2e
+- **relates_to:** practice-week-calendar-hour-height-agrees-in-three-places, practice-ui-time-math-uses-wall-clock-helpers, practice-phone-layout-css-gotchas, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
+- **derived_from:** 935c3ad4-996d-4ce0-b165-4aaf8e23c62e:map:0
 
 ## map-web-page-state-and-field-error-components
 
@@ -170,7 +204,7 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Deleting a client detaches its projects and never merges them
-- **path:** api-and-data/practice-client-deletion-keeps-projects.md
+- **path:** api-and-data/reports-and-totals/practice-client-deletion-keeps-projects.md
 - **tags:** server, clients, projects
 
 ## practice-clipboard-copy-needs-http-fallback
@@ -211,6 +245,15 @@ Total nodes: 59
 - **tags:** web, css, fonts, motion, accessibility
 - **relates_to:** practice-contrast-tables-and-project-colours
 
+## practice-do-not-mark-commits-as-breaking-changes
+
+- **kind:** practice
+- **title:** Do not mark commits as breaking changes
+- **path:** tooling-and-project/repo-and-scripts/practice-do-not-mark-commits-as-breaking-changes.md
+- **tags:** release, git, semantic-release, workflow
+- **relates_to:** practice-commit-messages-pass-commitlint-no-ai-generated
+- **derived_from:** 3731445d-fa4c-416e-b2d2-8c35d32bc1e1:practice:0
+
 ## practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 
 - **kind:** practice
@@ -230,24 +273,40 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Validate hourly rates with optionalRate and MAX_HOURLY_RATE
-- **path:** api-and-data/practice-hourly-rates-go-through-optionalrate.md
+- **path:** api-and-data/reports-and-totals/practice-hourly-rates-go-through-optionalrate.md
 - **tags:** server, validation, reports, money
 
 ## practice-json-restore-rules
 
 - **kind:** practice
 - **title:** JSON restore: idempotent, skips with reasons, keeps archive state
-- **path:** api-and-data/practice-json-restore-rules.md
+- **path:** api-and-data/toggl-compat-and-import/practice-json-restore-rules.md
 - **tags:** server, import, restore, backup
 - **relates_to:** practice-write-paths-validate-refs-not-totals, practice-parse-api-timestamps-with-parseinstant, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
-## practice-kde-companion-connection-and-configure-page-rules
+## practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite
 
 - **kind:** practice
-- **title:** KDE companion: connection errors, settings generations and the Configure page
-- **path:** tooling-and-project/kde-companion/practice-kde-companion-connection-and-configure-page-rules.md
+- **title:** KDE companion credential stores: KWallet only, message() and reportWrite
+- **path:** tooling-and-project/kde-companion/connection-and-credentials/practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite.md
 - **tags:** kde, desktop, auth, configuration
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, practice-password-checks-go-through-failurelimiter-attempt
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
+
+## practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies
+
+- **kind:** practice
+- **title:** KDE companion requests: Basic auth, access kinds and stale replies
+- **path:** tooling-and-project/kde-companion/connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md
+- **tags:** kde, desktop, auth
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, practice-password-checks-go-through-failurelimiter-attempt
+
+## practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing
+
+- **kind:** practice
+- **title:** KDE Configure page: cfg_instanceUrl and the wallet save timing
+- **path:** tooling-and-project/kde-companion/connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md
+- **tags:** kde, desktop, configuration
+- **relates_to:** map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
 
 ## practice-kde-timer-controller-rules
 
@@ -265,6 +324,15 @@ Total nodes: 59
 - **tags:** tooling, docs, comments, commits, sift, strikethroo
 - **relates_to:** practice-commit-messages-pass-commitlint-no-ai-generated
 
+## practice-keep-truenas-install-steps-out-of-the-repo-readme
+
+- **kind:** practice
+- **title:** Keep TrueNAS install steps out of the repo README
+- **path:** tooling-and-project/repo-and-scripts/practice-keep-truenas-install-steps-out-of-the-repo-readme.md
+- **tags:** docs, readme, deployment, truenas
+- **relates_to:** practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
+- **derived_from:** 5470b272-9bff-4eb0-8fe5-ffc3d686cda3:practice:0
+
 ## practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows
 
 - **kind:** practice
@@ -277,14 +345,23 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Project and task totals rely on the live-entry partial indexes
-- **path:** api-and-data/practice-live-entry-indexes-back-project-and-task-totals.md
+- **path:** api-and-data/reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md
 - **tags:** server, database, migrations, performance
+
+## practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs
+
+- **kind:** practice
+- **title:** Merge a PR stack bottom-up without retargeting its PRs
+- **path:** tooling-and-project/repo-and-scripts/practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs.md
+- **tags:** git, github, pull-requests, workflow
+- **relates_to:** practice-commit-messages-pass-commitlint-no-ai-generated
+- **derived_from:** c5794749-15f1-47f9-9e40-e8840a0a83e2:practice:0
 
 ## practice-parse-api-timestamps-with-parseinstant
 
 - **kind:** practice
 - **title:** Parse incoming timestamps with parseInstant
-- **path:** api-and-data/practice-parse-api-timestamps-with-parseinstant.md
+- **path:** api-and-data/time-handling/practice-parse-api-timestamps-with-parseinstant.md
 - **tags:** server, validation, time, api
 
 ## practice-parse-duration-returns-null-over-999-hours
@@ -330,8 +407,17 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Preferences: known keys validated, unknown keys stored verbatim
-- **path:** api-and-data/practice-preferences-validated-by-known-key.md
+- **path:** api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
+
+## practice-readme-describes-the-current-project-never-its-history
+
+- **kind:** practice
+- **title:** README describes the current project, never its history
+- **path:** tooling-and-project/repo-and-scripts/practice-readme-describes-the-current-project-never-its-history.md
+- **tags:** docs, readme
+- **relates_to:** practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs, map-tokkl-rename-legacy-name-fallbacks
+- **derived_from:** a8ccde73-a7bd-471e-8daf-eafb3524a6fb:practice:0
 
 ## practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 
@@ -345,7 +431,7 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Stopped entries snap to the instance time resolution on write
-- **path:** api-and-data/practice-stopped-entries-snap-to-the-time-resolution-on-write.md
+- **path:** api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md
 - **tags:** server, time, entries, import
 - **relates_to:** map-admin-api-and-disabled-accounts, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant, practice-web-previews-and-editor-show-snapped-durations
 
@@ -356,6 +442,15 @@ Total nodes: 59
 - **path:** web-ui-styling-and-layout/practice-styles-css-loads-last-and-owns-colour-tokens.md
 - **tags:** web, css, cascade, tokens, reports
 - **relates_to:** practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-theme-tokens-data-theme-and-cached-theme
+
+## practice-target-debian-for-debian-family-desktop-packages-not-niche-distros
+
+- **kind:** practice
+- **title:** Target Debian for Debian-family desktop packages, not niche distros
+- **path:** tooling-and-project/practice-target-debian-for-debian-family-desktop-packages-not-niche-distros.md
+- **tags:** packaging, desktop, debian, linux
+- **relates_to:** map-kde-native-packaging, map-gnome-timerd-d-bus-timer-service, map-kde-ci-and-release-pipeline
+- **derived_from:** 00ad724c-83fd-4010-8539-ba27d315dbc4:practice:0
 
 ## practice-theme-tokens-data-theme-and-cached-theme
 
@@ -369,7 +464,7 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Time zones: store canonicalTimeZone, reject offset IDs
-- **path:** api-and-data/practice-time-zone-names-are-stored-in-canonical-form.md
+- **path:** api-and-data/time-handling/practice-time-zone-names-are-stored-in-canonical-form.md
 - **tags:** api, time, validation
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-preferences-validated-by-known-key
 
@@ -393,7 +488,7 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Toggl CSV import: choose team-export users by opaque key
-- **path:** api-and-data/practice-toggl-csv-import-selects-users-by-opaque-key.md
+- **path:** api-and-data/toggl-compat-and-import/practice-toggl-csv-import-selects-users-by-opaque-key.md
 - **tags:** server, api, import, validation
 - **relates_to:** practice-json-restore-rules, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
@@ -416,7 +511,7 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Toggl v9 DELETE routes answer an empty 200
-- **path:** api-and-data/practice-v9-deletes-answer-an-empty-200.md
+- **path:** api-and-data/toggl-compat-and-import/practice-v9-deletes-answer-an-empty-200.md
 - **tags:** api, toggl-v9
 
 ## practice-visual-screenshot-baselines
@@ -454,7 +549,7 @@ Total nodes: 59
 
 - **kind:** practice
 - **title:** Validate write-path references with getProjectRef and getTaskRef
-- **path:** api-and-data/practice-write-paths-validate-refs-not-totals.md
+- **path:** api-and-data/reports-and-totals/practice-write-paths-validate-refs-not-totals.md
 - **tags:** server, models, performance, validation
 
 ## practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts

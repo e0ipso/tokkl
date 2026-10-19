@@ -18,11 +18,14 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QIcon>
 #include <QMetaProperty>
 #include <QRegularExpression>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQuickWindow>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTest>
 
@@ -114,6 +117,11 @@ private Q_SLOTS:
     void initTestCase()
     {
         previousHandler = qInstallMessageHandler(collectQmlProblems);
+        // Headless sessions have no desktop platform theme to select an
+        // icon theme or its XDG search paths.
+        QIcon::setThemeSearchPaths(QStandardPaths::locateAll(QStandardPaths::GenericDataLocation,
+                                                           QStringLiteral("icons"), QStandardPaths::LocateDirectory));
+        QIcon::setThemeName(QStringLiteral("hicolor"));
     }
 
     void cleanupTestCase()
@@ -141,6 +149,10 @@ private Q_SLOTS:
         QCOMPARE(QDir(package.path()).canonicalPath(), QDir(stagedPlasmoidDir).canonicalPath());
         QCOMPARE(package.metadata().pluginId(), plasmoidId);
         QCOMPARE(package.metadata().version(), version);
+        QCOMPARE(package.metadata().iconName(), plasmoidId);
+        const QIcon icon = QIcon::fromTheme(package.metadata().iconName());
+        QVERIFY(!icon.isNull());
+        QCOMPARE(icon.pixmap(96, 96).toImage(), QPixmap(stagedPlasmoidDir + QStringLiteral("/contents/images/tokkl.png")).toImage());
         QCOMPARE(QFileInfo(package.filePath("mainscript")).canonicalFilePath(),
                  QFileInfo(stagedPlasmoidDir + QStringLiteral("/contents/ui/main.qml")).canonicalFilePath());
     }
@@ -181,11 +193,21 @@ private Q_SLOTS:
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 
+    void appletLoads_data()
+    {
+        QTest::addColumn<bool>("desktop");
+        QTest::newRow("panel") << false;
+        QTest::newRow("desktop") << true;
+    }
+
     void appletLoads()
     {
+        QFETCH(bool, desktop);
         TestCorona corona;
         Plasma::Containment *containment = corona.createContainment(QStringLiteral("tokkl.test.emptycontainment"));
         QVERIFY(containment);
+        containment->setFormFactor(desktop ? Plasma::Types::Planar : Plasma::Types::Horizontal);
+        containment->setLocation(desktop ? Plasma::Types::Floating : Plasma::Types::TopEdge);
 
         Plasma::Applet *applet = containment->createApplet(plasmoidId);
         QVERIFY(applet);
@@ -203,18 +225,24 @@ private Q_SLOTS:
         QCOMPARE(timer->property("connection").value<QObject *>(), item->property("connection").value<QObject *>());
         QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00:00"));
         QCOMPARE(timer->property("canWrite").toBool(), false);
-        // The panel item compiles in the widget and shows the same timer. A
-        // containment without a view creates no representation, so create
-        // one here.
-        auto *compact = item->property("compactRepresentation").value<QQmlComponent *>();
-        QVERIFY(compact);
-        QVERIFY2(compact->isReady(), qPrintable(compact->errorString()));
-        std::unique_ptr<QObject> panel(compact->create(qmlContext(item)));
-        QVERIFY2(panel, qPrintable(compact->errorString()));
+        // Let Plasma select and instantiate the visible representation.
+        // Creating the component ourselves misses a compact view that
+        // compiles but is never selected by the shell.
+        const QSize size = desktop ? QSize(1000, 500) : QSize(240, 48);
+        QQuickWindow window;
+        window.resize(size);
+        item->setParentItem(window.contentItem());
+        item->setSize(size);
+        window.show();
+        QTRY_VERIFY_WITH_TIMEOUT(item->property("fullRepresentationItem").value<QQuickItem *>(), 1000);
+        auto *panel = item->property("fullRepresentationItem").value<QQuickItem *>();
         QCOMPARE(panel->property("timer").value<QObject *>(), timer);
-        auto *label = panel->findChild<QObject *>(QStringLiteral("elapsedLabel"));
+        auto *label = panel->findChild<QQuickItem *>(QStringLiteral("elapsedLabel"));
         QVERIFY(label);
         QCOMPARE(label->property("text").toString(), QStringLiteral("0:00:00"));
+        QTRY_VERIFY(label->isVisible());
+        QTRY_VERIFY(label->width() > 0 && label->height() > 0);
+        QTRY_VERIFY(window.contentItem()->contains(label->mapToItem(window.contentItem(), label->boundingRect().center())));
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 
