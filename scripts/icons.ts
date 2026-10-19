@@ -3,8 +3,9 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // Derives the brand images that Tokkl ships from the owner's artwork in docs/brand: the web app's
-// icons and wordmarks in packages/web/public, the README wordmarks in docs/brand and the KDE
-// widget's icons in desktop/kde/package. Run it with `npm run icons` after replacing a file in
+// icons and wordmarks in packages/web/public, the README wordmarks in docs/brand, the KDE
+// widget's icons in desktop/kde/package and the GNOME extension's logo in desktop/gnome/extension.
+// Run it with `npm run icons` after replacing a file in
 // docs/brand and commit the outputs with it.
 //
 // Resizing and palette reduction use ImageMagick 7 (`magick`). Chromium can resize but cannot
@@ -15,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 const BRAND = fileURLToPath(new URL('../docs/brand/', import.meta.url));
 const PUBLIC = fileURLToPath(new URL('../packages/web/public/', import.meta.url));
 const KDE_PACKAGE = fileURLToPath(new URL('../desktop/kde/package/', import.meta.url));
+const GNOME_EXTENSION = fileURLToPath(new URL('../desktop/gnome/extension/', import.meta.url));
 /** The icon pack's web root. Every served icon keeps its path from here under packages/web/public. */
 const ICON_PACK = `${BRAND}icon-pack/web/public/`;
 
@@ -119,3 +121,7 @@ for (const size of [32, 48, 64, 96, 128, 256]) {
     magick([MASTER, ...MASTER_SQUARE, '-resize', `${size}x${size}`], kdeIcon(size), 'png32');
   }
 }
+
+// The GNOME extension shows tokkl.png before the project indicator in its top bar button, at the
+// 16px panel icon size. It is a full-colour RGBA PNG at 32px, so it stays sharp at twice that size.
+magick([MASTER, ...MASTER_SQUARE, '-resize', '32x32'], `${GNOME_EXTENSION}tokkl.png`, 'png32');

@@ -3,6 +3,7 @@
 // service decides whether it happens.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
@@ -118,9 +119,11 @@ function shapePath(cr, x, y, size, radius) {
 export const TokklIndicator = GObject.registerClass(
 class TokklIndicator extends PanelMenu.Button {
     /**
+     * @param {import('gi://Gio').File} logo the clock logo PNG in the
+     *     extension's directory
      * @param {() => void} openPreferences
      */
-    _init(openPreferences) {
+    _init(logo, openPreferences) {
         super._init(0.5, _('Tokkl timer'));
 
         this._proxy = null;
@@ -129,8 +132,15 @@ class TokklIndicator extends PanelMenu.Button {
         this._syncing = false;
         this._tickId = 0;
 
-        // The button lays out one child.
+        // The button lays out one child: the logo, the project indicator and
+        // the time, in that order. The logo takes the top bar's icon size.
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box'});
+        this._logo = new St.Icon({
+            gicon: new Gio.FileIcon({file: logo}),
+            style_class: 'system-status-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        box.add_child(this._logo);
         this._projectIndicator = new TokklProjectIndicator();
         box.add_child(this._projectIndicator);
         this._label = new St.Label({

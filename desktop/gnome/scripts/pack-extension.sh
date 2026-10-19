@@ -48,14 +48,18 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 uuid="$(jq -r .uuid "$extension_dir/metadata.json")"
-# The files the extension runs from; tests/ and ci/ stay behind.
+# The files the extension runs from, with the logo the top bar button
+# shows; tests/ and ci/ stay behind.
 mkdir -p "$work/source"
-cp -a "$extension_dir"/*.js "$extension_dir/stylesheet.css" "$extension_dir/schemas" "$work/source/"
+cp -a "$extension_dir"/*.js "$extension_dir"/*.png "$extension_dir/stylesheet.css" "$extension_dir/schemas" \
+    "$work/source/"
 jq --arg version "$version" '. + {"version-name": $version}' "$extension_dir/metadata.json" \
     > "$work/source/metadata.json"
 
+# gnome-extensions pack adds only its standard files by itself; the other
+# modules and the logo go in as extra sources.
 extra=()
-for file in "$work/source"/*.js; do
+for file in "$work/source"/*.js "$work/source"/*.png; do
     case "$(basename "$file")" in
         extension.js|prefs.js) ;;
         *) extra+=("--extra-source=$(basename "$file")") ;;

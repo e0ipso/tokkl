@@ -72,6 +72,41 @@ const sameSlot = () => {
 
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
+await step('the button shows the packed clock logo, then the project indicator, then the time', async () => {
+    const shown = shell(`(() => {
+        const button = ${button};
+        const file = button._logo.gicon.get_file();
+        const packed = Main.extensionManager.lookup(${JSON.stringify(uuid)}).dir.get_child('tokkl.png');
+        const order = button._logo.get_parent().get_children().map(child =>
+            child === button._logo ? 'logo' : child === button._projectIndicator ? 'indicator'
+                : child === button._label ? 'time' : child.constructor.name);
+        return {
+            packed: file.equal(packed) && packed.query_exists(null),
+            path: packed.get_path(),
+            styleClass: button._logo.style_class,
+            visible: button._logo.visible,
+            drawn: button._logo.get_n_children(),
+            width: button._logo.width,
+            height: button._logo.height,
+            order,
+        };
+    })()`);
+    if (!shown.packed)
+        throw new Error(`the logo is not ${shown.path}: ${JSON.stringify(shown)}`);
+    if (JSON.stringify(shown.order) !== JSON.stringify(['logo', 'indicator', 'time']))
+        throw new Error(`order: ${JSON.stringify(shown.order)}`);
+    if (shown.styleClass !== 'system-status-icon' || !shown.visible || shown.drawn !== 1 ||
+        !(shown.width > 0 && shown.height > 0))
+        throw new Error(`the logo is not drawn: ${JSON.stringify(shown)}`);
+    // The installed image is the one in the checkout.
+    const [, installed] = GLib.file_get_contents(shown.path);
+    const [ci] = GLib.filename_from_uri(import.meta.url);
+    const [, source] = GLib.file_get_contents(GLib.build_filenamev([GLib.path_get_dirname(ci), '..', 'tokkl.png']));
+    if (GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, installed) !==
+        GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, source))
+        throw new Error(`${shown.path} differs from the extension's tokkl.png`);
+});
+
 await step('without the service the button says it is not running', async () => {
     await waitFor('the mark', () => label() === '0:00!' || label());
     const status = shell(`${button}._statusItem.label.text`);
