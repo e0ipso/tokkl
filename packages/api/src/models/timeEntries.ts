@@ -220,21 +220,30 @@ function settleSpan(db: Db, user: UserRow, draft: Draft, exact: boolean): void {
   }
 }
 
+/** The grid point nearest `at` on the clock of the owner's timezone, where a start at `at` snaps. */
+function nearestGridPoint(db: Db, user: UserRow, at: Date): number {
+  return snapToResolution(db, user, at, at).start.getTime();
+}
+
 /**
- * Stores the stop of a running entry at `at`, or at its start if `at` is earlier, snapped to the
- * instance resolution. The stored stop lands up to half a step before `at` or up to one and a half
- * steps after it, because the start moves to the nearest grid point and the duration rounds up.
+ * Stops a running entry at `at`. Its start moves to the nearest grid point, and its stop goes to
+ * the grid point nearest `at`, or to the start if that is earlier. A timer started at `at` snaps
+ * its start to that same point, so a switch from one timer to the next is stored back to back. The
+ * stored duration is a multiple of the resolution, and it can be up to one step shorter or longer
+ * than the real one. A switch within half a step of the start leaves a zero-length entry, unless
+ * `oneStep` is set: the stop endpoint sets it, so a stop it makes on the start stores one step.
  *
  * A timer left running past the 999-hour cap stops at the cap instead of failing. A failed stop
  * would leave it running, and every new timer would fail too, because starting one stops it. 999
  * hours is a multiple of every resolution, so the clamped span stays on the grid.
  */
-function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date): void {
-  const start = new Date(entry.start);
-  const span = snapToResolution(db, user, start, at < start ? start : at);
-  const stop = Math.min(span.stop.getTime(), span.start.getTime() + MAX_DURATION_SECONDS * 1000);
+function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date, oneStep = false): void {
+  const start = nearestGridPoint(db, user, new Date(entry.start));
+  let stop = Math.max(nearestGridPoint(db, user, at), start);
+  if (oneStep && stop === start) stop += getTimeResolutionMinutes(db) * 60_000;
+  stop = Math.min(stop, start + MAX_DURATION_SECONDS * 1000);
   db.prepare('UPDATE time_entries SET start = ?, stop = ?, updated_at = ? WHERE id = ?')
-    .run(isoSeconds(span.start), isoSeconds(new Date(stop)), nowIso(), entry.id);
+    .run(isoSeconds(new Date(start)), isoSeconds(new Date(stop)), nowIso(), entry.id);
 }
 
 /** Stops whatever is running so a new running entry can take its place. */
@@ -360,7 +369,7 @@ export function stopTimeEntry(db: Db, user: UserRow, wid: number, id: number): T
     const current = getTimeEntry(db, user.id, id);
     if (current.workspace_id !== wid) throw notFound('Time entry not found');
     if (current.stop) throw conflict('Time entry already stopped');
-    stopEntryAt(db, user, current, new Date());
+    stopEntryAt(db, user, current, new Date(), true);
     return getTimeEntry(db, user.id, id);
   });
 }
