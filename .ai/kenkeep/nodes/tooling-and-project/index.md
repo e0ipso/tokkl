@@ -49,6 +49,7 @@
 ### #macos
 - Open [**macOS menu bar app: portable library, Objective-C++ shims and CI**](map-macos-menu-bar-app.md) — desktop/macos splits a Linux-testable Qt library from three macOS-only shims; why NSStatusItem; what the macos CI job covers.
 ### #packaging
+- Open [**Tokkl KDE live widgets reload with plasmashell**](kde-companion/plasma-companion/map-tokkl-kde-live-widgets-reload-with-plasmashell.md) — Tokkl runs inside plasmashell; package metadata and the logo can refresh while an existing process keeps the old widget QML loaded.
 - Open [**KDE native packaging: DEB, RPM and the version mapping**](kde-companion/map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.
 - Open [**Target Debian for Debian-family desktop packages, not niche distros**](practice-target-debian-for-debian-family-desktop-packages-not-niche-distros.md) — DEB builds for the desktop companions target stock Debian; niche distros like TUXEDO OS are not targets. Ubuntu is the fallback.
 ### #release

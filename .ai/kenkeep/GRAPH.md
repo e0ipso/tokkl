@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:1c20e6600358a87ac3bfa8cc4cf7d5b0e228d96abb44129747337e777a8df8c7'
-node_count: 70
+nodes_hash: 'sha256:1a2e492ce66e4772640db802513fa9fb36dd94755c412e38ac1d654f39ca5a4a'
+node_count: 71
 ---
 # kenkeep Graph
 
-Total nodes: 70
+Total nodes: 71
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -166,6 +166,15 @@ Total nodes: 70
 - **path:** tooling-and-project/testing/map-test-and-static-analysis-layout.md
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-npm-workspaces-package-layout
+
+## map-tokkl-kde-live-widgets-reload-with-plasmashell
+
+- **kind:** map
+- **title:** Tokkl KDE live widgets reload with plasmashell
+- **path:** tooling-and-project/kde-companion/plasma-companion/map-tokkl-kde-live-widgets-reload-with-plasmashell.md
+- **tags:** kde, desktop, packaging, troubleshooting
+- **relates_to:** map-kde-panel-button-menu-and-project-indicator, map-kde-native-packaging
+- **derived_from:** ba6a10d5-e7f0-4f2c-923e-8a293e65c64b:map:0
 
 ## map-tokkl-rename-legacy-name-fallbacks
 
