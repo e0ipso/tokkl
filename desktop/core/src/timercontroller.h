@@ -267,7 +267,7 @@ private:
     // entry; its project wins over the one last read.
     void applyEntry(const std::optional<TimeEntry> &entry, const std::optional<TimeEntry> &stoppedReply = std::nullopt);
     // Reads the stored chain once per context, then ends or continues the
-    // chain for the entry that runs now.
+    // chain for the entry that runs now, in any workspace.
     void followChain(const std::optional<TimeEntry> &entry);
     void setChain(const std::optional<PauseChain> &chain);
     QString chainOwner() const;

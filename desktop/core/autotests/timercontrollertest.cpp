@@ -748,6 +748,31 @@ private Q_SLOTS:
         QVERIFY(!f.chains.stored.has_value());
     }
 
+    void entryInAnotherWorkspaceEndsThePausedChain()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+
+        // Another client starts an entry in workspace 9.
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(99, 9, startedAt)));
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.chainSeconds(), 0);
+        QVERIFY(!f.chains.stored.has_value());
+        // Only this workspace's entry is shown.
+        QVERIFY(!f.timer.isRunning());
+        QVERIFY(f.timer.currentEntryVariant().isNull());
+        QCOMPARE(f.timer.elapsedSeconds(), 0);
+
+        // The next click starts a fresh entry, not a clone.
+        QVERIFY(f.timer.toggle());
+        const QJsonObject fresh = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
+        QCOMPARE(fresh.value(QStringLiteral("description")).toString(), QString());
+        QVERIFY(!fresh.contains(QStringLiteral("task_id")));
+        QVERIFY(!fresh.contains(QStringLiteral("tags")));
+    }
+
     void newGenerationEndsTheChain_data()
     {
         QTest::addColumn<bool>("signOut");

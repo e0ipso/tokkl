@@ -801,12 +801,13 @@ void TimerController::fetchProjects()
 
 void TimerController::applyEntry(const std::optional<TimeEntry> &entry, const std::optional<TimeEntry> &stoppedReply)
 {
+    // Any other running entry ends the chain, in whichever workspace it runs.
+    followChain(entry);
     std::optional<TimeEntry> next = entry;
     if (next && next->workspaceId != workspaceId()) {
-        // Running in another workspace: not part of this context.
+        // Running in another workspace: not shown in this context.
         next.reset();
     }
-    followChain(next);
     const bool changed = next.has_value() != m_entry.has_value() || (next && next->toVariantMap() != m_entry->toVariantMap());
     const bool stopped = m_entry.has_value() && !next.has_value();
     std::optional<qint64> stoppedProject;
@@ -866,7 +867,7 @@ void TimerController::followChain(const std::optional<TimeEntry> &entry)
             chain.reset();
         }
     } else if (entry) {
-        if (resumeStart.isValid() && std::abs(entry->start.msecsTo(resumeStart)) < resumeMatchMs) {
+        if (resumeStart.isValid() && entry->workspaceId == workspaceId() && std::abs(entry->start.msecsTo(resumeStart)) < resumeMatchMs) {
             chain->runningId = entry->id;
         } else {
             // Another entry started while paused.
