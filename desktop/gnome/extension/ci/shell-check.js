@@ -81,6 +81,11 @@ await step('the button shows the packed clock logo, then the project indicator, 
         const order = button._logo.get_parent().get_children().map(child =>
             child === button._logo ? 'logo' : child === button._projectIndicator ? 'indicator'
                 : child === button._label ? 'time' : child.constructor.name);
+        // The icon keeps its size when the PNG does not decode; only its
+        // child's image content shows that the picture loaded.
+        const image = button._logo.get_first_child()?.content;
+        const decoded = image instanceof imports.gi.St.ImageContent;
+        const [, imageWidth, imageHeight] = decoded ? image.get_preferred_size() : [false, 0, 0];
         return {
             packed: file.equal(packed) && packed.query_exists(null),
             path: packed.get_path(),
@@ -89,6 +94,9 @@ await step('the button shows the packed clock logo, then the project indicator, 
             drawn: button._logo.get_n_children(),
             width: button._logo.width,
             height: button._logo.height,
+            decoded,
+            imageWidth,
+            imageHeight,
             order,
         };
     })()`);
@@ -102,7 +110,8 @@ await step('the button shows the packed clock logo, then the project indicator, 
     await waitFor('the drawn logo', () => {
         const now = logo();
         return (now.styleClass === 'system-status-icon' && now.visible && now.drawn === 1 &&
-            now.width > 0 && now.height > 0) || now;
+            now.width > 0 && now.height > 0 &&
+            now.decoded && now.imageWidth > 0 && now.imageHeight > 0) || now;
     });
     // The installed image is the one in the checkout.
     const [, installed] = GLib.file_get_contents(shown.path);
