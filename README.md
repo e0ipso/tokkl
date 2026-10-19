@@ -9,6 +9,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 ## What it does
 
 - Timer with one running entry, continue, autocomplete, favorites (`1` to `9`), and Toggl's shortcuts (`N`, `S`, `C`, `M`, `?`).
+- A Pomodoro in the web timer bar: work and break countdowns, a long break after every few work phases, a bell and a banner when a phase ends, and an optional pause at the end of each work phase.
 - Manual mode that understands `9`, `930`, `9:30`, `4pm`, entries across midnight, and durations like `1h 30m`, `90`, `1,5h`.
 - Day-grouped history with no 90-day limit, inline edits, grouping of similar entries, bulk edit, duplicate, split, undo and a trash.
 - Projects (colors, clients, rates, estimates, tasks), clients, tags.

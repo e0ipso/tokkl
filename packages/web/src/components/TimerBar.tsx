@@ -16,6 +16,8 @@ import {
   chainKey, chainSeconds, isPaused, loadChain, pause as pauseChain, reconcile, resume as resumeChain, sameSnapshot, saveChain,
   withSnapshot, type PauseChain,
 } from './pauseChain.ts';
+import { countdownText, type PhaseEnd } from './pomodoroCycle.ts';
+import { usePomodoro } from './usePomodoro.ts';
 
 interface Draft {
   description: string;
@@ -26,6 +28,13 @@ interface Draft {
 }
 
 const EMPTY: Draft = { description: '', project_id: null, task_id: null, tags: [], billable: false };
+
+const PHASE_NAMES: Record<PhaseEnd, string> = { work: 'Work', short: 'Short break', long: 'Long break' };
+const PHASE_ENDED: Record<PhaseEnd, string> = {
+  work: 'Work phase over. Time for a break.',
+  short: 'Short break over. Back to work.',
+  long: 'Long break over. Back to work.',
+};
 
 /**
  * Writes the bar's height to --timer-bar-height on <html> while the bar is mounted. The bulk bar
@@ -457,6 +466,17 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     },
   }));
 
+  // The Pomodoro counts down beside the clock and pauses the entry at the end of a work phase when
+  // stop-at-end is on, through the same Pause as the button.
+  const pomodoro = usePomodoro({
+    accountId,
+    prefs,
+    timer: current === undefined ? null : { running: current !== null, paused: isPaused(chain) },
+    busy: chainBusy,
+    onWorkEnded: () => void pause(),
+  });
+  const phaseLeft = pomodoro.countdown(now.getTime());
+
   const project = projects.find((p) => p.id === draft.project_id);
   // The chain total while paused or while its clone runs, otherwise the running entry's own time.
   const elapsed = chainSeconds(chain, current, now.getTime());
@@ -633,6 +653,16 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             onKeyDown={(event) => { if (event.key === 'Enter') void start(); }}
           />
         )}
+        {phaseLeft ? (
+          <span
+            className="pomodoro-countdown"
+            role="timer"
+            aria-label={`${PHASE_NAMES[phaseLeft.phase]}, ${countdownText(phaseLeft.seconds)} left`}
+          >
+            <span className="pomodoro-phase" aria-hidden="true">{PHASE_NAMES[phaseLeft.phase]}</span>
+            <span className="pomodoro-time" aria-hidden="true">{countdownText(phaseLeft.seconds)}</span>
+          </span>
+        ) : null}
 
         {manual ? (
           <button type="button" className="timer-button add" onClick={() => void addManual()} aria-label="Add entry" title="Add entry">
@@ -704,6 +734,12 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         )}
         {!manual && !current && !paused ? timerErrors.message('duration') : null}
       </div>
+      {pomodoro.banner ? (
+        <div className="pomodoro-banner" role="status">
+          <span>{PHASE_ENDED[pomodoro.banner]}</span>
+          <button type="button" className="button button-ghost" onClick={pomodoro.dismiss}>Dismiss</button>
+        </div>
+      ) : null}
       <span className="visually-hidden" aria-live="polite">{announcement}</span>
 
       {picker === 'project' ? (
