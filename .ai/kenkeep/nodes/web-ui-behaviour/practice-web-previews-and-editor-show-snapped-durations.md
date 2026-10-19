@@ -31,7 +31,9 @@ e2e: `e2e/timer-resolution.spec.ts` is in `INSTANCE_SPECS` in `playwright.config
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../api-and-data/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 - Related: [practice-ui-time-math-uses-wall-clock-helpers](practice-ui-time-math-uses-wall-clock-helpers.md)
-- Related: [map-admin-api-and-disabled-accounts](../api-and-data/map-admin-api-and-disabled-accounts.md)
+- Related: [map-admin-api-and-disabled-accounts → map-admin-user-management-api-and-the-last-active-admin-rule](../api-and-data/users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md)
+- Related: [map-admin-api-and-disabled-accounts → map-instance-settings-api-app-admin-settings-and-setting-rules](../api-and-data/users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md)
+- Related: [map-admin-api-and-disabled-accounts → map-invites-and-password-reset-links-in-account-tokens](../api-and-data/users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md)
 <!-- kk:related:end -->

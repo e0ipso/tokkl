@@ -47,6 +47,8 @@ Panel indicator. `TokklTimer` exposes `indicatorState` and `indicatorColor` with
 
 - Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
 - Related: [map-kde-panel-button-menu-and-project-indicator](plasma-companion/map-kde-panel-button-menu-and-project-indicator.md)
-- Related: [practice-kde-companion-connection-and-configure-page-rules](practice-kde-companion-connection-and-configure-page-rules.md)
-- Related: [map-users-roles-and-workspace-membership](../../api-and-data/map-users-roles-and-workspace-membership.md)
+- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite](connection-and-credentials/practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite.md)
+- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies](connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md)
+- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing](connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md)
+- Related: [map-users-roles-and-workspace-membership](../../api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md)
 <!-- kk:related:end -->

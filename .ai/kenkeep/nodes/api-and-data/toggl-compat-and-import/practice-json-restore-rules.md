@@ -31,7 +31,7 @@ kk_confidence: high
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-write-paths-validate-refs-not-totals](practice-write-paths-validate-refs-not-totals.md)
-- Related: [practice-parse-api-timestamps-with-parseinstant](practice-parse-api-timestamps-with-parseinstant.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-write-paths-validate-refs-not-totals](../reports-and-totals/practice-write-paths-validate-refs-not-totals.md)
+- Related: [practice-parse-api-timestamps-with-parseinstant](../time-handling/practice-parse-api-timestamps-with-parseinstant.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->

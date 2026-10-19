@@ -38,9 +38,11 @@ Tests that need exact times set the resolution to 1 through `PUT /api/app/admin/
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-admin-api-and-disabled-accounts](map-admin-api-and-disabled-accounts.md)
-- Related: [practice-json-restore-rules](practice-json-restore-rules.md)
-- Related: [practice-toggl-csv-import-selects-users-by-opaque-key](practice-toggl-csv-import-selects-users-by-opaque-key.md)
+- Related: [map-admin-api-and-disabled-accounts → map-admin-user-management-api-and-the-last-active-admin-rule](../users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md)
+- Related: [map-admin-api-and-disabled-accounts → map-instance-settings-api-app-admin-settings-and-setting-rules](../users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md)
+- Related: [map-admin-api-and-disabled-accounts → map-invites-and-password-reset-links-in-account-tokens](../users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md)
+- Related: [practice-json-restore-rules](../toggl-compat-and-import/practice-json-restore-rules.md)
+- Related: [practice-toggl-csv-import-selects-users-by-opaque-key](../toggl-compat-and-import/practice-toggl-csv-import-selects-users-by-opaque-key.md)
 - Related: [practice-parse-api-timestamps-with-parseinstant](practice-parse-api-timestamps-with-parseinstant.md)
-- Related: [practice-web-previews-and-editor-show-snapped-durations](../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md)
+- Related: [practice-web-previews-and-editor-show-snapped-durations](../../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md)
 <!-- kk:related:end -->

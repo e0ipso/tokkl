@@ -32,5 +32,5 @@ Imported entries keep their exact times; they are not snapped to the time resolu
 # Related
 
 - Related: [practice-json-restore-rules](practice-json-restore-rules.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->

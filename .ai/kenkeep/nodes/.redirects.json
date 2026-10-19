@@ -1,4 +1,9 @@
 {
+  "map-admin-api-and-disabled-accounts": [
+    "map-admin-user-management-api-and-the-last-active-admin-rule",
+    "map-invites-and-password-reset-links-in-account-tokens",
+    "map-instance-settings-api-app-admin-settings-and-setting-rules"
+  ],
   "map-kde-plasma-companion-desktop-kde": [
     "map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types",
     "map-kde-panel-button-menu-and-project-indicator",
@@ -9,6 +14,11 @@
     "practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard",
     "practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts",
     "practice-playwright-gotchas-in-the-e2e-specs"
+  ],
+  "practice-kde-companion-connection-and-configure-page-rules": [
+    "practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies",
+    "practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite",
+    "practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing"
   ],
   "practice-password-checks-and-csrf-rules": [
     "practice-password-checks-go-through-failurelimiter-attempt",
