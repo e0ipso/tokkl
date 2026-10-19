@@ -527,9 +527,12 @@ asset for the format with the name pattern above, the label
 `.releaserc.json` gives that format, which names the target, and a SHA-256
 digest. Releases built for another target, such as the DEBs labelled for
 TUXEDO OS, are passed over. It checks the download against the asset's size
-and digest and prints its path. Without `gh`, with no release to list, or
-with no matching asset it says why and prints nothing, and the check falls
-back to the 0.0.0 build; a failed download or a digest mismatch exits 1.
+and digest and prints its path. Without `gh`, when the releases or their
+assets cannot be read, with no matching asset, or when the download fails,
+it says why and prints nothing, and the check falls back to the 0.0.0
+build. A file that downloads but does not match its size and digest exits 1.
+The download goes to a scratch directory first, so neither case leaves a
+partial file behind.
 `check-package.sh` then refuses the file before installing anything unless
 it is `tokkl-kde` for the target's architecture (and, for an RPM, the
 target's `%{dist}`, such as `.fc44`) and older than the new package. A run

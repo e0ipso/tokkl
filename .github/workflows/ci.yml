@@ -285,9 +285,10 @@ jobs:
           key: kde-images-${{ matrix.format }}-${{ steps.images.outputs.id }}
       # The newest published release older than VERSION with a package for
       # this target, checked against its digest, for the upgrade check
-      # (desktop/kde/ci/previous-package.sh). Without one the step says why
-      # and the check builds this source as 0.0.0 instead; a failed download
-      # or a digest mismatch fails the leg.
+      # (desktop/kde/ci/previous-package.sh). Without one, or when it cannot
+      # be downloaded, the step says why and the check builds this source as
+      # 0.0.0 instead; a download that does not match its size and digest
+      # fails the leg, as does a package check-package.sh refuses.
       - name: Fetch the previous package
         id: previous
         env:

@@ -11,14 +11,16 @@
 # tokkl-kde-<v>-1.<dist>.x86_64.rpm, with the label .releaserc.json gives
 # that format today (which names the target, such as Debian 13) and a
 # SHA-256 digest. Releases without such an asset, for example ones built
-# for another target, are passed over. The asset is downloaded into <dir>,
-# checked against its size and digest, and its path printed.
+# for another target, are passed over. The asset is downloaded into a
+# scratch directory in <dir>, checked against its size and digest, moved
+# into <dir> and its path printed.
 #
-# When there is nothing to use (gh, jq or dpkg missing, the releases cannot
-# be listed, or no older release has a matching asset) it says why on stderr,
-# prints nothing and exits 0: the check then builds the synthetic previous
-# package (0.0.0 from this source). A failed download or a file that does not
-# match its digest exits 1.
+# When there is nothing to use (gh, jq or dpkg missing, the releases or the
+# release's assets cannot be read, no older release has a matching asset, or
+# the download fails) it says why on stderr, prints nothing and exits 0: the
+# check then builds the synthetic previous package (0.0.0 from this source).
+# A downloaded file that does not match its size and digest exits 1. Neither
+# leaves a file from the download in <dir>.
 #
 # gh finds the repository and token as usual (GH_REPO and GH_TOKEN in CI).
 
@@ -123,15 +125,18 @@ digest="$(jq -r '.digest | ltrimstr("sha256:")' <<<"$asset")"
 mkdir -p "$output"
 file="$output/$name"
 rm -f "$file"
-if ! gh release download "$chosen" --pattern "$name" --dir "$output" >&2; then
-    echo "error: downloading $name from $chosen failed" >&2
-    exit 1
+# Only a complete, verified file reaches <dir>; whatever happens, the scratch
+# directory goes.
+download="$(mktemp -d "$output/.download.XXXXXX")"
+trap 'rm -rf "$download"' EXIT
+if ! gh release download "$chosen" --pattern "$name" --dir "$download" >&2; then
+    fallback "downloading $name from $chosen failed"
 fi
-if [ ! -f "$file" ] || [ "$(stat -c %s "$file")" != "$size" ] \
-    || [ "$(sha256sum "$file" | cut -d' ' -f1)" != "$digest" ]; then
+if [ ! -f "$download/$name" ] || [ "$(stat -c %s "$download/$name")" != "$size" ] \
+    || [ "$(sha256sum "$download/$name" | cut -d' ' -f1)" != "$digest" ]; then
     echo "error: $name from $chosen does not match its published size $size and SHA-256 $digest" >&2
-    rm -f "$file"
     exit 1
 fi
+mv "$download/$name" "$file"
 echo "previous package: $name from $chosen, SHA-256 $digest, for the upgrade to $version" >&2
 echo "$file"
