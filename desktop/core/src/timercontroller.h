@@ -65,7 +65,11 @@ namespace Tokkl
 // billable flag are the paused entry's and cannot be chosen. stop() ends the
 // chain; while paused it only clears it. So does another client stopping the
 // clone, a different running entry, and a new connection generation. The
-// chain store keeps the chain for the account across restarts.
+// chain store keeps the chain for the account across restarts. When a pause's
+// stop gets no answer and then nothing runs, the controller reads the
+// account's recent entries. If they list the paused entry as stopped, the
+// pause finishes as the stop's reply would have finished it; otherwise the
+// chain ends. The stop is never sent again.
 //
 // Everything is tied to the connection's generation. A new instance, account
 // or secret clears the entry, projects, busy state and errors at once, and
@@ -269,6 +273,12 @@ private:
     // Reads the stored chain once per context, then ends or continues the
     // chain for the entry that runs now, in any workspace.
     void followChain(const std::optional<TimeEntry> &entry);
+    // The chain a pause of the entry pausedId leaves, from the entry the
+    // server stopped.
+    PauseChain pausedChain(qint64 pausedId, const TimeEntry &stopped) const;
+    // Reads the account's entries to learn whether the server stopped the
+    // entry of a pause that got no answer. Busy until it knows.
+    void confirmPause();
     void setChain(const std::optional<PauseChain> &chain);
     QString chainOwner() const;
     void applyStopDefault();
@@ -317,6 +327,11 @@ private:
     // The start time a resume sent, until a reply or the read after it shows
     // whether the server created the clone.
     QDateTime m_resumeStart;
+    // The entry of a pause whose stop got no answer, until the reads after
+    // it show whether the server stopped it.
+    std::optional<qint64> m_unansweredPause;
+    quint64 m_pauseChecks = 0;
+    quint64 m_pauseCheck = 0; // number of the entries read in flight for it, or 0
     QList<Project> m_projects;
     bool m_projectsIncomplete = false;
     // The project list of this context was read at least once.

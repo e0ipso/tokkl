@@ -14,6 +14,20 @@ namespace
 // A running entry whose start is this close to the one a resume sent is the
 // clone it created. The start travels in whole seconds.
 constexpr qint64 resumeMatchMs = 1000;
+
+// The request failed without saying whether the server acted on it.
+bool outcomeUnknown(const ApiError &error)
+{
+    switch (error.kind) {
+    case ApiError::Kind::Network:
+    case ApiError::Kind::Timeout:
+    case ApiError::Kind::Server:
+    case ApiError::Kind::InvalidResponse:
+        return true;
+    default:
+        return false;
+    }
+}
 }
 
 TimerController::TimerController(QObject *parent)
@@ -384,23 +398,14 @@ bool TimerController::pause()
         if (!self || epoch != self->m_epoch) {
             return;
         }
-        if (result.ok() && !self->m_workspaceLost && self->m_entry && self->m_entry->id == entryId) {
-            // The stopped entry as the server stored it: a resume copies it,
-            // and its duration adds to the chain.
-            const TimeEntry &stopped = *result.value;
-            PauseChain chain;
-            if (self->m_chain && self->m_chain->runningId == entryId) {
-                chain.seconds = self->m_chain->seconds;
-            }
-            chain.owner = self->chainOwner();
-            chain.seconds += stopped.isRunning() ? 0 : std::max<qint64>(0, stopped.duration);
-            chain.description = stopped.description;
-            chain.projectId = stopped.projectId;
-            chain.taskId = stopped.taskId;
-            chain.tags = stopped.tags;
-            chain.billable = stopped.billable;
-            self->setChain(chain);
+        const bool mine = !self->m_workspaceLost && self->m_entry && self->m_entry->id == entryId;
+        if (result.ok() && mine) {
+            self->setChain(self->pausedChain(entryId, *result.value));
             self->applyEntry(std::nullopt, result.value);
+        } else if (!result.ok() && mine && outcomeUnknown(result.error)) {
+            // The server may have stopped the entry; the reads after this
+            // failure tell.
+            self->m_unansweredPause = entryId;
         }
         self->finishMutation(result.error, result.ok());
     });
@@ -440,19 +445,10 @@ bool TimerController::resume()
             // The reply is the clone.
             self->m_resumeStart = running ? result.value->start : QDateTime();
             self->applyEntry(running ? result.value : std::nullopt);
-        } else if (!result.ok() && !self->m_workspaceLost) {
-            switch (result.error.kind) {
-            case ApiError::Kind::Network:
-            case ApiError::Kind::Timeout:
-            case ApiError::Kind::Server:
-            case ApiError::Kind::InvalidResponse:
-                // The server may have created the clone; the read after this
-                // failure tells.
-                break;
-            default:
-                self->m_resumeStart = QDateTime();
-                break;
-            }
+        } else if (!result.ok() && !self->m_workspaceLost && !outcomeUnknown(result.error)) {
+            // A refusal created no clone. After any other failure the server
+            // may have created one, and the read after it tells.
+            self->m_resumeStart = QDateTime();
         }
         self->finishMutation(result.error, result.ok(), true);
     });
@@ -864,6 +860,18 @@ void TimerController::followChain(const std::optional<TimeEntry> &entry)
         }
     }
     const QDateTime resumeStart = std::exchange(m_resumeStart, QDateTime());
+    if (m_unansweredPause) {
+        if (!entry) {
+            // The pause may have stopped the entry. The chain waits for the
+            // account's entries.
+            confirmPause();
+            return;
+        }
+        // The entry still runs, so the stop never arrived, or another entry
+        // runs. Either way no pause happened.
+        m_unansweredPause.reset();
+        m_pauseCheck = 0;
+    }
     if (!m_chain) {
         return;
     }
@@ -884,6 +892,84 @@ void TimerController::followChain(const std::optional<TimeEntry> &entry)
     if (chain != m_chain) {
         setChain(chain);
     }
+}
+
+PauseChain TimerController::pausedChain(qint64 pausedId, const TimeEntry &stopped) const
+{
+    // The stopped entry as the server stored it: a resume copies it, and its
+    // duration adds to the chain.
+    PauseChain chain;
+    if (m_chain && m_chain->runningId == pausedId) {
+        chain.seconds = m_chain->seconds;
+    }
+    chain.owner = chainOwner();
+    chain.seconds += stopped.isRunning() ? 0 : std::max<qint64>(0, stopped.duration);
+    chain.description = stopped.description;
+    chain.projectId = stopped.projectId;
+    chain.taskId = stopped.taskId;
+    chain.tags = stopped.tags;
+    chain.billable = stopped.billable;
+    return chain;
+}
+
+void TimerController::confirmPause()
+{
+    // Whether a click resumes or starts depends on the answer.
+    m_reconciling = true;
+    if (m_pauseCheck != 0 || !readable()) {
+        return;
+    }
+    const quint64 number = ++m_pauseChecks;
+    m_pauseCheck = number;
+
+    QPointer<TimerController> self(this);
+    const quint64 epoch = m_epoch;
+    // Known limit: the API lists only the entries started in the last 9
+    // days, so an older paused entry is not found and the chain ends.
+    m_connection->fetchRecentEntries([self, epoch, number](const ApiResult<QList<ListedEntry>> &result) {
+        if (!self || epoch != self->m_epoch || self->m_pauseCheck != number) {
+            return; // another context, or a read showed a running entry since
+        }
+        self->m_pauseCheck = 0;
+        if (self->m_workspaceLost || !self->m_unansweredPause) {
+            return;
+        }
+        if (!result.ok()) {
+            switch (result.error.kind) {
+            case ApiError::Kind::Network:
+            case ApiError::Kind::Timeout:
+            case ApiError::Kind::Server:
+            case ApiError::Kind::RateLimited:
+            case ApiError::Kind::NotConnected:
+            case ApiError::Kind::AuthenticationPaused:
+                // No answer yet. The next current-entry read asks again.
+                Q_EMIT self->statusChanged();
+                return;
+            default:
+                break;
+            }
+        }
+        const qint64 pausedId = *std::exchange(self->m_unansweredPause, std::nullopt);
+        std::optional<TimeEntry> stopped;
+        if (result.ok()) {
+            for (const ListedEntry &listed : *result.value) {
+                if (listed.entry.id == pausedId) {
+                    stopped = listed.entry;
+                    break;
+                }
+            }
+        }
+        self->m_reconciling = false;
+        if (stopped && !stopped->isRunning()) {
+            // As if the stop had answered.
+            self->setChain(self->pausedChain(pausedId, *stopped));
+        } else {
+            // The paused entry is not listed as stopped, or the server
+            // refused the list. It counts as a plain stop.
+            self->setChain(std::nullopt);
+        }
+        Q_EMIT self->statusChanged();
+    });
 }
 
 void TimerController::setChain(const std::optional<PauseChain> &chain)
@@ -1148,6 +1234,8 @@ void TimerController::reset()
     m_lastState = connectionState();
     m_chainChecked = false;
     m_resumeStart = QDateTime();
+    m_unansweredPause.reset();
+    m_pauseCheck = 0;
     if (m_chain) {
         m_chain.reset();
         Q_EMIT chainChanged();

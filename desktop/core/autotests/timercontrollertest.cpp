@@ -125,6 +125,17 @@ QByteArray detailedEntry(qint64 id, const QString &start, std::optional<qint64> 
     return json(entry);
 }
 
+// The detailed entry as GET /me/time_entries?meta=true lists it once stopped
+// with the duration, under the description the server holds.
+QJsonObject listedDetailedEntry(qint64 id, const QString &start, qint64 duration, const QString &description)
+{
+    QJsonObject entry = QJsonDocument::fromJson(detailedEntry(id, start, duration)).object();
+    entry.insert(QStringLiteral("description"), description);
+    entry.insert(QStringLiteral("project_active"), true);
+    entry.insert(QStringLiteral("project_billable"), true);
+    return entry;
+}
+
 QString clockText(const QDateTime &time)
 {
     return time.toUTC().toString(Qt::ISODate);
@@ -232,6 +243,21 @@ class TimerControllerTest : public QObject
         f.respond(patch, FakeTransport::answer(200, detailedEntry(id, start, duration)));
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
         return f.timer.isPaused() && !f.timer.isRunning() && !f.timer.isBusy();
+    }
+
+    // Pauses the running entry, and its stop times out. The read after it
+    // is left unanswered.
+    static bool pauseUnanswered(Fixture &f, qint64 id)
+    {
+        if (!f.timer.isRunning() || !f.timer.toggle()) {
+            return false;
+        }
+        const qsizetype patch = f.last("PATCH", "/stop");
+        if (!f.unanswered(patch) || !f.transport.requests.at(patch).url.path().endsWith(QStringLiteral("/time_entries/%1/stop").arg(id))) {
+            return false;
+        }
+        f.respond(patch, FakeTransport::failure(HttpResponse::Outcome::Timeout, QStringLiteral("timed out")));
+        return f.timer.isBusy() && f.unanswered(f.last("GET", currentPath));
     }
 
     // Resumes the paused chain; the server creates the clone with the id.
@@ -750,6 +776,136 @@ private Q_SLOTS:
         f.respond(f.last("GET", currentPath), FakeTransport::answer(200, created ? detailedEntry(6, resumedAt) : QByteArray("null")));
         QCOMPARE(f.find("POST", "/time_entries").size(), 1);
         QCOMPARE(f.timer.elapsedSeconds(), created ? 95 : 65);
+    }
+
+    // A pause whose stop gets no answer, then a read in which nothing runs.
+    // The account's entries list the paused entry as stopped, and another
+    // client renamed it. The pause finishes with what the server stored.
+    void unansweredPauseThatStoppedStaysPaused_data()
+    {
+        QTest::addColumn<bool>("resumed");
+        QTest::addColumn<qint64>("duration");
+        QTest::newRow("first pause") << false << qint64(66);
+        QTest::newRow("resumed chain") << true << qint64(4);
+    }
+
+    void unansweredPauseThatStoppedStaysPaused()
+    {
+        QFETCH(bool, resumed);
+        QFETCH(qint64, duration);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        qint64 id = 5;
+        QString start = startedAt;
+        qint64 earlier = 0;
+        if (resumed) {
+            QVERIFY(pauseEntry(f, 5, startedAt, 65));
+            id = 6;
+            start = resumeEntry(f, 6).value(QStringLiteral("start")).toString();
+            QVERIFY(f.timer.isRunning());
+            earlier = 65;
+        }
+        const qsizetype stops = f.find("PATCH", "/stop").size();
+        QVERIFY(pauseUnanswered(f, id));
+
+        // Nothing runs. The timer stays busy until the account's entries
+        // say what happened to the paused one.
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(!f.timer.stop());
+        const qsizetype list = f.last("GET", listPath);
+        QVERIFY(f.unanswered(list));
+        f.respond(list,
+                  FakeTransport::answer(200, listBody({listedDetailedEntry(id, start, duration, QStringLiteral("Write the summary")), listedEntry(99, 7, 11, true)})));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.isPaused());
+        QVERIFY(!f.timer.isRunning());
+        QCOMPARE(f.timer.chainSeconds(), earlier + duration);
+        QCOMPARE(f.timer.elapsedSeconds(), earlier + duration);
+        QVERIFY(f.chains.stored.has_value());
+        QVERIFY(f.chains.stored->isPaused());
+        QCOMPARE(f.chains.stored->seconds, earlier + duration);
+
+        // The next click resumes a clone of the entry the server stopped.
+        // The stop was never sent again.
+        QVERIFY(f.timer.toggle());
+        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
+        QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Write the summary"));
+        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(body.value(QStringLiteral("task_id")).toInteger(), 4);
+        QCOMPARE(body.value(QStringLiteral("tags")).toArray(), QJsonArray({QStringLiteral("focus"), QStringLiteral("client")}));
+        QCOMPARE(body.value(QStringLiteral("billable")).toBool(true), false);
+        QCOMPARE(f.find("PATCH", "/stop").size(), stops + 1);
+    }
+
+    // After a pause with no answer, the chain ends when another entry runs,
+    // or when the account's entries do not list the paused one as stopped.
+    void unansweredPauseEndsTheChainForAnotherEntry_data()
+    {
+        QTest::addColumn<QByteArray>("current");
+        QTest::addColumn<bool>("running");
+        QTest::newRow("another entry runs") << entryBody(99, 7, startedAt) << true;
+        QTest::newRow("another entry stopped") << QByteArray("null") << false;
+    }
+
+    void unansweredPauseEndsTheChainForAnotherEntry()
+    {
+        QFETCH(QByteArray, current);
+        QFETCH(bool, running);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QVERIFY(!resumeEntry(f, 6).isEmpty());
+        QVERIFY(pauseUnanswered(f, 6));
+
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        const qsizetype list = f.last("GET", listPath);
+        QCOMPARE(f.unanswered(list), !running);
+        if (!running) {
+            // Only the chain's first entry and another one are stopped.
+            f.respond(list,
+                      FakeTransport::answer(200,
+                                            listBody({listedEntry(99, 7, 11, true), listedDetailedEntry(5, startedAt, 65, QStringLiteral("Write the report"))})));
+        }
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.isRunning(), running);
+        QCOMPARE(f.timer.chainSeconds(), 0);
+        QVERIFY(!f.chains.stored.has_value());
+        QCOMPARE(f.find("PATCH", "/stop").size(), 2);
+    }
+
+    // A pause with no answer whose entry still runs did not happen. When the
+    // account's entries cannot be read, the timer stays busy and the next
+    // read asks again.
+    void unansweredPauseWaitsForTheServer()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseUnanswered(f, 5));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, detailedEntry(5, startedAt)));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.find("GET", listPath).size(), 0);
+
+        QVERIFY(pauseUnanswered(f, 5));
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.find("GET", listPath).size(), 1);
+        f.respond(f.last("GET", listPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("reset")));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.isPaused());
+        QVERIFY(!f.timer.toggle());
+
+        poll(f);
+        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QCOMPARE(f.find("GET", listPath).size(), 2);
+        f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedDetailedEntry(5, startedAt, 65, QStringLiteral("Write the report"))})));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.isPaused());
+        QCOMPARE(f.timer.chainSeconds(), 65);
+        QCOMPARE(f.find("PATCH", "/stop").size(), 2);
     }
 
     void chainEndsWhenAnotherEntryTakesOver_data()
