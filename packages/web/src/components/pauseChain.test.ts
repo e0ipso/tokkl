@@ -130,10 +130,10 @@ test('the chain is stored per account in a versioned shape that reads back uncha
     snapshot: { description: 'Write the spec', project_id: 4, task_id: 9, tags: ['docs', 'web'], billable: true },
   });
   const storage = memoryStorage();
-  saveChain(storage, 12, chain);
+  assert.equal(saveChain(storage, 12, chain), true);
   assert.deepEqual(loadChain(storage, 12), chain);
   assert.equal(loadChain(storage, 13), null, 'another account on the same browser sees no chain');
-  saveChain(storage, 12, null);
+  assert.equal(saveChain(storage, 12, null), true);
   assert.equal(storage.map.size, 0);
 });
 
@@ -165,7 +165,8 @@ test('blocked storage reads as no chain and drops writes', () => {
     key: () => { throw new Error('blocked'); },
   };
   assert.equal(loadChain(blocked, 1), null);
-  assert.doesNotThrow(() => saveChain(blocked, 1, pause(null, entry(1, T0, T0 + minutes(5)), T0)));
+  assert.equal(saveChain(blocked, 1, pause(null, entry(1, T0, T0 + minutes(5)), T0)), false, 'a refused write is reported');
+  assert.equal(saveChain(blocked, 1, null), false, 'so is a refused removal');
   assert.doesNotThrow(() => forgetChains(blocked));
 });
 

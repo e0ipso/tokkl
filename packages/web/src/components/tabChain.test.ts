@@ -129,3 +129,78 @@ test('a write that storage refuses still reaches this tab’s listeners', () => 
   assert.equal(storage.size, 0);
   stop();
 });
+
+test('with writes refused, reads return the chain last written until a write succeeds', () => {
+  reset();
+  const running = chain(600, 12);
+  writeTabChain(7, running);
+  assert.deepEqual(readTabChain(7), running);
+
+  mode = 'full';
+  const paused = chain(900);
+  writeTabChain(7, paused);
+  assert.equal(storage.get(chainKey(7)), serializeChain(running), 'storage kept the earlier chain');
+  assert.deepEqual(readTabChain(7), paused, 'reads return the refused write, not the stored chain');
+
+  const resumed = chain(900, 13);
+  writeTabChain(7, resumed);
+  assert.deepEqual(readTabChain(7), resumed, 'each refused write replaces the one before');
+
+  mode = 'open';
+  const stored = chain(1200);
+  writeTabChain(7, stored);
+  assert.equal(storage.get(chainKey(7)), serializeChain(stored));
+  assert.deepEqual(readTabChain(7), stored);
+  const theirs = chain(1500, 14);
+  storage.set(chainKey(7), serializeChain(theirs));
+  assert.deepEqual(readTabChain(7), theirs, 'once a write succeeds, reads follow storage again');
+});
+
+test('a removal storage accepts under a full quota ends the refused chain', () => {
+  reset();
+  writeTabChain(7, chain(600, 12));
+  mode = 'full';
+  writeTabChain(7, chain(900));
+  writeTabChain(7, null);
+  assert.equal(storage.has(chainKey(7)), false);
+  assert.equal(readTabChain(7), null);
+  const theirs = chain(1500, 14);
+  storage.set(chainKey(7), serializeChain(theirs));
+  assert.deepEqual(readTabChain(7), theirs, 'reads follow storage, not the refused chain');
+});
+
+test('with writes refused, only the written account reads from memory', () => {
+  reset();
+  const theirs = chain(60);
+  storage.set(chainKey(8), serializeChain(theirs));
+  mode = 'full';
+  const paused = chain(600);
+  writeTabChain(7, paused);
+  assert.deepEqual(readTabChain(7), paused);
+  assert.deepEqual(readTabChain(8), theirs, 'another account reads its stored chain');
+});
+
+test('with writes refused, a change another tab makes to storage wins over the refused write', () => {
+  reset();
+  writeTabChain(7, chain(600, 12));
+  mode = 'full';
+  const paused = chain(900);
+  writeTabChain(7, paused);
+  assert.deepEqual(readTabChain(7), paused);
+
+  storage.delete(chainKey(7));
+  assert.equal(readTabChain(7), null, 'another tab’s Stop ends the chain here too');
+
+  const theirs = chain(1500, 14);
+  storage.set(chainKey(7), serializeChain(theirs));
+  assert.deepEqual(readTabChain(7), theirs, 'another tab’s write is read from storage');
+});
+
+test('with writes refused and no chain stored, the refused chain is still read back', () => {
+  reset();
+  mode = 'full';
+  const paused = chain(600);
+  writeTabChain(7, paused);
+  assert.equal(storage.size, 0);
+  assert.deepEqual(readTabChain(7), paused);
+});

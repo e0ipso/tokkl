@@ -157,13 +157,17 @@ export function loadChain(storage: ChainStorage, accountId: number): PauseChain 
   }
 }
 
-/** Stores the account's chain, or removes it for null. Blocked storage keeps the chain in memory only. */
-export function saveChain(storage: ChainStorage, accountId: number, chain: PauseChain | null): void {
+/**
+ * Stores the account's chain, or removes it for null. Returns false when storage refused the write,
+ * because it is blocked or full; the caller then has to keep the chain in memory.
+ */
+export function saveChain(storage: ChainStorage, accountId: number, chain: PauseChain | null): boolean {
   try {
     if (chain) storage.setItem(chainKey(accountId), serializeChain(chain));
     else storage.removeItem(chainKey(accountId));
+    return true;
   } catch {
-    // Storage can be blocked or full. The chain then lasts until the page reloads.
+    return false;
   }
 }
 
