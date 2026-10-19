@@ -41,6 +41,9 @@ export const DEFAULT_PREFERENCES = {
   pomodoro_enabled: false,
   pomodoro_focus_interval_in_minutes: 25,
   pomodoro_break_interval_in_minutes: 5,
+  pomodoro_long_break_interval_in_minutes: 15,
+  pomodoro_long_break_every: 4,
+  pomodoro_stop_timer_at_end: true,
   reminder_enabled: false,
   keyboard_shortcuts_enabled: true,
   theme: 'system',
@@ -65,6 +68,11 @@ const oneOf = (...values: string[]): PreferenceRule => ({
   valid: (value) => typeof value === 'string' && values.includes(value),
   expected: `one of ${values.join(', ')}`,
 });
+/** Accepts a JSON integer from `min` to `max`, both included. Fractions, numeric strings, null and booleans fail. */
+const integerFrom = (min: number, max: number): PreferenceRule => ({
+  valid: (value) => Number.isInteger(value) && (value as number) >= min && (value as number) <= max,
+  expected: `an integer from ${min} to ${max}`,
+});
 
 const isOptionalId = (value: unknown) => value === null || (Number.isSafeInteger(value) && (value as number) > 0);
 
@@ -77,7 +85,7 @@ function isFavorite(value: unknown): boolean {
     && typeof favorite.billable === 'boolean';
 }
 
-/** Known preferences the web app reads, with the values it can render. Other keys are stored as sent. */
+/** Known preferences Tokkl's clients read, with the values they can use. Other keys are stored as sent. */
 const PREFERENCE_RULES: Record<string, PreferenceRule> = {
   date_format: format,
   timeofday_format: format,
@@ -88,6 +96,12 @@ const PREFERENCE_RULES: Record<string, PreferenceRule> = {
   manualMode: boolean,
   keyboard_shortcuts_enabled: boolean,
   showTimeInTitle: boolean,
+  pomodoro_enabled: boolean,
+  pomodoro_focus_interval_in_minutes: integerFrom(1, 180),
+  pomodoro_break_interval_in_minutes: integerFrom(1, 60),
+  pomodoro_long_break_interval_in_minutes: integerFrom(1, 60),
+  pomodoro_long_break_every: integerFrom(1, 12),
+  pomodoro_stop_timer_at_end: boolean,
   favorites: {
     valid: (value) => Array.isArray(value) && value.length <= MAX_FAVORITES && value.every(isFavorite),
     expected: `a list of at most ${MAX_FAVORITES} favorites with description, project_id, task_id, tags and billable`,
