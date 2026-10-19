@@ -283,11 +283,29 @@ jobs:
         with:
           path: ${{ runner.temp }}/kde-images/${{ matrix.format }}-${{ steps.images.outputs.id }}.tar
           key: kde-images-${{ matrix.format }}-${{ steps.images.outputs.id }}
+      # The newest published release older than VERSION with a package for
+      # this target, checked against its digest, for the upgrade check
+      # (desktop/kde/ci/previous-package.sh). Without one the step says why
+      # and the check builds this source as 0.0.0 instead; a failed download
+      # or a digest mismatch fails the leg.
+      - name: Fetch the previous package
+        id: previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DIR: ${{ runner.temp }}/previous
+        run: |
+          file="$(desktop/kde/ci/previous-package.sh --format "$FORMAT" --version "$VERSION" --output "$DIR")"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
       - name: Test, package and check
         env:
           OUTPUT: ${{ runner.temp }}/kde
           TOKKL_KDE_CI_IMAGE_CACHE: ${{ runner.temp }}/kde-images
-        run: desktop/kde/scripts/container-check.sh --version "$VERSION" --format "$FORMAT" --output "$OUTPUT"
+          PREVIOUS: ${{ steps.previous.outputs.file }}
+        run: |
+          previous=()
+          [ -z "$PREVIOUS" ] || previous=(--previous-package "$PREVIOUS")
+          desktop/kde/scripts/container-check.sh --version "$VERSION" --format "$FORMAT" --output "$OUTPUT" "${previous[@]}"
       - name: Record the package
         env:
           OUTPUT: ${{ runner.temp }}/kde

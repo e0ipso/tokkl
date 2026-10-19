@@ -513,9 +513,28 @@ again before the checks, since its image may be days old. Then:
    `realservertest` binaries go to `tests/<format>/` in the output directory,
    with `packages.txt`, the packages the load check installs.
 2. In the build image, builds the package for the version and for the older
-   `--previous-version` (default 0.0.0, a build of the same source).
+   `--previous-version` (default 0.0.0, a build of the same source), which
+   the upgrade check starts from. With `--previous-package <file>` and a
+   single `--format`, that file is the previous package instead, for
+   example a published release, and nothing else is built for it.
 3. In a fresh target container, runs `scripts/check-package.sh` with the
    load check.
+
+`ci/previous-package.sh --format deb|rpm --version <version> --output
+<dir>` fetches such a file with `gh`: from the newest published release
+older than `<version>` (by the package version order) that has exactly one
+asset for the format with the name pattern above, the label
+`.releaserc.json` gives that format, which names the target, and a SHA-256
+digest. Releases built for another target, such as the DEBs labelled for
+TUXEDO OS, are passed over. It checks the download against the asset's size
+and digest and prints its path. Without `gh`, with no release to list, or
+with no matching asset it says why and prints nothing, and the check falls
+back to the 0.0.0 build; a failed download or a digest mismatch exits 1.
+`check-package.sh` then refuses the file before installing anything unless
+it is `tokkl-kde` for the target's architecture (and, for an RPM, the
+target's `%{dist}`, such as `.fc44`) and older than the new package. A run
+on your own machine builds the 0.0.0 package unless you pass
+`--previous-package`.
 
 The output directory gets `tokkl-kde_<version>_amd64.deb` and
 `tokkl-kde-<version>-1.fc44.x86_64.rpm`, plus `previous/` and `tests/`.
@@ -597,8 +616,10 @@ passed:
    semantic-release could push, so this job has the same write token as the
    release.
 2. `kde-release` runs once per format, each on its own runner, from the same
-   commit: `scripts/container-check.sh` for the next version, with the image
-   cache read-only. Each leg uploads the package and a manifest,
+   commit: `ci/previous-package.sh` for the predecessor, then
+   `scripts/container-check.sh` for the next version with it (or with the
+   0.0.0 build when there is none, which the log says), with the image cache
+   read-only. Each leg uploads the package and a manifest,
    `kde-<format>.json`, with the format, version, commit, file name and
    SHA-256, as the artifact `kde-release-<format>`. A re-run replaces it.
 3. `release` starts only when both legs passed. It downloads both artifacts

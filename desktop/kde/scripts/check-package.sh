@@ -22,7 +22,11 @@
 #   3. Remove: no widget or backend files are left. The removal keeps the
 #      dependencies the install brought in, so dependency autoremove is not
 #      checked.
-#   4. With --previous (an older tokkl-kde): install it, upgrade to <file>,
+#   4. With --previous (an older tokkl-kde, a build of this source or a
+#      published release): before anything is installed, check that it is a
+#      tokkl-kde package for this architecture and, for an RPM, this
+#      distribution release, with a version older than <file>'s. After the
+#      first removal install it, upgrade to <file>,
 #      check that only the new package's files are present, load it again
 #      with --load-test, then remove it (purge on Debian).
 # A fixture home with Plasma applet settings and a KDE Wallet file is created
@@ -355,6 +359,42 @@ head -c 56 /dev/urandom > "$fixture_home/.local/share/kwalletd/kdewallet.salt"
 
 inspect "$package" "$native_version"
 
+# The previous package may come from a download, so it has to be the same
+# package for the same target, and older, before it is installed.
+check_previous() {
+    local field got
+    step "check the previous package $(basename "$previous")"
+    case "$previous" in
+        *."$format") ;;
+        *) echo "error: the previous package $previous is not a .$format" >&2; exit 1 ;;
+    esac
+    for field in Package Architecture Version; do
+        got="$(pkg_field "$previous" "$field" 2>&1)" && [ -n "$got" ] \
+            || { echo "error: cannot read the $field of $previous: $got" >&2; exit 1; }
+        case "$field" in
+            Package) [ "$got" = tokkl-kde ] \
+                || { echo "error: $previous is the package $got, not tokkl-kde" >&2; exit 1; } ;;
+            Architecture) [ "$got" = "$expected_arch" ] \
+                || { echo "error: $previous is for $got, not $expected_arch" >&2; exit 1; } ;;
+            Version) previous_version="$got" ;;
+        esac
+    done
+    if [ "$format" = deb ]; then
+        dpkg --compare-versions "$previous_version" lt "$native_version"
+    else
+        local release dist
+        release="$(rpm -qp --qf '%{RELEASE}' "$previous")"
+        dist="$(rpm --eval '%{?dist}')"
+        [ -n "$dist" ] && [ "${release%"$dist"}" != "$release" ] \
+            || { echo "error: $previous has release $release, not one for this system's $dist" >&2; exit 1; }
+        [ "$(OLD="$previous_version" NEW="$native_version" \
+            rpm --eval '%{lua: print(rpm.vercmp(os.getenv("OLD"), os.getenv("NEW")))}')" = -1 ]
+    fi || { echo "error: previous version $previous_version is not older than $native_version" >&2; exit 1; }
+    pass "previous package is tokkl-kde $previous_version for $expected_arch, older than $native_version"
+}
+previous_version=""
+[ -z "$previous" ] || check_previous
+
 step "clean install of $native_version"
 install_file "$package"
 target_versions
@@ -366,14 +406,6 @@ remove_package
 check_removed
 
 if [ -n "$previous" ]; then
-    previous_version="$(pkg_field "$previous" Version)"
-    if [ "$format" = deb ]; then
-        dpkg --compare-versions "$previous_version" lt "$native_version"
-    else
-        [ "$(OLD="$previous_version" NEW="$native_version" \
-            rpm --eval '%{lua: print(rpm.vercmp(os.getenv("OLD"), os.getenv("NEW")))}')" = -1 ]
-    fi || { fail "previous version $previous_version is not older than $native_version"; exit 1; }
-
     step "install $previous_version, then upgrade to $native_version"
     install_file "$previous"
     got="$(installed_version)"
