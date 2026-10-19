@@ -3,8 +3,8 @@ import { useIsMutating } from '@tanstack/react-query';
 import { useCurrentEntry, useMe, usePreferences, useStopEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { useNow } from '../lib/settings.ts';
-import { isPaused, pause as pauseChain } from './pauseChain.ts';
-import type { PhaseEnd } from './pomodoroCycle.ts';
+import { isPaused, pause as pauseChain, type PauseChain } from './pauseChain.ts';
+import type { PhaseEnd, TimerView } from './pomodoroCycle.ts';
 import { readTabChain, writeTabChain } from './tabChain.ts';
 import { useToast } from './Toast.tsx';
 import { usePomodoro, type Pomodoro } from './usePomodoro.ts';
@@ -24,6 +24,11 @@ interface TimerCoordination {
    */
   pausing: RefObject<PendingPause | null>;
   pomodoro: Pomodoro;
+}
+
+/** The running entry, whether Resume started it, and whether a pause chain waits for Resume. */
+function timerView(current: TimeEntry | null, chain: PauseChain | null): TimerView {
+  return { entryId: current?.id ?? null, resumed: current !== null && chain?.runningId === current.id, paused: isPaused(chain) };
 }
 
 const OFF: Pomodoro = { countdown: () => null, banner: null, dismiss: () => undefined };
@@ -65,7 +70,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const pomodoro = usePomodoro({
     accountId,
     prefs,
-    timer: current === undefined ? null : { running: current !== null, paused: isPaused(readTabChain(accountId)) },
+    timer: current === undefined ? null : timerView(current, readTabChain(accountId)),
     busy,
     onWorkEnded: () => {
       pauseFor.current = current?.id ?? null;

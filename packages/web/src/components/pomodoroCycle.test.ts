@@ -9,9 +9,10 @@ const T0 = Date.parse('2026-10-19T10:00:00Z');
 const minutes = (n: number) => n * 60_000;
 const at = (m: number) => T0 + minutes(m);
 
-const RUNNING: TimerView = { running: true, paused: false };
-const PAUSED: TimerView = { running: false, paused: true };
-const STOPPED: TimerView = { running: false, paused: false };
+const ENTRY = 41;
+const RUNNING: TimerView = { entryId: ENTRY, resumed: false, paused: false };
+const PAUSED: TimerView = { entryId: null, resumed: false, paused: true };
+const STOPPED: TimerView = { entryId: null, resumed: false, paused: false };
 
 // 25-minute work phases, 5- and 15-minute breaks, a long break after every second phase.
 const STOP_AT_END: PomodoroConfig = {
@@ -61,7 +62,7 @@ test('pomodoroConfig is null with the Pomodoro off and maps the stored preferenc
 
 test('a running timer begins a work phase that counts down from the work length', () => {
   const { state, rang } = run(STOP_AT_END, [[at(0), RUNNING]]);
-  assert.deepEqual(state.phase, { type: 'work', start: at(0), accruedMs: 0, since: at(0) });
+  assert.deepEqual(state.phase, { type: 'work', start: at(0), accruedMs: 0, since: at(0), entryId: ENTRY });
   assert.deepEqual(rang, []);
   assert.deepEqual(countdown(state, at(0), STOP_AT_END.settings), { phase: 'work', seconds: 1500 });
   assert.deepEqual(countdown(state, at(10) + 500, STOP_AT_END.settings), { phase: 'work', seconds: 900 });
@@ -71,14 +72,14 @@ test('a running timer begins a work phase that counts down from the work length'
 
 test('a pause freezes the work countdown and Resume continues the remaining time', () => {
   const paused = run(STOP_AT_END, [[at(0), RUNNING], [at(10), PAUSED]]).state;
-  assert.deepEqual(paused.phase, { type: 'work', start: at(0), accruedMs: minutes(10), since: null });
+  assert.deepEqual(paused.phase, { type: 'work', start: at(0), accruedMs: minutes(10), since: null, entryId: ENTRY });
   assert.equal(countdown(paused, at(40), STOP_AT_END.settings)!.seconds, 900);
   assert.equal(nextDeadline(paused, STOP_AT_END.settings), null);
   // Paused past the work length, the phase has not ended.
   assert.deepEqual(run(STOP_AT_END, [[at(40), PAUSED]], paused).rang, []);
 
   const resumed = run(STOP_AT_END, [[at(40), RUNNING]], paused).state;
-  assert.deepEqual(resumed.phase, { type: 'work', start: at(0), accruedMs: minutes(10), since: at(40) });
+  assert.deepEqual(resumed.phase, { type: 'work', start: at(0), accruedMs: minutes(10), since: at(40), entryId: ENTRY });
   assert.equal(nextDeadline(resumed, STOP_AT_END.settings), at(55));
   assert.deepEqual(run(STOP_AT_END, [[at(55) - 1, RUNNING]], resumed).rang, []);
   assert.deepEqual(run(STOP_AT_END, [[at(55), RUNNING]], resumed).rang, [at(55)]);
@@ -97,7 +98,7 @@ test('with stop-at-end on, a work phase ends on its length, asks for the pause a
   assert.deepEqual(ended.rang, [at(30)]);
   assert.deepEqual(ended.state, { completed: 1, phase: null, lastActiveAt: at(30), banner: 'short' });
   const resumed = run(STOP_AT_END, [[at(33), RUNNING]], ended.state).state;
-  assert.deepEqual(resumed.phase, { type: 'work', start: at(33), accruedMs: 0, since: at(33) });
+  assert.deepEqual(resumed.phase, { type: 'work', start: at(33), accruedMs: 0, since: at(33), entryId: ENTRY });
 });
 
 test('with stop-at-end off, the break runs beside the entry and the next work phase starts at its end', () => {
@@ -108,7 +109,7 @@ test('with stop-at-end off, the break runs beside the entry and the next work ph
   // A tab that wakes late still starts the next phase at the break's end.
   const next = run(KEEP_RUNNING, [[at(31), RUNNING]], state);
   assert.deepEqual(next.rang, [at(31)]);
-  assert.deepEqual(next.state, { completed: 1, phase: { type: 'work', start: at(30), accruedMs: 0, since: at(30) }, lastActiveAt: at(30), banner: 'short' });
+  assert.deepEqual(next.state, { completed: 1, phase: { type: 'work', start: at(30), accruedMs: 0, since: at(30), entryId: ENTRY }, lastActiveAt: at(30), banner: 'short' });
   assert.equal(countdown(next.state, at(31), KEEP_RUNNING.settings)!.seconds, 1440);
 });
 
@@ -118,7 +119,7 @@ test('a pause or Stop during a break leaves the next work phase to the next runn
     const ended = run(KEEP_RUNNING, [[at(27), view], [at(30), view]], onBreak);
     assert.deepEqual(ended.rang, [at(30)]);
     assert.equal(ended.state.phase, null);
-    assert.deepEqual(run(KEEP_RUNNING, [[at(32), RUNNING]], ended.state).state.phase, { type: 'work', start: at(32), accruedMs: 0, since: at(32) });
+    assert.deepEqual(run(KEEP_RUNNING, [[at(32), RUNNING]], ended.state).state.phase, { type: 'work', start: at(32), accruedMs: 0, since: at(32), entryId: ENTRY });
   }
 });
 
@@ -128,7 +129,7 @@ test('the work phase that completes the cycle gets the long break, whose end res
   assert.deepEqual(state, { completed: 2, phase: { type: 'break', kind: 'long', start: at(55) }, lastActiveAt: at(55), banner: 'work' });
   assert.deepEqual(countdown(state, at(55), KEEP_RUNNING.settings), { phase: 'long', seconds: 900 });
   const after = run(KEEP_RUNNING, [[at(70), RUNNING]], state).state;
-  assert.deepEqual(after, { completed: 0, phase: { type: 'work', start: at(70), accruedMs: 0, since: at(70) }, lastActiveAt: at(70), banner: 'long' });
+  assert.deepEqual(after, { completed: 0, phase: { type: 'work', start: at(70), accruedMs: 0, since: at(70), entryId: ENTRY }, lastActiveAt: at(70), banner: 'long' });
   assert.deepEqual(run(KEEP_RUNNING, [[at(95), RUNNING]], after).state.phase, { type: 'break', kind: 'short', start: at(95) });
 });
 
@@ -142,7 +143,39 @@ test('Stop abandons the work phase, keeps the count, and the next start begins a
   const pausedThenStopped = run(STOP_AT_END, [[at(40), PAUSED], [at(41), STOPPED]], one).state;
   assert.deepEqual(pausedThenStopped, { ...one, phase: null, lastActiveAt: at(41) });
   const fresh = run(STOP_AT_END, [[at(45), RUNNING]], stopped.state).state;
-  assert.deepEqual(fresh, { ...one, phase: { type: 'work', start: at(45), accruedMs: 0, since: at(45) }, lastActiveAt: at(40) });
+  assert.deepEqual(fresh, { ...one, phase: { type: 'work', start: at(45), accruedMs: 0, since: at(45), entryId: ENTRY }, lastActiveAt: at(40) });
+});
+
+test('another entry that starts running in place of the phase\'s entry begins a fresh phase, uncounted', () => {
+  const OTHER: TimerView = { entryId: 52, resumed: false, paused: false };
+  const one = run(KEEP_RUNNING, [[at(0), RUNNING], [at(25), RUNNING], [at(30), RUNNING]]).state;
+  assert.equal(one.completed, 1);
+  // Continue, a favorite or N replaces the running entry 20 minutes into the second phase.
+  const replaced = run(KEEP_RUNNING, [[at(50), OTHER]], one);
+  assert.deepEqual(replaced.rang, []);
+  assert.deepEqual(replaced.state, { ...one, phase: { type: 'work', start: at(50), accruedMs: 0, since: at(50), entryId: 52 }, lastActiveAt: at(50) });
+  assert.equal(countdown(replaced.state, at(50), KEEP_RUNNING.settings)!.seconds, 1500);
+  // The same goes for a start made while the phase is paused.
+  const paused = run(STOP_AT_END, [[at(0), RUNNING], [at(10), PAUSED], [at(12), OTHER]]).state;
+  assert.deepEqual(paused.phase, { type: 'work', start: at(12), accruedMs: 0, since: at(12), entryId: 52 });
+  assert.equal(paused.completed, 0);
+});
+
+test('Resume continues the phase with the chain\'s clone, which has an id of its own', () => {
+  const CLONE: TimerView = { entryId: 63, resumed: true, paused: false };
+  const paused = run(STOP_AT_END, [[at(0), RUNNING], [at(10), PAUSED]]).state;
+  const resumed = run(STOP_AT_END, [[at(15), CLONE]], paused).state;
+  assert.deepEqual(resumed.phase, { type: 'work', start: at(0), accruedMs: minutes(10), since: at(15), entryId: 63 });
+  // Later polls of the clone keep the phase.
+  assert.deepEqual(run(STOP_AT_END, [[at(16), { ...CLONE, resumed: true }], [at(17), { entryId: 63, resumed: false, paused: false }]], resumed).state.phase,
+    resumed.phase);
+});
+
+test('a phase stored before it followed an entry takes the running one on', () => {
+  const stored: PomodoroState = { ...IDLE_STATE, phase: { type: 'work', start: at(0), accruedMs: 0, since: at(0), entryId: null } };
+  assert.deepEqual(run(STOP_AT_END, [[at(5), RUNNING]], stored).state.phase, { type: 'work', start: at(0), accruedMs: 0, since: at(0), entryId: ENTRY });
+  assert.deepEqual(parseState('{"v":1,"completed":2,"phase":{"type":"work","start":1,"accruedMs":0,"since":null},"lastActiveAt":null,"banner":null}').phase,
+    { type: 'work', start: 1, accruedMs: 0, since: null, entryId: null });
 });
 
 test('a timer that starts after an idle spell longer than the long break resets the count', () => {
@@ -174,7 +207,7 @@ test('countdownText shows minutes and seconds, and hours from an hour up', () =>
 
 test('stored state round-trips per account, and unreadable text reads as a fresh cycle', () => {
   const storage = memoryStorage();
-  const state: PomodoroState = { completed: 3, phase: { type: 'work', start: at(0), accruedMs: 1234, since: null }, lastActiveAt: at(-5), banner: 'long' };
+  const state: PomodoroState = { completed: 3, phase: { type: 'work', start: at(0), accruedMs: 1234, since: null, entryId: ENTRY }, lastActiveAt: at(-5), banner: 'long' };
   assert.equal(writeStored(storage, 7, state), serializeState(state));
   assert.deepEqual(parseState(readStored(storage, 7)!), state);
   assert.equal(readStored(storage, 8), null);

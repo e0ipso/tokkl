@@ -15,12 +15,14 @@ import {
 /**
  * A work phase accrues running time from `since`; `accruedMs` holds its earlier running spans.
  * `since` is null while the timer is paused, which freezes the phase. Instants are in ms.
+ * `entryId` is the running entry the phase last followed, or null when it is not known yet.
  */
 export interface WorkState {
   type: 'work';
   start: number;
   accruedMs: number;
   since: number | null;
+  entryId: number | null;
 }
 
 /** A break runs on elapsed time from `start`, whether or not a timer runs. */
@@ -46,9 +48,14 @@ export interface PomodoroState {
 
 export const IDLE_STATE: PomodoroState = Object.freeze({ completed: 0, phase: null, lastActiveAt: null, banner: null });
 
-/** What the timer bar shows. `paused` is a pause chain waiting for Resume, which Stop would end. */
+/**
+ * What the timer shows. `entryId` is the running entry, or null when none runs. `resumed` says the
+ * running entry is the pause chain's clone, started by Resume. `paused` is a pause chain waiting
+ * for Resume, which Stop would end.
+ */
 export interface TimerView {
-  running: boolean;
+  entryId: number | null;
+  resumed: boolean;
   paused: boolean;
 }
 
@@ -114,19 +121,23 @@ function workEndsAt(work: WorkState & { since: number }, settings: PomodoroSetti
  * for a long idle spell. A work phase that reaches its length starts the break that `nextBreak`
  * picks, from the instant it ended. With stop-at-end on, the cycle treats the timer as stopped from
  * there, because the caller pauses the entry. A pause freezes the work phase and Resume continues
- * it; Stop abandons it and keeps the count. A break that ends while the timer runs hands over to a
+ * it; Stop abandons it and keeps the count, and so does any other entry that starts running in its
+ * place, which then begins a fresh phase. A break that ends while the timer runs hands over to a
  * work phase that starts at the break's end; otherwise the next phase waits for a running timer.
  */
 export function advance(state: PomodoroState, timer: TimerView, now: number, config: PomodoroConfig): Advance {
   const { settings, stopAtEnd } = config;
   const at = new Date(now);
-  let running = timer.running;
+  let running = timer.entryId !== null;
+  const entryId = timer.entryId;
   let next = state;
   let rang = false;
   let workEnded = false;
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const phase = next.phase;
     if (phase?.type === 'work') {
+      // Another entry took over, not the chain's clone: its work starts a phase of its own.
+      const replaced = running && phase.entryId !== null && entryId !== phase.entryId && !timer.resumed;
       const accruedMs = accruedAt(phase, now);
       if (phase.since !== null) {
         if (workPhase(accruedMs / SECOND_MS, true, at, settings).ended) {
@@ -143,13 +154,24 @@ export function advance(state: PomodoroState, timer: TimerView, now: number, con
           if (stopAtEnd) running = false;
           continue;
         }
-        if (running) break;
+        if (replaced) {
+          next = abandoned(next, now, settings);
+          continue;
+        }
+        if (running) {
+          if (phase.entryId !== entryId) next = { ...next, phase: { ...phase, entryId } };
+          break;
+        }
         next = timer.paused
           ? { ...next, phase: { ...phase, accruedMs, since: null } }
           : abandoned(next, now, settings);
         break;
       }
-      if (running) next = { ...next, phase: { ...phase, since: now } };
+      if (replaced) {
+        next = abandoned(next, now, settings);
+        continue;
+      }
+      if (running) next = { ...next, phase: { ...phase, since: now, entryId } };
       else if (!timer.paused) next = abandoned(next, now, settings);
       break;
     }
@@ -160,7 +182,7 @@ export function advance(state: PomodoroState, timer: TimerView, now: number, con
       const work = nextWorkPhase(phase.kind, new Date(phase.start), running, at, settings);
       next = {
         completed: nextCompletedCount(next.completed, { type: 'breakEnded', kind: phase.kind }, settings),
-        phase: work ? { type: 'work', start: endedAt, accruedMs: 0, since: endedAt } : null,
+        phase: work ? { type: 'work', start: endedAt, accruedMs: 0, since: endedAt, entryId } : null,
         lastActiveAt: endedAt,
         banner: phase.kind,
       };
@@ -171,7 +193,7 @@ export function advance(state: PomodoroState, timer: TimerView, now: number, con
       const completed = next.lastActiveAt === null
         ? next.completed
         : nextCompletedCount(next.completed, { type: 'idle', lastActiveAt: new Date(next.lastActiveAt), now: at }, settings);
-      next = { ...next, completed, phase: { type: 'work', start: now, accruedMs: 0, since: now } };
+      next = { ...next, completed, phase: { type: 'work', start: now, accruedMs: 0, since: now, entryId } };
     }
     break;
   }
@@ -243,8 +265,10 @@ function parsePhase(value: unknown): WorkState | BreakState | null | undefined {
   if (value === null) return null;
   if (typeof value !== 'object') return undefined;
   const p = value as Record<string, unknown>;
-  if (p.type === 'work' && isInstant(p.start) && isInstant(p.accruedMs) && p.accruedMs >= 0 && (p.since === null || isInstant(p.since))) {
-    return { type: 'work', start: p.start, accruedMs: p.accruedMs, since: p.since };
+  const entryId = p.entryId === undefined || p.entryId === null ? null : p.entryId;
+  if (p.type === 'work' && isInstant(p.start) && isInstant(p.accruedMs) && p.accruedMs >= 0 && (p.since === null || isInstant(p.since))
+    && (entryId === null || (typeof entryId === 'number' && Number.isInteger(entryId) && entryId > 0))) {
+    return { type: 'work', start: p.start, accruedMs: p.accruedMs, since: p.since, entryId };
   }
   if (p.type === 'break' && (p.kind === 'short' || p.kind === 'long') && isInstant(p.start)) {
     return { type: 'break', kind: p.kind, start: p.start };

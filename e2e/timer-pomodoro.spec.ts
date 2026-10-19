@@ -194,6 +194,34 @@ test('a pause freezes the work countdown and Resume continues the remaining time
   await expect(ui.resume).toBeVisible();
 });
 
+test('Continue during a work phase begins a fresh phase for the other entry and does not count the old one', async ({ page, users }) => {
+  const { api, ui } = await open(page, users, { stopAtEnd: true });
+  await api.createEntry({
+    description: 'Earlier work', start: new Date(Date.now() - 3_600_000).toISOString(), stop: new Date(Date.now() - 3_000_000).toISOString(),
+  });
+  await page.reload();
+  await startTimer(ui, 'First task');
+  await page.clock.fastForward(90_000);
+  await expectCountdown(ui, 'Work', WORK - 90);
+
+  await page.locator('.entry-line', { has: page.locator('input[value="Earlier work"]') }).first()
+    .getByRole('button', { name: 'Continue this entry' }).click();
+  await expect(ui.description).toHaveValue('Earlier work');
+  await expect.poll(async () => (await readCountdown(ui.countdown)).seconds).toBeGreaterThanOrEqual(WORK - 5);
+  // The old phase would have ended here.
+  await page.clock.fastForward(60_000);
+  await expectCountdown(ui, 'Work', WORK - 60);
+  await expect(ui.pause).toBeVisible();
+  expect(await ui.plays()).toBe(0);
+  expect(await completedCount(page)).toBe(0);
+
+  await page.clock.fastForward(60_000);
+  await expect(ui.banner).toHaveText(/Work phase over/);
+  await expect(ui.resume).toBeVisible();
+  expect(await ui.plays()).toBe(1);
+  expect(await completedCount(page)).toBe(1);
+});
+
 test('Stop abandons the work phase without counting it, and the next start begins a fresh phase', async ({ page, users }) => {
   const { ui } = await open(page, users, { stopAtEnd: false, longBreakEvery: 3 });
   await startTimer(ui, 'First');
