@@ -233,7 +233,13 @@
   .report-filters .search-box { flex: 1 1 160px; }
   .report-filters .search-box input { width: 100%; }
   .report-totals dd { font-size: var(--text-xl); }
-  .report-amount { font-size: var(--text-2xl); }
+  .report-amount { font-size: var(--text-2xl); white-space: nowrap; overflow-wrap: normal; }
+  /* The tiles wrap as a row instead of a grid, so the Amount tile can be as wide as its figures. Entries
+     and Amount size to their content and share a row when both fit. Otherwise Amount takes a row of its
+     own, and several currencies wrap between figures, never inside one. */
+  .report-totals { display: flex; flex-wrap: wrap; }
+  .report-totals > .card { flex: 1 1 160px; }
+  .report-totals > .report-totals-entries, .report-totals > .report-totals-amount { flex-basis: auto; }
   .report-tab { padding: 8px 12px 6px; }
   .breakdown-table td:first-child { width: auto; }
   .share { min-width: 110px; gap: 6px; }

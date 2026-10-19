@@ -22,12 +22,12 @@ function Totals({ report, settings }: { report: Report; settings: Settings }) {
           {totals.seconds > 0 ? <span className="muted report-totals-share"> {formatPercent(percent(totals.billable_seconds, totals.seconds))}</span> : null}
         </dd>
       </div>
-      <div className="card">
+      <div className="card report-totals-entries">
         <dt>Entries</dt>
         <dd>{totals.entry_count.toLocaleString()}</dd>
       </div>
       {totals.amounts.length ? (
-        <div className="card">
+        <div className="card report-totals-amount">
           <dt>Amount</dt>
           <dd>
             {totals.amounts.map((amount) => (
