@@ -26,13 +26,15 @@ const mockXml = `<node>
 </node>`;
 
 const types = {
-    Running: 'b', StartTime: 'x', IndicatorState: 's', IndicatorColor: 's', Projects: 'aa{sv}',
+    Running: 'b', StartTime: 'x', Paused: 'b', ChainSeconds: 'x', IndicatorState: 's', IndicatorColor: 's', Projects: 'aa{sv}',
     ChosenProject: 'x', ChosenProjectName: 's', Billable: 'b', Status: 's', ErrorString: 's',
 };
 
 const state = {
     Running: false,
     StartTime: 0,
+    Paused: false,
+    ChainSeconds: 0,
     IndicatorState: 'none',
     IndicatorColor: '',
     Projects: [
@@ -71,26 +73,55 @@ function set(values) {
     }
 }
 
+const now = () => Math.floor(Date.now() / 1000);
+
+// As the service does: a pause stores the stopped entry's seconds in the
+// chain, a resume starts its clone, and Stop ends the chain.
 class Timer1 {
     Start() {
         calls.push(['Start']);
-        if (state.Running || state.Status !== 'ready')
+        if (state.Running || state.Paused || state.Status !== 'ready')
             return false;
-        set({Running: true, StartTime: Math.floor(Date.now() / 1000)});
+        set({Running: true, StartTime: now()});
         return true;
     }
 
     Stop() {
         calls.push(['Stop']);
+        if (state.Paused) {
+            set({Paused: false, ChainSeconds: 0});
+            return true;
+        }
         if (!state.Running || state.Status !== 'ready')
             return false;
-        set({Running: false, StartTime: 0});
+        set({Running: false, StartTime: 0, ChainSeconds: 0});
+        return true;
+    }
+
+    Pause() {
+        calls.push(['Pause']);
+        if (!state.Running || state.Status !== 'ready')
+            return false;
+        set({
+            Running: false,
+            Paused: true,
+            ChainSeconds: state.ChainSeconds + Math.max(0, now() - state.StartTime),
+            StartTime: 0,
+        });
+        return true;
+    }
+
+    Resume() {
+        calls.push(['Resume']);
+        if (!state.Paused || state.Status !== 'ready')
+            return false;
+        set({Paused: false, Running: true, StartTime: now()});
         return true;
     }
 
     SetProject(projectId) {
         calls.push(['SetProject', projectId]);
-        if (state.Running || (projectId !== 0 && !state.Projects.some(p => p.id === projectId)))
+        if (state.Running || state.Paused || (projectId !== 0 && !state.Projects.some(p => p.id === projectId)))
             return false;
         const project = state.Projects.find(p => p.id === projectId);
         set({
@@ -105,6 +136,8 @@ class Timer1 {
 
     SetBillable(billable) {
         calls.push(['SetBillable', billable]);
+        if (state.Paused)
+            return false;
         set({Billable: billable});
         return true;
     }

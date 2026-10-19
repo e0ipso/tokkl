@@ -27,6 +27,7 @@
 #include <QXmlStreamReader>
 
 #include <memory>
+#include <optional>
 
 using namespace Tokkl;
 
@@ -55,6 +56,23 @@ QJsonObject entryObject(qint64 id, qint64 project, bool running, bool billable =
         {QStringLiteral("stop"), running ? QJsonValue(QJsonValue::Null) : QJsonValue(begin.addSecs(60).toString(Qt::ISODate))},
         {QStringLiteral("duration"), running ? -begin.toSecsSinceEpoch() : 60},
         {QStringLiteral("description"), QString()},
+        {QStringLiteral("tags"), QJsonArray()},
+    };
+}
+
+// A billable entry on Beta (12) from begin: running, or stopped after the
+// given seconds.
+QJsonObject chainEntry(qint64 id, const QDateTime &begin, std::optional<qint64> seconds)
+{
+    return QJsonObject{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("workspace_id"), 7},
+        {QStringLiteral("project_id"), 12},
+        {QStringLiteral("billable"), true},
+        {QStringLiteral("start"), begin.toString(Qt::ISODate)},
+        {QStringLiteral("stop"), seconds ? QJsonValue(begin.addSecs(*seconds).toString(Qt::ISODate)) : QJsonValue(QJsonValue::Null)},
+        {QStringLiteral("duration"), seconds ? *seconds : -begin.toSecsSinceEpoch()},
+        {QStringLiteral("description"), QStringLiteral("Review")},
         {QStringLiteral("tags"), QJsonArray()},
     };
 }
@@ -339,6 +357,8 @@ private Q_SLOTS:
         const QMap<QString, QString> properties{
             {QStringLiteral("Running"), QStringLiteral("b read")},
             {QStringLiteral("StartTime"), QStringLiteral("x read")},
+            {QStringLiteral("Paused"), QStringLiteral("b read")},
+            {QStringLiteral("ChainSeconds"), QStringLiteral("x read")},
             {QStringLiteral("IndicatorState"), QStringLiteral("s read")},
             {QStringLiteral("IndicatorColor"), QStringLiteral("s read")},
             {QStringLiteral("Projects"), QStringLiteral("aa{sv} read")},
@@ -352,6 +372,8 @@ private Q_SLOTS:
         const QMap<QString, QStringList> methods{
             {QStringLiteral("Start"), {QStringLiteral("out b")}},
             {QStringLiteral("Stop"), {QStringLiteral("out b")}},
+            {QStringLiteral("Pause"), {QStringLiteral("out b")}},
+            {QStringLiteral("Resume"), {QStringLiteral("out b")}},
             {QStringLiteral("SetProject"), {QStringLiteral("in x"), QStringLiteral("out b")}},
             {QStringLiteral("SetBillable"), {QStringLiteral("in b"), QStringLiteral("out b")}},
             {QStringLiteral("Configure"), {QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("in s")}},
@@ -537,6 +559,118 @@ private Q_SLOTS:
         QVERIFY(QTest::qWaitFor([&f] {
             return f.recorder.valuesOf(QStringLiteral("ChosenProjectName")).contains(QStringLiteral("Legacy"));
         }));
+    }
+
+    // Pause stops the running entry and keeps the chain, Resume starts its
+    // clone, and ChainSeconds adds up the stopped entries until Stop ends
+    // the chain. Running and StartTime keep their meaning throughout.
+    void pauseAndResume()
+    {
+        Fixture f;
+        const QDateTime begin = QDateTime::fromString(startedAt, Qt::ISODate);
+        f.current = json(chainEntry(5, begin, std::nullopt));
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 0);
+        // Nothing is paused, so there is nothing to resume.
+        QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
+
+        qint64 total = 0;
+        qint64 running = 5;
+        for (const qint64 seconds : {qint64(60), qint64(300)}) {
+            // Pause sends one stop for the running entry.
+            QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), true);
+            const QList<qsizetype> stops = f.find("PATCH", QStringLiteral("/workspaces/7/time_entries/%1/stop").arg(running).toUtf8());
+            QCOMPARE(stops.size(), 1);
+            f.current = "null";
+            f.respond(stops.first(), FakeTransport::answer(200, json(chainEntry(running, begin, seconds))));
+            QVERIFY(f.serve());
+            total += seconds;
+            QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
+            QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), total);
+            QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
+            QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
+            QVERIFY(f.recorder.valuesOf(QStringLiteral("ChainSeconds")).contains(total));
+            // The paused entry's project and billable flag stay on show and
+            // cannot be chosen.
+            QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
+            QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QStringLiteral("Beta"));
+            QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), true);
+            const qsizetype sent = f.transport.requests.size();
+            QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
+            QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), false);
+            QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(11)}).toBool(), false);
+            QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(false)}).toBool(), false);
+            QCOMPARE(f.transport.requests.size(), sent);
+
+            // Resume starts a clone of the paused entry.
+            const qsizetype before = f.find("POST", "/workspaces/7/time_entries").size();
+            QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), true);
+            const QList<qsizetype> starts = f.find("POST", "/workspaces/7/time_entries");
+            QCOMPARE(starts.size(), before + 1);
+            const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(starts.last()).body).object();
+            QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
+            QCOMPARE(body.value(QStringLiteral("billable")).toBool(), true);
+            QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Review"));
+            QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-gnome"));
+            ++running;
+            const QDateTime resumed = f.clock.now();
+            f.current = json(chainEntry(running, resumed, std::nullopt));
+            f.respond(starts.last(), FakeTransport::answer(200, f.current));
+            QVERIFY(f.serve());
+            QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
+            QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), resumed.toSecsSinceEpoch());
+            QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
+            QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), total);
+        }
+
+        // Stop while running ends the chain.
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
+        const QList<qsizetype> stops = f.find("PATCH", QStringLiteral("/workspaces/7/time_entries/%1/stop").arg(running).toUtf8());
+        QCOMPARE(stops.size(), 1);
+        f.current = "null";
+        f.respond(stops.first(), FakeTransport::answer(200, json(chainEntry(running, f.clock.now(), 300))));
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 0);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ChainSeconds")).contains(qint64(0)));
+        QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
+    }
+
+    // Stop while paused sends nothing and only clears the chain, so the next
+    // Start begins a new one.
+    void stopWhilePausedClearsTheChain()
+    {
+        Fixture f;
+        const QDateTime begin = QDateTime::fromString(startedAt, Qt::ISODate);
+        f.current = json(chainEntry(5, begin, std::nullopt));
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+
+        QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), true);
+        const QList<qsizetype> stops = f.find("PATCH", "/workspaces/7/time_entries/5/stop");
+        QCOMPARE(stops.size(), 1);
+        f.current = "null";
+        f.respond(stops.first(), FakeTransport::answer(200, json(chainEntry(5, begin, 600))));
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 600);
+
+        const qsizetype sent = f.transport.requests.size();
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 0);
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
+        QCOMPARE(f.transport.requests.size(), sent);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("Paused")).contains(false));
+        // Nothing is left to stop or resume, and the next start is plain.
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
+        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
     }
 
     void configureRefusesUnusableSettings_data()

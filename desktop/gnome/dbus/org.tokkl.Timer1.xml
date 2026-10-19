@@ -11,9 +11,16 @@
   <interface name="org.tokkl.Timer1">
     <!-- An entry is running. -->
     <property name="Running" type="b" access="read"/>
-    <!-- Start of the running entry as Unix time in seconds, or 0. Elapsed
-         time is the current time minus this. -->
+    <!-- Start of the running entry as Unix time in seconds, or 0. The
+         running entry's own time is the current time minus this. -->
     <property name="StartTime" type="x" access="read"/>
+    <!-- A chain is paused: nothing runs, so Running is false and StartTime
+         is 0, and Resume would continue it. -->
+    <property name="Paused" type="b" access="read"/>
+    <!-- The seconds the server stored for the entries the chain's pauses
+         stopped; 0 without a chain. Elapsed time is this plus the running
+         entry's own time, and this alone while paused. -->
+    <property name="ChainSeconds" type="x" access="read"/>
     <!-- What the project indicator shows for ChosenProject: "none" (no
          project, or the instance no longer has it), "pending" (its details
          are still being read) or "project". -->
@@ -26,15 +33,16 @@
     <property name="Projects" type="aa{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
     </property>
-    <!-- The running entry's project, or the project of the next start while
-         stopped; 0 for no project. -->
+    <!-- The running or paused entry's project, or the project of the next
+         start while stopped; 0 for no project. -->
     <property name="ChosenProject" type="x" access="read"/>
     <!-- The name of ChosenProject, also when the running entry's project is
          archived and so missing from Projects. Empty for no project, while
          the project is still being read, and for a project the instance no
          longer has. -->
     <property name="ChosenProjectName" type="s" access="read"/>
-    <!-- The running entry's billable flag, or that of the next start. -->
+    <!-- The running or paused entry's billable flag, or that of the next
+         start. -->
     <property name="Billable" type="b" access="read"/>
     <!-- "unconfigured", "loading", "ready", "busy", "stale",
          "authentication-blocked" or "error". -->
@@ -44,24 +52,38 @@
     <property name="ErrorString" type="s" access="read"/>
 
     <!-- Start a new entry on ChosenProject with Billable. Returns false
-         when nothing was sent: an entry runs, a request is in flight, or
-         the account is not ready. -->
+         when nothing was sent: an entry runs, a chain is paused, a request
+         is in flight, or the account is not ready. -->
     <method name="Start">
       <arg name="sent" type="b" direction="out"/>
     </method>
-    <!-- Stop the running entry. Returns false when nothing was sent. -->
+    <!-- Stop the running entry and end the chain. While paused it sends
+         nothing and only clears the chain, and returns true. Returns false
+         when nothing was sent or cleared. -->
     <method name="Stop">
       <arg name="sent" type="b" direction="out"/>
     </method>
+    <!-- Stop the running entry and keep the chain paused, so Resume can
+         continue it. Returns false when nothing was sent. -->
+    <method name="Pause">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <!-- Start a clone of the paused entry: its description, project, task,
+         tags and billable flag. Returns false when nothing was sent. A
+         refused resume leaves the chain paused. -->
+    <method name="Resume">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
     <!-- Choose the project of the next start; 0 for no project. Applies the
-         project's billable default. Refused (false) while an entry runs and
-         for a project that is not an active project of the workspace. -->
+         project's billable default. Refused (false) while an entry runs or a
+         chain is paused, and for a project that is not an active project of
+         the workspace. -->
     <method name="SetProject">
       <arg name="projectId" type="x" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>
     </method>
     <!-- Choose billable for the next start; while an entry runs, also edit
-         that entry. Returns false when the choice was refused. -->
+         that entry. Refused (false) while a chain is paused. -->
     <method name="SetBillable">
       <arg name="billable" type="b" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>

@@ -163,7 +163,7 @@ Installation, setup and the build are in [desktop/macos/README.md](desktop/macos
 
 ## GNOME companion
 
-A GNOME Shell extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives. The top bar button shows the running timer, starts and stops it with a click, and sets the project and billable flag. The service keeps the API token or password in the keyring.
+A GNOME Shell extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives. The top bar button shows the running timer, pauses and resumes it with a click, stops it from its menu, and sets the project and billable flag. The service keeps the API token or password in the keyring.
 
 It ships as a DEB of `tokkl-timerd` for Debian 13 (amd64), an RPM for Fedora 44 (x86_64) and `tokkl-gnome-extension-<version>.zip`, attached to each GitHub release that includes them, under the same version as the server and the Docker image. v1.2.0 was the first release with them; its DEB was built for Ubuntu 26.04 LTS, and the next release brings the Debian 13 build. Installation, setup and the build are in [desktop/gnome/README.md](desktop/gnome/README.md).
 

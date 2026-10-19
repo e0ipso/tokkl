@@ -50,6 +50,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
         publishChanges();
     };
     connect(m_timer, &TimerController::currentEntryChanged, this, publish);
+    connect(m_timer, &TimerController::chainChanged, this, publish);
     connect(m_timer, &TimerController::indicatorChanged, this, publish);
     connect(m_timer, &TimerController::projectsChanged, this, publish);
     connect(m_timer, &TimerController::choiceChanged, this, publish);
@@ -104,6 +105,16 @@ qint64 TimerService::startTime() const
     return entry && entry->isRunning() ? entry->start.toSecsSinceEpoch() : 0;
 }
 
+bool TimerService::paused() const
+{
+    return m_timer->isPaused();
+}
+
+qint64 TimerService::chainSeconds() const
+{
+    return m_timer->chainSeconds();
+}
+
 QString TimerService::indicatorState() const
 {
     switch (m_timer->indicatorState()) {
@@ -152,10 +163,10 @@ QString TimerService::chosenProjectName() const
     if (id == 0) {
         return QString();
     }
-    // The running entry's project is resolved by the core even when it is
-    // archived and so missing from projects.
+    // The running or paused entry's project is resolved by the core even
+    // when it is archived and so missing from projects.
     const std::optional<Project> entryProject = m_timer->entryProject();
-    if (m_timer->isRunning() && entryProject && entryProject->id == id) {
+    if ((m_timer->isRunning() || m_timer->isPaused()) && entryProject && entryProject->id == id) {
         return entryProject->name;
     }
     const QVariantList projects = m_timer->projects();
@@ -207,6 +218,16 @@ bool TimerService::Start()
 bool TimerService::Stop()
 {
     return m_timer->stop();
+}
+
+bool TimerService::Pause()
+{
+    return m_timer->pause();
+}
+
+bool TimerService::Resume()
+{
+    return m_timer->resume();
 }
 
 bool TimerService::SetProject(qint64 projectId)
@@ -298,6 +319,8 @@ QVariantMap TimerService::snapshot() const
     return {
         {QStringLiteral("Running"), running()},
         {QStringLiteral("StartTime"), startTime()},
+        {QStringLiteral("Paused"), paused()},
+        {QStringLiteral("ChainSeconds"), chainSeconds()},
         {QStringLiteral("IndicatorState"), indicatorState()},
         {QStringLiteral("IndicatorColor"), indicatorColor()},
         {QStringLiteral("Projects"), QVariant::fromValue(projects())},

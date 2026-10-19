@@ -12,6 +12,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {exit, programArgs} from 'system';
 import {call, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
+import {formatElapsed} from '../timer1.js';
 
 const [uuid, timerd] = programArgs;
 const fixture = JSON.parse(GLib.getenv('TOKKL_GNOME_FIXTURE') ?? 'null');
@@ -92,11 +93,46 @@ await step('billable switched on while running edits the running entry', async (
     await waitFor('the switch', () => shell(`${button}._billableItem.state`) === true);
 });
 
-await step('a second primary click stops the entry on the server', async () => {
+let chain = 0;
+
+await step('a second primary click pauses: the server stops the entry and the time holds its seconds', async () => {
     click(1);
-    await waitFor('stopped', () => property('Running') === false && property('StartTime') === 0, 30_000);
+    await waitFor('Paused', () => property('Paused') === true && property('Running') === false &&
+        property('StartTime') === 0, 30_000);
+    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+    // The server stores at least one step of its time resolution.
+    chain = property('ChainSeconds');
+    if (!(chain > 0))
+        throw new Error(`ChainSeconds ${chain}`);
+    await waitFor('the chain total', () => label() === formatElapsed(chain) || label());
+    if (!shell(`${button}.accessible_name`).startsWith(`Paused ${formatElapsed(chain)} · `))
+        throw new Error(`button name: ${shell(`${button}.accessible_name`)}`);
+    if (shell(`${button}._toggleItem.label.text`) !== 'Stop')
+        throw new Error('the menu does not offer Stop while paused');
+    if (sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('the project or billable stayed sensitive while paused');
+});
+
+await step('a primary click resumes: the server starts a clone and the time counts on', async () => {
+    click(1);
+    await waitFor('Running', () => property('Running') === true && property('Paused') === false, 30_000);
+    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+    if (property('ChainSeconds') !== chain)
+        throw new Error(`ChainSeconds ${property('ChainSeconds')}, not ${chain}`);
+    if (property('ChosenProject') !== fixture.project.id || property('Billable') !== true)
+        throw new Error(`the clone has project ${property('ChosenProject')}, billable ${property('Billable')}`);
+    const now = Math.floor(Date.now() / 1000);
+    const total = [0, 60].map(slack => formatElapsed(chain + Math.max(0, now - property('StartTime')) + slack));
+    await waitFor('the chain total', () => total.includes(label()) || [label(), total]);
+});
+
+await step('Stop in the menu stops the clone on the server and ends the chain', async () => {
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('stopped', () => property('Running') === false && property('Paused') === false &&
+        property('StartTime') === 0 && property('ChainSeconds') === 0, 30_000);
     await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
     await waitFor('0:00', () => label() === '0:00' || label());
+    await waitFor('Start', () => shell(`${button}._toggleItem.label.text`) === 'Start');
     await waitFor('the unlocked project', () => sensitive('_projectMenu') === true);
 });
 

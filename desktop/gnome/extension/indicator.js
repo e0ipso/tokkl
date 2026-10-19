@@ -146,9 +146,9 @@ class TokklIndicator extends PanelMenu.Button {
         this._settingsSignal = this._settings.connect('notify::enable-animations', () => this._sync());
 
         // From GNOME Shell 50 on, PanelMenu.Button opens its menu from a
-        // click gesture that takes every button. Primary clicks start and
-        // stop here instead, so that gesture is replaced by one that tells
-        // the buttons apart. Before 50 the button opens the menu from
+        // click gesture that takes every button. Primary clicks pause,
+        // resume and start here instead, so that gesture is replaced by one
+        // that tells the buttons apart. Before 50 the button opens the menu from
         // vfunc_event, which this class overrides below.
         if (this._clickGesture instanceof Clutter.Action) {
             this._clickGesture.set_enabled(false);
@@ -169,8 +169,10 @@ class TokklIndicator extends PanelMenu.Button {
         this._detailItem.label.clutter_text.line_wrap = true;
         this.menu.addMenuItem(this._detailItem);
 
+        // Start, or Stop while an entry runs or a chain is paused. It never
+        // pauses: Stop ends the chain.
         this._toggleItem = new PopupMenu.PopupMenuItem(_('Start'));
-        this._toggleItem.connect('activate', () => this._toggleTimer());
+        this._toggleItem.connect('activate', () => this._startOrStop());
         this.menu.addMenuItem(this._toggleItem);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -234,6 +236,8 @@ class TokklIndicator extends PanelMenu.Button {
             errorString: this._property('ErrorString', ''),
             running: this._property('Running', false),
             startTime: this._property('StartTime', 0),
+            paused: this._property('Paused', false),
+            chainSeconds: this._property('ChainSeconds', 0),
             indicatorState: this._property('IndicatorState', ''),
             indicatorColor: this._property('IndicatorColor', ''),
             projects: this._property('Projects', []),
@@ -250,7 +254,9 @@ class TokklIndicator extends PanelMenu.Button {
 
         this._words = words;
         this._running = state.running;
+        this._paused = state.paused;
         this._startTime = state.startTime;
+        this._chainSeconds = state.chainSeconds;
         this._projectIndicator.setShape(describeIndicator(state, this._settings.enable_animations, _));
         this._updateElapsed();
         this._syncTick();
@@ -259,27 +265,31 @@ class TokklIndicator extends PanelMenu.Button {
         this._detailItem.label.text = words.detail;
         this._detailItem.visible = words.detail.length > 0;
 
-        this._toggleItem.label.text = state.running ? _('Stop') : _('Start');
+        this._toggleItem.label.text = state.running || state.paused ? _('Stop') : _('Start');
         this._toggleItem.setSensitive(ready);
 
         this._syncProjects(state, ready);
 
         // Billable stays editable while an entry runs: the service then
-        // edits that entry.
+        // edits that entry. While paused it shows the paused entry's flag,
+        // which the service refuses to change.
         this._syncing = true;
         this._billableItem.setToggleState(state.billable);
         this._syncing = false;
-        this._billableItem.setSensitive(ready);
+        this._billableItem.setSensitive(ready && !state.paused);
     }
 
     // Project chooses the project of the next start. The service refuses it
-    // while an entry runs, so the submenu is locked then.
+    // while an entry runs or a chain is paused, so the submenu is locked then.
     _syncProjects(state, ready) {
         const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
-        this._projectMenu.label.text = state.running
-            ? _('Project: %s (locked while running)').format(chosen)
-            : _('Project: %s').format(chosen);
-        this._projectMenu.setSensitive(ready && !state.running);
+        if (state.running)
+            this._projectMenu.label.text = _('Project: %s (locked while running)').format(chosen);
+        else if (state.paused)
+            this._projectMenu.label.text = _('Project: %s (locked while paused)').format(chosen);
+        else
+            this._projectMenu.label.text = _('Project: %s').format(chosen);
+        this._projectMenu.setSensitive(ready && !state.running && !state.paused);
 
         const section = this._projectMenu.menu;
         section.removeAll();
@@ -296,12 +306,20 @@ class TokklIndicator extends PanelMenu.Button {
         }
     }
 
+    // The chain total: what the chain's paused entries stored plus the
+    // running entry's own time, frozen while paused.
     _updateElapsed() {
         const now = GLib.get_real_time() / 1_000_000;
-        const elapsed = formatElapsed(this._running ? elapsedSeconds(this._startTime, now) : 0);
+        const running = this._running ? elapsedSeconds(this._startTime, now) : 0;
+        const elapsed = formatElapsed(this._chainSeconds + running);
         this._label.text = `${elapsed}${this._words.mark}`;
 
-        const parts = [this._running ? _('Running %s').format(elapsed) : _('Stopped')];
+        let timer = _('Stopped');
+        if (this._running)
+            timer = _('Running %s').format(elapsed);
+        else if (this._paused)
+            timer = _('Paused %s').format(elapsed);
+        const parts = [timer];
         if (this._projectIndicator.shape.label)
             parts.push(this._projectIndicator.shape.label);
         parts.push(this._words.text);
@@ -324,8 +342,18 @@ class TokklIndicator extends PanelMenu.Button {
         }
     }
 
-    _toggleTimer() {
-        this._call(this._running ? 'Stop' : 'Start', []);
+    // What a primary click and Space or Return on the button do.
+    _pauseResumeOrStart() {
+        if (this._paused)
+            this._call('Resume', []);
+        else if (this._running)
+            this._call('Pause', []);
+        else
+            this._call('Start', []);
+    }
+
+    _startOrStop() {
+        this._call(this._running || this._paused ? 'Stop' : 'Start', []);
     }
 
     _setBillable(state) {
@@ -352,19 +380,37 @@ class TokklIndicator extends PanelMenu.Button {
         });
     }
 
-    // A primary click starts or stops; other buttons and touch open the
-    // menu. Keyboard users get the menu too: PopupMenu opens it on Space,
-    // Return or Down, and Start or Stop is its first item they can choose.
+    // A primary click pauses a running timer, resumes a paused one and
+    // otherwise starts; other buttons and touch open the menu, whose Stop
+    // ends the timer. Space and Return on the focused button do what a
+    // primary click does (see _isActivateKey), and Down opens the menu.
     _onPress(button) {
         if (button === Clutter.BUTTON_PRIMARY) {
             this.menu.close();
-            this._toggleTimer();
+            this._pauseResumeOrStart();
         } else {
             this.menu.toggle();
         }
     }
 
+    // Space or Return without a modifier other than Caps Lock and Num Lock,
+    // the keys PopupMenu would otherwise take to open the menu.
+    _isActivateKey(event) {
+        const symbol = event.get_key_symbol();
+        if (symbol !== Clutter.KEY_space && symbol !== Clutter.KEY_Return)
+            return false;
+        const modifiers = event.get_state() & Clutter.ModifierType.MODIFIER_MASK &
+            ~Clutter.ModifierType.LOCK_MASK & ~Clutter.ModifierType.MOD2_MASK;
+        return modifiers === 0;
+    }
+
     vfunc_event(event) {
+        // The event signal, whose handler this is, comes before the
+        // key-press-event signal on which PopupMenu opens the menu.
+        if (event.type() === Clutter.EventType.KEY_PRESS && this._isActivateKey(event)) {
+            this._onPress(Clutter.BUTTON_PRIMARY);
+            return Clutter.EVENT_STOP;
+        }
         // From 50 on the gesture handles presses, and St.Widget has no
         // event handler to chain up to.
         if (this._ownGesture)

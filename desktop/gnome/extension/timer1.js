@@ -14,6 +14,8 @@ export const TIMER1_INTERFACE = `<node>
   <interface name="org.tokkl.Timer1">
     <property name="Running" type="b" access="read"/>
     <property name="StartTime" type="x" access="read"/>
+    <property name="Paused" type="b" access="read"/>
+    <property name="ChainSeconds" type="x" access="read"/>
     <property name="IndicatorState" type="s" access="read"/>
     <property name="IndicatorColor" type="s" access="read"/>
     <property name="Projects" type="aa{sv}" access="read"/>
@@ -26,6 +28,12 @@ export const TIMER1_INTERFACE = `<node>
       <arg name="sent" type="b" direction="out"/>
     </method>
     <method name="Stop">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="Pause">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="Resume">
       <arg name="sent" type="b" direction="out"/>
     </method>
     <method name="SetProject">

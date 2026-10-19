@@ -26,6 +26,8 @@ class TimerService : public QObject, protected QDBusContext
     // The org.tokkl.Timer1 properties, read by the generated adaptor.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
+    Q_PROPERTY(bool Paused READ paused)
+    Q_PROPERTY(qint64 ChainSeconds READ chainSeconds)
     Q_PROPERTY(QString IndicatorState READ indicatorState)
     Q_PROPERTY(QString IndicatorColor READ indicatorColor)
     Q_PROPERTY(QList<QVariantMap> Projects READ projects)
@@ -64,6 +66,8 @@ public:
 
     bool running() const;
     qint64 startTime() const;
+    bool paused() const;
+    qint64 chainSeconds() const;
     QString indicatorState() const;
     QString indicatorColor() const;
     QList<QVariantMap> projects() const;
@@ -77,6 +81,8 @@ public Q_SLOTS:
     // The org.tokkl.Timer1 methods, called by the generated adaptor.
     bool Start();
     bool Stop();
+    bool Pause();
+    bool Resume();
     bool SetProject(qint64 projectId);
     bool SetBillable(bool billable);
     void Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret);

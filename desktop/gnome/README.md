@@ -65,21 +65,21 @@ The extension keeps the instance URL, sign-in method and email that the service 
 
 ## Use it
 
-The button shows the running entry's elapsed time, or `0:00` while stopped. The time is in hours and whole minutes, `H:MM`. While the service is loading or saving, the time ends with `…`. When the service is not configured, offline, refused or failing, or not running at all, the time ends with `!` and the first menu lines say why.
+The button shows the timer's elapsed time, or `0:00` while stopped. After a pause it is the total of the whole chain: the time of the entries each pause stopped plus the running entry's, held still while paused. The time is in hours and whole minutes, `H:MM`. While the service is loading or saving, the time ends with `…`. When the service is not configured, offline, refused or failing, or not running at all, the time ends with `!` and the first menu lines say why.
 
 Before the time sits the project indicator, for the running entry's project or the next start's while stopped, drawn as the KDE panel draws it. A dot pulses while an entry runs and a still square shows while stopped. The project's colour fills it inside a thin ring in the top bar's text colour, which keeps the ring at the top bar's own text contrast whatever the project colour. The extension's Shell check requires at least 3:1 between the ring and the top bar in each colour scheme. A project whose colour is not `#rrggbb` is filled with the text colour. No project draws a dashed outline of the dot or the square, and while the project is still being read the slot stays empty. The slot has the same size in every state, so the time never moves. Only the dot's fill pulses; the ring and the dashed outline stay solid. The pulse stops when animations are off: the Reduce Animation setting (`org.gnome.desktop.interface enable-animations`), or GNOME Shell turning them off itself, for example when it renders in software. The indicator's accessible name, and the button's, name the project or say No project, so the colour is never the only sign.
 
-Click the time to start a stopped timer or stop a running one. Right-click, or tap on a touch screen, for the menu. From the keyboard, focus the top bar (Ctrl+Alt+Tab) and press Space, Return or Down on the button: the menu opens, and Start or Stop is its first item.
+Click the time to pause a running timer, to resume a paused one, or to start a stopped one. A pause stops the running entry on the server; a resume starts a copy of it with the same description, project, task, tags and billable flag, and the time counts on from the chain's total. Right-click, or tap on a touch screen, for the menu. Its first item you can choose is Start while stopped and Stop while running or paused. Stop ends the chain, so the next click starts again from `0:00`; while paused nothing runs on the server, so it only clears the chain. From the keyboard, focus the top bar (Ctrl+Alt+Tab): Space or Return on the button does what a click does, and Down opens the menu. The button's accessible name says Running, Paused or Stopped with the time.
 
-- Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. It is locked while an entry runs, because the service refuses to change it then: stop the entry and start a new one.
-- Billable sets the next start too. While an entry runs, it changes that entry.
-- Start, Stop, Project and Billable are available only while the service reports it is connected.
+- Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. It is locked while an entry runs or the timer is paused, because the service refuses to change it then: Stop, then choose and start.
+- Billable sets the next start too. While an entry runs, it changes that entry. While paused it shows the paused entry's flag and is locked.
+- Start, Stop, Project and Billable are available only while the service reports it is connected. Until then the service refuses a click or key on the button too.
 
 ## Supported GNOME Shell versions
 
 `metadata.json` lists 46 to 51. The extension is an ES module, which GNOME Shell requires from 45 on. 45 is left out because the releases that shipped it, Fedora 39 and Ubuntu 23.10, have reached their end of life. 46 is the version of Ubuntu 24.04 LTS, 48 that of Debian 13, and 50 that of Fedora 44 and Ubuntu 26.04 LTS. 51 is the current release.
 
-Two Shell differences matter to the button. From 50 on, the panel button opens its menu from a click gesture; before 50, from its event handler. The extension handles primary clicks in both. From 50 on, setting the Billable switch from code also reports it as toggled, so the extension ignores toggles it caused itself.
+Two Shell differences matter to the button. From 50 on, the panel button opens its menu from a click gesture; before 50, from its event handler. The extension handles primary clicks in both, and takes Space and Return in its event handler before the menu sees them. From 50 on, setting the Billable switch from code also reports it as toggled, so the extension ignores toggles it caused itself.
 
 ## Check it
 

@@ -8,6 +8,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {exit, programArgs} from 'system';
 import {call, contrastRatio, delay, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
+import {formatElapsed} from '../timer1.js';
 
 const [uuid, mockTimer, timer1Xml] = programArgs;
 
@@ -20,6 +21,37 @@ const checks = steps();
 const {step} = checks;
 const {button, label, menuOpen, sensitive, indicator, pointAtButton, click, press} = panelButton(uuid);
 const lastCall = () => mockCalls().at(-1) ?? [];
+const timerProperty = name => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.freedesktop.DBus.Properties', 'Get',
+    new GLib.Variant('(ss)', ['org.tokkl.Timer1', name]), '(v)')[0];
+// The chain total the label should show now.
+const chainTotal = () => {
+    const start = timerProperty('StartTime');
+    const running = timerProperty('Running') && start > 0 ? Math.floor(Date.now() / 1000) - start : 0;
+    return formatElapsed(timerProperty('ChainSeconds') + running);
+};
+const toggleItem = () => shell(`${button}._toggleItem.label.text`);
+// Waits until the calls since count are exactly the one method, pressing
+// the key again only when nothing arrived: the first key of a new virtual
+// keyboard can be lost while the seat adds the device.
+const pressFor = async (key, method) => {
+    const count = mockCalls().length;
+    for (let attempt = 1; ; attempt++) {
+        press(key);
+        try {
+            await waitFor(`${method} from ${key}`, () => mockCalls().length > count, 2000);
+            break;
+        } catch (error) {
+            if (attempt === 5)
+                throw error;
+        }
+    }
+    await delay(300);
+    const sent = mockCalls().slice(count);
+    if (JSON.stringify(sent) !== JSON.stringify([[method]]))
+        throw new Error(`${key} sent ${JSON.stringify(sent)}, not ${method}`);
+    if (menuOpen())
+        throw new Error(`${key} opened the menu`);
+};
 const interfaceSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
 const setInterface = (method, key, value) => {
     interfaceSettings[method](key, value);
@@ -102,10 +134,57 @@ await step('the project is locked while running, billable is not', async () => {
     await waitFor('the switch', () => shell(`${button}._billableItem.state`) === true);
 });
 
-await step('a second primary click stops the timer', async () => {
+await step('a second primary click pauses the timer, and the time holds the chain total', async () => {
+    const before = mockCalls().length;
     click(1);
-    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
+    await waitFor('Pause', () => mockCalls().length > before && lastCall()[0] === 'Pause' || mockCalls());
+    await waitFor('Paused', () => timerProperty('Paused') === true);
+    const total = chainTotal();
+    if (!/^1:0[3-9]$/.test(total))
+        throw new Error(`the chain holds ${total}`);
+    await waitFor('the chain total', () => label() === total || label());
+    const name = shell(`${button}.accessible_name`);
+    if (!name.startsWith(`Paused ${total} · `))
+        throw new Error(`button name: ${name}`);
+    if (menuOpen())
+        throw new Error('the click opened the menu');
+    if (toggleItem() !== 'Stop')
+        throw new Error(`the menu offers ${toggleItem()}`);
+    if (sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('the project or billable stayed sensitive while paused');
+    const title = shell(`${button}._projectMenu.label.text`);
+    if (title !== 'Project: No project (locked while paused)')
+        throw new Error(`title: ${title}`);
+    await delay(1500);
+    if (label() !== total)
+        throw new Error(`the paused time moved to ${label()}`);
+});
+
+await step('a primary click resumes, and the time counts on from the chain total', async () => {
+    const before = mockCalls().length;
+    click(1);
+    await waitFor('Resume', () => mockCalls().length > before && lastCall()[0] === 'Resume' || mockCalls());
+    await waitFor('Running', () => timerProperty('Running') === true);
+    await waitFor('the chain total', () => label() === chainTotal() || [label(), chainTotal()]);
+    if (!/^1:0[3-9]$/.test(label()))
+        throw new Error(`the time restarted at ${label()}`);
+    const name = shell(`${button}.accessible_name`);
+    if (!name.startsWith(`Running ${label()} · `))
+        throw new Error(`button name: ${name}`);
+    if (toggleItem() !== 'Stop')
+        throw new Error(`the menu offers ${toggleItem()}`);
+});
+
+await step('Stop in the menu ends the chain, and the item then reads Start', async () => {
+    const before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('Stop', () => mockCalls().length > before && lastCall()[0] === 'Stop' || mockCalls());
     await waitFor('0:00', () => label() === '0:00' || label());
+    if (timerProperty('ChainSeconds') !== 0 || timerProperty('Paused'))
+        throw new Error('the chain outlived Stop');
+    await waitFor('Start', () => toggleItem() === 'Start' || toggleItem());
+    if (!shell(`${button}.accessible_name`).startsWith('Stopped · '))
+        throw new Error(`button name: ${shell(`${button}.accessible_name`)}`);
 });
 
 await step('a stopped timer lets the menu choose the project', async () => {
@@ -166,10 +245,17 @@ await step('with enable-animations off the dot stays steady', async () => {
 if (uninhibited)
     shell('imports.gi.St.Settings.get().inhibit_animations()');
 
-await step('a stopped timer turns the dot into a still square', async () => {
+await step('a paused timer turns the dot into a still square, and Stop clears the chain', async () => {
     click(1);
-    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls());
+    await waitFor('Pause', () => lastCall()[0] === 'Pause' || mockCalls());
     await indicatorIs('a still square', {kind: 'filled', round: false, pulsing: false, fillOpacity: 255});
+    const before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('Stop', () => mockCalls().length > before && lastCall()[0] === 'Stop' || mockCalls());
+    await waitFor('the chain cleared', () => timerProperty('Paused') === false && timerProperty('ChainSeconds') === 0);
+    await waitFor('0:00', () => label() === '0:00' || label());
+    await waitFor('Start', () => toggleItem() === 'Start' || toggleItem());
+    await indicatorIs('the still square', {kind: 'filled', round: false, pulsing: false});
 });
 
 await step('a project still being read leaves the slot empty', async () => {
@@ -252,20 +338,27 @@ await step('a secondary click opens the menu and sends nothing', async () => {
     shell(`${button}.menu.close()`);
 });
 
-await step('Space opens the menu, and its Start item starts the timer', async () => {
+await step('Space and Return do what a primary click does, and Down opens the menu', async () => {
+    await pressFor('KEY_space', 'Start');
+    await waitFor('Running', () => timerProperty('Running') === true);
+    await pressFor('KEY_Return', 'Pause');
+    await waitFor('Paused', () => timerProperty('Paused') === true);
+    await pressFor('KEY_space', 'Resume');
+    await waitFor('Running', () => timerProperty('Running') === true);
     const before = mockCalls().length;
-    await waitFor('the menu from Space', () => {
+    await waitFor('the menu from Down', () => {
         if (!menuOpen())
-            press('KEY_space');
+            press('KEY_Down');
         return menuOpen() === true;
     });
-    if (shell(`${button}._toggleItem.label.text`) !== 'Start')
-        throw new Error('the menu does not offer Start');
+    if (mockCalls().length !== before)
+        throw new Error(`Down sent ${JSON.stringify(mockCalls().slice(before))}`);
+    if (toggleItem() !== 'Stop')
+        throw new Error(`the menu offers ${toggleItem()}`);
     shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Start', () => lastCall()[0] === 'Start' || mockCalls().slice(before));
-    shell(`${button}.menu.close()`);
-    click(1);
     await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls().slice(before));
+    shell(`${button}.menu.close()`);
+    await waitFor('0:00', () => label() === '0:00' || label());
 });
 
 await step('a status other than ready marks the time and disables writes', async () => {
