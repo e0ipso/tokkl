@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { Locator, Page } from '@playwright/test';
 import { expect, test, type ExtraUsers } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
@@ -17,6 +18,7 @@ const WORK = 120;
 const SHORT = 60;
 const LONG = 180;
 const BELL = '/sounds/pomodoro-bell.mp3';
+const TRANSITIONS = ['work-to-short-rest', 'short-rest-to-work', 'work-to-long-rest', 'long-rest-to-work'];
 
 declare global {
   interface Window {
@@ -113,6 +115,17 @@ test('the bell is a same-origin MP3', async ({ page }) => {
   expect(response.status()).toBe(200);
   expect(response.headers()['content-type']).toBe('audio/mpeg');
   expect((await response.body()).byteLength).toBeGreaterThan(1000);
+});
+
+test('the built app serves each transition sound as the committed WAV', async ({ page }) => {
+  await login(page);
+  for (const name of TRANSITIONS) {
+    const file = `pomodoro-${name}.wav`;
+    const response = await page.request.get(`/sounds/${file}`);
+    expect(response.status(), file).toBe(200);
+    expect(response.headers()['content-type'], file).toBe('audio/wav');
+    expect((await response.body()).equals(readFileSync(new URL(`../packages/web/public/sounds/${file}`, import.meta.url))), file).toBe(true);
+  }
 });
 
 test('with stop-at-end on, the end of a work phase rings, pauses the entry and runs the break until Resume', async ({ page, users }) => {
