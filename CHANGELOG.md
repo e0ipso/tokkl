@@ -1,3 +1,9 @@
+## [1.7.0](https://github.com/e0ipso/tokkl/compare/v1.6.1...v1.7.0) (2026-10-20)
+
+### Features
+
+* **web:** add long-running timer reminders ([#29](https://github.com/e0ipso/tokkl/issues/29)) ([e36ca88](https://github.com/e0ipso/tokkl/commit/e36ca88de58fa544b26a68a13c87a8f48c4a7754))
+
 ## [1.6.1](https://github.com/e0ipso/tokkl/compare/v1.6.0...v1.6.1) (2026-10-20)
 
 ### Bug Fixes
