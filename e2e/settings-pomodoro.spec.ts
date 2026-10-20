@@ -34,9 +34,9 @@ function group(page: Page) {
     longBreak: pomodoro.getByLabel('Long break (minutes)'),
     every: pomodoro.getByLabel('Long break every (work phases)'),
     stopAtEnd: pomodoro.getByRole('checkbox', { name: 'Stop the timer at the end of a work phase' }),
-    allowNotifications: pomodoro.getByRole('button', { name: 'Allow notifications' }),
+    allowNotifications: card.getByRole('button', { name: 'Allow notifications' }),
     // The line under the button, which takes its place once the browser answers.
-    notificationStatus: pomodoro.getByText(/^(Shows a notification|Notifications (are|need)|This browser can't)/),
+    notificationStatus: card.getByText(/^(Shows a notification|Notifications (are|need)|This browser can't)/),
   };
 }
 

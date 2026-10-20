@@ -87,6 +87,9 @@ export interface Preferences {
   pomodoro_long_break_every: number;
   /** Whether the running entry stops when a work phase ends. */
   pomodoro_stop_timer_at_end: boolean;
+  long_timer_reminder_enabled: boolean;
+  /** Hours before asking whether a running timer was forgotten; integer from 1 to 168. */
+  long_timer_reminder_hours: number;
   showTimeInTitle?: boolean;
   favorites?: Favorite[];
   [key: string]: unknown;

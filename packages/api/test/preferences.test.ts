@@ -139,3 +139,33 @@ test('invalid values stored before validation read back as defaults', async () =
   assert.equal(prefs.legacy_key, 'kept');
   assert.deepEqual(pomodoroOf(prefs), POMODORO_DEFAULTS);
 });
+
+test('long timer reminders default to eight hours and validate saved settings', async () => {
+  const ctx = await setup();
+  const initial = (await ctx.json('GET', '/api/v9/me/preferences')).body;
+  assert.equal(initial.long_timer_reminder_enabled, true);
+  assert.equal(initial.long_timer_reminder_hours, 8);
+  for (const hours of [1, 12, 168]) {
+    const saved = await ctx.json('POST', '/api/v9/me/preferences', {
+      long_timer_reminder_hours: hours, long_timer_reminder_enabled: false,
+    });
+    assert.equal(saved.status, 200);
+    const read = (await ctx.json('GET', '/api/v9/me/preferences')).body;
+    assert.equal(read.long_timer_reminder_hours, hours);
+    assert.equal(read.long_timer_reminder_enabled, false);
+  }
+  const before = storedPreferences(ctx);
+  for (const hours of [0, -1, 169, 1.5, '8', null, true]) {
+    assert.equal((await ctx.json('POST', '/api/v9/me/preferences', { long_timer_reminder_hours: hours })).status, 400);
+  }
+  for (const enabled of ['true', 1, null]) {
+    assert.equal((await ctx.json('POST', '/api/v9/me/preferences', { long_timer_reminder_enabled: enabled })).status, 400);
+  }
+  assert.equal(storedPreferences(ctx), before);
+  ctx.db.prepare('UPDATE users SET preferences = ? WHERE id = ?').run(JSON.stringify({
+    long_timer_reminder_enabled: 'yes', long_timer_reminder_hours: 0,
+  }), ctx.user.id);
+  const legacy = (await ctx.json('GET', '/api/v9/me/preferences')).body;
+  assert.equal(legacy.long_timer_reminder_enabled, true);
+  assert.equal(legacy.long_timer_reminder_hours, 8);
+});

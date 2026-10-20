@@ -40,18 +40,21 @@ const POMODORO_NUMBERS = [
   { key: 'pomodoro_long_break_every', label: 'Long break every (work phases)', unit: 'work phases' },
 ] as const satisfies ReadonlyArray<{ key: keyof Preferences; label: string; unit: string }>;
 
-type PomodoroNumberKey = typeof POMODORO_NUMBERS[number]['key'];
+const NUMBER_FIELDS = [...POMODORO_NUMBERS, { key: 'long_timer_reminder_hours', unit: 'hours' }] as const;
+type NumberKey = typeof NUMBER_FIELDS[number]['key'];
 
 type Editable = Pick<Preferences,
   'theme' | 'date_format' | 'timeofday_format' | 'duration_format' | 'collapseTimeEntries' | 'keyboard_shortcuts_enabled'
-  | 'pomodoro_enabled' | 'pomodoro_stop_timer_at_end' | PomodoroNumberKey>;
+  | 'pomodoro_enabled' | 'pomodoro_stop_timer_at_end' | 'long_timer_reminder_enabled' | NumberKey>;
 
-/** What the form shows: the Pomodoro numbers are the text in their inputs, so a half-typed value survives. */
-type Draft = { [K in keyof Editable]: K extends PomodoroNumberKey ? string : Editable[K] };
+/** What the form shows: the numbers are the text in their inputs, so a half-typed value survives. */
+type Draft = { [K in keyof Editable]: K extends NumberKey ? string : Editable[K] };
 
 function pick(prefs: Preferences): Editable {
   return {
     theme: prefs.theme ?? 'system',
+    long_timer_reminder_enabled: prefs.long_timer_reminder_enabled ?? true,
+    long_timer_reminder_hours: prefs.long_timer_reminder_hours ?? 8,
     date_format: prefs.date_format,
     timeofday_format: prefs.timeofday_format,
     duration_format: prefs.duration_format,
@@ -69,6 +72,7 @@ function pick(prefs: Preferences): Editable {
 function toDraft(values: Editable): Draft {
   return {
     ...values,
+    long_timer_reminder_hours: String(values.long_timer_reminder_hours),
     pomodoro_focus_interval_in_minutes: String(values.pomodoro_focus_interval_in_minutes),
     pomodoro_break_interval_in_minutes: String(values.pomodoro_break_interval_in_minutes),
     pomodoro_long_break_interval_in_minutes: String(values.pomodoro_long_break_interval_in_minutes),
@@ -88,7 +92,7 @@ function isStored(key: keyof Draft, value: Draft[keyof Draft], stored: Editable)
 function changesFrom(edits: Partial<Draft>): Partial<Preferences> {
   const changes: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(edits)) {
-    changes[key] = typeof value === 'string' && POMODORO_NUMBERS.some((field) => field.key === key) ? Number(value.trim()) : value;
+    changes[key] = typeof value === 'string' && NUMBER_FIELDS.some((field) => field.key === key) ? Number(value.trim()) : value;
   }
   return changes;
 }
@@ -104,7 +108,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   const toast = useToast();
   const settings = useSettings();
   const queryClient = useQueryClient();
-  const fields = useFieldErrors<PomodoroNumberKey>();
+  const fields = useFieldErrors<NumberKey>();
   const save = useSavePreferences();
   const [edits, setEdits] = useState<Partial<Draft>>({});
   const serverDraft = toDraft(pick(prefs));
@@ -133,7 +137,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   // Only whole numbers go to the server; it checks the allowed values, and its 400 shows on the
   // field it names, as in "Invalid pomodoro_long_break_every: expected ...".
   const submit = () => {
-    const valid = fields.validate(POMODORO_NUMBERS.map(({ key, unit }) => [
+    const valid = fields.validate(NUMBER_FIELDS.map(({ key, unit }) => [
       key,
       !isWholeNumber(draft[key]) && `Enter a whole number of ${unit}`,
     ] as const));
@@ -151,7 +155,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
         // The failed save has rolled the cache back to the stored values.
         const stored = queryClient.getQueryData<Preferences>(keys.preferences);
         if (stored) dropEditsEqualTo(pick(stored));
-        const refused = POMODORO_NUMBERS.find(({ key }) => error.message.startsWith(`Invalid ${key}:`));
+        const refused = NUMBER_FIELDS.find(({ key }) => error.message.startsWith(`Invalid ${key}:`));
         if (refused) fields.validate([[refused.key, error.message]]);
         else toast.error(error);
       },
@@ -210,6 +214,31 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
           <span>Keyboard shortcuts</span>
         </label>
       </div>
+      <h3 className="settings-subheading" id="timer-reminder-title">Long-running timers</h3>
+      <div className="form-grid" role="group" aria-labelledby="timer-reminder-title">
+        <label className="field checkbox-field field-full">
+          <input
+            type="checkbox"
+            checked={draft.long_timer_reminder_enabled}
+            onChange={(event) => set('long_timer_reminder_enabled', event.target.checked)}
+          />
+          <span>Remind me to check long-running timers</span>
+        </label>
+        <div className="field">
+          <label htmlFor={fields.id('long_timer_reminder_hours')}>Remind me after (hours)</label>
+          <input
+            {...fields.field('long_timer_reminder_hours')}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={168}
+            value={draft.long_timer_reminder_hours}
+            onChange={(event) => set('long_timer_reminder_hours', event.target.value)}
+          />
+          {fields.message('long_timer_reminder_hours')}
+        </div>
+        <p className="hint field-full">Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.</p>
+      </div>
       <h3 className="settings-subheading" id="pomodoro-title">Pomodoro</h3>
       <div className="form-grid" role="group" aria-labelledby="pomodoro-title">
         <label className="field checkbox-field field-full">
@@ -241,6 +270,9 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
           />
           <span>Stop the timer at the end of a work phase</span>
         </label>
+      </div>
+      <h3 className="settings-subheading" id="notifications-title">Notifications</h3>
+      <div className="form-grid" role="group" aria-labelledby="notifications-title">
         <AllowNotifications />
       </div>
     </SettingsCard>
