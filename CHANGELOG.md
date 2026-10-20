@@ -1,3 +1,9 @@
+## [1.6.1](https://github.com/e0ipso/tokkl/compare/v1.6.0...v1.6.1) (2026-10-20)
+
+### Bug Fixes
+
+* **api:** snap stopped entries to the nearest grid point everywhere ([#27](https://github.com/e0ipso/tokkl/issues/27)) ([e3f15ff](https://github.com/e0ipso/tokkl/commit/e3f15ff628d88a476b77e51ef77c9172903d6db4)), closes [#26](https://github.com/e0ipso/tokkl/issues/26)
+
 ## [1.6.0](https://github.com/e0ipso/tokkl/compare/v1.5.0...v1.6.0) (2026-10-20)
 
 ### Features
