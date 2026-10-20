@@ -4,28 +4,16 @@ import { keys, useCurrentEntry, useMe, usePreferences, useStopEntry } from '../a
 import type { TimeEntry } from '../api/types.ts';
 import { useNow } from '../lib/settings.ts';
 import { isPaused, pause as pauseChain, type PauseChain } from './pauseChain.ts';
+import { usePauseCoordination, type PendingPause } from './PauseCoordination.tsx';
 import { PHASE_ENDED } from './phaseNotification.ts';
 import type { TimerView } from './pomodoroCycle.ts';
 import { readTabChain, writeTabChain } from './tabChain.ts';
 import { useToast } from './Toast.tsx';
 import { usePomodoro, type Pomodoro } from './usePomodoro.ts';
 
-export interface PendingPause {
-  stopAfter: boolean;
-  /** When the pause began, in ms. */
-  at: number;
-}
-
 interface TimerCoordination {
-  /** Set while a pause or resume is in flight, from the timer bar or the Pomodoro. */
-  busy: RefObject<boolean>;
   /** The timer bar's Pause while the bar is mounted. It also saves a description still being edited. */
   barPause: RefObject<(() => Promise<void>) | null>;
-  /**
-   * Set while a pause is stopping the entry. Stop pressed meanwhile sets `stopAfter` instead of
-   * sending its own stop, and the pause then ends the chain rather than recording the pause.
-   */
-  pausing: RefObject<PendingPause | null>;
   /**
    * When the pause that this tab recorded last began, in ms, so the Pomodoro stops counting work
    * there and not when the stop's answer arrived. Null once the chain is no longer paused.
@@ -50,9 +38,7 @@ function timerView(current: TimeEntry | null, chain: PauseChain | null, pausedAt
 
 const OFF: Pomodoro = { countdown: () => null, banner: null, dismiss: () => undefined };
 
-const Coordination = createContext<TimerCoordination>({
-  busy: { current: false }, barPause: { current: null }, pausing: { current: null }, pausedAt: { current: null }, pomodoro: OFF,
-});
+const Coordination = createContext<TimerCoordination>({ barPause: { current: null }, pausedAt: { current: null }, pomodoro: OFF });
 
 /** What the timer bar shares with the Pomodoro that runs on every page. */
 export function useTimerCoordination(): TimerCoordination {
@@ -66,7 +52,8 @@ export function useTimerCoordination(): TimerCoordination {
  * With stop-at-end on, the end of a work phase pauses the running entry. While the timer bar is
  * mounted, its own Pause does it. Elsewhere this provider stops the entry and records the pause in
  * the chain the same way, so Resume on the timer page starts a clone. Either way the pause waits
- * until no other write is in flight, and holds `busy` while it runs.
+ * until no other write is in flight, and holds `busy` while it runs. `busy` and `pausing` come from
+ * PauseCoordinationProvider, which has to be mounted above this one.
  */
 export function PomodoroProvider({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
@@ -79,9 +66,8 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   // Moves the cycle on every second; deadlines also wake it between ticks.
   useNow(1000);
-  const busy = useRef(false);
+  const { busy, pausing } = usePauseCoordination();
   const barPause = useRef<(() => Promise<void>) | null>(null);
-  const pausing = useRef<PendingPause | null>(null);
   const pausedAt = useRef<number | null>(null);
   const chain = readTabChain(accountId);
   useEffect(() => {
@@ -127,7 +113,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
     else void pauseHere(current);
   });
 
-  return <Coordination.Provider value={{ busy, barPause, pausing, pausedAt, pomodoro }}>{children}</Coordination.Provider>;
+  return <Coordination.Provider value={{ barPause, pausedAt, pomodoro }}>{children}</Coordination.Provider>;
 }
 
 /** The banner for the last phase end, shown until it is dismissed. */

@@ -17,6 +17,7 @@ import {
   withSnapshot, type PauseChain,
 } from './pauseChain.ts';
 import { countdownText, type PhaseEnd } from './pomodoroCycle.ts';
+import { usePauseCoordination } from './PauseCoordination.tsx';
 import { PomodoroBanner, useTimerCoordination } from './PomodoroProvider.tsx';
 import { readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
 
@@ -226,7 +227,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   // Set while this bar pauses or resumes. The current entry refetches in the middle of both, and
   // that answer must not end the chain before the bar records the change.
   // Shared with the Pomodoro, which pauses the entry at the end of a work phase.
-  const { busy: chainBusy, barPause, pausing, pausedAt, pomodoro } = useTimerCoordination();
+  const { busy: chainBusy, pausing } = usePauseCoordination();
+  const { barPause, pausedAt, pomodoro } = useTimerCoordination();
   // Set while Resume's start request is pending, and whether Stop was pressed in that time.
   const resumePending = useRef(false);
   const stopAfterResume = useRef(false);
