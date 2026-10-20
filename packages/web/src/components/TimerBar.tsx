@@ -1,15 +1,15 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type RefObject } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type RefObject } from 'react';
 import {
-  useCreateEntry, useCurrentEntry, useDeleteEntry, useMe, usePreferences, useProjects, useRestoreEntry, useSavePreferences,
-  useStopEntry, useUpdateEntry,
+  useCreateEntry, useCurrentEntry, useDeleteEntry, useMe, usePreferences, useRestoreEntry, useSavePreferences, useStopEntry,
+  useUpdateEntry,
 } from '../api/hooks.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { entrySeconds, formatTime, minutesOfDay, snappedSeconds, today, useNow, useSettings } from '../lib/settings.ts';
+import { EntryFields, type EntryFieldsHandle } from './EntryFields.tsx';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
-import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
 import { useToast } from './Toast.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 import {
@@ -20,16 +20,7 @@ import { countdownText, type PhaseEnd } from './pomodoroCycle.ts';
 import { usePauseCoordination } from './PauseCoordination.tsx';
 import { PomodoroBanner, useTimerCoordination } from './PomodoroProvider.tsx';
 import { readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
-
-interface Draft {
-  description: string;
-  project_id: number | null;
-  task_id: number | null;
-  tags: string[];
-  billable: boolean;
-}
-
-const EMPTY: Draft = { description: '', project_id: null, task_id: null, tags: [], billable: false };
+import { EMPTY_DRAFT as EMPTY, type EntryDraft as Draft } from './useEntryFields.ts';
 
 const PHASE_NAMES: Record<PhaseEnd, string> = { work: 'Work', short: 'Short break', long: 'Long break' };
 
@@ -75,32 +66,6 @@ export interface TimerBarHandle {
   startFrom: (draft: Draft) => void;
 }
 
-interface Suggestion extends Draft {
-  key: string;
-  project_name: string | null;
-  project_color: string | null;
-}
-
-function suggestionsFrom(entries: TimeEntry[], query: string): Suggestion[] {
-  const seen = new Set<string>();
-  const out: Suggestion[] = [];
-  const q = query.trim().toLowerCase();
-  for (const entry of entries) {
-    if (!entry.description && !entry.project_id) continue;
-    const key = `${entry.description}\u0000${entry.project_id ?? ''}\u0000${entry.task_id ?? ''}`;
-    if (seen.has(key)) continue;
-    const haystack = `${entry.description} ${entry.project_name ?? ''} ${entry.client_name ?? ''}`.toLowerCase();
-    if (q && !haystack.includes(q)) continue;
-    seen.add(key);
-    out.push({
-      key, description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-      billable: entry.billable, project_name: entry.project_name ?? null, project_color: entry.project_color ?? null,
-    });
-    if (out.length >= 8) break;
-  }
-  return out;
-}
-
 /** The bar at the top of the timer page: running timer, new timer, or manual entry form. */
 export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] }>(function TimerBar({ recentEntries }, ref) {
   const settings = useSettings();
@@ -110,7 +75,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const { data: current, dataUpdatedAt: currentFetchedAt } = useCurrentEntry();
   const { data: prefs } = usePreferences();
   const savePrefs = useSavePreferences();
-  const { data: projects = [] } = useProjects();
   const create = useCreateEntry();
   const update = useUpdateEntry();
   const stopEntry = useStopEntry();
@@ -158,9 +122,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
 
   const manual = !current && !paused && (prefs?.manualMode ?? false);
   const [draft, setDraft] = useState<Draft>(() => (isPaused(chain) ? chain.snapshot : EMPTY));
-  const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [highlight, setHighlight] = useState(-1);
   const [editing, setEditing] = useState(false);
   const [manualDay, setManualDay] = useState(() => today(settings.timeZone));
   const [manualStart, setManualStart] = useState('');
@@ -168,19 +129,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const manualErrors = useFieldErrors<'start' | 'end'>();
   const [timerDuration, setTimerDuration] = useState('');
   const timerErrors = useFieldErrors<'duration'>();
-  const descriptionRef = useRef<HTMLInputElement>(null);
-  // The description's blur hides the suggestions after a delay, so a click on one still lands.
-  // A later focus cancels that pending hide, and a focus that comes from a closing picker does not
-  // open the suggestions: the user did not ask for them.
-  const hideSuggestionsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const quietFocus = useRef(false);
-  const focusDescriptionQuietly = () => {
-    quietFocus.current = true;
-    descriptionRef.current?.focus();
-    quietFocus.current = false;
-  };
-  const projectButton = useRef<HTMLButtonElement>(null);
-  const tagButton = useRef<HTMLButtonElement>(null);
+  const fields = useRef<EntryFieldsHandle>(null);
   const barRef = useRef<HTMLElement>(null);
   useHeightProperty(barRef, '--timer-bar-height');
 
@@ -209,7 +158,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         }
       }
       // A refetch of the same entry must not wipe a description that is still being typed.
-      const typing = shownEntryId.current === current.id && document.activeElement === descriptionRef.current;
+      const typing = shownEntryId.current === current.id && (fields.current?.hasFocus() ?? false);
       shownEntryId.current = current.id;
       setDraft((previous) => ({
         description: typing ? previous.description : current.description,
@@ -248,21 +197,11 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     setChain(withSnapshot(held, draft));
   }, [draft]);
 
-  const suggestions = useMemo(
-    () => (showSuggestions ? suggestionsFrom(recentEntries, draft.description) : []),
-    [showSuggestions, recentEntries, draft.description],
-  );
-
   const patchRunning = (changes: TimeEntryInput) => {
     // While a start is loading, `current` is missing or the entry being replaced; the sync effect
     // saves the edits to the new entry once it loads.
     if (!current || ownStart.current) return;
     update.mutate({ id: current.id, ...changes }, { onError: toast.error });
-  };
-
-  const setField = <K extends keyof Draft>(key: K, value: Draft[K]) => {
-    setDraft((d) => ({ ...d, [key]: value }));
-    if (current && key !== 'description') patchRunning({ [key]: value } as TimeEntryInput);
   };
 
   // Set synchronously, so a second click in the same frame sees it before `create.isPending` does.
@@ -281,12 +220,12 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     const typed = !current && timerDuration.trim() !== '';
     const seconds = typed ? parseDuration(timerDuration) : null;
     if (!timerErrors.validate([['duration', typed && seconds === null && 'Check the duration']])) {
-      setShowSuggestions(false);
+      fields.current?.hideSuggestions();
       return null;
     }
     starting.current = true;
     try {
-      setShowSuggestions(false);
+      fields.current?.hideSuggestions();
       let saved: TimeEntry;
       if (seconds !== null && seconds > 0) {
         // A duration typed into the idle timer saves a finished entry that ends now.
@@ -437,7 +376,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       setManualDay(localDay(stop, settings.timeZone));
       setManualStart(formatTime(stop, settings));
       setManualEnd('');
-      descriptionRef.current?.focus();
+      fields.current?.focus();
     } catch (error) {
       toast.error(error);
     }
@@ -448,30 +387,18 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     savePrefs.mutate({ manualMode: !manual });
   };
 
-  const pickSuggestion = (s: Suggestion) => {
-    const next = { description: s.description, project_id: s.project_id, task_id: s.task_id, tags: s.tags, billable: s.billable };
-    setShowSuggestions(false);
-    setHighlight(-1);
-    if (current) {
-      setDraft(next);
-      patchRunning(next);
-    } else {
-      setDraft(next);
-    }
-  };
-
   useImperativeHandle(ref, () => ({
     startNew: () => {
       if (manual) savePrefs.mutate({ manualMode: false });
       if (!current) void start(EMPTY);
-      setTimeout(() => descriptionRef.current?.focus(), 50);
+      setTimeout(() => fields.current?.focus(), 50);
     },
     stop: () => void stop(),
     toggleManual,
     startFrom: (from) => {
       if (manual) {
         setDraft(from);
-        descriptionRef.current?.focus();
+        fields.current?.focus();
       } else {
         void start(from, { replace: true });
       }
@@ -488,7 +415,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   });
   const phaseLeft = pomodoro.countdown(now.getTime());
 
-  const project = projects.find((p) => p.id === draft.project_id);
   // The chain total while paused or while its clone runs, otherwise the running entry's own time.
   const elapsed = chainSeconds(chain, current, now.getTime());
   const announcement = paused ? 'Timer paused' : chain && current && chain.runningId === current.id ? 'Timer resumed' : '';
@@ -498,112 +424,30 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
 
   return (
     <section ref={barRef} className={`timer-bar${current ? ' is-running' : paused ? ' is-paused' : ''}`} aria-label="Timer">
-      <div className="timer-description">
-        <input
-          ref={descriptionRef}
-          value={draft.description}
-          placeholder={manual ? 'What did you work on?' : current || paused ? 'Add a description' : 'What are you working on?'}
-          aria-label="Description"
-          maxLength={3000}
-          onChange={(event) => {
-            setDraft((d) => ({ ...d, description: event.target.value }));
-            setShowSuggestions(true);
-            setHighlight(-1);
-          }}
-          onFocus={() => {
-            clearTimeout(hideSuggestionsTimer.current);
-            setShowSuggestions(!quietFocus.current);
-          }}
-          onBlur={() => {
-            hideSuggestionsTimer.current = setTimeout(() => setShowSuggestions(false), 150);
-            if (current && draft.description !== current.description) patchRunning({ description: draft.description });
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown' && suggestions.length) {
-              event.preventDefault();
-              setHighlight((h) => (h + 1) % suggestions.length);
-            } else if (event.key === 'ArrowUp' && suggestions.length) {
-              event.preventDefault();
-              setHighlight((h) => (h <= 0 ? suggestions.length - 1 : h - 1));
-            } else if (event.key === 'Enter') {
-              event.preventDefault();
-              if (highlight >= 0 && suggestions[highlight]) {
-                pickSuggestion(suggestions[highlight]!);
-              } else if (current || paused) {
-                (event.target as HTMLInputElement).blur();
-              } else if (manual) {
-                void addManual();
-              } else {
-                setShowSuggestions(false);
-                void start();
-              }
-            } else if (event.key === 'Escape') {
-              setShowSuggestions(false);
-            } else if (event.key === '@' && draft.description === '') {
-              event.preventDefault();
-              setPicker('project');
-            } else if (event.key === '#' && draft.description === '') {
-              event.preventDefault();
-              setPicker('tags');
-            }
-          }}
-        />
-        {suggestions.length > 0 ? (
-          <ul className="suggestions" role="listbox">
-            {suggestions.map((s, i) => (
-              <li key={s.key} role="option" aria-selected={i === highlight}>
-                <button
-                  type="button"
-                  className={`suggestion${i === highlight ? ' highlighted' : ''}`}
-                  onMouseDown={(event) => { event.preventDefault(); pickSuggestion(s); }}
-                >
-                  <span>{s.description || <em className="muted">(no description)</em>}</span>
-                  {s.project_id ? (
-                    <span className="suggestion-project">
-                      <ProjectDot color={s.project_color} /> {s.project_name}
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-
-      <div className="timer-controls">
-        <button
-          ref={projectButton}
-          type="button"
-          className={`icon-button timer-attr timer-project${project ? ' active' : ''}`}
-          style={projectColorStyle(project?.color)}
-          title="Project (@)"
-          aria-label="Project"
-          onClick={() => setPicker('project')}
-        >
-          {project ? <ProjectLabel projectId={project.id} taskId={draft.task_id} /> : <Icon name="folder" />}
-        </button>
-        <button
-          ref={tagButton}
-          type="button"
-          className={`icon-button timer-attr${draft.tags.length ? ' active' : ''}`}
-          title={draft.tags.length ? draft.tags.join(', ') : 'Tags (#)'}
-          aria-label="Tags"
-          onClick={() => setPicker('tags')}
-        >
-          <Icon name="tag" />
-          {draft.tags.length ? <span className="badge">{draft.tags.length}</span> : null}
-        </button>
-        <button
-          type="button"
-          className={`icon-button timer-attr billable-toggle${draft.billable ? ' active billable' : ''}`}
-          title="Billable"
-          aria-label="Billable"
-          aria-pressed={draft.billable}
-          onClick={() => setField('billable', !draft.billable)}
-        >
-          <Icon name="dollar" />
-        </button>
-
+      <EntryFields
+        ref={fields}
+        draft={draft}
+        recentEntries={recentEntries}
+        placeholder={manual ? 'What did you work on?' : current || paused ? 'Add a description' : 'What are you working on?'}
+        onType={(description) => setDraft((d) => ({ ...d, description }))}
+        onEdit={(changes) => {
+          setDraft((d) => ({ ...d, ...changes }));
+          if (current) patchRunning(changes);
+        }}
+        onDescriptionBlur={() => {
+          if (current && draft.description !== current.description) patchRunning({ description: draft.description });
+        }}
+        onEnter={(event) => {
+          if (current || paused) {
+            event.currentTarget.blur();
+          } else if (manual) {
+            void addManual();
+          } else {
+            fields.current?.hideSuggestions();
+            void start();
+          }
+        }}
+      >
         {manual ? (
           <div className="manual-fields">
             <input type="date" aria-label="Date" value={manualDay} onChange={(event) => event.target.value && setManualDay(event.target.value)} />
@@ -744,32 +588,10 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
           </div>
         )}
         {!manual && !current && !paused ? timerErrors.message('duration') : null}
-      </div>
+      </EntryFields>
       <PomodoroBanner />
       <span className="visually-hidden" aria-live="polite">{announcement}</span>
 
-      {picker === 'project' ? (
-        <ProjectPicker
-          anchor={projectButton.current}
-          projectId={draft.project_id}
-          taskId={draft.task_id}
-          onChange={(pid, tid) => {
-            const picked = projects.find((p) => p.id === pid);
-            const billable = picked?.billable ? true : draft.billable;
-            setDraft((d) => ({ ...d, project_id: pid, task_id: tid, billable }));
-            if (current) patchRunning({ project_id: pid, task_id: tid, billable });
-          }}
-          onClose={() => { setPicker(null); focusDescriptionQuietly(); }}
-        />
-      ) : null}
-      {picker === 'tags' ? (
-        <TagPicker
-          anchor={tagButton.current}
-          value={draft.tags}
-          onChange={(tags) => setField('tags', tags)}
-          onClose={() => { setPicker(null); focusDescriptionQuietly(); }}
-        />
-      ) : null}
       {editing && current ? <EntryEditor entry={current} onClose={() => setEditing(false)} /> : null}
     </section>
   );
