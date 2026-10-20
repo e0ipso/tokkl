@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Builds the tokkl-kde DEB or RPM for one shared Tokkl version.
 #
-#   package-release.sh --version <version> --format deb|rpm --output <dir>
+#   package-release.sh --version <version> --format deb|ubuntu-deb|rpm --output <dir>
 #
-# Run it on the target system (Debian 13 for deb, Fedora 44 for rpm)
+# Run it on the target system (Debian 13 for deb, Ubuntu 26.04 for
+# ubuntu-deb, Fedora 44 for rpm)
 # with the build dependencies installed; scripts/container-check.sh shows how.
 # The version is the Tokkl release version, for example 1.2.0 or 1.2.0-rc.1.
 # It goes into the widget metadata unchanged; scripts/native-version.sh gives
@@ -16,7 +17,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --version <version> --format deb|rpm --output <dir>" >&2
+    echo "usage: $0 --version <version> --format deb|ubuntu-deb|rpm --output <dir>" >&2
     exit 2
 }
 
@@ -54,11 +55,16 @@ copy_source() {
 }
 
 build_deb() {
+    local suite=trixie suffix=""
+    if [ "$format" = ubuntu-deb ]; then
+        suite=resolute
+        suffix=-ubuntu26.04
+    fi
     local tree="$work/tokkl-kde-$native_version"
     copy_source "$tree"
     cp -a "$source_dir/debian" "$tree/"
     cat > "$tree/debian/changelog" <<EOF
-tokkl-kde ($native_version) trixie; urgency=medium
+tokkl-kde ($native_version) $suite; urgency=medium
 
   * Tokkl $version.
 
@@ -66,8 +72,9 @@ tokkl-kde ($native_version) trixie; urgency=medium
 EOF
     (cd "$tree" && TOKKL_VERSION="$version" dpkg-buildpackage -b --no-sign)
     local deb="tokkl-kde_${native_version}_amd64.deb"
-    cp "$work/$deb" "$output/"
-    echo "$output/$deb"
+    local name="tokkl-kde_${native_version}_amd64${suffix}.deb"
+    cp "$work/$deb" "$output/$name"
+    echo "$output/$name"
 }
 
 build_rpm() {
@@ -92,7 +99,7 @@ build_rpm() {
 }
 
 case "$format" in
-    deb) build_deb ;;
+    deb|ubuntu-deb) build_deb ;;
     rpm) build_rpm ;;
     *) usage ;;
 esac

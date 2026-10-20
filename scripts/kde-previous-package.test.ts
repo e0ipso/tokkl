@@ -19,7 +19,8 @@ const GITHUB_ASSETS: { path: string; label: string }[] = RELEASERC.plugins.find(
   (entry: unknown) => Array.isArray(entry) && entry[0] === '@semantic-release/github',
 )[1].assets;
 const LABEL = {
-  deb: GITHUB_ASSETS.find((asset) => asset.path.endsWith('.deb'))!.label,
+  deb: GITHUB_ASSETS.find((asset) => asset.path.endsWith('_amd64.deb'))!.label,
+  'ubuntu-deb': GITHUB_ASSETS.find((asset) => asset.path.endsWith('-ubuntu26.04.deb'))!.label,
   rpm: GITHUB_ASSETS.find((asset) => asset.path.endsWith('.rpm'))!.label,
 };
 
@@ -53,6 +54,9 @@ type Release = { tag: string; assets: Asset[] };
 
 const sha256 = (content: string) => createHash('sha256').update(content).digest('hex');
 const deb = (native: string, extra: Partial<Asset> = {}): Asset => ({ name: `tokkl-kde_${native}_amd64.deb`, label: LABEL.deb, ...extra });
+const ubuntu = (native: string, extra: Partial<Asset> = {}): Asset => ({
+  name: `tokkl-kde_${native}_amd64-ubuntu26.04.deb`, label: LABEL['ubuntu-deb'], ...extra,
+});
 const rpm = (native: string, dist = 'fc44', extra: Partial<Asset> = {}): Asset => ({
   name: `tokkl-kde-${native}-1.${dist}.x86_64.rpm`,
   label: LABEL.rpm,
@@ -88,7 +92,7 @@ function fixture(t: { after: (fn: () => void) => void }, releases: Release[], ta
   }
   const mark = (name: 'fail-list' | 'fail-download' | 'partial') => writeFileSync(join(data, name), '');
   const forget = (tag: string) => rmSync(join(data, 'releases', `${tag}.json`));
-  const run = (format: 'deb' | 'rpm', version: string, path = `${bin}:${process.env.PATH}`) => {
+  const run = (format: 'deb' | 'ubuntu-deb' | 'rpm', version: string, path = `${bin}:${process.env.PATH}`) => {
     const result = spawnSync(SCRIPT, ['--format', format, '--version', version, '--output', output], {
       env: { PATH: path, FIXTURE: data, HOME: root },
       encoding: 'utf8',
@@ -102,6 +106,24 @@ function fixture(t: { after: (fn: () => void) => void }, releases: Release[], ta
 }
 
 const FALLBACK = /the upgrade check uses a build of this source as 0\.0\.0 instead\n$/;
+
+test('selects the Ubuntu predecessor separately from Debian packages in the same release', (t) => {
+  const box = fixture(t, [
+    { tag: 'v1.2.2', assets: [deb('1.2.2')] },
+    { tag: 'v1.2.1', assets: [deb('1.2.1'), ubuntu('1.2.1'), rpm('1.2.1')] },
+  ]);
+  const result = box.run('ubuntu-deb', '1.2.3');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, `${join(result.output, ubuntu('1.2.1').name)}\n`);
+  assert.deepEqual(result.left, [ubuntu('1.2.1').name]);
+});
+
+test('selects the Debian predecessor when the release also contains an Ubuntu DEB', (t) => {
+  const box = fixture(t, [{ tag: 'v1.2.2', assets: [deb('1.2.2'), ubuntu('1.2.2')] }]);
+  const result = box.run('deb', '1.2.3');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.left, [deb('1.2.2').name]);
+});
 
 function assertFallback(result: ReturnType<ReturnType<typeof fixture>['run']>, reason: RegExp) {
   assert.equal(result.status, 0, result.stderr);

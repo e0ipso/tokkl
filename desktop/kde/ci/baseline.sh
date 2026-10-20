@@ -2,10 +2,12 @@
 # Prints the distribution, Qt, KDE Frameworks and Plasma versions of a build
 # environment and fails when they are older than the supported baseline.
 #
-#   baseline.sh --format deb|rpm
+#   baseline.sh --format deb|ubuntu-deb|rpm
 #
 # deb: Debian 13 with at least Qt 6.8.2, KDE Frameworks 6.13.0 and Plasma
 #      6.3.5, the versions it was released with.
+# ubuntu-deb: Ubuntu 26.04 with at least Qt 6.10.2, KDE Frameworks 6.24.0
+#             and Plasma 6.6.4.
 # rpm: Fedora 44 with at least Qt 6.10.2, KDE Frameworks 6.24.0 and Plasma
 #      6.6.0; its updates are newer.
 #
@@ -15,7 +17,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --format deb|rpm" >&2
+    echo "usage: $0 --format deb|ubuntu-deb|rpm" >&2
     exit 2
 }
 
@@ -36,13 +38,18 @@ fail() { echo "error: $*" >&2; failures=$((failures + 1)); }
 # 6.6 ships libPlasma.so.7), so the package that ships it is found whatever the
 # distribution calls it.
 case "$format" in
-    deb)
-        [ "$ID" = debian ] && [ "${VERSION_ID-}" = 13 ] || fail "expected Debian 13, found $ID ${VERSION_ID-}"
+    deb|ubuntu-deb)
+        if [ "$format" = deb ]; then
+            [ "$ID" = debian ] && [ "${VERSION_ID-}" = 13 ] || fail "expected Debian 13, found $ID ${VERSION_ID-}"
+            libraries="qt:libQt6Core.so:6.8.2 kf:libKF6Wallet.so:6.13.0 plasma:libPlasma.so:6.3.5"
+        else
+            [ "$ID" = ubuntu ] && [ "${VERSION_ID-}" = 26.04 ] || fail "expected Ubuntu 26.04, found $ID ${VERSION_ID-}"
+            libraries="qt:libQt6Core.so:6.10.2 kf:libKF6Wallet.so:6.24.0 plasma:libPlasma.so:6.6.4"
+        fi
         owner() { dpkg -S "*/$1.*" 2>/dev/null | head -n 1 | cut -d: -f1; }
         installed() { dpkg-query -W -f '${Version}' "$1"; }
         # True when $1 >= $2 in dpkg order.
         at_least() { dpkg --compare-versions "$1" ge "$2"; }
-        libraries="qt:libQt6Core.so:6.8.2 kf:libKF6Wallet.so:6.13.0 plasma:libPlasma.so:6.3.5"
         ;;
     rpm)
         [ "$ID" = fedora ] && [ "$VERSION_ID" = 44 ] || fail "expected Fedora 44, found $ID $VERSION_ID"

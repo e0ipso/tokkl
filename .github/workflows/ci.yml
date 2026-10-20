@@ -68,6 +68,8 @@ jobs:
         include:
           - target: Debian 13
             format: deb
+          - target: Kubuntu 26.04
+            format: ubuntu-deb
           - target: Fedora KDE 44
             format: rpm
     env:
@@ -243,7 +245,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  # The tokkl-kde DEB and RPM for that version and commit, each on its own
+  # The tokkl-kde Debian and Ubuntu DEBs and RPM for that version and commit, each on its own
   # runner, tested, built and checked by desktop/kde/scripts/container-check.sh
   # as in the kde job. The dependency images come from the cache the kde job
   # saved on main; the release never saves images. Each leg uploads its
@@ -262,6 +264,8 @@ jobs:
         include:
           - target: Debian 13
             format: deb
+          - target: Kubuntu 26.04
+            format: ubuntu-deb
           - target: Fedora KDE 44
             format: rpm
     env:
@@ -320,6 +324,8 @@ jobs:
           shopt -s nullglob
           if [ "$FORMAT" = deb ]; then
             packages=("$OUTPUT/tokkl-kde_${native}_amd64.deb")
+          elif [ "$FORMAT" = ubuntu-deb ]; then
+            packages=("$OUTPUT/tokkl-kde_${native}_amd64-ubuntu26.04.deb")
           else
             packages=("$OUTPUT/tokkl-kde-${native}-1."*.x86_64.rpm)
           fi
@@ -344,7 +350,7 @@ jobs:
           overwrite: true
           retention-days: 7
 
-  # The final gate: it runs only when both kde-release legs passed, with
+  # The final gate: it runs only when all three kde-release legs passed, with
   # their packages in dist/kde, on the same commit (github.sha). The plugin
   # checks each manifest against that commit.
   release:
@@ -373,10 +379,10 @@ jobs:
           merge-multiple: true
           path: dist/kde
 
-      # Bumps the version, checks that dist/kde holds exactly the DEB and RPM
+      # Bumps the version, checks that dist/kde holds exactly the Debian and Ubuntu DEBs and RPM
       # built for it from this commit (desktop/kde/ci/semantic-release.js),
       # commits CHANGELOG.md and package.json, tags v<version> and creates the
-      # GitHub release with the DEB and RPM attached. The plugin fails, before
+      # GitHub release with both DEBs and the RPM attached. The plugin fails, before
       # anything is pushed, when the next version is not the one the packages
       # were built for; when another release has moved main on in the
       # meantime, semantic-release releases nothing. The macos-release and

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs the companion's real-server test for one target.
 #
-#   realserver.sh --format deb|rpm --output <dir>
+#   realserver.sh --format deb|ubuntu-deb|rpm --output <dir>
 #
 # <dir> is the output directory of a scripts/container-check.sh run for the
 # same format: it holds tests/<format>/realservertest, built in the
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --format deb|rpm --output <dir>" >&2
+    echo "usage: $0 --format deb|ubuntu-deb|rpm --output <dir>" >&2
     exit 2
 }
 
@@ -30,7 +30,7 @@ while [ $# -gt 0 ]; do
         *) usage ;;
     esac
 done
-case "$format" in deb|rpm) ;; *) usage ;; esac
+case "$format" in deb|ubuntu-deb|rpm) ;; *) usage ;; esac
 [ -n "$output" ] || usage
 
 tests="$(cd "$output/tests/$format" && pwd)"

@@ -1,15 +1,15 @@
 /**
- * semantic-release plugin that releases the tokkl-kde DEB and RPM under the shared Tokkl version and
- * attaches them to the same v<version> GitHub release. It builds nothing: the release workflow
+ * semantic-release plugin that releases the tokkl-kde Debian and Ubuntu DEBs and Fedora RPM
+ * under the shared Tokkl version, attached to the same v<version> GitHub release. It builds nothing: the release workflow
  * (.github/workflows/ci.yml) works out the next version with a dry run (ci/next-release.js), builds
  * and checks each package for it with scripts/container-check.sh on a runner of its own, and puts
- * both packages in dist/kde, each with a manifest, before semantic-release runs for real.
+ * all packages in dist/kde, each with a manifest, before semantic-release runs for real.
  *
  * - verifyRelease: scripts/native-version.sh accepts the next version and, when
  *   TOKKL_KDE_RELEASE_VERSION is set, the next version is that one. It runs in the dry run too,
  *   before the changelog, package.json, tag or release are written.
- * - prepare: dist/kde holds exactly one DEB and one RPM of the next version and their manifests,
- *   kde-deb.json and kde-rpm.json, and nothing else. Each manifest names its format, the version,
+ * - prepare: dist/kde holds exactly the Debian DEB, Ubuntu DEB and RPM of the next version and their manifests,
+ *   kde-deb.json, kde-ubuntu-deb.json and kde-rpm.json, and nothing else. Each manifest names its format, the version,
  *   the source revision, the package file and its SHA-256, and must match the package and the
  *   revision being released (HEAD). This plugin runs before @semantic-release/git, so a failure stops
  *   the release before anything is pushed.
@@ -62,16 +62,17 @@ export async function prepare(pluginConfig, { cwd, env, nextRelease, logger }) {
   }
 
   const deb = `tokkl-kde_${native}_amd64.deb`;
+  const ubuntu = `tokkl-kde_${native}_amd64-ubuntu26.04.deb`;
   const rpms = files.filter((name) => name.startsWith(`tokkl-kde-${native}-1.`) && name.endsWith('.x86_64.rpm'));
-  const expected = [deb, rpms[0], 'kde-deb.json', 'kde-rpm.json'];
+  const expected = [deb, ubuntu, rpms[0], 'kde-deb.json', 'kde-ubuntu-deb.json', 'kde-rpm.json'];
   const complete = rpms.length === 1 && files.length === expected.length && expected.every((name) => files.includes(name));
   if (!complete) {
     throw new Error(
-      `Expected ${deb}, one tokkl-kde-${native}-1.*.x86_64.rpm, kde-deb.json and kde-rpm.json in ${OUTPUT_DIR}, found: ${files.join(', ') || 'nothing'}`,
+      `Expected ${deb}, one tokkl-kde-${native}-1.*.x86_64.rpm, ${ubuntu}, kde-deb.json, kde-ubuntu-deb.json and kde-rpm.json in ${OUTPUT_DIR}, found: ${files.join(', ') || 'nothing'}`,
     );
   }
 
-  for (const [format, name] of [['deb', deb], ['rpm', rpms[0]]]) {
+  for (const [format, name] of [['deb', deb], ['ubuntu-deb', ubuntu], ['rpm', rpms[0]]]) {
     const manifestFile = `kde-${format}.json`;
     let manifest;
     try {
@@ -87,5 +88,5 @@ export async function prepare(pluginConfig, { cwd, env, nextRelease, logger }) {
       }
     }
   }
-  logger.log('Releasing %s and %s, built and checked from %s', deb, rpms[0], revision);
+  logger.log('Releasing %s, %s and %s, built and checked from %s', deb, ubuntu, rpms[0], revision);
 }

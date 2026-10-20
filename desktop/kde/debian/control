@@ -42,5 +42,5 @@ Description: Tokkl timer widget for the Plasma panel
  the running timer, starts and stops it, and sets the project and billable
  flag of the next or running entry.
  .
- The token or password is stored in KDE Wallet. Built for Debian 13 amd64
- with Plasma 6.3, KDE Frameworks 6.13 and Qt 6.8.
+ The token or password is stored in KDE Wallet. Separate amd64 builds target
+ Debian 13 and Ubuntu 26.04 with their distribution's Qt and KDE libraries.

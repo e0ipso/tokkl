@@ -102,6 +102,10 @@
             "label": "tokkl-kde DEB for Debian 13 (amd64)"
           },
           {
+            "path": "dist/kde/tokkl-kde_*_amd64-ubuntu26.04.deb",
+            "label": "tokkl-kde DEB for Kubuntu 26.04 (amd64)"
+          },
+          {
             "path": "dist/kde/tokkl-kde-*.x86_64.rpm",
             "label": "tokkl-kde RPM for Fedora KDE 44 (x86_64)"
           }

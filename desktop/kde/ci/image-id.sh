@@ -2,9 +2,9 @@
 # Prints the identity of the dependency images that scripts/container-check.sh
 # builds for one format: a SHA-256 over everything that goes into them.
 #
-#   image-id.sh --format deb|rpm
+#   image-id.sh --format deb|ubuntu-deb|rpm
 #
-# The inputs are the Dockerfile (ci/Dockerfile or ci/fedora.Dockerfile, which
+# The inputs are the Dockerfile (ci/Dockerfile, ci/ubuntu.Dockerfile or ci/fedora.Dockerfile, which
 # pins the base image by digest), every file its COPY instructions copy (the
 # preparation script, debian/control or the RPM spec, ci/baseline.sh) and
 # TOKKL_KDE_CI_REFRESH, which container-check.sh also passes to the build.
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --format deb|rpm" >&2
+    echo "usage: $0 --format deb|ubuntu-deb|rpm" >&2
     exit 2
 }
 
@@ -30,6 +30,7 @@ while [ $# -gt 0 ]; do
 done
 case "$format" in
     deb) dockerfile=ci/Dockerfile ;;
+    ubuntu-deb) dockerfile=ci/ubuntu.Dockerfile ;;
     rpm) dockerfile=ci/fedora.Dockerfile ;;
     *) usage ;;
 esac

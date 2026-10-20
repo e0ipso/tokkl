@@ -50,23 +50,26 @@ function repository(t: { after: (fn: () => void) => void }) {
 
 const sha256 = (content: string) => createHash('sha256').update(content).digest('hex');
 
-/** A release gate fixture: dist/kde with a DEB, an RPM and both manifests for `version`. */
+/** A release gate fixture: dist/kde with two DEBs, an RPM and their manifests for `version`. */
 function gate(t: { after: (fn: () => void) => void }, version = '1.2.3', native = version) {
   const repo = repository(t);
   const revision = repo.git('rev-parse', 'HEAD');
   const dist = join(repo.cwd, 'dist', 'kde');
   mkdirSync(dist, { recursive: true });
   const deb = `tokkl-kde_${native}_amd64.deb`;
+  const ubuntu = `tokkl-kde_${native}_amd64-ubuntu26.04.deb`;
   const rpm = `tokkl-kde-${native}-1.fc44.x86_64.rpm`;
   const put = (name: string, content: string) => writeFileSync(join(dist, name), content);
-  const manifest = (format: 'deb' | 'rpm', fields: Record<string, unknown> = {}) => {
-    const name = format === 'deb' ? deb : rpm;
+  const manifest = (format: 'deb' | 'ubuntu-deb' | 'rpm', fields: Record<string, unknown> = {}) => {
+    const name = format === 'deb' ? deb : format === 'ubuntu-deb' ? ubuntu : rpm;
     const want = { format, version, revision, package: name, sha256: sha256(readFileSync(join(dist, name), 'utf8')) };
     put(`kde-${format}.json`, JSON.stringify({ ...want, ...fields }));
   };
   put(deb, 'deb bytes');
+  put(ubuntu, 'ubuntu bytes');
   put(rpm, 'rpm bytes');
   manifest('deb');
+  manifest('ubuntu-deb');
   manifest('rpm');
   const logs: unknown[][] = [];
   const context = (env: Record<string, string> = {}): Context => ({
@@ -75,13 +78,13 @@ function gate(t: { after: (fn: () => void) => void }, version = '1.2.3', native 
     nextRelease: { version },
     logger: { log: (...args) => logs.push(args) },
   });
-  return { ...repo, revision, dist, deb, rpm, put, manifest, logs, context };
+  return { ...repo, revision, dist, deb, ubuntu, rpm, put, manifest, logs, context };
 }
 
-test('prepare accepts exactly the DEB, the RPM and their manifests for the next version', async (t) => {
+test('prepare accepts exactly both DEBs, the RPM and their manifests for the next version', async (t) => {
   const fixture = gate(t);
   await plugin.prepare({}, fixture.context());
-  assert.deepEqual(fixture.logs, [['Releasing %s and %s, built and checked from %s', fixture.deb, fixture.rpm, fixture.revision]]);
+  assert.deepEqual(fixture.logs, [['Releasing %s, %s and %s, built and checked from %s', fixture.deb, fixture.ubuntu, fixture.rpm, fixture.revision]]);
 });
 
 test('prepare names the packages by the native version of a prerelease', async (t) => {
@@ -96,10 +99,10 @@ test('prepare refuses when dist/kde is missing', async (t) => {
   await assert.rejects(plugin.prepare({}, fixture.context()), /found: nothing$/);
 });
 
-for (const missing of ['deb', 'rpm', 'kde-deb.json', 'kde-rpm.json'] as const) {
+for (const missing of ['deb', 'ubuntu', 'rpm', 'kde-deb.json', 'kde-ubuntu-deb.json', 'kde-rpm.json'] as const) {
   test(`prepare refuses when ${missing} is missing`, async (t) => {
     const fixture = gate(t);
-    const name = missing === 'deb' ? fixture.deb : missing === 'rpm' ? fixture.rpm : missing;
+    const name = missing === 'deb' ? fixture.deb : missing === 'ubuntu' ? fixture.ubuntu : missing === 'rpm' ? fixture.rpm : missing;
     rmSync(join(fixture.dist, name));
     await assert.rejects(plugin.prepare({}, fixture.context()), /^Error: Expected tokkl-kde_1\.2\.3_amd64\.deb, one tokkl-kde-1\.2\.3-1\.\*\.x86_64\.rpm/);
   });
@@ -123,7 +126,7 @@ test('prepare refuses packages built for another version', async (t) => {
   await assert.rejects(plugin.prepare({}, { ...fixture.context(), nextRelease: { version: '1.2.4' } }), /^Error: Expected tokkl-kde_1\.2\.4_amd64\.deb/);
 });
 
-for (const format of ['deb', 'rpm'] as const) {
+for (const format of ['deb', 'ubuntu-deb', 'rpm'] as const) {
   for (const [key, value] of [
     ['format', format === 'deb' ? 'rpm' : 'deb'],
     ['version', '1.2.2'],
@@ -146,7 +149,7 @@ for (const format of ['deb', 'rpm'] as const) {
 
   test(`prepare refuses a ${format} changed after its manifest was written`, async (t) => {
     const fixture = gate(t);
-    fixture.put(format === 'deb' ? fixture.deb : fixture.rpm, 'tampered bytes');
+    fixture.put(format === 'deb' ? fixture.deb : format === 'ubuntu-deb' ? fixture.ubuntu : fixture.rpm, 'tampered bytes');
     await assert.rejects(plugin.prepare({}, fixture.context()), new RegExp(`kde-${format}\\.json has sha256 `));
   });
 
