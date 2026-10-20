@@ -123,3 +123,55 @@ test('a favorite pinned from an entry keeps its metadata after reload and starts
   const timer = page.getByRole('region', { name: 'Timer' });
   await expect(timer.getByRole('button', { name: 'Project' })).toContainText('Design: Wireframes');
 });
+
+test('the idle bar edits its draft without writing an entry, and Start takes every edit', async ({ page }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const ops = await api.createProject('Operations', true);
+  const oncall = await api.createTask(ops, 'On call');
+  await page.reload();
+
+  // Entry reads (the list and the current-entry poll) are fine; any write before Start is not.
+  const entryWrites: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'GET' && /\/time_entries\b/.test(new URL(request.url()).pathname)) {
+      entryWrites.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    }
+  });
+
+  const timer = page.getByRole('region', { name: 'Timer' });
+  const billable = timer.getByRole('button', { name: 'Billable' });
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  await expect(billable).toHaveAttribute('aria-pressed', 'false');
+
+  await timer.getByLabel('Description').fill('Pager handover');
+  await timer.getByLabel('Description').blur();
+  await expect(timer.getByLabel('Description')).toHaveValue('Pager handover');
+
+  // Picking a task on a billable project turns billable on in the draft.
+  await timer.getByRole('button', { name: 'Project' }).click();
+  await page.locator('.picker-subitem', { hasText: 'On call' }).click();
+  await expect(timer.getByRole('button', { name: 'Project' })).toContainText('Operations: On call');
+  await expect(billable).toHaveAttribute('aria-pressed', 'true');
+
+  await timer.getByRole('button', { name: 'Tags' }).click();
+  await page.getByPlaceholder('Find or create tags…').fill('handover');
+  await page.getByRole('button', { name: 'Create tag "handover"' }).click();
+  await page.keyboard.press('Escape');
+  await expect(timer.getByRole('button', { name: 'Tags' })).toHaveAttribute('title', 'handover');
+
+  await billable.click();
+  await expect(billable).toHaveAttribute('aria-pressed', 'false');
+
+  // Still idle: nothing is running and no entry was created or patched.
+  await expect(timer).not.toHaveClass(/is-running/);
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  expect(await api.current()).toBeNull();
+  expect(await api.entries()).toEqual([]);
+  expect(entryWrites).toEqual([]);
+
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  const running = await nextRunning(api, null);
+  expect(metadataOf(running)).toEqual({ description: 'Pager handover', project_id: ops, task_id: oncall, tags: ['handover'], billable: false });
+  expect(entryWrites).toEqual([`POST /api/v9/workspaces/${api.workspaceId}/time_entries`]);
+});
