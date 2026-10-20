@@ -45,6 +45,8 @@ export const DEFAULT_PREFERENCES = {
   pomodoro_long_break_every: 4,
   pomodoro_stop_timer_at_end: true,
   reminder_enabled: false,
+  long_timer_reminder_enabled: true,
+  long_timer_reminder_hours: 8,
   keyboard_shortcuts_enabled: true,
   theme: 'system',
 } as const;
@@ -102,6 +104,8 @@ const PREFERENCE_RULES: Record<string, PreferenceRule> = {
   pomodoro_long_break_interval_in_minutes: integerFrom(1, 60),
   pomodoro_long_break_every: integerFrom(1, 12),
   pomodoro_stop_timer_at_end: boolean,
+  long_timer_reminder_enabled: boolean,
+  long_timer_reminder_hours: integerFrom(1, 168),
   favorites: {
     valid: (value) => Array.isArray(value) && value.length <= MAX_FAVORITES && value.every(isFavorite),
     expected: `a list of at most ${MAX_FAVORITES} favorites with description, project_id, task_id, tags and billable`,

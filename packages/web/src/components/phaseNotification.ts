@@ -54,12 +54,17 @@ export async function requestNotificationAccess(): Promise<NotificationAccess> {
  * the notification.
  */
 export function notifyPhaseEnd(phase: PhaseEnd): void {
+  const { title, body } = PHASE_ENDED[phase];
+  notifyInBackground(title, body, TAG);
+}
+
+/** The in-app banner remains available if system notifications are blocked or unsupported. */
+export function notifyInBackground(title: string, body: string, tag: string): void {
   if (document.visibilityState !== 'hidden') return;
   const api = notificationApi();
   if (!api || notificationAccess() !== 'granted') return;
   try {
-    const { title, body } = PHASE_ENDED[phase];
-    const notification = new api(title, { body, icon: ICON_URL, tag: TAG });
+    const notification = new api(title, { body, icon: ICON_URL, tag });
     notification.onclick = () => {
       window.focus();
       notification.close();

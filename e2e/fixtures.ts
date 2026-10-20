@@ -76,6 +76,8 @@ const BASELINE_PREFERENCES = {
   pomodoro_long_break_interval_in_minutes: 15,
   pomodoro_long_break_every: 4,
   pomodoro_stop_timer_at_end: true,
+  long_timer_reminder_enabled: true,
+  long_timer_reminder_hours: 8,
 };
 
 interface SeedEntry {
