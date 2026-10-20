@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/e0ipso/tokkl/compare/v1.5.0...v1.6.0) (2026-10-20)
+
+### Features
+
+* **kde:** add Ubuntu 26.04 packages ([#25](https://github.com/e0ipso/tokkl/issues/25)) ([d5632ca](https://github.com/e0ipso/tokkl/commit/d5632cac596e8f976da8b2cbc649bc1667864c73))
+
 ## [1.5.0](https://github.com/e0ipso/tokkl/compare/v1.4.2...v1.5.0) (2026-10-19)
 
 ### Features
