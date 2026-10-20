@@ -100,9 +100,10 @@ await step('a second primary click pauses: the server stops the entry and the ti
     await waitFor('Paused', () => property('Paused') === true && property('Running') === false &&
         property('StartTime') === 0, 30_000);
     await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    // The server stores at least one step of its time resolution.
+    // The entry ran seconds, under half a step of the time resolution, so the server sent it to the
+    // trash at zero length and the chain adds nothing.
     chain = property('ChainSeconds');
-    if (!(chain > 0))
+    if (chain !== 0)
         throw new Error(`ChainSeconds ${chain}`);
     await waitFor('the chain total', () => label() === formatElapsed(chain) || label());
     if (!shell(`${button}.accessible_name`).startsWith(`Paused ${formatElapsed(chain)} · `))

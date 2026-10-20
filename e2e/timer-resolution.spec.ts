@@ -8,7 +8,8 @@ import { TimerApi, instant, madridWallClock } from './timer-tests-helpers.ts';
 
 const MINUTE = 60_000;
 
-test('at a 15-minute resolution the timer bar previews and announces snapped durations', async ({ page, data }) => {
+test('at a 15-minute resolution the timer bar previews and announces snapped durations', async ({ page, data, runtimeErrors }) => {
+  runtimeErrors.allowResponse({ status: 400, method: 'POST', path: /^\/api\/v9\/workspaces\/\d+\/time_entries$/, reason: 'the scenario adds an entry that rounds to zero' });
   await data.saveInstanceSettings({ time_resolution_minutes: 15 });
   await login(page);
   const api = await TimerApi.open(page);
@@ -18,32 +19,43 @@ test('at a 15-minute resolution the timer bar previews and announces snapped dur
   await timer.getByLabel('Description').fill('Short call');
   await timer.getByLabel('Date').fill('2025-11-12');
   await timer.getByLabel('Start time').fill('9:00');
+  // Both ends of 9:00 to 9:07 snap to 9:00, so the server refuses it.
   await timer.getByLabel('End time').fill('9:07');
+  await expect(timer.locator('.manual-duration')).toHaveText('0:00:00');
+  await timer.getByRole('button', { name: 'Add entry' }).click();
+  await expect(page.getByText('Time entry is too short: it rounds to zero at the 15-minute time resolution')).toBeVisible();
+  expect(await api.entries()).toEqual([]);
+  // 9:08 is nearer 9:15 than 9:00.
+  await timer.getByLabel('End time').fill('9:08');
   await expect(timer.locator('.manual-duration')).toHaveText('0:15:00');
   await timer.getByRole('button', { name: 'Add entry' }).click();
   await expect(page.getByText('Added 0:15:00')).toBeVisible();
   const manual = (await api.entries()).find((entry) => entry.description === 'Short call')!;
   expect([instant(manual.start), instant(manual.stop)]).toEqual([Date.parse('2025-11-12T08:00:00Z'), Date.parse('2025-11-12T08:15:00Z')]);
 
-  // A duration typed into the idle timer saves an entry that ends now.
+  // A duration typed into the idle timer saves an entry that ends now. Each end goes to its nearest
+  // quarter hour, so 20 minutes store as 15 or 30 depending on the time of day.
   await timer.getByRole('button', { name: 'Timer mode' }).click();
   await timer.getByLabel('Description').fill('Typed duration');
   await timer.getByLabel('Duration').fill('20m');
   await timer.getByLabel('Duration').press('Enter');
-  await expect(page.getByText('Added 0:30:00')).toBeVisible();
+  // The manual entry's toast can still be up, so look at the newest one.
+  await expect(page.getByText(/^Added 0:(15|30):00$/).last()).toBeVisible();
   const typed = (await api.entries()).find((entry) => entry.description === 'Typed duration')!;
-  expect(instant(typed.stop) - instant(typed.start)).toBe(30 * MINUTE);
+  expect([15 * MINUTE, 30 * MINUTE]).toContain(instant(typed.stop) - instant(typed.start));
 
-  // The running timer and the tab title tick real seconds, not 0:15:00.
+  // The running timer and the tab title tick real seconds, not 0:15:00. Stopped seconds later, it
+  // rounds to zero and goes to the trash.
   await timer.getByLabel('Description').fill('Ticking');
   await timer.getByRole('button', { name: 'Start timer' }).click();
   await expect(timer.getByRole('button', { name: /elapsed, edit start time$/ })).toHaveText(/^0:00:0[2-9]$/);
   await expect(page).toHaveTitle(/^0:00:0[2-9] · Ticking$/);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
-  await expect.poll(async () => {
-    const stopped = (await api.entries()).find((entry) => entry.description === 'Ticking');
-    return stopped?.stop ? instant(stopped.stop) - instant(stopped.start) : null;
-  }).toBe(15 * MINUTE);
+  await expect(page.getByText('Too short to keep, so the entry went to the trash')).toBeVisible();
+  const [trashed] = await api.trash();
+  expect(trashed!.description).toBe('Ticking');
+  expect(instant(trashed!.start) % (15 * MINUTE)).toBe(0);
+  expect(trashed!.stop).toBe(trashed!.start);
 });
 
 test('at a 15-minute resolution the entry editor previews snapped durations and split halves', async ({ page, data }) => {
@@ -63,13 +75,14 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
   let editor = await openEditor();
   const duration = editor.getByLabel('Duration');
   await expect(duration).toHaveValue('1:00:00');
-  // A typed duration shows the length the server will store and moves the end by what was typed.
+  // A typed duration shows the length the server will store and moves the end by what was typed:
+  // an end at 20 minutes is nearer 15 than 30.
   await duration.fill('20m');
   await duration.blur();
-  await expect(duration).toHaveValue('0:30:00');
+  await expect(duration).toHaveValue('0:15:00');
   await expect(editor.getByLabel('End')).toHaveValue(clock(20));
-  // An end seven minutes past the hour rounds the duration up to the next step.
-  await editor.getByLabel('End').fill(clock(67));
+  // An end eight minutes past the hour moves to quarter past.
+  await editor.getByLabel('End').fill(clock(68));
   await editor.getByLabel('End').blur();
   await expect(duration).toHaveValue('1:15:00');
   await editor.getByRole('button', { name: 'Save' }).click();
@@ -105,7 +118,7 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
 test('across a half-hour clock change the stored start stays on the local hour grid', async ({ page, data, users }) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 60 });
   // Lord Howe Island springs forward from 02:00 (UTC+10:30) to 02:30 (UTC+11) on 2026-10-04, so
-  // local 02:30 is off the hour grid and the grid point nearest 01:50 is 03:00.
+  // local 02:30 is off the hour grid and the grid point nearest 01:50 is 03:00. 03:40 goes to 04:00.
   const user = await users.create({ timezone: 'Australia/Lord_Howe' });
   await loginAs(page, user.account);
   const api = await TimerApi.open(page);
@@ -115,7 +128,7 @@ test('across a half-hour clock change the stored start stays on the local hour g
   await timer.getByLabel('Description').fill('Island call');
   await timer.getByLabel('Date').fill('2026-10-04');
   await timer.getByLabel('Start time').fill('1:50');
-  await timer.getByLabel('End time').fill('1:55');
+  await timer.getByLabel('End time').fill('3:40');
   await expect(timer.locator('.manual-duration')).toHaveText('1:00:00');
   await timer.getByRole('button', { name: 'Add entry' }).click();
   await expect(page.getByText('Added 1:00:00')).toBeVisible();
@@ -150,27 +163,30 @@ test('an entry saved under a finer resolution splits into halves that fill its s
   expect(halves).toEqual([[hour, hour + 30 * MINUTE], [hour + 30 * MINUTE, hour + 60 * MINUTE]]);
 });
 
-test('across a half-hour clock change the entry editor refuses a split whose halves would overlap', async ({ page, data, users }) => {
+test('across a half-hour clock change the entry editor splits on the local hour grid', async ({ page, data, users }) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 60 });
-  // On Lord Howe Island 01:00 (UTC+10:30) to 03:30 (UTC+11) on 2026-10-04 is two hours. Cut at
-  // 03:00, the first half lasts an hour and a half and would be stored as two, overlapping the second.
+  // On Lord Howe Island 01:00 (UTC+10:30) to 03:30 (UTC+11) on 2026-10-04 is two hours. The stop
+  // ties between local 03:00 and 04:00 and goes to 04:00, so the entry stores two and a half hours.
+  // Cut at 03:00, the halves last an hour and a half and an hour, and meet there.
   const user = await users.create({ timezone: 'Australia/Lord_Howe' });
-  const span = [Date.parse('2026-10-03T14:30:00Z'), Date.parse('2026-10-03T16:30:00Z')];
   const { id } = await user.createEntry({ description: 'Island shift', start: '2026-10-03T14:30:00Z', stop: '2026-10-03T16:30:00Z' });
   await page.clock.setFixedTime(new Date('2026-10-04T01:00:00Z'));
   await loginAs(page, user.account);
   const api = await TimerApi.open(page);
-  const stored = async () => (await api.entries()).map((entry) => [entry.id, instant(entry.start), instant(entry.stop)]);
-  expect(await stored()).toEqual([[id, ...span]]);
+  const stored = async () => (await api.entries())
+    .map((entry) => [instant(entry.start), instant(entry.stop)])
+    .sort(([a], [b]) => a! - b!);
+  const [one, three, four] = ['2026-10-03T14:30:00Z', '2026-10-03T16:00:00Z', '2026-10-03T17:00:00Z'].map(Date.parse);
+  expect(await stored()).toEqual([[one, four]]);
 
   const row = page.locator('.entry-line', { has: page.locator('input[value="Island shift"]') });
   await row.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('button', { name: 'Edit' }).click();
   const editor = page.getByRole('dialog', { name: 'Edit entry' });
   await editor.getByLabel('Split at').fill('3:00');
-  await expect(editor.getByText(/^Splits into/)).toBeHidden();
+  await expect(editor.getByText('Splits into 1:30:00 and 1:00:00.')).toBeVisible();
   await editor.getByRole('button', { name: 'Split' }).click();
-  await expect(editor.getByText('The clocks change during this entry, so it can\'t be split at that time')).toBeVisible();
-  await expect(page.getByText('Entry split in two')).toBeHidden();
-  expect(await stored()).toEqual([[id, ...span]]);
+  await expect(page.getByText('Entry split in two')).toBeVisible();
+  expect(await stored()).toEqual([[one, three], [three, four]]);
+  expect((await api.entries()).map((entry) => entry.id)).toContain(id);
 });

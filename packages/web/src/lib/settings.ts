@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMe, usePreferences } from '../api/hooks.ts';
 import type { DurationFormat } from '../api/types.ts';
 import { formatDuration } from '@tokkl/common/duration';
-import { snapSpan, type SnappedSpan } from '@tokkl/common/snap';
+import { snapInstant, snapSpan, type SnappedSpan } from '@tokkl/common/snap';
 import { addDays, dateKey, parseDateKey, zonedParts } from '@tokkl/common/time';
 
 export interface Settings {
@@ -102,24 +102,24 @@ export function entrySeconds(entry: { start: string; stop: string | null }, now:
 
 /**
  * Seconds the server will store for a stopped entry from `start` to `stop`: both cut to whole
- * seconds, then snapped to the time resolution. Use it to preview an entry before saving; a saved
- * entry already holds its snapped times, and a running timer shows real seconds (`entrySeconds`).
+ * seconds, then snapped to the time resolution. Zero means the server refuses the span as too short
+ * (or `stop` is not after `start`). Use it to preview an entry before saving; a saved entry already
+ * holds its snapped times, and a running timer shows real seconds (`entrySeconds`).
  */
 export function snappedSeconds(start: Date, stop: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>): number {
   const from = wholeSecond(start);
   const to = wholeSecond(stop);
   if (to <= from) return 0;
   const span = snapSpan(from, to, settings.timeResolution, settings.timeZone);
-  return (span.stop.getTime() - span.start.getTime()) / 1000;
+  return span ? (span.stop.getTime() - span.start.getTime()) / 1000 : 0;
 }
 
 /**
  * The grid point of the time resolution nearest `at`, cut to whole seconds first: where the server
- * moves a start it saves. Use it to pick one instant that stays put when either side is saved.
+ * moves a start or stop it saves. Use it to pick one instant that stays put when either side is saved.
  */
 export function snappedInstant(at: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>): Date {
-  const point = wholeSecond(at);
-  return snapSpan(point, point, settings.timeResolution, settings.timeZone).start;
+  return snapInstant(wholeSecond(at), settings.timeResolution, settings.timeZone);
 }
 
 export interface SplitHalves {
@@ -128,29 +128,19 @@ export interface SplitHalves {
 }
 
 /**
- * The two halves of the stopped entry from `start` to `stop` cut at `at`, as the server will store
- * them. Both come from the snapped whole, so an entry saved under another resolution splits into
- * halves that add up to what it would store now. The result is `'outside'` when `at` is not strictly
- * inside the snapped whole, and `'clock-change'` when the stored halves would not meet at one
- * instant and add up to the whole.
- *
- * A grid point inside the whole normally works. Across a clock change that is not a multiple of
- * the resolution, such as Lord Howe Island's half hour at a resolution of 60, the grid points on
- * either side of the change are not a whole number of steps apart. Each half's duration then rounds
- * up, and the halves would overlap.
+ * The two halves of the stopped entry from `start` to `stop` cut at the grid point nearest `at`, as
+ * the server will store them. Both come from the snapped whole, so an entry saved under another
+ * resolution splits into halves that add up to what it would store now. Every boundary is a grid
+ * point, so the server keeps the halves as they are. The result is `'outside'` when the cut is not
+ * strictly inside the snapped whole, or the whole is too short to keep.
  */
 export function snappedSplit(
   start: Date, stop: Date, at: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>,
-): SplitHalves | 'outside' | 'clock-change' {
-  const snap = (from: Date, to: Date) => snapSpan(wholeSecond(from), wholeSecond(to), settings.timeResolution, settings.timeZone);
-  const whole = snap(start, stop);
-  const cut = wholeSecond(at);
-  if (cut <= whole.start || cut >= whole.stop) return 'outside';
-  const first = snap(whole.start, cut);
-  const second = snap(cut, whole.stop);
-  const same = (a: Date, b: Date) => a.getTime() === b.getTime();
-  const meets = same(first.start, whole.start) && same(first.stop, second.start) && same(second.stop, whole.stop);
-  return meets ? { first, second } : 'clock-change';
+): SplitHalves | 'outside' {
+  const whole = snapSpan(wholeSecond(start), wholeSecond(stop), settings.timeResolution, settings.timeZone);
+  const cut = snappedInstant(at, settings);
+  if (!whole || cut <= whole.start || cut >= whole.stop) return 'outside';
+  return { first: { start: whole.start, stop: cut }, second: { start: cut, stop: whole.stop } };
 }
 
 function wholeSecond(date: Date): Date {

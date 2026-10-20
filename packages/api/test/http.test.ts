@@ -8,7 +8,7 @@ import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 test('JSON bodies work without a Content-Type header, as some Toggl clients send them', async () => {
   const ctx = await setup();
   const response = await ctx.request('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`,
-    { start: '2026-10-01T08:00:00Z', duration: 60 }, { 'content-type': '' });
+    { start: '2026-10-01T08:00:00Z', duration: 600 }, { 'content-type': '' });
   assert.equal(response.status, 200);
 });
 

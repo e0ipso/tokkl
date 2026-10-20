@@ -1,5 +1,6 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
+import { nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
@@ -14,6 +15,9 @@ test('timer page works on a phone-sized screen', async ({ page }) => {
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Phone entry');
   await page.screenshot({ path: 'test-results/mobile-running.png' });
+  // A timer stopped seconds after it started goes to the trash, so this one has run a while.
+  const api = await TimerApi.open(page);
+  await api.backdate((await nextRunning(api, null)).id, 10);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
   await expect(page.locator('.entry-line').first().getByLabel('Description')).toHaveValue('Phone entry');

@@ -1,6 +1,6 @@
 /**
- * Snapping a time entry to a resolution: the step, in minutes, that every stored duration is a
- * multiple of. Shared by the server, which snaps on write, and the web app.
+ * Snapping a time entry to a resolution: the step, in minutes, of the clock grid that every stored
+ * start and stop lands on. Shared by the server, which snaps on write, and the web app.
  */
 
 import { timeZoneOffsetMs } from './time.ts';
@@ -18,25 +18,34 @@ export function isTimeResolution(minutes: number): boolean {
 }
 
 /**
- * Snaps the span from `start` to `stop` to a resolution of `minutes`, which must divide 60.
+ * Snaps the span from `start` to `stop` to a resolution of `minutes`, which must divide 60, or
+ * returns null when the span is too short to keep.
  *
- * The duration rounds up to a multiple of the resolution: it never shrinks, it gains less than one
- * step, and a duration that is already a multiple stays as it is. The start moves to the nearest
- * point of the grid on the wall clock of `timeZone`, rounding a tie up. Because the resolution
- * divides an hour, the grid falls on every whole hour, also in zones 30 or 45 minutes off UTC.
- * Near a DST change each grid point uses the offset in force at that point, so a change of half an
- * hour, as on Lord Howe Island, never leaves the start off the clock grid.
- * The stop is the snapped start plus the rounded duration, counted in elapsed time, so a span
- * across a DST change keeps its duration.
+ * The start and the stop each move to the nearest point of the grid on the wall clock of
+ * `timeZone`, rounding a tie up, so either end moves by at most half a step and two spans that
+ * meet still meet once snapped. Because the resolution divides an hour, the grid falls on every
+ * whole hour, also in zones 30 or 45 minutes off UTC. Near a DST change each grid point uses the
+ * offset in force at that point, so a change of half an hour, as on Lord Howe Island, never leaves
+ * an end off the clock grid.
+ *
+ * A span is too short when it lasted less than half a step, or when both ends snap to the same
+ * point. The first catches a timer started by accident even when it straddles a half-step mark.
  */
-export function snapSpan(start: Date, stop: Date, minutes: number, timeZone: string): SnappedSpan {
+export function snapSpan(start: Date, stop: Date, minutes: number, timeZone: string): SnappedSpan | null {
   if (!isTimeResolution(minutes)) throw new RangeError(`Invalid time resolution: ${minutes}`);
   const elapsed = stop.getTime() - start.getTime();
   if (!(elapsed >= 0)) throw new RangeError('Stop must not be before start');
   const step = minutes * MINUTE_MS;
-  const duration = Math.ceil(elapsed / step) * step;
-  const snappedStart = nearestGridPoint(start.getTime(), step, timeZone);
-  return { start: new Date(snappedStart), stop: new Date(snappedStart + duration) };
+  if (elapsed * 2 < step) return null;
+  const snappedStart = snapInstant(start, minutes, timeZone);
+  const snappedStop = snapInstant(stop, minutes, timeZone);
+  return snappedStop > snappedStart ? { start: snappedStart, stop: snappedStop } : null;
+}
+
+/** The grid point of a resolution of `minutes` nearest `at` on the wall clock of `timeZone`, the later one on a tie. */
+export function snapInstant(at: Date, minutes: number, timeZone: string): Date {
+  if (!isTimeResolution(minutes)) throw new RangeError(`Invalid time resolution: ${minutes}`);
+  return new Date(nearestGridPoint(at.getTime(), minutes * MINUTE_MS, timeZone));
 }
 
 /** The last instant at or before `time` whose wall-clock time is a multiple of `step` at `offset`. */

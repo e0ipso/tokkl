@@ -204,7 +204,7 @@ test('an admin saves the time resolution, every account reads it on /me, and a v
   const card = page.locator('#instance');
   const resolution = card.getByLabel('Time resolution (minutes)');
   await expect(resolution).toHaveValue('5');
-  await expect(card.getByText('Typed and edited entries round up to this many minutes, and a stopping timer ends on the nearest step. Existing entries change only when they are edited.')).toBeVisible();
+  await expect(card.getByText('Starts and stops move to the nearest multiple of this many minutes. A timer that rounds to zero goes to the trash, and a typed entry that rounds to zero is refused. Existing entries change only when they are edited.')).toBeVisible();
 
   await resolution.fill('15');
   await card.getByRole('button', { name: 'Save' }).click();

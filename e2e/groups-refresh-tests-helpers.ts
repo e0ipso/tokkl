@@ -62,11 +62,14 @@ export class OtherDevice {
     return json(this.api.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, created_with: 'e2e other device' } }));
   }
 
-  /** Starts a running entry now, which stops any other running entry. */
+  /**
+   * Starts a running entry ten minutes ago, which stops any other running entry. A timer stopped
+   * seconds after it started would round to zero at the time resolution and go to the trash.
+   */
   async startTimer(description: string): Promise<StoredEntry> {
     return json(this.api.post(`${this.ws}/time_entries`, {
       headers: CSRF,
-      data: { description, start: new Date().toISOString(), duration: -1, created_with: 'e2e other device' },
+      data: { description, start: new Date(Date.now() - 10 * 60_000).toISOString(), duration: -1, created_with: 'e2e other device' },
     }));
   }
 

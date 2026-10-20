@@ -173,8 +173,8 @@ const RESOLUTION_MS = 5 * 60_000;
 
 /**
  * A stopped entry snapped to the time resolution: start on the grid, a whole number of steps long
- * (zero for one stopped within the second it started), and, when the exact start is known, within
- * half a step of it.
+ * (zero for one the server sent to the trash as too short), and, when the exact start is known,
+ * within half a step of it.
  */
 function assertSnapped(row: Row, exactStart?: number) {
   const start = Date.parse(String(row.start));
@@ -366,12 +366,16 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     }
     assert.equal(mine.filter((row) => row.stop === null).length, 1);
     // The entry it stopped is snapped to the time resolution; the running one keeps its exact start.
+    // It stopped seconds after it started, under half a step, so it went to the trash at zero length.
     const stopped = mine.find((row) => row.stop !== null)!;
     assertSnapped(stopped);
+    assert.equal(stopped.stop, stopped.start);
+    assert.notEqual(stopped.deleted_at, null);
 
-    // p paused the seeded entry, resumed one clone of it and paused that. The two resumes refused
-    // after the task and then the project went created nothing. The deletions left both entries
-    // without a project or task; everything else the clone copied is still there.
+    // p paused the seeded entry, resumed one clone of it and paused that seconds later, which sent
+    // the clone to the trash at zero length. The two resumes refused after the task and then the
+    // project went created nothing. The deletions left both entries without a project or task;
+    // everything else the clone copied is still there.
     const chain = after.entries.filter((row) => row.user_id === p.id);
     const original = before.a.entries.find((row) => row.id === p.running!.id)!;
     assert.equal(chain.length, 2);
@@ -381,13 +385,15 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     assertSnapped(chain[0]!, Date.parse(String(original.start)));
     assertSnapped(chain[1]!);
     assert.ok(Date.parse(String(chain[1]!.start)) >= Date.parse(String(chain[0]!.stop)), 'the clone starts after the pause');
+    assert.equal(chain[0]!.deleted_at, null);
+    assert.equal(chain[1]!.stop, chain[1]!.start);
+    assert.notEqual(chain[1]!.deleted_at, null);
     for (const row of chain) {
       assert.equal(row.workspace_id, p.wid);
       assert.equal(row.description, p.running!.description);
       assert.equal(row.billable, 1);
       assert.equal(row.project_id, null);
       assert.equal(row.task_id, null);
-      assert.equal(row.deleted_at, null);
       assert.deepEqual(tagNames(a.admin, row.id), p.running!.tags);
     }
     assert.equal(chain[1]!.created_with, 'tokkl-kde');

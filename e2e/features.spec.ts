@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-import { madridWallClock, TimerApi } from './timer-tests-helpers.ts';
+import { madridWallClock, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -28,8 +28,10 @@ test('favorites, split, shortcut help and trash restore', async ({ page }) => {
   await page.keyboard.press('1');
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Pairing session');
-  await timer.getByRole('button', { name: 'Stop timer' }).click();
   const api = await TimerApi.open(page);
+  // A timer stopped seconds after it started goes to the trash, so this one has run a while.
+  await api.backdate((await nextRunning(api, null)).id, 10);
+  await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect.poll(() => api.current()).toBeNull();
   expect((await api.entries()).filter((entry) => entry.description === 'Pairing session')).toHaveLength(2);
 

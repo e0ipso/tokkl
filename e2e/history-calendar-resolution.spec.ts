@@ -69,21 +69,20 @@ test('at a 12-minute resolution a moved or resized entry with an off-grid start 
   await scrollCalendarTo(page, 8);
 
   // Two 24-minute steps take 09:07 to 09:55, and the start drops on the nearest grid point, 10:00.
-  // The server keeps that start and rounds the 43 minutes up to 48.
+  // At this resolution the entry stores as 09:12 to 09:48, so it moves as those 36 minutes.
   const move = sentUpdate(page, moved.id);
   await dragBy(page, todayBlock(page, 'Moved'), 48 / 60);
-  expect(await move).toEqual({ start: sent(60), stop: sent(103) });
-  await expect.poll(() => savedTimes(page, moved.id)).toEqual({ start: at(60), stop: at(108) });
+  expect(await move).toEqual({ start: sent(60), stop: sent(96) });
+  await expect.poll(() => savedTimes(page, moved.id)).toEqual({ start: at(60), stop: at(96) });
 
-  // One step takes the 11:50 stop to 12:14, which drops on 12:12. The 11:07 start goes to 11:12,
-  // where the server would move it anyway, so the 60 minutes up to the drop need no rounding and
-  // the stop stays at 12:12.
+  // One step takes the 11:50 stop to 12:14, which drops on 12:12. Only the stop is sent; the server
+  // moves the 11:07 start to its nearest grid point, 11:12.
   const resize = sentUpdate(page, resized.id);
   await dragBy(page, todayBlock(page, 'Resized').locator('.calendar-resize'), 24 / 60);
-  expect(await resize).toEqual({ start: sent(132), stop: sent(192) });
+  expect(await resize).toEqual({ stop: sent(192) });
   await expect.poll(() => savedTimes(page, resized.id)).toEqual({ start: at(132), stop: at(192) });
 
   await page.reload();
-  await expect(todayBlock(page, 'Moved')).toHaveAttribute('title', 'Moved, 0:48:00\n10:00 – 10:48');
+  await expect(todayBlock(page, 'Moved')).toHaveAttribute('title', 'Moved, 0:36:00\n10:00 – 10:36');
   await expect(todayBlock(page, 'Resized')).toHaveAttribute('title', 'Resized, 1:00:00\n11:12 – 12:12');
 });

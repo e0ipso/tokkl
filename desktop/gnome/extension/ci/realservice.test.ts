@@ -112,12 +112,12 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
       assert.equal(Number(entry.billable), 1);
       assert.notEqual(entry.stop, null);
 
-      // Stopping snapped it to the time resolution.
+      // Each ran seconds, under half a step of the time resolution, so stopping it rounded it to zero
+      // and sent it to the trash with both ends on the grid point nearest its start.
       const start = Date.parse(String(entry.start));
-      const stop = Date.parse(String(entry.stop));
       assert.equal(start % RESOLUTION_MS, 0, `start ${entry.start} is on the grid`);
-      assert.ok(stop >= start, `${entry.start} to ${entry.stop}`);
-      assert.equal((stop - start) % RESOLUTION_MS, 0, `${entry.start} to ${entry.stop} is a whole number of steps`);
+      assert.equal(entry.stop, entry.start);
+      assert.notEqual(entry.deleted_at, null);
     }
     assert.equal(mine[1]!.description, mine[0]!.description);
   });

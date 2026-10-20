@@ -6,7 +6,7 @@ import { addDays } from '@tokkl/common/time';
 import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import {
-  entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, snappedSplit, useNow, useSettings, type SplitHalves,
+  entrySeconds, formatTime, minutesOfDay, snappedSeconds, snappedSplit, useNow, useSettings, type SplitHalves,
 } from '../lib/settings.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
@@ -17,7 +17,6 @@ import { useToast } from './Toast.tsx';
 const SPLIT_PROBLEMS = {
   unreadable: 'Enter a split time like 10:30',
   outside: 'The split time must fall inside the entry',
-  'clock-change': 'The clocks change during this entry, so it can\'t be split at that time',
 } as const;
 
 function spanSeconds(span: { start: Date; stop: Date }): number {
@@ -138,7 +137,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
    * it cuts nowhere. The time moves to the nearest grid point of the time resolution, so both halves
    * keep it as their shared boundary when the server snaps them.
    */
-  const splitHalves = (text: string, stop: string): SplitHalves | 'unreadable' | 'outside' | 'clock-change' => {
+  const splitHalves = (text: string, stop: string): SplitHalves | 'unreadable' | 'outside' => {
     const minutes = parseTimeOfDay(text, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
     if (minutes === null) return 'unreadable';
     const startDay = localDay(entry.start, settings.timeZone);
@@ -146,7 +145,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
     // DST shift when the clocks change that night.
     if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
-    return snappedSplit(new Date(entry.start), new Date(stop), snappedInstant(at, settings), settings);
+    return snappedSplit(new Date(entry.start), new Date(stop), at, settings);
   };
   const halves = entry.stop ? splitHalves(splitText, entry.stop) : null;
 

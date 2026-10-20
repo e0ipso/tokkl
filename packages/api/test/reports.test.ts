@@ -115,8 +115,8 @@ test('app report endpoint returns totals, series and nested groups', async () =>
 test('bounds returns the first and last entry day in the account timezone', async () => {
   const ctx = await setup({ timezone: 'Asia/Tokyo' });
   assert.deepEqual((await ctx.json('GET', '/api/app/bounds')).body, { first_date: null, last_date: null });
-  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2025-03-01T20:00:00Z', duration: 60 });
-  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 60 });
+  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2025-03-01T20:00:00Z', duration: 600 });
+  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600 });
   // 20:00 UTC on 1 March is already 2 March in Tokyo.
   assert.deepEqual((await ctx.json('GET', '/api/app/bounds')).body, { first_date: '2025-03-02', last_date: '2026-10-01' });
 });

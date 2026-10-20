@@ -97,7 +97,7 @@ test('tasks belong to projects and set the project on entries', async () => {
   const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 300, task_id: task.body.id });
   assert.equal(entry.body.project_id, project.body.id);
   const mismatch = await ctx.json('POST', `${base}/time_entries`, {
-    start: '2026-10-01T08:00:00Z', duration: 60, task_id: task.body.id, project_id: other.body.id,
+    start: '2026-10-01T08:00:00Z', duration: 600, task_id: task.body.id, project_id: other.body.id,
   });
   assert.equal(mismatch.status, 400);
 
@@ -122,7 +122,7 @@ test('tags: create, rename, duplicate check, delete removes from entries', async
   assert.equal((await ctx.json('POST', `${base}/tags`, { name: 'URGENT' })).status, 400);
   assert.equal((await ctx.json('POST', `${base}/tags`, { name: '  ' })).status, 400);
 
-  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 60, tag_ids: [tag.body.id] });
+  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600, tag_ids: [tag.body.id] });
   assert.deepEqual(entry.body.tags, ['urgent']);
   const renamed = await ctx.json('PUT', `${base}/tags/${tag.body.id}`, { name: 'later' });
   assert.equal(renamed.body.name, 'later');

@@ -301,7 +301,7 @@ test('a non-member gets 403 from every route under another account\'s workspace 
   const range = { start_date: '2026-10-01', end_date: '2026-10-07' };
   const routes: Array<[string, string, unknown?]> = [
     ['GET', ws], ['PUT', ws, { name: 'Taken' }], ['GET', `${ws}/users`],
-    ['POST', `${ws}/time_entries`, { start: '2026-10-02T08:00:00Z', duration: 60, workspace_id: a.wid }],
+    ['POST', `${ws}/time_entries`, { start: '2026-10-02T08:00:00Z', duration: 600, workspace_id: a.wid }],
     ['PUT', `${ws}/time_entries/${entry.id}`, { description: 'Taken' }],
     ['PATCH', `${ws}/time_entries/${entry.id}/stop`],
     ['PATCH', `${ws}/time_entries/${entry.id}`, [{ op: 'replace', path: '/description', value: 'Taken' }]],
@@ -391,7 +391,7 @@ test('trash restore needs membership of the entry\'s workspace', async () => {
   addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
   const ws = `/api/v9/workspaces/${a.wid}`;
   const created = async () => (await b.json('POST', `${ws}/time_entries`,
-    { start: '2026-10-01T08:00:00Z', duration: 60, workspace_id: a.wid })).body.id as number;
+    { start: '2026-10-01T08:00:00Z', duration: 600, workspace_id: a.wid })).body.id as number;
   const kept = await created();
   const left = await created();
   for (const id of [kept, left]) assert.equal((await b.json('DELETE', `${ws}/time_entries/${id}`)).status, 200);

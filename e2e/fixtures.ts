@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { test as base, expect, request, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { RuntimeErrors } from './runtime-errors.ts';
+import { madridWallClock } from './timer-tests-helpers.ts';
 
 export const EMAIL = 'e2e@example.com';
 export const PASSWORD = 'e2e password';
@@ -254,6 +255,20 @@ export class TestData {
   /** Projects in this account's workspace, archived ones included. */
   async projects(): Promise<Array<{ id: number; name: string }>> {
     return json(this.api.get(`/api/v9/workspaces/${this.workspaceId}/projects?active=both`));
+  }
+
+  /**
+   * Seeds a zero-length entry at `at`, a whole minute, like one stored before the API refused spans
+   * that round to zero. Live writes no longer store one, so it goes through the Toggl CSV import,
+   * which keeps the file's times. The CSV holds wall-clock times in the account zone, Europe/Madrid.
+   */
+  async createZeroLengthEntry(description: string, at: string): Promise<void> {
+    const { day, time } = madridWallClock(new Date(at));
+    const csv = `Description,Start date,Start time,End date,End time\n${description},${day},${time}:00,${day},${time}:00\n`;
+    const result = await json<{ created: number }>(this.api.post('/api/app/import/toggl-csv', {
+      headers: { ...CSRF, 'Content-Type': 'text/csv' }, data: csv,
+    }));
+    expect(result.created).toBe(1);
   }
 
   async createEntry(entry: SeedEntry): Promise<{ id: number }> {

@@ -28,6 +28,8 @@ test('start and stop a timer with a new project and tag', async ({ page, data })
   await page.screenshot({ path: 'test-results/timer-running.png' });
   const running = await nextRunning(api, null);
 
+  // A timer stopped seconds after it started goes to the trash, so this one has run a while.
+  const backdated = await api.backdate(running.id, 10);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
   // Stopping snaps the entry to the time resolution; until then it kept its exact start, which the
@@ -35,8 +37,8 @@ test('start and stop a timer with a new project and tag', async ({ page, data })
   const [stopped] = await api.entries();
   expect(stopped!.id).toBe(running.id);
   const step = (await data.me()).time_resolution_minutes * 60_000;
-  expectSnapped(stopped!, running.start, step);
-  // Stop keeps at least one step, so a timer stopped right after it started is not stored empty.
+  expectSnapped(stopped!, backdated.start, step);
+  // Each end moves at most half a step, so ten minutes keep at least one step.
   expect(instant(stopped!.stop) - instant(stopped!.start)).toBeGreaterThanOrEqual(step);
   await expect(timer.getByText('Running', { exact: true })).toHaveCount(0);
   await expect(timerLink).toHaveCount(0);
@@ -109,7 +111,8 @@ test('undoing a discard while another timer runs restores the entry stopped on t
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Started by mistake');
   await timer.getByRole('button', { name: 'Start timer' }).click();
-  const discarded = await nextRunning(api, null);
+  // The restore below stops it now; seconds after its start, it would round to zero and stay in the trash.
+  const discarded = await api.backdate((await nextRunning(api, null)).id, 10);
   await timer.getByRole('button', { name: 'Discard running entry' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
   await timer.getByLabel('Description').fill('Started on purpose');
@@ -126,6 +129,25 @@ test('undoing a discard while another timer runs restores the entry stopped on t
   await timer.getByRole('button', { name: 'Stop timer' }).click();
 });
 
+test('a timer stopped seconds after it started goes to the trash, and Undo brings it back', async ({ page }) => {
+  await login(page);
+  const api = await TimerApi.open(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await timer.getByLabel('Description').fill('Started by accident');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  const running = await nextRunning(api, null);
+  await timer.getByRole('button', { name: 'Stop timer' }).click();
+  await expect(page.getByText('Too short to keep, so the entry went to the trash')).toBeVisible();
+  expect(await api.entries()).toEqual([]);
+  const [trashed] = await api.trash();
+  expect(trashed!.id).toBe(running.id);
+  expect(trashed!.stop).toBe(trashed!.start);
+
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.entry-line', { has: page.locator('input[value="Started by accident"]') })).toHaveCount(1);
+  expect(await api.trash()).toEqual([]);
+});
+
 test('Continue, a favorite and C each replace a running timer', async ({ page, data }) => {
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   await data.createEntry({ description: 'Earlier work', start: `${day}T10:00:00Z`, stop: `${day}T11:15:00Z` });
@@ -134,19 +156,19 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   const timer = page.getByRole('region', { name: 'Timer' });
   const entries = async () => (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'))
     .json() as Promise<Array<{ id: number; description: string; start: string; stop: string | null }>>;
+  const trash = async () => (await page.request.get('/api/app/trash'))
+    .json() as Promise<Array<{ description: string; start: string; stop: string }>>;
   const step = (await data.me()).time_resolution_minutes * 60_000;
-  // Exactly one entry runs, it is `description`, and `previous` stopped when it started, on the grid
-  // point nearest that start. The running entry keeps its exact start until it stops.
-  const expectReplaced = async (description: string, previous: string) => {
+  // Exactly one entry runs and it is `description`. `previous` was replaced seconds after it
+  // started, so it rounded to zero and is the newest of `trashed` entries in the trash, with zero
+  // length on a grid point.
+  const expectReplaced = async (description: string, previous: string, trashed: number) => {
     await expect(timer.getByLabel('Description')).toHaveValue(description);
     await expect.poll(async () => {
-      const all = await entries();
-      const running = all.filter((entry) => !entry.stop);
-      const stopped = all.find((entry) => entry.description === previous && entry.stop);
-      return running.length === 1 && running[0]!.description === description && stopped !== undefined
-        && Date.parse(stopped.stop!) % step === 0
-        && Math.abs(Date.parse(stopped.stop!) - Date.parse(running[0]!.start)) <= step / 2
-        && (Date.parse(stopped.stop!) - Date.parse(stopped.start)) % step === 0;
+      const running = (await entries()).filter((entry) => !entry.stop);
+      const gone = await trash();
+      return running.length === 1 && running[0]!.description === description && gone.length === trashed
+        && gone[0]!.description === previous && gone[0]!.stop === gone[0]!.start && Date.parse(gone[0]!.start) % step === 0;
     }).toBe(true);
   };
 
@@ -157,30 +179,22 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   // A double click starts one entry, not two.
   await page.locator('.entry-line', { has: page.locator('input[value="Earlier work"]') })
     .getByRole('button', { name: 'Continue this entry' }).dblclick();
-  await expectReplaced('Earlier work', 'Running now');
+  await expectReplaced('Earlier work', 'Running now', 1);
   expect((await entries()).filter((entry) => entry.description === 'Earlier work')).toHaveLength(2);
 
   await page.locator('.favorites').getByRole('button', { name: 'Standup' }).click();
-  await expectReplaced('Standup', 'Earlier work');
+  await expectReplaced('Standup', 'Earlier work', 2);
 
   await page.locator('body').click({ position: { x: 5, y: 400 } });
   await page.keyboard.press('c');
-  await expectReplaced('Earlier work', 'Standup');
-  // The seed, "Running now" and three replacements.
-  expect(await entries()).toHaveLength(5);
+  await expectReplaced('Earlier work', 'Standup', 3);
+  // The seed and the running replacement.
+  expect(await entries()).toHaveLength(2);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
-
-  // Once the last one stops, the switches are stored back to back: each entry starts where the one
-  // it replaced stopped.
-  let chain: Array<{ id: number; description: string; start: string; stop: string | null }> = [];
-  await expect.poll(async () => {
-    chain = (await entries()).filter((entry) => Date.parse(entry.start) !== Date.parse(`${day}T10:00:00Z`))
-      .sort((a, b) => a.id - b.id);
-    return chain.every((entry) => entry.stop !== null);
-  }).toBe(true);
-  expect(chain.map((entry) => entry.description)).toEqual(['Running now', 'Earlier work', 'Standup', 'Earlier work']);
-  for (let i = 1; i < chain.length; i++) expect(Date.parse(chain[i]!.start)).toBe(Date.parse(chain[i - 1]!.stop!));
+  await expect.poll(async () => (await trash()).map((entry) => entry.description))
+    .toEqual(['Earlier work', 'Standup', 'Earlier work', 'Running now']);
+  expect((await entries()).map((entry) => entry.description)).toEqual(['Earlier work']);
 });
 
 test('a manual entry across the autumn clock change moves the date to its stop day', async ({ page, runtimeErrors }) => {

@@ -110,13 +110,14 @@ test('calendar blocks are named by description, project and duration, and short 
   await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
 });
 
-// A switch within half a step of a timer's start stores a zero-length entry, and the next entry
-// starts where it ends. Lanes follow the stored spans, so the pair shares one lane with the thin
-// marker above its successor. Spans that overlap still sit side by side.
+// A zero-length entry (stored before the API refused spans that round to zero, or a short timer
+// restored from the trash) can sit where the next entry starts. Lanes follow the stored spans, so
+// the pair shares one lane with the thin marker above its successor. Spans that overlap still sit
+// side by side.
 test('a zero-length entry shares its successor\'s lane and both stay clickable, while overlapping entries split lanes', async ({ page, data }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
-  // Madrid, Wednesday 2026-06-17 (CEST): the switch at 09:00, then two overlapping entries from 11:00.
-  await data.createEntry({ description: 'Switch', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  // Madrid, Wednesday 2026-06-17 (CEST): the marker at 09:00, then two overlapping entries from 11:00.
+  await data.createZeroLengthEntry('Switch', '2026-06-17T07:00:00Z');
   await data.createEntry({ description: 'Follow-up', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
   await data.createEntry({ description: 'Early', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T10:00:00Z' });
   await data.createEntry({ description: 'Late', start: '2026-06-17T09:30:00Z', stop: '2026-06-17T10:30:00Z' });
@@ -156,13 +157,13 @@ test('a zero-length entry shares its successor\'s lane and both stay clickable, 
   expect(late.x).toBeGreaterThanOrEqual(early.x + early.width);
 });
 
-// Quick switches inside one half step store several zero-length entries on one grid point. They
-// sit side by side so each stays clickable, and the entry that starts there keeps its full width.
+// Several zero-length entries can share one grid point. They sit side by side so each stays
+// clickable, and the entry that starts there keeps its full width.
 test('zero-length entries at one instant sit side by side and each opens its own editor', async ({ page, data }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
-  // Madrid, Wednesday 2026-06-17 (CEST): two switches at 09:00, then an entry that starts there.
-  await data.createEntry({ description: 'Switch one', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
-  await data.createEntry({ description: 'Switch two', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  // Madrid, Wednesday 2026-06-17 (CEST): two markers at 09:00, then an entry that starts there.
+  await data.createZeroLengthEntry('Switch one', '2026-06-17T07:00:00Z');
+  await data.createZeroLengthEntry('Switch two', '2026-06-17T07:00:00Z');
   await data.createEntry({ description: 'Follow-up', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
   await login(page);
   await openCalendar(page);
@@ -193,12 +194,12 @@ test('zero-length entries at one instant sit side by side and each opens its own
   }
 });
 
-// A switch within half a step of local midnight stores a zero-length entry there. It belongs to
-// the day that starts at that midnight, and an entry that ends at midnight stays on its own day.
+// A zero-length entry at local midnight belongs to the day that starts at that midnight, and an
+// entry that ends at midnight stays on its own day.
 test('a zero-length entry at local midnight is drawn on the day it starts and opens its editor', async ({ page, data }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
   // Madrid midnight between Tuesday 2026-06-16 and Wednesday 2026-06-17 (CEST) is 22:00Z.
-  await data.createEntry({ description: 'Midnight switch', start: '2026-06-16T22:00:00Z', stop: '2026-06-16T22:00:00Z' });
+  await data.createZeroLengthEntry('Midnight switch', '2026-06-16T22:00:00Z');
   await data.createEntry({ description: 'Ends at midnight', start: '2026-06-16T21:00:00Z', stop: '2026-06-16T22:00:00Z' });
   await login(page);
   await openCalendar(page);
@@ -220,9 +221,9 @@ test('a zero-length entry at local midnight is drawn on the day it starts and op
 test('a zero-length entry and a short entry starting with it both open their own editor', async ({ page, data }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
   // Madrid, Wednesday 2026-06-17 (CEST): 09:00 to 09:00 and 09:00 to 09:05, 11:00 to 11:00 and 11:00 to 11:10.
-  await data.createEntry({ description: 'Switch nine', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:00:00Z' });
+  await data.createZeroLengthEntry('Switch nine', '2026-06-17T07:00:00Z');
   await data.createEntry({ description: 'Short five', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:05:00Z' });
-  await data.createEntry({ description: 'Switch eleven', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T09:00:00Z' });
+  await data.createZeroLengthEntry('Switch eleven', '2026-06-17T09:00:00Z');
   await data.createEntry({ description: 'Short ten', start: '2026-06-17T09:00:00Z', stop: '2026-06-17T09:10:00Z' });
   await login(page);
   await openCalendar(page);

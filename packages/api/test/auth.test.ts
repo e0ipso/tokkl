@@ -649,7 +649,7 @@ test('the tt_session cookie and X-Timetrack-CSRF header from before the rename s
   const legacy = `tt_session=${token}`;
   const call = (method: string, path: string, headers: Record<string, string>, body?: unknown) =>
     ctx.request(method, path, body, { authorization: '', ...headers });
-  const entry = { start: new Date().toISOString(), duration: 60, created_with: 'test' };
+  const entry = { start: new Date().toISOString(), duration: 600, created_with: 'test' };
   const entries = `/api/v9/workspaces/${ctx.wid}/time_entries`;
 
   assert.equal((await call('GET', '/api/v9/me', { cookie: legacy })).status, 200, 'old cookie reads');

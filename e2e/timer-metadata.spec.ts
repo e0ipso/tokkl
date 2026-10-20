@@ -61,6 +61,9 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   await timer.getByRole('button', { name: 'Start timer' }).click();
   const plain = await nextRunning(api, null);
   expect(metadataOf(plain)).toEqual({ description: 'Plain timer', project_id: null, task_id: null, tags: [], billable: false });
+  // The plain timer has run a while, so replacing it keeps it. The continued one is replaced
+  // seconds after it started, so it rounds to zero and goes to the trash.
+  await api.backdate(plain.id, 10);
 
   await page.locator('.entry-line', { has: page.locator('input[value="Design review"]') }).first()
     .getByRole('button', { name: 'Continue this entry' }).click();
@@ -80,17 +83,18 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   const all = await api.entries();
   const byId = new Map(all.map((entry) => [entry.id, entry]));
   expect(all.filter((entry) => entry.stop === null).map((entry) => entry.id)).toEqual([favorite.id]);
-  // A replaced timer stops at the new start snapped to the time resolution: its start moves up to
-  // half a step and its duration grows by less than one.
+  // A replaced timer stops on the grid point nearest the new start.
   const step = (await data.me()).time_resolution_minutes * 60_000;
-  for (const [stopped, next] of [[plain, continued], [continued, favorite]] as const) {
-    const saved = byId.get(stopped.id)!;
-    expect(Math.abs(instant(saved.stop) - instant(next.start) - step / 2)).toBeLessThanOrEqual(step);
-    expect((instant(saved.stop) - instant(saved.start)) % step).toBe(0);
-  }
+  const saved = byId.get(plain.id)!;
+  expect(instant(saved.stop) % step).toBe(0);
+  expect(Math.abs(instant(saved.stop) - instant(continued.start))).toBeLessThanOrEqual(step / 2);
+  const [trashed] = await api.trash();
+  expect(trashed!.id).toBe(continued.id);
+  expect(trashed!.stop).toBe(trashed!.start);
+  expect(byId.has(continued.id)).toBe(false);
   // Replacing never rewrites the stopped entries' metadata.
-  expect(metadataOf(byId.get(plain.id)!)).toEqual(metadataOf(plain));
-  expect(metadataOf(byId.get(continued.id)!)).toEqual(metadataOf(review));
+  expect(metadataOf(saved)).toEqual(metadataOf(plain));
+  expect(metadataOf(trashed!)).toEqual(metadataOf(review));
   expect(byId.get(seed.id)).toEqual(seed);
 });
 
