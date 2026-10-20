@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:af85cbc0dd4fa8fb74e11635c366a03761000307e0ab9f42f3658f0ee9100e03'
-node_count: 81
+nodes_hash: 'sha256:a0a861eef4ec3fcff9a6eeff246ff5e50ba740e098925fd4b8d95534cdce397c'
+node_count: 84
 ---
 # kenkeep Graph
 
-Total nodes: 81
+Total nodes: 84
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -165,7 +165,15 @@ Total nodes: 81
 - **title:** Pomodoro cycle functions in packages/common/pomodoro.ts
 - **path:** web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md
 - **tags:** common, pomodoro, timer, fixtures
-- **relates_to:** practice-preferences-validated-by-known-key, practice-parser-cases-live-in-shared-json-fixtures, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
+- **relates_to:** practice-preferences-validated-by-known-key, practice-parser-cases-live-in-shared-json-fixtures, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, map-pomodoro-session-model-in-packages-common-pomodorosession
+
+## map-pomodoro-session-model-in-packages-common-pomodorosession
+
+- **kind:** map
+- **title:** Pomodoro session model in packages/common/pomodoroSession.ts
+- **path:** web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md
+- **tags:** common, pomodoro, timer, fixtures
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -233,6 +241,14 @@ Total nodes: 81
 - **relates_to:** practice-week-calendar-hour-height-agrees-in-three-places, practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top, practice-ui-time-math-uses-wall-clock-helpers, practice-phone-layout-css-gotchas, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 - **derived_from:** 935c3ad4-996d-4ce0-b165-4aaf8e23c62e:map:0
 
+## map-web-entry-fields-entryfields-tsx-and-useentryfields-ts
+
+- **kind:** map
+- **title:** Entry fields: EntryFields.tsx and useEntryFields.ts
+- **path:** web-ui-behaviour/map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md
+- **tags:** web, timer, components, react, focus
+- **relates_to:** practice-timer-bar-pickers-return-focus-without-opening-suggestions, practice-web-ui-survives-background-refetches, map-test-and-static-analysis-layout
+
 ## map-web-page-state-and-field-error-components
 
 - **kind:** map
@@ -247,7 +263,7 @@ Total nodes: 81
 - **title:** Web Pomodoro: pomodoroCycle.ts, usePomodoro and the app-wide PomodoroProvider
 - **path:** web-ui-behaviour/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
 - **tags:** web, pomodoro, timer, localstorage, notifications
-- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key, practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav
 
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
@@ -443,7 +459,7 @@ Total nodes: 81
 - **title:** Parser cases live in packages/common/fixtures JSON, not in TS asserts
 - **path:** tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md
 - **tags:** testing, common, parsing
-- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout, map-pomodoro-cycle-functions-in-packages-common
+- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout, map-pomodoro-cycle-functions-in-packages-common, map-pomodoro-session-model-in-packages-common-pomodorosession
 
 ## practice-password-checks-go-through-failurelimiter-attempt
 
@@ -467,6 +483,14 @@ Total nodes: 81
 - **path:** tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md
 - **tags:** testing, playwright
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write
+
+## practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav
+
+- **kind:** practice
+- **title:** Pomodoro sounds: FFmpeg recipes, same-origin files, WAV for loops
+- **path:** web-ui-behaviour/practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav.md
+- **tags:** web, pomodoro, audio, csp, e2e
+- **relates_to:** map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 
 ## practice-preferences-validated-by-known-key
 
@@ -564,7 +588,7 @@ Total nodes: 81
 - **title:** Timer bar pickers return focus to the description without opening suggestions
 - **path:** web-ui-behaviour/practice-timer-bar-pickers-return-focus-without-opening-suggestions.md
 - **tags:** web, timer, focus, a11y
-- **relates_to:** practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows, practice-web-ui-survives-background-refetches
+- **relates_to:** practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows, practice-web-ui-survives-background-refetches, map-web-entry-fields-entryfields-tsx-and-useentryfields-ts
 
 ## practice-toggl-csv-import-selects-users-by-opaque-key
 
