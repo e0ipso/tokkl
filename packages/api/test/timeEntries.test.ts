@@ -94,13 +94,17 @@ test('a switch between timers is stored back to back on either side of a half st
   }
 });
 
-test('a switch within half a step of the old start stores a zero-length entry', async () => {
+test('a switch within half a step of the old start sends the old entry to the trash at zero length', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const first = await ctx.json('POST', url, { start: '2026-10-14T09:00:40Z', duration: -1 });
   await ctx.json('POST', url, { start: '2026-10-14T09:02:20Z', duration: -1 });
-  const old = (await ctx.json('GET', `/api/v9/me/time_entries/${first.body.id}`)).body;
-  assertStored(ctx, old, '2026-10-14T09:00:00+00:00', '2026-10-14T09:00:00+00:00');
+  assert.equal((await ctx.json('GET', `/api/v9/me/time_entries/${first.body.id}`)).status, 404);
+  const row = ctx.db.prepare('SELECT start, stop, deleted_at FROM time_entries WHERE id = ?').get(first.body.id) as
+    { start: string; stop: string; deleted_at: string | null };
+  assert.deepEqual({ start: row.start, stop: row.stop }, { start: '2026-10-14T09:00:00.000Z', stop: '2026-10-14T09:00:00.000Z' });
+  assert.ok(row.deleted_at);
+  assert.deepEqual((await ctx.json('GET', '/api/app/trash')).body.map((entry: any) => entry.id), [first.body.id]);
 });
 
 test('concurrent timer starts leave exactly one running entry', async () => {
@@ -154,8 +158,8 @@ test('offsets, null stop, sub-second values and negative running durations still
   const ctx = await setup();
   assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
-  // Fractions of a second are dropped, then the span snaps to whole minutes: 09:00:20 is nearest
-  // 09:00 and 89m50s rounds up to 90 minutes.
+  // Fractions of a second are dropped, then each end snaps to the nearest whole minute: 09:00:20 to
+  // 09:00 and 10:30:10 to 10:30.
   const offset = await ctx.json('POST', url, { start: '2026-10-14T11:00:20.750+02:00', stop: '2026-10-14T12:30:10.999+02:00' });
   assert.equal(offset.status, 200);
   assert.equal(offset.body.start, '2026-10-14T09:00:00+00:00');
@@ -187,8 +191,8 @@ test('offsets, null stop, sub-second values and negative running durations still
 test('list start_date and end_date accept zoned instants and reject zone-free or impossible ones', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
-  const inside = await ctx.json('POST', url, { start: '2026-10-01T10:00:00Z', duration: 60 });
-  await ctx.json('POST', url, { start: '2026-10-01T13:00:00Z', duration: 60 });
+  const inside = await ctx.json('POST', url, { start: '2026-10-01T10:00:00Z', duration: 600 });
+  await ctx.json('POST', url, { start: '2026-10-01T13:00:00Z', duration: 600 });
 
   const zoned = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01T11:00:00%2B02:00&end_date=2026-10-01T12:00:00Z');
   assert.equal(zoned.status, 200);
@@ -216,7 +220,7 @@ test('entry project and task references are validated on create and update', asy
   const foreignTask = await ctx.json('POST', `/api/v9/workspaces/${otherWid}/projects/${foreignProject.body.id}/tasks`, { name: 'Remote' });
   assert.equal(foreignTask.status, 200);
 
-  const entry = { start: '2026-10-01T08:00:00Z', duration: 60 };
+  const entry = { start: '2026-10-01T08:00:00Z', duration: 600 };
   const rejected: Array<[Record<string, unknown>, number, string]> = [
     [{ project_id: 999_999 }, 404, 'Project not found'],
     [{ task_id: 999_999 }, 404, 'Task not found'],
@@ -276,10 +280,10 @@ test('manual entries from duration or stop, and validation errors', async () => 
   assert.equal(backwards.status, 400);
   assert.equal(typeof backwards.body, 'string');
 
-  const badProject = await ctx.json('POST', url, { start: '2026-10-01T10:00:00Z', duration: 60, project_id: 999 });
+  const badProject = await ctx.json('POST', url, { start: '2026-10-01T10:00:00Z', duration: 600, project_id: 999 });
   assert.equal(badProject.status, 404);
 
-  const wrongWs = await ctx.json('POST', '/api/v9/workspaces/999/time_entries', { start: '2026-10-01T10:00:00Z', duration: 60 });
+  const wrongWs = await ctx.json('POST', '/api/v9/workspaces/999/time_entries', { start: '2026-10-01T10:00:00Z', duration: 600 });
   assert.equal(wrongWs.status, 403);
 
   const badJson = await ctx.request('POST', url, '{nope');
@@ -289,7 +293,7 @@ test('manual entries from duration or stop, and validation errors', async () => 
 test('tags by name are created, tag_action adds and deletes', async () => {
   const ctx = await setup();
   const created = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
-    start: '2026-10-01T08:00:00Z', duration: 60, tags: ['client-work', 'deep'], created_with: 'test',
+    start: '2026-10-01T08:00:00Z', duration: 600, tags: ['client-work', 'deep'], created_with: 'test',
   });
   assert.deepEqual(created.body.tags, ['client-work', 'deep']);
   const tags = await ctx.json('GET', `/api/v9/workspaces/${ctx.wid}/tags`);
@@ -326,14 +330,14 @@ test('updating start keeps stop; updating duration moves stop; meta fields', asy
 test('listing filters: default window, date range, since with deleted entries', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
-  const old = await ctx.json('POST', url, { start: '2026-01-10T10:00:00Z', duration: 60 });
-  const recent = await ctx.json('POST', url, { start: new Date(Date.now() - 86_400_000).toISOString(), duration: 60 });
+  const old = await ctx.json('POST', url, { start: '2026-01-10T10:00:00Z', duration: 600 });
+  const recent = await ctx.json('POST', url, { start: new Date(Date.now() - 86_400_000).toISOString(), duration: 600 });
 
   const defaults = await ctx.json('GET', '/api/v9/me/time_entries');
   assert.deepEqual(defaults.body.map((e: any) => e.id), [recent.body.id]);
 
   // 2026-01-09T23:30Z is 2026-01-10 00:30 in Madrid, so it belongs to January 10th.
-  const edge = await ctx.json('POST', url, { start: '2026-01-09T23:30:00Z', duration: 60 });
+  const edge = await ctx.json('POST', url, { start: '2026-01-09T23:30:00Z', duration: 600 });
   const range = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-01-10&end_date=2026-01-11');
   assert.deepEqual(range.body.map((e: any) => e.id).sort(), [old.body.id, edge.body.id].sort());
 
@@ -358,8 +362,8 @@ test('listing filters: default window, date range, since with deleted entries', 
 test('bulk PATCH applies operations per entry and reports failures', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
-  const a = await ctx.json('POST', url, { start: '2026-10-01T08:00:00Z', duration: 60, tags: ['x'] });
-  const b = await ctx.json('POST', url, { start: '2026-10-01T09:00:00Z', duration: 60 });
+  const a = await ctx.json('POST', url, { start: '2026-10-01T08:00:00Z', duration: 600, tags: ['x'] });
+  const b = await ctx.json('POST', url, { start: '2026-10-01T09:00:00Z', duration: 600 });
   const patched = await ctx.json('PATCH', `${url}/${a.body.id},${b.body.id},99999`, [
     { op: 'replace', path: '/description', value: 'bulk' },
     { op: 'replace', path: '/billable', value: true },
@@ -384,8 +388,8 @@ test('bulk PATCH applies operations per entry and reports failures', async () =>
 test('trash lists deleted entries, restores and purges them', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
-  const a = await ctx.json('POST', url, { start: '2026-10-01T08:00:00Z', duration: 60, description: 'a' });
-  const b = await ctx.json('POST', url, { start: '2026-10-01T09:00:00Z', duration: 60, description: 'b' });
+  const a = await ctx.json('POST', url, { start: '2026-10-01T08:00:00Z', duration: 600, description: 'a' });
+  const b = await ctx.json('POST', url, { start: '2026-10-01T09:00:00Z', duration: 600, description: 'b' });
   await ctx.request('DELETE', `${url}/${a.body.id}`);
   await ctx.request('DELETE', `${url}/${b.body.id}`);
 
@@ -424,10 +428,10 @@ test('create, update and bulk PATCH store the span snapped to the resolution', a
   await setResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
 
-  // 10:07:40 is nearer 10:15 than 10:00, and 23m25s rounds up to 30 minutes.
-  const byStop = await ctx.json('POST', url, { start: '2026-10-14T10:07:40Z', stop: '2026-10-14T10:31:05Z' });
+  // 10:07:40 is nearer 10:15 than 10:00, and 10:37:25 is nearer 10:30 than 10:45.
+  const byStop = await ctx.json('POST', url, { start: '2026-10-14T10:07:40Z', stop: '2026-10-14T10:37:25Z' });
   assert.equal(byStop.status, 200);
-  assertStored(ctx, byStop.body, '2026-10-14T10:15:00+00:00', '2026-10-14T10:45:00+00:00');
+  assertStored(ctx, byStop.body, '2026-10-14T10:15:00+00:00', '2026-10-14T10:30:00+00:00');
 
   const byDuration = await ctx.json('POST', url, { start: '2026-10-14T12:07:00Z', duration: 900 });
   assert.equal(byDuration.status, 200);
@@ -437,8 +441,8 @@ test('create, update and bulk PATCH store the span snapped to the resolution', a
   assert.equal(newStop.status, 200);
   assertStored(ctx, newStop.body, '2026-10-14T12:00:00+00:00', '2026-10-14T12:45:00+00:00');
 
-  // A start exactly halfway between two grid points goes to the later one; one second becomes a step.
-  const newDuration = await ctx.json('PUT', `${url}/${byDuration.body.id}`, { start: '2026-10-14T13:52:30Z', duration: 1 });
+  // Either end exactly halfway between two grid points goes to the later one.
+  const newDuration = await ctx.json('PUT', `${url}/${byDuration.body.id}`, { start: '2026-10-14T13:52:30Z', duration: 900 });
   assert.equal(newDuration.status, 200);
   assertStored(ctx, newDuration.body, '2026-10-14T14:00:00+00:00', '2026-10-14T14:15:00+00:00');
 
@@ -446,11 +450,33 @@ test('create, update and bulk PATCH store the span snapped to the resolution', a
     { op: 'replace', path: '/stop', value: '2026-10-14T16:20:00Z' },
   ]);
   assert.deepEqual(patched.body, { success: [byStop.body.id, byDuration.body.id], failure: [] });
-  // 6h05m and 2h20m round up to 6h15m and 2h30m.
+  // 16:20 is nearer 16:15 than 16:30.
   assertStored(ctx, (await ctx.json('GET', `/api/v9/me/time_entries/${byStop.body.id}`)).body,
-    '2026-10-14T10:15:00+00:00', '2026-10-14T16:30:00+00:00');
+    '2026-10-14T10:15:00+00:00', '2026-10-14T16:15:00+00:00');
   assertStored(ctx, (await ctx.json('GET', `/api/v9/me/time_entries/${byDuration.body.id}`)).body,
-    '2026-10-14T14:00:00+00:00', '2026-10-14T16:30:00+00:00');
+    '2026-10-14T14:00:00+00:00', '2026-10-14T16:15:00+00:00');
+});
+
+test('create, update and bulk PATCH refuse a span that rounds to zero', async () => {
+  const ctx = await setup();
+  await setResolution(ctx, 15);
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const message = 'Time entry is too short: it rounds to zero at the 15-minute time resolution';
+  const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 1800 });
+
+  // Under half a step, even across a half-step mark; and 14 minutes whose ends both snap to 09:15.
+  for (const [start, stop] of [['09:07:00', '09:07:59'], ['09:00:00', '09:00:00'], ['09:08:00', '09:22:00']]) {
+    const body = { start: `2026-10-14T${start}Z`, stop: `2026-10-14T${stop}Z` };
+    const created = await ctx.json('POST', url, body);
+    assert.deepEqual([created.status, created.body], [400, message], `create ${start}-${stop}`);
+    const updated = await ctx.json('PUT', `${url}/${entry.body.id}`, body);
+    assert.deepEqual([updated.status, updated.body], [400, message], `update ${start}-${stop}`);
+  }
+  const patched = await ctx.json('PATCH', `${url}/${entry.body.id}`, [{ op: 'replace', path: '/duration', value: 60 }]);
+  assert.deepEqual(patched.body, { success: [], failure: [{ id: entry.body.id, message }] });
+  assertStored(ctx, (await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body,
+    '2026-10-14T09:00:00+00:00', '2026-10-14T09:30:00+00:00');
+  assert.equal((ctx.db.prepare('SELECT COUNT(*) AS n FROM time_entries').get() as { n: number }).n, 1);
 });
 
 test('the grid follows the clock of the entry owner\'s timezone', async () => {
@@ -488,16 +514,27 @@ test('a running entry keeps its exact start until the stop endpoint snaps it', a
   assertStored(ctx, stopped.body, stopped.body.start, stopped.body.stop);
 });
 
-test('the stop endpoint stores one step when the nearest grid point is the start', async () => {
+test('the stop endpoint sends a timer shorter than half a step to the trash at zero length', async () => {
   const ctx = await setup();
-  await setResolution(ctx, 60);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
-  const running = await ctx.json('POST', url, { start: new Date().toISOString(), duration: -1 });
+  const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 30_000);
+  const running = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1, description: 'oops', tags: ['x'] });
   const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`);
+  // The reply still describes the entry, so a client can resume it, and its duration adds nothing.
   assert.equal(stopped.status, 200);
-  assert.equal(stopped.body.duration, 3600);
-  assert.equal((Date.parse(stopped.body.start) / 1000) % 3600, 0);
-  assertStored(ctx, stopped.body, stopped.body.start, stopped.body.stop);
+  assert.equal(stopped.body.duration, 0);
+  assert.equal(stopped.body.stop, stopped.body.start);
+  assert.equal((Date.parse(stopped.body.start) / 1000) % 300, 0);
+  assert.ok(stopped.body.server_deleted_at);
+  assert.equal(stopped.body.description, 'oops');
+  assert.deepEqual(stopped.body.tags, ['x']);
+  assert.equal((await ctx.json('GET', '/api/v9/me/time_entries/current')).body, null);
+  assert.deepEqual((await ctx.json('GET', '/api/app/trash')).body.map((entry: any) => entry.id), [running.body.id]);
+
+  const restored = await ctx.json('POST', `/api/app/time_entries/${running.body.id}/restore`);
+  assert.equal(restored.status, 200);
+  assert.equal(restored.body.server_deleted_at, null);
+  assertStored(ctx, restored.body, stopped.body.start, stopped.body.start);
 });
 
 test('a deleted running entry restored while another timer runs is stopped on the grid', async () => {
@@ -516,7 +553,7 @@ test('a deleted running entry restored while another timer runs is stopped on th
   assertStored(ctx, restored.body, restored.body.start, restored.body.stop);
 });
 
-test('the 999-hour cap applies to the snapped duration', async () => {
+test('the 999-hour cap applies to the snapped span', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   // 999 hours is a multiple of every resolution, so a duration under the cap never snaps past it.
@@ -525,10 +562,14 @@ test('the 999-hour cap applies to the snapped duration', async () => {
   assertStored(ctx, fits.body, '2026-01-01T00:00:00+00:00', '2026-02-11T15:00:00+00:00');
   assert.equal(fits.body.duration, 999 * 3600);
 
-  const over = await ctx.json('POST', url, { start: '2026-01-01T00:00:00Z', duration: 999 * 3600 + 1 });
+  // A stop under half a step past the cap snaps back onto it; half a step snaps past it.
+  const snapsBack = await ctx.json('POST', url, { start: '2026-01-01T00:00:00Z', duration: 999 * 3600 + 149 });
+  assert.equal(snapsBack.status, 200);
+  assert.equal(snapsBack.body.duration, 999 * 3600);
+  const over = await ctx.json('POST', url, { start: '2026-01-01T00:00:00Z', duration: 999 * 3600 + 150 });
   assert.equal(over.status, 400);
   assert.equal(over.body, 'Time entries can not be longer than 999 hours');
-  const updated = await ctx.json('PUT', `${url}/${fits.body.id}`, { duration: 999 * 3600 + 1 });
+  const updated = await ctx.json('PUT', `${url}/${fits.body.id}`, { duration: 999 * 3600 + 150 });
   assert.equal(updated.status, 400);
   assert.equal(updated.body, 'Time entries can not be longer than 999 hours');
 });
@@ -566,7 +607,7 @@ test('bulk PATCH that removes every tag snaps the span like any other edit', asy
     assert.deepEqual(patched.body, { success: [entry.body.id], failure: [] }, path);
     const read = (await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body;
     assert.deepEqual(read.tags, [], path);
-    assertStored(ctx, read, '2026-10-14T09:05:00+00:00', '2026-10-14T09:20:00+00:00');
+    assertStored(ctx, read, '2026-10-14T09:05:00+00:00', '2026-10-14T09:15:00+00:00');
   }
 });
 
@@ -584,5 +625,19 @@ test('an entry stored off the grid stays as it is until it is edited', async () 
 
   const edited = await ctx.json('PUT', `${url}/${entry.body.id}`, { description: 'edited' });
   assert.equal(edited.status, 200);
-  assertStored(ctx, edited.body, '2026-10-14T09:05:00+00:00', '2026-10-14T09:20:00+00:00');
+  assertStored(ctx, edited.body, '2026-10-14T09:05:00+00:00', '2026-10-14T09:15:00+00:00');
+});
+
+test('an older entry that rounds to zero keeps its times through edits that leave them alone', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 600 });
+  ctx.db.prepare('UPDATE time_entries SET start = ?, stop = ? WHERE id = ?')
+    .run('2026-10-14T09:00:00.000Z', '2026-10-14T09:00:00.000Z', entry.body.id);
+
+  const renamed = await ctx.json('PUT', `${url}/${entry.body.id}`, { description: 'renamed' });
+  assert.equal(renamed.status, 200);
+  assertStored(ctx, renamed.body, '2026-10-14T09:00:00+00:00', '2026-10-14T09:00:00+00:00');
+  const moved = await ctx.json('PUT', `${url}/${entry.body.id}`, { start: '2026-10-14T09:01:00Z' });
+  assert.equal(moved.status, 400);
 });

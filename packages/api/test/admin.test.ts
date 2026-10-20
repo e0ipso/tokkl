@@ -63,7 +63,7 @@ test('an admin lists every account with only the account fields, ordered by id',
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user', fullname: 'Bob' });
   const seeded = await bob.json('POST', `/api/v9/workspaces/${bob.wid}/time_entries`, {
-    start: new Date().toISOString(), duration: 60, description: 'Bob private work', created_with: 'test',
+    start: new Date().toISOString(), duration: 600, description: 'Bob private work', created_with: 'test',
   });
   assert.equal(seeded.status, 200);
 

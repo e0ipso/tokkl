@@ -88,9 +88,10 @@ test('off-grid manual entries chain from the stored, snapped stop without overla
   const api = await TimerApi.open(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByRole('button', { name: 'Manual mode' }).click();
-  // 0:00 to 0:52 is stored as 0:00 to 0:55, so the next entry starts at 0:55, not at the typed 0:52.
+  // 0:53 is nearer 0:55 than 0:50, so 0:00 to 0:53 is stored as 0:00 to 0:55 and the next entry
+  // starts at 0:55, not at the typed 0:53.
   await addSequence(page, api, { date: '2025-11-12', start: '0:00' }, [
-    { end: '0:52', duration: '0:55:00', next: { date: '2025-11-12', start: '00:55' }, saved: ['2025-11-11T23:00:00Z', '2025-11-11T23:55:00Z'] },
+    { end: '0:53', duration: '0:55:00', next: { date: '2025-11-12', start: '00:55' }, saved: ['2025-11-11T23:00:00Z', '2025-11-11T23:55:00Z'] },
     { end: '1:30', duration: '0:35:00', next: { date: '2025-11-12', start: '01:30' }, saved: ['2025-11-11T23:55:00Z', '2025-11-12T00:30:00Z'] },
   ]);
   await expectChained(page, api, '2025-11-12 0:00', 2);

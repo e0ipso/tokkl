@@ -342,7 +342,13 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       }
       return;
     }
-    if (await stopRunning()) endChain();
+    const stopped = await stopRunning();
+    if (!stopped) return;
+    endChain();
+    // The server keeps no entry that rounds to zero at the time resolution: it went to the trash.
+    if (stopped.server_deleted_at) {
+      toast.show('Too short to keep, so the entry went to the trash', { action: { label: 'Undo', run: () => restore.mutate(stopped.id) } });
+    }
   };
 
   const pause = async () => {

@@ -40,12 +40,15 @@ async function storedChains(page: Page): Promise<string[]> {
   return page.evaluate((prefix) => Object.keys(window.localStorage).filter((key) => key.startsWith(prefix)), CHAIN_PREFIX);
 }
 
-/** A running entry with every field Resume copies, seeded as another device would start it. */
+/**
+ * A running entry with every field Resume copies, seeded as another device would start it ten
+ * minutes ago. A timer paused seconds after it started rounds to zero and goes to the trash.
+ */
 async function seedRunning(page: Page, api: TimerApi): Promise<{ running: EntryView; metadata: Metadata }> {
   const project = await api.createProject('Pause project');
   const task = await api.createTask(project, 'Pause task');
   const metadata: Metadata = { description: 'Paused work', project_id: project, task_id: task, tags: ['focus', 'web'], billable: true };
-  const running = await api.startTimer({ ...metadata, start: new Date(Date.now() - 90_000).toISOString() });
+  const running = await api.startTimer({ ...metadata, start: new Date(Date.now() - 10 * 60_000).toISOString() });
   await page.reload();
   return { running, metadata };
 }
@@ -85,9 +88,13 @@ test('Pause freezes the chain total, Resume clones the entry across cycles, and 
     await expect(ui.pausedLabel).toBeVisible();
     await expect(ui.announcer).toHaveText('Timer paused');
     await expect.poll(() => api.current()).toBeNull();
+    // Each clone is paused seconds after it started, so it rounds to zero and goes to the trash,
+    // and only the seed adds to the total.
     const stopped = await api.entries();
-    expect(stopped).toHaveLength(cycle);
-    for (const entry of stopped) expect(metadataOf(entry)).toEqual(metadataOf(metadata));
+    const trashed = await api.trash();
+    expect(stopped).toHaveLength(1);
+    expect(trashed).toHaveLength(cycle - 1);
+    for (const entry of [...stopped, ...trashed]) expect(metadataOf(entry)).toEqual(metadataOf(metadata));
 
     const total = await storedTotal(api);
     await expect(ui.pausedClock).toHaveText(clockText(total));
@@ -141,7 +148,8 @@ test('Pause freezes the chain total, Resume clones the entry across cycles, and 
   await ui.stop.click();
   await expect(ui.start).toBeVisible();
   await expect.poll(() => api.current()).toBeNull();
-  expect((await api.entries()).find((entry) => entry.id === freshClone.id)?.stop).not.toBeNull();
+  // Stopped seconds after it started, the clone rounds to zero and goes to the trash.
+  expect((await api.trash()).map((entry) => entry.id)).toContain(freshClone.id);
   expect(await storedChains(page)).toEqual([]);
   await expect(ui.resume).toHaveCount(0);
 });
@@ -278,7 +286,8 @@ test('Stop pressed while Resume is starting the clone leaves no timer running', 
   release();
   const clone = await (await created).json() as { id: number };
 
-  await expect.poll(async () => (await api.entries()).find((entry) => entry.id === clone.id)?.stop ?? null).not.toBeNull();
+  // Stopped seconds after it started, the clone rounds to zero and goes to the trash.
+  await expect.poll(async () => (await api.trash()).some((entry) => entry.id === clone.id)).toBe(true);
   expect(await api.current()).toBeNull();
   await expect(ui.start).toBeVisible();
   await expect(ui.resume).toHaveCount(0);

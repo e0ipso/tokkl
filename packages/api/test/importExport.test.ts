@@ -91,7 +91,7 @@ test('CSV export round-trips through the importer and neutralises formulas', asy
 
 test('JSON export contains every entity and never the password hash or token', async () => {
   const ctx = await setup();
-  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 60, tags: ['a'] });
+  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600, tags: ['a'] });
   const res = await ctx.request('GET', '/api/app/export.json');
   const text = await res.text();
   const body = JSON.parse(text);
@@ -109,7 +109,7 @@ test('JSON export restores into a fresh account, including colors, rates, tasks 
   const project = await source.json('POST', `${base}/projects`, { name: 'Site', client_id: client.body.id, color: '#d92b2b', rate: 90, billable: true });
   const task = await source.json('POST', `${base}/projects/${project.body.id}/tasks`, { name: 'Design' });
   await source.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 3600, task_id: task.body.id, tags: ['ux'], description: 'Wireframes' });
-  await source.json('POST', `${base}/time_entries`, { start: '2026-10-02T08:00:00Z', duration: 60, description: 'Gone' }).then((r) =>
+  await source.json('POST', `${base}/time_entries`, { start: '2026-10-02T08:00:00Z', duration: 600, description: 'Gone' }).then((r) =>
     source.request('DELETE', `${base}/time_entries/${r.body.id}`));
   const exported = await (await source.request('GET', '/api/app/export.json')).text();
 

@@ -668,11 +668,12 @@ private Q_SLOTS:
         QCOMPARE(s.timer.chainSeconds(), paused);
         QVERIFY(s.timer.elapsedSeconds() >= paused);
 
-        // The clone stops seconds after it started; the stop keeps one step.
+        // The clone stops seconds after it started, under half a step, so the
+        // server sends it to the trash at zero length and the total holds.
         QVERIFY(s.timer.pause());
         QTRY_VERIFY_WITH_TIMEOUT(s.timer.isPaused() && s.timer.canWrite(), timeoutMs);
         const qint64 total = s.timer.chainSeconds();
-        QCOMPARE(total, paused + resolutionSeconds);
+        QCOMPARE(total, paused);
         QCOMPARE(s.timer.elapsedText(), hoursAndMinutes(total));
 
         const QByteArray auth = tokenAuthorization(p);

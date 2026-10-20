@@ -48,7 +48,8 @@ milliseconds and `expected` always writes three digits.
 
 - `input`: `{ "start", "stop", "minutes", "timeZone" }`. `start` and `stop` are ISO 8601 instants,
   `minutes` is the resolution and `timeZone` is an IANA name that defines the clock grid.
-- `expected`: `{ "start", "stop" }` with the snapped instants, or an error object.
+- `expected`: `{ "start", "stop" }` with the snapped instants, `null` for a span too short to keep
+  (it lasted less than half a step, or both ends snap to the same point), or an error object.
 
 ### `pomodoro.json`
 

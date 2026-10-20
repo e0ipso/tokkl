@@ -150,8 +150,11 @@ test('with stop-at-end on, the end of a work phase rings, pauses the entry and r
   await ui.resume.click();
   await expect(ui.pause).toBeVisible();
   await expectCountdown(ui, 'Work', WORK);
+  // The server saw seconds of the faked work phase, so the paused entry rounded to zero and went
+  // to the trash.
   const entries = await api.entries();
-  expect(entries.map((entry) => entry.description)).toEqual(['Focused work', 'Focused work']);
+  expect(entries.map((entry) => entry.description)).toEqual(['Focused work']);
+  expect((await api.trash()).map((entry) => entry.description)).toEqual(['Focused work']);
   expect(await ui.plays()).toBe(2);
 });
 
@@ -381,9 +384,12 @@ test('phases that end while another page is open ring there, pause the entry, an
   await ui.resume.click();
   await expect(ui.pause).toBeVisible();
   await expectCountdown(ui, 'Work', WORK);
+  // The server saw seconds of the faked work phase, so the paused entry rounded to zero and went
+  // to the trash.
   const entries = await api.entries();
-  expect(entries.map((entry) => entry.description)).toEqual(['Reading reports', 'Reading reports']);
+  expect(entries.map((entry) => entry.description)).toEqual(['Reading reports']);
   expect(entries.filter((entry) => entry.stop === null)).toHaveLength(1);
+  expect((await api.trash()).map((entry) => entry.description)).toEqual(['Reading reports']);
   expect(await ui.plays()).toBe(2);
 });
 

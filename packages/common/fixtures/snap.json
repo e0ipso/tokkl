@@ -13,17 +13,57 @@
     }
   },
   {
-    "name": "zero-length span stays zero",
+    "name": "zero-length span is too short",
     "input": {
       "start": "2026-10-14T09:00:00Z",
       "stop": "2026-10-14T09:00:00Z",
       "minutes": 15,
       "timeZone": "UTC"
     },
+    "expected": null
+  },
+  {
+    "name": "one second is too short",
+    "input": {
+      "start": "2026-10-14T09:00:00Z",
+      "stop": "2026-10-14T09:00:01Z",
+      "minutes": 15,
+      "timeZone": "UTC"
+    },
+    "expected": null
+  },
+  {
+    "name": "under half a step is too short even across a half-step mark",
+    "input": {
+      "start": "2026-10-14T09:02:20Z",
+      "stop": "2026-10-14T09:02:50Z",
+      "minutes": 5,
+      "timeZone": "UTC"
+    },
+    "expected": null
+  },
+  {
+    "name": "exactly half a step is kept and its stop ties up",
+    "input": {
+      "start": "2026-10-14T09:00:00Z",
+      "stop": "2026-10-14T09:02:30Z",
+      "minutes": 5,
+      "timeZone": "UTC"
+    },
     "expected": {
       "start": "2026-10-14T09:00:00.000Z",
-      "stop": "2026-10-14T09:00:00.000Z"
+      "stop": "2026-10-14T09:05:00.000Z"
     }
+  },
+  {
+    "name": "ends that snap to the same point are too short",
+    "input": {
+      "start": "2026-10-14T09:02:31Z",
+      "stop": "2026-10-14T09:07:29Z",
+      "minutes": 5,
+      "timeZone": "UTC"
+    },
+    "expected": null
   },
   {
     "name": "off-grid start moves and keeps a 30 minute duration",
@@ -39,10 +79,10 @@
     }
   },
   {
-    "name": "duration rounds up from one second to 15 minutes",
+    "name": "stop just past a grid point snaps down",
     "input": {
       "start": "2026-10-14T09:00:00Z",
-      "stop": "2026-10-14T09:00:01Z",
+      "stop": "2026-10-14T09:15:01Z",
       "minutes": 15,
       "timeZone": "UTC"
     },
@@ -52,20 +92,7 @@
     }
   },
   {
-    "name": "duration rounds up from 15:01 to 30 minutes",
-    "input": {
-      "start": "2026-10-14T09:00:00Z",
-      "stop": "2026-10-14T09:15:01Z",
-      "minutes": 15,
-      "timeZone": "UTC"
-    },
-    "expected": {
-      "start": "2026-10-14T09:00:00.000Z",
-      "stop": "2026-10-14T09:30:00.000Z"
-    }
-  },
-  {
-    "name": "duration rounds up from 29:59 to 30 minutes",
+    "name": "stop just before a grid point snaps up",
     "input": {
       "start": "2026-10-14T09:00:00Z",
       "stop": "2026-10-14T09:29:59Z",
@@ -78,7 +105,7 @@
     }
   },
   {
-    "name": "duration rounds up from 4:59.999 to 5 minutes",
+    "name": "stop a millisecond before a grid point snaps up",
     "input": {
       "start": "2026-10-14T09:00:00Z",
       "stop": "2026-10-14T09:04:59.999Z",
@@ -107,7 +134,7 @@
     "name": "start just over the midpoint snaps up",
     "input": {
       "start": "2026-10-14T09:07:31Z",
-      "stop": "2026-10-14T09:20:00Z",
+      "stop": "2026-10-14T09:25:00Z",
       "minutes": 15,
       "timeZone": "UTC"
     },
@@ -120,7 +147,7 @@
     "name": "start on the midpoint tie goes up",
     "input": {
       "start": "2026-10-14T09:07:30Z",
-      "stop": "2026-10-14T09:20:00Z",
+      "stop": "2026-10-14T09:25:00Z",
       "minutes": 15,
       "timeZone": "UTC"
     },
@@ -143,7 +170,7 @@
     }
   },
   {
-    "name": "resolution 1 rounds the start up at 30 seconds",
+    "name": "resolution 1 rounds the start up at 30 seconds and the stop down at 10",
     "input": {
       "start": "2026-10-14T09:00:30Z",
       "stop": "2026-10-14T09:10:10Z",
@@ -152,11 +179,11 @@
     },
     "expected": {
       "start": "2026-10-14T09:01:00.000Z",
-      "stop": "2026-10-14T09:11:00.000Z"
+      "stop": "2026-10-14T09:10:00.000Z"
     }
   },
   {
-    "name": "resolution 60 snaps the start down to the hour",
+    "name": "resolution 60 snaps both ends down to the hour",
     "input": {
       "start": "2026-10-14T09:20:00Z",
       "stop": "2026-10-14T10:25:00Z",
@@ -165,14 +192,14 @@
     },
     "expected": {
       "start": "2026-10-14T09:00:00.000Z",
-      "stop": "2026-10-14T11:00:00.000Z"
+      "stop": "2026-10-14T10:00:00.000Z"
     }
   },
   {
-    "name": "resolution 60 snaps the start up to the hour",
+    "name": "resolution 60 snaps both ends up to the hour",
     "input": {
       "start": "2026-10-14T09:31:00Z",
-      "stop": "2026-10-14T09:40:00Z",
+      "stop": "2026-10-14T10:40:00Z",
       "minutes": 60,
       "timeZone": "UTC"
     },
@@ -243,7 +270,7 @@
     },
     "expected": {
       "start": "2026-10-15T00:00:00.000Z",
-      "stop": "2026-10-15T00:30:00.000Z"
+      "stop": "2026-10-15T00:15:00.000Z"
     }
   },
   {
@@ -263,7 +290,7 @@
     "name": "Europe/Madrid spring-forward keeps 60 minutes elapsed",
     "input": {
       "start": "2026-03-29T00:50:00Z",
-      "stop": "2026-03-29T01:40:00Z",
+      "stop": "2026-03-29T01:50:00Z",
       "minutes": 30,
       "timeZone": "Europe/Madrid"
     },
@@ -276,7 +303,7 @@
     "name": "Lord Howe spring-forward: start after the gap lands on local 03:00",
     "input": {
       "start": "2026-10-03T15:20:00Z",
-      "stop": "2026-10-03T15:25:00Z",
+      "stop": "2026-10-03T17:10:00Z",
       "minutes": 60,
       "timeZone": "Australia/Lord_Howe"
     },
@@ -286,23 +313,23 @@
     }
   },
   {
-    "name": "Lord Howe spring-forward: start before the gap lands on local 01:00",
+    "name": "Lord Howe spring-forward: start before the gap lands on local 01:00 and the span keeps 90 minutes",
     "input": {
       "start": "2026-10-03T15:10:00Z",
-      "stop": "2026-10-03T15:25:00Z",
+      "stop": "2026-10-03T16:10:00Z",
       "minutes": 60,
       "timeZone": "Australia/Lord_Howe"
     },
     "expected": {
       "start": "2026-10-03T14:30:00.000Z",
-      "stop": "2026-10-03T15:30:00.000Z"
+      "stop": "2026-10-03T16:00:00.000Z"
     }
   },
   {
     "name": "Lord Howe spring-forward: local 02:30 exists at resolution 30",
     "input": {
       "start": "2026-10-03T15:20:00Z",
-      "stop": "2026-10-03T15:25:00Z",
+      "stop": "2026-10-03T16:05:00Z",
       "minutes": 30,
       "timeZone": "Australia/Lord_Howe"
     },
@@ -315,20 +342,20 @@
     "name": "Lord Howe fall-back: start snaps to local 01:00",
     "input": {
       "start": "2026-04-04T14:40:00Z",
-      "stop": "2026-04-04T14:45:00Z",
+      "stop": "2026-04-04T16:40:00Z",
       "minutes": 60,
       "timeZone": "Australia/Lord_Howe"
     },
     "expected": {
       "start": "2026-04-04T14:00:00.000Z",
-      "stop": "2026-04-04T15:00:00.000Z"
+      "stop": "2026-04-04T16:30:00.000Z"
     }
   },
   {
     "name": "Lord Howe fall-back: start snaps to local 02:00",
     "input": {
       "start": "2026-04-04T15:10:00Z",
-      "stop": "2026-04-04T15:15:00Z",
+      "stop": "2026-04-04T16:40:00Z",
       "minutes": 60,
       "timeZone": "Australia/Lord_Howe"
     },
@@ -341,7 +368,7 @@
     "name": "Lord Howe fall-back: tie between local 01:00 and 02:00 goes to the later",
     "input": {
       "start": "2026-04-04T14:45:00Z",
-      "stop": "2026-04-04T14:50:00Z",
+      "stop": "2026-04-04T16:40:00Z",
       "minutes": 60,
       "timeZone": "Australia/Lord_Howe"
     },
@@ -354,26 +381,26 @@
     "name": "Lord Howe fall-back: second local 01:30 is on the grid at 30",
     "input": {
       "start": "2026-04-04T14:50:00Z",
-      "stop": "2026-04-04T14:55:00Z",
+      "stop": "2026-04-04T15:50:00Z",
       "minutes": 30,
       "timeZone": "Australia/Lord_Howe"
     },
     "expected": {
       "start": "2026-04-04T15:00:00.000Z",
-      "stop": "2026-04-04T15:30:00.000Z"
+      "stop": "2026-04-04T16:00:00.000Z"
     }
   },
   {
     "name": "Lord Howe fall-back: first local 01:30 is on the grid at 30",
     "input": {
       "start": "2026-04-04T14:35:00Z",
-      "stop": "2026-04-04T14:40:00Z",
+      "stop": "2026-04-04T15:20:00Z",
       "minutes": 30,
       "timeZone": "Australia/Lord_Howe"
     },
     "expected": {
       "start": "2026-04-04T14:30:00.000Z",
-      "stop": "2026-04-04T15:00:00.000Z"
+      "stop": "2026-04-04T15:30:00.000Z"
     }
   },
   {

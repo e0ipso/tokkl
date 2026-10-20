@@ -61,6 +61,21 @@ export class TimerApi {
     return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, duration: -1, created_with: 'e2e' } })));
   }
 
+  /**
+   * Moves a running entry's start `minutes` earlier, as if it had run that long. A timer stopped
+   * seconds after it started rounds to zero at the time resolution and goes to the trash, so a
+   * scenario that needs the stopped entry backdates it first.
+   */
+  async backdate(id: number, minutes: number): Promise<EntryView> {
+    const entry = await ok<EntryView>(await this.page.request.get(`/api/v9/me/time_entries/${id}`));
+    const start = new Date(Date.parse(entry.start) - minutes * 60_000).toISOString();
+    return view(await ok(await this.page.request.put(`${this.ws}/time_entries/${id}`, { headers: CSRF, data: { start } })));
+  }
+
+  async trash(): Promise<EntryView[]> {
+    return (await ok<EntryView[]>(await this.page.request.get('/api/app/trash'))).map(view);
+  }
+
   async current(): Promise<EntryView | null> {
     const entry = await ok<EntryView | null>(await this.page.request.get('/api/v9/me/time_entries/current'));
     return entry ? view(entry) : null;

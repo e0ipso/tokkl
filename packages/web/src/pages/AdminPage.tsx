@@ -462,7 +462,7 @@ const SETTING_FIELDS = [
     key: 'time_resolution_minutes',
     unit: 'minutes',
     label: 'Time resolution (minutes)',
-    hint: 'Typed and edited entries round up to this many minutes, and a stopping timer ends on the nearest step. Existing entries change only when they are edited.',
+    hint: 'Starts and stops move to the nearest multiple of this many minutes. A timer that rounds to zero goes to the trash, and a typed entry that rounds to zero is refused. Existing entries change only when they are edited.',
   },
 ] as const satisfies ReadonlyArray<{ key: keyof InstanceSettings; unit: string; label: string; hint: string }>;
 

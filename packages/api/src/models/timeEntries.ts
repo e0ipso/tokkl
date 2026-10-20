@@ -1,9 +1,9 @@
 import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
-import { snapSpan } from '@tokkl/common/snap';
+import { snapInstant, snapSpan, type SnappedSpan } from '@tokkl/common/snap';
 import { parseDateKey } from '@tokkl/common/time';
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
-import { badRequest, conflict, notFound } from '../lib/errors.ts';
+import { badRequest, conflict, type HttpError, notFound } from '../lib/errors.ts';
 import {
   asBool, isoSeconds, optionalBool, optionalId, optionalString, parseInstant, togglTime,
 } from '../lib/values.ts';
@@ -131,9 +131,16 @@ function wholeSeconds(date: Date): Date {
   return new Date(seconds(date) * 1000);
 }
 
-/** Snaps a stopped span to the instance resolution on the clock of the owner's timezone. */
-function snapToResolution(db: Db, user: UserRow, start: Date, stop: Date): { start: Date; stop: Date } {
+/**
+ * Snaps a stopped span to the instance resolution on the clock of the owner's timezone, or returns
+ * null when it is too short to keep (see `snapSpan`).
+ */
+function snapToResolution(db: Db, user: UserRow, start: Date, stop: Date): SnappedSpan | null {
   return snapSpan(wholeSeconds(start), wholeSeconds(stop), getTimeResolutionMinutes(db), user.timezone);
+}
+
+function tooShort(db: Db): HttpError {
+  return badRequest(`Time entry is too short: it rounds to zero at the ${getTimeResolutionMinutes(db)}-minute time resolution`);
 }
 
 function readTagIds(db: Db, wid: number, body: Record<string, unknown>): number[] | undefined {
@@ -209,41 +216,49 @@ function assertWorkspace(body: Record<string, unknown>, wid: number): void {
 
 /**
  * Validates a stopped draft and, unless `exact` is set, snaps its start and stop to the instance
- * resolution. The 999-hour cap applies to the snapped span. A running draft keeps its exact start.
+ * resolution. A span too short to keep is refused, unless the edit left the stored times alone
+ * (`unchanged`): those stay as they are, so an older zero-length entry can still be renamed. The
+ * 999-hour cap applies to the snapped span. A running draft keeps its exact start.
  */
-function settleSpan(db: Db, user: UserRow, draft: Draft, exact: boolean): void {
+function settleSpan(db: Db, user: UserRow, draft: Draft, { exact = false, unchanged = false } = {}): void {
   if (!draft.stop) return;
   if (seconds(draft.stop) < seconds(draft.start)) throw badRequest('Stop time must be after start time');
-  if (!exact) Object.assign(draft, snapToResolution(db, user, draft.start, draft.stop));
+  if (!exact) {
+    const snapped = snapToResolution(db, user, draft.start, draft.stop);
+    if (snapped) Object.assign(draft, snapped);
+    else if (!unchanged) throw tooShort(db);
+  }
   if (seconds(draft.stop) - seconds(draft.start) > MAX_DURATION_SECONDS) {
     throw badRequest('Time entries can not be longer than 999 hours');
   }
 }
 
-/** The grid point nearest `at` on the clock of the owner's timezone, where a start at `at` snaps. */
-function nearestGridPoint(db: Db, user: UserRow, at: Date): number {
-  return snapToResolution(db, user, at, at).start.getTime();
-}
-
 /**
- * Stops a running entry at `at`. Its start moves to the nearest grid point, and its stop goes to
- * the grid point nearest `at`, or to the start if that is earlier. A timer started at `at` snaps
- * its start to that same point, so a switch from one timer to the next is stored back to back. The
- * stored duration is a multiple of the resolution, and it can be up to one step shorter or longer
- * than the real one. A switch within half a step of the start leaves a zero-length entry, unless
- * `oneStep` is set: the stop endpoint sets it, so a stop it makes on the start stores one step.
+ * Stops a running entry at `at` (or at its start, if `at` is earlier) and snaps it like any other
+ * stopped entry. A timer started at `at` later snaps its start to the same grid point, so a switch
+ * from one timer to the next is stored back to back. Returns false when the span is too short to
+ * keep: the entry then goes to the trash with zero length on its snapped start, so a client that
+ * adds up stored durations, such as a pause chain, counts nothing for it, and undoing the delete
+ * brings it back.
  *
  * A timer left running past the 999-hour cap stops at the cap instead of failing. A failed stop
  * would leave it running, and every new timer would fail too, because starting one stops it. 999
  * hours is a multiple of every resolution, so the clamped span stays on the grid.
  */
-function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date, oneStep = false): void {
-  const start = nearestGridPoint(db, user, new Date(entry.start));
-  let stop = Math.max(nearestGridPoint(db, user, at), start);
-  if (oneStep && stop === start) stop += getTimeResolutionMinutes(db) * 60_000;
-  stop = Math.min(stop, start + MAX_DURATION_SECONDS * 1000);
+function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date): boolean {
+  const start = new Date(entry.start);
+  const snapped = snapToResolution(db, user, start, at < start ? start : at);
+  const now = nowIso();
+  if (!snapped) {
+    const point = isoSeconds(snapInstant(wholeSeconds(start), getTimeResolutionMinutes(db), user.timezone));
+    db.prepare('UPDATE time_entries SET start = ?, stop = ?, deleted_at = ?, updated_at = ? WHERE id = ?')
+      .run(point, point, now, now, entry.id);
+    return false;
+  }
+  const stop = Math.min(snapped.stop.getTime(), snapped.start.getTime() + MAX_DURATION_SECONDS * 1000);
   db.prepare('UPDATE time_entries SET start = ?, stop = ?, updated_at = ? WHERE id = ?')
-    .run(isoSeconds(new Date(start)), isoSeconds(new Date(stop)), nowIso(), entry.id);
+    .run(isoSeconds(snapped.start), isoSeconds(new Date(stop)), now, entry.id);
+  return true;
 }
 
 /** Stops whatever is running so a new running entry can take its place. */
@@ -295,7 +310,7 @@ export function createTimeEntry(
       billable: billableInput ?? projectBillable,
       tagIds: readTagIds(db, wid, body) ?? [],
     };
-    settleSpan(db, user, draft, options.exact === true);
+    settleSpan(db, user, draft, { exact: options.exact === true });
     if (!draft.stop) stopRunning(db, user, draft.start);
 
     const now = nowIso();
@@ -350,7 +365,8 @@ export function updateTimeEntry(
       billable,
       tagIds: applyTagAction(currentTagIds(current), readTagIds(db, wid, body), body.tag_action),
     };
-    settleSpan(db, user, draft, false);
+    const unchanged = seconds(start) === seconds(currentStart) && stop?.getTime() === currentStop?.getTime();
+    settleSpan(db, user, draft, { unchanged });
     if (!draft.stop && currentStop) stopRunning(db, user, new Date(), id);
 
     db.prepare(`
@@ -369,8 +385,8 @@ export function stopTimeEntry(db: Db, user: UserRow, wid: number, id: number): T
     const current = getTimeEntry(db, user.id, id);
     if (current.workspace_id !== wid) throw notFound('Time entry not found');
     if (current.stop) throw conflict('Time entry already stopped');
-    stopEntryAt(db, user, current, new Date(), true);
-    return getTimeEntry(db, user.id, id);
+    stopEntryAt(db, user, current, new Date());
+    return getTimeEntry(db, user.id, id, { includeDeleted: true });
   });
 }
 
@@ -388,7 +404,9 @@ export function restoreTimeEntry(db: Db, user: UserRow, id: number): TimeEntryWi
     const current = getTimeEntry(db, user.id, id, { includeDeleted: true });
     memberWorkspace(db, user.id, current.workspace_id);
     if (!current.deleted_at) return current;
-    if (!current.stop && getRunningEntry(db, user.id)) stopEntryAt(db, user, current, new Date());
+    if (!current.stop && getRunningEntry(db, user.id) && !stopEntryAt(db, user, current, new Date())) {
+      return getTimeEntry(db, user.id, id, { includeDeleted: true });
+    }
     db.prepare('UPDATE time_entries SET deleted_at = NULL, updated_at = ? WHERE id = ?').run(nowIso(), id);
     return getTimeEntry(db, user.id, id);
   });

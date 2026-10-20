@@ -197,32 +197,28 @@ export function WeekCalendar() {
       const start = new Date(current.entry.start);
       const dropAt = (from: Date) => snappedInstant(addClockMinutes(from, current.deltaMinutes, settings.timeZone), settings).getTime();
       if (current.kind === 'move') {
-        // The start lands on the dropped slot; the entry keeps its elapsed duration.
+        // The start lands on the dropped slot and the entry keeps the duration the server stores
+        // for it, so an entry imported off the grid moves as the span it would snap to.
         let movedStart = dropAt(start);
         const stop = current.entry.stop ? Date.parse(current.entry.stop) : null;
+        const stored = stop === null ? 0 : snappedSeconds(start, new Date(stop), settings) * 1000;
         if (dayMode && stop !== null) {
           // The clamp kept the clock span on the day, but on a 25-hour day the elapsed duration
-          // can still carry the stop into the next day. The fit uses the duration the server
-          // stores, rounded up to the resolution, so the stored stop stays on the day too.
+          // can still carry the stop into the next day, so the fit keeps the stored stop on the day.
           const dayEnd = startOfDay(addDays(current.day, 1), settings.timeZone).getTime();
-          const stored = snappedSeconds(start, new Date(stop), settings) * 1000;
           movedStart = fitMoveInDay(movedStart, stored, stop, dayEnd);
         }
         await update.mutateAsync({
           id: current.entry.id,
           start: new Date(movedStart).toISOString(),
-          ...(stop !== null ? { stop: new Date(movedStart + stop - start.getTime()).toISOString() } : {}),
+          ...(stop !== null ? { stop: new Date(movedStart + stored).toISOString() } : {}),
         });
       } else if (current.entry.stop) {
-        // The server moves an off-grid start to the grid and rounds the duration up from there, so
-        // sending that start too keeps the stop where it was dropped.
+        // The server moves an off-grid start to its nearest grid point, so the shortest block is
+        // measured from there.
         const gridStart = snappedInstant(start, settings).getTime();
         const stop = Math.max(gridStart + stepMinutes * 60_000, dropAt(new Date(current.entry.stop)));
-        await update.mutateAsync({
-          id: current.entry.id,
-          ...(gridStart !== start.getTime() ? { start: new Date(gridStart).toISOString() } : {}),
-          stop: new Date(stop).toISOString(),
-        });
+        await update.mutateAsync({ id: current.entry.id, stop: new Date(stop).toISOString() });
       }
     } catch (error) {
       toast.error(error);

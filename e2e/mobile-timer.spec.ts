@@ -74,6 +74,8 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await tap(timer.getByRole('button', { name: 'Start timer' }));
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect.poll(async () => (await api.current())?.description).toBe('Phone timer');
+  // A timer stopped seconds after it started goes to the trash, so this one has run a while.
+  await api.backdate((await api.current())!.id, 10);
   await tap(timer.getByRole('button', { name: 'Stop timer' }));
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
   const started = (await api.entries()).find((entry) => entry.description === 'Phone timer');
