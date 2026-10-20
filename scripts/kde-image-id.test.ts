@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const TRACKED = execFileSync('git', ['ls-files', 'desktop/kde'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
-const DOCKERFILE = { deb: 'ci/Dockerfile', rpm: 'ci/fedora.Dockerfile' } as const;
+const DOCKERFILE = { deb: 'ci/Dockerfile', 'ubuntu-deb': 'ci/ubuntu.Dockerfile', rpm: 'ci/fedora.Dockerfile' } as const;
 
 /** The sources of the Dockerfile's COPY instructions, relative to desktop/kde. */
 function copied(format: keyof typeof DOCKERFILE): string[] {
@@ -23,7 +23,7 @@ function copied(format: keyof typeof DOCKERFILE): string[] {
 function tree(t: { after: (fn: () => void) => void }) {
   const root = mkdtempSync(join(tmpdir(), 'tokkl-kde-image-id-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const file of TRACKED) {
+  for (const file of new Set([...TRACKED, ...Object.values(DOCKERFILE).map((name) => `desktop/kde/${name}`)])) {
     const target = join(root, file);
     mkdirSync(dirname(target), { recursive: true });
     copyFileSync(join(ROOT, file), target);
@@ -43,13 +43,14 @@ function tree(t: { after: (fn: () => void) => void }) {
   return { kde, id, touch };
 }
 
-for (const format of ['deb', 'rpm'] as const) {
+for (const format of ['deb', 'ubuntu-deb', 'rpm'] as const) {
   test(`${format}: the identity is stable when nothing that goes into the images changes`, (t) => {
     const box = tree(t);
     const before = box.id(format, '2026-W42');
     assert.equal(box.id(format, '2026-W42'), before);
     // Sources the images do not copy, and the other format's Dockerfile.
-    for (const file of ['CMakeLists.txt', 'scripts/container-check.sh', 'ci/image-id.sh', DOCKERFILE[format === 'deb' ? 'rpm' : 'deb']]) {
+    for (const file of ['CMakeLists.txt', 'scripts/container-check.sh', 'ci/image-id.sh',
+      ...Object.entries(DOCKERFILE).filter(([name]) => name !== format).map(([, name]) => name)]) {
       box.touch(file);
       assert.equal(box.id(format, '2026-W42'), before, file);
     }

@@ -231,23 +231,26 @@ function recordSandbox(t: { after: (fn: () => void) => void }) {
 
 const sha256Of = (content: string) => createHash('sha256').update(content).digest('hex');
 
-test('kde-release records the DEB with a manifest of its format, version, revision and SHA-256', (t) => {
-  const { revision, output, release, run } = recordSandbox(t);
-  const name = 'tokkl-kde_1.2.3_amd64.deb';
-  writeFileSync(join(output, name), 'deb bytes');
-  writeFileSync(join(output, 'tokkl-kde_1.2.2_amd64.deb'), 'older deb');
-  const result = run({ FORMAT: 'deb', VERSION: '1.2.3' });
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(readdirSync(release).sort(), ['kde-deb.json', name]);
-  assert.equal(readFileSync(join(release, name), 'utf8'), 'deb bytes');
-  assert.deepEqual(JSON.parse(readFileSync(join(release, 'kde-deb.json'), 'utf8')), {
-    format: 'deb',
-    version: '1.2.3',
-    revision,
-    package: name,
-    sha256: sha256Of('deb bytes'),
+for (const format of ['deb', 'ubuntu-deb'] as const) {
+  test(`kde-release records ${format} separately with a manifest`, (t) => {
+    const { revision, output, release, run } = recordSandbox(t);
+    const name = `tokkl-kde_1.2.3_amd64${format === 'ubuntu-deb' ? '-ubuntu26.04' : ''}.deb`;
+    writeFileSync(join(output, name), 'deb bytes');
+    writeFileSync(join(output, 'tokkl-kde_1.2.2_amd64.deb'), 'older deb');
+    writeFileSync(join(output, `tokkl-kde_1.2.3_amd64${format === 'deb' ? '-ubuntu26.04' : ''}.deb`), 'other target');
+    const result = run({ FORMAT: format, VERSION: '1.2.3' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(readdirSync(release).sort(), [`kde-${format}.json`, name]);
+    assert.equal(readFileSync(join(release, name), 'utf8'), 'deb bytes');
+    assert.deepEqual(JSON.parse(readFileSync(join(release, `kde-${format}.json`), 'utf8')), {
+      format,
+      version: '1.2.3',
+      revision,
+      package: name,
+      sha256: sha256Of('deb bytes'),
+    });
   });
-});
+}
 
 test('kde-release records the RPM of a prerelease under its native version', (t) => {
   const { revision, output, release, run } = recordSandbox(t);
@@ -276,6 +279,7 @@ test('kde-release records nothing when the checkout is not the revision being re
 
 for (const [format, files] of [
   ['deb', ['tokkl-kde_1.2.2_amd64.deb']],
+  ['ubuntu-deb', ['tokkl-kde_1.2.3_amd64.deb']],
   ['rpm', ['tokkl-kde-1.2.2-1.fc44.x86_64.rpm']],
   ['rpm', ['tokkl-kde-1.2.3-1.fc43.x86_64.rpm', 'tokkl-kde-1.2.3-1.fc44.x86_64.rpm']],
 ] as const) {

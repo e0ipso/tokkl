@@ -3,11 +3,11 @@
 # the host's packages are never touched. CI and the release run it.
 #
 #   container-check.sh --version <version> --output <dir>
-#                      [--format deb|rpm|all]
+#                      [--format deb|ubuntu-deb|rpm|all]
 #                      [--previous-version <version> | --previous-package <file>]
 #
-# For each format it builds the images of ci/Dockerfile (deb) or
-# ci/fedora.Dockerfile (rpm), tagged <image>:<format>-target, -build and
+# For each target it builds ci/Dockerfile (deb), ci/ubuntu.Dockerfile
+# (ubuntu-deb) or ci/fedora.Dockerfile (rpm), tagged <image>:<format>-target, -build and
 # -test, then runs three containers, all removed afterwards:
 #   1. test: configure and build the project, with desktop/core, for the
 #      version, run CTest under Xvfb and a DBus session, and copy the smokeload and
@@ -23,8 +23,8 @@
 # source for --previous-version, default 0.0.0, which tests the upgrade
 # itself, not changes between real releases. --previous-package takes an
 # older tokkl-kde DEB or RPM instead, such as a published release (the
-# release gets one with ci/previous-package.sh); it needs --format deb or
-# rpm, is copied to <dir>/previous/, and check-package.sh refuses it before
+# release gets one with ci/previous-package.sh); it needs a single --format,
+# is copied to <dir>/previous/, and check-package.sh refuses it before
 # installing anything unless it is tokkl-kde for the target and older.
 #
 # TOKKL_KDE_CI_IMAGE names the images (default tokkl-kde-ci). They stay
@@ -44,14 +44,14 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --version <version> --output <dir> [--format deb|rpm|all]" \
+    echo "usage: $0 --version <version> --output <dir> [--format deb|ubuntu-deb|rpm|all]" \
         "[--previous-version <version> | --previous-package <file>]" >&2
     exit 2
 }
 
 version=""
 output=""
-formats="deb rpm"
+formats="deb ubuntu-deb rpm"
 previous_version="0.0.0"
 previous_package=""
 previous_given=""
@@ -61,8 +61,8 @@ while [ $# -gt 0 ]; do
         --output) output="${2-}"; shift 2 || usage ;;
         --format)
             case "${2-}" in
-                deb|rpm) formats="$2" ;;
-                all) formats="deb rpm" ;;
+                deb|ubuntu-deb|rpm) formats="$2" ;;
+                all) formats="deb ubuntu-deb rpm" ;;
                 *) usage ;;
             esac
             shift 2 ;;
@@ -74,10 +74,12 @@ done
 [ -n "$version" ] && [ -n "$output" ] || usage
 if [ -n "$previous_package" ]; then
     [ -z "$previous_given" ] || { echo "error: give --previous-version or --previous-package, not both" >&2; exit 2; }
-    case "$formats" in deb|rpm) ;; *) echo "error: --previous-package needs --format deb or rpm" >&2; exit 2 ;; esac
+    case "$formats" in deb|ubuntu-deb|rpm) ;; *) echo "error: --previous-package needs one format" >&2; exit 2 ;; esac
+    extension="$formats"
+    [ "$formats" != ubuntu-deb ] || extension=deb
     case "$previous_package" in
-        *."$formats") ;;
-        *) echo "error: --previous-package $previous_package is not a .$formats" >&2; exit 2 ;;
+        *."$extension") ;;
+        *) echo "error: --previous-package $previous_package is not a .$extension" >&2; exit 2 ;;
     esac
     [ -f "$previous_package" ] || { echo "error: --previous-package $previous_package is not a file" >&2; exit 2; }
     # The name goes into the check container's command line.
@@ -116,13 +118,20 @@ build_env=()
 [ -z "${SOURCE_DATE_EPOCH:-}" ] || build_env=(-e "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH")
 
 for format in $formats; do
-    if [ "$format" = deb ]; then
+    if [ "$format" != rpm ]; then
+        package_format=deb
+        suffix=""
         dockerfile="$source_dir/ci/Dockerfile"
-        new="/out/tokkl-kde_${native_version}_amd64.deb"
-        old="/out/previous/${previous_name:-tokkl-kde_${native_previous}_amd64.deb}"
+        if [ "$format" = ubuntu-deb ]; then
+            dockerfile="$source_dir/ci/ubuntu.Dockerfile"
+            suffix=-ubuntu26.04
+        fi
+        new="/out/tokkl-kde_${native_version}_amd64${suffix}.deb"
+        old="/out/previous/${previous_name:-tokkl-kde_${native_previous}_amd64${suffix}.deb}"
         # Found by ldd for the loader; these are what it runs under.
         session_packages="dbus-daemon xauth xvfb"
     else
+        package_format=rpm
         dockerfile="$source_dir/ci/fedora.Dockerfile"
         new="/out/tokkl-kde-${native_version}-1.*.x86_64.rpm"
         old="/out/previous/${previous_name:-tokkl-kde-${native_previous}-1.*.x86_64.rpm}"
@@ -175,7 +184,7 @@ for format in $formats; do
             # The packages that ship the libraries the loader links, plus Xvfb
             # and DBus, for the load check on a clean target.
             for lib in $(ldd /tests/smokeload | awk '"'"'$3 ~ /^\// {print $3}'"'"'); do
-                if [ "$2" = deb ]; then
+                if [ "$2" != rpm ]; then
                     dpkg -S "$(realpath "$lib")" 2>/dev/null || dpkg -S "$lib"
                 else
                     rpm -qf --qf "%{NAME}\n" "$(realpath "$lib")"
@@ -208,8 +217,8 @@ for format in $formats; do
     "$engine" run --rm \
         -v "$desktop_dir:/desktop:ro" -v "$output:/out:ro" \
         "$image:$format-target" bash -euc '
-            /desktop/kde/scripts/prepare-target.sh --format "$2" --refresh
+            /desktop/kde/scripts/prepare-target.sh --format "$3" --refresh
             /desktop/kde/scripts/check-package.sh --version "$1" --package '"$new"' --previous '"$old"' \
                 --load-test "/out/tests/$2"
-        ' bash "$version" "$format"
+        ' bash "$version" "$format" "$package_format"
 done

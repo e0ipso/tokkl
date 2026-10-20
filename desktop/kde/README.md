@@ -36,23 +36,23 @@ Contents: [Install, upgrade and remove](#install-upgrade-and-remove),
 
 ## Install, upgrade and remove
 
-The companion is for two systems, each with one package:
+The companion has a separate package for each supported system:
 
 | System                      | Architecture | Package                                 |
 | --------------------------- | ------------ | --------------------------------------- |
 | Debian 13                   | amd64        | `tokkl-kde_<version>_amd64.deb`         |
+| Kubuntu 26.04               | amd64        | `tokkl-kde_<version>_amd64-ubuntu26.04.deb` |
 | Fedora KDE 44, with updates | x86_64       | `tokkl-kde-<version>-1.fc44.x86_64.rpm` |
 
-Both need Plasma 6.3 or newer, KDE Frameworks 6.13 and Qt 6.8; the exact
+The source needs Plasma 6.3 or newer, KDE Frameworks 6.13 and Qt 6.8; the exact
 bounds are under [Requirements](#requirements) and [Packages](#packages).
-Other distributions, releases and architectures are not supported. The manual
+Other distributions receive no dedicated CI target. Compatibility depends on
+their installed libraries, as described under [Packages](#packages). The manual
 checks cover a Plasma Wayland session; X11 sessions are not checked.
 
 A Tokkl release at <https://github.com/e0ipso/tokkl/releases> that includes
-the companion has both files attached. v1.1.0 and v1.2.0 have them, but their
-DEB was built for TUXEDO OS 24.04 (checked 2026-10-17); the first DEB built
-for Debian 13 comes with the next release. Until then, build it as
-[Build and check](#build-and-check) describes.
+the companion has its packages attached. To build them yourself, follow
+[Build and check](#build-and-check).
 
 In the directory with the downloaded file:
 
@@ -60,6 +60,9 @@ In the directory with the downloaded file:
 # Debian 13
 sudo apt install ./tokkl-kde_<version>_amd64.deb      # install or upgrade
 sudo apt remove tokkl-kde                             # remove
+
+# Kubuntu 26.04
+sudo apt install ./tokkl-kde_<version>_amd64-ubuntu26.04.deb
 
 # Fedora KDE 44
 sudo dnf install ./tokkl-kde-<version>-1.fc44.x86_64.rpm   # install
@@ -117,7 +120,7 @@ qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6config-dev
 libkf6i18n-dev qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and
 for the tests `libkirigami-dev`, `qml6-module-qttest`,
 `plasma-desktoptheme` (Plasma's QML components) and `dbus-daemon`.
-The CI images in `ci/` hold the complete lists for both targets (see
+The CI images in `ci/` hold the complete lists for all targets (see
 [CI and releases](#ci-and-releases)).
 
 ## Configure, build and test
@@ -489,21 +492,31 @@ path follows the distribution's Qt layout.
 
 ## Packages
 
-Two native packages, both named `tokkl-kde`, ship the widget, the compiled
+Three native packages, all named `tokkl-kde`, ship the widget, the compiled
 backend and the widget picker icons at the paths above:
 
 | Package | Target                     | Architecture | Built against                                       |
 | ------- | -------------------------- | ------------ | --------------------------------------------------- |
 | `.deb`  | Debian 13                  | amd64        | Qt 6.8.2, KDE Frameworks 6.13.0, Plasma 6.3.5       |
+| `.deb`  | Kubuntu 26.04              | amd64        | Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.6     |
 | `.rpm`  | Fedora KDE 44 with updates | x86_64       | Qt 6.11.2, KDE Frameworks 6.31.0, Plasma 6.7.5      |
 
 The Fedora column is what the Fedora 44 repositories held on 2026-10-16; a
 later build uses whatever its updates hold then. The RPM depends on the Qt it
 was built with, so it needs an updated Fedora 44, not the release media alone.
-These are the only tested targets. Other Debian releases, Debian
-derivatives such as Ubuntu, other Fedora releases, other RPM distributions
-and other architectures are not supported. Stock Ubuntu 24.04 has no KDE
-Frameworks 6 or Plasma 6, so the `.deb` does not install there.
+CI tests these three targets. Debian uses `libPlasma.so.6`; Ubuntu 26.04
+uses `libPlasma.so.7`, so their DEBs are separate builds. Stock Ubuntu 24.04
+has no KDE Frameworks 6 or Plasma 6. Derivatives need compatible versions of
+every declared library and QML dependency; sharing a Debian package format
+does not establish compatibility.
+
+The Ubuntu 26.04 build was also checked on TUXEDO OS 24.04.4 with Qt
+6.10.2, KDE Frameworks 6.24.0 and Plasma 6.6.6: APT's simulated install
+needed only `tokkl-kde`, all backend library symbols resolved, and the
+extracted widget and backend passed all ten smoke checks in the host's Qt
+runtime with a virtual X display. Use the Ubuntu DEB for that stack.
+TUXEDO has no separate CI target; a different or older stack
+needs its own compatibility check.
 
 The package version is the shared Tokkl version from the root `package.json`;
 there is no separate companion version. The widget metadata carries it
@@ -527,13 +540,13 @@ Dependencies:
   working wallet the widget shows a KDE Wallet error and keeps no secret
   anywhere else.
 
-Neither package has maintainer scripts or files outside `/usr`. Removing or
+None of the packages has maintainer scripts or files outside `/usr`. Removing or
 purging one leaves each user's widget settings (in the Plasma applet
 configuration) and the KDE Wallet entries untouched.
 
 ### Build and check
 
-`scripts/container-check.sh` tests, builds and checks both packages in
+`scripts/container-check.sh` tests, builds and checks all three packages in
 throwaway containers, so nothing is installed on the host. It needs Docker,
 or another engine set in `CONTAINER_ENGINE`. Run it from the repository root
 with the version from `package.json`:
@@ -543,13 +556,13 @@ version="$(node -p 'require("./package.json").version')"
 desktop/kde/scripts/container-check.sh --version "$version" --output "$(mktemp -d)"
 ```
 
-For each format it builds the three stages of `ci/Dockerfile` (Debian 13) or
-`ci/fedora.Dockerfile` (Fedora) as `tokkl-kde-ci:<format>-target`, `-build`
+For each target it builds the three stages of `ci/Dockerfile` (Debian 13),
+`ci/ubuntu.Dockerfile` (Kubuntu 26.04) or `ci/fedora.Dockerfile` (Fedora) as `tokkl-kde-ci:<format>-target`, `-build`
 and `-test` (`TOKKL_KDE_CI_IMAGE` changes the name). The containers see
 `desktop/` read-only at `/desktop`, so the build finds `desktop/core`.
 
 The images are labelled with the identity that `ci/image-id.sh --format
-deb|rpm` prints: a SHA-256 over the Dockerfile (which pins the base image by
+deb|ubuntu-deb|rpm` prints: a SHA-256 over the Dockerfile (which pins the base image by
 digest), each file it copies (`scripts/prepare-target.sh`, `debian/control`
 or the RPM spec, `ci/baseline.sh`) and `TOKKL_KDE_CI_REFRESH`. Images that
 carry the current identity are reused without a build, and the log says
@@ -573,7 +586,7 @@ again before the checks, since its image may be days old. Then:
 3. In a fresh target container, runs `scripts/check-package.sh` with the
    load check.
 
-`ci/previous-package.sh --format deb|rpm --version <version> --output
+`ci/previous-package.sh --format deb|ubuntu-deb|rpm --version <version> --output
 <dir>` fetches such a file with `gh`: from the newest published release
 older than `<version>` (by the package version order) that has exactly one
 asset for the format with the name pattern above, the label
@@ -592,9 +605,10 @@ target's `%{dist}`, such as `.fc44`) and older than the new package. A run
 on your own machine builds the 0.0.0 package unless you pass
 `--previous-package`.
 
-The output directory gets `tokkl-kde_<version>_amd64.deb` and
+The output directory gets `tokkl-kde_<version>_amd64.deb`,
+`tokkl-kde_<version>_amd64-ubuntu26.04.deb` and
 `tokkl-kde-<version>-1.fc44.x86_64.rpm`, plus `previous/` and `tests/`.
-`--format deb` or `--format rpm` does one target. The images stay for
+`--format deb`, `--format ubuntu-deb` or `--format rpm` does one target. The images stay for
 `ci/realserver.sh`; remove them with `docker image rm`.
 
 The scripts it runs work on their own, for a prepared machine:
@@ -606,7 +620,7 @@ The scripts it runs work on their own, for a prepared machine:
   `--refresh` fetches the package lists or the Fedora repository metadata
   again.
   Run it as root, only in a container.
-- `scripts/package-release.sh --version <version> --format deb|rpm --output
+- `scripts/package-release.sh --version <version> --format deb|ubuntu-deb|rpm --output
   <dir>`: builds one package with `dpkg-buildpackage` or `rpmbuild` from a
   copy of the source with `desktop/core` in `core/`, without the tests, and
   prints its path. The version is
@@ -630,15 +644,17 @@ The scripts it runs work on their own, for a prepared machine:
 ## CI and releases
 
 The `kde` job in `.github/workflows/ci.yml` runs once per target, Debian 13
-(DEB) and Fedora KDE 44 (RPM), on every pull request and push to main:
+(DEB), Kubuntu 26.04 (Ubuntu DEB) and Fedora KDE 44 (RPM), on every pull request
+and push to main:
 `scripts/container-check.sh` for the version in `package.json`, then
 `ci/realserver.sh`. The `core` job runs `desktop/core/ci/check.sh`, and the
 `gnome` job runs `desktop/gnome/ci/check.sh` and builds and checks the GNOME
 release files (see `desktop/gnome/README.md`). The release job needs the
-`test` job (the server and web checks), both `kde` targets and the `core`,
+`test` job (the server and web checks), all three `kde` targets and the `core`,
 `gnome`, `gnome-extension` and `macos` jobs to pass.
 
-The images are recorded in `ci/Dockerfile` and `ci/fedora.Dockerfile`: base
+The images are recorded in `ci/Dockerfile`, `ci/ubuntu.Dockerfile` and
+`ci/fedora.Dockerfile`: base
 images pinned by digest and the build and test packages. The distribution archives have no snapshots, so a build gets the
 Qt, KDE Frameworks and Plasma packages they hold that day.
 
@@ -657,7 +673,8 @@ request, and the release reads entries saved on main and never saves any, so
 pull request code cannot change the images a release uses. `ci/baseline.sh`
 prints those versions in every build and fails it when they are older than
 the supported baseline (Debian 13: Qt 6.8.2, KDE Frameworks 6.13.0, Plasma
-6.3.5; Fedora: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.0). On 2026-10-17
+6.3.5; Ubuntu: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.4; Fedora:
+Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.0). On 2026-10-17
 the Debian image had Qt 6.8.2, KDE Frameworks 6.13.0 and libplasma 6.3.5; on
 2026-10-16 the Fedora image had Qt 6.11.2, KDE Frameworks 6.31.0 and
 libplasma 6.7.5. To move a base image, update
@@ -678,19 +695,19 @@ passed:
    read-only. Each leg uploads the package and a manifest,
    `kde-<format>.json`, with the format, version, commit, file name and
    SHA-256, as the artifact `kde-release-<format>`. A re-run replaces it.
-3. `release` starts only when both legs passed. It downloads both artifacts
+3. `release` starts only when all three legs passed. It downloads all artifacts
    into `dist/kde` and runs semantic-release, with the local plugin
    `ci/semantic-release.js` listed in `.releaserc.json` after
    `@semantic-release/npm` and before `@semantic-release/git`:
    - `verifyRelease` refuses a next version that `scripts/native-version.sh`
      cannot map and, in the release job, one other than the version the
      packages were built for (`TOKKL_KDE_RELEASE_VERSION`).
-   - `prepare` fails unless `dist/kde` holds exactly one DEB and one RPM of
-     that version and their two manifests, and each manifest names that
+   - `prepare` fails unless `dist/kde` holds exactly the Debian DEB, Ubuntu
+     DEB and RPM of that version and their three manifests, and each manifest names that
      version, the commit being released and the package's SHA-256. A failure
      stops the release before the tag is pushed.
-   - `@semantic-release/github` attaches `dist/kde/tokkl-kde_*_amd64.deb` and
-     `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it
+   - `@semantic-release/github` attaches `dist/kde/tokkl-kde_*_amd64.deb`,
+     `dist/kde/tokkl-kde_*_amd64-ubuntu26.04.deb` and `dist/kde/tokkl-kde-*.x86_64.rpm` to the `v<version>` release it
      creates.
 
 A failed leg skips the `release` job, so nothing is tagged or published.
@@ -705,7 +722,7 @@ repository.
 
 Tokkl has one version, the `version` in the root `package.json`. One push to
 main that semantic-release turns into a release produces, under that
-version, the `v<version>` tag, the GitHub release with the DEB and RPM
+version, the `v<version>` tag, the GitHub release with the Debian and Ubuntu DEBs and the RPM
 attached, and the `ghcr.io/e0ipso/tokkl` Docker image (tagged `<version>`,
 `<major>.<minor>`, `<major>` and `latest`). Later jobs attach the macOS
 companion's DMG to the same release (see `desktop/macos/README.md`). A push
@@ -767,7 +784,7 @@ runs `<build>/tests/realservertest` and run
 - The packages are installed and loaded in containers, not on Debian or
   Fedora KDE desktop installations.
 
-Check those by hand on both targets before a release that changes the
+Check those by hand on each target before a release that changes the
 widget, its packaging or the wallet code, with the checklist below. CI covers
 everything else in the [CTest list](#configure-build-and-test), the package
 checks and the [real-server test](#real-server-test).
@@ -775,7 +792,7 @@ checks and the [real-server test](#real-server-test).
 ## Real Plasma smoke checklist
 
 Run this on a Plasma Wayland session of each target (Debian 13 with the
-DEB, Fedora KDE 44 with the RPM), with the release's packages and a Tokkl
+DEB, Kubuntu 26.04 with the Ubuntu DEB, Fedora KDE 44 with the RPM), with the release's packages and a Tokkl
 instance you can break on purpose. Nothing here is automated, and no run has
 been recorded yet.
 

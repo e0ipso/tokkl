@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.27...3.31)
 
 # Minimum versions. They match the oldest supported target stack:
 #   Debian 13:     Qt 6.8.2, KDE Frameworks 6.13.0, Plasma 6.3.5
+#   Kubuntu 26.04: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.4 at release
 #   Fedora KDE 44: Qt 6.10.2, KDE Frameworks 6.25.0, Plasma 6.6.4 (libplasma) at release
 # Older Plasma 6 releases are not supported.
 set(TOKKL_QT_MIN_VERSION "6.8.0")

@@ -2,12 +2,13 @@
 # Downloads the published tokkl-kde package that the release's upgrade check
 # starts from, for scripts/container-check.sh --previous-package.
 #
-#   previous-package.sh --format deb|rpm --version <version> --output <dir>
+#   previous-package.sh --format deb|ubuntu-deb|rpm --version <version> --output <dir>
 #
 # It picks the newest published GitHub release (no drafts or pre-releases)
 # whose version is older than <version> by the package version order
 # (scripts/native-version.sh, compared with dpkg) and that has exactly one
-# asset for the format: named tokkl-kde_<v>_amd64.deb or
+# asset for the target: named tokkl-kde_<v>_amd64.deb,
+# tokkl-kde_<v>_amd64-ubuntu26.04.deb or
 # tokkl-kde-<v>-1.<dist>.x86_64.rpm, with the label .releaserc.json gives
 # that format today (which names the target, such as Debian 13) and a
 # SHA-256 digest. Releases without such an asset, for example ones built
@@ -27,7 +28,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --format deb|rpm --version <version> --output <dir>" >&2
+    echo "usage: $0 --format deb|ubuntu-deb|rpm --version <version> --output <dir>" >&2
     exit 2
 }
 
@@ -42,7 +43,7 @@ while [ $# -gt 0 ]; do
         *) usage ;;
     esac
 done
-case "$format" in deb|rpm) ;; *) usage ;; esac
+case "$format" in deb|ubuntu-deb|rpm) ;; *) usage ;; esac
 [ -n "$version" ] && [ -n "$output" ] || usage
 
 kde_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -57,9 +58,14 @@ for tool in gh jq dpkg sha256sum; do
     command -v "$tool" > /dev/null || fallback "$tool is not installed"
 done
 
-label="$(jq -r --arg ext ".$format" '
+case "$format" in
+    deb) asset_path='dist/kde/tokkl-kde_*_amd64.deb' ;;
+    ubuntu-deb) asset_path='dist/kde/tokkl-kde_*_amd64-ubuntu26.04.deb' ;;
+    rpm) asset_path='dist/kde/tokkl-kde-*.x86_64.rpm' ;;
+esac
+label="$(jq -r --arg path "$asset_path" '
     .plugins[] | select(type == "array" and .[0] == "@semantic-release/github")
-    | .[1].assets[] | select(.path | endswith($ext)) | .label' "$kde_dir/../../.releaserc.json")"
+    | .[1].assets[] | select(.path == $path) | .label' "$kde_dir/../../.releaserc.json")"
 if [ -z "$label" ] || [ "$(wc -l <<<"$label")" != 1 ]; then
     echo "error: .releaserc.json does not give one label for the .$format asset" >&2
     exit 1
@@ -91,6 +97,7 @@ asset_of() { # <native version> <tag>
         [.assets[]
          | select(.label == $label and .state == "uploaded" and ((.digest // "") | startswith("sha256:")))
          | select(if $format == "deb" then .name == "tokkl-kde_\($native)_amd64.deb"
+                  elif $format == "ubuntu-deb" then .name == "tokkl-kde_\($native)_amd64-ubuntu26.04.deb"
                   else (.name | startswith("tokkl-kde-\($native)-1.")) and (.name | endswith(".x86_64.rpm"))
                        and (.name | ltrimstr("tokkl-kde-\($native)-1.") | rtrimstr(".x86_64.rpm") | test("^[A-Za-z0-9_]+$"))
                   end)]

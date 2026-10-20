@@ -6,7 +6,7 @@
 #
 # Run it as root on a disposable target system (a container) that has the
 # distribution's repositories, so the package manager can install the runtime
-# dependencies: Debian 13 for a .deb, Fedora 44 for a .rpm. It changes
+# dependencies: Debian 13 or Ubuntu 26.04 for its .deb, Fedora 44 for a .rpm. It changes
 # the system's packages, so never run it on a real desktop.
 #
 # Steps:
@@ -80,6 +80,10 @@ case "$package" in
             plasma-desktoptheme qml6-module-org-kde-kcmutils qml6-module-org-kde-kirigami
             qml6-module-qtqml qml6-module-qtquick qml6-module-qtquick-controls
             qml6-module-qtquick-layouts qml6-module-qtquick-templates"
+        case "$package" in
+            *-ubuntu26.04.deb) expected_deps="$expected_deps libplasma7" ;;
+            *) expected_deps="$expected_deps libplasma6" ;;
+        esac
         ;;
     *.rpm)
         format=rpm
