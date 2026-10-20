@@ -1,0 +1,1022 @@
+[
+  {
+    "name": "session starts with a work phase and no ended work phases",
+    "input": {
+      "function": "startSession",
+      "at": "2026-10-20T09:00:00Z"
+    },
+    "expected": {
+      "kind": "work",
+      "startedAt": "2026-10-20T09:00:00.000Z",
+      "completed": 0
+    }
+  },
+  {
+    "name": "session start rejects an invalid instant",
+    "input": {
+      "function": "startSession",
+      "at": "not a date"
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "work phase ends after the default 25 minutes",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "expected": "2026-10-20T09:25:00.000Z"
+  },
+  {
+    "name": "short rest ends after the default 5 minutes",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:25:00Z",
+        "completed": 1
+      }
+    },
+    "expected": "2026-10-20T09:30:00.000Z"
+  },
+  {
+    "name": "long rest ends after the default 15 minutes",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T10:55:00Z",
+        "completed": 4
+      }
+    },
+    "expected": "2026-10-20T11:10:00.000Z"
+  },
+  {
+    "name": "planned end follows the configured lengths",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "workMinutes": 50,
+      "shortRestMinutes": 10,
+      "longRestMinutes": 30,
+      "longRestEvery": 3
+    },
+    "expected": "2026-10-20T09:50:00.000Z"
+  },
+  {
+    "name": "work phase accepts the longest length of 180 minutes",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "workMinutes": 180
+    },
+    "expected": "2026-10-20T12:00:00.000Z"
+  },
+  {
+    "name": "rests accept the longest length of 60 minutes",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 4
+      }
+    },
+    "options": {
+      "shortRestMinutes": 60,
+      "longRestMinutes": 60
+    },
+    "expected": "2026-10-20T10:00:00.000Z"
+  },
+  {
+    "name": "no overtime before the planned end",
+    "input": {
+      "function": "overtimeSeconds",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:10:00Z"
+    },
+    "expected": 0
+  },
+  {
+    "name": "no overtime exactly at the planned end",
+    "input": {
+      "function": "overtimeSeconds",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:25:00Z"
+    },
+    "expected": 0
+  },
+  {
+    "name": "overtime is the time past the planned end",
+    "input": {
+      "function": "overtimeSeconds",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:26:30Z"
+    },
+    "expected": 90
+  },
+  {
+    "name": "rest runs overtime past its planned end too",
+    "input": {
+      "function": "overtimeSeconds",
+      "phase": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:25:00Z",
+        "completed": 1
+      },
+      "at": "2026-10-20T09:42:00Z"
+    },
+    "expected": 720
+  },
+  {
+    "name": "overtime keeps the milliseconds of the instant",
+    "input": {
+      "function": "overtimeSeconds",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:25:00.250Z"
+    },
+    "expected": 0.25
+  },
+  {
+    "name": "no overtime at an instant before the phase start",
+    "input": {
+      "function": "overtimeSeconds",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T08:00:00Z"
+    },
+    "expected": 0
+  },
+  {
+    "name": "first work phase is followed by a short rest",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "expected": "workToShortRest"
+  },
+  {
+    "name": "short rest is followed by work",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:25:00Z",
+        "completed": 1
+      }
+    },
+    "expected": "shortRestToWork"
+  },
+  {
+    "name": "work phase that brings the count up to four is followed by a long rest",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T10:30:00Z",
+        "completed": 3
+      }
+    },
+    "expected": "workToLongRest"
+  },
+  {
+    "name": "long rest is followed by work",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T10:55:00Z",
+        "completed": 4
+      }
+    },
+    "expected": "longRestToWork"
+  },
+  {
+    "name": "every work phase is followed by a long rest when longRestEvery is 1",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "longRestEvery": 1
+    },
+    "expected": "workToLongRest"
+  },
+  {
+    "name": "work phase past the count after longRestEvery was lowered is followed by a long rest",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 5
+      }
+    },
+    "expected": "workToLongRest"
+  },
+  {
+    "name": "longRestEvery accepts its largest value of 12",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 10
+      }
+    },
+    "options": {
+      "longRestEvery": 12
+    },
+    "expected": "workToShortRest"
+  },
+  {
+    "name": "cycle step 1 of 8: first work phase confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:25:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:25:00.000Z",
+        "completed": 1
+      },
+      "transition": "workToShortRest",
+      "skipped": false
+    }
+  },
+  {
+    "name": "cycle step 2 of 8: first short rest confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:25:00Z",
+        "completed": 1
+      },
+      "at": "2026-10-20T09:30:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:30:00.000Z",
+        "completed": 1
+      },
+      "transition": "shortRestToWork",
+      "skipped": false
+    }
+  },
+  {
+    "name": "cycle step 3 of 8: second work phase confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:30:00Z",
+        "completed": 1
+      },
+      "at": "2026-10-20T09:55:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:55:00.000Z",
+        "completed": 2
+      },
+      "transition": "workToShortRest",
+      "skipped": false
+    }
+  },
+  {
+    "name": "cycle step 4 of 8: second short rest confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:55:00Z",
+        "completed": 2
+      },
+      "at": "2026-10-20T10:00:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "work",
+        "startedAt": "2026-10-20T10:00:00.000Z",
+        "completed": 2
+      },
+      "transition": "shortRestToWork",
+      "skipped": false
+    }
+  },
+  {
+    "name": "cycle step 5 of 8: third work phase confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T10:00:00Z",
+        "completed": 2
+      },
+      "at": "2026-10-20T10:25:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T10:25:00.000Z",
+        "completed": 3
+      },
+      "transition": "workToShortRest",
+      "skipped": false
+    }
+  },
+  {
+    "name": "cycle step 6 of 8: third short rest confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T10:25:00Z",
+        "completed": 3
+      },
+      "at": "2026-10-20T10:30:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "work",
+        "startedAt": "2026-10-20T10:30:00.000Z",
+        "completed": 3
+      },
+      "transition": "shortRestToWork",
+      "skipped": false
+    }
+  },
+  {
+    "name": "cycle step 7 of 8: fourth work phase confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T10:30:00Z",
+        "completed": 3
+      },
+      "at": "2026-10-20T10:55:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T10:55:00.000Z",
+        "completed": 4
+      },
+      "transition": "workToLongRest",
+      "skipped": false
+    }
+  },
+  {
+    "name": "cycle step 8 of 8: long rest confirmed at its planned end",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T10:55:00Z",
+        "completed": 4
+      },
+      "at": "2026-10-20T11:10:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "work",
+        "startedAt": "2026-10-20T11:10:00.000Z",
+        "completed": 0
+      },
+      "transition": "longRestToWork",
+      "skipped": false
+    }
+  },
+  {
+    "name": "work phase confirmed early is a skip and still counts toward the long rest",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:10:00Z"
+    },
+    "options": {
+      "longRestEvery": 2
+    },
+    "expected": {
+      "next": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:10:00.000Z",
+        "completed": 1
+      },
+      "transition": "workToShortRest",
+      "skipped": true
+    }
+  },
+  {
+    "name": "second skipped work phase brings the count up to longRestEvery and gets a long rest",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:15:00Z",
+        "completed": 1
+      },
+      "at": "2026-10-20T09:20:00Z"
+    },
+    "options": {
+      "longRestEvery": 2
+    },
+    "expected": {
+      "next": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T09:20:00.000Z",
+        "completed": 2
+      },
+      "transition": "workToLongRest",
+      "skipped": true
+    }
+  },
+  {
+    "name": "short rest confirmed early is a skip and keeps the count",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:25:00Z",
+        "completed": 1
+      },
+      "at": "2026-10-20T09:27:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:27:00.000Z",
+        "completed": 1
+      },
+      "transition": "shortRestToWork",
+      "skipped": true
+    }
+  },
+  {
+    "name": "long rest confirmed early is a skip and the count still restarts",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T10:55:00Z",
+        "completed": 4
+      },
+      "at": "2026-10-20T11:00:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "work",
+        "startedAt": "2026-10-20T11:00:00.000Z",
+        "completed": 0
+      },
+      "transition": "longRestToWork",
+      "skipped": true
+    }
+  },
+  {
+    "name": "work phase confirmed a millisecond before its planned end is a skip",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:24:59.999Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:24:59.999Z",
+        "completed": 1
+      },
+      "transition": "workToShortRest",
+      "skipped": true
+    }
+  },
+  {
+    "name": "work phase confirmed in overtime is not a skip and the next phase starts at the confirm",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:31:30Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:31:30.000Z",
+        "completed": 1
+      },
+      "transition": "workToShortRest",
+      "skipped": false
+    }
+  },
+  {
+    "name": "long rest confirmed in overtime restarts the count",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T10:55:00Z",
+        "completed": 4
+      },
+      "at": "2026-10-20T11:40:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "work",
+        "startedAt": "2026-10-20T11:40:00.000Z",
+        "completed": 0
+      },
+      "transition": "longRestToWork",
+      "skipped": false
+    }
+  },
+  {
+    "name": "work phase past the count after longRestEvery was lowered gets a long rest",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 5
+      },
+      "at": "2026-10-20T09:25:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "longRest",
+        "startedAt": "2026-10-20T09:25:00.000Z",
+        "completed": 6
+      },
+      "transition": "workToLongRest",
+      "skipped": false
+    }
+  },
+  {
+    "name": "work phase confirmed at its start is a skip",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:00:00Z"
+    },
+    "expected": {
+      "next": {
+        "kind": "shortRest",
+        "startedAt": "2026-10-20T09:00:00.000Z",
+        "completed": 1
+      },
+      "transition": "workToShortRest",
+      "skipped": true
+    }
+  },
+  {
+    "name": "confirm before the phase start is rejected",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T08:59:00Z"
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "unknown phase kind is rejected",
+    "input": {
+      "function": "nextPhase",
+      "phase": {
+        "kind": "break",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      },
+      "at": "2026-10-20T09:25:00Z"
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "negative completed count is rejected",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": -1
+      }
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "fractional completed count is rejected",
+    "input": {
+      "function": "transitionKind",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 1.5
+      }
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "invalid phase start is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "not a date",
+        "completed": 0
+      }
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "work length of 0 minutes is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "workMinutes": 0
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "work length over 180 minutes is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "workMinutes": 181
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "fractional work length is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "workMinutes": 25.5
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "short rest of 0 minutes is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "shortRestMinutes": 0
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "short rest over 60 minutes is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "shortRestMinutes": 61
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "long rest of 0 minutes is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "longRestMinutes": 0
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "long rest over 60 minutes is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "longRestMinutes": 61
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "longRestEvery of 0 is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "longRestEvery": 0
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "longRestEvery over 12 is rejected",
+    "input": {
+      "function": "plannedEnd",
+      "phase": {
+        "kind": "work",
+        "startedAt": "2026-10-20T09:00:00Z",
+        "completed": 0
+      }
+    },
+    "options": {
+      "longRestEvery": 13
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "entry at 1 minute moves each end to the nearest minute",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:00:20Z",
+      "end": "2026-10-20T09:30:40Z",
+      "minutes": 1,
+      "timeZone": "UTC"
+    },
+    "expected": {
+      "start": "2026-10-20T09:00:00.000Z",
+      "stop": "2026-10-20T09:31:00.000Z"
+    }
+  },
+  {
+    "name": "next entry at 1 minute starts at the previous exact end and shares the snapped boundary",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:30:40Z",
+      "end": "2026-10-20T10:01:10Z",
+      "minutes": 1,
+      "timeZone": "UTC"
+    },
+    "expected": {
+      "start": "2026-10-20T09:31:00.000Z",
+      "stop": "2026-10-20T10:01:00.000Z"
+    }
+  },
+  {
+    "name": "entry at 1 minute rounds a half-minute tie to the later minute",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:00:30Z",
+      "end": "2026-10-20T09:31:30Z",
+      "minutes": 1,
+      "timeZone": "UTC"
+    },
+    "expected": {
+      "start": "2026-10-20T09:01:00.000Z",
+      "stop": "2026-10-20T09:32:00.000Z"
+    }
+  },
+  {
+    "name": "entry at 15 minutes moves each end to the nearest quarter hour",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:03:00Z",
+      "end": "2026-10-20T09:34:00Z",
+      "minutes": 15,
+      "timeZone": "Europe/Madrid"
+    },
+    "expected": {
+      "start": "2026-10-20T09:00:00.000Z",
+      "stop": "2026-10-20T09:30:00.000Z"
+    }
+  },
+  {
+    "name": "next entry at 15 minutes starts at the previous exact end and shares the snapped boundary",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:34:00Z",
+      "end": "2026-10-20T10:04:00Z",
+      "minutes": 15,
+      "timeZone": "Europe/Madrid"
+    },
+    "expected": {
+      "start": "2026-10-20T09:30:00.000Z",
+      "stop": "2026-10-20T10:00:00.000Z"
+    }
+  },
+  {
+    "name": "entry at 15 minutes rounds a tie to the later quarter hour",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:07:30Z",
+      "end": "2026-10-20T09:37:30Z",
+      "minutes": 15,
+      "timeZone": "UTC"
+    },
+    "expected": {
+      "start": "2026-10-20T09:15:00.000Z",
+      "stop": "2026-10-20T09:45:00.000Z"
+    }
+  },
+  {
+    "name": "entry snaps on the wall clock of the time zone",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:10:00Z",
+      "end": "2026-10-20T10:20:00Z",
+      "minutes": 60,
+      "timeZone": "Asia/Kolkata"
+    },
+    "expected": {
+      "start": "2026-10-20T09:30:00.000Z",
+      "stop": "2026-10-20T10:30:00.000Z"
+    }
+  },
+  {
+    "name": "entry whose ends snap to the same quarter hour collapses to null",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:08:00Z",
+      "end": "2026-10-20T09:21:00Z",
+      "minutes": 15,
+      "timeZone": "UTC"
+    },
+    "expected": null
+  },
+  {
+    "name": "entry whose ends snap to the same hour on the zone's clock collapses to null",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:10:00Z",
+      "end": "2026-10-20T09:55:00Z",
+      "minutes": 60,
+      "timeZone": "Asia/Kolkata"
+    },
+    "expected": null
+  },
+  {
+    "name": "entry shorter than half a step is null",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:00:00Z",
+      "end": "2026-10-20T09:00:20Z",
+      "minutes": 1,
+      "timeZone": "UTC"
+    },
+    "expected": null
+  },
+  {
+    "name": "entry that ends before it starts is rejected",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:30:00Z",
+      "end": "2026-10-20T09:00:00Z",
+      "minutes": 1,
+      "timeZone": "UTC"
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  },
+  {
+    "name": "entry with a resolution that does not divide an hour is rejected",
+    "input": {
+      "function": "pomodoroEntrySpan",
+      "start": "2026-10-20T09:00:00Z",
+      "end": "2026-10-20T09:30:00Z",
+      "minutes": 7,
+      "timeZone": "UTC"
+    },
+    "expected": {
+      "throws": "RangeError"
+    }
+  }
+]
