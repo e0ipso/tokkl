@@ -1,8 +1,9 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDatabase } from '../src/db/index.ts';
 import { testConfig, testServer } from './helpers.ts';
@@ -55,5 +56,26 @@ test('assets are cached immutably, and a missing asset is a 404', async () => {
     assert.doesNotMatch(miss.headers.get('cache-control') ?? '', /immutable/);
   } finally {
     process.chdir(previous);
+  }
+});
+
+test('the Pomodoro transition sounds are served from the app origin as WAV audio', async () => {
+  // The web build copies packages/web/public into the web root, so serve the committed files as the build would.
+  const sounds = fileURLToPath(new URL('../../web/public/sounds', import.meta.url));
+  const webRoot = makeWebRoot();
+  writeFileSync(join(webRoot, 'index.html'), '<!doctype html>');
+  cpSync(sounds, join(webRoot, 'sounds'), { recursive: true });
+  const app = testServer(createApp({ db: openDatabase(':memory:'), config: { ...testConfig(), webRoot }, setup: { code: null } }));
+
+  for (const name of ['work-to-short-rest', 'short-rest-to-work', 'work-to-long-rest', 'long-rest-to-work']) {
+    const file = `pomodoro-${name}.wav`;
+    const response = await app.request(`/sounds/${file}`);
+    assert.equal(response.status, 200, file);
+    assert.equal(response.headers.get('content-type'), 'audio/wav', file);
+    // Media falls back to default-src, so the browser plays only same-origin audio.
+    const csp = response.headers.get('content-security-policy') ?? '';
+    assert.match(csp, /default-src 'self'/, file);
+    assert.doesNotMatch(csp, /media-src/, file);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), readFileSync(join(sounds, file)), file);
   }
 });
