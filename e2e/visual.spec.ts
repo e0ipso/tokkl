@@ -7,7 +7,7 @@ import { transferFixture } from './transfer-tests-helpers.ts';
 // Screenshot baselines for the redesigned pages, in light and dark, on desktop and a phone. They
 // guard the look of each page against CSS regressions. The PNGs sit in visual.spec.ts-snapshots/
 // and are rendered by the pinned headless Chromium; refresh them after an intended change with
-// `npx playwright test visual --update-snapshots` (see the README's Testing section).
+// `npx playwright test visual --update-snapshots=all` (see the README's Testing section).
 //
 // The data is e2e/fixtures-data/transfer/restore-full.json, which has no running entry. The
 // browser clock is fixed at NOW, the day after the fixture's "Planning" entry, so the timer list,
@@ -17,6 +17,9 @@ import { transferFixture } from './transfer-tests-helpers.ts';
 //
 // Settings is shot as a regular account, whose page has no Admin link; every other page
 // is shot as the setup admin.
+//
+// The running Pomodoro is started through the page on the frozen clock, so its countdown stays at
+// the full 25:00 of the default work phase.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 /** Thursday 16 July 2026, 15:20 in Europe/Madrid (the config's timezone). */
@@ -36,6 +39,8 @@ interface Capture {
   prepare?: (data: TestData, users: ExtraUsers) => Promise<void>;
   /** Parts that follow the server's real clock, masked in the shot. */
   mask?: (page: Page) => Locator[];
+  /** Puts the loaded page into the state to shoot. */
+  act?: (page: Page) => Promise<void>;
 }
 
 const PAGES: readonly Capture[] = [
@@ -52,6 +57,17 @@ const PAGES: readonly Capture[] = [
     name: 'reports-summary',
     path: '/reports?from=2026-07-13&to=2026-07-19',
     ready: (page) => page.getByRole('region', { name: 'Breakdown' }).getByText('Roadmap').first(),
+  },
+  {
+    name: 'pomodoro-idle',
+    path: '/pomodoro',
+    ready: (page) => page.getByRole('form', { name: 'Start a Pomodoro session' }).getByLabel('Work (minutes)'),
+  },
+  {
+    name: 'pomodoro-running',
+    path: '/pomodoro',
+    act: (page) => page.getByRole('form', { name: 'Start a Pomodoro session' }).getByRole('button', { name: 'Start' }).click(),
+    ready: (page) => page.getByRole('timer', { name: 'Time remaining' }).getByText('25:00', { exact: true }),
   },
   { name: 'projects', path: '/projects', ready: (page) => page.getByRole('main').getByText('Website').first() },
   {
@@ -112,6 +128,7 @@ for (const [device, deviceOptions] of Object.entries(DEVICES)) {
           await capture.prepare?.(data, users);
           await seed(page, capture.timerView, regular?.account);
           await page.goto(capture.path);
+          await capture.act?.(page);
           await expect(capture.ready(page)).toBeVisible();
           await expect(page.locator('html')).not.toHaveAttribute('data-theme', /./);
           await page.waitForLoadState('networkidle');
