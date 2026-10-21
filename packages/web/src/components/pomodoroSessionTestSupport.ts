@@ -50,12 +50,13 @@ export function sessionFixture(t: TestContext, disk = memoryStorage()) {
   } = {}) => {
     const storage = createPomodoroSessionStorage(accountId, options.storage ?? (() => disk));
     const controller = createPomodoroSessionController({
-      read: storage.read, write: storage.write,
+      read: storage.read, readUnsaved: storage.readUnsaved, write: storage.write,
       lock: (run) => withPomodoroSessionLock(accountId, run),
       now: () => { clockReads++; return new Date(instant); },
       id: () => `session-${++sequence}`,
       grid: () => grid,
       createEntry: options.save ?? (async (entry) => { entries.push(entry); }),
+      hasSavedEntry: async (entry) => entries.some((saved) => saved.start === entry.start && saved.stop === entry.stop),
       message: (message) => { messages.push(message); },
     });
     t.after(() => { controller.close(); storage.forget(); });

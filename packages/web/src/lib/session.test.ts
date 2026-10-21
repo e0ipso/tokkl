@@ -140,7 +140,7 @@ for (const saveFails of [false, true]) {
     await tab.controller.start(config, fields);
     f.at('2026-10-21T10:35:00Z');
     t.after(registerPomodoroSession({
-      finish: () => tab.controller.end(),
+      finish: () => tab.controller.end(true),
       forget: () => { events.push('forget'); tab.controller.close(); tab.storage.forget(); },
     }));
     answerLogout(async () => {
@@ -176,7 +176,7 @@ test('logout during rest saves one span from the work start without a separate r
   await tab.controller.nextPhase();
   assert.deepEqual(f.entries, []);
   t.after(registerPomodoroSession({
-    finish: () => tab.controller.end(),
+    finish: () => tab.controller.end(true),
     forget: () => { tab.controller.close(); tab.storage.forget(); },
   }));
   f.at('2026-10-21T10:35:00Z');

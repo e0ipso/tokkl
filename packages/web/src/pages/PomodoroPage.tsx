@@ -140,7 +140,7 @@ function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
 }
 
 export function PomodoroPage() {
-  const { session } = usePomodoroSession();
+  const { session, unsavedCount } = usePomodoroSession();
   const { data: preferences, error, refetch } = usePreferences();
   const settings = useSettings();
   const day = today(settings.timeZone);
@@ -149,6 +149,7 @@ export function PomodoroPage() {
   return (
     <div className="page pomodoro-page">
       <header className="page-header"><h1>Pomodoro</h1></header>
+      {unsavedCount > 0 && <p role="status">{unsavedCount} unsaved {unsavedCount === 1 ? 'pomodoro' : 'pomodoros'}. Retrying automatically.</p>}
       {session ? <RunningSession key={session.id} recentEntries={recentEntries} /> : preferences ? (
         <StartForm preferences={preferences} recentEntries={recentEntries} />
       ) : error ? (
