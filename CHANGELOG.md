@@ -1,3 +1,21 @@
+## [1.8.0](https://github.com/e0ipso/tokkl/compare/v1.7.0...v1.8.0) (2026-10-21)
+
+### Features
+
+* **common:** add the clock-free Pomodoro session model with shared fixtures ([a763df2](https://github.com/e0ipso/tokkl/commit/a763df22463d2e6f1ae11e8cade7c9ca360760b2))
+* remove retired Pomodoro preferences ([9fdcc07](https://github.com/e0ipso/tokkl/commit/9fdcc079f270f2d2489b446ae4a28eee5964a7a2))
+* **web:** add four Pomodoro transition sounds ([ec87606](https://github.com/e0ipso/tokkl/commit/ec876069dce19ee6fe846363fb83bdb0e70b4b95))
+* **web:** add Pomodoro session page ([8b85f74](https://github.com/e0ipso/tokkl/commit/8b85f74d97f35400fdf0d44a5dc3c92829d2b64a))
+* **web:** add Pomodoro to the navigation ([fc2381f](https://github.com/e0ipso/tokkl/commit/fc2381f7470654551cd6fb003dd3eb8200798baa))
+* **web:** coordinate timers and sessions ([8564f1c](https://github.com/e0ipso/tokkl/commit/8564f1c48f289610a65ca8076983a954fe6eb371))
+* **web:** persist Pomodoro sessions ([22fc407](https://github.com/e0ipso/tokkl/commit/22fc407ff36428992bab32cb27ad3c6555687f0b))
+* **web:** retire the timer-tied Pomodoro ([4fc7a92](https://github.com/e0ipso/tokkl/commit/4fc7a928a8c89b80f6ebcc064636c285af9993b0))
+* **web:** ring through Pomodoro transitions ([8e6157b](https://github.com/e0ipso/tokkl/commit/8e6157b8ae050c8ea177d15f114e66b515527c16))
+
+### Bug Fixes
+
+* **web:** retry unsaved Pomodoros ([6dc7d2e](https://github.com/e0ipso/tokkl/commit/6dc7d2e31b2b7f1526aa2540fe70851a54b92ab2))
+
 ## [1.7.0](https://github.com/e0ipso/tokkl/compare/v1.6.1...v1.7.0) (2026-10-20)
 
 ### Features
