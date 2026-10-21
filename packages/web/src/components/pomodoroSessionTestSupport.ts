@@ -1,7 +1,7 @@
 import type { TestContext } from 'node:test';
 import { locks } from 'node:worker_threads';
 import type { TimeEntryInput } from '../api/types.ts';
-import { createPomodoroSessionController } from './pomodoroSessionController.ts';
+import { createPomodoroSessionController, type SessionEnvironment } from './pomodoroSessionController.ts';
 import { withPomodoroSessionLock } from './pomodoroSessionLock.ts';
 import { createPomodoroSessionStorage } from './pomodoroSessionState.ts';
 import type { EntryDraft } from './useEntryFields.ts';
@@ -47,6 +47,8 @@ export function sessionFixture(t: TestContext, disk = memoryStorage()) {
   const tab = (accountId = 42, options: {
     storage?: () => Storage;
     save?: (entry: TimeEntryInput) => Promise<unknown>;
+    hasSavedEntry?: SessionEnvironment['hasSavedEntry'];
+    beforeStart?: SessionEnvironment['beforeStart'];
   } = {}) => {
     const storage = createPomodoroSessionStorage(accountId, options.storage ?? (() => disk));
     const controller = createPomodoroSessionController({
@@ -56,7 +58,8 @@ export function sessionFixture(t: TestContext, disk = memoryStorage()) {
       id: () => `session-${++sequence}`,
       grid: () => grid,
       createEntry: options.save ?? (async (entry) => { entries.push(entry); }),
-      hasSavedEntry: async (entry) => entries.some((saved) => saved.start === entry.start && saved.stop === entry.stop),
+      hasSavedEntry: options.hasSavedEntry ?? (async (entry) => entries.some((saved) => saved.start === entry.start && saved.stop === entry.stop)),
+      beforeStart: options.beforeStart,
       message: (message) => { messages.push(message); },
     });
     t.after(() => { controller.close(); storage.forget(); });

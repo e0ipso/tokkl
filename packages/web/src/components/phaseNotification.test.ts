@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import type { PhaseEnd } from './pomodoroCycle.ts';
-import { notificationAccess, notifyPhaseEnd, requestNotificationAccess } from './phaseNotification.ts';
+import { notificationAccess, notifyInBackground, notifyPhaseEnd, notifySessionPhaseEnd, requestNotificationAccess } from './phaseNotification.ts';
 
 // A minimal window, document and Notification stand in for the browser's. `setup` picks what the
 // page reports: its permission, a permission request's answer, whether the API exists or its
@@ -13,15 +13,17 @@ interface Setup {
   support?: 'works' | 'missing' | 'throws';
   secure?: boolean;
   hidden?: boolean;
+  focused?: boolean;
 }
 
-const page = { secure: true, hidden: true, focusCalls: 0, requests: 0 };
+const page = { secure: true, hidden: true, focused: false, focusCalls: 0, requests: 0 };
 Object.assign(globalThis, {
   window: {
     get isSecureContext() { return page.secure; },
     focus: () => void page.focusCalls++,
   },
   document: {
+    hasFocus: () => page.focused,
     get visibilityState() { return page.hidden ? 'hidden' : 'visible'; },
   },
 });
@@ -42,8 +44,8 @@ class Shown {
 
 let shown: Shown[] = [];
 
-function setup({ permission = 'granted', answer = 'granted', support = 'works', secure = true, hidden = true }: Setup = {}) {
-  Object.assign(page, { secure, hidden, focusCalls: 0, requests: 0 });
+function setup({ permission = 'granted', answer = 'granted', support = 'works', secure = true, hidden = true, focused = false }: Setup = {}) {
+  Object.assign(page, { secure, hidden, focused, focusCalls: 0, requests: 0 });
   shown = [];
   if (support === 'missing') {
     Reflect.deleteProperty(globalThis, 'Notification');
@@ -161,4 +163,60 @@ test('a request asks the browser only while the permission is undecided', async 
     assert.equal(await requestNotificationAccess(), access, JSON.stringify(browser));
     assert.equal(page.requests, requests, `requests for ${JSON.stringify(browser)}`);
   }
+});
+
+for (const hidden of [false, true]) {
+  test(`an unfocused ${hidden ? 'hidden' : 'visible'} session requests persistent, session-tagged renotification`, () => {
+    setup({ hidden });
+    for (const phase of ['Work', 'Short rest', 'Long rest']) {
+      const notification = notifySessionPhaseEnd('session-a', phase);
+      assert.equal(notification, shown.at(-1));
+    }
+    assert.deepEqual(shown.map(({ title }) => title), ['Work phase over', 'Short rest phase over', 'Long rest phase over']);
+    for (const notification of shown) {
+      assert.deepEqual(notification.options, {
+        body: 'Choose Next phase or End session in Tokkl.', icon: '/icons/icon-192.png',
+        tag: 'tokkl-pomodoro-session-session-a', requireInteraction: true, renotify: true,
+      });
+    }
+    notifySessionPhaseEnd('session-b', 'Work');
+    assert.equal(shown.at(-1)?.options.tag, 'tokkl-pomodoro-session-session-b');
+    assert.equal(page.requests, 0);
+  });
+}
+
+test('session notifications stay quiet while focused and focus and close on click', () => {
+  setup({ hidden: false, focused: true });
+  assert.equal(notifySessionPhaseEnd('a', 'Work'), null);
+  assert.equal(shown.length, 0);
+  page.focused = false;
+  notifySessionPhaseEnd('a', 'Work');
+  const notification = shown[0]!;
+  assert.ok(notification.onclick);
+  assert.equal(notification.closed, false);
+  notification.onclick();
+  assert.equal(page.focusCalls, 1);
+  assert.equal(notification.closed, true);
+});
+
+for (const browser of [
+  { permission: 'default' }, { permission: 'denied' }, { permission: 'throws' },
+  { secure: false }, { support: 'missing' }, { support: 'throws' },
+] satisfies Setup[]) {
+  test(`session notifications guard ${JSON.stringify(browser)} without requesting permission`, () => {
+    setup({ ...browser, hidden: false });
+    assert.equal(notifySessionPhaseEnd('a', 'Work'), null);
+    assert.deepEqual(shown, []);
+    assert.equal(page.requests, 0);
+  });
+}
+
+test('long-timer reminders still require a hidden page even when a visible window lacks focus', () => {
+  setup({ hidden: false, focused: false });
+  notifyInBackground('Still tracking', 'Check your timer', 'long-timer');
+  assert.equal(shown.length, 0);
+  page.hidden = true;
+  notifyInBackground('Still tracking', 'Check your timer', 'long-timer');
+  assert.equal(shown.length, 1);
+  assert.deepEqual(shown[0]?.options, { body: 'Check your timer', icon: '/icons/icon-192.png', tag: 'long-timer' });
 });

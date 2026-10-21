@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, setup, type TestContext } from './helpers.ts';
+import { addUser, iso, setup, type TestContext } from './helpers.ts';
 import { addWorkspaceMember, createWorkspace } from '../src/models/workspaces.ts';
 
 test('starting a timer returns a running entry with negative epoch duration', async () => {
@@ -535,6 +535,96 @@ test('the stop endpoint sends a timer shorter than half a step to the trash at z
   assert.equal(restored.status, 200);
   assert.equal(restored.body.server_deleted_at, null);
   assertStored(ctx, restored.body, stopped.body.start, stopped.body.start);
+});
+
+test('the stop endpoint stops at a supplied timestamp on the grid, whatever its offset', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const running = await ctx.json('POST', url, { start: '2026-10-14T09:02:10Z', duration: -1, description: 'session' });
+  const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`, { stop: '2026-10-14T11:28:40.750+02:00' });
+  assert.equal(stopped.status, 200);
+  assertStored(ctx, stopped.body, '2026-10-14T09:00:00+00:00', '2026-10-14T09:30:00+00:00');
+  assert.equal(stopped.body.server_deleted_at, null);
+
+  const zoned = await setup({ timezone: 'Asia/Kathmandu' });
+  await setResolution(zoned, 20);
+  const zonedUrl = `/api/v9/workspaces/${zoned.wid}/time_entries`;
+  const other = await zoned.json('POST', zonedUrl, { start: '2026-10-14T09:02:10Z', duration: -1 });
+  const snapped = await zoned.json('PATCH', `${zonedUrl}/${other.body.id}/stop`, { stop: '2026-10-14T15:31:00+05:45' });
+  assert.equal(snapped.status, 200);
+  // 14:47:10 and 15:31 in Kathmandu snap to 14:40 and 15:40 on its 20-minute grid.
+  assertStored(zoned, snapped.body, '2026-10-14T08:55:00+00:00', '2026-10-14T09:55:00+00:00');
+});
+
+test('a supplied stop within half a step of the start, or before it, trashes the timer for Undo', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  for (const stop of ['2026-10-14T09:01:00Z', '2026-10-14T08:00:00Z']) {
+    const running = await ctx.json('POST', url, { start: '2026-10-14T09:00:30Z', duration: -1, description: 'short' });
+    const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`, { stop });
+    assert.equal(stopped.status, 200, stop);
+    assert.equal(stopped.body.duration, 0);
+    assert.equal(stopped.body.start, '2026-10-14T09:00:00+00:00');
+    assert.equal(stopped.body.stop, stopped.body.start);
+    assert.ok(stopped.body.server_deleted_at);
+    assert.equal((await ctx.json('GET', '/api/v9/me/time_entries/current')).body, null);
+    const restored = await ctx.json('POST', `/api/app/time_entries/${running.body.id}/restore`);
+    assert.equal(restored.status, 200);
+    assertStored(ctx, restored.body, stopped.body.start, stopped.body.start);
+  }
+});
+
+test('the stop endpoint rejects a stop that is not an RFC 3339 timestamp and leaves the timer running', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const running = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: -1 });
+  for (const stop of [
+    null, 1_792_576_920, true, {}, ['2026-10-14T09:30:00Z'], '', 'yesterday', '2026-10-14',
+    '2026-10-14T09:30:00', '2026-10-14 09:30:00Z', '2026-10-14t09:30:00z', '2026-10-14T09:30Z',
+    '2026-02-30T09:30:00Z', '2026-10-14T24:00:00Z', '2026-10-14T09:60:00Z', '2026-10-14T09:30:60Z',
+    '2026-10-14T09:30:00+24:00', '2026-10-14T09:30:00+02:60', '2026-10-14T09:30:00+0200',
+  ]) {
+    const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`, { stop });
+    assert.equal(stopped.status, 400, JSON.stringify(stop));
+    assert.equal(stopped.body, 'Invalid stop: expected an RFC 3339 timestamp');
+  }
+  for (const body of [[], 'stop']) {
+    assert.equal((await ctx.json('PATCH', `${url}/${running.body.id}/stop`, body)).status, 400, JSON.stringify(body));
+  }
+  assert.equal((await ctx.json('GET', '/api/v9/me/time_entries/current')).body.id, running.body.id);
+});
+
+test('a stop body without a timestamp stops at the request time, as before', async () => {
+  const ctx = await setup();
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 1_210_000);
+  const running = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1 });
+  const before = Math.floor(Date.now() / 1000);
+  const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`, { description: 'ignored' });
+  const after = Math.ceil(Date.now() / 1000);
+  assert.equal(stopped.status, 200);
+  const stop = Date.parse(stopped.body.stop) / 1000;
+  assert.equal(stop % 300, 0);
+  assert.ok(stop >= before - 150 && stop <= after + 150, stopped.body.stop);
+  assert.equal(stopped.body.description, '');
+});
+
+test('a supplied stop never reaches another account’s timer or a stopped entry', async () => {
+  const ctx = await setup();
+  const other = await addUser(ctx, { email: 'other@example.com', role: 'user' });
+  const theirs = await other.json('POST', `/api/v9/workspaces/${other.wid}/time_entries`, { start: '2026-10-14T09:00:00Z', duration: -1 });
+  const stop = { stop: '2026-10-14T09:30:00Z' };
+  assert.equal((await ctx.json('PATCH', `/api/v9/workspaces/${ctx.wid}/time_entries/${theirs.body.id}/stop`, stop)).status, 404);
+  assert.equal((await ctx.json('PATCH', `/api/v9/workspaces/${other.wid}/time_entries/${theirs.body.id}/stop`, stop)).status, 403);
+  assert.equal((await other.json('GET', '/api/v9/me/time_entries/current')).body.stop, null);
+
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const mine = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: -1 });
+  assert.equal((await ctx.json('PATCH', `${url}/${mine.body.id}/stop`, stop)).status, 200);
+  const again = await ctx.json('PATCH', `${url}/${mine.body.id}/stop`, { stop: '2026-10-14T10:00:00Z' });
+  assert.equal(again.status, 409);
+  assert.equal(again.body, 'Time entry already stopped');
+  assertStored(ctx, (await ctx.json('GET', `/api/v9/me/time_entries/${mine.body.id}`)).body, '2026-10-14T09:00:00+00:00', '2026-10-14T09:30:00+00:00');
 });
 
 test('a deleted running entry restored while another timer runs is stopped on the grid', async () => {

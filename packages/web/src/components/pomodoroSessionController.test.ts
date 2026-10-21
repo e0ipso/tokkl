@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { locks } from 'node:worker_threads';
 import { plannedEnd, transitionKind } from '@tokkl/common/pomodoroSession';
+import { ApiError } from '../api/client.ts';
+import type { TimeEntryInput } from '../api/types.ts';
 import { pomodoroSessionKey } from './pomodoroSessionState.ts';
-import { withPomodoroSessionLock } from './pomodoroSessionLock.ts';
+import { withPomodoroSessionLock, withTimerOperationLock } from './pomodoroSessionLock.ts';
 import { config, fields, sessionFixture, signal } from './pomodoroSessionTestSupport.ts';
 
 for (const scenario of [
@@ -244,4 +246,327 @@ test('concurrent field patches from separate tabs merge into the current and fol
   f.at('2026-10-21T11:00:00Z');
   await a.controller.end();
   assert.deepEqual(f.entries.map(({ start, stop, duration, ...metadata }) => metadata), [edited, edited]);
+});
+
+const KEY = pomodoroSessionKey(42);
+const START = Date.parse('2026-10-21T10:02:00.123Z');
+/** What ending the fixture's first session at 10:31 saves on the 15-minute UTC grid. */
+const firstPomodoro = {
+  ...fields, start: '2026-10-21T10:00:00.000Z', stop: '2026-10-21T10:30:00.000Z', duration: 1800,
+};
+const offline = async () => { throw new Error('offline'); };
+
+/** Starts a session in a tab whose saves fail, and ends it at 10:31 so one pomodoro is queued. */
+async function queueFailedPomodoro(f: ReturnType<typeof sessionFixture>, save: (entry: TimeEntryInput) => Promise<unknown> = offline) {
+  const a = f.tab(42, { save });
+  await a.controller.start(config, fields);
+  f.at('2026-10-21T10:31:00Z');
+  await assert.rejects(a.controller.end(), /offline/);
+  return a;
+}
+
+test('a failed save stays queued with its snapped span and posts once from a reload when due', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  const a = await queueFailedPomodoro(f);
+  assert.equal(a.storage.read(), null, 'the session ended although its save failed');
+  assert.deepEqual(f.tab().storage.readUnsaved(), [{
+    id: `session-1:${START}`, attempts: 1, retryAt: Date.parse('2026-10-21T10:31:05Z'), entry: firstPomodoro,
+  }]);
+
+  // A later session's fields and clock must not reach the queued span.
+  await a.controller.start(config, { ...fields, description: 'Next task', tags: ['other'] });
+  await a.controller.updateFields({ project_id: 9, billable: true });
+
+  const reloaded = f.tab();
+  f.at('2026-10-21T10:31:04.999Z');
+  await reloaded.controller.retry();
+  assert.deepEqual(f.entries, [], 'not due before the backoff');
+  f.at('2026-10-21T10:31:05Z');
+  await reloaded.controller.retry();
+  assert.deepEqual(f.entries, [firstPomodoro]);
+  assert.deepEqual(reloaded.storage.readUnsaved(), []);
+  await reloaded.controller.retry(true);
+  assert.equal(f.entries.length, 1, 'a saved pomodoro is never posted again');
+  assert.equal(reloaded.storage.read()?.fields.description, 'Next task', 'the retry leaves the active session alone');
+});
+
+test('an accepted save whose answer was lost is reconciled from the actual entries without posting again', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  const lookups: string[] = [];
+  await queueFailedPomodoro(f, async (entry) => { f.entries.push(entry); throw new Error('offline'); });
+  const reloaded = f.tab(42, {
+    hasSavedEntry: async (entry) => {
+      lookups.push(`${entry.start}/${entry.stop}`);
+      return f.entries.some((saved) => saved.start === entry.start && saved.stop === entry.stop);
+    },
+  });
+  await reloaded.controller.retry(true);
+  assert.deepEqual(lookups, [`${firstPomodoro.start}/${firstPomodoro.stop}`]);
+  assert.equal(f.entries.length, 1);
+  assert.deepEqual(reloaded.storage.readUnsaved(), []);
+});
+
+test('a failed reconciliation keeps the pomodoro unposted and backs off further', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  let lookups = 0;
+  await queueFailedPomodoro(f);
+  const reloaded = f.tab(42, { hasSavedEntry: async () => { lookups++; throw new Error('lookup failed'); } });
+  f.at('2026-10-21T10:31:05Z');
+  await reloaded.controller.retry();
+  assert.equal(lookups, 1);
+  assert.deepEqual(f.entries, []);
+  assert.deepEqual(reloaded.storage.readUnsaved().map(({ attempts, retryAt }) => ({ attempts, retryAt })),
+    [{ attempts: 2, retryAt: Date.parse('2026-10-21T10:31:15Z') }]);
+  f.at('2026-10-21T10:31:14.999Z');
+  await reloaded.controller.retry();
+  assert.equal(lookups, 1, 'the doubled backoff holds');
+});
+
+for (const status of [400, 403, 422]) {
+  test(`a ${status} answer drops the pomodoro and shows the server's message`, { timeout: 5_000 }, async (t) => {
+    const f = sessionFixture(t);
+    const a = f.tab(42, { save: async () => { throw new ApiError(status, 'Project 3 is archived'); } });
+    await a.controller.start(config, fields);
+    f.at('2026-10-21T10:31:00Z');
+    await a.controller.end();
+    assert.deepEqual(f.messages, ['Project 3 is archived']);
+    assert.deepEqual(a.storage.readUnsaved(), []);
+    assert.equal(f.disk.getItem(KEY), null);
+  });
+}
+
+for (const status of [401, 408, 429, 500]) {
+  test(`a ${status} answer keeps the pomodoro queued for a retry`, { timeout: 5_000 }, async (t) => {
+    const f = sessionFixture(t);
+    const a = f.tab(42, { save: async () => { throw new ApiError(status, 'Try again'); } });
+    await a.controller.start(config, fields);
+    f.at('2026-10-21T10:31:00Z');
+    await assert.rejects(a.controller.end(), (error) => error instanceof ApiError && error.status === status);
+    assert.deepEqual(f.messages, []);
+    assert.deepEqual(f.tab().storage.readUnsaved().map(({ entry, attempts }) => ({ entry, attempts })),
+      [{ entry: firstPomodoro, attempts: 1 }]);
+  });
+}
+
+test('tabs retrying the same due pomodoro make one attempt between them', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  let posts = 0;
+  await queueFailedPomodoro(f);
+  const failing = async () => { posts++; throw new Error('offline'); };
+  const [b, c] = [f.tab(42, { save: failing }), f.tab(42, { save: failing })];
+  // Both tabs wake while the lock is busy, so both have seen the same attempt count.
+  const entered = signal();
+  const release = signal();
+  t.after(release.resolve);
+  const holder = withPomodoroSessionLock(42, async () => { entered.resolve(); await release.promise; });
+  await entered.promise;
+  const retries = [b.controller.retry(true), c.controller.retry(true)];
+  release.resolve();
+  await Promise.all([holder, ...retries]);
+  assert.equal(posts, 1);
+  assert.equal(f.tab().storage.readUnsaved()[0]?.attempts, 2);
+
+  const [d, e] = [f.tab(), f.tab()];
+  await Promise.all([d.controller.retry(true), e.controller.retry(true)]);
+  assert.deepEqual(f.entries, [firstPomodoro]);
+  assert.deepEqual(f.tab().storage.readUnsaved(), []);
+});
+
+test('a memory-only session keeps its failed save in this tab and retries it from memory', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  let online = false;
+  const a = f.tab(42, {
+    storage: () => { throw new DOMException('Storage is disabled', 'SecurityError'); },
+    save: async (entry) => { if (!online) throw new Error('offline'); f.entries.push(entry); },
+  });
+  await a.controller.start(config, fields);
+  f.at('2026-10-21T10:31:00Z');
+  await assert.rejects(a.controller.end(), /offline/);
+  assert.deepEqual(a.storage.readUnsaved().map(({ entry }) => entry), [firstPomodoro]);
+  assert.deepEqual(f.tab().storage.readUnsaved(), [], 'another tab cannot see or replay it');
+  online = true;
+  await a.controller.retry(true);
+  assert.deepEqual(f.entries, [firstPomodoro]);
+  assert.deepEqual(a.storage.readUnsaved(), []);
+});
+
+test('a shared queued pomodoro is not retried until its attempt can be stored', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  await queueFailedPomodoro(f);
+  let full = true;
+  const quota: Storage = {
+    getItem: (key) => f.disk.getItem(key),
+    setItem: (key, value) => {
+      if (full) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      f.disk.setItem(key, value);
+    },
+    removeItem: (key) => f.disk.removeItem(key),
+    clear: () => f.disk.clear(),
+    key: (index) => f.disk.key(index),
+    get length() { return f.disk.length; },
+  };
+  const b = f.tab(42, { storage: () => quota });
+  await b.controller.retry(true);
+  assert.deepEqual(f.entries, []);
+  assert.equal(f.tab().storage.readUnsaved()[0]?.attempts, 1, 'the stored attempt count is unchanged');
+  full = false;
+  await b.controller.retry(true);
+  assert.deepEqual(f.entries, [firstPomodoro]);
+});
+
+for (const accepted of [false, true]) {
+  test(`a reload finishes an End interrupted ${accepted ? 'after' : 'before'} the server stored it, keeping its span`, { timeout: 5_000 }, async (t) => {
+    const f = sessionFixture(t);
+    let crashed: string | null = null;
+    const a = f.tab(42, {
+      save: async (entry) => {
+        // The page closes while this request is in flight; storage holds what it held then.
+        crashed = f.disk.getItem(KEY);
+        if (accepted) f.entries.push(entry);
+        throw new Error('page closed');
+      },
+    });
+    await a.controller.start(config, fields);
+    f.at('2026-10-21T10:31:00Z');
+    await assert.rejects(a.controller.end(), /page closed/);
+    a.controller.close();
+    f.disk.setItem(KEY, crashed!);
+
+    const reloaded = f.tab();
+    assert.equal(reloaded.storage.read()?.ending, true);
+    f.at('2026-10-21T11:10:00Z');
+    await reloaded.controller.retry();
+    assert.equal(reloaded.storage.read(), null);
+    assert.deepEqual(f.entries, [firstPomodoro]);
+    assert.deepEqual(reloaded.storage.readUnsaved(), []);
+  });
+}
+
+for (const succeeds of [true, false]) {
+  test(`sign-out makes one ${succeeds ? 'successful' : 'failed'} final attempt and clears the queue without replaying it`, { timeout: 5_000 }, async (t) => {
+    const f = sessionFixture(t);
+    const posts: string[] = [];
+    let failing = true;
+    const a = f.tab(42, {
+      save: async (entry) => {
+        posts.push(entry.stop ?? 'running');
+        if (failing) throw new Error('offline');
+        f.entries.push(entry);
+      },
+    });
+    await a.controller.start(config, fields);
+    f.at('2026-10-21T10:31:00Z');
+    await assert.rejects(a.controller.end(), /offline/);
+    await a.controller.start(config, fields);
+    f.at('2026-10-21T11:01:00Z');
+    failing = !succeeds;
+    if (succeeds) await a.controller.end(true);
+    else await assert.rejects(a.controller.end(true), /offline/);
+    const final = '2026-10-21T11:00:00.000Z';
+    assert.deepEqual(posts, [firstPomodoro.stop, final], 'the earlier failure is not drained');
+    assert.deepEqual(f.entries.map(({ stop }) => stop), succeeds ? [final] : []);
+    assert.equal(f.disk.getItem(KEY), null);
+    await a.controller.retry(true);
+    await f.tab().controller.retry(true);
+    assert.equal(posts.length, 2);
+  });
+}
+
+test('a remote timer ends the session at its server start on the account grid, once across tabs', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  Object.assign(f.grid, { minutes: 20, timeZone: 'Asia/Kathmandu' });
+  const [a, b] = [f.tab(), f.tab()];
+  await a.controller.start(config, fields);
+  const reads = f.clockReads;
+  await a.controller.observeTimer({ id: 800, start: '2026-10-21T09:50:00Z' });
+  await b.controller.observeTimer({ id: 801, start: new Date(START).toISOString() });
+  assert.equal(a.storage.read()?.ending, false, 'a timer started at or before the pomodoro is not a new start');
+
+  const remote = { id: 900, start: '2026-10-21T10:31:00Z' };
+  await Promise.all([a.controller.observeTimer(remote), b.controller.observeTimer(remote)]);
+  assert.deepEqual(f.entries, [{
+    ...fields, start: '2026-10-21T09:55:00.000Z', stop: '2026-10-21T10:35:00.000Z', duration: 2400,
+  }]);
+  assert.equal(a.storage.read(), null);
+  assert.equal(f.clockReads, reads, 'the server start is the only instant used');
+});
+
+test('a local timer start saves the session at its captured instant before creating the timer', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  const order: string[] = [];
+  const a = f.tab(42, { save: async (entry) => { order.push(`save ${entry.stop}`); f.entries.push(entry); } });
+  await a.controller.start(config, fields);
+  f.at('2026-10-21T15:00:00Z');
+  const created = await a.controller.startTimer(new Date('2026-10-21T10:31:00.900Z'), async () => {
+    order.push(`create, session ${a.storage.read() === null ? 'ended' : 'active'}`);
+    return { id: 901 };
+  });
+  assert.deepEqual(created, { id: 901 });
+  assert.deepEqual(order, [`save ${firstPomodoro.stop}`, 'create, session ended']);
+  assert.equal(f.clockReads, 1, 'only the session start read the clock');
+
+  await a.controller.start(config, fields);
+  const session = a.storage.read();
+  const stale = await a.controller.startTimer(new Date('2026-10-21T15:10:00Z'), async () => assert.fail('a stale start must not create'), () => false);
+  assert.equal(stale, null);
+  assert.deepEqual(a.storage.read(), session, 'a refused start leaves the session running');
+});
+
+test('a session queued behind a local timer start stops that timer and ignores its refetch', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  const stops: string[] = [];
+  const created = signal();
+  const a = f.tab(42, { beforeStart: async (at) => { stops.push(at.toISOString()); } });
+  const timer = a.controller.startTimer(new Date('2026-10-21T10:31:00.900Z'), async () => {
+    await created.promise;
+    return { id: 901 };
+  });
+  f.at('2026-10-21T10:31:00.950Z');
+  const session = a.controller.start(config, fields);
+  await new Promise((done) => setImmediate(done));
+  assert.deepEqual(stops, [], 'the session waits for the timer request');
+  created.resolve();
+  await Promise.all([timer, session]);
+  assert.deepEqual(stops, ['2026-10-21T10:31:00.950Z']);
+  await a.controller.observeTimer({ id: 901, start: '2026-10-21T10:31:00Z' });
+  await f.tab().controller.observeTimer({ id: 901, start: '2026-10-21T10:31:00Z' });
+  assert.equal(a.storage.read()?.ending, false);
+  assert.deepEqual(f.entries, []);
+});
+
+test('a pause runs without a session but not once a queued session start wins the lock', { timeout: 5_000 }, async (t) => {
+  const f = sessionFixture(t);
+  const paused: string[] = [];
+  const entered = signal();
+  const release = signal();
+  t.after(release.resolve);
+  const a = f.tab(42, { beforeStart: async () => { entered.resolve(); await release.promise; } });
+  await a.controller.pauseTimer(async () => { paused.push('idle'); });
+  const session = a.controller.start(config, fields);
+  await entered.promise;
+  const pause = a.controller.pauseTimer(async () => { paused.push('during session'); });
+  release.resolve();
+  await Promise.all([session, pause]);
+  assert.deepEqual(paused, ['idle']);
+  assert.ok(a.storage.read());
+});
+
+test('timer operations share the session lock, and run unlocked only without a session or lock manager', { timeout: 5_000 }, async (t) => {
+  sessionFixture(t);
+  const ran: string[] = [];
+  const entered = signal();
+  const release = signal();
+  t.after(release.resolve);
+  const holder = withPomodoroSessionLock(42, async () => { entered.resolve(); await release.promise; });
+  await entered.promise;
+  const queued = withTimerOperationLock(42, false, async () => { ran.push('account 42'); });
+  await withTimerOperationLock(43, false, async () => { ran.push('account 43'); });
+  assert.deepEqual(ran, ['account 43']);
+  release.resolve();
+  await Promise.all([holder, queued]);
+  assert.deepEqual(ran, ['account 43', 'account 42']);
+
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+  assert.equal(await withTimerOperationLock(42, false, async () => 'plain timer'), 'plain timer');
+  await assert.rejects(withTimerOperationLock(42, true, async () => assert.fail('unlocked session save')), /HTTPS or localhost/);
 });
