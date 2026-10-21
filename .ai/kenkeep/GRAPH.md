@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:f5a1f8281ccf4f85f01a9c674ddf4c79c5f92b9f0042e1ed3030d10bdd768458'
+nodes_hash: 'sha256:676b0d4cfee6104e572c6edd38bc8b0a7b1d459d64621d13ceac483c1a671f7c'
 node_count: 87
 ---
 # kenkeep Graph
@@ -37,6 +37,7 @@ Total nodes: 87
 - **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile, wordmark
 - **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
 
 ## map-container-image-ghcr-io-e0ipso-tokkl
 
@@ -162,10 +163,11 @@ Total nodes: 87
 ## map-pomodoro-cycle-functions-in-packages-common
 
 - **kind:** map
-- **title:** Pomodoro cycle functions in packages/common/pomodoro.ts
+- **title:** Pomodoro length preferences: session defaults and API-only toggle keys
 - **path:** web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md
-- **tags:** common, pomodoro, timer, fixtures
-- **relates_to:** practice-preferences-validated-by-known-key, practice-parser-cases-live-in-shared-json-fixtures, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, map-pomodoro-session-model-in-packages-common-pomodorosession
+- **tags:** pomodoro, preferences, web, common
+- **relates_to:** practice-preferences-validated-by-known-key, map-pomodoro-session-model-in-packages-common-pomodorosession, map-web-pomodoro-sessions-provider-controller-and-account-state
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4
 
 ## map-pomodoro-session-model-in-packages-common-pomodorosession
 
@@ -174,7 +176,7 @@ Total nodes: 87
 - **path:** web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md
 - **tags:** common, pomodoro, timer, fixtures
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -261,11 +263,11 @@ Total nodes: 87
 ## map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
 
 - **kind:** map
-- **title:** Web Pomodoro: pomodoroCycle.ts, usePomodoro and the app-wide PomodoroProvider
+- **title:** Web notifications: phaseNotification.ts and the Allow notifications button
 - **path:** web-ui-behaviour/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
-- **tags:** web, pomodoro, timer, localstorage, notifications
-- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key, practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav, map-web-pomodoro-sessions-provider-controller-and-account-state
-- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:1
+- **tags:** web, notifications, pomodoro, timer
+- **relates_to:** map-web-pomodoro-sessions-provider-controller-and-account-state, practice-preferences-validated-by-known-key
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:3
 
 ## map-web-pomodoro-sessions-provider-controller-and-account-state
 
@@ -273,8 +275,8 @@ Total nodes: 87
 - **title:** Web Pomodoro sessions: provider, controller and account state
 - **path:** web-ui-behaviour/map-web-pomodoro-sessions-provider-controller-and-account-state.md
 - **tags:** web, pomodoro, timer, localstorage
-- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session, practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:0
+- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session, practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, map-pomodoro-cycle-functions-in-packages-common
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:0, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:1
 
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
@@ -369,7 +371,7 @@ Total nodes: 87
 - **path:** web-ui-behaviour/practice-end-sessions-through-lib-session.md
 - **tags:** web, auth, react-query, theme
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:1
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:2
 
 ## practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant
 
@@ -489,7 +491,8 @@ Total nodes: 87
 - **title:** Parser cases live in packages/common/fixtures JSON, not in TS asserts
 - **path:** tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md
 - **tags:** testing, common, parsing
-- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout, map-pomodoro-cycle-functions-in-packages-common, map-pomodoro-session-model-in-packages-common-pomodorosession
+- **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout, map-pomodoro-session-model-in-packages-common-pomodorosession
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:6
 
 ## practice-password-checks-go-through-failurelimiter-attempt
 
@@ -521,7 +524,7 @@ Total nodes: 87
 - **path:** web-ui-behaviour/practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav.md
 - **tags:** web, pomodoro, audio, csp, e2e
 - **relates_to:** map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
-- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:2
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:2, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:3
 
 ## practice-preferences-validated-by-known-key
 
@@ -530,6 +533,7 @@ Total nodes: 87
 - **path:** api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:5
 
 ## practice-readme-describes-the-current-project-never-its-history
 
@@ -563,6 +567,7 @@ Total nodes: 87
 - **path:** web-ui-styling-and-layout/practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md
 - **tags:** web, css, navigation, contrast, tokens, calendar
 - **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:0
 
 ## practice-stopped-entries-snap-to-the-time-resolution-on-write
 
@@ -660,6 +665,7 @@ Total nodes: 87
 - **path:** tooling-and-project/testing/practice-visual-screenshot-baselines.md
 - **tags:** testing, e2e, playwright, visual
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-app-icons-script, map-readme-screenshots-script
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:1
 
 ## practice-web-previews-and-editor-show-snapped-durations
 
@@ -676,6 +682,7 @@ Total nodes: 87
 - **path:** web-ui-behaviour/practice-web-timer-bar-pause-chain-rules.md
 - **tags:** web, timer, pause, localstorage
 - **relates_to:** practice-end-sessions-through-lib-session, practice-web-ui-survives-background-refetches, practice-kde-timer-controller-rules
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:4
 
 ## practice-web-ui-survives-background-refetches
 

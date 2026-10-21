@@ -30,7 +30,7 @@ _None yet._
 - Open [**Week calendar hour height lives in three places**](../../../web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
 ### #playwright
 - Open [**Playwright gotchas in the e2e specs**](practice-playwright-gotchas-in-the-e2e-specs.md) — 200 is not proof a file exists; clock.install not pauseAt; phone helpers, expectFits, cellTexts polling, networkidle limits; group entries on a past day.
-- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](../practice-visual-screenshot-baselines.md) — 24 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](../practice-visual-screenshot-baselines.md) — 32 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 - Open [**README screenshots: npm run screenshots**](../../repo-and-scripts/map-readme-screenshots-script.md) — scripts/screenshots.ts rebuilds the ten docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops.
 ### #workflow
 - Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](../../repo-and-scripts/practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI trailers, ticket IDs in headers and subjects over 72 chars; worktrees without npm ci skip the hook.

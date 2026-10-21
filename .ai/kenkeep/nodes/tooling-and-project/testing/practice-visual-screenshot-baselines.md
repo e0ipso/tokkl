@@ -2,7 +2,7 @@
 type: practice
 title: 'Visual baselines: e2e/visual.spec.ts and how to refresh them'
 description: >-
-  24 toHaveScreenshot baselines tied to the default headless shell; refresh with
+  32 toHaveScreenshot baselines tied to the default headless shell; refresh with
   --update-snapshots=all; tiny elements need their own check.
 tags:
   - testing
@@ -11,7 +11,8 @@ tags:
   - visual
 kk_schema_version: 3
 kk_id: practice-visual-screenshot-baselines
-kk_derived_from: []
+kk_derived_from:
+  - '59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:1'
 kk_relates_to:
   - practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
   - map-app-icons-script
@@ -19,7 +20,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`e2e/visual.spec.ts` holds 24 `toHaveScreenshot` baselines in `e2e/visual.spec.ts-snapshots/`: Timer list, Timer calendar, Reports summary for 13-19 July 2026, Projects, Settings and Admin, each in light and dark on desktop and on the `PHONE` device. Every page is shot as the setup admin except Settings, which runs as a regular account made through the `users` fixture (`regularUser` in the capture table). Desktop shots taken as the admin therefore include the Admin nav entry. Each test restores `e2e/fixtures-data/transfer/restore-full.json` through the page's session, which leaves no running entry. It freezes the browser clock with `page.clock.setFixedTime`, awaits `document.fonts.ready` and network idle, turns animations off and takes a full-page shot with `maxDiffPixelRatio: 0.002`. The Admin page's created and expiry dates follow the server's real clock, which the fixed browser clock does not touch, so that capture masks `.admin-date`. The API token card prints the server origin, so the spec rewrites it to a fixed `http://127.0.0.1:8095` and the baselines do not depend on `E2E_PORT`.
+`e2e/visual.spec.ts` holds 32 `toHaveScreenshot` baselines in `e2e/visual.spec.ts-snapshots/`: Timer list, Timer calendar, Reports summary for 13-19 July 2026, Pomodoro idle, Pomodoro running, Projects, Settings and Admin, each in light and dark on desktop and on the `PHONE` device. Every page is shot as the setup admin except Settings, which runs as a regular account made through the `users` fixture (`regularUser` in the capture table). Desktop shots taken as the admin therefore include the Admin nav entry. Each test restores `e2e/fixtures-data/transfer/restore-full.json` through the page's session, which leaves no running entry. It freezes the browser clock with `page.clock.setFixedTime`, awaits `document.fonts.ready` and network idle, turns animations off and takes a full-page shot with `maxDiffPixelRatio: 0.002`. The running Pomodoro capture starts its session through the page's Start button on the frozen clock, so the countdown holds the full 25:00 of the default work phase. The Admin page's created and expiry dates follow the server's real clock, which the fixed browser clock does not touch, so that capture masks `.admin-date`. The API token card prints the server origin, so the spec rewrites it to a fixed `http://127.0.0.1:8095` and the baselines do not depend on `E2E_PORT`.
 
 A baseline's file name comes from the explicit argument to `toHaveScreenshot` (`${capture.name}-${device}-${colorScheme}.png`, expanded through `snapshotPathTemplate` in `playwright.config.ts`), not from the test title. Renaming a test title therefore neither moves nor regenerates a baseline; to rename one, change the argument and `git mv` the PNG.
 
@@ -36,3 +37,9 @@ Because the threshold is a ratio of the whole page, a small element can break wi
 - Related: [map-app-icons-script](../repo-and-scripts/map-app-icons-script.md)
 - Related: [map-readme-screenshots-script](../repo-and-scripts/map-readme-screenshots-script.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:1
+<!-- kk:citations:end -->

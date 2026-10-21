@@ -42,6 +42,7 @@ _None._
 - Open [**Project and task totals rely on the live-entry partial indexes**](../reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 ### #preferences
 - Open [**Preferences: known keys validated, unknown keys stored verbatim**](practice-preferences-validated-by-known-key.md) — PREFERENCE_RULES in users.ts validates the keys Tokkl clients read, Pomodoro included; other keys pass through; bad stored values read back as defaults.
+- Open [**Pomodoro length preferences: session defaults and API-only toggle keys**](../../web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md) — The four pomodoro_* length preferences seed new /pomodoro sessions; pomodoro_enabled and stop_timer_at_end have no web or common reader.
 ### #settings
 - Open [**Instance settings: /api/app/admin/settings and SETTING_RULES**](map-instance-settings-api-app-admin-settings-and-setting-rules.md) — session_days, invite_days and time_resolution_minutes live in instance_settings, validated by SETTING_RULES; v9 /me exposes the resolution.
 ### #validation

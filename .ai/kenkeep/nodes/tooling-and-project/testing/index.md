@@ -10,8 +10,8 @@
 - Load [`e2e-suite/`](e2e-suite/index.md) for more information on how the Playwright e2e suite runs, isolates workers and accounts, and how to write specs; read before running, adding or debugging an e2e spec.
 
 ## Conventions (how we build)
-- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) to learn about: 24 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check. #testing #e2e #playwright #visual
-- Open [**Parser cases live in packages/common/fixtures JSON, not in TS asserts**](practice-parser-cases-live-in-shared-json-fixtures.md) to learn about: duration, timeOfDay, snap, pomodoro and pomodoroSession cases are a cross-client contract in JSON; add cases there, not in TS tests. #testing #common #parsing
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) to learn about: 32 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check. #testing #e2e #playwright #visual
+- Open [**Parser cases live in packages/common/fixtures JSON, not in TS asserts**](practice-parser-cases-live-in-shared-json-fixtures.md) to learn about: duration, timeOfDay, snap and pomodoroSession cases are a cross-client contract in JSON; add cases there, not in TS tests. #testing #common #parsing
 
 ## Components (what exists)
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) to learn about: npm test runs the workspaces then the e2e and scripts node tests; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint. #testing #typecheck #tooling #workflow
@@ -30,9 +30,9 @@
 ### #bench
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) — bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it.
 ### #common
-- Open [**Pomodoro cycle functions in packages/common/pomodoro.ts**](../../web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md) — Clock-free workPhase, nextBreak, breakPhase, nextWorkPhase and nextCompletedCount; pomodoro.json is their cross-client contract.
+- Open [**Pomodoro length preferences: session defaults and API-only toggle keys**](../../web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md) — The four pomodoro_* length preferences seed new /pomodoro sessions; pomodoro_enabled and stop_timer_at_end have no web or common reader.
+- Open [**UI time math uses account-local wall-clock helpers**](../../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
 - Open [**Pomodoro session model in packages/common/pomodoroSession.ts**](../../web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md) — Clock-free confirm-driven phases: startSession, plannedEnd, overtimeSeconds, transitionKind, nextPhase, pomodoroEntrySpan.
-- Open [**Parser cases live in packages/common/fixtures JSON, not in TS asserts**](practice-parser-cases-live-in-shared-json-fixtures.md) — duration, timeOfDay, snap, pomodoro and pomodoroSession cases are a cross-client contract in JSON; add cases there, not in TS tests.
 ### #e2e
 - Open [**E2E isolation: worker accounts, the reset fixture and the error guard**](e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md) — Each worker has its own admin; the data fixture wipes that user's data; runtimeErrors fails tests unless a spec allows the failure.
 - Open [**Writing e2e specs: areas, shared helpers and extra accounts**](e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md) — Specs live by area with per-area helpers; ReportApi, transfer fixtures, disposable servers, the users fixture and login.
@@ -40,14 +40,14 @@
 ### #parsing
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](../../web-ui-behaviour/practice-twelve-hour-time-entry-parsing-rules.md) — parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now.
 - Open [**Durations: over 999 hours is unreadable (null), not clamped**](../../web-ui-behaviour/practice-parse-duration-returns-null-over-999-hours.md) — MAX_DURATION_SECONDS caps parseDuration on every branch; callers read null as unreadable input.
-- Open [**Parser cases live in packages/common/fixtures JSON, not in TS asserts**](practice-parser-cases-live-in-shared-json-fixtures.md) — duration, timeOfDay, snap, pomodoro and pomodoroSession cases are a cross-client contract in JSON; add cases there, not in TS tests.
+- Open [**Parser cases live in packages/common/fixtures JSON, not in TS asserts**](practice-parser-cases-live-in-shared-json-fixtures.md) — duration, timeOfDay, snap and pomodoroSession cases are a cross-client contract in JSON; add cases there, not in TS tests.
 ### #performance
 - Open [**Project and task totals rely on the live-entry partial indexes**](../../api-and-data/reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 - Open [**Validate write-path references with getProjectRef and getTaskRef**](../../api-and-data/reports-and-totals/practice-write-paths-validate-refs-not-totals.md) — Entry and task writes check project/task references with the ref getters; getProject/getTask compute tracked totals.
 - Open [**History-scale bench: npm run bench:history**](map-history-scale-bench.md) — bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it.
 ### #playwright
 - Open [**Playwright gotchas in the e2e specs**](e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md) — 200 is not proof a file exists; clock.install not pauseAt; phone helpers, expectFits, cellTexts polling, networkidle limits; group entries on a past day.
-- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 24 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 32 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 - Open [**README screenshots: npm run screenshots**](../repo-and-scripts/map-readme-screenshots-script.md) — scripts/screenshots.ts rebuilds the ten docs/screenshots PNGs on a frozen clock; SQLite unixepoch('now') ignores it, so the timer stops.
 ### #reports
 - Open [**Web app report endpoints under /api/app/report**](../../api-and-data/reports-and-totals/map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
@@ -56,7 +56,7 @@
 ### #typecheck
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — npm test runs the workspaces then the e2e and scripts node tests; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
 ### #visual
-- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 24 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
+- Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](practice-visual-screenshot-baselines.md) — 32 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.
 ### #workflow
 - Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](../repo-and-scripts/practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI trailers, ticket IDs in headers and subjects over 72 chars; worktrees without npm ci skip the hook.
 - Open [**What npm test and npm run typecheck cover**](map-test-and-static-analysis-layout.md) — npm test runs the workspaces then the e2e and scripts node tests; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.

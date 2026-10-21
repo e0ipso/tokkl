@@ -1,41 +1,41 @@
 ---
 type: map
-title: Pomodoro cycle functions in packages/common/pomodoro.ts
+title: 'Pomodoro length preferences: session defaults and API-only toggle keys'
 description: >-
-  Clock-free workPhase, nextBreak, breakPhase, nextWorkPhase and
-  nextCompletedCount; pomodoro.json is their cross-client contract.
+  The four pomodoro_* length preferences seed new /pomodoro sessions;
+  pomodoro_enabled and stop_timer_at_end have no web or common reader.
 tags:
-  - common
   - pomodoro
-  - timer
-  - fixtures
+  - preferences
+  - web
+  - common
 kk_schema_version: 3
 kk_id: map-pomodoro-cycle-functions-in-packages-common
-kk_derived_from: []
+kk_derived_from:
+  - '59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4'
 kk_relates_to:
   - practice-preferences-validated-by-known-key
-  - practice-parser-cases-live-in-shared-json-fixtures
-  - map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider
   - map-pomodoro-session-model-in-packages-common-pomodorosession
+  - map-web-pomodoro-sessions-provider-controller-and-account-state
 kk_depends_on: []
 kk_confidence: high
 ---
-`packages/common/pomodoro.ts`, exported as `@tokkl/common/pomodoro` (`./pomodoro` in the package's `exports`), holds the Pomodoro cycle rules: `workPhase`, `nextBreak`, `breakPhase`, `nextWorkPhase` and `nextCompletedCount`, which takes a `CycleEvent` (`workEnded`, `workStopped`, `breakEnded` with its kind, `idle` with `lastActiveAt` and `now`). The functions read no clock and keep no state; the caller passes lengths, counts and instants. They take a `PomodoroSettings` (`workMinutes`, `shortBreakMinutes`, `longBreakMinutes`, `longBreakEvery`), not the stored `pomodoro_*` preference keys, so a caller maps the preferences onto it. Bad input throws `RangeError`. The web app's driver over these functions is `map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider`. The confirm-driven session model that sits beside this cycle is `map-pomodoro-session-model-in-packages-common-pomodorosession`.
+`@tokkl/common` exports one Pomodoro module, `./pomodoroSession` (`packages/common/pomodoroSession.ts`, see `map-pomodoro-session-model-in-packages-common-pomodorosession`). Its `DEFAULT_POMODORO_SESSION_CONFIG` (work 25, short rest 5 and long rest 15 minutes, a long rest every 4 pomodoros) is the only source of default lengths in the web app.
 
-`packages/common/fixtures/pomodoro.json` is the contract for these functions. Tokkl for Android does not read it. It copies cases by hand at a tokkl commit named in its test file, so a changed case reaches it only when it copies again. Change a rule in the JSON first (see `practice-parser-cases-live-in-shared-json-fixtures`); `packages/common/fixtures/README.md` documents each function's `input` fields.
+Settings under Preferences (`packages/web/src/pages/manage/settings/PreferencesSection.tsx`) edits four lengths: `pomodoro_focus_interval_in_minutes`, `pomodoro_break_interval_in_minutes`, `pomodoro_long_break_interval_in_minutes` and `pomodoro_long_break_every`, each falling back to `DEFAULT_POMODORO_SESSION_CONFIG` when unset. They are defaults for new sessions only: the `/pomodoro` start form in `PomodoroPage.tsx` prefills from them, and starting a session never writes them back. Preferences has no Pomodoro on/off or stop-at-end control.
 
-Settled rules:
-
-- Work time is the running time accrued in the current work phase. A pause freezes it and a resume continues from the same value. A break runs on elapsed time from its start, whether or not a timer runs. Reaching the length exactly counts as ended.
-- `nextBreak(completed)` takes the count of work phases completed before the one that is ending. The break is long when `completed + 1 >= longBreakEvery`, so a count above a lowered setting still gets a long break.
-- `nextCompletedCount`: a finished work phase adds one, a stopped one leaves the count, a long break's end resets it to 0. Idle longer than the long-break length resets it; idle for exactly that length keeps it.
-- `nextWorkPhase` returns null while the break has not ended or when no timer runs. Otherwise the next work phase starts at the break's end and its work time counts from there.
+The API and `packages/types` still accept `pomodoro_enabled` and `pomodoro_stop_timer_at_end` (see `practice-preferences-validated-by-known-key`), but no web or common code reads them. `localStorage` entries under `tokkl.pomodoro.<accountId>` are inert: nothing reads them and sign-out does not clear them.
 
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-preferences-validated-by-known-key](../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
-- Related: [practice-parser-cases-live-in-shared-json-fixtures](../tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md)
-- Related: [map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider](map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md)
 - Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](map-pomodoro-session-model-in-packages-common-pomodorosession.md)
+- Related: [map-web-pomodoro-sessions-provider-controller-and-account-state](map-web-pomodoro-sessions-provider-controller-and-account-state.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4
+<!-- kk:citations:end -->
