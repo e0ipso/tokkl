@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { canonicalTimeZone } from '@tokkl/common/time';
 import { setup } from './helpers.ts';
 import { openDatabase } from '../src/db/index.ts';
 import { MIGRATIONS } from '../src/db/migrations.ts';
@@ -316,6 +317,71 @@ test('a version 1 database gains the live-entry indexes when opened', () => {
     assert.ok(indexes.includes('time_entries_project_live'), indexes.join());
     assert.ok(indexes.includes('time_entries_task_live'), indexes.join());
     db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('preference migration preserves every account across repeated database opens', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-preferences-'));
+  const path = join(dir, 'tokkl.db');
+  const preferences: Array<{ kept: Record<string, unknown>; retired: Record<string, unknown> }> = [
+    {
+      kept: {
+        pomodoro_focus_interval_in_minutes: 41, pomodoro_break_interval_in_minutes: 8,
+        pomodoro_long_break_interval_in_minutes: 23, pomodoro_long_break_every: 7,
+        theme: 'dark', favorites: [{ description: 'Standup', project_id: null, task_id: null, tags: [], billable: false }],
+        client_widget: { pomodoro_enabled: true, nested: [null, false, 3] },
+      },
+      retired: { pomodoro_enabled: true, pomodoro_stop_timer_at_end: false },
+    },
+    {
+      kept: {
+        pomodoro_focus_interval_in_minutes: 180, pomodoro_break_interval_in_minutes: 60,
+        pomodoro_long_break_interval_in_minutes: 1, pomodoro_long_break_every: 12,
+        date_format: 'ddd D MMM', manualMode: true,
+      },
+      retired: { pomodoro_enabled: false },
+    },
+    { kept: { client_setting: null, timeofday_format: 'h:mm a' }, retired: { pomodoro_stop_timer_at_end: true } },
+    { kept: { theme: 'light', custom_list: ['kept', 2] }, retired: {} },
+    { kept: {}, retired: {} },
+  ];
+  try {
+    const old = new DatabaseSync(path);
+    let expected: Array<Record<string, unknown>>;
+    try {
+      old.function('canonical_time_zone', (name) => typeof name === 'string' ? canonicalTimeZone(name) : null);
+      for (const sql of MIGRATIONS.slice(0, 6)) old.exec(sql);
+      old.exec('PRAGMA user_version = 6');
+      const insert = old.prepare(`
+        INSERT INTO users (id, email, password_hash, api_token, preferences, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const [index, { kept, retired }] of preferences.entries()) {
+        insert.run(index + 1, `user${index}@example.com`, `hash${index}`, `token${index}`,
+          JSON.stringify({ ...kept, ...retired }), '2026-10-01T08:00:00.000Z', '2026-10-02T09:00:00.000Z');
+      }
+      expected = old.prepare('SELECT * FROM users ORDER BY id').all()
+        .map((row, index) => ({ ...row, preferences: preferences[index]!.kept }));
+    } finally {
+      old.close();
+    }
+
+    let storedAfterMigration: unknown;
+    // The first open upgrades the file; subsequent opens must leave its rows untouched.
+    for (let opening = 0; opening < 3; opening++) {
+      const db = openDatabase(path);
+      try {
+        assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 7);
+        const rows = db.prepare('SELECT * FROM users ORDER BY id').all();
+        assert.deepEqual(rows.map((row) => ({ ...row, preferences: JSON.parse(row.preferences as string) })), expected);
+        if (opening === 0) storedAfterMigration = rows;
+        else assert.deepEqual(rows, storedAfterMigration);
+      } finally {
+        db.close();
+      }
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
