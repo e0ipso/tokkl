@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:58b6150a0cba6ea14d0ec8c61afeaffb0a4b7b4496e499d757247d70a203426f'
+nodes_hash: 'sha256:3bd5011f48320799dcf56489d7dc70c501b94fe524ae34e6b97ecb223f0314e4'
 node_count: 87
 ---
 # kenkeep Graph
@@ -209,6 +209,7 @@ Total nodes: 87
 - **path:** tooling-and-project/testing/map-test-and-static-analysis-layout.md
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-npm-workspaces-package-layout
+- **derived_from:** package.json
 
 ## map-tokkl-kde-live-widgets-reload-with-plasmashell
 
@@ -363,6 +364,7 @@ Total nodes: 87
 - **title:** E2E isolation: worker accounts, the reset fixture and the error guard
 - **path:** tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md
 - **tags:** testing, e2e
+- **derived_from:** e2e/fixtures.ts
 
 ## practice-end-sessions-through-lib-session
 
