@@ -5,9 +5,10 @@ import { EMAIL, PASSWORD } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
   ACCOUNT, CSRF, LIMIT_WINDOW_SECONDS, SETUP_CODE, acceptInvite, basic, createAccount, createInvite, expect,
-  inviteApiPath, logInThroughForm, meWithSession, retryAfter, sessionCookie, test,
+  inviteApiPath, logInThroughForm, meWithSession, retryAfter, sessionCookie, test, withAuth,
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
+import { chooseJson, transferFixture } from './transfer-tests-helpers.ts';
 
 // Failed setup and login in the browser, and what logout leaves behind.
 
@@ -73,6 +74,70 @@ test('a restart on an older database shows a zone stored as typed under its cano
   const profile = page.getByRole('form', { name: 'Profile' });
   await expect(profile.getByLabel('Timezone')).toHaveValue('Asia/Tokyo');
   await expect(profile.getByRole('note')).toContainText('This browser is set to Europe/Madrid, but the account uses Asia/Tokyo.');
+});
+
+test('an upgraded account drops retired Pomodoro toggles and restores a legacy backup without changing its lengths', async ({ page, servers }) => {
+  const old = await servers.start({ slot: 0 });
+  const { apiToken } = await createAccount(old.baseURL);
+  const fresh = await withAuth(old.baseURL, basic(apiToken, 'api_token'), async (api) => {
+    const response = await api.get('/api/v9/me/preferences');
+    expect(response.status()).toBe(200);
+    return await response.json() as Record<string, unknown>;
+  });
+  expect(fresh).not.toHaveProperty('pomodoro_enabled');
+  expect(fresh).not.toHaveProperty('pomodoro_stop_timer_at_end');
+
+  const retained = { ...fresh, pomodoro_focus_interval_in_minutes: 42, companion_setting: { sound: 'quiet' } };
+  const legacy = { ...retained, pomodoro_enabled: true, pomodoro_stop_timer_at_end: false };
+  await old.stop();
+  const db = new DatabaseSync(join(old.dataDir, 'tokkl.sqlite'));
+  try {
+    db.prepare('UPDATE users SET preferences = ? WHERE email = ?').run(JSON.stringify(legacy), ACCOUNT.email);
+    db.exec('PRAGMA user_version = 6');
+  } finally {
+    db.close();
+  }
+
+  const upgraded = await servers.start({ slot: 0, dataDir: old.dataDir });
+  await logInThroughForm(page, upgraded.baseURL);
+  const preferences = await page.request.get(`${upgraded.baseURL}/api/v9/me/preferences`);
+  expect(preferences.status()).toBe(200);
+  expect(await preferences.json()).toEqual(retained);
+  const exported = await page.request.get(`${upgraded.baseURL}/api/app/export.json`);
+  expect(exported.status()).toBe(200);
+  expect((await exported.json()).preferences).toEqual(retained);
+
+  await page.goto(`${upgraded.baseURL}/settings`);
+  const defaults = page.getByRole('group', { name: 'Pomodoro session defaults' });
+  await expect(defaults.getByLabel('Work (minutes)')).toHaveValue('42');
+  const backup = transferFixture('restore-full.json');
+  backup.buffer = Buffer.from(JSON.stringify({
+    ...JSON.parse(backup.buffer.toString()),
+    preferences: { ...legacy, pomodoro_focus_interval_in_minutes: 10 },
+  }));
+  await chooseJson(page, backup);
+  const summary = page.locator('.import-summary').last();
+  await expect(summary).toContainText('3 entries to add');
+  await expect(summary).not.toContainText('problem');
+  await page.getByRole('button', { name: 'Restore', exact: true }).click();
+  await expect(summary).toContainText('3 entries added');
+  await expect(page.getByRole('status')).toContainText('Restored 3 entries');
+  const restored = await page.request.get(`${upgraded.baseURL}/api/v9/me/preferences`);
+  expect(restored.status()).toBe(200);
+  expect(await restored.json()).toEqual(retained);
+  await page.reload();
+  await expect(defaults.getByLabel('Work (minutes)')).toHaveValue('42');
+
+  // Check the stored row too: a read-time filter alone would leave the obsolete keys on disk.
+  await upgraded.stop();
+  const migrated = new DatabaseSync(join(upgraded.dataDir, 'tokkl.sqlite'));
+  try {
+    const row = migrated.prepare('SELECT preferences FROM users WHERE email = ?').get(ACCOUNT.email) as { preferences: string };
+    expect(JSON.parse(row.preferences)).toEqual(retained);
+    expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 });
+  } finally {
+    migrated.close();
+  }
 });
 
 // Ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.
