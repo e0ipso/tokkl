@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:6a6c10187563067a9d5fe5a9258296fab0853f19d1301323da4ca50bbcb98b52'
+nodes_hash: 'sha256:58b6150a0cba6ea14d0ec8c61afeaffb0a4b7b4496e499d757247d70a203426f'
 node_count: 87
 ---
 # kenkeep Graph
@@ -163,11 +163,11 @@ Total nodes: 87
 ## map-pomodoro-cycle-functions-in-packages-common
 
 - **kind:** map
-- **title:** Pomodoro length preferences: session defaults and API-only toggle keys
+- **title:** Pomodoro length preferences: shared defaults for new sessions
 - **path:** web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md
 - **tags:** pomodoro, preferences, web, common
 - **relates_to:** practice-preferences-validated-by-known-key, map-pomodoro-session-model-in-packages-common-pomodorosession, map-web-pomodoro-sessions-provider-controller-and-account-state
-- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:0
 
 ## map-pomodoro-session-model-in-packages-common-pomodorosession
 
@@ -176,7 +176,7 @@ Total nodes: 87
 - **path:** web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md
 - **tags:** common, pomodoro, timer, fixtures
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -533,7 +533,7 @@ Total nodes: 87
 - **path:** api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common
-- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:5
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:5, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:practice:0
 
 ## practice-readme-describes-the-current-project-never-its-history
 

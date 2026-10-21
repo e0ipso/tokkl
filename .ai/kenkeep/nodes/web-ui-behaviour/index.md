@@ -26,7 +26,7 @@ _None._
 
 ## Components (what exists)
 - Open [**Pomodoro session model in packages/common/pomodoroSession.ts**](map-pomodoro-session-model-in-packages-common-pomodorosession.md) to learn about: Clock-free confirm-driven phases: startSession, plannedEnd, overtimeSeconds, transitionKind, nextPhase, pomodoroEntrySpan. #common #pomodoro #timer #fixtures
-- Open [**Pomodoro length preferences: session defaults and API-only toggle keys**](map-pomodoro-cycle-functions-in-packages-common.md) to learn about: The four pomodoro_* length preferences seed new /pomodoro sessions; pomodoro_enabled and stop_timer_at_end have no web or common reader. #pomodoro #preferences #web #common
+- Open [**Pomodoro length preferences: shared defaults for new sessions**](map-pomodoro-cycle-functions-in-packages-common.md) to learn about: Four Pomodoro length preferences seed new sessions; API and web share common defaults, and API validation uses common ranges. #pomodoro #preferences #web #common
 - Open [**Web Pomodoro sessions: provider, controller and account state**](map-web-pomodoro-sessions-provider-controller-and-account-state.md) to learn about: PomodoroSessionProvider, mounted in the signed-in shell, owns account-local sessions: the /pomodoro page, banner, title, unsaved queue. #web #pomodoro #timer #localstorage
 - Open [**Web notifications: phaseNotification.ts and the Allow notifications button**](map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md) to learn about: notificationAccess and AllowNotifications; notifyInBackground for long-timer reminders, notifySessionPhaseEnd for Pomodoro sessions. #web #notifications #pomodoro #timer
 - Open [**Entry fields: EntryFields.tsx and useEntryFields.ts**](map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md) to learn about: Draft-driven description, suggestions, project/task and tag pickers and billable toggle; the parent decides what an edit writes. #web #timer #components #react #focus
@@ -55,7 +55,7 @@ _None._
 - Open [**Loading, error, empty and field-error states use the shared components**](map-web-page-state-and-field-error-components.md) — PageState.tsx (Loading, LoadError, BusyRegion), EmptyState.tsx and FieldError.tsx with useFieldErrors; error toasts are role=alert too.
 - Open [**Timer bar pickers return focus to the description without opening suggestions**](practice-timer-bar-pickers-return-focus-without-opening-suggestions.md) — Closing the project or tag picker focuses the description through quietFocus; every focus clears the pending 150 ms blur hide; typing reopens suggestions.
 ### #common
-- Open [**Pomodoro length preferences: session defaults and API-only toggle keys**](map-pomodoro-cycle-functions-in-packages-common.md) — The four pomodoro_* length preferences seed new /pomodoro sessions; pomodoro_enabled and stop_timer_at_end have no web or common reader.
+- Open [**Pomodoro length preferences: shared defaults for new sessions**](map-pomodoro-cycle-functions-in-packages-common.md) — Four Pomodoro length preferences seed new sessions; API and web share common defaults, and API validation uses common ranges.
 - Open [**UI time math uses account-local wall-clock helpers**](practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
 - Open [**Pomodoro session model in packages/common/pomodoroSession.ts**](map-pomodoro-session-model-in-packages-common-pomodorosession.md) — Clock-free confirm-driven phases: startSession, plannedEnd, overtimeSeconds, transitionKind, nextPhase, pomodoroEntrySpan.
 ### #localstorage
@@ -117,7 +117,7 @@ _None._
 - Open [**Web timer bar pause chain: pauseChain.ts, per-account storage, ending rules**](practice-web-timer-bar-pause-chain-rules.md) — Pause stops, Resume starts a clone; tabChain.ts shares the chain in a tab, localStorage per account; Stop or a foreign entry ends it.
 ### #preferences
 - Open [**Preferences: known keys validated, unknown keys stored verbatim**](../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md) — PREFERENCE_RULES in users.ts validates the keys Tokkl clients read, Pomodoro included; other keys pass through; bad stored values read back as defaults.
-- Open [**Pomodoro length preferences: session defaults and API-only toggle keys**](map-pomodoro-cycle-functions-in-packages-common.md) — The four pomodoro_* length preferences seed new /pomodoro sessions; pomodoro_enabled and stop_timer_at_end have no web or common reader.
+- Open [**Pomodoro length preferences: shared defaults for new sessions**](map-pomodoro-cycle-functions-in-packages-common.md) — Four Pomodoro length preferences seed new sessions; API and web share common defaults, and API validation uses common ranges.
 ### #reports
 - Open [**Web app report endpoints under /api/app/report**](../api-and-data/reports-and-totals/map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 - Open [**styles.css loads last and owns the colour tokens**](../web-ui-styling-and-layout/practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals.

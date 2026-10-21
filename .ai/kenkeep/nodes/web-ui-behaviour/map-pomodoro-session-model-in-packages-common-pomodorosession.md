@@ -14,6 +14,7 @@ kk_id: map-pomodoro-session-model-in-packages-common-pomodorosession
 kk_derived_from:
   - 'b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1'
   - '59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2'
+  - 'bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1'
 kk_relates_to:
   - map-pomodoro-cycle-functions-in-packages-common
   - practice-parser-cases-live-in-shared-json-fixtures
@@ -24,7 +25,7 @@ kk_confidence: high
 ---
 `packages/common/pomodoroSession.ts`, exported as `@tokkl/common/pomodoroSession`, models a Pomodoro session in which a phase changes only when the user confirms the next phase. It is the only Pomodoro module in `@tokkl/common`. The web session provider, controller and state parser in `packages/web/src/components/` consume the session model; signed-in `App.tsx` mounts `PomodoroSessionProvider` directly in the shell. It reads no clock, keeps no state and knows nothing about stored preferences. The caller passes every instant.
 
-Exports: `DEFAULT_POMODORO_SESSION_CONFIG` (25, 5, 15 minutes, long rest every 4) and `POMODORO_SESSION_CONFIG_RANGES` (work 1-180, short and long rest 1-60, long-rest-every 1-12). They match the `pomodoro_focus_interval_in_minutes`, `pomodoro_break_interval_in_minutes`, `pomodoro_long_break_interval_in_minutes` and `pomodoro_long_break_every` defaults and ranges in `packages/api/src/models/users.ts`; change both together. Functions: `startSession`, `plannedEnd`, `overtimeSeconds`, `transitionKind`, `nextPhase` (returns `{ next, transition, skipped }`) and `pomodoroEntrySpan`, which wraps `snapSpan`. Phase kinds are `work`, `shortRest` and `longRest`; transitions are `workToShortRest`, `shortRestToWork`, `workToLongRest` and `longRestToWork`.
+Exports: `DEFAULT_POMODORO_SESSION_CONFIG` (25, 5, 15 minutes, long rest every 4) and `POMODORO_SESSION_CONFIG_RANGES` (work 1-180, short and long rest 1-60, long-rest-every 1-12). `packages/api/src/models/users.ts` imports both constants to derive the `pomodoro_focus_interval_in_minutes`, `pomodoro_break_interval_in_minutes`, `pomodoro_long_break_interval_in_minutes` and `pomodoro_long_break_every` defaults and validation rules. `PreferencesSection.tsx` uses the common defaults, and `PomodoroPage.tsx` uses both defaults and ranges. Change the shared declarations in common; literal test expectations pin the defaults and ranges independently. Functions: `startSession`, `plannedEnd`, `overtimeSeconds`, `transitionKind`, `nextPhase` (returns `{ next, transition, skipped }`) and `pomodoroEntrySpan`, which wraps `snapSpan`. Phase kinds are `work`, `shortRest` and `longRest`; transitions are `workToShortRest`, `shortRestToWork`, `workToLongRest` and `longRestToWork`.
 
 Settled rules:
 
@@ -49,4 +50,5 @@ Settled rules:
 
 [1] b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1
 [2] 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2
+[3] bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1
 <!-- kk:citations:end -->
