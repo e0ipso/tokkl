@@ -719,6 +719,7 @@ input.entry-duration:is(:hover, :focus) {
 }
 /* On pages without the timer bar the banner sits above the page. */
 .content > .pomodoro-banner { margin-bottom: var(--space-3); }
+.pomodoro-session-banner { flex-wrap: wrap; }
 .timer-reminder { flex-wrap: wrap; margin-bottom: var(--space-3); }
 .timer-button {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);

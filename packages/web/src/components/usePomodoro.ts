@@ -49,6 +49,8 @@ export interface Pomodoro {
 
 interface Options {
   accountId: number;
+  /** Sessions own alerts while active; the legacy timer cycle still tracks its entry. */
+  alertsEnabled: boolean;
   prefs: PomodoroPreferences | undefined;
   /** True while a preference save is pending, when `prefs` may hold a value that rolls back. */
   prefsSaving: boolean;
@@ -64,7 +66,7 @@ interface Options {
  * Runs the Pomodoro cycle. It lives in localStorage per account, so a reload and the account's
  * other tabs keep it, and it moves on whenever the caller renders and at each deadline.
  */
-export function usePomodoro({ accountId, prefs, prefsSaving, timer, busy, onWorkEnded }: Options): Pomodoro {
+export function usePomodoro({ accountId, alertsEnabled, prefs, prefsSaving, timer, busy, onWorkEnded }: Options): Pomodoro {
   const config = useMemo(() => pomodoroConfig(prefs), [
     prefs?.pomodoro_enabled, prefs?.pomodoro_focus_interval_in_minutes, prefs?.pomodoro_break_interval_in_minutes,
     prefs?.pomodoro_long_break_interval_in_minutes, prefs?.pomodoro_long_break_every, prefs?.pomodoro_stop_timer_at_end,
@@ -128,13 +130,15 @@ export function usePomodoro({ accountId, prefs, prefsSaving, timer, busy, onWork
     if (!timer || busy.current) return;
     const result = advance(sync(), timer, Date.now(), config);
     store(result.state);
-    if (result.rang) {
+    if (result.rang && alertsEnabled) {
       ring();
       // The banner names the last phase that ended, and so does the notification.
       if (result.state.banner) notifyPhaseEnd(result.state.banner);
     }
     if (result.workEnded && config.stopAtEnd) onWorkEnded();
   });
+
+  useEffect(() => { if (!alertsEnabled) bell?.pause(); }, [alertsEnabled]);
 
   // Wake at the next deadline, so the bell does not wait for the next tick.
   useEffect(() => {
@@ -147,7 +151,7 @@ export function usePomodoro({ accountId, prefs, prefsSaving, timer, busy, onWork
 
   return {
     countdown: (now) => (config ? countdown(state, now, config.settings) : null),
-    banner: config ? state.banner : null,
+    banner: config && alertsEnabled ? state.banner : null,
     dismiss: () => store({ ...stateRef.current, banner: null }),
   };
 }

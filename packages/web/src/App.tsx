@@ -9,7 +9,9 @@ import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
 import { PauseCoordinationProvider } from './components/PauseCoordination.tsx';
 import { PomodoroBanner, PomodoroProvider } from './components/PomodoroProvider.tsx';
-import { PomodoroSessionProvider } from './components/PomodoroSessionProvider.tsx';
+import { PomodoroSessionBanner } from './components/PomodoroSessionBanner.tsx';
+import { sessionTitle } from './components/pomodoroSessionPresentation.ts';
+import { PomodoroSessionProvider, usePomodoroSession } from './components/PomodoroSessionProvider.tsx';
 import { LongTimerReminder } from './components/LongTimerReminder.tsx';
 import { useToast } from './components/Toast.tsx';
 import { formatDuration } from '@tokkl/common/duration';
@@ -71,11 +73,12 @@ function useTheme() {
 function useRunningTitle() {
   const { data: current } = useCurrentEntry();
   const now = useNow(1000);
+  const { session } = usePomodoroSession();
   useEffect(() => {
-    document.title = current
+    document.title = session ? sessionTitle(session, now) : current
       ? `${formatDuration(entrySeconds(current, now))} · ${current.description || 'Running'}`
       : 'Tokkl';
-  }, [current, now]);
+  }, [current, session, now]);
 }
 
 /**
@@ -258,6 +261,7 @@ function Shell() {
       {phone ? <header className="phone-header"><Brand size="sm" /></header> : null}
       <main className="content" data-section={section}>
         <LongTimerReminder />
+        <PomodoroSessionBanner />
         {/* The timer bar shows the Pomodoro banner on the timer page. */}
         {location === '/' ? null : <PomodoroBanner />}
         <ErrorBoundary resetKey={location}>
@@ -335,5 +339,5 @@ export function App() {
   }
   // The Pomodoro runs on every signed-in page, not only where the timer bar is. It pauses the entry
   // through the same pause coordination as the timer bar, so that provider sits above it.
-  return <PauseCoordinationProvider><PomodoroProvider><PomodoroSessionProvider><Shell /></PomodoroSessionProvider></PomodoroProvider></PauseCoordinationProvider>;
+  return <PauseCoordinationProvider><PomodoroSessionProvider><PomodoroProvider><Shell /></PomodoroProvider></PomodoroSessionProvider></PauseCoordinationProvider>;
 }

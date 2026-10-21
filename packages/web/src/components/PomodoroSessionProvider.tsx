@@ -1,9 +1,12 @@
-import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { plannedEnd, transitionKind, type PomodoroSessionConfig, type SessionPhase, type TransitionKind } from '@tokkl/common/pomodoroSession';
 import { useCreateEntry, useMe } from '../api/hooks.ts';
 import { useNow } from '../lib/settings.ts';
 import { createPomodoroSessionController } from './pomodoroSessionController.ts';
 import { registerPomodoroSession } from './pomodoroSessionLifecycle.ts';
+import { createPomodoroSessionAlarm, type SessionAlarm } from './pomodoroSessionAlarm.ts';
+import { notifySessionPhaseEnd } from './phaseNotification.ts';
+import { SESSION_PHASE_LABEL } from './pomodoroSessionPresentation.ts';
 import { withPomodoroSessionLock } from './pomodoroSessionLock.ts';
 import { createPomodoroSessionStorage, pomodoroSessionKey, type PomodoroSessionState } from './pomodoroSessionState.ts';
 import { useToast } from './Toast.tsx';
@@ -16,6 +19,10 @@ interface PomodoroSession {
   transitionKind: TransitionKind | null;
   now: Date;
   busy: boolean;
+  ringing: boolean;
+  audioBlocked: boolean;
+  unlockAudio: () => void;
+  retryAudio: () => void;
   start: (config: PomodoroSessionConfig, fields: EntryDraft) => Promise<void>;
   nextPhase: () => Promise<void>;
   end: () => Promise<void>;
@@ -43,16 +50,24 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
   const now = useNow();
   const [, refresh] = useState(0);
   const [pending, setPending] = useState(0);
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const latest = useRef({ me, createEntry, toast });
   latest.current = { me, createEntry, toast };
   const mounted = useRef(false);
   const signingOut = useRef(false);
-  const { storage, controller } = useMemo(() => {
+  const { storage, controller, alarm, currentAlarm } = useMemo(() => {
     const storage = createPomodoroSessionStorage(accountId, () => window.localStorage);
+    const currentAlarm = (): SessionAlarm | null => {
+      const state = storage.read();
+      if (!state || state.ending || Date.now() < plannedEnd(state.phase, state.config).getTime()) return null;
+      return { key: `${state.id}:${state.revision}`, transition: transitionKind(state.phase, state.config) };
+    };
+    const alarm = createPomodoroSessionAlarm(accountId, { current: currentAlarm, onError: setAudioBlocked });
     const controller = createPomodoroSessionController({
       read: storage.read,
       write: (session, claim) => {
         storage.write(session, claim);
+        alarm.update(currentAlarm());
         if (mounted.current) refresh((value) => value + 1);
       },
       lock: (run) => withPomodoroSessionLock(accountId, run),
@@ -66,13 +81,14 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
       createEntry: (entry) => latest.current.createEntry.mutateAsync(entry),
       message: (message) => latest.current.toast.show(message),
     });
-    return { storage, controller };
+    return { storage, controller, alarm, currentAlarm };
   }, [accountId]);
 
   useLayoutEffect(() => {
     mounted.current = true;
     controller.activate();
-    const forget = () => { controller.close(); storage.forget(); };
+    alarm.activate();
+    const forget = () => { alarm.dispose(); controller.close(); storage.forget(); };
     const unregister = registerPomodoroSession({
       finish: async () => {
         signingOut.current = true;
@@ -82,16 +98,26 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
       forget,
     });
     const sync = (event: StorageEvent) => {
-      if (event.key === null || event.key === pomodoroSessionKey(accountId)) refresh((value) => value + 1);
+      if (event.key === null || event.key === pomodoroSessionKey(accountId)) {
+        alarm.update(currentAlarm());
+        refresh((value) => value + 1);
+      }
     };
+    const hide = () => alarm.dispose();
+    const show = () => { alarm.activate(); alarm.update(currentAlarm()); };
+    window.addEventListener('pagehide', hide);
+    window.addEventListener('pageshow', show);
     window.addEventListener('storage', sync);
     return () => {
       mounted.current = false;
+      alarm.dispose();
       controller.close();
       unregister();
+      window.removeEventListener('pagehide', hide);
+      window.removeEventListener('pageshow', show);
       window.removeEventListener('storage', sync);
     };
-  }, [accountId, controller, storage]);
+  }, [accountId, controller, storage, alarm, currentAlarm]);
 
   const run = async (operation: () => Promise<void>) => {
     if (signingOut.current) return;
@@ -101,9 +127,19 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
   };
   const session = storage.read();
   const phase = session && !session.ending ? session.phase : null;
+  const ringing = phase !== null && currentAlarm() !== null;
+  const ringKey = ringing && session ? `${session.id}:${session.revision}` : null;
+  useLayoutEffect(() => { alarm.update(currentAlarm()); }, [alarm, currentAlarm, ringKey]);
+  useEffect(() => {
+    if (!ringKey || !session || !phase) return;
+    const notification = notifySessionPhaseEnd(session.id, SESSION_PHASE_LABEL[phase.kind]);
+    return () => notification?.close();
+  }, [ringKey]);
   return (
     <Context.Provider value={{
-      session, phase, now, busy: pending > 0,
+      session, phase, now, busy: pending > 0, ringing, audioBlocked,
+      unlockAudio: () => alarm.unlock(),
+      retryAudio: () => { alarm.unlock(); alarm.retry(); },
       plannedEnd: phase && session ? plannedEnd(phase, session.config) : null,
       transitionKind: phase && session ? transitionKind(phase, session.config) : null,
       start: (config, fields) => run(() => controller.start(config, fields)),

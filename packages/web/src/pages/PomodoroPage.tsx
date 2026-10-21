@@ -33,7 +33,7 @@ function clock(seconds: number): string {
 }
 
 function StartForm({ preferences, recentEntries }: { preferences: Preferences; recentEntries: TimeEntry[] }) {
-  const { start, busy } = usePomodoroSession();
+  const { start, busy, unlockAudio } = usePomodoroSession();
   const [lengthEdits, setLengthEdits] = useState<Partial<Record<LengthKey, string>>>({});
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT);
   const fields = useFieldErrors<LengthKey>();
@@ -52,6 +52,7 @@ function StartForm({ preferences, recentEntries }: { preferences: Preferences; r
       return [key, valid ? null : `Enter a whole number from ${min} to ${max}.`] as const;
     });
     if (!fields.validate(checks)) return;
+    unlockAudio();
     void start(config, draft);
   };
 

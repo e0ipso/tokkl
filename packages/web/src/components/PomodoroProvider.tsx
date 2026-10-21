@@ -5,6 +5,7 @@ import type { TimeEntry } from '../api/types.ts';
 import { useNow } from '../lib/settings.ts';
 import { isPaused, pause as pauseChain, type PauseChain } from './pauseChain.ts';
 import { usePauseCoordination, type PendingPause } from './PauseCoordination.tsx';
+import { usePomodoroSession } from './PomodoroSessionProvider.tsx';
 import { PHASE_ENDED } from './phaseNotification.ts';
 import type { TimerView } from './pomodoroCycle.ts';
 import { readTabChain, writeTabChain } from './tabChain.ts';
@@ -58,6 +59,7 @@ export function useTimerCoordination(): TimerCoordination {
 export function PomodoroProvider({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
   const accountId = me?.id ?? 0;
+  const { session } = usePomodoroSession();
   const { data: prefs } = usePreferences();
   const { data: current } = useCurrentEntry();
   const stopEntry = useStopEntry();
@@ -80,6 +82,7 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
     accountId,
     prefs,
     prefsSaving,
+    alertsEnabled: !session,
     timer: current === undefined ? null : timerView(current, chain, pausedAt.current),
     busy,
     onWorkEnded: () => {

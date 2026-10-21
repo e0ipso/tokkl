@@ -73,3 +73,30 @@ export function notifyInBackground(title: string, body: string, tag: string): vo
     // No notifications here; the banner still shows when the tab comes back.
   }
 }
+
+/**
+ * hasFocus also detects a visible window that is not in front, unlike visibilityState.
+ * https://developer.mozilla.org/en-US/docs/Web/API/Document/hasFocus
+ * requireInteraction and renotify have limited support: a browser may ignore persistence or
+ * replacement alerts. Keep the in-app banner and loop until Next/End regardless of dismissal.
+ * https://developer.mozilla.org/en-US/docs/Web/API/Notification/requireInteraction
+ * https://developer.mozilla.org/en-US/docs/Web/API/Notification/renotify
+ */
+export function notifySessionPhaseEnd(sessionId: string, phaseLabel: string): Notification | null {
+  if (document.hasFocus()) return null;
+  const api = notificationApi();
+  if (!api || notificationAccess() !== 'granted') return null;
+  try {
+    // renotify needs a non-empty tag. The same session replaces its previous phase notification.
+    const options = {
+      body: 'Choose Next phase or End session in Tokkl.', icon: ICON_URL,
+      tag: `tokkl-pomodoro-session-${sessionId}`, requireInteraction: true, renotify: true,
+    };
+    const notification = new api(`${phaseLabel} phase over`, options);
+    notification.onclick = () => { window.focus(); notification.close(); };
+    return notification;
+  } catch {
+    // Some browsers reject page Notification construction even with permission.
+    return null;
+  }
+}
