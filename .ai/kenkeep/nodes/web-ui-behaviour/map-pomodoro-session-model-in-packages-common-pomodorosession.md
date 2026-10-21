@@ -11,7 +11,8 @@ tags:
   - fixtures
 kk_schema_version: 3
 kk_id: map-pomodoro-session-model-in-packages-common-pomodorosession
-kk_derived_from: []
+kk_derived_from:
+  - 'b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1'
 kk_relates_to:
   - map-pomodoro-cycle-functions-in-packages-common
   - practice-parser-cases-live-in-shared-json-fixtures
@@ -20,7 +21,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`packages/common/pomodoroSession.ts`, exported as `@tokkl/common/pomodoroSession`, models a Pomodoro session in which a phase changes only when the user confirms the next phase. It sits beside the timer-tied cycle in `packages/common/pomodoro.ts` (see `map-pomodoro-cycle-functions-in-packages-common`), which still drives the web Pomodoro; nothing in `packages/web` imports the session model yet. Like `pomodoro.ts`, it reads no clock, keeps no state and knows nothing about stored preferences. The caller passes every instant.
+`packages/common/pomodoroSession.ts`, exported as `@tokkl/common/pomodoroSession`, models a Pomodoro session in which a phase changes only when the user confirms the next phase. It sits beside the timer-tied cycle in `packages/common/pomodoro.ts` (see `map-pomodoro-cycle-functions-in-packages-common`), which drives the timer-tied web Pomodoro. The web session provider, controller and state parser in `packages/web/src/components/` consume the session model; signed-in `App.tsx` mounts `PomodoroSessionProvider` inside the timer-tied `PomodoroProvider`. Like `pomodoro.ts`, it reads no clock, keeps no state and knows nothing about stored preferences. The caller passes every instant.
 
 Exports: `DEFAULT_POMODORO_SESSION_CONFIG` (25, 5, 15 minutes, long rest every 4) and `POMODORO_SESSION_CONFIG_RANGES` (work 1-180, short and long rest 1-60, long-rest-every 1-12). They match the `pomodoro_focus_interval_in_minutes`, `pomodoro_break_interval_in_minutes`, `pomodoro_long_break_interval_in_minutes` and `pomodoro_long_break_every` defaults and ranges in `packages/api/src/models/users.ts`; change both together. Functions: `startSession`, `plannedEnd`, `overtimeSeconds`, `transitionKind`, `nextPhase` (returns `{ next, transition, skipped }`) and `pomodoroEntrySpan`, which wraps `snapSpan`. Phase kinds are `work`, `shortRest` and `longRest`; transitions are `workToShortRest`, `shortRestToWork`, `workToLongRest` and `longRestToWork`.
 
@@ -41,3 +42,9 @@ Settled rules:
 - Related: [practice-preferences-validated-by-known-key](../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
 - Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1
+<!-- kk:citations:end -->

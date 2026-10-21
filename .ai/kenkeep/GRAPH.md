@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:a0a861eef4ec3fcff9a6eeff246ff5e50ba740e098925fd4b8d95534cdce397c'
-node_count: 84
+nodes_hash: 'sha256:40586475dd5830d9ae8629bff5858e5ac54db1ade30cf6bb44ef25cd77b33475'
+node_count: 86
 ---
 # kenkeep Graph
 
-Total nodes: 84
+Total nodes: 86
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -174,6 +174,7 @@ Total nodes: 84
 - **path:** web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md
 - **tags:** common, pomodoro, timer, fixtures
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -265,6 +266,15 @@ Total nodes: 84
 - **tags:** web, pomodoro, timer, localstorage, notifications
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key, practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav
 
+## map-web-pomodoro-sessions-provider-controller-and-account-state
+
+- **kind:** map
+- **title:** Web Pomodoro sessions: provider, controller and account state
+- **path:** web-ui-behaviour/map-web-pomodoro-sessions-provider-controller-and-account-state.md
+- **tags:** web, pomodoro, timer, localstorage
+- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session, practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:0
+
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
 - **kind:** practice
@@ -280,6 +290,15 @@ Total nodes: 84
 - **path:** web-ui-styling-and-layout/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md
 - **tags:** web, calendar, css
 - **relates_to:** map-web-calendar-day-view-and-touch-gestures-in-weekcalendar, practice-ui-time-math-uses-wall-clock-helpers, practice-week-calendar-hour-height-agrees-in-three-places, practice-stopped-entries-snap-to-the-time-resolution-on-write
+
+## practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock
+
+- **kind:** practice
+- **title:** Claim Pomodoro session saves durably under the account Web Lock
+- **path:** web-ui-behaviour/practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock.md
+- **tags:** web, pomodoro, localstorage
+- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:0
 
 ## practice-client-deletion-keeps-projects
 
@@ -349,6 +368,7 @@ Total nodes: 84
 - **path:** web-ui-behaviour/practice-end-sessions-through-lib-session.md
 - **tags:** web, auth, react-query, theme
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:1
 
 ## practice-hourly-rates-go-through-optionalrate
 
