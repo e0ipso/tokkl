@@ -306,6 +306,30 @@ test('one-minute sessions retain entry fields, skip phases, count overtime and l
   await expect(page).toHaveTitle('Tokkl');
 });
 
+test('the Pomodoro nav item marks a running session on every page until it ends', async ({ page }) => {
+  await openPomodoro(page);
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const running = nav.getByRole('link', { name: 'Pomodoro session running' });
+  await expect(nav.getByRole('link', { name: 'Pomodoro', exact: true })).toBeVisible();
+  await expect(running).toHaveCount(0);
+  await startPomodoro(page);
+  await expect(running).toHaveCount(1);
+  await expect(running).toHaveAttribute('href', '/pomodoro');
+  await expect(running.locator('.running-dot')).toHaveAttribute('title', 'Pomodoro session running');
+
+  await nav.getByRole('link', { name: 'Projects', exact: true }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(running).toHaveCount(1);
+  await page.reload();
+  await expect(running).toHaveCount(1);
+
+  await running.click();
+  await session(page).getByRole('button', { name: 'End session' }).click();
+  await expect(form(page)).toBeVisible();
+  await expect(running).toHaveCount(0);
+  await expect(nav.getByRole('link', { name: 'Pomodoro', exact: true })).toHaveAttribute('aria-current', 'page');
+});
+
 for (const [label, max] of LENGTHS) {
   test(`${label} rejects invalid lengths with an associated error and focus`, async ({ page }) => {
     await openPomodoro(page);

@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures.ts';
-import { expectSectionHue, login } from './helpers.ts';
+import { contrast, expectSectionHue, login } from './helpers.ts';
 
 test('every page renders without errors and core management flows work', async ({ page }) => {
   // The runtimeErrors fixture fails this scenario on any page error, console error or failed request.
@@ -71,6 +71,30 @@ test('the sidebar fills the current page in its section hue and main carries tha
     await expect(link).toHaveAttribute('aria-current', 'page');
     await expect(nav.locator('[aria-current]')).toHaveCount(1);
     await expectSectionHue(page, link, section);
+  }
+});
+
+// Cyan is under 3:1 on the sidebar's surface in light, so there the active link's outline draws
+// its edge; in dark the fill does. Either way its text stays readable on the fill.
+test('the active Pomodoro link keeps readable text and a visible edge in light and dark', async ({ page }) => {
+  await login(page);
+  const link = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Pomodoro', exact: true });
+  await link.click();
+  await expectSectionHue(page, link, 'pomodoro');
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    const look = await link.evaluate((element) => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = 'var(--surface)';
+      document.body.append(probe);
+      const surface = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const style = getComputedStyle(element);
+      return { surface, text: style.color, fill: style.backgroundColor, outline: style.boxShadow.match(/rgba?\([^)]*\)/)?.[0] ?? '' };
+    });
+    expect(contrast(look.text, look.fill), `${colorScheme} text on the fill`).toBeGreaterThanOrEqual(4.5);
+    const edge = Math.max(contrast(look.fill, look.surface), look.outline ? contrast(look.outline, look.surface) : 0);
+    expect(edge, `${colorScheme} edge against the sidebar`).toBeGreaterThanOrEqual(3);
   }
 });
 
