@@ -10,9 +10,13 @@ tags:
   - tooling
 kk_schema_version: 3
 kk_id: map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
-kk_derived_from: []
+kk_derived_from:
+  - .ai/kenkeep/nodes/.redirects.json
 kk_relates_to:
-  - practice-kde-companion-connection-and-configure-page-rules
+  - practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies
+  - >-
+    practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite
+  - practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing
   - map-npm-workspaces-package-layout
   - map-kde-native-packaging
 kk_depends_on: []
@@ -31,9 +35,15 @@ The version defaults to the root `package.json` (`TOKKL_PACKAGE_JSON`, resolved 
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite](../connection-and-credentials/practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite.md)
-- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies](../connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md)
-- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing](../connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md)
+- Related: [practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies](../connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md)
+- Related: [practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite](../connection-and-credentials/practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite.md)
+- Related: [practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing](../connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md)
 - Related: [map-npm-workspaces-package-layout](../../repo-and-scripts/map-npm-workspaces-package-layout.md)
 - Related: [map-kde-native-packaging](../map-kde-native-packaging.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [.ai/kenkeep/nodes/.redirects.json](../../../.redirects.json)
+<!-- kk:citations:end -->

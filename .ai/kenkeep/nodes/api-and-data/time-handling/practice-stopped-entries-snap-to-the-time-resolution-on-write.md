@@ -15,7 +15,9 @@ kk_id: practice-stopped-entries-snap-to-the-time-resolution-on-write
 kk_derived_from:
   - '6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:3'
 kk_relates_to:
-  - map-admin-api-and-disabled-accounts
+  - map-admin-user-management-api-and-the-last-active-admin-rule
+  - map-invites-and-password-reset-links-in-account-tokens
+  - map-instance-settings-api-app-admin-settings-and-setting-rules
   - practice-json-restore-rules
   - practice-toggl-csv-import-selects-users-by-opaque-key
   - practice-parse-api-timestamps-with-parseinstant
@@ -23,7 +25,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`snapSpan` in `packages/common/snap.ts` is the one rule, and `settleSpan` and `stopEntryAt` in `packages/api/src/models/timeEntries.ts` apply it. Every live write of a stopped entry (create, edit, bulk PATCH, stop, switching timers, and undoing the delete of a running entry while another runs) is snapped to the instance setting `time_resolution_minutes` (default 5; see `map-admin-api-and-disabled-accounts`). Do not add a write path that stores a stopped span without going through them, and do not add a second rounding rule beside it: typed spans and timer stops used to round differently (round-up duration, a one-step floor on the stop endpoint) and that split was removed on purpose.
+`snapSpan` in `packages/common/snap.ts` is the one rule, and `settleSpan` and `stopEntryAt` in `packages/api/src/models/timeEntries.ts` apply it. Every live write of a stopped entry (create, edit, bulk PATCH, stop, switching timers, and undoing the delete of a running entry while another runs) is snapped to the instance setting `time_resolution_minutes` (default 5; see `map-instance-settings-api-app-admin-settings-and-setting-rules`). Do not add a write path that stores a stopped span without going through them, and do not add a second rounding rule beside it: typed spans and timer stops used to round differently (round-up duration, a one-step floor on the stop endpoint) and that split was removed on purpose.
 
 - Inputs are cut to whole seconds first. The start and the stop each move to the nearest grid point on the owner's wall clock (`snapInstant`), a tie going later. Either end moves by at most half a step, so a stored entry can be up to one step shorter or longer than the real span. Do not assert that a stopped timer is at least as long as it ran.
 - `snapSpan` returns null when the span is too short to keep: it lasted less than half a step, or both ends snap to the same point (at R=5, 10:02:31 to 10:07:29 does). The first condition catches a few-second timer that straddles a half-step mark, which would otherwise snap to one step.
@@ -42,9 +44,9 @@ Tests that need exact times set the resolution to 1 through `PUT /api/app/admin/
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-admin-api-and-disabled-accounts → map-admin-user-management-api-and-the-last-active-admin-rule](../users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md)
-- Related: [map-admin-api-and-disabled-accounts → map-instance-settings-api-app-admin-settings-and-setting-rules](../users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md)
-- Related: [map-admin-api-and-disabled-accounts → map-invites-and-password-reset-links-in-account-tokens](../users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md)
+- Related: [map-admin-user-management-api-and-the-last-active-admin-rule](../users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md)
+- Related: [map-invites-and-password-reset-links-in-account-tokens](../users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md)
+- Related: [map-instance-settings-api-app-admin-settings-and-setting-rules](../users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md)
 - Related: [practice-json-restore-rules](../toggl-compat-and-import/practice-json-restore-rules.md)
 - Related: [practice-toggl-csv-import-selects-users-by-opaque-key](../toggl-compat-and-import/practice-toggl-csv-import-selects-users-by-opaque-key.md)
 - Related: [practice-parse-api-timestamps-with-parseinstant](practice-parse-api-timestamps-with-parseinstant.md)

@@ -12,11 +12,14 @@ tags:
   - workspaces
 kk_schema_version: 3
 kk_id: map-users-roles-and-workspace-membership
-kk_derived_from: []
+kk_derived_from:
+  - .ai/kenkeep/nodes/.redirects.json
 kk_relates_to:
   - practice-live-entry-indexes-back-project-and-task-totals
   - practice-password-checks-go-through-failurelimiter-attempt
-  - map-admin-api-and-disabled-accounts
+  - map-admin-user-management-api-and-the-last-active-admin-rule
+  - map-invites-and-password-reset-links-in-account-tokens
+  - map-instance-settings-api-app-admin-settings-and-setting-rules
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -50,7 +53,13 @@ For multi-user API tests, `addUser(ctx, { email, role })` in `packages/api/test/
 
 - Related: [practice-live-entry-indexes-back-project-and-task-totals](../reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md)
 - Related: [practice-password-checks-go-through-failurelimiter-attempt](../password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
-- Related: [map-admin-api-and-disabled-accounts → map-admin-user-management-api-and-the-last-active-admin-rule](map-admin-user-management-api-and-the-last-active-admin-rule.md)
-- Related: [map-admin-api-and-disabled-accounts → map-instance-settings-api-app-admin-settings-and-setting-rules](map-instance-settings-api-app-admin-settings-and-setting-rules.md)
-- Related: [map-admin-api-and-disabled-accounts → map-invites-and-password-reset-links-in-account-tokens](map-invites-and-password-reset-links-in-account-tokens.md)
+- Related: [map-admin-user-management-api-and-the-last-active-admin-rule](map-admin-user-management-api-and-the-last-active-admin-rule.md)
+- Related: [map-invites-and-password-reset-links-in-account-tokens](map-invites-and-password-reset-links-in-account-tokens.md)
+- Related: [map-instance-settings-api-app-admin-settings-and-setting-rules](map-instance-settings-api-app-admin-settings-and-setting-rules.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [.ai/kenkeep/nodes/.redirects.json](../../.redirects.json)
+<!-- kk:citations:end -->

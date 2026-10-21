@@ -11,11 +11,14 @@ tags:
   - entries
 kk_schema_version: 3
 kk_id: practice-web-previews-and-editor-show-snapped-durations
-kk_derived_from: []
+kk_derived_from:
+  - .ai/kenkeep/nodes/.redirects.json
 kk_relates_to:
   - practice-stopped-entries-snap-to-the-time-resolution-on-write
   - practice-ui-time-math-uses-wall-clock-helpers
-  - map-admin-api-and-disabled-accounts
+  - map-admin-user-management-api-and-the-last-active-admin-rule
+  - map-invites-and-password-reset-links-in-account-tokens
+  - map-instance-settings-api-app-admin-settings-and-setting-rules
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -35,7 +38,13 @@ e2e: `e2e/timer-resolution.spec.ts` and `e2e/history-calendar-resolution.spec.ts
 
 - Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 - Related: [practice-ui-time-math-uses-wall-clock-helpers](practice-ui-time-math-uses-wall-clock-helpers.md)
-- Related: [map-admin-api-and-disabled-accounts → map-admin-user-management-api-and-the-last-active-admin-rule](../../api-and-data/users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md)
-- Related: [map-admin-api-and-disabled-accounts → map-instance-settings-api-app-admin-settings-and-setting-rules](../../api-and-data/users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md)
-- Related: [map-admin-api-and-disabled-accounts → map-invites-and-password-reset-links-in-account-tokens](../../api-and-data/users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md)
+- Related: [map-admin-user-management-api-and-the-last-active-admin-rule](../../api-and-data/users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md)
+- Related: [map-invites-and-password-reset-links-in-account-tokens](../../api-and-data/users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md)
+- Related: [map-instance-settings-api-app-admin-settings-and-setting-rules](../../api-and-data/users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [.ai/kenkeep/nodes/.redirects.json](../../.redirects.json)
+<!-- kk:citations:end -->

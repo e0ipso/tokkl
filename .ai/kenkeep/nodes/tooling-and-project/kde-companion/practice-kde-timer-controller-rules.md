@@ -3,18 +3,22 @@ type: practice
 title: 'KDE timer controller: server-derived time, one mutation, no replayed starts'
 description: >-
   TokklTimer derives elapsed from the server start, polls 30 s, runs one
-  mutation at a time, never replays a start or resume, keeps a pause chain;
-  the project is locked while running or paused.
+  mutation at a time, never replays a start or resume, keeps a pause chain; the
+  project is locked while running or paused.
 tags:
   - kde
   - desktop
 kk_schema_version: 3
 kk_id: practice-kde-timer-controller-rules
-kk_derived_from: []
+kk_derived_from:
+  - .ai/kenkeep/nodes/.redirects.json
 kk_relates_to:
   - map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
   - map-kde-panel-button-menu-and-project-indicator
-  - practice-kde-companion-connection-and-configure-page-rules
+  - practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies
+  - >-
+    practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite
+  - practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing
   - map-users-roles-and-workspace-membership
   - practice-web-timer-bar-pause-chain-rules
 kk_depends_on: []
@@ -55,9 +59,15 @@ Panel indicator. `TokklTimer` exposes `indicatorState` and `indicatorColor` with
 
 - Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
 - Related: [map-kde-panel-button-menu-and-project-indicator](plasma-companion/map-kde-panel-button-menu-and-project-indicator.md)
-- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite](connection-and-credentials/practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite.md)
-- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies](connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md)
-- Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing](connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md)
+- Related: [practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies](connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md)
+- Related: [practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite](connection-and-credentials/practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite.md)
+- Related: [practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing](connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md)
 - Related: [map-users-roles-and-workspace-membership](../../api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md)
 - Related: [practice-web-timer-bar-pause-chain-rules](../../web-ui-behaviour/time-and-timers/practice-web-timer-bar-pause-chain-rules.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [.ai/kenkeep/nodes/.redirects.json](../../.redirects.json)
+<!-- kk:citations:end -->

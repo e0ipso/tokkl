@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:aa87b6abca69f112677299933f7f4b53fb43039a63d2d807b4fc7ff01e00eac5'
+nodes_hash: 'sha256:16e32232e5e12bc34f0d0df8add90a739c9f446d72542aeea8b83ce95b5f2e0c'
 node_count: 87
 ---
 # kenkeep Graph
@@ -54,7 +54,8 @@ Total nodes: 87
 - **title:** desktop/core and desktop/kde: CMake projects, libraries and QML types
 - **path:** tooling-and-project/kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md
 - **tags:** kde, desktop, tooling
-- **relates_to:** practice-kde-companion-connection-and-configure-page-rules, map-npm-workspaces-package-layout, map-kde-native-packaging
+- **relates_to:** practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-npm-workspaces-package-layout, map-kde-native-packaging
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## map-gnome-shell-extension-for-tokkl-timerd
 
@@ -234,7 +235,8 @@ Total nodes: 87
 - **title:** Users, roles and workspace membership
 - **path:** api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md
 - **tags:** server, database, migrations, auth, workspaces
-- **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-go-through-failurelimiter-attempt, map-admin-api-and-disabled-accounts
+- **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-go-through-failurelimiter-attempt, map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## map-web-calendar-day-view-and-touch-gestures-in-weekcalendar
 
@@ -317,6 +319,8 @@ Total nodes: 87
 - **title:** Clipboard copy needs a fallback on plain HTTP
 - **path:** web-ui-behaviour/interaction-and-state/practice-clipboard-copy-needs-http-fallback.md
 - **tags:** web, clipboard, self-hosting
+- **relates_to:** map-invites-and-password-reset-links-in-account-tokens
+- **derived_from:** packages/web/src/pages/AdminPage.tsx
 
 ## practice-commit-messages-pass-commitlint-no-ai-generated
 
@@ -390,6 +394,8 @@ Total nodes: 87
 - **title:** Validate hourly rates with optionalRate and MAX_HOURLY_RATE
 - **path:** api-and-data/reports-and-totals/practice-hourly-rates-go-through-optionalrate.md
 - **tags:** server, validation, reports, money
+- **relates_to:** map-app-report-endpoints
+- **derived_from:** packages/api/src/lib/values.ts
 
 ## practice-json-restore-rules
 
@@ -429,7 +435,8 @@ Total nodes: 87
 - **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
 - **path:** tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md
 - **tags:** kde, desktop
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-connection-and-configure-page-rules, map-users-roles-and-workspace-membership, practice-web-timer-bar-pause-chain-rules
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-users-roles-and-workspace-membership, practice-web-timer-bar-pause-chain-rules
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
 
@@ -578,7 +585,7 @@ Total nodes: 87
 - **title:** Stopped entries snap to the instance time resolution on write
 - **path:** api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md
 - **tags:** server, time, entries, import
-- **relates_to:** map-admin-api-and-disabled-accounts, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant, practice-web-previews-and-editor-show-snapped-durations
+- **relates_to:** map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant, practice-web-previews-and-editor-show-snapped-durations
 - **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:3
 
 ## practice-styles-css-loads-last-and-owns-colour-tokens
@@ -660,6 +667,8 @@ Total nodes: 87
 - **title:** Toggl v9 DELETE routes answer an empty 200
 - **path:** api-and-data/toggl-compat-and-import/practice-v9-deletes-answer-an-empty-200.md
 - **tags:** api, toggl-v9
+- **relates_to:** practice-client-deletion-keeps-projects
+- **derived_from:** packages/api/src/routes/togglV9.ts
 
 ## practice-visual-screenshot-baselines
 
@@ -676,7 +685,8 @@ Total nodes: 87
 - **title:** Web previews and the entry editor show the snapped duration
 - **path:** web-ui-behaviour/time-and-timers/practice-web-previews-and-editor-show-snapped-durations.md
 - **tags:** web, time, timer, entries
-- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-api-and-disabled-accounts
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## practice-web-timer-bar-pause-chain-rules
 
