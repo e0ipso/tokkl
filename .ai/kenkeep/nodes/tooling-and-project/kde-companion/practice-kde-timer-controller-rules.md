@@ -59,5 +59,5 @@ Panel indicator. `TokklTimer` exposes `indicatorState` and `indicatorColor` with
 - Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies](connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md)
 - Related: [practice-kde-companion-connection-and-configure-page-rules → practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing](connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md)
 - Related: [map-users-roles-and-workspace-membership](../../api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md)
-- Related: [practice-web-timer-bar-pause-chain-rules](../../web-ui-behaviour/practice-web-timer-bar-pause-chain-rules.md)
+- Related: [practice-web-timer-bar-pause-chain-rules](../../web-ui-behaviour/time-and-timers/practice-web-timer-bar-pause-chain-rules.md)
 <!-- kk:related:end -->

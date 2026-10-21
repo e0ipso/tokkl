@@ -28,6 +28,6 @@ Three CSS rules keep pages within a 390 px phone screen. The phone e2e specs cat
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 - Related: [practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break](practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md)
 <!-- kk:related:end -->

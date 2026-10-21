@@ -32,6 +32,6 @@ The e2e reset fixture does not reset user timezones. A spec that changes the zon
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-ui-time-math-uses-wall-clock-helpers](../../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md)
+- Related: [practice-ui-time-math-uses-wall-clock-helpers](../../web-ui-behaviour/time-and-timers/practice-ui-time-math-uses-wall-clock-helpers.md)
 - Related: [practice-preferences-validated-by-known-key](../users-and-admin/practice-preferences-validated-by-known-key.md)
 <!-- kk:related:end -->

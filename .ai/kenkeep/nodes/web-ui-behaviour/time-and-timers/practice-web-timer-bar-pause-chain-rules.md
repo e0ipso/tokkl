@@ -35,9 +35,9 @@ Pause and Resume in the timer bar are a chain of entries. Pause stops the runnin
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-end-sessions-through-lib-session](practice-end-sessions-through-lib-session.md)
-- Related: [practice-web-ui-survives-background-refetches](practice-web-ui-survives-background-refetches.md)
-- Related: [practice-kde-timer-controller-rules](../tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md)
+- Related: [practice-end-sessions-through-lib-session](../interaction-and-state/practice-end-sessions-through-lib-session.md)
+- Related: [practice-web-ui-survives-background-refetches](../interaction-and-state/practice-web-ui-survives-background-refetches.md)
+- Related: [practice-kde-timer-controller-rules](../../tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

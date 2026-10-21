@@ -33,7 +33,7 @@ Explicit sign-out calls `end(true)`. It makes one final save attempt for the act
 # Related
 
 - Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](map-pomodoro-session-model-in-packages-common-pomodorosession.md)
-- Related: [practice-end-sessions-through-lib-session](practice-end-sessions-through-lib-session.md)
+- Related: [practice-end-sessions-through-lib-session](../interaction-and-state/practice-end-sessions-through-lib-session.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

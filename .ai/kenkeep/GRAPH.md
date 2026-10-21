@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:3bd5011f48320799dcf56489d7dc70c501b94fe524ae34e6b97ecb223f0314e4'
+nodes_hash: 'sha256:aa87b6abca69f112677299933f7f4b53fb43039a63d2d807b4fc7ff01e00eac5'
 node_count: 87
 ---
 # kenkeep Graph
@@ -34,7 +34,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** App shell: Brand.tsx, the wordmark image and the NAV list
-- **path:** web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md
+- **path:** web-ui-styling-and-layout/shell-and-layout/map-app-shell-brand-and-navigation.md
 - **tags:** web, navigation, brand, mobile, wordmark
 - **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
@@ -164,7 +164,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Pomodoro length preferences: shared defaults for new sessions
-- **path:** web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md
+- **path:** web-ui-behaviour/pomodoro/map-pomodoro-cycle-functions-in-packages-common.md
 - **tags:** pomodoro, preferences, web, common
 - **relates_to:** practice-preferences-validated-by-known-key, map-pomodoro-session-model-in-packages-common-pomodorosession, map-web-pomodoro-sessions-provider-controller-and-account-state
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:0
@@ -173,7 +173,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Pomodoro session model in packages/common/pomodoroSession.ts
-- **path:** web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md
+- **path:** web-ui-behaviour/pomodoro/map-pomodoro-session-model-in-packages-common-pomodorosession.md
 - **tags:** common, pomodoro, timer, fixtures
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1
@@ -182,7 +182,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** PWA manifest and head icon links, and what e2e/pwa.spec.ts checks
-- **path:** web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md
+- **path:** web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md
 - **tags:** pwa, manifest, icons, favicon, web, testing
 - **relates_to:** map-app-icons-script, practice-playwright-gotchas-in-the-e2e-specs, practice-theme-tokens-data-theme-and-cached-theme, map-app-shell-brand-and-navigation
 
@@ -198,7 +198,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Shared list controls live in packages/web/src/pages/manage/ui.tsx
-- **path:** web-ui-styling-and-layout/map-shared-list-controls-in-manage-ui.md
+- **path:** web-ui-styling-and-layout/shell-and-layout/map-shared-list-controls-in-manage-ui.md
 - **tags:** web, components, css, reuse
 - **relates_to:** practice-phone-layout-css-gotchas
 
@@ -240,7 +240,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Web calendar day view and touch gestures in WeekCalendar
-- **path:** web-ui-styling-and-layout/map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md
+- **path:** web-ui-styling-and-layout/calendar/map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md
 - **tags:** web, calendar, touch, mobile, e2e
 - **relates_to:** practice-week-calendar-hour-height-agrees-in-three-places, practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top, practice-ui-time-math-uses-wall-clock-helpers, practice-phone-layout-css-gotchas, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 - **derived_from:** 935c3ad4-996d-4ce0-b165-4aaf8e23c62e:map:0
@@ -249,7 +249,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Entry fields: EntryFields.tsx and useEntryFields.ts
-- **path:** web-ui-behaviour/map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md
+- **path:** web-ui-behaviour/interaction-and-state/map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md
 - **tags:** web, timer, components, react, focus
 - **relates_to:** practice-timer-bar-pickers-return-focus-without-opening-suggestions, practice-web-ui-survives-background-refetches, map-test-and-static-analysis-layout
 
@@ -257,7 +257,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Loading, error, empty and field-error states use the shared components
-- **path:** web-ui-behaviour/map-web-page-state-and-field-error-components.md
+- **path:** web-ui-behaviour/interaction-and-state/map-web-page-state-and-field-error-components.md
 - **tags:** web, a11y, react, components, forms, e2e
 - **relates_to:** map-shared-list-controls-in-manage-ui, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 
@@ -265,7 +265,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Web notifications: phaseNotification.ts and the Allow notifications button
-- **path:** web-ui-behaviour/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
+- **path:** web-ui-behaviour/pomodoro/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
 - **tags:** web, notifications, pomodoro, timer
 - **relates_to:** map-web-pomodoro-sessions-provider-controller-and-account-state, practice-preferences-validated-by-known-key
 - **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:3
@@ -274,7 +274,7 @@ Total nodes: 87
 
 - **kind:** map
 - **title:** Web Pomodoro sessions: provider, controller and account state
-- **path:** web-ui-behaviour/map-web-pomodoro-sessions-provider-controller-and-account-state.md
+- **path:** web-ui-behaviour/pomodoro/map-web-pomodoro-sessions-provider-controller-and-account-state.md
 - **tags:** web, pomodoro, timer, localstorage
 - **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session, practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, map-pomodoro-cycle-functions-in-packages-common
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:0, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:1
@@ -291,7 +291,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Calendar lanes follow stored spans; zero-length markers draw on top
-- **path:** web-ui-styling-and-layout/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md
+- **path:** web-ui-styling-and-layout/calendar/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md
 - **tags:** web, calendar, css
 - **relates_to:** map-web-calendar-day-view-and-touch-gestures-in-weekcalendar, practice-ui-time-math-uses-wall-clock-helpers, practice-week-calendar-hour-height-agrees-in-three-places, practice-stopped-entries-snap-to-the-time-resolution-on-write
 
@@ -299,7 +299,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Claim Pomodoro session saves durably under the account Web Lock
-- **path:** web-ui-behaviour/practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock.md
+- **path:** web-ui-behaviour/pomodoro/practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock.md
 - **tags:** web, pomodoro, localstorage
 - **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:0
@@ -315,7 +315,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Clipboard copy needs a fallback on plain HTTP
-- **path:** web-ui-behaviour/practice-clipboard-copy-needs-http-fallback.md
+- **path:** web-ui-behaviour/interaction-and-state/practice-clipboard-copy-needs-http-fallback.md
 - **tags:** web, clipboard, self-hosting
 
 ## practice-commit-messages-pass-commitlint-no-ai-generated
@@ -330,7 +330,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Contrast tables in styles.css; project colours never paint text
-- **path:** web-ui-styling-and-layout/practice-contrast-tables-and-project-colours.md
+- **path:** web-ui-styling-and-layout/theme-and-tokens/practice-contrast-tables-and-project-colours.md
 - **tags:** web, css, accessibility, contrast, projects, tokens
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 
@@ -345,7 +345,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Display font is the bundled Anybody; one reduced-motion block ends styles.css
-- **path:** web-ui-styling-and-layout/practice-display-font-and-reduced-motion.md
+- **path:** web-ui-styling-and-layout/theme-and-tokens/practice-display-font-and-reduced-motion.md
 - **tags:** web, css, fonts, motion, accessibility
 - **relates_to:** practice-contrast-tables-and-project-colours
 
@@ -370,7 +370,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** End web sessions through endSession and logOut in lib/session.ts
-- **path:** web-ui-behaviour/practice-end-sessions-through-lib-session.md
+- **path:** web-ui-behaviour/interaction-and-state/practice-end-sessions-through-lib-session.md
 - **tags:** web, auth, react-query, theme
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:2
@@ -379,7 +379,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Hand timers and Pomodoro sessions over at one captured instant
-- **path:** web-ui-behaviour/practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant.md
+- **path:** web-ui-behaviour/pomodoro/practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant.md
 - **tags:** web, pomodoro, timer
 - **relates_to:** practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock, map-web-pomodoro-sessions-provider-controller-and-account-state, practice-web-timer-bar-pause-chain-rules, practice-stopped-entries-snap-to-the-time-resolution-on-write
 - **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:1
@@ -452,7 +452,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Arrow keys: arrowTarget for roving tabindex; global shortcuts yield
-- **path:** web-ui-behaviour/practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md
+- **path:** web-ui-behaviour/interaction-and-state/practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md
 - **tags:** web, a11y, keyboard, react, reports
 - **relates_to:** map-shared-list-controls-in-manage-ui
 
@@ -483,7 +483,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Durations: over 999 hours is unreadable (null), not clamped
-- **path:** web-ui-behaviour/practice-parse-duration-returns-null-over-999-hours.md
+- **path:** web-ui-behaviour/time-and-timers/practice-parse-duration-returns-null-over-999-hours.md
 - **tags:** time, parsing, validation
 - **relates_to:** practice-twelve-hour-time-entry-parsing-rules, practice-web-previews-and-editor-show-snapped-durations
 
@@ -507,7 +507,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells
-- **path:** web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md
+- **path:** web-ui-styling-and-layout/shell-and-layout/practice-phone-layout-css-gotchas.md
 - **tags:** web, css, mobile, layout
 - **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break
 
@@ -518,12 +518,13 @@ Total nodes: 87
 - **path:** tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md
 - **tags:** testing, playwright
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **derived_from:** .ai/kenkeep/nodes/web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md
 
 ## practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav
 
 - **kind:** practice
 - **title:** Pomodoro sounds: FFmpeg recipes, same-origin files, WAV for loops
-- **path:** web-ui-behaviour/practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav.md
+- **path:** web-ui-behaviour/pomodoro/practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav.md
 - **tags:** web, pomodoro, audio, csp, e2e
 - **relates_to:** map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 - **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:2, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:3
@@ -550,7 +551,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Report totals wrap as a flex row; an Amount figure never breaks
-- **path:** web-ui-styling-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md
+- **path:** web-ui-styling-and-layout/shell-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md
 - **tags:** web, css, reports, layout, mobile, e2e
 - **relates_to:** practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, map-readme-screenshots-script
 
@@ -566,7 +567,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Section hues: data-section maps each NAV section to a hue and its text colour
-- **path:** web-ui-styling-and-layout/practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md
+- **path:** web-ui-styling-and-layout/theme-and-tokens/practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md
 - **tags:** web, css, navigation, contrast, tokens, calendar
 - **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:0
@@ -584,7 +585,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** styles.css loads last and owns the colour tokens
-- **path:** web-ui-styling-and-layout/practice-styles-css-loads-last-and-owns-colour-tokens.md
+- **path:** web-ui-styling-and-layout/theme-and-tokens/practice-styles-css-loads-last-and-owns-colour-tokens.md
 - **tags:** web, css, cascade, tokens, reports
 - **relates_to:** practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-theme-tokens-data-theme-and-cached-theme
 
@@ -601,7 +602,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Theme: light-dark() tokens, data-theme and the cached theme
-- **path:** web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md
+- **path:** web-ui-styling-and-layout/theme-and-tokens/practice-theme-tokens-data-theme-and-cached-theme.md
 - **tags:** web, css, theme, dark-mode, e2e
 - **relates_to:** practice-contrast-tables-and-project-colours, practice-playwright-gotchas-in-the-e2e-specs, practice-end-sessions-through-lib-session
 
@@ -617,7 +618,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Bulk bar sticks under the timer bar through --timer-bar-height
-- **path:** web-ui-styling-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md
+- **path:** web-ui-styling-and-layout/shell-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md
 - **tags:** web, css, timer, mobile
 - **relates_to:** practice-phone-layout-css-gotchas, practice-web-ui-survives-background-refetches
 
@@ -625,7 +626,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Timer bar pickers return focus to the description without opening suggestions
-- **path:** web-ui-behaviour/practice-timer-bar-pickers-return-focus-without-opening-suggestions.md
+- **path:** web-ui-behaviour/interaction-and-state/practice-timer-bar-pickers-return-focus-without-opening-suggestions.md
 - **tags:** web, timer, focus, a11y
 - **relates_to:** practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows, practice-web-ui-survives-background-refetches, map-web-entry-fields-entryfields-tsx-and-useentryfields-ts
 
@@ -641,7 +642,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** 12-hour time entry: explicit AM/PM wins, ends follow the start
-- **path:** web-ui-behaviour/practice-twelve-hour-time-entry-parsing-rules.md
+- **path:** web-ui-behaviour/time-and-timers/practice-twelve-hour-time-entry-parsing-rules.md
 - **tags:** web, time, parsing
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers
 
@@ -649,7 +650,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** UI time math uses account-local wall-clock helpers
-- **path:** web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md
+- **path:** web-ui-behaviour/time-and-timers/practice-ui-time-math-uses-wall-clock-helpers.md
 - **tags:** web, time, dst, calendar, common
 - **relates_to:** practice-web-previews-and-editor-show-snapped-durations
 
@@ -673,7 +674,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Web previews and the entry editor show the snapped duration
-- **path:** web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md
+- **path:** web-ui-behaviour/time-and-timers/practice-web-previews-and-editor-show-snapped-durations.md
 - **tags:** web, time, timer, entries
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-api-and-disabled-accounts
 
@@ -681,7 +682,7 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Web timer bar pause chain: pauseChain.ts, per-account storage, ending rules
-- **path:** web-ui-behaviour/practice-web-timer-bar-pause-chain-rules.md
+- **path:** web-ui-behaviour/time-and-timers/practice-web-timer-bar-pause-chain-rules.md
 - **tags:** web, timer, pause, localstorage
 - **relates_to:** practice-end-sessions-through-lib-session, practice-web-ui-survives-background-refetches, practice-kde-timer-controller-rules
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:4
@@ -690,14 +691,14 @@ Total nodes: 87
 
 - **kind:** practice
 - **title:** Web UI state must survive background refetches
-- **path:** web-ui-behaviour/practice-web-ui-survives-background-refetches.md
+- **path:** web-ui-behaviour/interaction-and-state/practice-web-ui-survives-background-refetches.md
 - **tags:** web, react-query, timer, entry-list
 
 ## practice-week-calendar-hour-height-agrees-in-three-places
 
 - **kind:** practice
 - **title:** Week calendar hour height lives in three places
-- **path:** web-ui-styling-and-layout/practice-week-calendar-hour-height-agrees-in-three-places.md
+- **path:** web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md
 - **tags:** web, calendar, css, e2e
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-contrast-tables-and-project-colours
 

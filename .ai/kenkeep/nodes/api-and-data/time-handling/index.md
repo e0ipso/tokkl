@@ -22,7 +22,7 @@ _None yet._
 ### #time
 - Open [**Time zones: store canonicalTimeZone, reject offset IDs**](practice-time-zone-names-are-stored-in-canonical-form.md) — Account zones go through canonicalTimeZone and are stored as ICU names; bad input is a 400 'Invalid timezone'.
 - Open [**Parse incoming timestamps with parseInstant**](practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
-- Open [**Durations: over 999 hours is unreadable (null), not clamped**](../../web-ui-behaviour/practice-parse-duration-returns-null-over-999-hours.md) — MAX_DURATION_SECONDS caps parseDuration on every branch; callers read null as unreadable input.
+- Open [**Durations: over 999 hours is unreadable (null), not clamped**](../../web-ui-behaviour/time-and-timers/practice-parse-duration-returns-null-over-999-hours.md) — MAX_DURATION_SECONDS caps parseDuration on every branch; callers read null as unreadable input.
 ### #api
 - Open [**Parse incoming timestamps with parseInstant**](practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
 - Open [**Time zones: store canonicalTimeZone, reject offset IDs**](practice-time-zone-names-are-stored-in-canonical-form.md) — Account zones go through canonicalTimeZone and are stored as ICU names; bad input is a 400 'Invalid timezone'.
@@ -37,7 +37,7 @@ _None yet._
 - Open [**Time zones: store canonicalTimeZone, reject offset IDs**](practice-time-zone-names-are-stored-in-canonical-form.md) — Account zones go through canonicalTimeZone and are stored as ICU names; bad input is a 400 'Invalid timezone'.
 ### #entries
 - Open [**Stopped entries snap to the instance time resolution on write**](practice-stopped-entries-snap-to-the-time-resolution-on-write.md) — Every live write moves start and stop each to the nearest grid point; a span that rounds to zero is refused (typed) or trashed (timer stop); imports stay exact.
-- Open [**Web previews and the entry editor show the snapped duration**](../../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md) — Previews use snappedSeconds and snappedInstant with the /me resolution; toasts and chained starts use the server-returned entry.
+- Open [**Web previews and the entry editor show the snapped duration**](../../web-ui-behaviour/time-and-timers/practice-web-previews-and-editor-show-snapped-durations.md) — Previews use snappedSeconds and snappedInstant with the /me resolution; toasts and chained starts use the server-returned entry.
 ### #import
 - Open [**Stopped entries snap to the instance time resolution on write**](practice-stopped-entries-snap-to-the-time-resolution-on-write.md) — Every live write moves start and stop each to the nearest grid point; a span that rounds to zero is refused (typed) or trashed (timer stop); imports stay exact.
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](../toggl-compat-and-import/practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.

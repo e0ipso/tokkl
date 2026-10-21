@@ -35,7 +35,7 @@ Outside `/assets`, a missing static file is not a 404. `packages/api/src/app.ts`
 # Related
 
 - Related: [map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider](map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md)
-- Related: [practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory](../tooling-and-project/testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md)
+- Related: [practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory](../../tooling-and-project/testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

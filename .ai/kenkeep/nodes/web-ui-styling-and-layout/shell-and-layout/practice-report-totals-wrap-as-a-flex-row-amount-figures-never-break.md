@@ -32,7 +32,7 @@ The visual fixture (`e2e/fixtures-data/transfer/restore-full.json`) produces no 
 # Related
 
 - Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
-- Related: [practice-visual-screenshot-baselines](../tooling-and-project/testing/practice-visual-screenshot-baselines.md)
-- Related: [practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts](../tooling-and-project/testing/e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md)
-- Related: [map-readme-screenshots-script](../tooling-and-project/repo-and-scripts/map-readme-screenshots-script.md)
+- Related: [practice-visual-screenshot-baselines](../../tooling-and-project/testing/practice-visual-screenshot-baselines.md)
+- Related: [practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts](../../tooling-and-project/testing/e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md)
+- Related: [map-readme-screenshots-script](../../tooling-and-project/repo-and-scripts/map-readme-screenshots-script.md)
 <!-- kk:related:end -->

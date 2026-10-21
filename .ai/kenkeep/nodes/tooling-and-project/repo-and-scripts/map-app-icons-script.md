@@ -50,8 +50,8 @@ No committed test runs the script. Importing `icons.ts` runs `magick` and writes
 - Related: [map-readme-screenshots-script](map-readme-screenshots-script.md)
 - Related: [practice-playwright-gotchas-in-the-e2e-specs](../testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 - Related: [practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them](practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md)
-- Related: [map-app-shell-brand-and-navigation](../../web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md)
+- Related: [map-app-shell-brand-and-navigation](../../web-ui-styling-and-layout/shell-and-layout/map-app-shell-brand-and-navigation.md)
 - Related: [map-test-and-static-analysis-layout](../testing/map-test-and-static-analysis-layout.md)
-- Related: [map-pwa-manifest-and-head-icon-links](../../web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md)
+- Related: [map-pwa-manifest-and-head-icon-links](../../web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md)
 - Related: [map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes](../kde-companion/plasma-companion/map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes.md)
 <!-- kk:related:end -->

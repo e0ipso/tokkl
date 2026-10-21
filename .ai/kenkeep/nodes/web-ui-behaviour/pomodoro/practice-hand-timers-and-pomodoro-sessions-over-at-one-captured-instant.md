@@ -32,8 +32,8 @@ A Pomodoro session and a regular timer never record overlapping time. Every hand
 
 - Related: [practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock](practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock.md)
 - Related: [map-web-pomodoro-sessions-provider-controller-and-account-state](map-web-pomodoro-sessions-provider-controller-and-account-state.md)
-- Related: [practice-web-timer-bar-pause-chain-rules](practice-web-timer-bar-pause-chain-rules.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-web-timer-bar-pause-chain-rules](../time-and-timers/practice-web-timer-bar-pause-chain-rules.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

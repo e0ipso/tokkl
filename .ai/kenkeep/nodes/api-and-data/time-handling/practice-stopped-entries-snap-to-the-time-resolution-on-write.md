@@ -48,7 +48,7 @@ Tests that need exact times set the resolution to 1 through `PUT /api/app/admin/
 - Related: [practice-json-restore-rules](../toggl-compat-and-import/practice-json-restore-rules.md)
 - Related: [practice-toggl-csv-import-selects-users-by-opaque-key](../toggl-compat-and-import/practice-toggl-csv-import-selects-users-by-opaque-key.md)
 - Related: [practice-parse-api-timestamps-with-parseinstant](practice-parse-api-timestamps-with-parseinstant.md)
-- Related: [practice-web-previews-and-editor-show-snapped-durations](../../web-ui-behaviour/practice-web-previews-and-editor-show-snapped-durations.md)
+- Related: [practice-web-previews-and-editor-show-snapped-durations](../../web-ui-behaviour/time-and-timers/practice-web-previews-and-editor-show-snapped-durations.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

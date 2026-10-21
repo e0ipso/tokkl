@@ -37,12 +37,12 @@ Phone e2e specs navigate with `tapNav(page, name)` and `openMore(page)` from `e2
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
-- Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
+- Related: [practice-contrast-tables-and-project-colours](../theme-and-tokens/practice-contrast-tables-and-project-colours.md)
 - Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
-- Related: [practice-visual-screenshot-baselines](../tooling-and-project/testing/practice-visual-screenshot-baselines.md)
-- Related: [map-app-icons-script](../tooling-and-project/repo-and-scripts/map-app-icons-script.md)
-- Related: [practice-section-hues-data-section-maps-each-nav-section-to-a-hue](practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md)
+- Related: [practice-visual-screenshot-baselines](../../tooling-and-project/testing/practice-visual-screenshot-baselines.md)
+- Related: [map-app-icons-script](../../tooling-and-project/repo-and-scripts/map-app-icons-script.md)
+- Related: [practice-section-hues-data-section-maps-each-nav-section-to-a-hue](../theme-and-tokens/practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

@@ -30,7 +30,7 @@ The API defaults/rules and `Preferences` in `packages/types/index.ts` expose onl
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-preferences-validated-by-known-key](../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
+- Related: [practice-preferences-validated-by-known-key](../../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
 - Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](map-pomodoro-session-model-in-packages-common-pomodorosession.md)
 - Related: [map-web-pomodoro-sessions-provider-controller-and-account-state](map-web-pomodoro-sessions-provider-controller-and-account-state.md)
 <!-- kk:related:end -->

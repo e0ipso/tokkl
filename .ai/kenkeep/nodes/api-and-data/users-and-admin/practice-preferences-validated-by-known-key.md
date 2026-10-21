@@ -33,7 +33,7 @@ Startup migration 7 in `packages/api/src/db/migrations.ts` removes `pomodoro_ena
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-pomodoro-cycle-functions-in-packages-common](../../web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md)
+- Related: [map-pomodoro-cycle-functions-in-packages-common](../../web-ui-behaviour/pomodoro/map-pomodoro-cycle-functions-in-packages-common.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

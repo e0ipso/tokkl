@@ -33,8 +33,8 @@ The manifest lists five PNG icons in a fixed order, each with an explicit `purpo
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-app-icons-script](../tooling-and-project/repo-and-scripts/map-app-icons-script.md)
-- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
-- Related: [practice-theme-tokens-data-theme-and-cached-theme](practice-theme-tokens-data-theme-and-cached-theme.md)
+- Related: [map-app-icons-script](../../tooling-and-project/repo-and-scripts/map-app-icons-script.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
+- Related: [practice-theme-tokens-data-theme-and-cached-theme](../theme-and-tokens/practice-theme-tokens-data-theme-and-cached-theme.md)
 - Related: [map-app-shell-brand-and-navigation](map-app-shell-brand-and-navigation.md)
 <!-- kk:related:end -->

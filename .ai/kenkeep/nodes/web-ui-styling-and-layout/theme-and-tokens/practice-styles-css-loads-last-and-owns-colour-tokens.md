@@ -26,6 +26,6 @@ Colours belong in the token block of `styles.css`, where each pair gets a row in
 # Related
 
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
-- Related: [map-shared-list-controls-in-manage-ui](map-shared-list-controls-in-manage-ui.md)
+- Related: [map-shared-list-controls-in-manage-ui](../shell-and-layout/map-shared-list-controls-in-manage-ui.md)
 - Related: [practice-theme-tokens-data-theme-and-cached-theme](practice-theme-tokens-data-theme-and-cached-theme.md)
 <!-- kk:related:end -->

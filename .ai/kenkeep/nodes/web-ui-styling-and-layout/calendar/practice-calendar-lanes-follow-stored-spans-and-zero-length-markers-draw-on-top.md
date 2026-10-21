@@ -30,7 +30,7 @@ kk_confidence: high
 # Related
 
 - Related: [map-web-calendar-day-view-and-touch-gestures-in-weekcalendar](map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md)
-- Related: [practice-ui-time-math-uses-wall-clock-helpers](../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md)
+- Related: [practice-ui-time-math-uses-wall-clock-helpers](../../web-ui-behaviour/time-and-timers/practice-ui-time-math-uses-wall-clock-helpers.md)
 - Related: [practice-week-calendar-hour-height-agrees-in-three-places](practice-week-calendar-hour-height-agrees-in-three-places.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->

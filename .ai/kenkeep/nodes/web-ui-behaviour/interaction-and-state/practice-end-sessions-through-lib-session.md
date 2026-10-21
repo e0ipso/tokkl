@@ -36,9 +36,9 @@ The timer state is the active Pomodoro session in memory (`forgetActivePomodoroS
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-theme-tokens-data-theme-and-cached-theme](../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md)
+- Related: [practice-theme-tokens-data-theme-and-cached-theme](../../web-ui-styling-and-layout/theme-and-tokens/practice-theme-tokens-data-theme-and-cached-theme.md)
 - Related: [practice-web-ui-survives-background-refetches](practice-web-ui-survives-background-refetches.md)
-- Related: [practice-cookie-writes-and-session-starting-routes-need-the-csrf-header](../api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md)
+- Related: [practice-cookie-writes-and-session-starting-routes-need-the-csrf-header](../../api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

@@ -35,5 +35,5 @@ Focus must not fall to the page body when something the user was on goes away:
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-shared-list-controls-in-manage-ui](../web-ui-styling-and-layout/map-shared-list-controls-in-manage-ui.md)
+- Related: [map-shared-list-controls-in-manage-ui](../../web-ui-styling-and-layout/shell-and-layout/map-shared-list-controls-in-manage-ui.md)
 <!-- kk:related:end -->

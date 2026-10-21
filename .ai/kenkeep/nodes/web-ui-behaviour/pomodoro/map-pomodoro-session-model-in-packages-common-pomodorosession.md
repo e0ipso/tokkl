@@ -40,9 +40,9 @@ Settled rules:
 # Related
 
 - Related: [map-pomodoro-cycle-functions-in-packages-common](map-pomodoro-cycle-functions-in-packages-common.md)
-- Related: [practice-parser-cases-live-in-shared-json-fixtures](../tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md)
-- Related: [practice-preferences-validated-by-known-key](../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-parser-cases-live-in-shared-json-fixtures](../../tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md)
+- Related: [practice-preferences-validated-by-known-key](../../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

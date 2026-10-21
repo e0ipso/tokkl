@@ -41,8 +41,8 @@ Session phases notify through `notifySessionPhaseEnd` in `phaseNotification.ts`.
 # Related
 
 - Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](map-pomodoro-session-model-in-packages-common-pomodorosession.md)
-- Related: [practice-end-sessions-through-lib-session](practice-end-sessions-through-lib-session.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-end-sessions-through-lib-session](../interaction-and-state/practice-end-sessions-through-lib-session.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
 - Related: [practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock](practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock.md)
 - Related: [map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider](map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md)
 - Related: [map-pomodoro-cycle-functions-in-packages-common](map-pomodoro-cycle-functions-in-packages-common.md)

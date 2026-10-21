@@ -36,10 +36,10 @@ The active nav item, in the sidebar, the phone bar and the More sheet, fills wit
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-app-shell-brand-and-navigation](map-app-shell-brand-and-navigation.md)
+- Related: [map-app-shell-brand-and-navigation](../shell-and-layout/map-app-shell-brand-and-navigation.md)
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
-- Related: [map-shared-list-controls-in-manage-ui](map-shared-list-controls-in-manage-ui.md)
-- Related: [practice-week-calendar-hour-height-agrees-in-three-places](practice-week-calendar-hour-height-agrees-in-three-places.md)
+- Related: [map-shared-list-controls-in-manage-ui](../shell-and-layout/map-shared-list-controls-in-manage-ui.md)
+- Related: [practice-week-calendar-hour-height-agrees-in-three-places](../calendar/practice-week-calendar-hour-height-agrees-in-three-places.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

@@ -33,7 +33,7 @@ Dev and test variables have no fallback: `TOKKL_BACKEND` (Vite proxy target in `
 # Related
 
 - Related: [practice-cookie-writes-and-session-starting-routes-need-the-csrf-header](../../api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md)
-- Related: [practice-theme-tokens-data-theme-and-cached-theme](../../web-ui-styling-and-layout/practice-theme-tokens-data-theme-and-cached-theme.md)
+- Related: [practice-theme-tokens-data-theme-and-cached-theme](../../web-ui-styling-and-layout/theme-and-tokens/practice-theme-tokens-data-theme-and-cached-theme.md)
 - Related: [practice-json-restore-rules](../../api-and-data/toggl-compat-and-import/practice-json-restore-rules.md)
 - Related: [map-npm-workspaces-package-layout](map-npm-workspaces-package-layout.md)
 <!-- kk:related:end -->

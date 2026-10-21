@@ -38,9 +38,9 @@ When changing this, verify:
 
 - Related: [practice-week-calendar-hour-height-agrees-in-three-places](practice-week-calendar-hour-height-agrees-in-three-places.md)
 - Related: [practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top](practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md)
-- Related: [practice-ui-time-math-uses-wall-clock-helpers](../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md)
-- Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
-- Related: [practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard](../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md)
+- Related: [practice-ui-time-math-uses-wall-clock-helpers](../../web-ui-behaviour/time-and-timers/practice-ui-time-math-uses-wall-clock-helpers.md)
+- Related: [practice-phone-layout-css-gotchas](../shell-and-layout/practice-phone-layout-css-gotchas.md)
+- Related: [practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard](../../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

@@ -23,6 +23,6 @@ Colours: the running block and the now line use `--state-running`. Today's colum
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-ui-time-math-uses-wall-clock-helpers](../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md)
-- Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
+- Related: [practice-ui-time-math-uses-wall-clock-helpers](../../web-ui-behaviour/time-and-timers/practice-ui-time-math-uses-wall-clock-helpers.md)
+- Related: [practice-contrast-tables-and-project-colours](../theme-and-tokens/practice-contrast-tables-and-project-colours.md)
 <!-- kk:related:end -->

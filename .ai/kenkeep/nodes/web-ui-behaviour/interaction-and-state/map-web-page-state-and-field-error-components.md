@@ -31,6 +31,6 @@ Error toasts in `Toast.tsx` are `role=alert` as well. In e2e specs, scope `getBy
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-shared-list-controls-in-manage-ui](../web-ui-styling-and-layout/map-shared-list-controls-in-manage-ui.md)
-- Related: [practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard](../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md)
+- Related: [map-shared-list-controls-in-manage-ui](../../web-ui-styling-and-layout/shell-and-layout/map-shared-list-controls-in-manage-ui.md)
+- Related: [practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard](../../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md)
 <!-- kk:related:end -->

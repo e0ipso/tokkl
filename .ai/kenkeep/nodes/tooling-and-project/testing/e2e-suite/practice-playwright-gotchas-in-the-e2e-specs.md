@@ -3,19 +3,22 @@ type: practice
 title: Playwright gotchas in the e2e specs
 description: >-
   200 is not proof a file exists; clock.install not pauseAt; phone helpers,
-  expectFits, cellTexts polling, networkidle limits; group entries on a past day.
+  expectFits, cellTexts polling, networkidle limits; group entries on a past
+  day.
 tags:
   - testing
   - playwright
 kk_schema_version: 3
 kk_id: practice-playwright-gotchas-in-the-e2e-specs
-kk_derived_from: []
+kk_derived_from:
+  - >-
+    .ai/kenkeep/nodes/web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md
 kk_relates_to:
   - practice-stopped-entries-snap-to-the-time-resolution-on-write
 kk_depends_on: []
 kk_confidence: high
 ---
-- The static server answers unknown paths with the HTML app shell and status 200, so a 200 does not prove a static file exists. Only misses under `/assets/`, `/api` and `/reports/api` get a 404. Check the content type, as `e2e/pwa.spec.ts` does for the manifest icons, and assert `text/html` to prove a retired file is gone. Better, decode the image: `e2e/typography.spec.ts` calls `img.decode()` on the brand wordmark and checks `naturalWidth`. Express 5 serves `favicon.ico` as `image/vnd.microsoft.icon`; the spec also accepts `image/x-icon`. See [map-pwa-manifest-and-head-icon-links](../../../web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md) for what the spec checks.
+- The static server answers unknown paths with the HTML app shell and status 200, so a 200 does not prove a static file exists. Only misses under `/assets/`, `/api` and `/reports/api` get a 404. Check the content type, as `e2e/pwa.spec.ts` does for the manifest icons, and assert `text/html` to prove a retired file is gone. Better, decode the image: `e2e/typography.spec.ts` calls `img.decode()` on the brand wordmark and checks `naturalWidth`. Express 5 serves `favicon.ico` as `image/vnd.microsoft.icon`; the spec also accepts `image/x-icon`. See [map-pwa-manifest-and-head-icon-links](../../../web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md) for what the spec checks.
 - To assert that a control does not open the native colour picker, stub `HTMLInputElement.prototype.showPicker` in `page.addInitScript` and count the calls, as `a11y-keyboard.spec.ts` does. The real picker is outside the page and cannot be inspected.
 - `getByRole`/`getByLabel` name matching is a case-insensitive substring match unless you pass `exact: true`.
 - A synthetic `visibilitychange` must be dispatched with `{ bubbles: true }` when fired on `document`, because the focus listener in `packages/web/src/main.tsx` listens on `window`.
@@ -30,3 +33,15 @@ kk_confidence: high
 - A spec that expects a timer entry to group with another entry "today" breaks near local midnight, and faking the browser clock does not help because the server stamps start and stop from its own clock. Midnight can pass mid-test, and a stopped timer whose start fell in the last half step of a day (2.5 minutes at the default 5-minute resolution) snaps forward to 0:00 of the next day (see `practice-stopped-entries-snap-to-the-time-resolution-on-write`). Put every entry the assertion groups on a fixed past day instead, as `e2e/features.spec.ts` does. Take the day from `madridWallClock(new Date(Date.now() - 3 * DAY_MS)).day` in `e2e/timer-tests-helpers.ts`, fill the form's `Date` field with it (`getByLabel('Date', { exact: true })`), and seed any companion entry on that day with `TimerApi.createEntry` at noon UTC, which is the same day in Europe/Madrid, then `page.reload()`.
 
 <!-- Verified against the current code on 2026-10-19. -->
+
+<!-- kk:related:start -->
+# Related
+
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+<!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [.ai/kenkeep/nodes/web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md](../../../web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md)
+<!-- kk:citations:end -->

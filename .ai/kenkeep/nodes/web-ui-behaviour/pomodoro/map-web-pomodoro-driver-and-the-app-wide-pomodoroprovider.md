@@ -30,7 +30,7 @@ The headless shell reports the permission as denied, so `e2e/settings-pomodoro.s
 # Related
 
 - Related: [map-web-pomodoro-sessions-provider-controller-and-account-state](map-web-pomodoro-sessions-provider-controller-and-account-state.md)
-- Related: [practice-preferences-validated-by-known-key](../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
+- Related: [practice-preferences-validated-by-known-key](../../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

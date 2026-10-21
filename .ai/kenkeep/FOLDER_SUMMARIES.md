@@ -53,9 +53,27 @@ summaries:
     web UI logic: page states, keyboard focus, time entry parsing, wall-clock
     math, refetch handling and clipboard; read before changing components or
     client-side helpers
+  web-ui-behaviour/interaction-and-state: >-
+    shared fields, focus, error states, refetches, clipboard and authentication
+    cleanup; read before changing web interactions or account state
+  web-ui-behaviour/pomodoro: >-
+    pomodoro lengths, phases, session storage, timer handoffs, notifications and
+    audio; read before changing Pomodoro behaviour
+  web-ui-behaviour/time-and-timers: >-
+    time parsing, account-local wall-clock math, snapped previews and pause
+    chains; read before changing entry times or timer state
   web-ui-styling-and-layout: >-
     app shell, styles.css tokens, themes, contrast and phone and calendar
     layout; read before changing CSS, colours or page layout
+  web-ui-styling-and-layout/calendar: >-
+    calendar day mode, touch gestures, lanes and hour geometry; read before
+    changing WeekCalendar rendering or dragging
+  web-ui-styling-and-layout/shell-and-layout: >-
+    app branding, navigation, PWA icons, shared controls and responsive page
+    layout; read before changing the shell or page sizing
+  web-ui-styling-and-layout/theme-and-tokens: >-
+    colour tokens, contrast, section hues, fonts, motion and theme caching; read
+    before changing shared CSS or theme behaviour
 ---
 # kenkeep Folder Summaries
 
@@ -73,4 +91,10 @@ summaries:
 - `tooling-and-project/testing`: the Playwright e2e suite, visual baselines, what npm test and typecheck run, and the history bench; read before adding, running or debugging a test, spec or benchmark
 - `tooling-and-project/testing/e2e-suite`: how the Playwright e2e suite runs, isolates workers and accounts, and how to write specs; read before running, adding or debugging an e2e spec
 - `web-ui-behaviour`: web UI logic: page states, keyboard focus, time entry parsing, wall-clock math, refetch handling and clipboard; read before changing components or client-side helpers
+- `web-ui-behaviour/interaction-and-state`: shared fields, focus, error states, refetches, clipboard and authentication cleanup; read before changing web interactions or account state
+- `web-ui-behaviour/pomodoro`: pomodoro lengths, phases, session storage, timer handoffs, notifications and audio; read before changing Pomodoro behaviour
+- `web-ui-behaviour/time-and-timers`: time parsing, account-local wall-clock math, snapped previews and pause chains; read before changing entry times or timer state
 - `web-ui-styling-and-layout`: app shell, styles.css tokens, themes, contrast and phone and calendar layout; read before changing CSS, colours or page layout
+- `web-ui-styling-and-layout/calendar`: calendar day mode, touch gestures, lanes and hour geometry; read before changing WeekCalendar rendering or dragging
+- `web-ui-styling-and-layout/shell-and-layout`: app branding, navigation, PWA icons, shared controls and responsive page layout; read before changing the shell or page sizing
+- `web-ui-styling-and-layout/theme-and-tokens`: colour tokens, contrast, section hues, fonts, motion and theme caching; read before changing shared CSS or theme behaviour

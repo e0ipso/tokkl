@@ -39,9 +39,9 @@ _None._
 - Open [**Do not mark commits as breaking changes**](practice-do-not-mark-commits-as-breaking-changes.md) — Commits and PR titles carry no \`!\` or \`BREAKING CHANGE:\` footer, so semantic-release never cuts a major release, even for behavior changes.
 - Open [**Merge a PR stack bottom-up without retargeting its PRs**](practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs.md) — Merge stacked PRs bottom-up, starting with the one based on main. Don't repoint upper PR bases or close and reopen PRs.
 ### #web
-- Open [**Bulk bar sticks under the timer bar through --timer-bar-height**](../../web-ui-styling-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md) — TimerBar writes --timer-bar-height on <html>; .bulk-bar sticks at it; phones zero it while entries are selected.
-- Open [**Hand timers and Pomodoro sessions over at one captured instant**](../../web-ui-behaviour/practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant.md) — Session starts stop the running timer at the start instant; timer starts end the session first, all under the account lock.
-- Open [**Calendar lanes follow stored spans; zero-length markers draw on top**](../../web-ui-styling-and-layout/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md) — assignLanes clusters on stored spans, shorter first; thin blocks, markers and drags stack 3, 4, 5; blocks under a marker are drawn taller.
+- Open [**Bulk bar sticks under the timer bar through --timer-bar-height**](../../web-ui-styling-and-layout/shell-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md) — TimerBar writes --timer-bar-height on <html>; .bulk-bar sticks at it; phones zero it while entries are selected.
+- Open [**Hand timers and Pomodoro sessions over at one captured instant**](../../web-ui-behaviour/pomodoro/practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant.md) — Session starts stop the running timer at the start instant; timer starts end the session first, all under the account lock.
+- Open [**Calendar lanes follow stored spans; zero-length markers draw on top**](../../web-ui-styling-and-layout/calendar/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md) — assignLanes clusters on stored spans, shorter first; thin blocks, markers and drags stack 3, 4, 5; blocks under a marker are drawn taller.
 ### #workflow
 - Open [**Commit messages: Conventional Commits, no co-author or AI trailers**](practice-commit-messages-pass-commitlint-no-ai-generated.md) — commitlint rejects Co-authored-by and AI trailers, ticket IDs in headers and subjects over 72 chars; worktrees without npm ci skip the hook.
 - Open [**What npm test and npm run typecheck cover**](../testing/map-test-and-static-analysis-layout.md) — npm test runs the workspaces then the e2e and scripts node tests; typecheck adds e2e, scripts and bench; tsconfigs extend tsconfig.base.json; no lint.
@@ -56,16 +56,16 @@ _None._
 ### #assets
 - Open [**docs/brand packs stay as the owner supplied them; never run their rebuilds**](practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md) — icon-pack and wordmark-pack are the owner's files byte for byte; build.mjs and rebuild.sh rewrite them. Other clients follow docs/brand/README.md.
 ### #brand
-- Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](../../web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.
+- Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](../../web-ui-styling-and-layout/shell-and-layout/map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.
 - Open [**docs/brand packs stay as the owner supplied them; never run their rebuilds**](practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them.md) — icon-pack and wordmark-pack are the owner's files byte for byte; build.mjs and rebuild.sh rewrite them. Other clients follow docs/brand/README.md.
 ### #comments
 - Open [**Keep Sift ticket IDs and Strikethroo plans out of code and public docs**](practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs.md) — TT-NNNN IDs and plan references stay in .ai/sift and .ai/strikethroo; code, comments, tests, docs and commit subjects state the fact. CI enforces it.
 ### #commits
 - Open [**Keep Sift ticket IDs and Strikethroo plans out of code and public docs**](practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs.md) — TT-NNNN IDs and plan references stay in .ai/sift and .ai/strikethroo; code, comments, tests, docs and commit subjects state the fact. CI enforces it.
 ### #common
-- Open [**Pomodoro length preferences: shared defaults for new sessions**](../../web-ui-behaviour/map-pomodoro-cycle-functions-in-packages-common.md) — Four Pomodoro length preferences seed new sessions; API and web share common defaults, and API validation uses common ranges.
-- Open [**UI time math uses account-local wall-clock helpers**](../../web-ui-behaviour/practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
-- Open [**Pomodoro session model in packages/common/pomodoroSession.ts**](../../web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md) — Clock-free confirm-driven phases: startSession, plannedEnd, overtimeSeconds, transitionKind, nextPhase, pomodoroEntrySpan.
+- Open [**Pomodoro length preferences: shared defaults for new sessions**](../../web-ui-behaviour/pomodoro/map-pomodoro-cycle-functions-in-packages-common.md) — Four Pomodoro length preferences seed new sessions; API and web share common defaults, and API validation uses common ranges.
+- Open [**UI time math uses account-local wall-clock helpers**](../../web-ui-behaviour/time-and-timers/practice-ui-time-math-uses-wall-clock-helpers.md) — Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work.
+- Open [**Pomodoro session model in packages/common/pomodoroSession.ts**](../../web-ui-behaviour/pomodoro/map-pomodoro-session-model-in-packages-common-pomodorosession.md) — Clock-free confirm-driven phases: startSession, plannedEnd, overtimeSeconds, transitionKind, nextPhase, pomodoroEntrySpan.
 ### #config
 - Open [**Old Timetrack names still accepted after the Tokkl rename**](map-tokkl-rename-legacy-name-fallbacks.md) — Old Timetrack env vars, database file, cookie, CSRF header, theme key and export format still work.
 ### #deployment
@@ -75,12 +75,12 @@ _None._
 - Open [**Merge a PR stack bottom-up without retargeting its PRs**](practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs.md) — Merge stacked PRs bottom-up, starting with the one based on main. Don't repoint upper PR bases or close and reopen PRs.
 ### #icons
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE, GNOME and macOS icons from the master, crops the wordmark; no test reruns it.
-- Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](../../web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
+- Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](../../web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
 ### #imagemagick
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE, GNOME and macOS icons from the master, crops the wordmark; no test reruns it.
 ### #layout
-- Open [**Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells**](../../web-ui-styling-and-layout/practice-phone-layout-css-gotchas.md) — Absolute children escape unpositioned scroll wrappers, grid or flex items without min-width: 0 stretch past a phone screen, and wide auto tables wrap every cell.
-- Open [**Report totals wrap as a flex row; an Amount figure never breaks**](../../web-ui-styling-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md) — Tiles share --tile-basis (220px, 160px at 760px and below); Amount sizes to its nowrap figures. The visual baselines show no Amount tile.
+- Open [**Phone layout CSS: position scroll wrappers, min-width: 0, nowrap table identity cells**](../../web-ui-styling-and-layout/shell-and-layout/practice-phone-layout-css-gotchas.md) — Absolute children escape unpositioned scroll wrappers, grid or flex items without min-width: 0 stretch past a phone screen, and wide auto tables wrap every cell.
+- Open [**Report totals wrap as a flex row; an Amount figure never breaks**](../../web-ui-styling-and-layout/shell-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md) — Tiles share --tile-basis (220px, 160px at 760px and below); Amount sizes to its nowrap figures. The visual baselines show no Amount tile.
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
 ### #maskable
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE, GNOME and macOS icons from the master, crops the wordmark; no test reruns it.
@@ -94,7 +94,7 @@ _None._
 - Open [**Merge a PR stack bottom-up without retargeting its PRs**](practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs.md) — Merge stacked PRs bottom-up, starting with the one based on main. Don't repoint upper PR bases or close and reopen PRs.
 ### #pwa
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE, GNOME and macOS icons from the master, crops the wordmark; no test reruns it.
-- Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](../../web-ui-styling-and-layout/map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
+- Open [**PWA manifest and head icon links, and what e2e/pwa.spec.ts checks**](../../web-ui-styling-and-layout/shell-and-layout/map-pwa-manifest-and-head-icon-links.md) — The manifest pins id and scope to /, uses #291329 and five pack icons; index.html links the ICO, two PNGs and four touch icons.
 ### #release
 - Open [**KDE native packaging: DEB, RPM and the version mapping**](../kde-companion/map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.
 - Open [**KDE release upgrade check: previous-package.sh and --previous-package**](../kde-companion/map-kde-release-upgrade-check-from-the-published-predecessor.md) — Release legs upgrade from the newest older published tokkl-kde asset, checked by size and SHA-256, or from a 0.0.0 build when none is usable.
@@ -119,7 +119,7 @@ _None._
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
 ### #wordmark
 - Open [**Brand images: npm run icons derives every served file from docs/brand**](map-app-icons-script.md) — icons.ts copies or quantises the web icons, renders the KDE, GNOME and macOS icons from the master, crops the wordmark; no test reruns it.
-- Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](../../web-ui-styling-and-layout/map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.
+- Open [**App shell: Brand.tsx, the wordmark image and the NAV list**](../../web-ui-styling-and-layout/shell-and-layout/map-app-shell-brand-and-navigation.md) — One Brand component (the PNG Tokkl wordmark alone); one NAV list whose inMore pages move into the phone More dialog.
 ### #workspaces
 - Open [**npm workspaces: packages/common, packages/api, packages/web, packages/types**](map-npm-workspaces-package-layout.md) — Four @tokkl workspaces; common and types ship raw .ts; run scripts from the root; npm install per worktree.
 - Open [**Users, roles and workspace membership**](../../api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.

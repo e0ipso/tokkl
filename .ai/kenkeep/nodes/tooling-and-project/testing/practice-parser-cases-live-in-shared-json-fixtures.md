@@ -27,10 +27,10 @@ kk_confidence: high
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-parse-duration-returns-null-over-999-hours](../../web-ui-behaviour/practice-parse-duration-returns-null-over-999-hours.md)
-- Related: [practice-twelve-hour-time-entry-parsing-rules](../../web-ui-behaviour/practice-twelve-hour-time-entry-parsing-rules.md)
+- Related: [practice-parse-duration-returns-null-over-999-hours](../../web-ui-behaviour/time-and-timers/practice-parse-duration-returns-null-over-999-hours.md)
+- Related: [practice-twelve-hour-time-entry-parsing-rules](../../web-ui-behaviour/time-and-timers/practice-twelve-hour-time-entry-parsing-rules.md)
 - Related: [map-test-and-static-analysis-layout](map-test-and-static-analysis-layout.md)
-- Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](../../web-ui-behaviour/map-pomodoro-session-model-in-packages-common-pomodorosession.md)
+- Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](../../web-ui-behaviour/pomodoro/map-pomodoro-session-model-in-packages-common-pomodorosession.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

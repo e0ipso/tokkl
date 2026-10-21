@@ -33,6 +33,6 @@ The cached theme lives in localStorage under `tokkl.theme`. A value left under t
 # Related
 
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
-- Related: [practice-playwright-gotchas-in-the-e2e-specs](../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
-- Related: [practice-end-sessions-through-lib-session](../web-ui-behaviour/practice-end-sessions-through-lib-session.md)
+- Related: [practice-playwright-gotchas-in-the-e2e-specs](../../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
+- Related: [practice-end-sessions-through-lib-session](../../web-ui-behaviour/interaction-and-state/practice-end-sessions-through-lib-session.md)
 <!-- kk:related:end -->

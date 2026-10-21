@@ -31,5 +31,5 @@ Component behaviour (pickers, focus, the idle draft) is checked in Playwright, i
 
 - Related: [practice-timer-bar-pickers-return-focus-without-opening-suggestions](practice-timer-bar-pickers-return-focus-without-opening-suggestions.md)
 - Related: [practice-web-ui-survives-background-refetches](practice-web-ui-survives-background-refetches.md)
-- Related: [map-test-and-static-analysis-layout](../tooling-and-project/testing/map-test-and-static-analysis-layout.md)
+- Related: [map-test-and-static-analysis-layout](../../tooling-and-project/testing/map-test-and-static-analysis-layout.md)
 <!-- kk:related:end -->
