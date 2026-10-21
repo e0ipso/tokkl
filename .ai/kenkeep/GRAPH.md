@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:676b0d4cfee6104e572c6edd38bc8b0a7b1d459d64621d13ceac483c1a671f7c'
+nodes_hash: 'sha256:6a6c10187563067a9d5fe5a9258296fab0853f19d1301323da4ca50bbcb98b52'
 node_count: 87
 ---
 # kenkeep Graph
@@ -665,7 +665,7 @@ Total nodes: 87
 - **path:** tooling-and-project/testing/practice-visual-screenshot-baselines.md
 - **tags:** testing, e2e, playwright, visual
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-app-icons-script, map-readme-screenshots-script
-- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:1
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:1, 87b15788-c0fc-4af5-b106-b4e3ec5044a0:practice:0
 
 ## practice-web-previews-and-editor-show-snapped-durations
 
