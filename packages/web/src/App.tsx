@@ -9,6 +9,7 @@ import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
 import { PauseCoordinationProvider } from './components/PauseCoordination.tsx';
 import { PomodoroBanner, PomodoroProvider } from './components/PomodoroProvider.tsx';
+import { PomodoroSessionProvider } from './components/PomodoroSessionProvider.tsx';
 import { LongTimerReminder } from './components/LongTimerReminder.tsx';
 import { useToast } from './components/Toast.tsx';
 import { formatDuration } from '@tokkl/common/duration';
@@ -332,5 +333,5 @@ export function App() {
   }
   // The Pomodoro runs on every signed-in page, not only where the timer bar is. It pauses the entry
   // through the same pause coordination as the timer bar, so that provider sits above it.
-  return <PauseCoordinationProvider><PomodoroProvider><Shell /></PomodoroProvider></PauseCoordinationProvider>;
+  return <PauseCoordinationProvider><PomodoroProvider><PomodoroSessionProvider><Shell /></PomodoroSessionProvider></PomodoroProvider></PauseCoordinationProvider>;
 }

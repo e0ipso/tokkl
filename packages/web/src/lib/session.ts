@@ -2,6 +2,8 @@ import type { QueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { forgetChains } from '../components/pauseChain.ts';
 import { forgetPomodoro } from '../components/pomodoroCycle.ts';
+import { finishPomodoroSession, forgetActivePomodoroSession } from '../components/pomodoroSessionLifecycle.ts';
+import { forgetPomodoroSessions } from '../components/pomodoroSessionState.ts';
 import { forgetTabChain } from '../components/tabChain.ts';
 import { clearCachedTheme } from './theme.ts';
 
@@ -22,9 +24,11 @@ function forgetLogoutFailure(): void {
 function forgetTimerState(): void {
   // The tab's own copy goes first and outside the try, so blocked storage cannot skip it.
   forgetTabChain();
+  forgetActivePomodoroSession();
   try {
     forgetChains(window.localStorage);
     forgetPomodoro(window.localStorage);
+    forgetPomodoroSessions(window.localStorage);
   } catch {
     // Storage can be blocked; then nothing was stored.
   }
@@ -32,7 +36,7 @@ function forgetTimerState(): void {
 
 /**
  * Forgets what the signed-in user left in this tab: every cached query, the cached theme, paused
- * timer chains, the Pomodoro cycle and a pending logout failure message. The page returns to the
+ * timer chains, Pomodoro cycles and sessions, and a pending logout failure message. The page returns to the
  * system theme, so the login page and the next user start clean.
  *
  * Clearing the cache does not notify mounted queries; they keep their last result until their
@@ -47,10 +51,12 @@ export function endSession(qc: QueryClient): void {
 }
 
 /**
- * Asks the server to end the session, then ends it in this tab whether the request succeeded or
- * not. A failed request also leaves a flag for `takeLogoutFailure` and rejects, after the cleanup.
+ * Finishes the current pomodoro before revoking the cookie, then ends the session in this tab
+ * whether logout succeeded or not. A failed final save is discarded; a failed logout leaves a
+ * flag for `takeLogoutFailure` and rejects after cleanup.
  */
 export async function logOut(qc: QueryClient): Promise<void> {
+  await finishPomodoroSession();
   try {
     await api.post('/api/app/logout');
   } catch (error) {
