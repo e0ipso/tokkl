@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { describedError, expect, test } from './admin-tests-helpers.ts';
 import { login, loginAs } from './helpers.ts';
@@ -347,6 +348,17 @@ test('notification permission requires a click and moves focus to its answer', a
   expect(await permissionRequests(page)).toBe(1);
 });
 
+test('the built app serves each transition sound as the committed WAV', async ({ page }) => {
+  await login(page);
+  for (const name of ['work-to-short-rest', 'short-rest-to-work', 'work-to-long-rest', 'long-rest-to-work']) {
+    const file = `pomodoro-${name}.wav`;
+    const response = await page.request.get(`/sounds/${file}`);
+    expect(response.status(), file).toBe(200);
+    expect(response.headers()['content-type'], file).toBe('audio/wav');
+    expect((await response.body()).equals(readFileSync(new URL(`../packages/web/public/sounds/${file}`, import.meta.url))), file).toBe(true);
+  }
+});
+
 test('all four native WAV alarms loop until an action and unlock in the Start gesture', async ({ page }) => {
   await observeAudio(page);
   await openPomodoro(page);
@@ -432,11 +444,11 @@ test('one audio owner hands a ringing session to the other tab when it closes', 
   await errors.verify(testInfo);
 });
 
-test('starting a session stops the regular timer at its captured start and suppresses legacy alarms', async ({ page, data }) => {
+test('starting a session stops the regular timer at its captured start', async ({ page, data }) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 1 });
   await observeAudio(page);
   const api = await openPomodoro(page);
-  await api.savePreferences({ pomodoro_enabled: true, pomodoro_focus_interval_in_minutes: 1 });
+  await api.savePreferences({ pomodoro_focus_interval_in_minutes: 1 });
   const running = await api.startTimer({ description: 'Regular work', start: '2026-01-15T09:32:00Z' });
   await page.reload();
   await startPomodoro(page);
@@ -446,7 +458,6 @@ test('starting a session stops the regular timer at its captured start and suppr
   expect(instant(stopped.stop)).toBe(Math.round(state.pomodoroStart / 60_000) * 60_000);
   await page.clock.fastForward(65_000);
   await expect.poll(() => sounding(page)).toHaveLength(1);
-  expect(await page.evaluate(() => window.sessionAudio.map(({ element }) => element.src))).not.toEqual(expect.arrayContaining([expect.stringContaining('pomodoro-bell.mp3')]));
 });
 
 for (const action of ['Start', 'Continue', 'favorite', 'n', 'c', '1', '9'] as const) {

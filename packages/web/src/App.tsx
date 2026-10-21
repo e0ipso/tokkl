@@ -8,7 +8,6 @@ import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
 import { PauseCoordinationProvider } from './components/PauseCoordination.tsx';
-import { PomodoroBanner, PomodoroProvider } from './components/PomodoroProvider.tsx';
 import { PomodoroSessionBanner } from './components/PomodoroSessionBanner.tsx';
 import { sessionTitle } from './components/pomodoroSessionPresentation.ts';
 import { PomodoroSessionProvider, usePomodoroSession } from './components/PomodoroSessionProvider.tsx';
@@ -268,8 +267,6 @@ function Shell() {
       <main className="content" data-section={section}>
         <LongTimerReminder />
         <PomodoroSessionBanner />
-        {/* The timer bar shows the Pomodoro banner on the timer page. */}
-        {location === '/' ? null : <PomodoroBanner />}
         <ErrorBoundary resetKey={location}>
         <Switch>
           <Route path="/" component={TimerPage} />
@@ -343,7 +340,5 @@ export function App() {
       </div>
     );
   }
-  // The Pomodoro runs on every signed-in page, not only where the timer bar is. It pauses the entry
-  // through the same pause coordination as the timer bar, so that provider sits above it.
-  return <PauseCoordinationProvider><PomodoroSessionProvider><PomodoroProvider><Shell /></PomodoroProvider></PomodoroSessionProvider></PauseCoordinationProvider>;
+  return <PauseCoordinationProvider><PomodoroSessionProvider><Shell /></PomodoroSessionProvider></PauseCoordinationProvider>;
 }

@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
-import type { PhaseEnd } from './pomodoroCycle.ts';
-import { notificationAccess, notifyInBackground, notifyPhaseEnd, notifySessionPhaseEnd, requestNotificationAccess } from './phaseNotification.ts';
+import { notificationAccess, notifyInBackground, notifySessionPhaseEnd, requestNotificationAccess } from './phaseNotification.ts';
 
 // A minimal window, document and Notification stand in for the browser's. `setup` picks what the
 // page reports: its permission, a permission request's answer, whether the API exists or its
@@ -75,25 +74,21 @@ function setup({ permission = 'granted', answer = 'granted', support = 'works', 
   Object.assign(globalThis, { Notification: StubNotification });
 }
 
-test('each phase end shows its own title and body, with the app icon and one shared tag', () => {
-  const phases: [PhaseEnd, string, string][] = [
-    ['work', 'Work phase over', 'Time for a break.'],
-    ['short', 'Short break over', 'Back to work.'],
-    ['long', 'Long break over', 'Back to work.'],
-  ];
+test('a background notification shows its title, body and tag with the app icon', () => {
   setup();
-  for (const [phase] of phases) notifyPhaseEnd(phase);
-  assert.deepEqual(shown.map(({ title, options }) => [title, options.body]), phases.map(([, title, body]) => [title, body]));
-  for (const { options } of shown) {
-    assert.equal(options.tag, 'tokkl-pomodoro', 'one tag lets a newer phase end replace an older one');
-    assert.equal(options.icon, '/icons/icon-192.png');
-  }
+  notifyInBackground('Is your timer still running on purpose?', 'Open Tokkl to confirm or review it.', 'tokkl-long-timer-7');
+  notifyInBackground('Still tracking', 'Check your timer', 'tokkl-long-timer-8');
+  assert.deepEqual(shown.map(({ title, options }) => [title, options.body, options.tag]), [
+    ['Is your timer still running on purpose?', 'Open Tokkl to confirm or review it.', 'tokkl-long-timer-7'],
+    ['Still tracking', 'Check your timer', 'tokkl-long-timer-8'],
+  ]);
+  for (const { options } of shown) assert.equal(options.icon, '/icons/icon-192.png');
   assert.ok(existsSync(new URL('../../public/icons/icon-192.png', import.meta.url)), 'the icon is a file the app serves');
 });
 
 test('a page in view shows no notification, even with permission', () => {
   setup({ hidden: false });
-  notifyPhaseEnd('work');
+  notifyInBackground('Still tracking', 'Check your timer', 'long-timer');
   assert.deepEqual(shown, []);
 });
 
@@ -107,21 +102,21 @@ test('without permission, a secure context or the API, a hidden page shows nothi
   ];
   for (const browser of blocked) {
     setup(browser);
-    assert.doesNotThrow(() => notifyPhaseEnd('short'), JSON.stringify(browser));
+    assert.doesNotThrow(() => notifyInBackground('Still tracking', 'Check your timer', 'long-timer'), JSON.stringify(browser));
     assert.deepEqual(shown, [], JSON.stringify(browser));
-    assert.equal(page.requests, 0, `a phase end never requests permission: ${JSON.stringify(browser)}`);
+    assert.equal(page.requests, 0, `a background notification never requests permission: ${JSON.stringify(browser)}`);
   }
 });
 
 test('a constructor that throws leaves the page without a notification or an error', () => {
   setup({ support: 'throws' });
-  assert.doesNotThrow(() => notifyPhaseEnd('long'));
+  assert.doesNotThrow(() => notifyInBackground('Still tracking', 'Check your timer', 'long-timer'));
   assert.deepEqual(shown, []);
 });
 
 test('a click on the notification focuses the tab and closes the notification', () => {
   setup();
-  notifyPhaseEnd('work');
+  notifyInBackground('Still tracking', 'Check your timer', 'long-timer');
   const [notification] = shown;
   assert.ok(notification?.onclick, 'the notification has a click handler');
   assert.equal(notification.closed, false);

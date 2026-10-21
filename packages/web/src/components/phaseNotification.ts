@@ -1,12 +1,3 @@
-import type { PhaseEnd } from './pomodoroCycle.ts';
-
-/** What a phase end says. The banner shows both parts; a notification uses them as title and body. */
-export const PHASE_ENDED: Record<PhaseEnd, { title: string; body: string }> = {
-  work: { title: 'Work phase over', body: 'Time for a break.' },
-  short: { title: 'Short break over', body: 'Back to work.' },
-  long: { title: 'Long break over', body: 'Back to work.' },
-};
-
 /**
  * The browser's notification permission. 'insecure' is a page served over plain HTTP from another
  * host, where browsers refuse notifications; 'unsupported' is a browser without the API.
@@ -14,8 +5,6 @@ export const PHASE_ENDED: Record<PhaseEnd, { title: string; body: string }> = {
 export type NotificationAccess = NotificationPermission | 'insecure' | 'unsupported';
 
 const ICON_URL = '/icons/icon-192.png';
-/** One tag for every phase end, so a newer notification replaces an older one, from any tab. */
-const TAG = 'tokkl-pomodoro';
 
 function notificationApi(): typeof Notification | null {
   return typeof Notification === 'function' ? Notification : null;
@@ -48,17 +37,11 @@ export async function requestNotificationAccess(): Promise<NotificationAccess> {
 }
 
 /**
- * Shows a notification for the phase that ended, but only while the page is hidden; in view, the
- * banner and the bell say it. Without the API or permission, or when the constructor throws, as
- * Chrome on Android does for page notifications, nothing shows. A click focuses the tab and closes
- * the notification.
+ * Shows a notification, but only while the page is hidden; in view, the in-app banner says it.
+ * Without the API or permission, or when the constructor throws, as Chrome on Android does for page
+ * notifications, nothing shows, and the banner remains. A notification with the same tag replaces
+ * the previous one. A click focuses the tab and closes the notification.
  */
-export function notifyPhaseEnd(phase: PhaseEnd): void {
-  const { title, body } = PHASE_ENDED[phase];
-  notifyInBackground(title, body, TAG);
-}
-
-/** The in-app banner remains available if system notifications are blocked or unsupported. */
 export function notifyInBackground(title: string, body: string, tag: string): void {
   if (document.visibilityState !== 'hidden') return;
   const api = notificationApi();

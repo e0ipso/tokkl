@@ -1,7 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
 import { forgetChains } from '../components/pauseChain.ts';
-import { forgetPomodoro } from '../components/pomodoroCycle.ts';
 import { finishPomodoroSession, forgetActivePomodoroSession } from '../components/pomodoroSessionLifecycle.ts';
 import { forgetPomodoroSessions } from '../components/pomodoroSessionState.ts';
 import { forgetTabChain } from '../components/tabChain.ts';
@@ -27,7 +26,6 @@ function forgetTimerState(): void {
   forgetActivePomodoroSession();
   try {
     forgetChains(window.localStorage);
-    forgetPomodoro(window.localStorage);
     forgetPomodoroSessions(window.localStorage);
   } catch {
     // Storage can be blocked; then nothing was stored.
@@ -36,7 +34,7 @@ function forgetTimerState(): void {
 
 /**
  * Forgets what the signed-in user left in this tab: every cached query, the cached theme, paused
- * timer chains, Pomodoro cycles and sessions, and a pending logout failure message. The page returns to the
+ * timer chains, Pomodoro sessions and a pending logout failure message. The page returns to the
  * system theme, so the login page and the next user start clean.
  *
  * Clearing the cache does not notify mounted queries; they keep their last result until their

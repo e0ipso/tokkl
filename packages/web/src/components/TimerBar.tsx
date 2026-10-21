@@ -16,14 +16,10 @@ import {
   chainKey, chainSeconds, isPaused, pause as pauseChain, reconcile, resume as resumeChain, sameSnapshot,
   withSnapshot, type PauseChain,
 } from './pauseChain.ts';
-import { countdownText, type PhaseEnd } from './pomodoroCycle.ts';
 import { usePauseCoordination } from './PauseCoordination.tsx';
-import { PomodoroBanner, useTimerCoordination } from './PomodoroProvider.tsx';
 import { usePomodoroSession } from './PomodoroSessionProvider.tsx';
 import { readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
 import { EMPTY_DRAFT as EMPTY, type EntryDraft as Draft } from './useEntryFields.ts';
-
-const PHASE_NAMES: Record<PhaseEnd, string> = { work: 'Work', short: 'Short break', long: 'Long break' };
 
 /**
  * Writes the bar's height to --timer-bar-height on <html> while the bar is mounted. The bulk bar
@@ -177,9 +173,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
 
   // Set while this bar pauses or resumes. The current entry refetches in the middle of both, and
   // that answer must not end the chain before the bar records the change.
-  // Shared with the Pomodoro, which pauses the entry at the end of a work phase.
   const { busy: chainBusy, pausing } = usePauseCoordination();
-  const { barPause, pausedAt, pomodoro } = useTimerCoordination();
   // Set while Resume's start request is pending, and whether Stop was pressed in that time.
   const resumePending = useRef(false);
   const stopAfterResume = useRef(false);
@@ -313,7 +307,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const pause = async () => {
     if (!current || chainBusy.current) return;
     chainBusy.current = true;
-    const pending = { stopAfter: false, at: Date.now() };
+    const pending = { stopAfter: false };
     pausing.current = pending;
     try {
       // A failed stop leaves the entry running, and a Stop pressed meanwhile with it; the error
@@ -328,7 +322,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
           return;
         }
         const next = pauseChain(chainRef.current, stopped, Date.now());
-        pausedAt.current = pending.at;
         setChain(next);
         setDraft(next.snapshot);
       });
@@ -412,16 +405,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       }
     },
   }));
-
-  // While the bar is mounted, the Pomodoro pauses the entry at the end of a work phase through
-  // this Pause, the one the button runs.
-  useEffect(() => {
-    barPause.current = pause;
-    return () => {
-      barPause.current = null;
-    };
-  });
-  const phaseLeft = pomodoro.countdown(now.getTime());
 
   // The chain total while paused or while its clone runs, otherwise the running entry's own time.
   const elapsed = chainSeconds(chain, current, now.getTime());
@@ -516,16 +499,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             onKeyDown={(event) => { if (event.key === 'Enter') void start(); }}
           />
         )}
-        {phaseLeft ? (
-          <span
-            className="pomodoro-countdown"
-            role="timer"
-            aria-label={`${PHASE_NAMES[phaseLeft.phase]}, ${countdownText(phaseLeft.seconds)} left`}
-          >
-            <span className="pomodoro-phase" aria-hidden="true">{PHASE_NAMES[phaseLeft.phase]}</span>
-            <span className="pomodoro-time" aria-hidden="true">{countdownText(phaseLeft.seconds)}</span>
-          </span>
-        ) : null}
 
         {manual ? (
           <button type="button" className="timer-button add" onClick={() => void addManual()} aria-label="Add entry" title="Add entry">
@@ -597,7 +570,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         )}
         {!manual && !current && !paused ? timerErrors.message('duration') : null}
       </EntryFields>
-      <PomodoroBanner />
       <span className="visually-hidden" aria-live="polite">{announcement}</span>
 
       {editing && current ? <EntryEditor entry={current} onClose={() => setEditing(false)} /> : null}

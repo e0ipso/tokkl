@@ -6,7 +6,7 @@ import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { formatDate, formatTime, today, useSettings } from '../../../lib/settings.ts';
 import { formatDuration } from '@tokkl/common/duration';
-import { DEFAULT_POMODORO_SETTINGS } from '@tokkl/common/pomodoro';
+import { DEFAULT_POMODORO_SESSION_CONFIG } from '@tokkl/common/pomodoroSession';
 import { AllowNotifications } from './AllowNotifications.tsx';
 import { SettingsCard } from './SettingsCard.tsx';
 
@@ -32,12 +32,12 @@ const THEMES: ReadonlyArray<{ value: Preferences['theme']; label: string }> = [
 /** 47 minutes and 6 seconds, the example Toggl uses for its duration formats. */
 const SAMPLE_SECONDS = 47 * 60 + 6;
 
-/** The Pomodoro fields that hold a whole number, with the unit the error message names. */
+/** The lengths a new Pomodoro session starts with, with the unit the error message names. */
 const POMODORO_NUMBERS = [
-  { key: 'pomodoro_focus_interval_in_minutes', label: 'Work phase (minutes)', unit: 'minutes' },
-  { key: 'pomodoro_break_interval_in_minutes', label: 'Short break (minutes)', unit: 'minutes' },
-  { key: 'pomodoro_long_break_interval_in_minutes', label: 'Long break (minutes)', unit: 'minutes' },
-  { key: 'pomodoro_long_break_every', label: 'Long break every (work phases)', unit: 'work phases' },
+  { key: 'pomodoro_focus_interval_in_minutes', label: 'Work (minutes)', unit: 'minutes' },
+  { key: 'pomodoro_break_interval_in_minutes', label: 'Short rest (minutes)', unit: 'minutes' },
+  { key: 'pomodoro_long_break_interval_in_minutes', label: 'Long rest (minutes)', unit: 'minutes' },
+  { key: 'pomodoro_long_break_every', label: 'Long rest every (pomodoros)', unit: 'pomodoros' },
 ] as const satisfies ReadonlyArray<{ key: keyof Preferences; label: string; unit: string }>;
 
 const NUMBER_FIELDS = [...POMODORO_NUMBERS, { key: 'long_timer_reminder_hours', unit: 'hours' }] as const;
@@ -45,7 +45,7 @@ type NumberKey = typeof NUMBER_FIELDS[number]['key'];
 
 type Editable = Pick<Preferences,
   'theme' | 'date_format' | 'timeofday_format' | 'duration_format' | 'collapseTimeEntries' | 'keyboard_shortcuts_enabled'
-  | 'pomodoro_enabled' | 'pomodoro_stop_timer_at_end' | 'long_timer_reminder_enabled' | NumberKey>;
+  | 'long_timer_reminder_enabled' | NumberKey>;
 
 /** What the form shows: the numbers are the text in their inputs, so a half-typed value survives. */
 type Draft = { [K in keyof Editable]: K extends NumberKey ? string : Editable[K] };
@@ -60,12 +60,10 @@ function pick(prefs: Preferences): Editable {
     duration_format: prefs.duration_format,
     collapseTimeEntries: prefs.collapseTimeEntries,
     keyboard_shortcuts_enabled: prefs.keyboard_shortcuts_enabled,
-    pomodoro_enabled: prefs.pomodoro_enabled ?? false,
-    pomodoro_focus_interval_in_minutes: prefs.pomodoro_focus_interval_in_minutes ?? DEFAULT_POMODORO_SETTINGS.workMinutes,
-    pomodoro_break_interval_in_minutes: prefs.pomodoro_break_interval_in_minutes ?? DEFAULT_POMODORO_SETTINGS.shortBreakMinutes,
-    pomodoro_long_break_interval_in_minutes: prefs.pomodoro_long_break_interval_in_minutes ?? DEFAULT_POMODORO_SETTINGS.longBreakMinutes,
-    pomodoro_long_break_every: prefs.pomodoro_long_break_every ?? DEFAULT_POMODORO_SETTINGS.longBreakEvery,
-    pomodoro_stop_timer_at_end: prefs.pomodoro_stop_timer_at_end ?? true,
+    pomodoro_focus_interval_in_minutes: prefs.pomodoro_focus_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.workMinutes,
+    pomodoro_break_interval_in_minutes: prefs.pomodoro_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.shortRestMinutes,
+    pomodoro_long_break_interval_in_minutes: prefs.pomodoro_long_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestMinutes,
+    pomodoro_long_break_every: prefs.pomodoro_long_break_every ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestEvery,
   };
 }
 
@@ -239,16 +237,8 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
         </div>
         <p className="hint field-full">Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.</p>
       </div>
-      <h3 className="settings-subheading" id="pomodoro-title">Pomodoro</h3>
+      <h3 className="settings-subheading" id="pomodoro-title">Pomodoro session defaults</h3>
       <div className="form-grid" role="group" aria-labelledby="pomodoro-title">
-        <label className="field checkbox-field field-full">
-          <input
-            type="checkbox"
-            checked={draft.pomodoro_enabled}
-            onChange={(event) => set('pomodoro_enabled', event.target.checked)}
-          />
-          <span>Enable the Pomodoro cycle</span>
-        </label>
         {POMODORO_NUMBERS.map(({ key, label }) => (
           <div key={key} className="field">
             <label htmlFor={fields.id(key)}>{label}</label>
@@ -262,14 +252,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
             {fields.message(key)}
           </div>
         ))}
-        <label className="field checkbox-field field-full">
-          <input
-            type="checkbox"
-            checked={draft.pomodoro_stop_timer_at_end}
-            onChange={(event) => set('pomodoro_stop_timer_at_end', event.target.checked)}
-          />
-          <span>Stop the timer at the end of a work phase</span>
-        </label>
+        <p className="hint field-full">New sessions on the Pomodoro page start with these lengths. You can change them there before you start.</p>
       </div>
       <h3 className="settings-subheading" id="notifications-title">Notifications</h3>
       <div className="form-grid" role="group" aria-labelledby="notifications-title">

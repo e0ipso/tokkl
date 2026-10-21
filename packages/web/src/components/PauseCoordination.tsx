@@ -2,8 +2,6 @@ import { createContext, useContext, useState, type ReactNode, type RefObject } f
 
 export interface PendingPause {
   stopAfter: boolean;
-  /** When the pause began, in ms. */
-  at: number;
 }
 
 interface PauseCoordination {

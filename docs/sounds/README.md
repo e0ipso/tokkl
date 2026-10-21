@@ -1,31 +1,14 @@
 # Sounds
 
-## Pomodoro bell
-
-`packages/web/public/sounds/pomodoro-bell.mp3` rings when a Pomodoro work phase or break ends in the web app. The app serves it from its own origin, because the Content Security Policy allows media only from `'self'`.
-
-It is a 1.5 second chime of three decaying sine waves at 880, 1320 and 1760 Hz. Tokkl generated it with FFmpeg and records no outside audio, so it is under the MIT license, like the rest of the project (see [LICENSE](../../LICENSE)).
-
-To regenerate it, run this from the repository root:
-
-```sh
-ffmpeg -hide_banner -loglevel error -y -f lavfi \
-  -i "aevalsrc='0.45*exp(-3*t)*sin(2*PI*880*t)+0.2*exp(-4*t)*sin(2*PI*1320*t)+0.1*exp(-6*t)*sin(2*PI*1760*t)':s=44100:d=1.5" \
-  -ac 1 -c:a libmp3lame -b:a 64k -map_metadata -1 -fflags +bitexact -flags:a +bitexact \
-  packages/web/public/sounds/pomodoro-bell.mp3
-```
-
-The bitexact flags leave out encoder versions and metadata, so the same FFmpeg build writes the same file every time. FFmpeg 6.1.1 with libmp3lame wrote the committed file, which is 12,557 bytes with SHA-256 `464558df9458ce121f24cef2fabe7554ba8a6e87e0f5849b13f6e8cc95668a18`.
-
 ## Pomodoro transition sounds
 
 Four alarms mark the move from one Pomodoro phase to the next. Each one loops until the user confirms the next phase or ends the session, so each file holds one phrase followed by its own rest, and the phrase starts again straight after. They differ in pitch and rhythm, so the user can tell which phase comes next without looking. Rising notes call the user back to work and falling notes send them to a rest.
 
-Tokkl generated all four with FFmpeg and records no outside audio, so they are under the MIT license, like the bell. Each note is a sine wave with a quieter octave above it, a 5 ms attack, an exponential decay and a 20 ms fade to silence before the next note.
+Tokkl generated all four with FFmpeg and records no outside audio, so they are under the MIT license, like the rest of the project (see [LICENSE](../../LICENSE)). Each note is a sine wave with a quieter octave above it, a 5 ms attack, an exponential decay and a 20 ms fade to silence before the next note.
 
-The files are 16-bit mono PCM WAV at 22,050 Hz. Browsers play WAV in an `<audio>` element and Android plays it with `MediaPlayer`, so the web app and Tokkl for Android use the same files. The app serves them from its own origin, as it does the bell. MP3 does not loop cleanly: the encoder pads the stream to whole frames, and a player that ignores the LAME gapless header plays that padding as silence at every loop. Encoded with libmp3lame at 64 kbit/s, the work to short rest phrase grew from 44,100 to 45,504 samples, which is 64 ms of extra silence per loop. A WAV file has no encoder delay or padding, so its samples are the loop.
+The files are 16-bit mono PCM WAV at 22,050 Hz. Browsers play WAV in an `<audio>` element and Android plays it with `MediaPlayer`, so the web app and Tokkl for Android use the same files. The app serves them from its own origin, because the Content Security Policy allows media only from `'self'`. MP3 does not loop cleanly: the encoder pads the stream to whole frames, and a player that ignores the LAME gapless header plays that padding as silence at every loop. Encoded with libmp3lame at 64 kbit/s, the work to short rest phrase grew from 44,100 to 45,504 samples, which is 64 ms of extra silence per loop. A WAV file has no encoder delay or padding, so its samples are the loop.
 
-Run each command from the repository root. The bitexact flags leave out encoder versions and metadata, as they do for the bell. FFmpeg 6.1.1 (Ubuntu build `6.1.1-3ubuntu5`) wrote the committed files.
+Run each command from the repository root. The bitexact flags leave out encoder versions and metadata, so the same FFmpeg build writes the same file every time. FFmpeg 6.1.1 (Ubuntu build `6.1.1-3ubuntu5`) wrote the committed files.
 
 ### Work to short rest
 

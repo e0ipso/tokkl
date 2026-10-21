@@ -5,42 +5,39 @@ import { loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, tap } from './mobile-tests-helpers.ts';
 import { permissionRequests, stubNotifications, type NotificationSetup } from './notification-tests-helpers.ts';
 
-// The Pomodoro group of the Preferences card on /settings edits the six pomodoro_* preferences and
-// asks for permission to show notifications. Every scenario signs in as an account of its own.
+// The Pomodoro session defaults group of the Preferences card on /settings edits the four lengths a
+// new session starts with, and the card asks for permission to show notifications. Every scenario
+// signs in as an account of its own.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const PREFERENCES_PATH = /^\/api\/v9\/me\/preferences$/;
 
 const DEFAULTS = {
-  pomodoro_enabled: false,
   pomodoro_focus_interval_in_minutes: 25,
   pomodoro_break_interval_in_minutes: 5,
   pomodoro_long_break_interval_in_minutes: 15,
   pomodoro_long_break_every: 4,
-  pomodoro_stop_timer_at_end: true,
 };
 
 /** The group's controls, found by the labels a user reads. */
 function group(page: Page) {
   const card = page.getByRole('form', { name: 'Preferences' });
-  const pomodoro = card.getByRole('group', { name: 'Pomodoro' });
+  const pomodoro = card.getByRole('group', { name: 'Pomodoro session defaults' });
   return {
     card,
     pomodoro,
     save: card.getByRole('button', { name: 'Save' }),
-    enabled: pomodoro.getByRole('checkbox', { name: 'Enable the Pomodoro cycle' }),
-    work: pomodoro.getByLabel('Work phase (minutes)'),
-    shortBreak: pomodoro.getByLabel('Short break (minutes)'),
-    longBreak: pomodoro.getByLabel('Long break (minutes)'),
-    every: pomodoro.getByLabel('Long break every (work phases)'),
-    stopAtEnd: pomodoro.getByRole('checkbox', { name: 'Stop the timer at the end of a work phase' }),
+    work: pomodoro.getByLabel('Work (minutes)'),
+    shortBreak: pomodoro.getByLabel('Short rest (minutes)'),
+    longBreak: pomodoro.getByLabel('Long rest (minutes)'),
+    every: pomodoro.getByLabel('Long rest every (pomodoros)'),
     allowNotifications: card.getByRole('button', { name: 'Allow notifications' }),
     // The line under the button, which takes its place once the browser answers.
     notificationStatus: card.getByText(/^(Shows a notification|Notifications (are|need)|This browser can't)/),
   };
 }
 
-/** The six stored Pomodoro preferences, read from the API. */
+/** The four stored Pomodoro lengths, read from the API. */
 async function stored(page: Page): Promise<typeof DEFAULTS> {
   const response = await page.request.get('/api/v9/me/preferences');
   expect(response.ok()).toBe(true);
@@ -63,45 +60,38 @@ async function openSettings(page: Page, users: ExtraUsers) {
   return group(page);
 }
 
-test('the Pomodoro group shows the defaults, and a saved edit sends only its fields and survives a reload', async ({ page, users }) => {
+test('the session defaults group shows the defaults, and a saved edit sends only its fields and survives a reload', async ({ page, users }) => {
   const form = await openSettings(page, users);
-  await expect(form.enabled).not.toBeChecked();
+  await expect(form.pomodoro.getByRole('checkbox')).toHaveCount(0);
   await expect(form.work).toHaveValue('25');
   await expect(form.shortBreak).toHaveValue('5');
   await expect(form.longBreak).toHaveValue('15');
   await expect(form.every).toHaveValue('4');
-  await expect(form.stopAtEnd).toBeChecked();
   expect(await stored(page)).toEqual(DEFAULTS);
 
-  await form.enabled.check();
   await form.work.fill('50');
   await form.shortBreak.fill('10');
   await form.longBreak.fill('20');
   await form.every.fill('3');
-  await form.stopAtEnd.uncheck();
   const request = page.waitForRequest((candidate) => candidate.method() === 'POST' && PREFERENCES_PATH.test(new URL(candidate.url()).pathname));
   await form.save.click();
   await expect(page.getByText('Preferences saved')).toBeVisible();
 
   const edited = {
-    pomodoro_enabled: true,
     pomodoro_focus_interval_in_minutes: 50,
     pomodoro_break_interval_in_minutes: 10,
     pomodoro_long_break_interval_in_minutes: 20,
     pomodoro_long_break_every: 3,
-    pomodoro_stop_timer_at_end: false,
   };
   expect((await request).postDataJSON()).toEqual(edited);
   expect(await stored(page)).toEqual(edited);
 
   await page.reload();
   await expect(form.pomodoro).toBeVisible();
-  await expect(form.enabled).toBeChecked();
   await expect(form.work).toHaveValue('50');
   await expect(form.shortBreak).toHaveValue('10');
   await expect(form.longBreak).toHaveValue('20');
   await expect(form.every).toHaveValue('3');
-  await expect(form.stopAtEnd).not.toBeChecked();
 });
 
 test('a value the server refuses shows its message on the field it names, and nothing is saved', async ({ page, users, runtimeErrors }) => {
@@ -149,7 +139,7 @@ test('an empty or fractional number never reaches the server, and its message na
   await form.every.fill('2.5');
   await form.save.click();
   await expect(await describedError(form.shortBreak)).toHaveText('Enter a whole number of minutes');
-  await expect(await describedError(form.every)).toHaveText('Enter a whole number of work phases');
+  await expect(await describedError(form.every)).toHaveText('Enter a whole number of pomodoros');
   await expect(form.shortBreak).toBeFocused();
   await expect(form.work).not.toHaveAttribute('aria-invalid', 'true');
   await expect(page.locator('.toast')).toHaveCount(0);
@@ -177,14 +167,14 @@ test('a refetch keeps an unsaved Pomodoro value and its focus, and updates the u
   const form = await openSettings(page, users);
 
   await form.work.fill('40');
-  await saveFromAnotherDevice(page, { pomodoro_break_interval_in_minutes: 9, pomodoro_enabled: true });
+  await saveFromAnotherDevice(page, { pomodoro_break_interval_in_minutes: 9, pomodoro_long_break_every: 6 });
   await page.clock.fastForward(61_000);
   // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
   await expect(async () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(form.shortBreak).toHaveValue('9', { timeout: 1500 });
   }).toPass();
-  await expect(form.enabled).toBeChecked();
+  await expect(form.every).toHaveValue('6');
   await expect(form.work).toHaveValue('40');
   await expect(form.work).toBeFocused();
 
@@ -193,7 +183,7 @@ test('a refetch keeps an unsaved Pomodoro value and its focus, and updates the u
   await expect(page.getByText('Preferences saved')).toBeVisible();
   expect((await request).postDataJSON()).toEqual({ pomodoro_focus_interval_in_minutes: 40 });
   expect(await stored(page)).toEqual({
-    ...DEFAULTS, pomodoro_enabled: true, pomodoro_break_interval_in_minutes: 9, pomodoro_focus_interval_in_minutes: 40,
+    ...DEFAULTS, pomodoro_long_break_every: 6, pomodoro_break_interval_in_minutes: 9, pomodoro_focus_interval_in_minutes: 40,
   });
 });
 
@@ -324,7 +314,7 @@ test.describe('on a phone', () => {
       status: 400, method: 'POST', path: PREFERENCES_PATH, reason: 'a Pomodoro value is out of range',
     });
     await expectNoPageOverflow(page);
-    for (const control of [form.enabled, form.work, form.shortBreak, form.longBreak, form.every, form.stopAtEnd, form.allowNotifications, form.save]) {
+    for (const control of [form.work, form.shortBreak, form.longBreak, form.every, form.allowNotifications, form.save]) {
       await expectFits(control);
     }
 
@@ -332,7 +322,7 @@ test.describe('on a phone', () => {
     await form.work.fill('181');
     await form.every.fill('2.5');
     await tap(form.save);
-    await expect(await describedError(form.every)).toHaveText('Enter a whole number of work phases');
+    await expect(await describedError(form.every)).toHaveText('Enter a whole number of pomodoros');
     await expectFits(await describedError(form.every));
     await form.every.fill('3');
     await tap(form.save);
@@ -342,12 +332,10 @@ test.describe('on a phone', () => {
     await expectNoPageOverflow(page);
 
     await form.work.fill('45');
-    await tap(form.enabled);
-    await tap(form.stopAtEnd);
     await tap(form.save);
     await expect(page.getByText('Preferences saved')).toBeVisible();
     expect(await stored(page)).toEqual({
-      ...DEFAULTS, pomodoro_enabled: true, pomodoro_focus_interval_in_minutes: 45, pomodoro_long_break_every: 3, pomodoro_stop_timer_at_end: false,
+      ...DEFAULTS, pomodoro_focus_interval_in_minutes: 45, pomodoro_long_break_every: 3,
     });
     await expectNoPageOverflow(page);
   });

@@ -7,7 +7,6 @@
   "exports": {
     "./colors": "./colors.ts",
     "./duration": "./duration.ts",
-    "./pomodoro": "./pomodoro.ts",
     "./pomodoroSession": "./pomodoroSession.ts",
     "./snap": "./snap.ts",
     "./time": "./time.ts",

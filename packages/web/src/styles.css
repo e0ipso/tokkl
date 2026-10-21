@@ -713,16 +713,11 @@ input.entry-duration:is(:hover, :focus) {
 .timer-clock.is-paused:hover { background: none; }
 .timer-clock-input { width: 4.8em; }
 .timer-clock-input::placeholder { color: var(--muted); opacity: 1; }
-/* Pomodoro: the phase and its countdown beside the clock, and the banner that stays until it is
-   dismissed when a phase ends. */
-.pomodoro-countdown { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.1; padding: 0 var(--space-1); }
-.pomodoro-phase { color: var(--muted); font-size: var(--text-sm); font-weight: 600; white-space: nowrap; }
-.pomodoro-time { font-size: var(--text-lg); font-weight: 800; font-variant-numeric: tabular-nums; }
+/* The Pomodoro session banner and the long-timer reminder, shown above the page. */
 .pomodoro-banner, .timer-reminder {
   flex-basis: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
   padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--state-selected); font-weight: 600;
 }
-/* On pages without the timer bar the banner sits above the page. */
 .content > .pomodoro-banner { margin-bottom: var(--space-3); }
 .pomodoro-session-banner { flex-wrap: wrap; }
 .timer-reminder { flex-wrap: wrap; margin-bottom: var(--space-3); }
