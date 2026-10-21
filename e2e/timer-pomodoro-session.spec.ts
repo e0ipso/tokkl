@@ -13,8 +13,7 @@ const FIELDS: Metadata = {
   description: 'Resumed focus', project_id: null, task_id: null, tags: [], billable: false,
 };
 
-// Session controls are not mounted yet. Restore a persisted record, then exercise the real
-// provider through the existing logout buttons without exposing test controls in the app.
+// Restore a persisted record, then exercise the real provider through the logout buttons.
 async function restoreSession(page: Page, accountId: number, options: {
   start?: string; fields?: Metadata; rest?: boolean;
 } = {}) {

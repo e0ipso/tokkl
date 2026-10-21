@@ -27,6 +27,7 @@ import { ReportsPage } from './pages/ReportsPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { TagsPage } from './pages/TagsPage.tsx';
 import { TimerPage } from './pages/TimerPage.tsx';
+import { PomodoroPage } from './pages/PomodoroPage.tsx';
 import { TrashPage } from './pages/TrashPage.tsx';
 
 /** A section's hue: styles.css maps each to a fill and the text colour on it (data-section). */
@@ -262,6 +263,7 @@ function Shell() {
         <ErrorBoundary resetKey={location}>
         <Switch>
           <Route path="/" component={TimerPage} />
+          <Route path="/pomodoro" component={PomodoroPage} />
           <Route path="/reports" component={ReportsPage} />
           <Route path="/projects" component={ProjectsPage} />
           <Route path="/clients" component={ClientsPage} />
