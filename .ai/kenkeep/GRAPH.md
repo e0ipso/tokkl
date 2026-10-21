@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:40586475dd5830d9ae8629bff5858e5ac54db1ade30cf6bb44ef25cd77b33475'
-node_count: 86
+nodes_hash: 'sha256:f5a1f8281ccf4f85f01a9c674ddf4c79c5f92b9f0042e1ed3030d10bdd768458'
+node_count: 87
 ---
 # kenkeep Graph
 
-Total nodes: 86
+Total nodes: 87
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -264,7 +264,8 @@ Total nodes: 86
 - **title:** Web Pomodoro: pomodoroCycle.ts, usePomodoro and the app-wide PomodoroProvider
 - **path:** web-ui-behaviour/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
 - **tags:** web, pomodoro, timer, localstorage, notifications
-- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key, practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-web-timer-bar-pause-chain-rules, practice-web-ui-survives-background-refetches, practice-preferences-validated-by-known-key, practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav, map-web-pomodoro-sessions-provider-controller-and-account-state
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:1
 
 ## map-web-pomodoro-sessions-provider-controller-and-account-state
 
@@ -272,8 +273,8 @@ Total nodes: 86
 - **title:** Web Pomodoro sessions: provider, controller and account state
 - **path:** web-ui-behaviour/map-web-pomodoro-sessions-provider-controller-and-account-state.md
 - **tags:** web, pomodoro, timer, localstorage
-- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session, practice-stopped-entries-snap-to-the-time-resolution-on-write
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:0
+- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session, practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:0
 
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
@@ -298,7 +299,7 @@ Total nodes: 86
 - **path:** web-ui-behaviour/practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock.md
 - **tags:** web, pomodoro, localstorage
 - **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:0
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:0
 
 ## practice-client-deletion-keeps-projects
 
@@ -369,6 +370,15 @@ Total nodes: 86
 - **tags:** web, auth, react-query, theme
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:1
+
+## practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant
+
+- **kind:** practice
+- **title:** Hand timers and Pomodoro sessions over at one captured instant
+- **path:** web-ui-behaviour/practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant.md
+- **tags:** web, pomodoro, timer
+- **relates_to:** practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock, map-web-pomodoro-sessions-provider-controller-and-account-state, practice-web-timer-bar-pause-chain-rules, practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:1
 
 ## practice-hourly-rates-go-through-optionalrate
 
@@ -511,6 +521,7 @@ Total nodes: 86
 - **path:** web-ui-behaviour/practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav.md
 - **tags:** web, pomodoro, audio, csp, e2e
 - **relates_to:** map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:2
 
 ## practice-preferences-validated-by-known-key
 
@@ -560,6 +571,7 @@ Total nodes: 86
 - **path:** api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md
 - **tags:** server, time, entries, import
 - **relates_to:** map-admin-api-and-disabled-accounts, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant, practice-web-previews-and-editor-show-snapped-durations
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:3
 
 ## practice-styles-css-loads-last-and-owns-colour-tokens
 
