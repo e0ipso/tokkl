@@ -9,7 +9,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 ## What it does
 
 - Timer with one running entry, pause and resume, Stop, continue, autocomplete, favorites (`1` to `9`), and Toggl's shortcuts (`N`, `S`, `C`, `M`, `?`).
-- Pomodoro sessions in the web app, on their own page: work and rest phases with a long rest after every few pomodoros, an alarm and a banner on any page that last until you choose the next phase or end the session, a browser notification when Tokkl is not in front, and one time entry saved for each pomodoro.
+- Pomodoro sessions on their own page, with work, short rest and long rest lengths set per session from the shared defaults in Settings. Next phase skips any remaining time or ends overtime; each phase waits for you to confirm. Each transition has its own looping sound, with a banner on any page until you choose the next phase or end the session, and a browser notification when Tokkl is not in front. Each pomodoro, work plus the rest after it, saves one time entry. One thing runs at a time: starting a session stops the timer, and starting a timer ends the session.
 - Manual mode that understands `9`, `930`, `9:30`, `4pm`, entries across midnight, and durations like `1h 30m`, `90`, `1,5h`.
 - Day-grouped history with no 90-day limit, inline edits, grouping of similar entries, bulk edit, duplicate, split, undo and a trash.
 - Projects (colors, clients, rates, estimates, tasks), clients, tags.
@@ -22,7 +22,7 @@ Product requirements and feature status are in [docs/PRD.md](docs/PRD.md).
 
 The data is synthetic: three clients, five projects and five weeks of weekday entries, with one timer running. One client and one project are archived. `npm run screenshots` regenerates the images from that data, as the [Development](#development) section explains.
 
-**Timer.** The running entry is at the top and history is grouped by day. Favorites are bold numbered pills under the timer, and the sidebar lists Timer, Reports, Projects, Clients, Tags, Trash and Settings, plus Admin for admins.
+**Timer.** The running entry is at the top and history is grouped by day. Favorites are bold numbered pills under the timer, and the sidebar lists Timer, Pomodoro, Reports, Projects, Clients, Tags, Trash and Settings, plus Admin for admins.
 
 ![Timer with a running entry and day-grouped history](docs/screenshots/desktop-timer.png)
 
