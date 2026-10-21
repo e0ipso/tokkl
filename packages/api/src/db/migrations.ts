@@ -187,4 +187,10 @@ export const MIGRATIONS: string[] = [
   UPDATE users SET timezone = canonical_time_zone(timezone)
     WHERE canonical_time_zone(timezone) IS NOT NULL AND canonical_time_zone(timezone) <> timezone;
   `,
+  // The session model uses only the four length preferences.
+  `
+  UPDATE users SET preferences = json_remove(
+    preferences, '$.pomodoro_enabled', '$.pomodoro_stop_timer_at_end'
+  );
+  `,
 ];

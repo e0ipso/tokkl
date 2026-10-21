@@ -102,6 +102,47 @@ test('JSON export contains every entity and never the password hash or token', a
   assert.ok(!text.includes('scrypt$'));
 });
 
+test('JSON export includes the four Pomodoro lengths without retired toggle keys', async () => {
+  const ctx = await setup();
+  const response = await ctx.json('GET', '/api/app/export.json');
+  assert.equal(response.status, 200);
+  const preferences = response.body.preferences;
+  assert.deepEqual(Object.fromEntries(Object.entries(preferences).filter(([key]) => key.startsWith('pomodoro_'))), {
+    pomodoro_focus_interval_in_minutes: 25,
+    pomodoro_break_interval_in_minutes: 5,
+    pomodoro_long_break_interval_in_minutes: 15,
+    pomodoro_long_break_every: 4,
+  });
+});
+
+test('JSON restore accepts older exports containing retired Pomodoro toggle keys', async () => {
+  const ctx = await setup();
+  const file = {
+    format: 'tokkl-export',
+    version: 1,
+    preferences: {
+      pomodoro_enabled: true,
+      pomodoro_stop_timer_at_end: false,
+      pomodoro_focus_interval_in_minutes: 40,
+      pomodoro_break_interval_in_minutes: 10,
+      pomodoro_long_break_interval_in_minutes: 20,
+      pomodoro_long_break_every: 3,
+    },
+    projects: [{ id: 1, name: 'Legacy session' }],
+    time_entries: [{ id: 2, project_id: 1, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', description: 'Before sessions' }],
+  };
+  const preferencesBefore = (await ctx.json('GET', '/api/v9/me/preferences')).body;
+  for (const dryRun of [true, false]) {
+    const result = await restoreJson(ctx, file, { dryRun });
+    assert.equal(result.projects, 1);
+    assert.equal(result.time_entries, 1);
+    assert.deepEqual(result.errors, []);
+  }
+  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02&meta=true')).body;
+  assert.deepEqual(entries.map((entry: any) => [entry.description, entry.project_name]), [['Before sessions', 'Legacy session']]);
+  assert.deepEqual((await ctx.json('GET', '/api/v9/me/preferences')).body, preferencesBefore);
+});
+
 test('JSON export restores into a fresh account, including colors, rates, tasks and tags', async () => {
   const source = await setup({ timezone: 'Europe/Madrid' });
   const base = `/api/v9/workspaces/${source.wid}`;

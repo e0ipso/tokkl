@@ -76,7 +76,6 @@ export interface Preferences {
   manualMode: boolean;
   keyboard_shortcuts_enabled: boolean;
   theme: 'system' | 'light' | 'dark';
-  pomodoro_enabled: boolean;
   /** Integer from 1 to 180. */
   pomodoro_focus_interval_in_minutes: number;
   /** Integer from 1 to 60. */
@@ -85,8 +84,6 @@ export interface Preferences {
   pomodoro_long_break_interval_in_minutes: number;
   /** Work phases before a long break replaces the short one; integer from 1 to 12. */
   pomodoro_long_break_every: number;
-  /** Whether the running entry stops when a work phase ends. */
-  pomodoro_stop_timer_at_end: boolean;
   long_timer_reminder_enabled: boolean;
   /** Hours before asking whether a running timer was forgotten; integer from 1 to 168. */
   long_timer_reminder_hours: number;

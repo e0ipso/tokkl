@@ -6,12 +6,10 @@ import { setup, type TestContext } from './helpers.ts';
 const favorite = (description: string) => ({ description, project_id: null, task_id: null, tags: [], billable: false });
 
 const POMODORO_DEFAULTS = {
-  pomodoro_enabled: false,
   pomodoro_focus_interval_in_minutes: 25,
   pomodoro_break_interval_in_minutes: 5,
   pomodoro_long_break_interval_in_minutes: 15,
   pomodoro_long_break_every: 4,
-  pomodoro_stop_timer_at_end: true,
 };
 const POMODORO_RANGES: Record<string, [min: number, max: number]> = {
   pomodoro_focus_interval_in_minutes: [1, 180],
@@ -19,7 +17,6 @@ const POMODORO_RANGES: Record<string, [min: number, max: number]> = {
   pomodoro_long_break_interval_in_minutes: [1, 60],
   pomodoro_long_break_every: [1, 12],
 };
-const POMODORO_TOGGLES = ['pomodoro_enabled', 'pomodoro_stop_timer_at_end'] as const;
 
 const storedPreferences = (ctx: TestContext) =>
   (ctx.db.prepare('SELECT preferences FROM users WHERE id = ?').get(ctx.user.id) as { preferences: string }).preferences;
@@ -51,7 +48,6 @@ test('invalid known preferences are rejected with 400 and nothing is saved', asy
       [min - 1, max + 1, min + 0.5, String(min)].map((value) => ({ [key]: value }))),
     { pomodoro_focus_interval_in_minutes: null },
     { pomodoro_focus_interval_in_minutes: true },
-    ...POMODORO_TOGGLES.flatMap((key) => [{ [key]: 'true' }, { [key]: 1 }, { [key]: null }]),
     // A valid change next to an invalid one must not be saved either.
     { theme: 'dark', favorites: {} },
   ];
@@ -82,9 +78,6 @@ test('Pomodoro settings save and read back at the bounds of their ranges', async
   const ctx = await setup();
   const values: Array<[string, unknown]> = [
     ...Object.entries(POMODORO_RANGES).flatMap(([key, [min, max]]): Array<[string, unknown]> => [[key, min], [key, max]]),
-    // The value that differs from the default goes first, so reading back the second shows it replaced the first.
-    ...POMODORO_TOGGLES.flatMap((key): Array<[string, unknown]> =>
-      [!POMODORO_DEFAULTS[key], POMODORO_DEFAULTS[key]].map((value) => [key, value])),
   ];
   for (const [key, value] of values) {
     const saved = await ctx.json('POST', '/api/v9/me/preferences', { [key]: value });
@@ -124,8 +117,8 @@ test('invalid values stored before validation read back as defaults', async () =
   ctx.db.prepare('UPDATE users SET preferences = ? WHERE id = ?').run(JSON.stringify({
     date_format: 7, timeofday_format: '', theme: 'neon', duration_format: 'hours', manualMode: 'yes',
     favorites: {}, timerView: 'grid', legacy_key: 'kept',
-    pomodoro_enabled: 'yes', pomodoro_focus_interval_in_minutes: 0, pomodoro_break_interval_in_minutes: 61,
-    pomodoro_long_break_interval_in_minutes: 7.5, pomodoro_long_break_every: '4', pomodoro_stop_timer_at_end: null,
+    pomodoro_focus_interval_in_minutes: 0, pomodoro_break_interval_in_minutes: 61,
+    pomodoro_long_break_interval_in_minutes: 7.5, pomodoro_long_break_every: '4',
   }), ctx.user.id);
 
   const prefs = (await ctx.json('GET', '/api/v9/me/preferences')).body;
