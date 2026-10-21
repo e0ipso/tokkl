@@ -59,7 +59,7 @@ export function useTimerCoordination(): TimerCoordination {
 export function PomodoroProvider({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
   const accountId = me?.id ?? 0;
-  const { session } = usePomodoroSession();
+  const { session, pauseTimer } = usePomodoroSession();
   const { data: prefs } = usePreferences();
   const { data: current } = useCurrentEntry();
   const stopEntry = useStopEntry();
@@ -95,9 +95,11 @@ export function PomodoroProvider({ children }: { children: ReactNode }) {
     const pending: PendingPause = { stopAfter: false, at: Date.now() };
     pausing.current = pending;
     try {
-      const stopped = await stopEntry.mutateAsync(entry.id);
-      if (!pending.stopAfter) pausedAt.current = pending.at;
-      writeTabChain(accountId, pending.stopAfter ? null : pauseChain(readTabChain(accountId), stopped, Date.now()));
+      await pauseTimer(async () => {
+        const stopped = await stopEntry.mutateAsync(entry.id);
+        if (!pending.stopAfter) pausedAt.current = pending.at;
+        writeTabChain(accountId, pending.stopAfter ? null : pauseChain(readTabChain(accountId), stopped, Date.now()));
+      });
     } catch (error) {
       toast.error(error);
     } finally {

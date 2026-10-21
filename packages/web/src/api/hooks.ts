@@ -176,7 +176,11 @@ export function useStopEntry() {
   const wid = useWid();
   const invalidate = useInvalidateEntries();
   return useMutation({
-    mutationFn: (id: number) => api.patch<TimeEntry>(`${v9}/workspaces/${wid}/time_entries/${id}/stop?meta=true`),
+    mutationFn: (input: number | { id: number; stop: string }) => {
+      const id = typeof input === 'number' ? input : input.id;
+      return api.patch<TimeEntry>(`${v9}/workspaces/${wid}/time_entries/${id}/stop?meta=true`,
+        typeof input === 'number' ? undefined : { stop: input.stop });
+    },
     onSuccess: invalidate,
   });
 }

@@ -357,7 +357,8 @@ export function togglV9Routes(deps: Deps): Router {
 
   api.patch('/workspaces/:wid/time_entries/:id/stop', (req, res) => {
     const ws = workspaceFor(db, req, res);
-    const entry = stopTimeEntry(db, res.locals.user, ws.id, parseId(req.params.id));
+    const stop = req.body ? readJson(req).stop : undefined;
+    const entry = stopTimeEntry(db, res.locals.user, ws.id, parseId(req.params.id), stop);
     return res.json(serializeTimeEntry(entry, { meta: queryFlag(req, 'meta'), user: res.locals.user }));
   });
 

@@ -1,13 +1,17 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { plannedEnd, transitionKind, type PomodoroSessionConfig, type SessionPhase, type TransitionKind } from '@tokkl/common/pomodoroSession';
-import { useCreateEntry, useMe } from '../api/hooks.ts';
+import { useCreateEntry, useCurrentEntry, useMe, useRestoreEntry, useStopEntry } from '../api/hooks.ts';
+import { api } from '../api/client.ts';
+import type { TimeEntry } from '../api/types.ts';
 import { useNow } from '../lib/settings.ts';
 import { createPomodoroSessionController } from './pomodoroSessionController.ts';
 import { registerPomodoroSession } from './pomodoroSessionLifecycle.ts';
 import { createPomodoroSessionAlarm, type SessionAlarm } from './pomodoroSessionAlarm.ts';
 import { notifySessionPhaseEnd } from './phaseNotification.ts';
 import { SESSION_PHASE_LABEL } from './pomodoroSessionPresentation.ts';
-import { withPomodoroSessionLock } from './pomodoroSessionLock.ts';
+import { withPomodoroSessionLock, withTimerOperationLock } from './pomodoroSessionLock.ts';
+import { isPaused } from './pauseChain.ts';
+import { readTabChain, writeTabChain } from './tabChain.ts';
 import { createPomodoroSessionStorage, pomodoroSessionKey, type PomodoroSessionState } from './pomodoroSessionState.ts';
 import { useToast } from './Toast.tsx';
 import type { EntryDraft } from './useEntryFields.ts';
@@ -27,6 +31,8 @@ interface PomodoroSession {
   nextPhase: () => Promise<void>;
   end: () => Promise<void>;
   updateFields: (changes: Partial<EntryDraft>) => Promise<void>;
+  startTimer: (at: Date, create: () => Promise<TimeEntry | null>, resuming?: boolean) => Promise<TimeEntry | null>;
+  pauseTimer: (operation: () => Promise<void>) => Promise<void>;
 }
 
 const Context = createContext<PomodoroSession | null>(null);
@@ -46,13 +52,16 @@ export function PomodoroSessionProvider({ children }: { children: ReactNode }) {
 function AccountSession({ accountId, children }: { accountId: number; children: ReactNode }) {
   const { data: me } = useMe();
   const createEntry = useCreateEntry();
+  const stopEntry = useStopEntry();
+  const restoreEntry = useRestoreEntry();
+  const { data: current, dataUpdatedAt: currentFetchedAt } = useCurrentEntry();
   const toast = useToast();
   const now = useNow();
   const [, refresh] = useState(0);
   const [pending, setPending] = useState(0);
   const [audioBlocked, setAudioBlocked] = useState(false);
-  const latest = useRef({ me, createEntry, toast });
-  latest.current = { me, createEntry, toast };
+  const latest = useRef({ me, createEntry, stopEntry, restoreEntry, toast });
+  latest.current = { me, createEntry, stopEntry, restoreEntry, toast };
   const mounted = useRef(false);
   const signingOut = useRef(false);
   const { storage, controller, alarm, currentAlarm } = useMemo(() => {
@@ -71,6 +80,20 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
         if (mounted.current) refresh((value) => value + 1);
       },
       lock: (run) => withPomodoroSessionLock(accountId, run),
+      timerLock: (run) => withTimerOperationLock(accountId, storage.read() !== null, run),
+      beforeStart: async (at) => {
+        // Read under the lock, after an in-flight pause or local start has settled.
+        const running = await api.get<TimeEntry | null>('/api/v9/me/time_entries/current?meta=true');
+        if (running) {
+          const stopped = await latest.current.stopEntry.mutateAsync({ id: running.id, stop: at.toISOString() });
+          if (stopped.server_deleted_at) {
+            latest.current.toast.show('Too short to keep, so the entry went to the trash', {
+              action: { label: 'Undo', run: () => latest.current.restoreEntry.mutate(stopped.id) },
+            });
+          }
+        }
+        writeTabChain(accountId, null);
+      },
       now: () => new Date(),
       id: () => crypto.randomUUID(),
       grid: () => {
@@ -88,6 +111,7 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
     mounted.current = true;
     controller.activate();
     alarm.activate();
+    if (storage.read()) writeTabChain(accountId, null);
     const forget = () => { alarm.dispose(); controller.close(); storage.forget(); };
     const unregister = registerPomodoroSession({
       finish: async () => {
@@ -99,6 +123,8 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
     });
     const sync = (event: StorageEvent) => {
       if (event.key === null || event.key === pomodoroSessionKey(accountId)) {
+        // Also clear a chain held only in this tab after a refused storage write.
+        if (storage.read()) writeTabChain(accountId, null);
         alarm.update(currentAlarm());
         refresh((value) => value + 1);
       }
@@ -126,6 +152,10 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
     finally { if (mounted.current) setPending((count) => count - 1); }
   };
   const session = storage.read();
+  useEffect(() => {
+    if (!session || !current) return;
+    void controller.observeTimer(current).catch((error) => latest.current.toast.error(error));
+  }, [controller, current, currentFetchedAt, session?.id, session?.pomodoroStart]);
   const phase = session && !session.ending ? session.phase : null;
   const ringing = phase !== null && currentAlarm() !== null;
   const ringKey = ringing && session ? `${session.id}:${session.revision}` : null;
@@ -146,6 +176,9 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
       nextPhase: () => run(() => controller.nextPhase(session)),
       end: () => run(() => controller.end()),
       updateFields: (changes) => run(() => controller.updateFields(changes)),
+      startTimer: (at, create, resuming = false) => controller.startTimer(at, create,
+        () => !signingOut.current && (!resuming || isPaused(readTabChain(accountId)))),
+      pauseTimer: (operation) => controller.pauseTimer(operation),
     }}>
       {children}
     </Context.Provider>

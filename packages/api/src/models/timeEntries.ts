@@ -380,12 +380,13 @@ export function updateTimeEntry(
   });
 }
 
-export function stopTimeEntry(db: Db, user: UserRow, wid: number, id: number): TimeEntryWithMeta {
+export function stopTimeEntry(db: Db, user: UserRow, wid: number, id: number, stop?: unknown): TimeEntryWithMeta {
+  const at = stop === undefined ? new Date() : parseInstant(stop, 'stop');
   return transaction(db, () => {
     const current = getTimeEntry(db, user.id, id);
     if (current.workspace_id !== wid) throw notFound('Time entry not found');
     if (current.stop) throw conflict('Time entry already stopped');
-    stopEntryAt(db, user, current, new Date());
+    stopEntryAt(db, user, current, at);
     return getTimeEntry(db, user.id, id, { includeDeleted: true });
   });
 }
