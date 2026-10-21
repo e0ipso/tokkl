@@ -1,3 +1,6 @@
+import {
+  DEFAULT_POMODORO_SESSION_CONFIG, POMODORO_SESSION_CONFIG_RANGES, type PomodoroSessionConfig,
+} from '@tokkl/common/pomodoroSession';
 import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
 import { generateApiToken, hashPassword } from '../auth/crypto.ts';
@@ -38,10 +41,10 @@ export const DEFAULT_PREFERENCES = {
   send_timer_notifications: false,
   send_weekly_report: false,
   idle_detection_enabled: false,
-  pomodoro_focus_interval_in_minutes: 25,
-  pomodoro_break_interval_in_minutes: 5,
-  pomodoro_long_break_interval_in_minutes: 15,
-  pomodoro_long_break_every: 4,
+  pomodoro_focus_interval_in_minutes: DEFAULT_POMODORO_SESSION_CONFIG.workMinutes,
+  pomodoro_break_interval_in_minutes: DEFAULT_POMODORO_SESSION_CONFIG.shortRestMinutes,
+  pomodoro_long_break_interval_in_minutes: DEFAULT_POMODORO_SESSION_CONFIG.longRestMinutes,
+  pomodoro_long_break_every: DEFAULT_POMODORO_SESSION_CONFIG.longRestEvery,
   reminder_enabled: false,
   long_timer_reminder_enabled: true,
   long_timer_reminder_hours: 8,
@@ -74,6 +77,11 @@ const integerFrom = (min: number, max: number): PreferenceRule => ({
   expected: `an integer from ${min} to ${max}`,
 });
 
+const pomodoroRange = (key: keyof PomodoroSessionConfig): PreferenceRule => {
+  const { min, max } = POMODORO_SESSION_CONFIG_RANGES[key];
+  return integerFrom(min, max);
+};
+
 const isOptionalId = (value: unknown) => value === null || (Number.isSafeInteger(value) && (value as number) > 0);
 
 function isFavorite(value: unknown): boolean {
@@ -96,10 +104,10 @@ const PREFERENCE_RULES: Record<string, PreferenceRule> = {
   manualMode: boolean,
   keyboard_shortcuts_enabled: boolean,
   showTimeInTitle: boolean,
-  pomodoro_focus_interval_in_minutes: integerFrom(1, 180),
-  pomodoro_break_interval_in_minutes: integerFrom(1, 60),
-  pomodoro_long_break_interval_in_minutes: integerFrom(1, 60),
-  pomodoro_long_break_every: integerFrom(1, 12),
+  pomodoro_focus_interval_in_minutes: pomodoroRange('workMinutes'),
+  pomodoro_break_interval_in_minutes: pomodoroRange('shortRestMinutes'),
+  pomodoro_long_break_interval_in_minutes: pomodoroRange('longRestMinutes'),
+  pomodoro_long_break_every: pomodoroRange('longRestEvery'),
   long_timer_reminder_enabled: boolean,
   long_timer_reminder_hours: integerFrom(1, 168),
   favorites: {
