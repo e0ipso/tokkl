@@ -17,7 +17,7 @@ test('the bottom navigation reaches every page and stays usable after scrolling 
   const api = await EntityApi.open(page);
   for (let i = 1; i <= 40; i++) await api.createTag(`tag ${String(i).padStart(2, '0')}`);
 
-  for (const name of ['Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer']) await tapNav(page, name);
+  for (const name of ['Pomodoro', 'Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer']) await tapNav(page, name);
 
   // Forty tags make the page scroll; the fixed navigation stays on screen and tappable.
   await tapNav(page, 'Tags');
@@ -102,12 +102,12 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   expect([Math.round(box.x), Math.round(box.width)]).toEqual([0, 390]);
   // Four pages and More fit the bar; the other pages and Log out fit the More sheet.
   await expect(nav.locator(':scope > a, :scope > button')).toHaveCount(5);
-  for (const name of ['Timer', 'Reports', 'Projects', 'Settings']) {
+  for (const name of ['Timer', 'Pomodoro', 'Projects', 'Settings']) {
     await expectFits(nav.getByRole('link', { name, exact: true }));
   }
   const more = nav.getByRole('button', { name: 'More', exact: true });
   const sheet = await openMore(page);
-  for (const name of ['Clients', 'Tags', 'Trash']) await expectFits(sheet.getByRole('link', { name, exact: true }));
+  for (const name of ['Reports', 'Clients', 'Tags', 'Trash']) await expectFits(sheet.getByRole('link', { name, exact: true }));
   await expectFits(sheet.getByRole('button', { name: 'Log out' }));
   await expectNoPageOverflow(page);
   await page.keyboard.press('Escape');
@@ -157,9 +157,9 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   const sheet = nav.getByRole('dialog', { name: 'More' });
   await expect(sheet).toBeVisible();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
-  await expect(sheet.getByRole('link', { name: 'Clients', exact: true })).toBeFocused();
+  await expect(sheet.getByRole('link', { name: 'Reports', exact: true })).toBeFocused();
   // The setup account is an admin, so its sheet also holds Admin.
-  for (const name of ['Tags', 'Trash', 'Admin']) {
+  for (const name of ['Clients', 'Tags', 'Trash', 'Admin']) {
     await page.keyboard.press('Tab');
     await expect(sheet.getByRole('link', { name, exact: true })).toBeFocused();
   }
@@ -180,26 +180,26 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(more).toHaveAttribute('aria-expanded', 'false');
 });
 
-// The pages under More take More's hue: the More button carries it while one of them is open,
-// and so does the page's link inside the sheet.
+// The More button takes the hue of the open page under More, and so does the page's link inside
+// the sheet: Reports keeps its own hue, the other pages under More take More's.
 test('the bottom bar, the More button and the More sheet fill the current page in its section hue', async ({ page }) => {
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Main' });
   const more = nav.getByRole('button', { name: 'More', exact: true });
   await expectSectionHue(page, nav.getByRole('link', { name: 'Timer', exact: true }), 'timer');
-  for (const [name, section] of [['Reports', 'reports'], ['Projects', 'projects'], ['Settings', 'settings'], ['Timer', 'timer']] as const) {
+  for (const [name, section] of [['Pomodoro', 'pomodoro'], ['Projects', 'projects'], ['Settings', 'settings'], ['Timer', 'timer']] as const) {
     await tapNav(page, name);
     await expectSectionHue(page, nav.getByRole('link', { name, exact: true }), section);
     await expect(more).not.toHaveClass(/\bactive\b/);
   }
-  for (const name of ['Clients', 'Tags', 'Trash']) {
+  for (const [name, section] of [['Reports', 'reports'], ['Clients', 'more'], ['Tags', 'more'], ['Trash', 'more']] as const) {
     await tapNav(page, name);
-    await expectSectionHue(page, more, 'more');
+    await expectSectionHue(page, more, section);
     const sheet = await openMore(page);
     const link = sheet.getByRole('link', { name, exact: true });
     await expect(link).toHaveAttribute('aria-current', 'page');
     await expect(nav.locator('[aria-current]')).toHaveCount(1);
-    await expectSectionHue(page, link, 'more');
+    await expectSectionHue(page, link, section);
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
   }

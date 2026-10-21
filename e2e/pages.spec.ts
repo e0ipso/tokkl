@@ -59,11 +59,12 @@ test('deleting a client renames its project when a clientless one has the same n
   expect(projects).toHaveLength(2);
 });
 
-// The pages that a phone keeps under More take More's hue in the sidebar too.
+// Reports keeps its own hue; the other pages that a phone keeps under More take More's hue in the
+// sidebar too.
 test('the sidebar fills the current page in its section hue and main carries that section', async ({ page }) => {
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Main' });
-  const pages = [['Timer', 'timer'], ['Reports', 'reports'], ['Projects', 'projects'], ['Clients', 'more'], ['Tags', 'more'], ['Trash', 'more'], ['Settings', 'settings']] as const;
+  const pages = [['Timer', 'timer'], ['Pomodoro', 'pomodoro'], ['Reports', 'reports'], ['Projects', 'projects'], ['Clients', 'more'], ['Tags', 'more'], ['Trash', 'more'], ['Settings', 'settings']] as const;
   for (const [name, section] of [...pages, pages[0]]) {
     const link = nav.getByRole('link', { name, exact: true });
     await link.click();

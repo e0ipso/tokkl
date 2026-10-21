@@ -44,7 +44,7 @@ The data is synthetic: three clients, five projects and five weeks of weekday en
 
 ![Projects](docs/screenshots/desktop-projects.png)
 
-**On a phone.** The same timer, calendar and reports, with a bottom bar for Timer, Reports, Projects, Settings and More.
+**On a phone.** The same timer, calendar and reports, with a bottom bar for Timer, Pomodoro, Projects, Settings and More. Reports is under More.
 
 <p>
   <img src="docs/screenshots/mobile-timer.png" alt="Timer on a phone" width="260">

@@ -36,7 +36,7 @@ export async function tap(locator: Locator): Promise<void> {
 }
 
 /** The pages the phone keeps in the More sheet instead of the bottom bar. */
-const MORE_PAGES = new Set(['Clients', 'Tags', 'Trash']);
+const MORE_PAGES = new Set(['Reports', 'Clients', 'Tags', 'Trash']);
 
 /** Taps More in the bottom navigation and returns the sheet it opens, which sits inside the navigation. */
 export async function openMore(page: Page): Promise<Locator> {
@@ -53,8 +53,8 @@ export async function openMore(page: Page): Promise<Locator> {
 }
 
 /**
- * Taps a link in the bottom navigation, or in the More sheet for Clients, Tags and Trash, and waits
- * for its page. The sheet closes on navigation, so for those pages the More button carries the
+ * Taps a link in the bottom navigation, or in the More sheet for Reports, Clients, Tags and Trash,
+ * and waits for its page. The sheet closes on navigation, so for those pages the More button carries the
  * active state.
  */
 export async function tapNav(page: Page, name: string): Promise<void> {

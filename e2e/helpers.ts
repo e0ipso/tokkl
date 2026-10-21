@@ -56,7 +56,7 @@ export function contrast(a: string, b: string): number {
 }
 
 /** The hue token in styles.css that each section, as App.tsx names it in data-section, fills with. */
-const SECTION_HUES = { timer: '--hue-orange', reports: '--hue-sky', projects: '--hue-violet', settings: '--hue-yellow', more: '--hue-pink' } as const;
+const SECTION_HUES = { timer: '--hue-orange', pomodoro: '--hue-cyan', reports: '--hue-sky', projects: '--hue-violet', settings: '--hue-yellow', more: '--hue-pink' } as const;
 
 export type Section = keyof typeof SECTION_HUES;
 

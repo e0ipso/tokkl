@@ -84,17 +84,20 @@
    wordmark outline on wordmark-halo     other     --       10.54 AA
    on-hue on hue-orange                  text    5.83 AA     5.83 AA
    on-hue on hue-sky                     text    8.82 AA     8.82 AA
+   on-hue on hue-cyan                    text   11.85 AA    11.85 AA
    on-hue on hue-yellow                  text   15.68 AA    15.68 AA
    on-hue on hue-pink                    text    5.33 AA     5.33 AA
    on-hue-violet on hue-violet           text    5.67 AA     5.67 AA
    on-hue on hue-violet (not used)       text    3.50 --     3.50 --
    hue-orange on surface                 other   3.40 AA     5.36 AA
    hue-sky on surface                    other   2.25 --     8.10 AA
+   hue-cyan on surface                   other   1.67 --    10.88 AA
    hue-violet on surface                 other   5.67 AA     3.22 AA
    hue-yellow on surface                 other   1.26 --    14.41 AA
    hue-pink on surface                   other   3.72 AA     4.89 AA
    hue-orange on bg                      other   3.34 AA     5.83 AA
    hue-sky on bg                         other   2.21 --     8.82 AA
+   hue-cyan on bg                        other   1.64 --    11.85 AA
    hue-violet on bg                      other   5.57 AA     3.50 AA
    hue-yellow on bg                      other   1.24 --    15.68 AA
    hue-pink on bg                        other   3.66 AA     5.33 AA
@@ -319,13 +322,14 @@
      on-hue-violet (white): the ink is only 3.50:1 there. */
   --hue-orange: #f05a00;
   --hue-sky: #00b9fa;
+  --hue-cyan: #00dfd5;
   --hue-violet: #8722ff;
   --hue-yellow: #ffe600;
   --hue-pink: #ff008c;
   --on-hue: #08061f;
   --on-hue-violet: #ffffff;
-  /* The outline of a hue sticker: the ink in light, where sky (2.25:1) and yellow (1.26:1) do not
-     reach 3:1 against surface by themselves; none in dark, where every hue does. */
+  /* The outline of a hue sticker: the ink in light, where sky (2.25:1), cyan (1.67:1) and yellow
+     (1.26:1) do not reach 3:1 against surface by themselves; none in dark, where every hue does. */
   --sticker-outline: light-dark(#08061f, transparent);
   /* The wordmark's full gradient, drawn as a strip under page titles and in the phone header. */
   --spectrum-strip: linear-gradient(to right, #ffe900, #ff9500, #ff008c, #00dfd5, #00b9fa, #8722ff, #eb00d5);
@@ -555,12 +559,13 @@ input.entry-duration:is(:hover, :focus) {
 /* Shell */
 .shell { display: flex; min-height: 100vh; }
 /* Section hues. App.tsx puts data-section on every nav item and on the page's main element, so
-   the active nav item and the page's stickers share one hue. The pages inside More (Clients, Tags,
-   Trash, Admin) take More's pink, also in the desktop sidebar that lists them: on a phone they are
-   reached through More, whose button carries the active fill while one is open, so the page, its
-   nav item and that button agree. Own hues would need four more, and the wordmark has only cyan
-   and magenta left. */
+   the active nav item and the page's stickers share one hue. Reports keeps its sky in the More
+   sheet. The other pages inside More (Clients, Tags, Trash, Admin) take More's pink, also in the
+   desktop sidebar that lists them: own hues would need four more, and the wordmark has only
+   magenta left. On a phone the More button carries the active fill, in the open page's hue, while
+   a page inside More is open, so the page, its nav item and that button agree. */
 [data-section='timer'] { --section-hue: var(--hue-orange); --on-section-hue: var(--on-hue); }
+[data-section='pomodoro'] { --section-hue: var(--hue-cyan); --on-section-hue: var(--on-hue); }
 [data-section='reports'] { --section-hue: var(--hue-sky); --on-section-hue: var(--on-hue); }
 [data-section='projects'] { --section-hue: var(--hue-violet); --on-section-hue: var(--on-hue-violet); }
 [data-section='settings'] { --section-hue: var(--hue-yellow); --on-section-hue: var(--on-hue); }
@@ -590,8 +595,8 @@ input.entry-duration:is(:hover, :focus) {
 .nav-link:hover:not(.active) { color: var(--text); }
 /* The active link is filled with its section's hue, in bold with a heavier icon, so the fill colour
    is not the only sign; aria-current="page" says the same to screen readers. A 2px border outline
-   draws its edge in both themes: the ink in light, where sky and yellow are under 3:1 on surface,
-   and border in dark, where violet is 2.72:1 on the sidebar's glow. */
+   draws its edge in both themes: the ink in light, where sky, cyan and yellow are under 3:1 on
+   surface, and border in dark, where violet is 2.72:1 on the sidebar's glow. */
 .nav-link.active, .nav-link.active:hover {
   background: var(--section-hue); color: var(--on-section-hue); font-weight: 800;
   box-shadow: inset 0 0 0 2px var(--border);

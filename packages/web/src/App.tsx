@@ -33,18 +33,19 @@ import { PomodoroPage } from './pages/PomodoroPage.tsx';
 import { TrashPage } from './pages/TrashPage.tsx';
 
 /** A section's hue: styles.css maps each to a fill and the text colour on it (data-section). */
-type Section = 'timer' | 'reports' | 'projects' | 'settings' | 'more';
+type Section = 'timer' | 'pomodoro' | 'reports' | 'projects' | 'settings' | 'more';
 
 type NavItem = { href: string; label: string; icon: IconName; section: Section; inMore?: true; adminOnly?: true };
 
 /**
  * Every page in the navigation. On phones the inMore items move from the bottom bar into the More
- * sheet, and they take More's hue. adminOnly items show only to admins; the server still refuses
- * everyone else.
+ * sheet. Reports keeps its own hue there; the other inMore items take More's. adminOnly items show
+ * only to admins; the server still refuses everyone else.
  */
 const NAV: NavItem[] = [
   { href: '/', label: 'Timer', icon: 'timer', section: 'timer' },
-  { href: '/reports', label: 'Reports', icon: 'chart', section: 'reports' },
+  { href: '/pomodoro', label: 'Pomodoro', icon: 'tomato', section: 'pomodoro' },
+  { href: '/reports', label: 'Reports', icon: 'chart', section: 'reports', inMore: true },
   { href: '/projects', label: 'Projects', icon: 'folder', section: 'projects' },
   { href: '/clients', label: 'Clients', icon: 'users', section: 'more', inMore: true },
   { href: '/tags', label: 'Tags', icon: 'tag', section: 'more', inMore: true },
@@ -148,6 +149,7 @@ function Shell() {
   const qc = useQueryClient();
   const { data: current } = useCurrentEntry();
   const { data: me } = useMe();
+  const { session } = usePomodoroSession();
   const phone = useMediaQuery(PHONE_QUERY);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -205,6 +207,9 @@ function Shell() {
         {item.href === '/' && current ? (
           <span className="running-dot" title="Timer running"><span className="visually-hidden">Timer running</span></span>
         ) : null}
+        {item.href === '/pomodoro' && session ? (
+          <span className="running-dot" title="Pomodoro session running"><span className="visually-hidden">Pomodoro session running</span></span>
+        ) : null}
       </Link>
     );
   };
@@ -218,7 +223,8 @@ function Shell() {
 
   const nav = NAV.filter((item) => !item.adminOnly || me?.role === 'admin');
   const moreItems = nav.filter((item) => item.inMore);
-  const moreActive = moreItems.some((item) => isActive(item.href));
+  // The open page under More, whose hue the More button takes so the button and the page agree.
+  const moreCurrent = moreItems.find((item) => isActive(item.href));
   // The open page's section hue; pages read it for their stickers. Every route is in NAV, Admin too.
   const section = NAV.find((item) => isActive(item.href))?.section ?? 'timer';
 
@@ -231,8 +237,8 @@ function Shell() {
             <button
               ref={moreButton}
               type="button"
-              className={`nav-link${moreActive ? ' active' : ''}`}
-              data-section="more"
+              className={`nav-link${moreCurrent ? ' active' : ''}`}
+              data-section={moreCurrent?.section ?? 'more'}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((open) => !open)}
