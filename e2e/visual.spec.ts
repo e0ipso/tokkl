@@ -41,6 +41,8 @@ interface Capture {
   mask?: (page: Page) => Locator[];
   /** Puts the loaded page into the state to shoot. */
   act?: (page: Page) => Promise<void>;
+  /** Completes capture-triggered layout before the screenshot assertion starts. */
+  settle?: (page: Page) => Promise<void>;
 }
 
 const PAGES: readonly Capture[] = [
@@ -75,6 +77,11 @@ const PAGES: readonly Capture[] = [
     path: '/settings',
     ready: (page) => page.getByRole('main').getByText('API token').first(),
     regularUser: { email: 'e2e-user@example.com', fullname: 'E2E User' },
+    settle: async (page) => {
+      // Chromium's first full-page render reflows the offscreen API URL paragraph. Its
+      // two-pixel growth otherwise leaves the first screenshot clipped to the old height.
+      await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
+    },
   },
   {
     name: 'admin',
@@ -134,6 +141,8 @@ for (const [device, deviceOptions] of Object.entries(DEVICES)) {
           await page.waitForLoadState('networkidle');
           await page.evaluate(() => document.fonts.ready.then(() => undefined));
           await pinOrigin(page);
+          await capture.settle?.(page);
+          const heightBeforeCapture = await page.evaluate(() => document.documentElement.scrollHeight);
           // Full page, so the whole page is guarded. On the phone the fixed bottom bar stays where the
           // 844px viewport ends and covers that band of the page.
           await expect(page).toHaveScreenshot(`${capture.name}-${device}-${colorScheme}.png`, {
@@ -143,6 +152,8 @@ for (const [device, deviceOptions] of Object.entries(DEVICES)) {
             mask: capture.mask?.(page),
             maxDiffPixelRatio: 0.002,
           });
+          expect(await page.evaluate(() => document.documentElement.scrollHeight),
+            'The full-page capture must not change the document height').toBe(heightBeforeCapture);
         });
       }
     });
