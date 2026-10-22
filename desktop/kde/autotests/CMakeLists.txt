@@ -12,6 +12,15 @@ include(ECMAddTests)
 # disabled wallet has its own test. Both write kwalletrc only to their own
 # temporary directory.
 find_program(TOKKL_DBUS_DAEMON dbus-daemon REQUIRED)
+find_program(TOKKL_DBUS_RUN_SESSION dbus-run-session REQUIRED)
+find_program(TOKKL_DBUS_SEND dbus-send REQUIRED)
+add_test(NAME smoke-session
+    COMMAND ${CMAKE_COMMAND}
+        -DDBUS_RUN_SESSION=${TOKKL_DBUS_RUN_SESSION}
+        -DDBUS_SEND=${TOKKL_DBUS_SEND}
+        -DSESSION_CONFIG=${PROJECT_SOURCE_DIR}/scripts/smoke-session.conf
+        -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/smoke-session
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/smokesessiontest.cmake)
 ecm_add_test(kdeconnectiontest.cpp
     TEST_NAME kdeconnection
     LINK_LIBRARIES tokklkde Qt6::DBus Qt6::Test)

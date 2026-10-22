@@ -317,14 +317,16 @@ check_loads() {
         install_names "${packages[@]}" > /dev/null
         loaded_once=true
     fi
-    local home status=0
+    local home session_config status=0
     home="$(mktemp -d)"
+    session_config="$(realpath "$(dirname "${BASH_SOURCE[0]}")/smoke-session.conf")"
     (cd "$home" && env HOME="$home" XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" \
         XDG_CACHE_HOME="$home/cache" XDG_STATE_HOME="$home/state" \
         QT_QPA_PLATFORM=xcb QT_QUICK_BACKEND=software \
         TOKKL_SMOKE_PLASMOID_DIR="$widget_dir" TOKKL_SMOKE_BACKEND_DIR="$backend_dir" \
         TOKKL_SMOKE_ICON_DIR="$icon_dir" \
-        dbus-run-session -- xvfb-run -a "$load_test/smokeload") || status=$?
+        dbus-run-session --config-file "$session_config" \
+            -- xvfb-run -a "$load_test/smokeload") || status=$?
     rm -rf "$home"
     if [ "$status" -eq 0 ]; then
         pass "widget and backend load from the installed package under Xvfb and DBus"
