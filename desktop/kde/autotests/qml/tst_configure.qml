@@ -54,6 +54,16 @@ TestCase {
         savedSpy.clear();
     }
 
+    function test_monochromePreferenceBinding() {
+        compare(page.cfg_monochromeIcon, false);
+        const checkbox = findChild(page, "monochromeIcon");
+        verify(checkbox);
+        page.cfg_monochromeIcon = true;
+        compare(checkbox.checked, true);
+        checkbox.checked = false;
+        compare(page.cfg_monochromeIcon, false);
+    }
+
     // As the user typing a secret and pressing Apply.
     function applySecret(secret) {
         setup.editSecret(secret);

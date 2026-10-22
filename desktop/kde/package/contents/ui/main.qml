@@ -51,6 +51,7 @@ PlasmoidItem {
     ]
 
     fullRepresentation: PanelButton {
+        monochromeIcon: Plasmoid.configuration.monochromeIcon
         timer: root.timer
         // The configured base URL only: it never holds credentials.
         onOpenRequested: url => Qt.openUrlExternally(url)

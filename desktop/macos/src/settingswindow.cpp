@@ -21,6 +21,7 @@ namespace Tokkl
 const QString SettingsWindow::instanceUrlKey = QStringLiteral("instanceUrl");
 const QString SettingsWindow::authModeKey = QStringLiteral("authMode");
 const QString SettingsWindow::emailKey = QStringLiteral("email");
+const QString SettingsWindow::monochromeIconKey = QStringLiteral("monochromeIcon");
 
 namespace
 {
@@ -78,6 +79,8 @@ SettingsWindow::SettingsWindow(Transport *transport, CredentialStore *store, QSe
 
     m_loginToggle = new QCheckBox(tr("Open Tokkl at login"));
     m_loginNote = noteLabel();
+    m_monochromeToggle = new QCheckBox(tr("Use a monochrome menu bar icon"));
+    m_monochromeToggle->setToolTip(tr("Follows the menu bar's text color automatically."));
 
     auto *form = new QFormLayout;
     form->addRow(tr("Instance URL:"), m_urlField);
@@ -90,6 +93,7 @@ SettingsWindow::SettingsWindow(Transport *transport, CredentialStore *store, QSe
     form->addRow(QString(), testRow);
     form->addRow(QString(), m_loginToggle);
     form->addRow(QString(), m_loginNote);
+    form->addRow(QString(), m_monochromeToggle);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Close);
     m_saveButton = buttons->button(QDialogButtonBox::Save);
@@ -143,6 +147,7 @@ void SettingsWindow::load()
         const bool password = m_settings->value(authModeKey, tokenMode).toString() == passwordMode;
         (password ? m_passwordButton : m_tokenButton)->setChecked(true);
         m_emailField->setText(m_settings->value(emailKey).toString());
+        m_monochromeToggle->setChecked(m_settings->value(monochromeIconKey, false).toBool());
     }
     m_testResult->clear();
     ++m_saveSerial;
@@ -166,7 +171,7 @@ bool SettingsWindow::save()
         updateFields();
         return false;
     }
-    const Fields fields{persisted, authMode(), m_emailField->text().trimmed()};
+    const Fields fields{persisted, authMode(), m_emailField->text().trimmed(), m_monochromeToggle->isChecked()};
     const quint64 serial = ++m_saveSerial;
     m_saving = true;
     m_saveButton->setEnabled(false);
@@ -194,6 +199,7 @@ void SettingsWindow::finishSave(quint64 serial, const Fields &fields, bool store
         m_settings->setValue(instanceUrlKey, fields.url);
         m_settings->setValue(authModeKey, fields.authMode);
         m_settings->setValue(emailKey, fields.email);
+        m_settings->setValue(monochromeIconKey, fields.monochromeIcon);
         m_settings->sync();
     }
     Q_EMIT saved();
@@ -342,6 +348,11 @@ QLabel *SettingsWindow::testResult() const
 QCheckBox *SettingsWindow::loginToggle() const
 {
     return m_loginToggle;
+}
+
+QCheckBox *SettingsWindow::monochromeToggle() const
+{
+    return m_monochromeToggle;
 }
 
 QLabel *SettingsWindow::loginNote() const

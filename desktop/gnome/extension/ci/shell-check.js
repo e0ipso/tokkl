@@ -360,6 +360,43 @@ await step('a running entry on an archived project is named by the indicator and
         accessibleName: 'Website (Acme)'});
 });
 
+await step('the logo switches live to a symbolic icon and follows panel colors', async () => {
+    const setMonochrome = value => shell(`Main.extensionManager.lookup(${JSON.stringify(uuid)}).stateObj.getSettings().set_boolean('monochrome-icon', ${value})`);
+    const shown = () => shell(`(() => {
+        const logo = ${button}._logo;
+        const image = logo.get_first_child()?.content;
+        const decoded = image instanceof imports.gi.St.ImageContent;
+        const [, width, height] = decoded ? image.get_preferred_size() : [false, 0, 0];
+        const ink = logo.get_theme_node().get_foreground_color();
+        return {symbolic: logo.is_symbolic, path: logo.gicon.get_file().get_basename(),
+            loaded: decoded && width > 0 && height > 0, ink: [ink.red, ink.green, ink.blue]};
+    })()`);
+    const project = indicator();
+    try {
+        setMonochrome(true);
+        await waitFor('the loaded symbolic logo', () => {
+            const now = shown();
+            return (now.symbolic && now.loaded && now.path === 'tokkl-symbolic.symbolic.png') || now;
+        });
+        for (const value of [255, 20]) {
+            shell(`${button}._logo.style = 'color: rgb(${value}, ${value}, ${value});'`);
+            await waitFor('panel foreground independent of the application theme', () => {
+                const now = shown();
+                return (now.symbolic && now.loaded && now.ink.every(channel => channel === value)) || now;
+            });
+        }
+        if (indicator().color !== project.color)
+            throw new Error('monochrome changed the project color');
+    } finally {
+        shell(`${button}._logo.style = null`);
+        setMonochrome(false);
+    }
+    await waitFor('the full-color logo', () => {
+        const now = shown();
+        return (!now.symbolic && now.loaded && now.path === 'tokkl.png') || now;
+    });
+});
+
 await step('the ring keeps 3:1 against the top bar in light and dark styles', async () => {
     // The top bar is see-through in the overview, which GNOME Shell shows
     // at startup.

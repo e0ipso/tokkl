@@ -18,6 +18,7 @@ KCM.SimpleKCM {
     property string cfg_instanceUrl
     property string cfg_authMode: "token"
     property alias cfg_email: emailField.text
+    property alias cfg_monochromeIcon: monochromeIcon.checked
 
     // Tells the dialog that the secret changed, which no cfg_ property covers.
     signal configurationChanged()
@@ -77,6 +78,18 @@ KCM.SimpleKCM {
     }
 
     Kirigami.FormLayout {
+        QQC2.CheckBox {
+            id: monochromeIcon
+            objectName: "monochromeIcon"
+            text: i18nc("@option:check", "Use a monochrome panel icon")
+        }
+
+        QQC2.Label {
+            text: i18n("The monochrome icon follows the panel's text color automatically.")
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+        }
+
         QQC2.TextField {
             id: urlField
             Kirigami.FormData.label: i18nc("@label:textbox", "Instance URL:")

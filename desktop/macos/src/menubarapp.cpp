@@ -127,6 +127,7 @@ void MenuBarApp::applySettings()
     m_connection->setInstanceUrl(m_settings->value(SettingsWindow::instanceUrlKey).toString());
     m_connection->setAuthModeString(m_settings->value(SettingsWindow::authModeKey, QStringLiteral("token")).toString());
     m_connection->setEmail(m_settings->value(SettingsWindow::emailKey).toString());
+    updateItem();
 }
 
 void MenuBarApp::updateItem()
@@ -137,7 +138,8 @@ void MenuBarApp::updateItem()
     m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer));
     m_statusItem->setToolTip(StatusWords::summary(*m_timer));
     m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer));
-    m_statusItem->setImage(StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion())));
+    const bool monochrome = m_settings && m_settings->value(SettingsWindow::monochromeIconKey, false).toBool();
+    m_statusItem->setImage(StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()), monochrome));
 }
 
 }

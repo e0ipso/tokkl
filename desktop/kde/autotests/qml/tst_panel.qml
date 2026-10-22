@@ -807,6 +807,40 @@ TestCase {
         return grabImage(button).pixel(Math.floor(point.x), Math.floor(point.y));
     }
 
+    function test_monochromeLogoFollowsPanelForeground() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        verify(button.timer.chooseProject(11));
+        const logo = findChild(button, "logoIcon");
+        compare(logo.isMask, false);
+        const width = button.width;
+        button.monochromeIcon = true;
+        compare(logo.isMask, true);
+        for (const ink of ["#ffffff", "#000000"]) {
+            // Override only the panel item, independently of the application theme.
+            button.Kirigami.Theme.textColor = ink;
+            tryVerify(() => {
+                const image = grabImage(button);
+                const origin = logo.mapToItem(button, 0, 0);
+                const target = ink === "#ffffff" ? 1 : 0;
+                let matching = 0;
+                for (let y = 0; y < logo.height; ++y) {
+                    for (let x = 0; x < logo.width; ++x) {
+                        const pixel = image.pixel(Math.floor(origin.x + x), Math.floor(origin.y + y));
+                        if (Math.abs(pixel.r - pixel.g) > 0.02 || Math.abs(pixel.g - pixel.b) > 0.02) return false;
+                        // Scaling the alpha edges can leave a few levels of background mixed in.
+                        if (Math.abs(pixel.r - target) < 0.02) matching++;
+                    }
+                }
+                return matching > 10;
+            }, 3000, "the drawn logo follows the panel text colour");
+            verify(Qt.colorEqual(indicator().fillColor, "#06aaf5"));
+        }
+        compare(button.width, width);
+        button.monochromeIcon = false;
+        compare(logo.isMask, false);
+    }
+
     function test_indicatorSitsBetweenTheLogoAndTheTime() {
         connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
         const ind = indicator();

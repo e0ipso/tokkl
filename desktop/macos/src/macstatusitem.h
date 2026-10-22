@@ -22,9 +22,9 @@ namespace Tokkl
 // the menu, as the native QMenu Qt keeps for it.
 //
 // The button's image, before the title, draws the StatusImage it is given.
-// It is never a template image, so the logo keeps its colours, and the
-// project indicator follows the logo. The image is drawn when the menu bar
-// draws it, in the menu bar's appearance, so the indicator's ink follows
+// It is never a template image, so the project indicator keeps its colours.
+// The logo can use its own colours or the menu bar foreground. The image is
+// drawn in the menu bar's appearance, so monochrome ink follows
 // light and dark menu bars. A pulse redraws it on a
 // timer, which stops when the indicator stops pulsing.
 class MacStatusItem : public StatusItem

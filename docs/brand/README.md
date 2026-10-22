@@ -44,10 +44,11 @@ This needs Node.js 18 or newer and ImageMagick 7 with `magick` on `PATH`. The sc
 
 ## Served icon inputs
 
-`icon-pack/web/public` is the only source of the icons the web app serves. `npm run icons` writes each file to the same path under `packages/web/public`:
+`npm run icons` derives the web icons from `icon-pack/source/master-export.png` and the exports in `icon-pack/web/public`, writing them under `packages/web/public`:
 
-- It copies the favicons and Apple touch icons byte-identical: `favicon.ico`, `apple-touch-icon.png`, `icons/favicon-16.png`, `icons/favicon-32.png`, `icons/favicon-48.png`, `icons/apple-touch-icon-120.png`, `icons/apple-touch-icon-152.png`, `icons/apple-touch-icon-167.png` and `icons/apple-touch-icon-180.png`.
-- It quantises the manifest icons to 256 colours, because as supplied the larger ones exceed the web app's size budgets for icons: `icons/icon-192.png`, `icons/icon-512.png`, `icons/maskable-192.png`, `icons/maskable-512.png` and `icons/maskable-1024.png`.
+- It derives transparent favicons at 16, 32 and 48 px, a multi-size `favicon.ico`, and transparent general-purpose launcher icons at 192 and 512 px from the icon pack's master. Opaque maskable icons remain separate.
+- It copies the Apple touch icons byte-identical: `apple-touch-icon.png`, `icons/apple-touch-icon-120.png`, `icons/apple-touch-icon-152.png`, `icons/apple-touch-icon-167.png` and `icons/apple-touch-icon-180.png`.
+- It writes manifest icons as 256-colour PNGs to stay within the web app's size budgets. The maskable icons come from `icons/maskable-192.png`, `icons/maskable-512.png` and `icons/maskable-1024.png` in the pack.
 
 `icons/icon-1024.png` is not served. Quantised, it is still about 173 KB, over the 100 KB budget.
 

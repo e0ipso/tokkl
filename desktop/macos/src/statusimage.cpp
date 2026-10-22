@@ -3,10 +3,11 @@
 namespace Tokkl
 {
 
-StatusImage StatusImage::compose(const ProjectIndicator &indicator)
+StatusImage StatusImage::compose(const ProjectIndicator &indicator, bool monochromeLogo)
 {
     StatusImage image;
     image.logo = logoImages();
+    image.monochromeLogo = monochromeLogo;
     image.logoRect = QRect(0, 0, logoSize, logoSize);
     image.indicator = indicator;
     const int slot = ProjectIndicator::slotSize;

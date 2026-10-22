@@ -42,6 +42,8 @@ Test Connection checks the values against the instance without saving them. Save
 
 Open Tokkl at login registers the app as a login item. macOS may ask you to allow it in System Settings → General → Login Items, and you can turn it off there too.
 
+Use a monochrome menu bar icon switches the clock logo to the menu bar's text colour automatically, including after appearance changes. Save keeps this preference. Full colour is the default; the project indicator keeps its own colour in either mode.
+
 Requests carry the client name `tokkl-macos` in the `User-Agent` header and in the `created_with` field of the entries the app starts.
 
 ## Building

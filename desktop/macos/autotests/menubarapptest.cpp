@@ -834,6 +834,7 @@ private Q_SLOTS:
         QVERIFY(f.connect(entryBody(true, qint64(11))));
         QCOMPARE(f.item.title, QStringLiteral("0:01"));
         const StatusImage running = f.item.image;
+        QVERIFY(!running.monochromeLogo);
         QCOMPARE(running.indicator, ProjectIndicator::fromTimer(*f.app.timer(), false));
         QCOMPARE(running.logoRect, QRect(0, 0, 16, 16));
         QCOMPARE(running.indicatorRect, QRect(18, 0, 16, 16));
@@ -870,6 +871,34 @@ private Q_SLOTS:
         QCOMPARE(f.item.image.logoRect, running.logoRect);
         QCOMPARE(f.item.image.indicatorRect, running.indicatorRect);
         QCOMPARE(f.item.image.size, running.size);
+    }
+
+    void monochromePreferenceAppliesAndSurvivesRelaunch()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody(false, qint64(11))));
+        const StatusImage before = f.item.image;
+        f.app.showSettings();
+        SettingsWindow &window = *f.app.settingsWindow();
+        QVERIFY(!window.monochromeToggle()->isChecked());
+        window.monochromeToggle()->setChecked(true);
+        QSignalSpy saved(&window, &SettingsWindow::saved);
+        QVERIFY(window.save());
+        QTRY_COMPARE(saved.count(), 1);
+        QVERIFY(f.item.image.monochromeLogo);
+        QCOMPARE(f.item.image.logo, before.logo);
+        QCOMPARE(f.item.image.logoRect, before.logoRect);
+        QCOMPARE(f.item.image.indicator, before.indicator);
+        QCOMPARE(f.item.image.size, before.size);
+
+        Fixture relaunched(f.settings.fileName());
+        relaunched.app.start();
+        QVERIFY(relaunched.item.image.monochromeLogo);
+        relaunched.app.showSettings();
+        QVERIFY(relaunched.app.settingsWindow()->monochromeToggle()->isChecked());
+        relaunched.settings.setValue(SettingsWindow::monochromeIconKey, false);
+        relaunched.app.applySettings();
+        QVERIFY(!relaunched.item.image.monochromeLogo);
     }
 
     void openAndSettingsActions()
@@ -931,6 +960,7 @@ private Q_SLOTS:
         QSignalSpy saved(&window, &SettingsWindow::saved);
         window.urlField()->setText(instance);
         QTest::keyClicks(window.secretField(), token);
+        window.monochromeToggle()->setChecked(true);
         window.saveButton()->click();
 
         QTRY_COMPARE(f.store.held.size(), 1);
@@ -939,6 +969,9 @@ private Q_SLOTS:
         QVERIFY(window.isVisible());
         QVERIFY(!window.saveButton()->isEnabled());
         QVERIFY(!f.settings.contains(SettingsWindow::instanceUrlKey));
+        QVERIFY(!f.settings.contains(SettingsWindow::monochromeIconKey));
+        // The pending save owns a snapshot, even if the checkbox changes.
+        window.monochromeToggle()->setChecked(false);
         QVERIFY(f.app.connection()->instanceUrl().isEmpty());
 
         f.store.finish(CredentialResult::Status::Ok);
@@ -947,6 +980,8 @@ private Q_SLOTS:
         QCOMPARE(f.settings.value(SettingsWindow::instanceUrlKey).toString(), instance);
         QCOMPARE(f.store.secrets.value(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString())), token);
         QCOMPARE(f.app.connection()->instanceUrl(), instance);
+        QVERIFY(f.settings.value(SettingsWindow::monochromeIconKey).toBool());
+        QVERIFY(f.item.image.monochromeLogo);
     }
 
     // A failed write keeps the window open with the typed secret and the
@@ -960,6 +995,7 @@ private Q_SLOTS:
         QSignalSpy saved(&window, &SettingsWindow::saved);
         window.urlField()->setText(instance);
         QTest::keyClicks(window.secretField(), token);
+        window.monochromeToggle()->setChecked(true);
         window.saveButton()->click();
         QTRY_COMPARE(f.store.held.size(), 1);
 
@@ -971,6 +1007,8 @@ private Q_SLOTS:
         QCOMPARE(window.secretField()->text(), token);
         QVERIFY(window.saveButton()->isEnabled());
         QVERIFY(!f.settings.contains(SettingsWindow::instanceUrlKey));
+        QVERIFY(!f.settings.contains(SettingsWindow::monochromeIconKey));
+        QVERIFY(!f.item.image.monochromeLogo);
         QVERIFY(f.store.secrets.isEmpty());
 
         window.saveButton()->click();

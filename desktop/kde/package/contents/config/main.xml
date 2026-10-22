@@ -6,6 +6,10 @@
   <kcfgfile name=""/>
 
   <group name="General">
+    <entry name="monochromeIcon" type="Bool">
+      <label>Use a monochrome logo in the panel</label>
+      <default>false</default>
+    </entry>
     <entry name="instanceUrl" type="String">
       <label>Address of the Tokkl instance, including any path prefix</label>
       <default></default>

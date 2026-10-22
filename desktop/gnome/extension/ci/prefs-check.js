@@ -89,6 +89,7 @@ async function openWindow() {
         email: row(Adw.EntryRow, 'Email'),
         secret: widgets.find(widget => widget instanceof Adw.PasswordEntryRow),
         status: row(Adw.ActionRow, 'Timer service'),
+        monochrome: row(Adw.SwitchRow, 'Use a monochrome panel icon'),
         connect: widgets.find(widget => widget instanceof Gtk.Button && widget.label === 'Connect'),
     };
 }
@@ -113,6 +114,21 @@ let form;
 await step('the preferences open and show the service state', async () => {
     form = await openWindow();
     await waitFor('the status row', () => form.status.subtitle === 'Connected' || form.status.subtitle);
+});
+
+await step('the monochrome preference persists without configuring the account', async () => {
+    const before = mockCalls().length;
+    if (form.monochrome.active)
+        throw new Error('monochrome should be off by default');
+    form.monochrome.active = true;
+    await waitFor('the saved monochrome preference', () => settings.get_boolean('monochrome-icon'));
+    form.window.close();
+    form = await openWindow();
+    if (!form.monochrome.active || mockCalls().length !== before)
+        throw new Error('reopening lost the icon preference or configured the account');
+    await waitFor('the reopened connection', () => form.status.subtitle === 'Connected' || form.status.subtitle);
+    form.monochrome.active = false;
+    await waitFor('color mode', () => !settings.get_boolean('monochrome-icon'));
 });
 
 await step('Connect sends the URL, email and password to Configure', async () => {

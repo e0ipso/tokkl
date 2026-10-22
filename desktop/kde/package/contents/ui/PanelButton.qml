@@ -18,6 +18,9 @@ MouseArea {
     id: button
 
     required property TokklTimer timer
+    property bool monochromeIcon: false
+    readonly property color panelInk: Kirigami.Theme.textColor
+    readonly property bool lightPanelInk: panelInk.r * 0.2126 + panelInk.g * 0.7152 + panelInk.b * 0.0722 > 0.5
 
     readonly property alias words: words
     readonly property alias menu: menu
@@ -89,7 +92,11 @@ MouseArea {
             objectName: "logoIcon"
             Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
             Layout.preferredHeight: Kirigami.Units.iconSizes.smallMedium
-            source: Qt.resolvedUrl("../images/tokkl.png")
+            source: Qt.resolvedUrl(button.monochromeIcon
+                ? (button.lightPanelInk ? "../images/tokkl-mono-light.png" : "../images/tokkl-mono-dark.png")
+                : "../images/tokkl.png")
+            isMask: button.monochromeIcon
+            color: button.monochromeIcon ? button.panelInk : "transparent"
         }
 
         ProjectIndicator {

@@ -15,8 +15,6 @@ const ICON_PACK = 'docs/brand/icon-pack/web/public/';
 const PUBLIC = 'packages/web/public/';
 /** The manifest icons, which the script reduces to 256 colours and serves from the same path. */
 const QUANTISED_ICONS = [
-  'icons/icon-192.png',
-  'icons/icon-512.png',
   'icons/maskable-192.png',
   'icons/maskable-512.png',
   'icons/maskable-1024.png',
@@ -236,5 +234,38 @@ for (const [path, size] of DESKTOP_ICONS) {
     assert.deepEqual([bounds.top, bounds.height], [0, size], 'the art is as tall as the canvas');
     const right = size - bounds.left - bounds.width;
     assert.ok(Math.abs(bounds.left - right) <= 1, `left margin ${bounds.left} and right margin ${right} differ by more than 1px`);
+  });
+}
+
+for (const [file, size] of [['favicon-16.png', 16], ['favicon-32.png', 32], ['favicon-48.png', 48], ['icon-192.png', 192], ['icon-512.png', 512]] as const) {
+  test(`${file} has a transparent background and visible clock artwork`, () => {
+    const png = readPng(`${PUBLIC}icons/${file}`);
+    assert.deepEqual([png.width, png.height], [size, size]);
+    const pixels = rgba(png);
+    for (const corner of [0, size - 1, size * (size - 1), size * size - 1]) {
+      assert.equal(pixels[corner * 4 + 3], 0);
+    }
+    assert.ok(pixels.some((value, i) => i % 4 === 3 && value === 255));
+    const bounds = alphaBounds(png);
+    assert.ok(bounds.height >= size - 2, 'the clock fills the icon height');
+    assert.ok(Math.abs(bounds.left - (size - bounds.left - bounds.width)) <= 1);
+  });
+}
+
+for (const [path, source, channel] of [
+  ['desktop/gnome/extension/tokkl-symbolic.symbolic.png', GNOME_LOGO, 0],
+  ['desktop/kde/package/contents/images/tokkl-mono-dark.png', KDE_LOGO, 0],
+  ['desktop/kde/package/contents/images/tokkl-mono-light.png', KDE_LOGO, 255],
+] as const) {
+  test(`${path} preserves the clock alpha and uses a single ink`, () => {
+    const mono = readPng(path);
+    const color = readPng(source);
+    assert.deepEqual([mono.width, mono.height], [color.width, color.height]);
+    const pixels = rgba(mono);
+    const original = rgba(color);
+    for (let i = 0; i < pixels.length; i += 4) {
+      assert.deepEqual(Array.from(pixels.subarray(i, i + 3)), [channel, channel, channel]);
+      assert.equal(pixels[i + 3], original[i + 3]);
+    }
   });
 }
