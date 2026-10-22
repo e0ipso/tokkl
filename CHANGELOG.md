@@ -1,3 +1,9 @@
+## [1.8.1](https://github.com/e0ipso/tokkl/compare/v1.8.0...v1.8.1) (2026-10-22)
+
+### Bug Fixes
+
+* refine branding and panel icons ([#35](https://github.com/e0ipso/tokkl/issues/35)) ([57c799c](https://github.com/e0ipso/tokkl/commit/57c799c53d77b57e32f99dd9c7e903ed7cfd0408))
+
 ## [1.8.0](https://github.com/e0ipso/tokkl/compare/v1.7.0...v1.8.0) (2026-10-21)
 
 ### Features
