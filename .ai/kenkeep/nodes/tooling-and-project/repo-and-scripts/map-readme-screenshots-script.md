@@ -18,7 +18,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`npm run screenshots` builds the web app and runs `scripts/screenshots.ts` under its own Playwright config, `scripts/screenshots.config.ts` (port `SCREENSHOTS_PORT`, default 8096, and a throwaway data directory). The config lives outside `e2e/`, so `npm run test:e2e` never runs it. It rewrites the ten images in `docs/screenshots/`. The README "Screenshots" section describes them, and the command is listed in its Development section.
+`npm run screenshots` builds the web app and runs `scripts/screenshots.ts` under its own Playwright config, `scripts/screenshots.config.ts` (port `SCREENSHOTS_PORT`, default 8096, and a throwaway data directory). The config lives outside `e2e/`, so `npm run test:e2e` never runs it. It rewrites the ten images in `docs/screenshots/`. The README previews `desktop-timer.png` and `mobile-calendar.png`; the full gallery stays in `docs/screenshots/`.
 
 The data is `e2e/fixtures-data/transfer/restore-full.json` plus the extra records in `scripts/screenshots-data.ts`, which also exports `NOW` (`2026-07-16T13:20:00.000Z`, 15:20 in Europe/Madrid) and `TIME_ZONE`. The browser clock is fixed with `page.clock.setFixedTime(NOW)`, and the server starts with a `data:` URL `--import` that replaces `Date` with one that always reads `NOW`.
 
