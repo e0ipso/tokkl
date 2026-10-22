@@ -94,6 +94,7 @@ npm run dev          # API on :8080, restarts on change
 npm run dev:web      # Vite on :5173, proxies API requests; use a second terminal
 npm test             # unit and API tests
 npm run typecheck
+npm run check:tracker-refs
 npm run build
 npm run test:e2e     # builds, then runs Playwright tests
 ```
