@@ -5,7 +5,7 @@ import { PHONE } from '../e2e/mobile-tests-helpers.ts';
 import { RuntimeErrors } from '../e2e/runtime-errors.ts';
 import { NOW, TIME_ZONE, screenshotExport } from './screenshots-data.ts';
 
-// Writes the README images in docs/screenshots. Run it with `npm run screenshots`, which builds
+// Writes the screenshot gallery in docs/screenshots. Run it with `npm run screenshots`, which builds
 // the web app first and uses scripts/screenshots.config.ts.
 
 const OUT_DIR = fileURLToPath(new URL('../docs/screenshots/', import.meta.url));
