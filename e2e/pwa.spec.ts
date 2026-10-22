@@ -113,7 +113,7 @@ test('the built app links a local manifest whose icons are real images of the de
       expect(sizes, icon.src).toContain(decoded.size);
     }
     // A maskable icon fills its whole square, because the launcher crops it to its own shape.
-    if (maskable) expect(decoded.minAlpha, icon.src).toBe(255);
+    expect(decoded.minAlpha, icon.src).toBe(maskable ? 255 : 0);
   }
 });
 
@@ -161,21 +161,17 @@ test('the favicon and apple-touch-icon links resolve to images of their declared
 
     const decoded = await decodeImage(page, url.href);
     expect(sizes, href).toContain(decoded.size);
-    if (rel === 'apple-touch-icon') expect(decoded.minAlpha, href).toBe(255);
+    expect(decoded.minAlpha, href).toBe(rel === 'apple-touch-icon' ? 255 : 0);
   }
 });
 
-// The favicons and Apple touch icons ship byte for byte from the icon pack, including the 48 px
-// favicon and the 180 px touch icon under /icons/ that index.html does not link. The pack's 1024 px
+// The Apple touch icons ship byte for byte from the icon pack, including the 180 px touch icon
+// under /icons/ that index.html does not link. The pack's 1024 px
 // general-purpose icon and the previous root icons are not served, so the server answers them with
 // the HTML app shell.
-test('the served favicons and touch icons are the icon pack files, and retired icons are not served', async ({ page }) => {
+test('the served touch icons are the icon pack files, and retired icons are not served', async ({ page }) => {
   const copied = [
-    'favicon.ico',
     'apple-touch-icon.png',
-    'icons/favicon-16.png',
-    'icons/favicon-32.png',
-    'icons/favicon-48.png',
     'icons/apple-touch-icon-120.png',
     'icons/apple-touch-icon-152.png',
     'icons/apple-touch-icon-167.png',

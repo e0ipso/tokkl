@@ -6,6 +6,10 @@
 -->
 <schemalist>
   <schema id="org.gnome.shell.extensions.tokkl" path="/org/gnome/shell/extensions/tokkl/">
+    <key name="monochrome-icon" type="b">
+      <default>false</default>
+      <summary>Use a monochrome logo that follows the panel text color</summary>
+    </key>
     <key name="instance-url" type="s">
       <default>''</default>
       <summary>Instance URL</summary>

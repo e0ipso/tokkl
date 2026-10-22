@@ -20,7 +20,7 @@ const GNOME_EXTENSION = fileURLToPath(new URL('../desktop/gnome/extension/', imp
 const MACOS_ICONSET = fileURLToPath(
   new URL('../desktop/macos/resources/Tokkl.iconset/', import.meta.url),
 );
-/** The icon pack's web root. Every served icon keeps its path from here under packages/web/public. */
+/** The icon pack's opaque touch and maskable exports. */
 const ICON_PACK = `${BRAND}icon-pack/web/public/`;
 
 /**
@@ -66,14 +66,10 @@ try {
 mkdirSync(`${PUBLIC}brand`, { recursive: true });
 mkdirSync(`${PUBLIC}icons`, { recursive: true });
 
-// The favicons and Apple touch icons are small, so they ship byte for byte. index.html links the
-// root copy of the 180px touch icon, the path iOS also tries when a page links none.
+// Apple touch icons stay opaque. index.html links the root copy of the 180px touch icon,
+// the path iOS also tries when a page links none.
 const copiedIcons = [
-  'favicon.ico',
   'apple-touch-icon.png',
-  'icons/favicon-16.png',
-  'icons/favicon-32.png',
-  'icons/favicon-48.png',
   'icons/apple-touch-icon-120.png',
   'icons/apple-touch-icon-152.png',
   'icons/apple-touch-icon-167.png',
@@ -81,12 +77,22 @@ const copiedIcons = [
 ];
 for (const file of copiedIcons) copyIcon(file);
 
-// The manifest icons ship as undithered 256-colour PNG8 files. As supplied, the 512 and 1024 sizes
+// Favicons and general-purpose launcher icons keep the master's transparent background.
+// Maskable icons retain their opaque tile because the launcher crops them to its own shape.
+for (const size of [16, 32, 48, 192, 512]) {
+  const name = size < 100 ? `favicon-${size}.png` : `icon-${size}.png`;
+  magick([MASTER, ...MASTER_SQUARE, '-resize', `${size}x${size}`, '-dither', 'None', ...PALETTE],
+    `${PUBLIC}icons/${name}`, 'png8');
+}
+execFileSync('magick', [
+  ...[16, 32, 48].map((size) => `${PUBLIC}icons/favicon-${size}.png`),
+  ...STRIP, `${PUBLIC}favicon.ico`,
+], { stdio: 'inherit' });
+
+// The maskable icons ship as undithered 256-colour PNG8 files. As supplied, the 512 and 1024 sizes
 // exceed the 100 KB and 128 KB budgets in e2e/pwa.spec.ts. The pack's icon-1024.png is not served,
 // because it stays over 100 KB even quantised.
 const quantisedIcons = [
-  'icons/icon-192.png',
-  'icons/icon-512.png',
   'icons/maskable-192.png',
   'icons/maskable-512.png',
   'icons/maskable-1024.png',
@@ -116,6 +122,12 @@ const kdeLogo = `${KDE_PACKAGE}contents/images/tokkl.png`;
 const kdeIcon = (size: number) => `${KDE_PACKAGE}icons/tokkl-${size}.png`;
 mkdirSync(`${KDE_PACKAGE}icons`, { recursive: true });
 magick([MASTER, ...MASTER_SQUARE, '-resize', '96x96'], kdeLogo, 'png32');
+// The software scene graph does not tint icon masks, so pre-coloured monochrome assets
+// also keep the logo readable there. The hardware renderer tints them to the exact panel ink.
+for (const [name, value] of [['dark', '0'], ['light', '100%']] as const) {
+  magick([MASTER, ...MASTER_SQUARE, '-resize', '96x96', '-channel', 'RGB', '-evaluate', 'set', value, '+channel'],
+    `${KDE_PACKAGE}contents/images/tokkl-mono-${name}.png`, 'png32');
+}
 for (const size of [32, 48, 64, 96, 128, 256]) {
   if (size === 96) {
     copyFileSync(kdeLogo, kdeIcon(size));
@@ -128,6 +140,9 @@ for (const size of [32, 48, 64, 96, 128, 256]) {
 // The GNOME extension shows tokkl.png before the project indicator in its top bar button, at the
 // 16px panel icon size. It is a full-colour RGBA PNG at 32px, so it stays sharp at twice that size.
 magick([MASTER, ...MASTER_SQUARE, '-resize', '32x32'], `${GNOME_EXTENSION}tokkl.png`, 'png32');
+// GNOME's symbolic PNG loader maps black RGB pixels to the panel foreground and keeps alpha.
+magick([MASTER, ...MASTER_SQUARE, '-resize', '32x32', '-channel', 'RGB', '-evaluate', 'set', '0', '+channel'],
+  `${GNOME_EXTENSION}tokkl-symbolic.symbolic.png`, 'png32');
 
 // The macOS build turns the iconset into Tokkl.icns with `iconutil -c icns`, and Info.plist names
 // it in CFBundleIconFile. iconutil takes the files by these names: each size at 1x and 2x, from 16

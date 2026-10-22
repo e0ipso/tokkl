@@ -23,6 +23,15 @@ export default class TokklPreferences extends ExtensionPreferences {
         });
         window.add(page);
 
+        const appearance = new Adw.PreferencesGroup({title: _('Appearance')});
+        const monochrome = new Adw.SwitchRow({
+            title: _('Use a monochrome panel icon'),
+            subtitle: _("Follows the panel's text color automatically."),
+        });
+        settings.bind('monochrome-icon', monochrome, 'active', Gio.SettingsBindFlags.DEFAULT);
+        appearance.add(monochrome);
+        page.add(appearance);
+
         const status = new Adw.ActionRow({title: _('Timer service')});
         const statusGroup = new Adw.PreferencesGroup();
         statusGroup.add(status);

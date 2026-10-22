@@ -16,12 +16,17 @@ const Timer1Proxy = Gio.DBusProxy.makeProxyWrapper(TIMER1_INTERFACE);
 export default class TokklExtension extends Extension {
     enable() {
         this._indicator = new TokklIndicator(this.dir.get_child('tokkl.png'), () => this.openPreferences());
+        const settings = this.getSettings();
+        const indicator = this._indicator;
+        const updateLogo = () => indicator.setLogo(this.dir.get_child(
+            settings.get_boolean('monochrome-icon') ? 'tokkl-symbolic.symbolic.png' : 'tokkl.png'));
+        settings.connectObject('changed::monochrome-icon', updateLogo, indicator);
+        updateLogo();
         Main.panel.addToStatusArea(this.uuid, this._indicator);
 
         // Creating the proxy starts tokkl-timerd through D-Bus activation
         // when it is not running yet.
         this._cancellable = new Gio.Cancellable();
-        const indicator = this._indicator;
         new Timer1Proxy(Gio.DBus.session, BUS_NAME, OBJECT_PATH, (proxy, error) => {
             if (error) {
                 if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))

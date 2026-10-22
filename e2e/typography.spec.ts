@@ -130,17 +130,26 @@ async function expectWordmarkProportions(page: Page, size: 'sm' | 'md' | 'lg', w
   return drawn.file;
 }
 
-// The art's navy outline matches bg in dark, so dark traces a light halo around it; light has none.
-test('the wordmark has a halo in dark and none in light', async ({ page }) => {
-  const filter = () => page.locator('.brand-lg img').evaluate((el) => getComputedStyle(el).filter);
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
-  expect((await filter()).match(/drop-shadow\(rgb\(185, 181, 214\)/g)).toHaveLength(4);
+test('the wordmark has no added halo in either theme', async ({ page }) => {
+  for (const colorScheme of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
+    await expect(page.locator('.brand-lg img')).toHaveCSS('filter', 'none');
+  }
+});
 
-  await page.emulateMedia({ colorScheme: 'light' });
-  await expect.poll(filter).not.toContain('rgb(185, 181, 214)');
-  expect((await filter()).match(/drop-shadow\(rgba\(0, 0, 0, 0\)/g)).toHaveLength(4);
+test('the logo is centered in the desktop sidebar and phone header', async ({ page }) => {
+  await login(page);
+  for (const [width, container] of [[1280, '.sidebar'], [390, '.phone-header']] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    const header = page.locator(container);
+    const logo = header.getByRole('img', { name: 'Tokkl' });
+    await expect(logo).toBeVisible();
+    const box = (await header.boundingBox())!;
+    const art = (await logo.boundingBox())!;
+    expect(Math.abs(art.x + art.width / 2 - box.x - box.width / 2)).toBeLessThanOrEqual(1);
+  }
 });
 
 // lg is drawn 260 wide, so a 1x screen takes the 260 file and a 2x screen the 520 one.

@@ -189,6 +189,10 @@ class TokklIndicator extends PanelMenu.Button {
         this._sync();
     }
 
+    setLogo(file) {
+        this._logo.gicon = new Gio.FileIcon({file});
+    }
+
     _buildMenu(openPreferences) {
         this._statusItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
         this.menu.addMenuItem(this._statusItem);

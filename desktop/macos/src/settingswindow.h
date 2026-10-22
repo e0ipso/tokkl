@@ -38,6 +38,7 @@ public:
     static const QString instanceUrlKey;
     static const QString authModeKey;
     static const QString emailKey;
+    static const QString monochromeIconKey;
 
     // Uses the given transport, store, settings and login item; the window
     // owns none of them. loginItem may be null: the toggle is hidden.
@@ -65,6 +66,7 @@ public:
     QPushButton *testButton() const;
     QLabel *testResult() const;
     QCheckBox *loginToggle() const;
+    QCheckBox *monochromeToggle() const;
     QLabel *loginNote() const;
     QPushButton *saveButton() const;
 
@@ -77,6 +79,7 @@ private:
         QString url;
         QString authMode;
         QString email;
+        bool monochromeIcon;
     };
 
     QString authMode() const;
@@ -107,6 +110,7 @@ private:
     QPushButton *m_testButton;
     QLabel *m_testResult;
     QCheckBox *m_loginToggle;
+    QCheckBox *m_monochromeToggle;
     QLabel *m_loginNote;
     QPushButton *m_saveButton;
 };

@@ -79,9 +79,6 @@
    text on scene overlap (worst case)    text   12.17 AA    10.38 AA
    wordmark outline (#000013, art)       other  12.74 AA     1.04 --
      on bg, surface, texture and scene (worst)
-   wordmark-halo on bg, surface,         other     --        5.26 AA
-     texture and scene (worst)
-   wordmark outline on wordmark-halo     other     --       10.54 AA
    on-hue on hue-orange                  text    5.83 AA     5.83 AA
    on-hue on hue-sky                     text    8.82 AA     8.82 AA
    on-hue on hue-cyan                    text   11.85 AA    11.85 AA
@@ -184,9 +181,8 @@
    The wordmark sits on bg (phone header strip), surface and the sidebar texture, and the scene.
    It is the owner's raster artwork (public/brand, from docs/brand): neon letters inside a
    near-black navy outline (#000013), which is not a token because it is part of the image. In
-   light the outline draws the letter edge (worst on the darkest scene overlap) and no halo is
-   drawn. In dark the outline matches bg, so a wordmark-halo drop-shadow traces the edge (worst
-   on the lightest scene overlap) and the outline separates it from the fills.
+   light the outline draws the letter edge (worst on the darkest scene overlap). In dark the
+   outline blends into bg; the artwork is displayed without an added halo in either theme.
    The manage pages (Projects, Clients, Tags, Trash, Settings). A table's header band is text on
    surface-2, and a hovered row is row-hover, which is chart-band like report-zebra, so the zebra
    rows above give its text, muted, primary-text and border pairs; an over-estimate label on a
@@ -311,10 +307,6 @@
   --scene-swell: light-dark(#c2e8e3, #063a4b);
   --scene-stripe: light-dark(#fde6d4, #2b131b);
   --chart-tooltip-text: var(--text);
-  /* The halo traced around the wordmark image (Brand.tsx). Only dark needs it, where the art's navy
-     outline matches bg. It is the dark muted, a pale tint of the violet. See the wordmark note in
-     the table. */
-  --wordmark-halo: light-dark(transparent, #b9b5d6);
 
   /* Section hues, the wordmark's and the same in both themes. Each NAV section in App.tsx names one
      through data-section, and the rules after the Shell heading map it to --section-hue and
@@ -581,16 +573,9 @@ input.entry-duration:is(:hover, :focus) {
     linear-gradient(to top, var(--texture-swell) 60%, transparent) bottom / 100% 30% no-repeat,
     var(--surface);
 }
-/* The brand: the wordmark image alone (Brand.tsx). As a flex container it is as tall as the image,
-   with no line-box gap under it. Four 1px drop-shadows build a solid halo around the letters'
-   silhouette; it is transparent in light. */
+/* The brand: the wordmark image alone (Brand.tsx), with no line-box gap under it. */
 .brand { display: inline-flex; line-height: 1; }
-.brand .wordmark {
-  filter:
-    drop-shadow(1px 0 0 var(--wordmark-halo)) drop-shadow(-1px 0 0 var(--wordmark-halo))
-    drop-shadow(0 1px 0 var(--wordmark-halo)) drop-shadow(0 -1px 0 var(--wordmark-halo));
-}
-.sidebar .brand { padding: 6px 10px 20px; }
+.sidebar .brand { justify-content: center; padding: 6px 10px 20px; }
 .nav-link { gap: 10px; padding: 9px 10px; border-radius: var(--radius-md); color: var(--muted); text-decoration: none; }
 .nav-link:hover:not(.active) { color: var(--text); }
 /* The active link is filled with its section's hue, in bold with a heavier icon, so the fill colour
@@ -629,7 +614,7 @@ input.entry-duration:is(:hover, :focus) {
    these only under the same max-width). The header ends in a 4px strip of the wordmark's gradient,
    the timer page's only one, since it has no page header. */
 .phone-header {
-  display: flex; align-items: center; min-height: 44px; padding: 6px 12px 10px;
+  display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 6px 12px 10px;
   border-bottom: 1px solid var(--border);
   background:
     var(--spectrum-strip) bottom / 100% 4px no-repeat,

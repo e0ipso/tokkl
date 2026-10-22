@@ -303,9 +303,10 @@ private Q_SLOTS:
             names.append(item->name());
         }
         names.sort();
-        QCOMPARE(names, QStringList({QStringLiteral("authMode"), QStringLiteral("email"), QStringLiteral("instanceUrl")}));
+        QCOMPARE(names, QStringList({QStringLiteral("authMode"), QStringLiteral("email"), QStringLiteral("instanceUrl"), QStringLiteral("monochromeIcon")}));
         QCOMPARE(scheme->property(QStringLiteral("instanceUrl")).toString(), QString());
         QCOMPARE(scheme->property(QStringLiteral("authMode")).toString(), QStringLiteral("token"));
+        QCOMPARE(scheme->property(QStringLiteral("monochromeIcon")).toBool(), false);
     }
 
     void configPageLoads()

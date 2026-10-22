@@ -249,17 +249,25 @@ void MacStatusItem::drawImage()
     const NSRect logoRect = toNSRect(m_image.logoRect, height);
     const NSRect indicatorRect = toNSRect(m_image.indicatorRect, height);
     NSImage *logo = d->logo;
+    const bool monochromeLogo = m_image.monochromeLogo;
     NSImage *image = [NSImage imageWithSize:NSMakeSize(m_image.size.width(), height)
                                     flipped:NO
                              drawingHandler:^BOOL(NSRect rect) {
                                  Q_UNUSED(rect);
                                  [logo drawInRect:logoRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
+                                 if (monochromeLogo) {
+                                     [NSGraphicsContext saveGraphicsState];
+                                     NSRectClip(logoRect);
+                                     [NSColor.labelColor setFill];
+                                     NSRectFillUsingOperation(logoRect, NSCompositingOperationSourceIn);
+                                     [NSGraphicsContext restoreGraphicsState];
+                                 }
                                  paintIndicator(indicator, fillOpacity, indicatorRect);
                                  return YES;
                              }];
     // Draw again for each appearance instead of keeping the first drawing.
     image.cacheMode = NSImageCacheNever;
-    // A template image would lose the logo's colours to the menu bar's.
+    // Tint only the logo; a template image would also recolor the project indicator.
     // template is a C++ keyword, so this calls the setter.
     [image setTemplate:NO];
     // VoiceOver reads the button's label, which also names the project.

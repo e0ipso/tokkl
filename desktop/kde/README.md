@@ -277,6 +277,8 @@ data and stops until you choose Reconnect or change the settings.
 
 ## Panel
 
+In Configure, Use a monochrome panel icon changes the clock logo to the panel's text colour automatically. Apply keeps the preference. Full colour is the default, and the project and state indicators keep their colours in either mode.
+
 The panel shows the Tokkl clock logo, the project indicator, the elapsed time
 and, unless everything is ready, a symbol for the state. Each state also has
 its own words in the tooltip, the menu and the accessible description, so none
