@@ -2,7 +2,7 @@
 id: 2
 group: "core-pomodoro"
 dependencies: [1]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - cmake

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- The Pomodoro mode glyph. The frame is #F6209B and the sand #F7B817,
+       the magenta and the yellow sampled from the logo in
+       desktop/kde/package/contents/images/tokkl.png. -->
+  <rect x="3" y="1" width="10" height="2" fill="#F6209B"/>
+  <path d="M4 3H12L8 8Z" fill="#F7B817"/>
+  <path d="M8 8L12 13H4Z" fill="#F7B817"/>
+  <rect x="3" y="13" width="10" height="2" fill="#F6209B"/>
+</svg>

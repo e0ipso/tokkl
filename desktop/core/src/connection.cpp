@@ -197,6 +197,14 @@ qint64 Connection::workspaceId() const
     return hasContext() ? m_context->me.defaultWorkspaceId : 0;
 }
 
+QString Connection::owner() const
+{
+    if (!hasContext()) {
+        return QString();
+    }
+    return QStringLiteral("%1 %2 %3").arg(webUrl().toString(QUrl::FullyEncoded)).arg(m_context->me.id).arg(m_context->me.defaultWorkspaceId);
+}
+
 QList<Project> Connection::projects() const
 {
     return m_projects;
@@ -862,6 +870,22 @@ void Connection::updateEntry(qint64 entryId, const TimeEntryUpdate &update, Call
             }
         },
         std::move(done));
+}
+
+void Connection::fetchPreferences(Callback<PomodoroConfig> done)
+{
+    call<PomodoroConfig>("GET", QStringLiteral("/me/preferences"), QByteArray(), Access::Read, &decodePomodoroPreferences, {}, std::move(done));
+}
+
+void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done)
+{
+    call<PomodoroConfig>("POST",
+                         QStringLiteral("/me/preferences"),
+                         encodePomodoroConfigUpdate(update),
+                         Access::Write,
+                         &decodePomodoroPreferences,
+                         {},
+                         std::move(done));
 }
 
 }

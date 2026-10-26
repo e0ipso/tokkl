@@ -110,6 +110,9 @@ public:
     std::optional<Me> account() const;
     QVariantMap accountMap() const;
     qint64 workspaceId() const;
+    // The instance, account and workspace of the validated account as one
+    // key, for what a device keeps per account. Empty without one.
+    QString owner() const;
     QList<Project> projects() const;
     QVariantList projectList() const;
     // True when the workspace has more active projects than the page limit
@@ -143,6 +146,11 @@ public:
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
+    // The Pomodoro lengths of the account preferences.
+    void fetchPreferences(Callback<PomodoroConfig> done = {});
+    // Posts only the lengths the update sets. done gets the lengths the
+    // server holds afterwards.
+    void savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done = {});
 
     // Delay before an automatic retry after a connectivity failure, and the
     // cooldown after a 429 without Retry-After.

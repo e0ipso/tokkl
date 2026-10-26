@@ -50,7 +50,7 @@ copy_source() {
     mkdir -p "$1/core"
     cp -a "$source_dir/CMakeLists.txt" "$source_dir/README.md" "$source_dir/src" "$source_dir/dbus" "$1/"
     cp -a "$repo/LICENSE" "$1/"
-    cp -a "$core_dir/CMakeLists.txt" "$core_dir/cmake" "$core_dir/src" "$1/core/"
+    cp -a "$core_dir/CMakeLists.txt" "$core_dir/cmake" "$core_dir/sounds" "$core_dir/src" "$1/core/"
 }
 
 build_deb() {
