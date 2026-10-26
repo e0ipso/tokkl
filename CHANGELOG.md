@@ -1,3 +1,9 @@
+## [1.8.2](https://github.com/e0ipso/tokkl/compare/v1.8.1...v1.8.2) (2026-10-26)
+
+### Bug Fixes
+
+* update app logos to icon pack v2 ([#45](https://github.com/e0ipso/tokkl/issues/45)) ([431d648](https://github.com/e0ipso/tokkl/commit/431d6483a0f368f81d782c1c2fc8eb3222be841f)), closes [#44](https://github.com/e0ipso/tokkl/issues/44)
+
 ## [1.8.1](https://github.com/e0ipso/tokkl/compare/v1.8.0...v1.8.1) (2026-10-22)
 
 ### Bug Fixes
