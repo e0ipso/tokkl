@@ -334,9 +334,9 @@ No circular dependencies. Task 12's Preview button makes sound only once task 10
 **Parallel Tasks:**
 - ✔️ Task 04: Durable save queue for ended pomodoros (depends on: 01, 03)
 
-### Phase 4: Session controller
+### ✅ Phase 4: Session controller
 **Parallel Tasks:**
-- Task 05: Pomodoro session controller and timer handoff (depends on: 01, 03, 04)
+- ✔️ Task 05: Pomodoro session controller and timer handoff (depends on: 01, 03, 04)
 
 ### Phase 5: Platform backends
 **Parallel Tasks:**

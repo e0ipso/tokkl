@@ -123,7 +123,7 @@ void PomodoroQueue::flushForSignOut()
     // are gone whatever the replies say.
     if (!untried.isEmpty() && save(owner, record) && m_connection) {
         for (const UnsavedPomodoro &item : std::as_const(untried)) {
-            m_connection->createStoppedEntry(stoppedEntry(item));
+            m_connection->createStoppedEntryDetached(stoppedEntry(item));
         }
     }
     record.unsaved.removeIf([&owner](const UnsavedPomodoro &item) {
@@ -256,8 +256,11 @@ void PomodoroQueue::attempt(const UnsavedPomodoro &item)
 
 void PomodoroQueue::post(const UnsavedPomodoro &item)
 {
+    // Detached, so a sign-out right after an ended pomodoro does not abort
+    // the request before it leaves. The reply, if dropped with the account,
+    // leaves the item on record for a lookup.
     QPointer<PomodoroQueue> self(this);
-    m_connection->createStoppedEntry(stoppedEntry(item), [self, item](const ApiResult<TimeEntry> &result) {
+    m_connection->createStoppedEntryDetached(stoppedEntry(item), [self, item](const ApiResult<TimeEntry> &result) {
         if (self) {
             self->finishPost(item, result);
         }
