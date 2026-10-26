@@ -886,7 +886,17 @@ private Q_SLOTS:
         QVERIFY(window.save());
         QTRY_COMPARE(saved.count(), 1);
         QVERIFY(f.item.image.monochromeLogo);
-        QCOMPARE(f.item.image.logo, before.logo);
+        // The outline logo, at 1x and 2x, in place of the full colour one.
+        const QStringList files{QStringLiteral("mono_16x16.png"), QStringLiteral("mono_16x16@2x.png")};
+        QCOMPARE(f.item.image.logo.size(), files.size());
+        for (qsizetype i = 0; i < files.size(); ++i) {
+            QImage source(QStringLiteral(TOKKL_RESOURCES_DIR "/") + files.at(i));
+            QVERIFY2(!source.isNull(), qPrintable(files.at(i)));
+            source.setDevicePixelRatio(double(i + 1));
+            QCOMPARE(f.item.image.logo.at(i), source);
+            QCOMPARE(f.item.image.logo.at(i).deviceIndependentSize(), QSizeF(16, 16));
+        }
+        QVERIFY(f.item.image.logo != before.logo);
         QCOMPARE(f.item.image.logoRect, before.logoRect);
         QCOMPARE(f.item.image.indicator, before.indicator);
         QCOMPARE(f.item.image.size, before.size);
@@ -899,6 +909,7 @@ private Q_SLOTS:
         relaunched.settings.setValue(SettingsWindow::monochromeIconKey, false);
         relaunched.app.applySettings();
         QVERIFY(!relaunched.item.image.monochromeLogo);
+        QCOMPARE(relaunched.item.image.logo, before.logo);
     }
 
     void openAndSettingsActions()

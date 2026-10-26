@@ -6,7 +6,7 @@ namespace Tokkl
 StatusImage StatusImage::compose(const ProjectIndicator &indicator, bool monochromeLogo)
 {
     StatusImage image;
-    image.logo = logoImages();
+    image.logo = logoImages(monochromeLogo);
     image.monochromeLogo = monochromeLogo;
     image.logoRect = QRect(0, 0, logoSize, logoSize);
     image.indicator = indicator;
@@ -16,15 +16,19 @@ StatusImage StatusImage::compose(const ProjectIndicator &indicator, bool monochr
     return image;
 }
 
-const QList<QImage> &StatusImage::logoImages()
+static QList<QImage> readLogo(const QString &name)
 {
-    static const QList<QImage> images = [] {
-        QImage normal(QStringLiteral(":/tokkl/logo/icon_16x16.png"));
-        QImage retina(QStringLiteral(":/tokkl/logo/icon_16x16@2x.png"));
-        retina.setDevicePixelRatio(2);
-        return QList<QImage>{normal, retina};
-    }();
-    return images;
+    QImage normal(QStringLiteral(":/tokkl/logo/%1_16x16.png").arg(name));
+    QImage retina(QStringLiteral(":/tokkl/logo/%1_16x16@2x.png").arg(name));
+    retina.setDevicePixelRatio(2);
+    return QList<QImage>{normal, retina};
+}
+
+const QList<QImage> &StatusImage::logoImages(bool monochrome)
+{
+    static const QList<QImage> colour = readLogo(QStringLiteral("icon"));
+    static const QList<QImage> outline = readLogo(QStringLiteral("mono"));
+    return monochrome ? outline : colour;
 }
 
 }

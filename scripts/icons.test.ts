@@ -30,7 +30,14 @@ const RESIZED = [
   ['docs/brand/tokkl-wordmark.png', 640],
 ] as const;
 const BORDER = 4;
-/** The desktop icons: full-colour RGBA renders of the icon pack's master on a square canvas. */
+/** The icon pack's transparent logos, which every transparent icon is resized from. */
+const LOGO = 'docs/brand/icon-pack/logo/color-1024.png';
+const OUTLINE = 'docs/brand/icon-pack/logo/outline-black-1024.png';
+// Resizing moves the art's alpha-weighted centre by a fraction of a pixel and keeps the share of the
+// canvas it covers within a few percent.
+const MAX_CENTRE_SHIFT = 0.5;
+const MAX_COVERAGE_CHANGE = 0.1;
+/** The desktop icons: full-colour RGBA renders of the icon pack's logo. */
 const KDE_LOGO = 'desktop/kde/package/contents/images/tokkl.png';
 const KDE_ICONS = 'desktop/kde/package/icons/';
 const KDE_ICON_SIZES = [32, 48, 64, 96, 128, 256];
@@ -150,6 +157,39 @@ function alphaBounds(png: Png) {
   return { left, top, width: right - left + 1, height: bottom - top + 1 };
 }
 
+/** The alpha-weighted centre of the art as a fraction of the canvas, and the share of the canvas it covers. */
+function alphaShape(png: Png) {
+  const pixels = rgba(png);
+  let [total, x, y] = [0, 0, 0];
+  for (let row = 0; row < png.height; row++) {
+    for (let column = 0; column < png.width; column++) {
+      const alpha = pixels[(row * png.width + column) * 4 + 3]!;
+      total += alpha;
+      x += alpha * (column + 0.5);
+      y += alpha * (row + 0.5);
+    }
+  }
+  assert.ok(total > 0, 'the image is fully transparent');
+  return { x: x / total / png.width, y: y / total / png.height, coverage: total / 255 / (png.width * png.height) };
+}
+
+const packShapes = new Map<string, ReturnType<typeof alphaShape>>();
+/** The shape of a 1024 px pack logo, measured once rather than in every test that compares with it. */
+function packShape(path: string) {
+  if (!packShapes.has(path)) packShapes.set(path, alphaShape(readPng(path)));
+  return packShapes.get(path)!;
+}
+
+/** Checks that an icon holds the pack's logo resized, with its centre and scale, not trimmed or moved. */
+function assertPlacedLike(path: string, source: string) {
+  const png = readPng(path);
+  const [actual, expected] = [alphaShape(png), packShape(source)];
+  const [dx, dy] = [(actual.x - expected.x) * png.width, (actual.y - expected.y) * png.height];
+  assert.ok(Math.hypot(dx, dy) <= MAX_CENTRE_SHIFT, `the art's centre is ${dx.toFixed(2)}, ${dy.toFixed(2)} px from the pack logo's`);
+  const change = actual.coverage / expected.coverage - 1;
+  assert.ok(Math.abs(change) <= MAX_COVERAGE_CHANGE, `the art covers ${(change * 100).toFixed(1)}% more of the canvas than the pack logo`);
+}
+
 /** Checks that a PNG is 8-bit, not interlaced, and indexes a palette of at most 256 colours. */
 function assertPalettePng(png: Png) {
   assert.deepEqual([png.depth, png.colourType, png.interlace], [8, PALETTE_PNG, 0]);
@@ -229,11 +269,8 @@ for (const [path, size] of DESKTOP_ICONS) {
     assert.deepEqual([...png.chunks.keys()].sort(), ['IDAT', 'IEND', 'IHDR']);
   });
 
-  test(`${path} fills its height with the logo, centred across`, () => {
-    const bounds = alphaBounds(readPng(path));
-    assert.deepEqual([bounds.top, bounds.height], [0, size], 'the art is as tall as the canvas');
-    const right = size - bounds.left - bounds.width;
-    assert.ok(Math.abs(bounds.left - right) <= 1, `left margin ${bounds.left} and right margin ${right} differ by more than 1px`);
+  test(`${path} places the logo where the icon pack's logo export does`, () => {
+    assertPlacedLike(path, LOGO);
   });
 }
 
@@ -246,26 +283,36 @@ for (const [file, size] of [['favicon-16.png', 16], ['favicon-32.png', 32], ['fa
       assert.equal(pixels[corner * 4 + 3], 0);
     }
     assert.ok(pixels.some((value, i) => i % 4 === 3 && value === 255));
-    const bounds = alphaBounds(png);
-    assert.ok(bounds.height >= size - 2, 'the clock fills the icon height');
-    assert.ok(Math.abs(bounds.left - (size - bounds.left - bounds.width)) <= 1);
+    assertPlacedLike(`${PUBLIC}icons/${file}`, LOGO);
   });
 }
 
-for (const [path, source, channel] of [
+// The panel logos thicken the outline's strokes, so they cover more of the canvas than the pack's
+// outline, but stay hollow: a filled silhouette of the clock covers 6.6 times as much.
+const MIN_OUTLINE_COVERAGE = 2;
+const MAX_OUTLINE_COVERAGE = 5;
+for (const [path, colour, channel] of [
   ['desktop/gnome/extension/tokkl-symbolic.symbolic.png', GNOME_LOGO, 0],
   ['desktop/kde/package/contents/images/tokkl-mono-dark.png', KDE_LOGO, 0],
   ['desktop/kde/package/contents/images/tokkl-mono-light.png', KDE_LOGO, 255],
+  ['desktop/macos/resources/mono_16x16.png', `${MACOS_ICONSET}icon_16x16.png`, 0],
+  ['desktop/macos/resources/mono_16x16@2x.png', `${MACOS_ICONSET}icon_16x16@2x.png`, 0],
 ] as const) {
-  test(`${path} preserves the clock alpha and uses a single ink`, () => {
-    const mono = readPng(path);
-    const color = readPng(source);
-    assert.deepEqual([mono.width, mono.height], [color.width, color.height]);
-    const pixels = rgba(mono);
-    const original = rgba(color);
+  test(`${path} is the pack's outline in a single ink with heavier strokes`, () => {
+    const png = readPng(path);
+    const color = readPng(colour);
+    assert.deepEqual([png.width, png.height], [color.width, color.height]);
+    assert.deepEqual([png.depth, png.colourType, png.interlace], [8, RGBA_PNG, 0]);
+    assert.deepEqual([...png.chunks.keys()].sort(), ['IDAT', 'IEND', 'IHDR']);
+    const pixels = rgba(png);
     for (let i = 0; i < pixels.length; i += 4) {
       assert.deepEqual(Array.from(pixels.subarray(i, i + 3)), [channel, channel, channel]);
-      assert.equal(pixels[i + 3], original[i + 3]);
     }
+    const [mono, outline] = [alphaShape(png), packShape(OUTLINE)];
+    const [dx, dy] = [(mono.x - outline.x) * png.width, (mono.y - outline.y) * png.height];
+    assert.ok(Math.hypot(dx, dy) <= MAX_CENTRE_SHIFT, `the outline's centre is ${dx.toFixed(2)}, ${dy.toFixed(2)} px from the pack's`);
+    const ratio = mono.coverage / outline.coverage;
+    assert.ok(ratio > MIN_OUTLINE_COVERAGE && ratio < MAX_OUTLINE_COVERAGE,
+      `the logo covers ${ratio.toFixed(2)} times the pack outline's share of the canvas`);
   });
 }
