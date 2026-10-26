@@ -59,7 +59,7 @@ ctest --test-dir desktop/macos/build --output-on-failure
 
 The version comes from the root `package.json`. Pass `-DTOKKL_VERSION=<semver>` to override it.
 
-The app icon is the Tokkl clock logo. `npm run icons` renders it from the icon pack's master into the ten PNGs of `resources/Tokkl.iconset`, which are committed. The build packs them into `Tokkl.icns` with `iconutil` and puts it in `Contents/Resources`, and `Info.plist` names it in `CFBundleIconFile`. The menu bar shows the same icon at 16 points. The build compiles `icon_16x16.png` and `icon_16x16@2x.png` into the app as Qt resources.
+The app icon is the Tokkl clock logo. `npm run icons` renders it from the icon pack's centred logo into the ten PNGs of `resources/Tokkl.iconset`, which are committed. The build packs them into `Tokkl.icns` with `iconutil` and puts it in `Contents/Resources`, and `Info.plist` names it in `CFBundleIconFile`. The menu bar shows the same icon at 16 points. The build compiles `icon_16x16.png` and `icon_16x16@2x.png` into the app as Qt resources. The monochrome menu bar icon is the pack's outline logo, `resources/mono_16x16.png` and `mono_16x16@2x.png`, which the build also compiles in and the menu bar tints with its text colour.
 
 ## Running
 

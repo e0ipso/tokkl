@@ -26,15 +26,24 @@ target_link_libraries(tokklmacos
 # The iconset npm run icons renders from the icon pack's master.
 set(_iconset "${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset")
 
-# The menu bar logo is the iconset's 16 point icon at 1x and 2x. It is
-# compiled into the library, so the item's image is composed and tested on
-# any platform.
+# The menu bar logo is the iconset's 16 point icon at 1x and 2x, and the
+# monochrome logo is the outline npm run icons renders beside the iconset.
+# Both are compiled into the library, so the item's image is composed and
+# tested on any platform.
 qt_add_resources(tokklmacos statuslogo
     PREFIX "/tokkl/logo"
     BASE "${_iconset}"
     FILES
         "${_iconset}/icon_16x16.png"
         "${_iconset}/icon_16x16@2x.png"
+)
+set(_resources "${CMAKE_CURRENT_SOURCE_DIR}/../resources")
+qt_add_resources(tokklmacos statuslogomono
+    PREFIX "/tokkl/logo"
+    BASE "${_resources}"
+    FILES
+        "${_resources}/mono_16x16.png"
+        "${_resources}/mono_16x16@2x.png"
 )
 
 # The QtKeychain credential store: the macOS Keychain on macOS. Built

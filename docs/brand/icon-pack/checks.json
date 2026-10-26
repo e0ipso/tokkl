@@ -26,6 +26,16 @@
   },
   "alphaCleanup": "Source alpha <= 8/255 becomes 0. Alpha above this threshold and RGB artwork remain unchanged.",
   "alphaThreshold": "Every pixel with alpha > 0; radii include the furthest pixel corner.",
+  "opticalAnchor": {
+    "x": 651.0382248841443,
+    "y": 550.0571339214059,
+    "bodyCutoffY": 1000,
+    "method": "Alpha-weighted centroid of main clock body, excluding source rows y >=1000. Pixel centers are x+0.5,y+0.5.",
+    "artworkRadius": 625.3574277817288,
+    "artworkExtent": 623.9428660785941
+  },
+  "monochromeSource": "source/clock-outline.svg",
+  "monochromeStyle": "Hollow outline of clock body, hands, pivot and drip",
   "android": {
     "layerDp": 108,
     "viewportDp": 72,
@@ -44,261 +54,739 @@
       "file": "android/res/mipmap-mdpi/ic_launcher_foreground.png",
       "size": 108,
       "type": "android-foreground",
-      "maxRadiusDp": 32.7566787083184,
+      "maxRadiusDp": 32.2490309931942,
       "safeRadiusDp": 33,
       "alphaMin": 0,
       "alphaMax": 254,
       "visibleWidthDp": 48,
-      "visibleHeightDp": 56
+      "visibleHeightDp": 55,
+      "scale": 0.05053036751047627,
+      "transform": {
+        "scaleX": 0.05053036751047627,
+        "scaleY": 0.05053036751047627,
+        "translateX": 21.10279923323609,
+        "translateY": 26.205410871192093
+      },
+      "bodyCenter": {
+        "x": 53.99598672188742,
+        "y": 54.033904738966754,
+        "errorPx": 0.03414143707597348
+      }
     },
     {
       "file": "android/res/mipmap-mdpi/ic_launcher_monochrome.png",
       "size": 108,
       "type": "android-monochrome",
-      "maxRadiusDp": 32.7566787083184,
+      "maxRadiusDp": 32.38826948140329,
       "safeRadiusDp": 33,
       "whiteOnly": true,
-      "alphaPixels": 1813
+      "alphaPixels": 849,
+      "style": "outline",
+      "scale": 0.05053036751047627,
+      "transform": {
+        "scaleX": 0.05053036751047627,
+        "scaleY": 0.05053036751047627,
+        "translateX": 21.10279923323609,
+        "translateY": 26.205410871192093
+      }
     },
     {
       "file": "android/res/mipmap-mdpi/ic_launcher.png",
       "size": 48,
       "type": "any",
-      "foregroundMaxRadiusPx": 24.413111231467404,
+      "foregroundMaxRadiusPx": 20.223748416156685,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.027969785015361803,
+      "transform": {
+        "scaleX": 0.027969785015361803,
+        "scaleY": 0.027969785015361803,
+        "translateX": 5.790600813207714,
+        "translateY": 8.6150202180522
+      },
+      "bodyCenter": {
+        "x": 23.99481523137616,
+        "y": 24.036489353544134,
+        "errorPx": 0.036855864496055116
+      }
     },
     {
       "file": "android/res/mipmap-hdpi/ic_launcher_foreground.png",
       "size": 162,
       "type": "android-foreground",
-      "maxRadiusDp": 32.93765153876167,
+      "maxRadiusDp": 32.836294282732666,
       "safeRadiusDp": 33,
       "alphaMin": 0,
       "alphaMax": 254,
-      "visibleWidthDp": 49.333333333333336,
-      "visibleHeightDp": 57.333333333333336
+      "visibleWidthDp": 48.666666666666664,
+      "visibleHeightDp": 56.666666666666664,
+      "scale": 0.07717745525281466,
+      "transform": {
+        "scaleX": 0.07717745525281466,
+        "scaleY": 0.07717745525281466,
+        "translateX": 30.754526531132065,
+        "translateY": 38.54799016028921
+      },
+      "bodyCenter": {
+        "x": 80.99465096884194,
+        "y": 81.04041321840951,
+        "errorPx": 0.04076567620615193
+      }
     },
     {
       "file": "android/res/mipmap-hdpi/ic_launcher_monochrome.png",
       "size": 162,
       "type": "android-monochrome",
-      "maxRadiusDp": 32.93765153876167,
+      "maxRadiusDp": 32.836294282732666,
       "safeRadiusDp": 33,
       "whiteOnly": true,
-      "alphaPixels": 4123
+      "alphaPixels": 1632,
+      "style": "outline",
+      "scale": 0.07717745525281466,
+      "transform": {
+        "scaleX": 0.07717745525281466,
+        "scaleY": 0.07717745525281466,
+        "translateX": 30.754526531132065,
+        "translateY": 38.54799016028921
+      }
     },
     {
       "file": "android/res/mipmap-hdpi/ic_launcher.png",
       "size": 72,
       "type": "any",
-      "foregroundMaxRadiusPx": 36.05551275463989,
+      "foregroundMaxRadiusPx": 30.26549190084311,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.044045291562134395,
+      "transform": {
+        "scaleX": 0.044045291562134395,
+        "scaleY": 0.044045291562134395,
+        "translateX": 7.3248315668834465,
+        "translateY": 11.77257316059967
+      },
+      "bodyCenter": {
+        "x": 35.99216352760071,
+        "y": 36.027511166671836,
+        "errorPx": 0.028605499319368285
+      }
     },
     {
       "file": "android/res/mipmap-xhdpi/ic_launcher_foreground.png",
       "size": 216,
       "type": "android-foreground",
-      "maxRadiusDp": 32.86715685908959,
+      "maxRadiusDp": 32.687918257362305,
       "safeRadiusDp": 33,
       "alphaMin": 0,
       "alphaMax": 254,
-      "visibleWidthDp": 49.5,
-      "visibleHeightDp": 57.5
+      "visibleWidthDp": 49,
+      "visibleHeightDp": 56.5,
+      "scale": 0.10308275563903836,
+      "transform": {
+        "scaleX": 0.10308275563903836,
+        "scaleY": 0.10308275563903836,
+        "translateX": 40.88918575259446,
+        "translateY": 51.29859487646991
+      },
+      "bodyCenter": {
+        "x": 108.0117333035529,
+        "y": 107.92446778507356,
+        "errorPx": 0.07643811813459614
+      }
     },
     {
       "file": "android/res/mipmap-xhdpi/ic_launcher_monochrome.png",
       "size": 216,
       "type": "android-monochrome",
-      "maxRadiusDp": 32.86715685908959,
+      "maxRadiusDp": 32.687918257362305,
       "safeRadiusDp": 33,
       "whiteOnly": true,
-      "alphaPixels": 7200
+      "alphaPixels": 2621,
+      "style": "outline",
+      "scale": 0.10308275563903836,
+      "transform": {
+        "scaleX": 0.10308275563903836,
+        "scaleY": 0.10308275563903836,
+        "translateX": 40.88918575259446,
+        "translateY": 51.29859487646991
+      }
     },
     {
       "file": "android/res/mipmap-xhdpi/ic_launcher.png",
       "size": 96,
       "type": "any",
-      "foregroundMaxRadiusPx": 47.169905660283014,
+      "foregroundMaxRadiusPx": 40.311288741492746,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.06021803597119033,
+      "transform": {
+        "scaleX": 0.06021803597119033,
+        "scaleY": 0.06021803597119033,
+        "translateX": 8.795756755306698,
+        "translateY": 14.876639723310923
+      },
+      "bodyCenter": {
+        "x": 48.00518080205534,
+        "y": 47.977456958922716,
+        "errorPx": 0.023130702776802372
+      }
     },
     {
       "file": "android/res/mipmap-xxhdpi/ic_launcher_foreground.png",
       "size": 324,
       "type": "android-foreground",
-      "maxRadiusDp": 32.82614134429381,
+      "maxRadiusDp": 32.836294282732666,
       "safeRadiusDp": 33,
       "alphaMin": 0,
       "alphaMax": 254,
-      "visibleWidthDp": 50,
-      "visibleHeightDp": 58
+      "visibleWidthDp": 49.333333333333336,
+      "visibleHeightDp": 57,
+      "scale": 0.15639621010389582,
+      "transform": {
+        "scaleX": 0.15639621010389582,
+        "scaleY": 0.15639621010389582,
+        "translateX": 60.18008899535201,
+        "translateY": 75.97314891408104
+      },
+      "bodyCenter": {
+        "x": 162.01101397729818,
+        "y": 161.92865074943145,
+        "errorPx": 0.07219434363312537
+      }
     },
     {
       "file": "android/res/mipmap-xxhdpi/ic_launcher_monochrome.png",
       "size": 324,
       "type": "android-monochrome",
-      "maxRadiusDp": 32.82614134429381,
+      "maxRadiusDp": 32.836294282732666,
       "safeRadiusDp": 33,
       "whiteOnly": true,
-      "alphaPixels": 16101
+      "alphaPixels": 5351,
+      "style": "outline",
+      "scale": 0.15639621010389582,
+      "transform": {
+        "scaleX": 0.15639621010389582,
+        "scaleY": 0.15639621010389582,
+        "translateX": 60.18008899535201,
+        "translateY": 75.97314891408104
+      }
     },
     {
       "file": "android/res/mipmap-xxhdpi/ic_launcher.png",
       "size": 144,
       "type": "any",
-      "foregroundMaxRadiusPx": 69.64194138592059,
+      "foregroundMaxRadiusPx": 60.40695324215582,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.09267002340037442,
+      "transform": {
+        "scaleX": 0.09267002340037442,
+        "scaleY": 0.09267002340037442,
+        "translateX": 11.668272465448126,
+        "translateY": 21.026192527960426
+      },
+      "bodyCenter": {
+        "x": 71.9922398922525,
+        "y": 72.04805726926061,
+        "errorPx": 0.048679774044664795
+      }
     },
     {
       "file": "android/res/mipmap-xxxhdpi/ic_launcher_foreground.png",
       "size": 432,
       "type": "android-foreground",
-      "maxRadiusDp": 32.87191050121669,
+      "maxRadiusDp": 32.865255209719585,
       "safeRadiusDp": 33,
       "alphaMin": 0,
       "alphaMax": 254,
-      "visibleWidthDp": 50.25,
-      "visibleHeightDp": 58.25
+      "visibleWidthDp": 49.25,
+      "visibleHeightDp": 57.25,
+      "scale": 0.2087815743392556,
+      "transform": {
+        "scaleX": 0.2087815743392556,
+        "scaleY": 0.2087815743392556,
+        "translateX": 80.07521445365404,
+        "translateY": 101.15820560335013
+      },
+      "bodyCenter": {
+        "x": 215.99866126310008,
+        "y": 216.00934997065204,
+        "errorPx": 0.009445325176044017
+      }
     },
     {
       "file": "android/res/mipmap-xxxhdpi/ic_launcher_monochrome.png",
       "size": 432,
       "type": "android-monochrome",
-      "maxRadiusDp": 32.87191050121669,
+      "maxRadiusDp": 32.88711753863509,
       "safeRadiusDp": 33,
       "whiteOnly": true,
-      "alphaPixels": 28567
+      "alphaPixels": 8975,
+      "style": "outline",
+      "scale": 0.2087815743392556,
+      "transform": {
+        "scaleX": 0.2087815743392556,
+        "scaleY": 0.2087815743392556,
+        "translateX": 80.07521445365404,
+        "translateY": 101.15820560335013
+      }
     },
     {
       "file": "android/res/mipmap-xxxhdpi/ic_launcher.png",
       "size": 192,
       "type": "any",
-      "foregroundMaxRadiusPx": 92.65527507918802,
+      "foregroundMaxRadiusPx": 81.2219182240853,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.12504603370005257,
+      "transform": {
+        "scaleX": 0.12504603370005257,
+        "scaleY": 0.12504603370005257,
+        "translateX": 14.590252191114885,
+        "translateY": 27.21753709470954
+      },
+      "bodyCenter": {
+        "x": 96.00487684969556,
+        "y": 95.94585660485954,
+        "errorPx": 0.05436258732150986
+      }
     },
     {
       "file": "web/public/icons/icon-192.png",
       "size": 192,
       "type": "any",
-      "foregroundMaxRadiusPx": 92.65527507918802,
+      "foregroundMaxRadiusPx": 81.2219182240853,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.12504603370005257,
+      "transform": {
+        "scaleX": 0.12504603370005257,
+        "scaleY": 0.12504603370005257,
+        "translateX": 14.590252191114885,
+        "translateY": 27.21753709470954
+      },
+      "bodyCenter": {
+        "x": 96.00487684969556,
+        "y": 95.94585660485954,
+        "errorPx": 0.05436258732150986
+      }
     },
     {
       "file": "web/public/icons/maskable-192.png",
       "size": 192,
       "type": "maskable",
-      "foregroundMaxRadiusPx": 72.94518489934754,
+      "foregroundMaxRadiusPx": 72.44308110509934,
       "safeRadiusPx": 76.80000000000001,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.1119151700004982,
+      "transform": {
+        "scaleX": 0.1119151700004982,
+        "scaleY": 0.1119151700004982,
+        "translateX": 23.138946385268426,
+        "translateY": 34.44026234719905
+      },
+      "bodyCenter": {
+        "x": 96.01026547631147,
+        "y": 95.92748586497777,
+        "errorPx": 0.07323714755452913
+      }
     },
     {
       "file": "web/public/icons/icon-512.png",
       "size": 512,
       "type": "any",
-      "foregroundMaxRadiusPx": 242.14252001662163,
+      "foregroundMaxRadiusPx": 215.75217264259473,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.3408256541324619,
+      "transform": {
+        "scaleX": 0.3408256541324619,
+        "scaleY": 0.3408256541324619,
+        "translateX": 34.109471138624684,
+        "translateY": 68.52641752100962
+      },
+      "bodyCenter": {
+        "x": 256.00900884339285,
+        "y": 255.93276892659873,
+        "errorPx": 0.06783197247584918
+      }
     },
     {
       "file": "web/public/icons/maskable-512.png",
       "size": 512,
       "type": "maskable",
-      "foregroundMaxRadiusPx": 194.1957775030137,
+      "foregroundMaxRadiusPx": 193.74725804511402,
       "safeRadiusPx": 204.8,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.3057040067522502,
+      "transform": {
+        "scaleX": 0.3057040067522502,
+        "scaleY": 0.3057040067522502,
+        "translateX": 56.97500610404458,
+        "translateY": 87.84533021756715
+      },
+      "bodyCenter": {
+        "x": 255.9896597728957,
+        "y": 256.076103999929,
+        "errorPx": 0.076803249291682
+      }
     },
     {
       "file": "web/public/icons/icon-1024.png",
       "size": 1024,
       "type": "any",
-      "foregroundMaxRadiusPx": 481.57761575887224,
+      "foregroundMaxRadiusPx": 431.26442004876776,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.6858314562259009,
+      "transform": {
+        "scaleX": 0.6858314562259009,
+        "scaleY": 0.6858314562259009,
+        "translateX": 65.49750616898177,
+        "translateY": 134.75351483523679
+      },
+      "bodyCenter": {
+        "x": 511.98782909866924,
+        "y": 512.0721112309886,
+        "errorPx": 0.07313111836899565
+      }
     },
     {
       "file": "web/public/icons/maskable-1024.png",
       "size": 1024,
       "type": "maskable",
-      "foregroundMaxRadiusPx": 388.8701582790842,
+      "foregroundMaxRadiusPx": 388.23961673172926,
       "safeRadiusPx": 409.6,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.6171883368407607,
+      "transform": {
+        "scaleX": 0.6171883368407607,
+        "scaleY": 0.6171883368407607,
+        "translateX": 110.18680076399386,
+        "translateY": 172.5111523476519
+      },
+      "bodyCenter": {
+        "x": 511.9924052586478,
+        "y": 512.0510507215876,
+        "errorPx": 0.051612559235297034
+      }
     },
     {
       "file": "web/public/icons/apple-touch-icon-120.png",
       "size": 120,
       "type": "any",
-      "foregroundMaxRadiusPx": 58.52349955359813,
+      "foregroundMaxRadiusPx": 50.35871324805669,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.07643297794312394,
+      "transform": {
+        "scaleX": 0.07643297794312394,
+        "scaleY": 0.07643297794312394,
+        "translateX": 10.239209717299637,
+        "translateY": 17.95749521552721
+      },
+      "bodyCenter": {
+        "x": 60.012602823987365,
+        "y": 59.91846838162388,
+        "errorPx": 0.0824999149544137
+      }
     },
     {
       "file": "web/public/icons/apple-touch-icon-152.png",
       "size": 152,
       "type": "any",
-      "foregroundMaxRadiusPx": 73.57309290766564,
+      "foregroundMaxRadiusPx": 63.387695966961914,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.09691694766151783,
+      "transform": {
+        "scaleX": 0.09691694766151783,
+        "scaleY": 0.09691694766151783,
+        "translateX": 12.903362433255914,
+        "translateY": 22.6901415408946
+      },
+      "bodyCenter": {
+        "x": 75.99061779461277,
+        "y": 76.0629806851172,
+        "errorPx": 0.06367568198111057
+      }
     },
     {
       "file": "web/public/icons/apple-touch-icon-167.png",
       "size": 167,
       "type": "any",
-      "foregroundMaxRadiusPx": 80.84862398334309,
+      "foregroundMaxRadiusPx": 70.71421356417676,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.10823882801036583,
+      "transform": {
+        "scaleX": 0.10823882801036583,
+        "scaleY": 0.10823882801036583,
+        "translateX": 13.032385548591236,
+        "translateY": 23.96246048560618
+      },
+      "bodyCenter": {
+        "x": 83.50593992752535,
+        "y": 83.46036467063233,
+        "errorPx": 0.04007794996116981
+      }
     },
     {
       "file": "web/public/icons/apple-touch-icon-180.png",
       "size": 180,
       "type": "any",
-      "foregroundMaxRadiusPx": 87.13208364316787,
+      "foregroundMaxRadiusPx": 75.4254598925323,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.11629907029939641,
+      "transform": {
+        "scaleX": 0.11629907029939641,
+        "scaleY": 0.11629907029939641,
+        "translateX": 14.284859716604657,
+        "translateY": 26.028866713389903
+      },
+      "bodyCenter": {
+        "x": 90.00914928579706,
+        "y": 89.9332172462601,
+        "errorPx": 0.0674065696181061
+      }
     },
     {
       "file": "web/public/apple-touch-icon.png",
       "size": 180,
       "type": "any",
-      "foregroundMaxRadiusPx": 87.13208364316787,
+      "foregroundMaxRadiusPx": 75.4254598925323,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.11629907029939641,
+      "transform": {
+        "scaleX": 0.11629907029939641,
+        "scaleY": 0.11629907029939641,
+        "translateX": 14.284859716604657,
+        "translateY": 26.028866713389903
+      },
+      "bodyCenter": {
+        "x": 90.00914928579706,
+        "y": 89.9332172462601,
+        "errorPx": 0.0674065696181061
+      }
     },
     {
       "file": "web/public/icons/favicon-16.png",
       "size": 16,
       "type": "any",
-      "foregroundMaxRadiusPx": 8.602325267042627,
+      "foregroundMaxRadiusPx": 7.0710678118654755,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.006425343665879444,
+      "transform": {
+        "scaleX": 0.006425343665879444,
+        "scaleY": 0.006425343665879444,
+        "translateX": 3.8168556654952672,
+        "translateY": 4.465693878686293
+      },
+      "bodyCenter": {
+        "x": 7.992215757194527,
+        "y": 8.000550401006448,
+        "errorPx": 0.007803677166724124
+      }
     },
     {
       "file": "web/public/icons/favicon-32.png",
       "size": 32,
       "type": "any",
-      "foregroundMaxRadiusPx": 16.401219466856723,
+      "foregroundMaxRadiusPx": 13.341664064126334,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.01673000296582463,
+      "transform": {
+        "scaleX": 0.01673000296582463,
+        "scaleY": 0.01673000296582463,
+        "translateX": 5.108128566823064,
+        "translateY": 6.797542518121883
+      },
+      "bodyCenter": {
+        "x": 15.993661535528762,
+        "y": 16.033932230853548,
+        "errorPx": 0.03451916022373101
+      }
     },
     {
       "file": "web/public/icons/favicon-48.png",
       "size": 48,
       "type": "any",
-      "foregroundMaxRadiusPx": 24.413111231467404,
+      "foregroundMaxRadiusPx": 20.223748416156685,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.027969785015361803,
+      "transform": {
+        "scaleX": 0.027969785015361803,
+        "scaleY": 0.027969785015361803,
+        "translateX": 5.790600813207714,
+        "translateY": 8.6150202180522
+      },
+      "bodyCenter": {
+        "x": 23.99481523137616,
+        "y": 24.036489353544134,
+        "errorPx": 0.036855864496055116
+      }
     },
     {
       "file": "store/google-play-512.png",
       "size": 512,
       "type": "any",
-      "foregroundMaxRadiusPx": 242.14252001662163,
+      "foregroundMaxRadiusPx": 215.75217264259473,
       "safeRadiusPx": null,
-      "opaque": true
+      "opaque": true,
+      "scale": 0.3408256541324619,
+      "transform": {
+        "scaleX": 0.3408256541324619,
+        "scaleY": 0.3408256541324619,
+        "translateX": 34.109471138624684,
+        "translateY": 68.52641752100962
+      },
+      "bodyCenter": {
+        "x": 256.00900884339285,
+        "y": 255.93276892659873,
+        "errorPx": 0.06783197247584918
+      }
+    },
+    {
+      "file": "logo/color-256.png",
+      "size": 256,
+      "type": "logo-color",
+      "opaque": false,
+      "scale": 0.1675927099955312,
+      "transform": {
+        "scaleX": 0.1675927099955312,
+        "scaleY": 0.1675927099955312,
+        "translateX": 18.890739580986192,
+        "translateY": 35.81443427373675
+      },
+      "bodyCenter": {
+        "x": 128.01306474188848,
+        "y": 127.91929904881812,
+        "errorPx": 0.08175164219924404
+      }
+    },
+    {
+      "file": "logo/outline-black-256.png",
+      "size": 256,
+      "type": "logo-outline",
+      "opaque": false,
+      "color": "#000000",
+      "scale": 0.1675927099955312,
+      "transform": {
+        "scaleX": 0.1675927099955312,
+        "scaleY": 0.1675927099955312,
+        "translateX": 18.890739580986192,
+        "translateY": 35.81443427373675
+      }
+    },
+    {
+      "file": "logo/outline-white-256.png",
+      "size": 256,
+      "type": "logo-outline",
+      "opaque": false,
+      "color": "#ffffff",
+      "scale": 0.1675927099955312,
+      "transform": {
+        "scaleX": 0.1675927099955312,
+        "scaleY": 0.1675927099955312,
+        "translateX": 18.890739580986192,
+        "translateY": 35.81443427373675
+      }
+    },
+    {
+      "file": "logo/color-512.png",
+      "size": 512,
+      "type": "logo-color",
+      "opaque": false,
+      "scale": 0.3408256541324619,
+      "transform": {
+        "scaleX": 0.3408256541324619,
+        "scaleY": 0.3408256541324619,
+        "translateX": 34.109471138624684,
+        "translateY": 68.52641752100962
+      },
+      "bodyCenter": {
+        "x": 256.00900884339285,
+        "y": 255.93276892659873,
+        "errorPx": 0.06783197247584918
+      }
+    },
+    {
+      "file": "logo/outline-black-512.png",
+      "size": 512,
+      "type": "logo-outline",
+      "opaque": false,
+      "color": "#000000",
+      "scale": 0.3408256541324619,
+      "transform": {
+        "scaleX": 0.3408256541324619,
+        "scaleY": 0.3408256541324619,
+        "translateX": 34.109471138624684,
+        "translateY": 68.52641752100962
+      }
+    },
+    {
+      "file": "logo/outline-white-512.png",
+      "size": 512,
+      "type": "logo-outline",
+      "opaque": false,
+      "color": "#ffffff",
+      "scale": 0.3408256541324619,
+      "transform": {
+        "scaleX": 0.3408256541324619,
+        "scaleY": 0.3408256541324619,
+        "translateX": 34.109471138624684,
+        "translateY": 68.52641752100962
+      }
+    },
+    {
+      "file": "logo/color-1024.png",
+      "size": 1024,
+      "type": "logo-color",
+      "opaque": false,
+      "scale": 0.6858314562259009,
+      "transform": {
+        "scaleX": 0.6858314562259009,
+        "scaleY": 0.6858314562259009,
+        "translateX": 65.49750616898177,
+        "translateY": 134.75351483523679
+      },
+      "bodyCenter": {
+        "x": 511.98782909866924,
+        "y": 512.0721112309886,
+        "errorPx": 0.07313111836899565
+      }
+    },
+    {
+      "file": "logo/outline-black-1024.png",
+      "size": 1024,
+      "type": "logo-outline",
+      "opaque": false,
+      "color": "#000000",
+      "scale": 0.6858314562259009,
+      "transform": {
+        "scaleX": 0.6858314562259009,
+        "scaleY": 0.6858314562259009,
+        "translateX": 65.49750616898177,
+        "translateY": 134.75351483523679
+      }
+    },
+    {
+      "file": "logo/outline-white-1024.png",
+      "size": 1024,
+      "type": "logo-outline",
+      "opaque": false,
+      "color": "#ffffff",
+      "scale": 0.6858314562259009,
+      "transform": {
+        "scaleX": 0.6858314562259009,
+        "scaleY": 0.6858314562259009,
+        "translateX": 65.49750616898177,
+        "translateY": 134.75351483523679
+      }
     }
   ]
 }

@@ -1,0 +1,14 @@
+{
+  "name": "tokkl-icon-pack",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "sharp": "0.35.5"
+  }
+}

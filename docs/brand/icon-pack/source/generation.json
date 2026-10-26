@@ -4,5 +4,11 @@
   "operation": "background-extraction",
   "sourceConcept": "Clock O selected by user",
   "prompt": "Use case: background-extraction. EDIT the supplied selected Tokkl clock O logo. Remove the entire dark purple background, including the dark purple inside the oval clock ring and all spaces between the hands, making those regions genuinely transparent. Preserve the exact selected design, proportions, tilted oval silhouette, clock hands, central yellow pivot, single pink drip, saturated colors, glossy highlights and pigment texture. Preserve the thick almost-black navy outline belonging to the ring, hands, pivot and drip. No redesign, no new elements, no lettering, no shadow floating outside the existing outline. Place the isolated logo centered on a genuinely transparent canvas with ample transparent padding on every side. This will be the master foreground for Android adaptive icons, so background separation and clean alpha edges matter. Keep all parts of the artwork fully visible.",
-  "note": "The master foreground was prepared with image generation. Icon dimensions, alpha silhouettes and platform layouts are deterministic exports of this master."
+  "note": "The original color master was prepared with image generation. Revised icon exports preserve that color artwork, center its main body independently of the drip, and use an editable vector drawing for monochrome outlines.",
+  "revised": "2026-10-26",
+  "revision": {
+    "centering": "Alpha-weighted main-body centroid above source row1000; same anchor for color and outline.",
+    "monochrome": "Single-rim editable vector outline with hollow hands and pivot.",
+    "wordmark": "Separate wordmark files are unchanged."
+  }
 }

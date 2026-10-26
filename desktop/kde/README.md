@@ -456,12 +456,14 @@ than Core, Network and Test. It needs Docker, or another engine set in
 ## Icons
 
 The panel button and the widget picker show the full-colour clock logo. Both
-come from the icon pack's master artwork,
-`docs/brand/icon-pack/source/master-export.png`, through `npm run icons`
-(`scripts/icons.ts`, which needs ImageMagick 7). The script trims the artwork
-to its alpha bounds, centres it on a square transparent canvas and writes:
+come from the icon pack's transparent logo,
+`docs/brand/icon-pack/logo/color-1024.png`, through `npm run icons`
+(`scripts/icons.ts`, which needs ImageMagick 7). It writes:
 
 - `package/contents/images/tokkl.png`, 96 px, which the panel button shows.
+- `package/contents/images/tokkl-mono-dark.png` and `tokkl-mono-light.png`,
+  96 px, the monochrome panel logo in black and white ink, from the pack's
+  outline logos.
 - `package/icons/tokkl-<size>.png` at 32, 48, 64, 96, 128 and 256 px. The
   build installs each as
   `<icon dir>/hicolor/<size>x<size>/apps/com.github.e0ipso.tokkl.png`, where

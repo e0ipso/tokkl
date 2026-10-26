@@ -5,8 +5,10 @@
 
 add_executable(menubarapptest menubarapptest.cpp)
 target_link_libraries(menubarapptest PRIVATE tokklmacos tokklcorefakes Qt6::Test)
-# The iconset the menu bar logo is compiled from, to compare it with.
+# The iconset and the outline the menu bar logos are compiled from, to
+# compare them with.
 target_compile_definitions(menubarapptest PRIVATE
+    TOKKL_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources"
     TOKKL_ICONSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset")
 add_test(NAME menubarapp COMMAND menubarapptest)
 
