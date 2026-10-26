@@ -91,6 +91,10 @@ source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # The containers get desktop/ at /desktop: the companion and the desktop
 # core it builds on.
 desktop_dir="$(cd "$source_dir/.." && pwd)"
+# The core's tests also read the shared fixtures in packages/common. The test
+# container gets them at /packages/common/fixtures, where they sit next to
+# /desktop.
+fixtures_dir="$(cd "$desktop_dir/../packages/common/fixtures" && pwd)"
 native_version="$("$source_dir/scripts/native-version.sh" "$version")" || exit 2
 native_previous="$("$source_dir/scripts/native-version.sh" "$previous_version")" || exit 2
 if [ "$previous_version" = "$version" ]; then
@@ -175,7 +179,8 @@ for format in $formats; do
     mkdir -p "$output/tests/$format"
     # shellcheck disable=SC2016
     "$engine" run --rm \
-        -v "$desktop_dir:/desktop:ro" -v "$output/tests/$format:/tests" \
+        -v "$desktop_dir:/desktop:ro" -v "$fixtures_dir:/packages/common/fixtures:ro" \
+        -v "$output/tests/$format:/tests" \
         "$image:$format-test" bash -euc '
             cmake -S /desktop/kde -B /tmp/build -DTOKKL_VERSION="$1" -DCMAKE_INSTALL_PREFIX=/usr
             cmake --build /tmp/build -j"$(nproc)"

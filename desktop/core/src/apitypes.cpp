@@ -1,5 +1,6 @@
 #include "apitypes.h"
 
+#include "snap.h"
 #include "transport.h"
 
 #include <QCoreApplication>
@@ -139,6 +140,7 @@ QVariantMap Me::toVariantMap() const
         {QStringLiteral("timezone"), timezone},
         {QStringLiteral("defaultWorkspaceId"), defaultWorkspaceId},
         {QStringLiteral("beginningOfWeek"), beginningOfWeek},
+        {QStringLiteral("timeResolutionMinutes"), timeResolutionMinutes},
     };
 }
 
@@ -211,6 +213,10 @@ std::optional<Me> decodeMe(const QJsonValue &value)
         }
         me.beginningOfWeek = int(*day);
     }
+    // The server snaps on write as well, so an unusable value does not refuse
+    // the account.
+    const std::optional<qint64> resolution = integer(object.value(QLatin1String("time_resolution_minutes")));
+    me.timeResolutionMinutes = resolution && isTimeResolution(*resolution) ? int(*resolution) : 1;
     return me;
 }
 

@@ -23,6 +23,9 @@ struct Me {
     QString timezone;
     qint64 defaultWorkspaceId = 0;
     int beginningOfWeek = 1;
+    // The step, in minutes, of the clock grid entries snap to. It divides an
+    // hour; a missing or invalid value reads as 1.
+    int timeResolutionMinutes = 1;
 
     QVariantMap toVariantMap() const;
 };

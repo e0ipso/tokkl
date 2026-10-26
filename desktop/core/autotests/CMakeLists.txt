@@ -1,6 +1,7 @@
 # Unit tests of the API client, connection state and timer controller,
-# against the scripted transport, credential store and clock in fakes.h, and
-# of the real transport against an in-process loopback server. They never
+# against the scripted transport, credential store and clock in fakes.h, of
+# the real transport against an in-process loopback server, and of the
+# Pomodoro cycle against the fixtures in packages/common. They never
 # reach a credential store, another host or real configuration; private XDG
 # dirs make sure of the last.
 
@@ -28,7 +29,13 @@ tokkl_core_test(networktransport networktransporttest.cpp)
 target_compile_definitions(networktransporttest PRIVATE
     TOKKL_VERSION_STRING="${TOKKL_CORE_VERSION}")
 tokkl_core_test(timer timercontrollertest.cpp tokklcorefakes)
+tokkl_core_test(pomodorocycle pomodorocycletest.cpp)
+# The cases the web app's Pomodoro and snapping rules are tested against,
+# read from the repository.
+cmake_path(SET _common_fixtures NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/../../../packages/common/fixtures")
+target_compile_definitions(pomodorocycletest PRIVATE
+    TOKKL_COMMON_FIXTURES_DIR="${_common_fixtures}")
 
 set(_unit_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-unit")
-set_tests_properties(api connection networktransport timer PROPERTIES
+set_tests_properties(api connection networktransport timer pomodorocycle PROPERTIES
     ENVIRONMENT "XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")

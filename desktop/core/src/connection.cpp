@@ -495,7 +495,8 @@ void Connection::bind(const Me &me)
         resetAccount();
     }
     const bool changed = !hasContext() || m_context->me.email != me.email || m_context->me.fullname != me.fullname
-        || m_context->me.timezone != me.timezone || m_context->me.beginningOfWeek != me.beginningOfWeek;
+        || m_context->me.timezone != me.timezone || m_context->me.beginningOfWeek != me.beginningOfWeek
+        || m_context->me.timeResolutionMinutes != me.timeResolutionMinutes;
     m_context = Context{m_generation, m_instance.key(), me};
     setState(Connected);
     if (changed) {
