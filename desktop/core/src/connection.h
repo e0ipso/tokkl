@@ -144,6 +144,12 @@ public:
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
+    // Saves an entry that has already stopped. The cached current entry is
+    // not touched.
+    void createStoppedEntry(const StoppedEntry &entry, Callback<TimeEntry> done = {});
+    // The account's entries that started from start to end, in every
+    // workspace (GET /me/time_entries?start_date=&end_date=).
+    void fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
     // The Pomodoro lengths of the account preferences.

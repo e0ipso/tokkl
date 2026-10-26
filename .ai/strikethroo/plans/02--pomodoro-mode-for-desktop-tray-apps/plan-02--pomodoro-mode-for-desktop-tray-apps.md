@@ -330,9 +330,9 @@ No circular dependencies. Task 12's Preview button makes sound only once task 10
 - ✔️ Task 02: Shared Pomodoro sounds, sound catalogue and hourglass glyph (depends on: 01)
 - ✔️ Task 03: Pomodoro store interface, session records and preferences client (depends on: 01)
 
-### Phase 3: Save queue
+### ✅ Phase 3: Save queue
 **Parallel Tasks:**
-- Task 04: Durable save queue for ended pomodoros (depends on: 01, 03)
+- ✔️ Task 04: Durable save queue for ended pomodoros (depends on: 01, 03)
 
 ### Phase 4: Session controller
 **Parallel Tasks:**

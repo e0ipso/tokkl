@@ -1,11 +1,11 @@
-# Unit tests of the API client, connection state, timer controller and
-# Pomodoro preferences, against the scripted transport, credential store and
-# clock in fakes.h, of the Pomodoro store on a temporary QSettings file, of
-# the real transport against an in-process loopback server, of the
-# Pomodoro cycle against the fixtures in packages/common, and of the bundled
-# Pomodoro sounds and glyph against their sums and masters. They never
-# reach a credential store, another host or real configuration; private XDG
-# dirs make sure of the last.
+# Unit tests of the API client, connection state, timer controller, Pomodoro
+# preferences and Pomodoro save queue, against the scripted transport,
+# credential store and clock in fakes.h, of the Pomodoro store on a temporary
+# QSettings file, of the real transport against an in-process loopback
+# server, of the Pomodoro cycle against the fixtures in packages/common, and
+# of the bundled Pomodoro sounds and glyph against their sums and masters.
+# They never reach a credential store, another host or real configuration;
+# private XDG dirs make sure of the last.
 
 # The fakes, for these tests and for companion tests that drive tokklcore.
 # fakes.h declares QObject classes, so it is a source of every consumer for
@@ -39,6 +39,7 @@ target_compile_definitions(pomodorocycletest PRIVATE
     TOKKL_COMMON_FIXTURES_DIR="${_common_fixtures}")
 tokkl_core_test(pomodorostore pomodorostoretest.cpp)
 tokkl_core_test(pomodoropreferences pomodoropreferencestest.cpp tokklcorefakes)
+tokkl_core_test(pomodoroqueue pomodoroqueuetest.cpp tokklcorefakes)
 tokkl_core_test(pomodorosounds pomodorosoundstest.cpp)
 # The bundled sounds and the README that gives their SHA-256 sums.
 cmake_path(SET _sounds_readme NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/../../../docs/sounds/README.md")
@@ -54,5 +55,5 @@ target_compile_definitions(hourglassglyphtest PRIVATE
     TOKKL_DESKTOP_DIR="${_desktop_dir}")
 
 set(_unit_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-unit")
-set_tests_properties(api connection networktransport timer pomodorocycle pomodorostore pomodoropreferences PROPERTIES
+set_tests_properties(api connection networktransport timer pomodorocycle pomodorostore pomodoropreferences pomodoroqueue PROPERTIES
     ENVIRONMENT "XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")

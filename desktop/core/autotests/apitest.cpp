@@ -4,6 +4,7 @@
 #include "instanceurl.h"
 #include "transport.h"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTest>
@@ -256,6 +257,25 @@ private Q_SLOTS:
         const QJsonObject bareBody = QJsonDocument::fromJson(encodeStartEntry(bare, 9, QStringLiteral("tokkl-test"))).object();
         QVERIFY(bareBody.value(QLatin1String("project_id")).isNull());
         QVERIFY(!bareBody.contains(QLatin1String("billable")));
+    }
+
+    void encodeStopped()
+    {
+        StoppedEntry entry;
+        entry.start = QDateTime(QDate(2026, 10, 16), QTime(8, 0), QTimeZone::fromSecondsAheadOfUtc(7200));
+        entry.stop = QDateTime(QDate(2026, 10, 16), QTime(8, 25), QTimeZone::fromSecondsAheadOfUtc(7200));
+        entry.duration = 1500;
+        const QJsonObject body = QJsonDocument::fromJson(encodeStoppedEntry(entry, 9, QStringLiteral("tokkl-test"))).object();
+        QCOMPARE(body.value(QLatin1String("workspace_id")).toInteger(), 9);
+        QCOMPARE(body.value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-test"));
+        QCOMPARE(body.value(QLatin1String("start")).toString(), QStringLiteral("2026-10-16T06:00:00Z"));
+        QCOMPARE(body.value(QLatin1String("stop")).toString(), QStringLiteral("2026-10-16T06:25:00Z"));
+        QCOMPARE(body.value(QLatin1String("duration")).toInteger(), 1500);
+        QVERIFY(body.value(QLatin1String("project_id")).isNull());
+        QCOMPARE(body.value(QLatin1String("billable")).toBool(), false);
+        QCOMPARE(body.value(QLatin1String("description")).toString(), QString());
+        QCOMPARE(body.value(QLatin1String("tags")).toArray(), QJsonArray());
+        QVERIFY(!body.contains(QLatin1String("task_id")));
     }
 
     void encodeUpdate()

@@ -85,6 +85,17 @@ struct StartEntry {
     QStringList tags;
 };
 
+// Body of POST /workspaces/{wid}/time_entries for an entry that has already
+// stopped, such as an ended pomodoro. It carries no description, task or
+// tags.
+struct StoppedEntry {
+    QDateTime start; // sent in UTC
+    QDateTime stop; // sent in UTC
+    qint64 duration = 0; // whole seconds from start to stop
+    std::optional<qint64> projectId;
+    bool billable = false;
+};
+
 // Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields
 // are left out of the request, so the server keeps them. A project or task of
 // std::nullopt inside the outer optional is sent as null and clears it.
@@ -178,6 +189,7 @@ std::optional<Me> decodeMe(const QJsonValue &value);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
+std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value);
 // null for no running entry.
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value);
 std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value);
@@ -196,6 +208,7 @@ ApiError errorFromResponse(const HttpResponse &response);
 
 // createdWith names the client that starts the entry.
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
+QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 

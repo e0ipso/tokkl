@@ -1,6 +1,7 @@
 #include "connection.h"
 
 #include <QCoreApplication>
+#include <QUrlQuery>
 
 #include <algorithm>
 #include <utility>
@@ -836,6 +837,32 @@ void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
             Q_EMIT currentEntryChanged();
         },
         std::move(done));
+}
+
+void Connection::createStoppedEntry(const StoppedEntry &entry, Callback<TimeEntry> done)
+{
+    const qint64 workspace = workspaceId();
+    call<TimeEntry>("POST",
+                    QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
+                    encodeStoppedEntry(entry, workspace, m_clientName),
+                    Access::Write,
+                    &decodeTimeEntry,
+                    {},
+                    std::move(done));
+}
+
+void Connection::fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("start_date"), start.toUTC().toString(Qt::ISODate));
+    query.addQueryItem(QStringLiteral("end_date"), end.toUTC().toString(Qt::ISODate));
+    call<QList<TimeEntry>>("GET",
+                           QStringLiteral("/me/time_entries?") + query.toString(QUrl::FullyEncoded),
+                           QByteArray(),
+                           Access::Read,
+                           &decodeTimeEntries,
+                           {},
+                           std::move(done));
 }
 
 void Connection::stopEntry(qint64 entryId, Callback<TimeEntry> done)

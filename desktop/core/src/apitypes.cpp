@@ -339,6 +339,22 @@ std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value)
     return entry;
 }
 
+std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value)
+{
+    if (!value.isArray()) {
+        return std::nullopt;
+    }
+    QList<TimeEntry> entries;
+    for (const QJsonValue &item : value.toArray()) {
+        std::optional<TimeEntry> entry = decodeTimeEntry(item);
+        if (!entry) {
+            return std::nullopt;
+        }
+        entries.append(std::move(*entry));
+    }
+    return entries;
+}
+
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value)
 {
     if (value.isNull()) {
@@ -435,6 +451,22 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
     if (entry.billable) {
         object.insert(QStringLiteral("billable"), *entry.billable);
     }
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith)
+{
+    const QJsonObject object{
+        {QStringLiteral("created_with"), createdWith},
+        {QStringLiteral("description"), QString()},
+        {QStringLiteral("start"), utcTimestamp(entry.start)},
+        {QStringLiteral("stop"), utcTimestamp(entry.stop)},
+        {QStringLiteral("duration"), entry.duration},
+        {QStringLiteral("workspace_id"), workspaceId},
+        {QStringLiteral("project_id"), idJson(entry.projectId)},
+        {QStringLiteral("billable"), entry.billable},
+        {QStringLiteral("tags"), QJsonArray()},
+    };
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 

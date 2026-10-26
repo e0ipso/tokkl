@@ -1,7 +1,7 @@
 # The tokklcore library: the API client, the credential store interface,
 # connection state, the timer controller and its pause chain store, the
-# Pomodoro cycle and span snapping rules, the Pomodoro store and preferences
-# client, and the catalogue of Pomodoro sounds. Qt Core and Network only;
+# Pomodoro cycle and span snapping rules, the Pomodoro store, preferences
+# client and save queue, and the catalogue of Pomodoro sounds. Qt Core and Network only;
 # each companion supplies its own credential store and client name.
 
 add_library(tokklcore STATIC
@@ -23,6 +23,8 @@ add_library(tokklcore STATIC
     pomodorocycle.h
     pomodoropreferences.cpp
     pomodoropreferences.h
+    pomodoroqueue.cpp
+    pomodoroqueue.h
     pomodororecord.cpp
     pomodororecord.h
     pomodorosounds.cpp

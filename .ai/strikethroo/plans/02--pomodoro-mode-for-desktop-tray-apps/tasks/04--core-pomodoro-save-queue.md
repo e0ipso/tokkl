@@ -2,7 +2,7 @@
 id: 4
 group: "core-pomodoro"
 dependencies: [1, 3]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - cpp-qt
