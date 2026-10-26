@@ -45,6 +45,17 @@ qt_add_resources(tokklmacos statuslogomono
         "${_resources}/mono_16x16.png"
         "${_resources}/mono_16x16@2x.png"
 )
+# The Pomodoro mode glyph after the indicator: the colour hourglass, and the
+# outline one the menu bar tints like the monochrome logo.
+qt_add_resources(tokklmacos statushourglass
+    PREFIX "/tokkl/hourglass"
+    BASE "${_resources}"
+    FILES
+        "${_resources}/hourglass_16x16.png"
+        "${_resources}/hourglass_16x16@2x.png"
+        "${_resources}/hourglass_mono_16x16.png"
+        "${_resources}/hourglass_mono_16x16@2x.png"
+)
 
 # The QtKeychain credential store: the macOS Keychain on macOS. Built
 # elsewhere only when QtKeychain is installed, for its tests.

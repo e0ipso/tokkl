@@ -26,6 +26,8 @@ public:
     virtual void setAccessibleName(const QString &name) = 0;
     // The menu a secondary click opens. The item does not own it.
     virtual void setMenu(QMenu *menu) = 0;
+    // Opens that menu at the item, as a secondary click does.
+    virtual void popUpMenu() = 0;
     // The logo and the project indicator, drawn before the text. The item
     // runs the pulse while image.indicator.pulsing is true.
     virtual void setImage(const StatusImage &image) = 0;
@@ -33,7 +35,8 @@ public:
     virtual bool reduceMotion() const = 0;
 
 Q_SIGNALS:
-    // A primary click: pause, resume or start the timer.
+    // A primary click: pause, resume or start the timer, or in Pomodoro
+    // mode act on the session.
     void activated();
     // The system's reduced motion setting changed.
     void reduceMotionChanged();

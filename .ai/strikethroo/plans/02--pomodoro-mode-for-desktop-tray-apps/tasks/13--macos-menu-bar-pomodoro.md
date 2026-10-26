@@ -2,7 +2,7 @@
 id: 13
 group: "macos-pomodoro"
 dependencies: [2, 3, 5]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - cpp-qt
@@ -20,21 +20,21 @@ Run the core Pomodoro session in the macOS menu bar app and show it: the hourgla
 C++ with Qt 6 Widgets (`QMenu`, `QAction`, `QImage`) in the portable `tokklmacos` library, plus a small Objective-C++ change for opening the menu from a primary click.
 
 ## Acceptance Criteria
-- [ ] `MenuBarApp` creates a `SettingsPomodoroStore` on its `QSettings`, a `PomodoroPreferences`, a `PomodoroQueue` and a `PomodoroSession` next to the timer, with the same clock. The wake hook that calls `TimerController::resumed()` also reaches the session.
-- [ ] A primary click calls `PomodoroSession::activate()`. On `OpenMenu` the item opens its menu: `StatusItem` gains a `popUpMenu()` method, implemented in `macstatusitem.mm` and in the test fake.
-- [ ] `StatusImage` draws the hourglass after the logo and the project indicator whenever Pomodoro mode is on: the colour PNG normally, and the template PNG when the monochrome setting is on, so the system tints it like `mono_16x16.png`.
-- [ ] `StatusWords`:
+- [x] `MenuBarApp` creates a `SettingsPomodoroStore` on its `QSettings`, a `PomodoroPreferences`, a `PomodoroQueue` and a `PomodoroSession` next to the timer, with the same clock. The wake hook that calls `TimerController::resumed()` also reaches the session.
+- [x] A primary click calls `PomodoroSession::activate()`. On `OpenMenu` the item opens its menu: `StatusItem` gains a `popUpMenu()` method, implemented in `macstatusitem.mm` and in the test fake.
+- [x] `StatusImage` draws the hourglass after the logo and the project indicator whenever Pomodoro mode is on: the colour PNG normally, and the template PNG when the monochrome setting is on, so the system tints it like `mono_16x16.png`.
+- [x] `StatusWords`:
   - the menu bar title is the session's `countdownText` during a session, unless a timer runs or is paused;
   - `summary` and `itemName` use `<Phase> · <M:SS> left · Pomodoro <N> of <M>`, or `<Phase> · +<M:SS> overtime · Pomodoro <N> of <M>`, with phase names "Work", "Short rest" and "Long rest";
   - with Pomodoro mode on and no session, " · Pomodoro mode" is appended to the existing summary.
-- [ ] `StatusMenu`:
+- [x] `StatusMenu`:
   - the state line shows the session line and the session `message`;
   - "Start session", "Next phase: <Phase>" and "End session" show as on the other platforms;
   - a checkable "Pomodoro mode" action reads "Pomodoro mode (locked while running)" and is disabled while `modeLocked` is true;
   - Start Timer and Stop Timer show only in Timer mode or while a timer runs or is paused;
   - Project and Billable stay enabled during a session.
-- [ ] `desktop/macos/autotests/menubarapptest.cpp` covers: the mode action and its lock; the hourglass in the status image in both icon modes; the title countdown and overtime; each `activate()` branch, including `popUpMenu()` on the fake; the menu per state; and the mode surviving a new `MenuBarApp` on the same settings.
-- [ ] The portable build and CTest pass on Linux (configure `desktop/macos` with CMake, build, run `ctest`; read `desktop/macos/README.md` for the Linux steps). The `.mm` change compiles on the CI `macos` job, which is a required check on the PR.
+- [x] `desktop/macos/autotests/menubarapptest.cpp` covers: the mode action and its lock; the hourglass in the status image in both icon modes; the title countdown and overtime; each `activate()` branch, including `popUpMenu()` on the fake; the menu per state; and the mode surviving a new `MenuBarApp` on the same settings.
+- [ ] The portable build and CTest pass on Linux (configure `desktop/macos` with CMake, build, run `ctest`; read `desktop/macos/README.md` for the Linux steps). The `.mm` change compiles on the CI `macos` job, which is a required check on the PR. The Linux build and CTest pass; the `.mm` change has not been compiled yet, so this stays open until the CI `macos` job runs on the pushed branch.
 
 Use your internal Todo tool to track these and keep on track.
 

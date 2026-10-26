@@ -453,17 +453,21 @@ private Q_SLOTS:
         QCOMPARE(f.session->message(), tooShort);
         QCOMPARE(messages.size(), 1);
         QVERIFY(f.stored().unsaved.isEmpty());
-        f.session->clearMessage();
+
+        // The next session starts without the notice.
+        QVERIFY(start(f));
         QVERIFY(f.session->message().isEmpty());
         QCOMPARE(messages.size(), 2);
 
         // The server's refusal of a saved pomodoro shows the same way.
-        QVERIFY(start(f));
         tick(f, 100);
         QVERIFY(f.session->endSession());
         f.respond(f.last("POST", entriesPath), FakeTransport::answer(422, QByteArrayLiteral("\"Entry overlaps another\"")));
         QCOMPARE(f.session->message(), QStringLiteral("Entry overlaps another"));
         QCOMPARE(messages.size(), 3);
+        f.session->clearMessage();
+        QVERIFY(f.session->message().isEmpty());
+        QCOMPARE(messages.size(), 4);
     }
 
     void snapsInUtcWhenTheZoneIsUnknown()

@@ -155,6 +155,12 @@ private Q_SLOTS:
     {
         QVERIFY(QFileInfo::exists(stagedPlasmoidDir + QStringLiteral("/metadata.json")));
         QVERIFY(QFileInfo::exists(stagedPlasmoidDir + QStringLiteral("/contents/ui/main.qml")));
+        // The Pomodoro alarm sounds, which the alarm player resolves inside
+        // the installed widget.
+        for (const QString &sound : {QStringLiteral("work-to-short-rest"), QStringLiteral("short-rest-to-work"), QStringLiteral("work-to-long-rest"), QStringLiteral("long-rest-to-work")}) {
+            const QString path = stagedPlasmoidDir + QStringLiteral("/contents/sounds/pomodoro-") + sound + QStringLiteral(".wav");
+            QVERIFY2(QFileInfo::exists(path), qPrintable(path));
+        }
         QVERIFY(QFileInfo::exists(stagedBackendDir + QStringLiteral("/qmldir")));
         QVERIFY(QFileInfo::exists(stagedBackendDir + QStringLiteral("/libtokklbackend.so")));
     }
@@ -303,10 +309,23 @@ private Q_SLOTS:
             names.append(item->name());
         }
         names.sort();
-        QCOMPARE(names, QStringList({QStringLiteral("authMode"), QStringLiteral("email"), QStringLiteral("instanceUrl"), QStringLiteral("monochromeIcon")}));
+        QCOMPARE(names,
+                 QStringList({QStringLiteral("authMode"),
+                              QStringLiteral("email"),
+                              QStringLiteral("instanceUrl"),
+                              QStringLiteral("longRestToWorkSound"),
+                              QStringLiteral("monochromeIcon"),
+                              QStringLiteral("shortRestToWorkSound"),
+                              QStringLiteral("workToLongRestSound"),
+                              QStringLiteral("workToShortRestSound")}));
         QCOMPARE(scheme->property(QStringLiteral("instanceUrl")).toString(), QString());
         QCOMPARE(scheme->property(QStringLiteral("authMode")).toString(), QStringLiteral("token"));
         QCOMPARE(scheme->property(QStringLiteral("monochromeIcon")).toBool(), false);
+        // Each transition's sound defaults to the sound named after it.
+        QCOMPARE(scheme->property(QStringLiteral("workToShortRestSound")).toString(), QStringLiteral("work-to-short-rest"));
+        QCOMPARE(scheme->property(QStringLiteral("shortRestToWorkSound")).toString(), QStringLiteral("short-rest-to-work"));
+        QCOMPARE(scheme->property(QStringLiteral("workToLongRestSound")).toString(), QStringLiteral("work-to-long-rest"));
+        QCOMPARE(scheme->property(QStringLiteral("longRestToWorkSound")).toString(), QStringLiteral("long-rest-to-work"));
     }
 
     void configPageLoads()

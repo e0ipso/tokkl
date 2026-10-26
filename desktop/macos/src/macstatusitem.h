@@ -19,13 +19,13 @@ namespace Tokkl
 // stop the timer.
 //
 // A left click emits activated(). A right click or a Control-click opens
-// the menu, as the native QMenu Qt keeps for it.
+// the menu, as the native QMenu Qt keeps for it, and so does popUpMenu().
 //
 // The button's image, before the title, draws the StatusImage it is given.
 // It is never a template image, so the project indicator keeps its colours.
-// The logo can use its own colours or the menu bar foreground. The image is
-// drawn in the menu bar's appearance, so monochrome ink follows
-// light and dark menu bars. A pulse redraws it on a
+// The logo and the hourglass can use their own colours or the menu bar
+// foreground. The image is drawn in the menu bar's appearance, so monochrome
+// ink follows light and dark menu bars. A pulse redraws it on a
 // timer, which stops when the indicator stops pulsing.
 class MacStatusItem : public StatusItem
 {
@@ -39,6 +39,7 @@ public:
     void setToolTip(const QString &toolTip) override;
     void setAccessibleName(const QString &name) override;
     void setMenu(QMenu *menu) override;
+    void popUpMenu() override;
     void setImage(const StatusImage &image) override;
     bool reduceMotion() const override;
 

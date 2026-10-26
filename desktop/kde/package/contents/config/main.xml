@@ -22,5 +22,23 @@
       <label>Account email for password sign-in</label>
       <default></default>
     </entry>
+    <!-- The bundled sound each Pomodoro transition plays, by sound id. The
+         defaults are the sounds named after the transitions. -->
+    <entry name="workToShortRestSound" type="String">
+      <label>Sound when a work phase ends before a short rest</label>
+      <default>work-to-short-rest</default>
+    </entry>
+    <entry name="shortRestToWorkSound" type="String">
+      <label>Sound when a short rest ends</label>
+      <default>short-rest-to-work</default>
+    </entry>
+    <entry name="workToLongRestSound" type="String">
+      <label>Sound when a work phase ends before a long rest</label>
+      <default>work-to-long-rest</default>
+    </entry>
+    <entry name="longRestToWorkSound" type="String">
+      <label>Sound when a long rest ends</label>
+      <default>long-rest-to-work</default>
+    </entry>
   </group>
 </kcfg>

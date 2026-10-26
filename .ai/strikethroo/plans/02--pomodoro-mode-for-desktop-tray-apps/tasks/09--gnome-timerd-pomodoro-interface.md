@@ -2,7 +2,7 @@
 id: 9
 group: "gnome-pomodoro"
 dependencies: [2, 3, 5]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - cpp-qt
@@ -20,7 +20,7 @@ Run the core Pomodoro session inside `tokkl-timerd` and publish it on `org.tokkl
 C++ with Qt 6 D-Bus (the generated adaptor, `PropertiesChanged`, error replies) on the shared core.
 
 ## Acceptance Criteria
-- [ ] `desktop/gnome/dbus/org.tokkl.Timer1.xml` gains properties, each documented in the file's comment style:
+- [x] `desktop/gnome/dbus/org.tokkl.Timer1.xml` gains properties, each documented in the file's comment style:
   - `PomodoroMode` (b), `ModeLocked` (b), `SessionActive` (b);
   - `Phase` (s: `""`, `work`, `shortRest`, `longRest`);
   - `PhaseStart` and `PlannedEnd` (x, Unix seconds, 0 without a session);
@@ -28,7 +28,7 @@ C++ with Qt 6 D-Bus (the generated adaptor, `PropertiesChanged`, error replies) 
   - `NextPhase` (s), `Ringing` (b), `RingingTransition` (s), `SessionMessage` (s);
   - `PomodoroLengths` (a{si} with keys `work`, `shortRest`, `longRest`, `longRestEvery`), `PomodoroLengthsEditable` (b), `PomodoroLengthErrors` (a{ss});
   - `Sounds` (a{ss}, transition to sound id) and `SoundChoices` (aa{sv}: id and label from the catalogue).
-- [ ] It also gains methods:
+- [x] It also gains methods:
   - `SetPomodoroMode(b) → accepted b`;
   - `Activate() → action s`, returning `handled`, `open-menu` or `ignored`;
   - `StartSession() → sent b`, `NextPhase() → sent b`, `EndSession() → sent b`;
@@ -36,13 +36,13 @@ C++ with Qt 6 D-Bus (the generated adaptor, `PropertiesChanged`, error replies) 
   - `RefreshPreferences()`;
   - `SetSound(s transition, s soundId) → accepted b`;
   - `PreviewSound(s soundId) → accepted b`.
-- [ ] `Start` returns false and sends nothing while Pomodoro mode is on and no timer runs.
-- [ ] `TimerService` maps every new property from `PomodoroSession`, `PomodoroPreferences` and the sound settings, and publishes changes through the existing `snapshot()`/`publishChanges()` path. Countdown seconds are not published every second, because the extension computes them from `PlannedEnd`. `Ringing` changes when the planned end passes.
-- [ ] The mode, the session records and the sound choices persist in the service's settings file (`SettingsPomodoroStore` on it, plus a `Sounds` group). A restart of the service keeps them.
-- [ ] `PreviewSound` and the ringing state are emitted as plain Qt signals on `TimerService` (for example `previewRequested(QString soundId)`, plus the existing property changes), which the player from task 10 connects to. Unknown sound ids or transitions are refused with `org.freedesktop.DBus.Error.InvalidArgs`.
-- [ ] `TIMER1_INTERFACE` in `desktop/gnome/extension/timer1.js` matches the new XML without comments, so `desktop/gnome/extension/tests/timer1.test.js` passes.
-- [ ] `desktop/gnome/autotests/timerservicetest.cpp` covers: each new property and its `PropertiesChanged`; the mode lock; `Activate` in each branch; `Start` refused in Pomodoro mode; a session through Next phase to a saved entry on the fake transport; `SetPomodoroLengths` with a 400 shown in `PomodoroLengthErrors`; `SetSound` persisting across a new service on the same settings file; and invalid arguments.
-- [ ] `desktop/gnome/ci/check.sh` exits 0, and `node --test desktop/gnome/extension/tests/` passes. Use the command the extension's CI uses if it differs.
+- [x] `Start` returns false and sends nothing while Pomodoro mode is on and no timer runs.
+- [x] `TimerService` maps every new property from `PomodoroSession`, `PomodoroPreferences` and the sound settings, and publishes changes through the existing `snapshot()`/`publishChanges()` path. Countdown seconds are not published every second, because the extension computes them from `PlannedEnd`. `Ringing` changes when the planned end passes.
+- [x] The mode, the session records and the sound choices persist in the service's settings file (`SettingsPomodoroStore` on it, plus a `Sounds` group). A restart of the service keeps them.
+- [x] `PreviewSound` and the ringing state are emitted as plain Qt signals on `TimerService` (for example `previewRequested(QString soundId)`, plus the existing property changes), which the player from task 10 connects to. Unknown sound ids or transitions are refused with `org.freedesktop.DBus.Error.InvalidArgs`.
+- [x] `TIMER1_INTERFACE` in `desktop/gnome/extension/timer1.js` matches the new XML without comments, so `desktop/gnome/extension/tests/timer1.test.js` passes.
+- [x] `desktop/gnome/autotests/timerservicetest.cpp` covers: each new property and its `PropertiesChanged`; the mode lock; `Activate` in each branch; `Start` refused in Pomodoro mode; a session through Next phase to a saved entry on the fake transport; `SetPomodoroLengths` with a 400 shown in `PomodoroLengthErrors`; `SetSound` persisting across a new service on the same settings file; and invalid arguments.
+- [x] `desktop/gnome/ci/check.sh` exits 0, and `node --test desktop/gnome/extension/tests/` passes. Use the command the extension's CI uses if it differs.
 
 Use your internal Todo tool to track these and keep on track.
 

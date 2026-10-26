@@ -197,6 +197,8 @@ bool PomodoroSession::startSession()
     if (!m_canStart) {
         return false;
     }
+    // A notice about the last session does not carry into the next one.
+    clearMessage();
     m_startAt = m_clock->now();
     if (!m_preferences) {
         begin(m_startAt);

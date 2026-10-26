@@ -139,4 +139,59 @@ QString itemName(const TimerController &timer)
     return tr("%1, %2").arg(actionName(timer), projectText(timer));
 }
 
+QString phaseName(const QString &phase)
+{
+    const std::optional<PhaseKind> kind = parsePhaseKind(phase);
+    if (!kind) {
+        return QString();
+    }
+    switch (*kind) {
+    case PhaseKind::Work:
+        return tr("Work");
+    case PhaseKind::ShortRest:
+        return tr("Short rest");
+    case PhaseKind::LongRest:
+        return tr("Long rest");
+    }
+    return QString();
+}
+
+QString sessionText(const PomodoroSession &session)
+{
+    // countdownText already starts with + in overtime.
+    const QString time = session.remainingSeconds() > 0 ? tr("%1 left").arg(session.countdownText()) : tr("%1 overtime").arg(session.countdownText());
+    return tr("%1 · %2 · Pomodoro %3 of %4")
+        .arg(phaseName(session.phase()), time, QString::number(session.pomodoroNumber()), QString::number(session.longRestEvery()));
+}
+
+bool showsSession(const TimerController &timer, const PomodoroSession &session)
+{
+    return session.isActive() && !timer.isRunning() && !timer.isPaused();
+}
+
+QString summary(const TimerController &timer, const PomodoroSession &session)
+{
+    if (showsSession(timer, session)) {
+        return sessionText(session);
+    }
+    return session.pomodoroMode() ? tr("%1 · Pomodoro mode").arg(summary(timer)) : summary(timer);
+}
+
+QString menuBarTitle(const TimerController &timer, const PomodoroSession &session)
+{
+    return showsSession(timer, session) ? session.countdownText() : menuBarTitle(timer);
+}
+
+QString itemName(const TimerController &timer, const PomodoroSession &session)
+{
+    if (showsSession(timer, session)) {
+        return sessionText(session);
+    }
+    if (!session.pomodoroMode()) {
+        return itemName(timer);
+    }
+    const QString action = timer.isRunning() || timer.isPaused() ? actionName(timer) : tr("Start a Pomodoro session");
+    return tr("%1, %2 · Pomodoro mode").arg(action, projectText(timer));
+}
+
 }

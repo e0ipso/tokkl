@@ -116,8 +116,9 @@ Frameworks 6.25.0 and libplasma 6.6.4; see [Packages](#packages) for the
 versions its updates bring). Older Plasma 6 releases are not supported.
 
 Packages on Debian 13: `cmake extra-cmake-modules qt6-base-dev
-qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6config-dev
-libkf6i18n-dev qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and
+qt6-declarative-dev qt6-multimedia-dev libplasma-dev libkf6wallet-dev
+libkf6config-dev libkf6i18n-dev qml6-module-org-kde-kirigami
+qml6-module-org-kde-kcmutils`, and
 for the tests `libkirigami-dev`, `qml6-module-qttest`,
 `plasma-desktoptheme` (Plasma's QML components) and `dbus-daemon`.
 The CI images in `ci/` hold the complete lists for all targets (see

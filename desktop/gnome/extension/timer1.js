@@ -24,6 +24,23 @@ export const TIMER1_INTERFACE = `<node>
     <property name="Billable" type="b" access="read"/>
     <property name="Status" type="s" access="read"/>
     <property name="ErrorString" type="s" access="read"/>
+    <property name="PomodoroMode" type="b" access="read"/>
+    <property name="ModeLocked" type="b" access="read"/>
+    <property name="SessionActive" type="b" access="read"/>
+    <property name="Phase" type="s" access="read"/>
+    <property name="PhaseStart" type="x" access="read"/>
+    <property name="PlannedEnd" type="x" access="read"/>
+    <property name="PomodoroNumber" type="i" access="read"/>
+    <property name="LongRestEvery" type="i" access="read"/>
+    <property name="NextPhase" type="s" access="read"/>
+    <property name="Ringing" type="b" access="read"/>
+    <property name="RingingTransition" type="s" access="read"/>
+    <property name="SessionMessage" type="s" access="read"/>
+    <property name="PomodoroLengths" type="a{si}" access="read"/>
+    <property name="PomodoroLengthsEditable" type="b" access="read"/>
+    <property name="PomodoroLengthErrors" type="a{ss}" access="read"/>
+    <property name="Sounds" type="a{ss}" access="read"/>
+    <property name="SoundChoices" type="aa{sv}" access="read"/>
     <method name="Start">
       <arg name="sent" type="b" direction="out"/>
     </method>
@@ -49,6 +66,39 @@ export const TIMER1_INTERFACE = `<node>
       <arg name="authMode" type="s" direction="in"/>
       <arg name="email" type="s" direction="in"/>
       <arg name="secret" type="s" direction="in"/>
+    </method>
+    <method name="SetPomodoroMode">
+      <arg name="pomodoro" type="b" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="Activate">
+      <arg name="action" type="s" direction="out"/>
+    </method>
+    <method name="StartSession">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="NextPhase">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="EndSession">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="SetPomodoroLengths">
+      <arg name="work" type="i" direction="in"/>
+      <arg name="shortRest" type="i" direction="in"/>
+      <arg name="longRest" type="i" direction="in"/>
+      <arg name="longRestEvery" type="i" direction="in"/>
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="RefreshPreferences"/>
+    <method name="SetSound">
+      <arg name="transition" type="s" direction="in"/>
+      <arg name="soundId" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="PreviewSound">
+      <arg name="soundId" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
     </method>
   </interface>
 </node>`;

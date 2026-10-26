@@ -2,7 +2,7 @@
 id: 6
 group: "kde-pomodoro"
 dependencies: [2, 3, 5]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - cpp-qt
@@ -20,14 +20,14 @@ Give the plasmoid what its QML needs to run Pomodoro mode: a store in the widget
 C++ with Qt 6 (QML registration, Qt Multimedia `QSoundEffect`, KConfig through the applet) and Linux packaging (CMake, `debian/control`, the RPM spec, the CI Dockerfiles).
 
 ## Acceptance Criteria
-- [ ] `desktop/kde/src` has `AppletPomodoroStore`, a `PomodoroStore` that keeps the mode and records in a `Pomodoro` group of the applet's configuration, outside the settings schema, the same way `AppletChainStore` keeps the pause chain. Writes call `sync()`. Once applet and session are set, it hands itself to them, as `AppletChainStore` does with the timer.
-- [ ] `desktop/kde/src/qmltypes.h` registers the core types for QML: the session as `TokklPomodoro`, the preferences client as `TokklPomodoroPreferences`, the store as `TokklPomodoroStore`, and the sound catalogue (ids, labels, default per transition) through a singleton or invokable helper.
-- [ ] An `AlarmPlayer` QML type, for example `TokklAlarm`, has `ringing` (bool), `transition` (string) and `sounds` (map from transition to sound id). While `ringing` is true it loops the chosen WAV with `QSoundEffect` and `QSoundEffect::Infinite`. It stops as soon as `ringing` turns false. `preview(soundId)` plays a sound once and stops any earlier preview. `source` and `playing` are readable so tests can check them.
-- [ ] The four WAVs from `TOKKL_POMODORO_SOUND_FILES` are installed with the plasmoid. The player resolves them without a hard-coded absolute path.
-- [ ] `desktop/kde/package/contents/config/main.xml` has four string entries for the sound of each transition, defaulting to the matching sound id.
-- [ ] Qt Multimedia is required in `desktop/kde/CMakeLists.txt`, listed in `desktop/kde/debian/control` and `desktop/kde/packaging/rpm/tokkl-kde.spec` (build and runtime), and installed in `desktop/kde/ci/Dockerfile`, `fedora.Dockerfile` and `ubuntu.Dockerfile`. `desktop/kde/scripts/check-package.sh` checks that the WAVs are in the package.
-- [ ] A C++ test covers the store round trip in a test applet configuration (as `desktop/kde/autotests/appletchainstoretest.cpp` does) and the player's choice of `source` per transition, its stop when `ringing` turns false, and `preview()`.
-- [ ] `desktop/kde/scripts/container-check.sh` passes for the Debian 13 leg (`--format deb`). Read the script header for its arguments.
+- [x] `desktop/kde/src` has `AppletPomodoroStore`, a `PomodoroStore` that keeps the mode and records in a `Pomodoro` group of the applet's configuration, outside the settings schema, the same way `AppletChainStore` keeps the pause chain. Writes call `sync()`. Once applet and session are set, it hands itself to them, as `AppletChainStore` does with the timer.
+- [x] `desktop/kde/src/qmltypes.h` registers the core types for QML: the session as `TokklPomodoro`, the preferences client as `TokklPomodoroPreferences`, the store as `TokklPomodoroStore`, and the sound catalogue (ids, labels, default per transition) through a singleton or invokable helper.
+- [x] An `AlarmPlayer` QML type, for example `TokklAlarm`, has `ringing` (bool), `transition` (string) and `sounds` (map from transition to sound id). While `ringing` is true it loops the chosen WAV with `QSoundEffect` and `QSoundEffect::Infinite`. It stops as soon as `ringing` turns false. `preview(soundId)` plays a sound once and stops any earlier preview. `source` and `playing` are readable so tests can check them.
+- [x] The four WAVs from `TOKKL_POMODORO_SOUND_FILES` are installed with the plasmoid. The player resolves them without a hard-coded absolute path.
+- [x] `desktop/kde/package/contents/config/main.xml` has four string entries for the sound of each transition, defaulting to the matching sound id.
+- [x] Qt Multimedia is required in `desktop/kde/CMakeLists.txt`, listed in `desktop/kde/debian/control` and `desktop/kde/packaging/rpm/tokkl-kde.spec` (build and runtime), and installed in `desktop/kde/ci/Dockerfile`, `fedora.Dockerfile` and `ubuntu.Dockerfile`. `desktop/kde/scripts/check-package.sh` checks that the WAVs are in the package.
+- [x] A C++ test covers the store round trip in a test applet configuration (as `desktop/kde/autotests/appletchainstoretest.cpp` does) and the player's choice of `source` per transition, its stop when `ringing` turns false, and `preview()`.
+- [x] `desktop/kde/scripts/container-check.sh` passes for the Debian 13 leg (`--format deb`). Read the script header for its arguments.
 
 Use your internal Todo tool to track these and keep on track.
 

@@ -2,13 +2,22 @@
 
 #include "timer1adaptor.h"
 
+#include "chainstore.h"
+#include "clock.h"
 #include "connection.h"
 #include "credentialstore.h"
 #include "instanceurl.h"
+#include "pomodorocycle.h"
+#include "pomodoropreferences.h"
+#include "pomodoroqueue.h"
+#include "pomodorosession.h"
+#include "pomodorosounds.h"
+#include "pomodorostore.h"
 #include "timercontroller.h"
 
 #include <QDBusMessage>
 #include <QDBusMetaType>
+#include <QMetaMethod>
 #include <QSettings>
 
 #include <optional>
@@ -26,6 +35,28 @@ namespace
 const QString instanceUrlKey = QStringLiteral("instanceUrl");
 const QString authModeKey = QStringLiteral("authMode");
 const QString emailKey = QStringLiteral("email");
+// The sound choices, keyed by transition name.
+const QString soundsGroup = QStringLiteral("Sounds");
+// The key of a failed read, or of a refusal that names no length, in
+// PomodoroLengthErrors.
+const QString generalErrorKey = QStringLiteral("general");
+
+constexpr TransitionKind transitions[] = {
+    TransitionKind::WorkToShortRest,
+    TransitionKind::ShortRestToWork,
+    TransitionKind::WorkToLongRest,
+    TransitionKind::LongRestToWork,
+};
+
+qint64 unixSeconds(const QDateTime &time)
+{
+    return time.isValid() ? time.toSecsSinceEpoch() : 0;
+}
+
+QString soundKey(TransitionKind kind)
+{
+    return soundsGroup + QLatin1Char('/') + transitionKindName(kind);
+}
 }
 
 QString TimerService::clientName()
@@ -35,17 +66,28 @@ QString TimerService::clientName()
 
 TimerService::TimerService(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock, QObject *parent)
     : QObject(parent)
+    , m_settings(new QSettings(settingsFile, QSettings::IniFormat, this))
+    , m_clock(clock ? clock : new SystemClock(this))
     , m_connection(new Connection(transport, store, clientName(), this))
-    , m_timer(clock ? new TimerController(clock, this) : new TimerController(this))
+    , m_timer(new TimerController(m_clock, this))
+    , m_pomodoroStore(new SettingsPomodoroStore(m_settings, this))
+    , m_preferences(new PomodoroPreferences(m_connection, m_pomodoroStore, this))
+    , m_queue(new PomodoroQueue(m_connection, m_clock, m_pomodoroStore, this))
+    , m_session(new PomodoroSession(m_clock, m_timer, m_preferences, m_queue, m_pomodoroStore, this))
     , m_store(store)
-    , m_settingsFile(settingsFile)
     , m_bus(QString())
 {
     qDBusRegisterMetaType<QList<QVariantMap>>();
+    qDBusRegisterMetaType<QMap<QString, int>>();
+    qDBusRegisterMetaType<QMap<QString, QString>>();
     new Timer1Adaptor(this);
 
+    if (!clock) {
+        m_timer->setChainStore(new SettingsChainStore(nullptr, this));
+    }
     m_timer->setConnection(m_connection);
-    // Each property follows the core signal that announces its change.
+    // Each property follows the core signal that announces its change. The
+    // countdown is left out: clients count down to PlannedEnd themselves.
     const auto publish = [this] {
         publishChanges();
     };
@@ -56,6 +98,13 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     connect(m_timer, &TimerController::choiceChanged, this, publish);
     connect(m_timer, &TimerController::entryProjectChanged, this, publish);
     connect(m_timer, &TimerController::statusChanged, this, publish);
+    connect(m_session, &PomodoroSession::modeChanged, this, publish);
+    connect(m_session, &PomodoroSession::modeLockedChanged, this, publish);
+    connect(m_session, &PomodoroSession::sessionChanged, this, publish);
+    connect(m_session, &PomodoroSession::ringingChanged, this, publish);
+    connect(m_session, &PomodoroSession::messageChanged, this, publish);
+    connect(m_preferences, &PomodoroPreferences::changed, this, publish);
+    connect(m_preferences, &PomodoroPreferences::stateChanged, this, publish);
 
     loadSettings();
     m_published = snapshot();
@@ -92,6 +141,11 @@ Connection *TimerService::connection() const
 TimerController *TimerService::timer() const
 {
     return m_timer;
+}
+
+PomodoroSession *TimerService::session() const
+{
+    return m_session;
 }
 
 bool TimerService::running() const
@@ -210,9 +264,138 @@ QString TimerService::errorString() const
     return m_timer->errorString();
 }
 
+bool TimerService::pomodoroMode() const
+{
+    return m_session->pomodoroMode();
+}
+
+bool TimerService::modeLocked() const
+{
+    return m_session->modeLocked();
+}
+
+bool TimerService::sessionActive() const
+{
+    return m_session->isActive();
+}
+
+QString TimerService::phase() const
+{
+    return m_session->phase();
+}
+
+qint64 TimerService::phaseStart() const
+{
+    return unixSeconds(m_session->phaseStart());
+}
+
+qint64 TimerService::plannedEnd() const
+{
+    return unixSeconds(m_session->plannedEnd());
+}
+
+int TimerService::pomodoroNumber() const
+{
+    return m_session->pomodoroNumber();
+}
+
+int TimerService::longRestEvery() const
+{
+    return m_session->longRestEvery();
+}
+
+QString TimerService::nextPhase() const
+{
+    return m_session->nextPhase();
+}
+
+bool TimerService::ringing() const
+{
+    return m_session->isRinging();
+}
+
+QString TimerService::ringingTransition() const
+{
+    return m_session->ringingTransition();
+}
+
+QString TimerService::sessionMessage() const
+{
+    return m_session->message();
+}
+
+QMap<QString, int> TimerService::pomodoroLengths() const
+{
+    return {
+        {QStringLiteral("work"), m_preferences->workMinutes()},
+        {QStringLiteral("shortRest"), m_preferences->shortRestMinutes()},
+        {QStringLiteral("longRest"), m_preferences->longRestMinutes()},
+        {QStringLiteral("longRestEvery"), m_preferences->longRestEvery()},
+    };
+}
+
+bool TimerService::pomodoroLengthsEditable() const
+{
+    return m_preferences->isEditable();
+}
+
+QMap<QString, QString> TimerService::pomodoroLengthErrors() const
+{
+    // Only the refused keys, so an empty map means no error.
+    QMap<QString, QString> errors;
+    const std::pair<QString, QString> named[] = {
+        {QStringLiteral("work"), m_preferences->workMinutesError()},
+        {QStringLiteral("shortRest"), m_preferences->shortRestMinutesError()},
+        {QStringLiteral("longRest"), m_preferences->longRestMinutesError()},
+        {QStringLiteral("longRestEvery"), m_preferences->longRestEveryError()},
+        {generalErrorKey, m_preferences->errorString()},
+    };
+    for (const auto &[key, error] : named) {
+        if (!error.isEmpty()) {
+            errors.insert(key, error);
+        }
+    }
+    return errors;
+}
+
+QMap<QString, QString> TimerService::sounds() const
+{
+    QMap<QString, QString> sounds;
+    for (const TransitionKind kind : transitions) {
+        const QString transition = transitionKindName(kind);
+        sounds.insert(transition, soundFor(transition));
+    }
+    return sounds;
+}
+
+QList<QVariantMap> TimerService::soundChoices() const
+{
+    QList<QVariantMap> choices;
+    const QList<PomodoroSound> catalogue = pomodoroSounds();
+    for (const PomodoroSound &sound : catalogue) {
+        choices.append({
+            {QStringLiteral("id"), sound.id},
+            {QStringLiteral("label"), sound.label},
+        });
+    }
+    return choices;
+}
+
+QString TimerService::soundFor(const QString &transition) const
+{
+    const std::optional<TransitionKind> kind = parseTransitionKind(transition);
+    if (!kind) {
+        return QString();
+    }
+    // A stored id the catalogue no longer has falls back to the default.
+    const QString stored = m_settings->value(soundKey(*kind)).toString();
+    return isSoundId(stored) ? stored : defaultSound(*kind);
+}
+
 bool TimerService::Start()
 {
-    return m_timer->start();
+    // In Pomodoro mode the desktop starts no timer: sessions run instead.
+    return !m_session->pomodoroMode() && m_timer->start();
 }
 
 bool TimerService::Stop()
@@ -290,24 +473,103 @@ void TimerService::Configure(const QString &instanceUrl, const QString &authMode
     });
 }
 
+bool TimerService::SetPomodoroMode(bool pomodoro)
+{
+    return m_session->setPomodoroMode(pomodoro);
+}
+
+QString TimerService::Activate()
+{
+    switch (m_session->activate()) {
+    case PomodoroSession::Activation::Handled:
+        break;
+    case PomodoroSession::Activation::OpenMenu:
+        return QStringLiteral("open-menu");
+    case PomodoroSession::Activation::Ignored:
+        return QStringLiteral("ignored");
+    }
+    return QStringLiteral("handled");
+}
+
+bool TimerService::StartSession()
+{
+    return m_session->startSession();
+}
+
+bool TimerService::NextPhase()
+{
+    return m_session->confirmNextPhase();
+}
+
+bool TimerService::EndSession()
+{
+    return m_session->endSession();
+}
+
+bool TimerService::SetPomodoroLengths(int work, int shortRest, int longRest, int longRestEvery)
+{
+    return m_preferences->save(work, shortRest, longRest, longRestEvery);
+}
+
+void TimerService::RefreshPreferences()
+{
+    m_preferences->refresh();
+}
+
+bool TimerService::SetSound(const QString &transition, const QString &soundId)
+{
+    const std::optional<TransitionKind> kind = parseTransitionKind(transition);
+    QString invalid;
+    if (!kind) {
+        invalid = tr("\"%1\" is not a Pomodoro transition.").arg(transition);
+    } else if (!isSoundId(soundId)) {
+        invalid = tr("\"%1\" is not a Pomodoro sound.").arg(soundId);
+    }
+    if (!invalid.isEmpty()) {
+        if (calledFromDBus()) {
+            sendErrorReply(QDBusError::InvalidArgs, invalid);
+        }
+        return false;
+    }
+    m_settings->setValue(soundKey(*kind), soundId);
+    m_settings->sync();
+    const bool stored = m_settings->status() == QSettings::NoError;
+    publishChanges();
+    return stored;
+}
+
+bool TimerService::PreviewSound(const QString &soundId)
+{
+    if (!isSoundId(soundId)) {
+        if (calledFromDBus()) {
+            sendErrorReply(QDBusError::InvalidArgs, tr("\"%1\" is not a Pomodoro sound.").arg(soundId));
+        }
+        return false;
+    }
+    // Accepted only when a player listens.
+    if (!isSignalConnected(QMetaMethod::fromSignal(&TimerService::previewRequested))) {
+        return false;
+    }
+    Q_EMIT previewRequested(soundId);
+    return true;
+}
+
 void TimerService::loadSettings()
 {
-    const QSettings settings(m_settingsFile, QSettings::IniFormat);
-    const QString url = settings.value(instanceUrlKey).toString();
+    const QString url = m_settings->value(instanceUrlKey).toString();
     if (!url.isEmpty()) {
         m_connection->setInstanceUrl(url);
-        m_connection->setAuthModeString(settings.value(authModeKey).toString());
-        m_connection->setEmail(settings.value(emailKey).toString());
+        m_connection->setAuthModeString(m_settings->value(authModeKey).toString());
+        m_connection->setEmail(m_settings->value(emailKey).toString());
     }
 }
 
 void TimerService::applySettings(const QString &instanceUrl, const QString &authMode, const QString &email)
 {
-    QSettings settings(m_settingsFile, QSettings::IniFormat);
-    settings.setValue(instanceUrlKey, instanceUrl);
-    settings.setValue(authModeKey, authMode);
-    settings.setValue(emailKey, email);
-    settings.sync();
+    m_settings->setValue(instanceUrlKey, instanceUrl);
+    m_settings->setValue(authModeKey, authMode);
+    m_settings->setValue(emailKey, email);
+    m_settings->sync();
 
     m_connection->setInstanceUrl(instanceUrl);
     m_connection->setAuthModeString(authMode);
@@ -329,6 +591,23 @@ QVariantMap TimerService::snapshot() const
         {QStringLiteral("Billable"), billable()},
         {QStringLiteral("Status"), status()},
         {QStringLiteral("ErrorString"), errorString()},
+        {QStringLiteral("PomodoroMode"), pomodoroMode()},
+        {QStringLiteral("ModeLocked"), modeLocked()},
+        {QStringLiteral("SessionActive"), sessionActive()},
+        {QStringLiteral("Phase"), phase()},
+        {QStringLiteral("PhaseStart"), phaseStart()},
+        {QStringLiteral("PlannedEnd"), plannedEnd()},
+        {QStringLiteral("PomodoroNumber"), pomodoroNumber()},
+        {QStringLiteral("LongRestEvery"), longRestEvery()},
+        {QStringLiteral("NextPhase"), nextPhase()},
+        {QStringLiteral("Ringing"), ringing()},
+        {QStringLiteral("RingingTransition"), ringingTransition()},
+        {QStringLiteral("SessionMessage"), sessionMessage()},
+        {QStringLiteral("PomodoroLengths"), QVariant::fromValue(pomodoroLengths())},
+        {QStringLiteral("PomodoroLengthsEditable"), pomodoroLengthsEditable()},
+        {QStringLiteral("PomodoroLengthErrors"), QVariant::fromValue(pomodoroLengthErrors())},
+        {QStringLiteral("Sounds"), QVariant::fromValue(sounds())},
+        {QStringLiteral("SoundChoices"), QVariant::fromValue(soundChoices())},
     };
 }
 
@@ -336,6 +615,7 @@ QVariantMap TimerService::snapshot() const
 // the bus last saw. A core signal that changed nothing visible sends nothing.
 void TimerService::publishChanges()
 {
+    updateAlarm();
     const QVariantMap current = snapshot();
     QVariantMap changed;
     for (auto it = current.cbegin(); it != current.cend(); ++it) {
@@ -350,6 +630,18 @@ void TimerService::publishChanges()
     QDBusMessage signal = QDBusMessage::createSignal(objectPath, QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("PropertiesChanged"));
     signal << interfaceName << changed << QStringList();
     m_bus.send(signal);
+}
+
+// Tells the player when the alarm starts or stops, and which sound the
+// ringing transition has.
+void TimerService::updateAlarm()
+{
+    const QString sound = m_session->isRinging() ? soundFor(m_session->ringingTransition()) : QString();
+    if (sound == m_alarmSound) {
+        return;
+    }
+    m_alarmSound = sound;
+    Q_EMIT alarmChanged(!sound.isEmpty(), sound);
 }
 
 }
