@@ -2,7 +2,7 @@ import type { Db } from '../db/index.ts';
 import { nowIso, transaction } from '../db/index.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import { requireName, togglTime } from '../lib/values.ts';
-import { touchWorkspaceTimers } from './timerState.ts';
+import { removeTagFromPauseChains, touchWorkspaceTimers } from './timerState.ts';
 
 export interface TagRow {
   id: number;
@@ -24,6 +24,13 @@ export function getTag(db: Db, wid: number, id: number): TagRow {
   const row = db.prepare('SELECT * FROM tags WHERE workspace_id = ? AND id = ?').get(wid, id) as TagRow | undefined;
   if (!row) throw notFound('Tag not found');
   return row;
+}
+
+/** The tags of workspace `wid` among `ids`, in name order. Ids with no tag in the workspace are left out. */
+export function findTags(db: Db, wid: number, ids: readonly number[]): TagRow[] {
+  return db.prepare(`
+    SELECT * FROM tags WHERE workspace_id = ? AND id IN (SELECT value FROM json_each(?)) ORDER BY name COLLATE NOCASE
+  `).all(wid, JSON.stringify(ids)) as unknown as TagRow[];
 }
 
 function findByName(db: Db, wid: number, name: string): TagRow | undefined {
@@ -58,11 +65,12 @@ export function updateTag(db: Db, wid: number, id: number, body: Record<string, 
   return getTag(db, wid, id);
 }
 
-/** Deletes a tag. The entries that carry it lose it, running ones included. */
+/** Deletes a tag. The entries that carry it lose it, running ones included, and so do pause chains. */
 export function deleteTag(db: Db, wid: number, id: number): void {
   transaction(db, () => {
     getTag(db, wid, id);
     touchWorkspaceTimers(db, wid);
+    removeTagFromPauseChains(db, id);
     const now = nowIso();
     db.prepare(`
       UPDATE time_entries SET updated_at = ?

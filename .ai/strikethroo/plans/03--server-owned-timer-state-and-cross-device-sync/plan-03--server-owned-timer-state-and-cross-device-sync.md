@@ -249,9 +249,9 @@ No circular dependencies. Tasks 09 and 10 change the core API, so the KDE, GNOME
 **Parallel Tasks:**
 - ✔️ Task 01: Timer state storage, settlement on every entry write, and the change hub
 
-### Phase 2: Server rules
+### ✅ Phase 2: Server rules
 **Parallel Tasks:**
-- Task 02: Timer state service: derived state, session actions and pause actions (depends on: 01)
+- ✔️ Task 02: Timer state service: derived state, session actions and pause actions (depends on: 01)
 
 ### Phase 3: Server API
 **Parallel Tasks:**

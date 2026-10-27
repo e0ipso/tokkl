@@ -215,6 +215,18 @@ export function getPreferences(user: UserRow): Preferences {
   return { ...DEFAULT_PREFERENCES, ...Object.fromEntries(stored) };
 }
 
+/** The Pomodoro lengths `user` saved, or their defaults: what a session starts with unless it overrides them. */
+export function getPomodoroSessionConfig(user: UserRow): PomodoroSessionConfig {
+  // getPreferences drops stored values outside their ranges, so each of these is a valid integer.
+  const preferences = getPreferences(user);
+  return {
+    workMinutes: preferences.pomodoro_focus_interval_in_minutes as number,
+    shortRestMinutes: preferences.pomodoro_break_interval_in_minutes as number,
+    longRestMinutes: preferences.pomodoro_long_break_interval_in_minutes as number,
+    longRestEvery: preferences.pomodoro_long_break_every as number,
+  };
+}
+
 export function serializeUser(user: UserRow, options: { includeToken: boolean }) {
   return {
     id: user.id,

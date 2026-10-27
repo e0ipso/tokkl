@@ -1,4 +1,4 @@
-import type { SessionPhaseKind } from '@tokkl/common/pomodoroSession';
+import type { PomodoroSessionConfig, SessionPhase, SessionPhaseKind } from '@tokkl/common/pomodoroSession';
 import { afterCommit, beforeCommit, transaction, type Db } from '../db/index.ts';
 import { publishTimer } from '../services/timerHub.ts';
 
@@ -83,6 +83,61 @@ export function getTimerStateRow(db: Db, userId: number): TimerStateRow | undefi
   return db.prepare('SELECT * FROM timer_states WHERE user_id = ?').get(userId) as TimerStateRow | undefined;
 }
 
+/** Stores a session whose first phase is `phase`, on the running entry `entryId`, with the lengths in `config`. */
+export function createPomodoroSession(
+  db: Db, userId: number, entryId: number, config: PomodoroSessionConfig, phase: SessionPhase,
+): void {
+  db.prepare(`
+    INSERT INTO pomodoro_sessions (user_id, entry_id, work_minutes, short_rest_minutes, long_rest_minutes,
+      long_rest_every, phase_kind, phase_start, completed)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, entryId, config.workMinutes, config.shortRestMinutes, config.longRestMinutes, config.longRestEvery,
+    phase.kind, phase.startedAt.toISOString(), phase.completed);
+}
+
+/** Moves the session on to `phase`, whose open pomodoro is the running entry `entryId`. */
+export function savePomodoroPhase(db: Db, userId: number, entryId: number, phase: SessionPhase): void {
+  db.prepare('UPDATE pomodoro_sessions SET entry_id = ?, phase_kind = ?, phase_start = ?, completed = ? WHERE user_id = ?')
+    .run(entryId, phase.kind, phase.startedAt.toISOString(), phase.completed, userId);
+}
+
+export function deletePomodoroSession(db: Db, userId: number): void {
+  db.prepare('DELETE FROM pomodoro_sessions WHERE user_id = ?').run(userId);
+}
+
+/** Stores `chain` as its user's pause chain, in place of the one stored before, if any. */
+export function savePauseChain(db: Db, chain: PauseChainRow): void {
+  db.prepare(`
+    INSERT INTO pause_chains (user_id, workspace_id, project_id, task_id, description, tag_ids_json, billable, seconds,
+      clone_entry_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (user_id) DO UPDATE SET workspace_id = excluded.workspace_id, project_id = excluded.project_id,
+      task_id = excluded.task_id, description = excluded.description, tag_ids_json = excluded.tag_ids_json,
+      billable = excluded.billable, seconds = excluded.seconds, clone_entry_id = excluded.clone_entry_id
+  `).run(chain.user_id, chain.workspace_id, chain.project_id, chain.task_id, chain.description, chain.tag_ids_json,
+    chain.billable, chain.seconds, chain.clone_entry_id);
+}
+
+/** Records the running entry `entryId` as the clone that resumed the user's chain. */
+export function setPauseChainClone(db: Db, userId: number, entryId: number): void {
+  db.prepare('UPDATE pause_chains SET clone_entry_id = ? WHERE user_id = ?').run(entryId, userId);
+}
+
+export function deletePauseChain(db: Db, userId: number): void {
+  db.prepare('DELETE FROM pause_chains WHERE user_id = ?').run(userId);
+}
+
+/**
+ * Drops tag `tagId` from every pause chain, as deleting a tag drops it from entries. Chains hold tag
+ * ids without a foreign key, and SQLite may give a deleted tag's id to the next tag created.
+ */
+export function removeTagFromPauseChains(db: Db, tagId: number): void {
+  db.prepare(`
+    UPDATE pause_chains SET tag_ids_json = (SELECT json_group_array(value) FROM json_each(tag_ids_json) WHERE value != ?)
+    WHERE EXISTS (SELECT 1 FROM json_each(tag_ids_json) WHERE value = ?)
+  `).run(tagId, tagId);
+}
+
 /**
  * Settles `userId` when the transaction() in progress commits, and publishes after the commit if
  * the state changed. Call it from every write that can change the user's running entry. Calls
@@ -158,7 +213,7 @@ function settleSession(
   const session = getPomodoroSession(db, userId);
   if (!session) return { session: null, ended: null };
   if (session.entry_id === runningId) return { session, ended: null };
-  db.prepare('DELETE FROM pomodoro_sessions WHERE user_id = ?').run(userId);
+  deletePomodoroSession(db, userId);
   return { session: null, ended: session.entry_id };
 }
 
@@ -170,7 +225,7 @@ function settleChain(db: Db, userId: number, runningId: number | null): PauseCha
   const chain = getPauseChain(db, userId);
   if (!chain) return null;
   if (chain.clone_entry_id === runningId) return chain;
-  db.prepare('DELETE FROM pause_chains WHERE user_id = ?').run(userId);
+  deletePauseChain(db, userId);
   return null;
 }
 

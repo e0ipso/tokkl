@@ -246,7 +246,7 @@ function settleSpan(db: Db, user: UserRow, draft: Draft, { exact = false, unchan
  * would leave it running, and every new timer would fail too, because starting one stops it. 999
  * hours is a multiple of every resolution, so the clamped span stays on the grid.
  */
-function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date): boolean {
+export function stopEntryAt(db: Db, user: UserRow, entry: TimeEntryRow, at: Date): boolean {
   const start = new Date(entry.start);
   const snapped = snapToResolution(db, user, start, at < start ? start : at);
   const now = nowIso();

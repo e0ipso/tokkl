@@ -160,6 +160,89 @@ export interface TimeEntry {
   task_name?: string | null;
 }
 
+/** A phase of a Pomodoro session. */
+export type PomodoroPhaseKind = 'work' | 'shortRest' | 'longRest';
+
+/** The change that ends a phase. Clients pick the sound for the phase end from it. */
+export type PomodoroTransition = 'workToShortRest' | 'shortRestToWork' | 'workToLongRest' | 'longRestToWork';
+
+/**
+ * A timer's pause chain, from Pause until Discard, a start that is not a resume, or a stop of the
+ * resumed clone. Resume starts a clone with these fields.
+ */
+export interface TimerPause {
+  /** True while no clone runs. */
+  paused: boolean;
+  /** Seconds the chain's stopped entries stored, after snapping. A pause that rounded to zero added none. */
+  seconds: number;
+  workspace_id: number;
+  description: string;
+  project_id: number | null;
+  task_id: number | null;
+  /** The tags a resumed clone gets, in name order. */
+  tag_ids: number[];
+  /** The names of `tag_ids`, in the same order, for display. */
+  tags: string[];
+  billable: boolean;
+  /** The running clone, or null while paused. */
+  clone_entry_id: number | null;
+}
+
+export interface TimerPomodoroPhase {
+  kind: PomodoroPhaseKind;
+  /** When the phase started: the session start or the instant Next phase was confirmed. ISO 8601 with milliseconds. */
+  start: string;
+  /** Work phases ended since the session started or the last long rest ended. A rest counts the work phase it follows. */
+  completed: number;
+  /** When the phase reaches its planned length. A client rings from here on until the phase changes. */
+  planned_end: string;
+}
+
+/** A Pomodoro session. Its open pomodoro is the running entry. */
+export interface TimerPomodoro {
+  /** The lengths the session started with, in minutes. */
+  work_minutes: number;
+  short_rest_minutes: number;
+  long_rest_minutes: number;
+  /** A long rest follows every this many work phases. */
+  long_rest_every: number;
+  phase: TimerPomodoroPhase;
+  /** The phase Next phase starts. */
+  upcoming_phase: PomodoroPhaseKind;
+  /** The change Next phase makes. */
+  transition: PomodoroTransition;
+  /** The pomodoro's place in the cycle, for "Pomodoro N of `long_rest_every`". */
+  number: number;
+  /** The open pomodoro: the running entry. */
+  entry_id: number;
+  /** The open pomodoro's start, the running entry's start. ISO 8601 with milliseconds. */
+  pomodoro_start: string;
+}
+
+/** A pomodoro too short to keep. The stop sent it to the trash with zero length on its snapped start. */
+export interface DiscardedPomodoro {
+  entry_id: number;
+  start: string;
+  stop: string;
+}
+
+/**
+ * A user's timer, from GET /api/app/timer, every timer action and the timer event stream. It holds
+ * at most one of a pause chain and a Pomodoro session.
+ */
+export interface TimerState {
+  /** Goes up by one on every change to the running entry, the pause chain or the session, from any client. */
+  revision: number;
+  /** The server's clock when it built this state, ISO 8601 with milliseconds. Clients correct their clock with it. */
+  server_time: string;
+  /** The running entry, as GET /api/v9/me/time_entries/current?meta=true returns it. */
+  running_entry: TimeEntry | null;
+  pause: TimerPause | null;
+  pomodoro: TimerPomodoro | null;
+  /** The pomodoro that the change which produced this revision discarded, if any. */
+  discarded_pomodoro: DiscardedPomodoro | null;
+}
+
 /** Fields accepted when creating or updating an entry through the Toggl-compatible API. */
 export interface TimeEntryInput {
   description?: string;
