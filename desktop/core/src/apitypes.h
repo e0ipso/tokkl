@@ -107,6 +107,73 @@ struct TimeEntryUpdate {
     std::optional<QDateTime> start;
 };
 
+// The pause chain of a timer state, from Pause until Discard, a start that is
+// not a resume, or a stop of the resumed clone. Resume starts a clone with
+// these fields.
+struct TimerPause {
+    bool paused = false; // true while no clone runs
+    qint64 seconds = 0; // what the chain's stopped entries stored, after snapping
+    qint64 workspaceId = 0;
+    QString description;
+    std::optional<qint64> projectId;
+    std::optional<qint64> taskId;
+    QList<qint64> tagIds; // the tags a resumed clone gets, in name order
+    QStringList tags; // the names of tagIds, in the same order
+    bool billable = false;
+    std::optional<qint64> cloneEntryId; // the running clone; empty while paused
+};
+
+struct TimerPomodoroPhase {
+    PhaseKind kind = PhaseKind::Work;
+    QDateTime start; // the session start or the instant Next phase was confirmed
+    // Work phases ended since the session started or the last long rest
+    // ended. A rest counts the work phase it follows.
+    int completed = 0;
+    QDateTime plannedEnd; // a client rings from here on until the phase changes
+};
+
+// A Pomodoro session. Its open pomodoro is the running entry.
+struct TimerPomodoro {
+    PomodoroConfig config; // the lengths the session started with
+    TimerPomodoroPhase phase;
+    PhaseKind upcomingPhase = PhaseKind::ShortRest; // the phase Next phase starts
+    TransitionKind transition = TransitionKind::WorkToShortRest; // the change Next phase makes
+    int number = 1; // the pomodoro's place in the cycle, N of config.longRestEvery
+    qint64 entryId = 0; // the open pomodoro, the running entry
+    QDateTime pomodoroStart; // the running entry's start
+};
+
+// A pomodoro too short to keep. Its stop sent it to the trash with zero
+// length on its snapped start.
+struct DiscardedPomodoro {
+    qint64 entryId = 0;
+    QDateTime start;
+    QDateTime stop;
+};
+
+// The account's timer: the body of GET /api/app/timer, of every timer action
+// and of a 409 refusing one, and the data of each timer event. It holds at
+// most one of a pause chain and a Pomodoro session.
+struct TimerState {
+    // Goes up by one on every change to the running entry, the pause chain or
+    // the session, from any client. 0 before the first.
+    qint64 revision = 0;
+    QDateTime serverTime; // the server's clock when it built the state
+    std::optional<TimeEntry> runningEntry;
+    std::optional<TimerPause> pause;
+    std::optional<TimerPomodoro> pomodoro;
+    // The pomodoro that the change to this revision discarded, if any.
+    std::optional<DiscardedPomodoro> discardedPomodoro;
+};
+
+// Body of POST /api/app/pomodoro. The session takes the account's Pomodoro
+// lengths, and its first pomodoro starts on the server's clock.
+struct PomodoroStart {
+    QString description;
+    std::optional<qint64> projectId;
+    std::optional<bool> billable;
+};
+
 // The PomodoroConfig fields that GET and POST /api/v9/me/preferences hold,
 // one key each.
 enum class PomodoroField {
@@ -183,6 +250,20 @@ struct ApiResult {
     }
 };
 
+// How a timer action ended.
+struct TimerActionResult {
+    enum class Outcome {
+        Applied, // the server made the change; state is the result
+        Conflict, // a 409: the server refused it, and state is its current state
+        Refused, // nothing changed: refused before sending, or an answer without a state
+        Unknown, // no answer, a timeout, a 5xx or an unreadable answer; it may have happened
+    };
+
+    Outcome outcome = Outcome::Unknown;
+    std::optional<TimerState> state; // for Applied and Conflict
+    ApiError error; // Kind::None for Applied
+};
+
 // Decoders for the API's bare JSON bodies. Each returns nullopt when the
 // value does not have the expected shape.
 std::optional<Me> decodeMe(const QJsonValue &value);
@@ -197,6 +278,10 @@ std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value);
 // that is missing, not an integer or out of its range reads as its default,
 // one key at a time. nullopt only for a value that is not an object.
 std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value);
+// Every field of the state and of what it holds must have its type, and a
+// running entry must run; nullopt otherwise. The running entry, pause,
+// session and discarded pomodoro must be present; null means none.
+std::optional<TimerState> decodeTimerState(const QJsonValue &value);
 
 // Parses a whole body as one JSON value, including bare null, strings and
 // numbers that QJsonDocument alone rejects.
@@ -211,5 +296,9 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
 QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
+// {"revision":n}, for an action that applies only to the state it was sent
+// against.
+QByteArray encodeRevision(qint64 revision);
+QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith);
 
 }

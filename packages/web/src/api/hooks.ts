@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { coversPreviousRange } from './entriesPlaceholder.ts';
+import { useTimerStreaming } from './timerStreaming.ts';
 import type {
   Client, Me, Preferences, Project, Report, ReportQuery, Tag, Task, TimeEntry, TimeEntryInput, Workspace,
 } from './types.ts';
@@ -17,6 +18,7 @@ export const keys = {
   tasks: ['tasks'] as const,
   entries: ['entries'] as const,
   current: ['current'] as const,
+  timer: ['timer'] as const,
   report: ['report'] as const,
   trash: ['trash'] as const,
 };
@@ -112,11 +114,13 @@ export function useEntries(startDate: string, endDate: string) {
   });
 }
 
+/** The running entry. While the timer stream is up it is written from each state, so it does not poll. */
 export function useCurrentEntry() {
+  const streaming = useTimerStreaming();
   return useQuery({
     queryKey: keys.current,
     queryFn: () => api.get<TimeEntry | null>(`${v9}/me/time_entries/current?meta=true`),
-    refetchInterval: 30_000,
+    refetchInterval: streaming ? false : 30_000,
   });
 }
 
@@ -145,6 +149,7 @@ function useInvalidateEntries() {
   return () => Promise.all([
     qc.invalidateQueries({ queryKey: keys.entries }),
     qc.invalidateQueries({ queryKey: keys.current }),
+    qc.invalidateQueries({ queryKey: keys.timer }),
     qc.invalidateQueries({ queryKey: keys.report }),
     qc.invalidateQueries({ queryKey: keys.projects }),
     qc.invalidateQueries({ queryKey: keys.tags }),

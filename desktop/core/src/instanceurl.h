@@ -24,6 +24,9 @@ struct InstanceUrl {
     // The URL of an /api/v9 endpoint, for example api(u"/me"). A query may
     // follow the path after "?".
     QUrl api(const QString &path) const;
+    // The URL of one of Tokkl's own /api/app endpoints, such as
+    // app(u"/timer"). A query may follow the path after "?".
+    QUrl app(const QString &path) const;
 };
 
 // Accepts http and https URLs with a host. Rejects user info, queries and

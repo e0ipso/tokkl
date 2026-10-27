@@ -4,6 +4,7 @@
 #include "transport.h"
 
 #include <QHostAddress>
+#include <QPointer>
 #include <QSignalSpy>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -56,6 +57,70 @@ public:
 private:
     QTcpServer m_server;
     QHash<QTcpSocket *, QByteArray> m_buffer;
+};
+
+// Holds each connection open after the request, so a test writes the
+// response a piece at a time.
+class StreamServer : public QObject
+{
+    Q_OBJECT
+
+public:
+    StreamServer()
+    {
+        connect(&m_server, &QTcpServer::newConnection, this, [this] {
+            while (QTcpSocket *candidate = m_server.nextPendingConnection()) {
+                connect(candidate, &QTcpSocket::readyRead, this, [this, candidate] {
+                    m_buffer += candidate->readAll();
+                    if (!socket && m_buffer.contains("\r\n\r\n")) {
+                        request = m_buffer;
+                        socket = candidate;
+                    }
+                });
+            }
+        });
+        m_server.listen(QHostAddress::LocalHost);
+    }
+
+    QUrl url(const QString &path) const
+    {
+        return QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(m_server.serverPort()).arg(path));
+    }
+
+    // One chunk of a chunked body.
+    void writeChunk(const QByteArray &data)
+    {
+        socket->write(QByteArray::number(data.size(), 16) + "\r\n" + data + "\r\n");
+        socket->flush();
+    }
+
+    QByteArray request;
+    QPointer<QTcpSocket> socket; // set once a request has arrived
+
+private:
+    QTcpServer m_server;
+    QByteArray m_buffer;
+};
+
+const QByteArray streamHead = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream; charset=utf-8\r\nCache-Control: no-store\r\n"
+                              "Connection: close\r\nTransfer-Encoding: chunked\r\n\r\n";
+
+// What a stream delivered.
+struct StreamLog {
+    QByteArray data;
+    int chunks = 0;
+    QList<HttpResponse> finished;
+
+    explicit StreamLog(PendingStream *stream)
+    {
+        QObject::connect(stream, &PendingStream::dataReceived, stream, [this](const QByteArray &chunk) {
+            data += chunk;
+            ++chunks;
+        });
+        QObject::connect(stream, &PendingStream::finished, stream, [this](const HttpResponse &response) {
+            finished.append(response);
+        });
+    }
 };
 
 QByteArray httpResponse(const QByteArray &statusLine, const QByteArray &headers, const QByteArray &body)
@@ -204,6 +269,97 @@ private Q_SLOTS:
         QTRY_VERIFY(result.has_value());
         QVERIFY(result->outcome == HttpResponse::Outcome::Aborted);
         delete reply;
+    }
+
+    // A stream delivers each piece of the body as it arrives, then ends once.
+    void streamDeliversChunks()
+    {
+        StreamServer server;
+        NetworkTransport transport(clientName);
+        PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic dDphcGlfdG9rZW4=", {}});
+        StreamLog log(stream);
+        QTRY_VERIFY(server.socket);
+        QVERIFY(server.request.startsWith("GET /api/app/timer/events HTTP/1.1\r\n"));
+        const QHash<QByteArray, QByteArray> fields = headerFields(server.request);
+        QCOMPARE(fields.value("authorization"), QByteArray("Basic dDphcGlfdG9rZW4="));
+        QCOMPARE(fields.value("accept"), QByteArray("text/event-stream"));
+        QCOMPARE(fields.value("user-agent"), QByteArray("tokkl-test/" TOKKL_VERSION_STRING));
+
+        server.socket->write(streamHead);
+        server.writeChunk("event: timer\n");
+        QTRY_COMPARE(log.data, QByteArray("event: timer\n"));
+        server.writeChunk("data: {}\n\n");
+        QTRY_COMPARE(log.data, QByteArray("event: timer\ndata: {}\n\n"));
+        QVERIFY(log.chunks >= 2);
+        QVERIFY(log.finished.isEmpty());
+
+        // The server ends the stream cleanly.
+        server.socket->write("0\r\n\r\n");
+        server.socket->disconnectFromHost();
+        QTRY_COMPARE(log.finished.size(), 1);
+        QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::Finished);
+        QCOMPARE(log.finished.first().status, 200);
+        QVERIFY(log.finished.first().body.isEmpty());
+        delete stream;
+    }
+
+    // There is no overall timeout, only one for a silence: each piece of data
+    // restarts it.
+    void streamIdleTimeout()
+    {
+        StreamServer server;
+        NetworkTransport transport(clientName);
+        // More than twice the 25 s between the server's keep-alive comments.
+        QCOMPARE(transport.streamIdleTimeout(), 60000);
+        transport.setTimeout(100);
+        transport.setStreamIdleTimeout(1000);
+        PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
+        StreamLog log(stream);
+        QTRY_VERIFY(server.socket);
+        server.socket->write(streamHead);
+        for (int i = 0; i < 4; ++i) {
+            server.writeChunk(": keep-alive\n\n");
+            QTest::qWait(300);
+        }
+        // 1200 ms since the request, more than the request timeout and the
+        // idle timeout.
+        QVERIFY(log.finished.isEmpty());
+        QTRY_COMPARE(log.finished.size(), 1);
+        QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::Timeout);
+        QCOMPARE(log.data, QByteArray(": keep-alive\n\n").repeated(4));
+        delete stream;
+    }
+
+    // A refused stream delivers no data; its answer comes with the end.
+    void streamRefused()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("403 Forbidden", "", "\"Invalid credentials\"");
+        NetworkTransport transport(clientName);
+        PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
+        StreamLog log(stream);
+        QTRY_COMPARE(log.finished.size(), 1);
+        QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::Finished);
+        QCOMPARE(log.finished.first().status, 403);
+        QCOMPARE(log.finished.first().body, QByteArray("\"Invalid credentials\""));
+        QCOMPARE(log.chunks, 0);
+        delete stream;
+    }
+
+    void streamAbort()
+    {
+        StreamServer server;
+        NetworkTransport transport(clientName);
+        PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
+        StreamLog log(stream);
+        QTRY_VERIFY(server.socket);
+        server.socket->write(streamHead);
+        server.writeChunk(": keep-alive\n\n");
+        QTRY_COMPARE(log.chunks, 1);
+        stream->abort();
+        QTRY_COMPARE(log.finished.size(), 1);
+        QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::Aborted);
+        delete stream;
     }
 };
 

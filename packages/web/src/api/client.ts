@@ -2,24 +2,29 @@
 
 export class ApiError extends Error {
   readonly status: number;
+  /** The reply's body when it was JSON that was not a plain string, such as the timer state a 409 carries. */
+  readonly body: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body?: unknown) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-async function errorMessage(response: Response): Promise<string> {
+async function apiError(response: Response): Promise<ApiError> {
   const text = await response.text();
+  let body: unknown;
   try {
     const parsed: unknown = JSON.parse(text);
-    if (typeof parsed === 'string') return parsed;
+    if (typeof parsed === 'string') return new ApiError(response.status, parsed);
+    body = parsed;
   } catch {
     // Plain-text body.
   }
-  return text || response.statusText || `Request failed (${response.status})`;
+  return new ApiError(response.status, text || response.statusText || `Request failed (${response.status})`, body);
 }
 
 export async function request<T>(method: Method, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
@@ -33,7 +38,7 @@ export async function request<T>(method: Method, path: string, body?: unknown, i
     headers['Content-Type'] = 'application/json';
   }
   const response = await fetch(path, { method, headers, body: payload, credentials: 'same-origin', ...init });
-  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  if (!response.ok) throw await apiError(response);
   const text = await response.text();
   return (text ? JSON.parse(text) : null) as T;
 }
@@ -46,7 +51,7 @@ export async function download(path: string, filename: string, method: 'GET' | '
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
   });
-  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  if (!response.ok) throw await apiError(response);
   const url = URL.createObjectURL(await response.blob());
   const link = document.createElement('a');
   link.href = url;

@@ -2,7 +2,7 @@
 id: 8
 group: "desktop-core"
 dependencies: [3]
-status: "pending"
+status: "completed"
 created: 2026-10-27
 skills:
   - cpp-qt
@@ -20,14 +20,14 @@ Add a core component that reads `GET /api/app/timer`, holds the SSE stream, keep
 C++20 with Qt 6 Core and Qt Network (`QNetworkAccessManager`, streaming reads from `QNetworkReply`).
 
 ## Acceptance Criteria
-- [ ] `Transport` in `desktop/core/src/transport.h` gains a streaming request, for example `virtual PendingStream *openStream(const HttpRequest &)`. The stream emits `dataReceived(QByteArray)` for each chunk and `finished(HttpResponse)` once. `NetworkTransport` implements it on `QNetworkReply::readyRead`. It has no overall timeout. Instead it has an idle timeout of 60 s with no bytes, which is more than twice the server's 25 s keep-alive. The fake transport in `desktop/core/autotests/fakes.h` can script chunks and a close.
-- [ ] `apitypes.h/.cpp` gain `TimerState` and `decodeTimerState()`, mirroring task 2's JSON. They follow the existing strict decode style and return `std::nullopt` for a malformed state.
-- [ ] `Connection` gains typed operations that use its generation and authorization:
+- [x] `Transport` in `desktop/core/src/transport.h` gains a streaming request, for example `virtual PendingStream *openStream(const HttpRequest &)`. The stream emits `dataReceived(QByteArray)` for each chunk and `finished(HttpResponse)` once. `NetworkTransport` implements it on `QNetworkReply::readyRead`. It has no overall timeout. Instead it has an idle timeout of 60 s with no bytes, which is more than twice the server's 25 s keep-alive. The fake transport in `desktop/core/autotests/fakes.h` can script chunks and a close.
+- [x] `apitypes.h/.cpp` gain `TimerState` and `decodeTimerState()`, mirroring task 2's JSON. They follow the existing strict decode style and return `std::nullopt` for a malformed state.
+- [x] `Connection` gains typed operations that use its generation and authorization:
   - `fetchTimerState`;
   - one per action: pause, resume, discard, start session, next phase and end session;
   - `openTimerEvents()`.
   An action's callback can tell three outcomes apart: success with a state, a 409 with the server's state, and an unknown outcome (no answer, timeout, 5xx, unreadable body).
-- [ ] A new `TimerStateClient` QObject (`timerstateclient.h/.cpp`) takes the `Connection`, the `Transport` path through it, and the `Clock`. It:
+- [x] A new `TimerStateClient` QObject (`timerstateclient.h/.cpp`) takes the `Connection`, the `Transport` path through it, and the `Clock`. It:
   - reads the state when a context becomes Connected and opens the stream;
   - parses SSE across chunk boundaries (`event:` and `data:` lines, a blank line ending an event, `:` comment lines ignored);
   - emits `stateChanged()` for each state with a revision at least as new as the one it holds;
@@ -35,8 +35,8 @@ C++20 with Qt 6 Core and Qt Network (`QNetworkAccessManager`, streaming reads fr
   - reconnects with backoff from 1 s, doubling up to 60 s, after a stream ends or fails;
   - while the stream is down, reads the state every 30 s and on `resumed()`;
   - drops its state when the generation changes.
-- [ ] Actions sent through the client adopt the returned state, on success and on 409.
-- [ ] A new CTest test, `timerstateclienttest.cpp`, uses the fake transport and fake clock. It covers:
+- [x] Actions sent through the client adopt the returned state, on success and on 409.
+- [x] A new CTest test, `timerstateclienttest.cpp`, uses the fake transport and fake clock. It covers:
   - the first read and the stream opening;
   - an event split across two chunks;
   - keep-alive comments ignored;
@@ -45,7 +45,7 @@ C++20 with Qt 6 Core and Qt Network (`QNetworkAccessManager`, streaming reads fr
   - a generation change dropping the state;
   - a 409 adopting the server's state;
   - the offset taken from `server_time`.
-- [ ] The core still links only Qt Core and Qt Network. `desktop/core/ci/check.sh` exits 0.
+- [x] The core still links only Qt Core and Qt Network. `desktop/core/ci/check.sh` exits 0.
 
 Use your internal Todo tool to track these and keep on track.
 

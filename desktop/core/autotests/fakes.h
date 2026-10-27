@@ -1,6 +1,7 @@
 #pragma once
 
-// Scripted stand-ins for the network, KDE Wallet and the pause chain store.
+// Scripted stand-ins for the network, its streams, KDE Wallet and the pause
+// chain store.
 // Nothing here touches a real host, wallet or configuration file.
 
 #include "chainstore.h"
@@ -43,6 +44,34 @@ public:
     bool aborted = false;
 };
 
+// A stream the test feeds by hand: push() delivers a piece of data, end()
+// the end.
+class FakeStream : public Tokkl::PendingStream
+{
+    Q_OBJECT
+
+public:
+    using Tokkl::PendingStream::PendingStream;
+
+    // Records the abort but stays deliverable, like FakeReply.
+    void abort() override
+    {
+        aborted = true;
+    }
+
+    void push(const QByteArray &data)
+    {
+        Q_EMIT dataReceived(data);
+    }
+
+    void end(const Tokkl::HttpResponse &response)
+    {
+        Q_EMIT finished(response);
+    }
+
+    bool aborted = false;
+};
+
 class FakeTransport : public Tokkl::Transport
 {
     Q_OBJECT
@@ -56,6 +85,22 @@ public:
         auto *reply = new FakeReply(this);
         replies.append(reply);
         return reply;
+    }
+
+    // Streams are recorded apart from requests, so the indexes of requests
+    // and replies stay as they were.
+    Tokkl::PendingStream *openStream(const Tokkl::HttpRequest &request) override
+    {
+        streamRequests.append(request);
+        auto *stream = new FakeStream(this);
+        streams.append(stream);
+        return stream;
+    }
+
+    // The latest stream while it has not been deleted, or nullptr.
+    FakeStream *lastStream() const
+    {
+        return streams.isEmpty() ? nullptr : streams.last().data();
     }
 
     static Tokkl::HttpResponse answer(int status, const QByteArray &body, const QByteArray &retryAfter = QByteArray())
@@ -91,6 +136,8 @@ public:
 
     QList<Tokkl::HttpRequest> requests;
     QList<QPointer<FakeReply>> replies;
+    QList<Tokkl::HttpRequest> streamRequests;
+    QList<QPointer<FakeStream>> streams;
 };
 
 class FakeCredentialStore : public Tokkl::CredentialStore

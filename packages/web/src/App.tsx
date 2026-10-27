@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Switch, useLocation, useRoute } from 'wouter';
 import { ApiError, api } from './api/client.ts';
 import { useCurrentEntry, useMe, usePreferences } from './api/hooks.ts';
+import { TimerStateProvider } from './api/TimerStateProvider.tsx';
 import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
@@ -340,5 +341,9 @@ export function App() {
       </div>
     );
   }
-  return <PauseCoordinationProvider><PomodoroSessionProvider><Shell /></PomodoroSessionProvider></PauseCoordinationProvider>;
+  return (
+    <TimerStateProvider>
+      <PauseCoordinationProvider><PomodoroSessionProvider><Shell /></PomodoroSessionProvider></PauseCoordinationProvider>
+    </TimerStateProvider>
+  );
 }

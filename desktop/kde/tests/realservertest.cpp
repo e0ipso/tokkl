@@ -154,6 +154,12 @@ public:
         return reply;
     }
 
+    // Streams pass through unrecorded.
+    PendingStream *openStream(const HttpRequest &request) override
+    {
+        return m_inner.openStream(request);
+    }
+
     // Requests from index `from` on that match the method and a path suffix
     // (the path after /api/v9, query excluded).
     QList<std::shared_ptr<Exchange>> since(qsizetype from, const QByteArray &method = {}, const QString &path = {}) const

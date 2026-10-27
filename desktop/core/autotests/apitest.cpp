@@ -8,8 +8,112 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTest>
+#include <QTimeZone>
 
 using namespace Tokkl;
+
+namespace
+{
+// A state with a running Pomodoro session, as GET /api/app/timer sends it.
+QJsonObject sessionState()
+{
+    const QJsonObject entry{
+        {QStringLiteral("id"), 41},
+        {QStringLiteral("workspace_id"), 7},
+        {QStringLiteral("project_id"), 11},
+        {QStringLiteral("task_id"), QJsonValue::Null},
+        {QStringLiteral("billable"), true},
+        {QStringLiteral("start"), QStringLiteral("2026-10-16T08:50:00.000Z")},
+        {QStringLiteral("stop"), QJsonValue::Null},
+        {QStringLiteral("duration"), -1792140600},
+        {QStringLiteral("description"), QStringLiteral("Write the report")},
+        {QStringLiteral("tags"), QJsonArray{QStringLiteral("focus")}},
+        {QStringLiteral("tag_ids"), QJsonArray{3}},
+        {QStringLiteral("at"), QStringLiteral("2026-10-16T08:50:00.000Z")},
+        {QStringLiteral("server_deleted_at"), QJsonValue::Null},
+        {QStringLiteral("project_name"), QStringLiteral("Alpha")},
+    };
+    const QJsonObject phase{
+        {QStringLiteral("kind"), QStringLiteral("shortRest")},
+        {QStringLiteral("start"), QStringLiteral("2026-10-16T08:55:00.000Z")},
+        {QStringLiteral("completed"), 1},
+        {QStringLiteral("planned_end"), QStringLiteral("2026-10-16T09:00:00.000Z")},
+    };
+    const QJsonObject pomodoro{
+        {QStringLiteral("work_minutes"), 25},
+        {QStringLiteral("short_rest_minutes"), 5},
+        {QStringLiteral("long_rest_minutes"), 15},
+        {QStringLiteral("long_rest_every"), 4},
+        {QStringLiteral("phase"), phase},
+        {QStringLiteral("upcoming_phase"), QStringLiteral("work")},
+        {QStringLiteral("transition"), QStringLiteral("shortRestToWork")},
+        {QStringLiteral("number"), 1},
+        {QStringLiteral("entry_id"), 41},
+        {QStringLiteral("pomodoro_start"), QStringLiteral("2026-10-16T08:30:00.000Z")},
+    };
+    const QJsonObject discarded{
+        {QStringLiteral("entry_id"), 40},
+        {QStringLiteral("start"), QStringLiteral("2026-10-16T08:29:00.000Z")},
+        {QStringLiteral("stop"), QStringLiteral("2026-10-16T08:29:00.000Z")},
+    };
+    return QJsonObject{
+        {QStringLiteral("revision"), 12},
+        {QStringLiteral("server_time"), QStringLiteral("2026-10-16T08:56:30.250Z")},
+        {QStringLiteral("running_entry"), entry},
+        {QStringLiteral("pause"), QJsonValue::Null},
+        {QStringLiteral("pomodoro"), pomodoro},
+        {QStringLiteral("discarded_pomodoro"), discarded},
+    };
+}
+
+// A paused chain: nothing runs.
+QJsonObject pausedState()
+{
+    QJsonObject state = sessionState();
+    state.insert(QStringLiteral("running_entry"), QJsonValue::Null);
+    state.insert(QStringLiteral("pomodoro"), QJsonValue::Null);
+    state.insert(QStringLiteral("discarded_pomodoro"), QJsonValue::Null);
+    state.insert(QStringLiteral("pause"),
+                 QJsonObject{
+                     {QStringLiteral("paused"), true},
+                     {QStringLiteral("seconds"), 1500},
+                     {QStringLiteral("workspace_id"), 7},
+                     {QStringLiteral("description"), QStringLiteral("Write the report")},
+                     {QStringLiteral("project_id"), 11},
+                     {QStringLiteral("task_id"), QJsonValue::Null},
+                     {QStringLiteral("tag_ids"), QJsonArray{3, 5}},
+                     {QStringLiteral("tags"), QJsonArray{QStringLiteral("client"), QStringLiteral("focus")}},
+                     {QStringLiteral("billable"), true},
+                     {QStringLiteral("clone_entry_id"), QJsonValue::Null},
+                 });
+    return state;
+}
+
+// Replaces the value at a slash-separated path of object keys, or removes it
+// when value is undefined.
+QJsonValue withValue(const QJsonValue &root, QStringView path, const QJsonValue &value)
+{
+    const qsizetype slash = path.indexOf(QLatin1Char('/'));
+    const QString key = path.left(slash).toString();
+    QJsonObject object = root.toObject();
+    if (slash < 0) {
+        if (value.isUndefined()) {
+            object.remove(key);
+        } else {
+            object.insert(key, value);
+        }
+    } else {
+        object.insert(key, withValue(object.value(key), path.mid(slash + 1), value));
+    }
+    return object;
+}
+
+std::optional<TimerState> decodeText(const QByteArray &text)
+{
+    const std::optional<QJsonValue> value = parseJsonBody(text);
+    return value ? decodeTimerState(*value) : std::nullopt;
+}
+}
 
 class ApiTest : public QObject
 {
@@ -295,6 +399,126 @@ private Q_SLOTS:
         const QJsonObject cleared = QJsonDocument::fromJson(encodeTimeEntryUpdate(update)).object();
         QVERIFY(cleared.contains(QLatin1String("task_id")));
         QVERIFY(cleared.value(QLatin1String("task_id")).isNull());
+    }
+    void appUrls()
+    {
+        const InstanceUrl instance = parseInstanceUrl(QStringLiteral("https://example.com/tokkl"));
+        QCOMPARE(instance.app(QStringLiteral("/timer/events")).toString(QUrl::FullyEncoded), QStringLiteral("https://example.com/tokkl/api/app/timer/events"));
+        QCOMPARE(parseInstanceUrl(QStringLiteral("http://127.0.0.1:8080")).app(QStringLiteral("/pomodoro/next")).toString(QUrl::FullyEncoded),
+                 QStringLiteral("http://127.0.0.1:8080/api/app/pomodoro/next"));
+    }
+
+    void decodeTimerStates()
+    {
+        const std::optional<TimerState> session = decodeTimerState(sessionState());
+        QVERIFY(session);
+        QCOMPARE(session->revision, 12);
+        QCOMPARE(session->serverTime, QDateTime(QDate(2026, 10, 16), QTime(8, 56, 30, 250), QTimeZone::UTC));
+        QVERIFY(session->runningEntry);
+        QCOMPARE(session->runningEntry->id, 41);
+        QCOMPARE(session->runningEntry->projectId, std::optional<qint64>(11));
+        QVERIFY(session->runningEntry->isRunning());
+        QVERIFY(!session->pause);
+        QVERIFY(session->pomodoro);
+        const TimerPomodoro &pomodoro = *session->pomodoro;
+        QCOMPARE(pomodoro.config, (PomodoroConfig{25, 5, 15, 4}));
+        QVERIFY(pomodoro.phase.kind == PhaseKind::ShortRest);
+        QCOMPARE(pomodoro.phase.start, QDateTime(QDate(2026, 10, 16), QTime(8, 55), QTimeZone::UTC));
+        QCOMPARE(pomodoro.phase.completed, 1);
+        QCOMPARE(pomodoro.phase.plannedEnd, QDateTime(QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC));
+        QVERIFY(pomodoro.upcomingPhase == PhaseKind::Work);
+        QVERIFY(pomodoro.transition == TransitionKind::ShortRestToWork);
+        QCOMPARE(pomodoro.number, 1);
+        QCOMPARE(pomodoro.entryId, 41);
+        QCOMPARE(pomodoro.pomodoroStart, QDateTime(QDate(2026, 10, 16), QTime(8, 30), QTimeZone::UTC));
+        QVERIFY(session->discardedPomodoro);
+        QCOMPARE(session->discardedPomodoro->entryId, 40);
+        QCOMPARE(session->discardedPomodoro->stop, QDateTime(QDate(2026, 10, 16), QTime(8, 29), QTimeZone::UTC));
+
+        const std::optional<TimerState> paused = decodeTimerState(pausedState());
+        QVERIFY(paused);
+        QVERIFY(!paused->runningEntry);
+        QVERIFY(!paused->pomodoro);
+        QVERIFY(!paused->discardedPomodoro);
+        QVERIFY(paused->pause);
+        QVERIFY(paused->pause->paused);
+        QCOMPARE(paused->pause->seconds, 1500);
+        QCOMPARE(paused->pause->workspaceId, 7);
+        QCOMPARE(paused->pause->description, QStringLiteral("Write the report"));
+        QCOMPARE(paused->pause->projectId, std::optional<qint64>(11));
+        QCOMPARE(paused->pause->taskId, std::nullopt);
+        QCOMPARE(paused->pause->tagIds, (QList<qint64>{3, 5}));
+        QCOMPARE(paused->pause->tags, (QStringList{QStringLiteral("client"), QStringLiteral("focus")}));
+        QVERIFY(paused->pause->billable);
+        QCOMPARE(paused->pause->cloneEntryId, std::nullopt);
+
+        // A user who never ran a timer is at revision 0.
+        const std::optional<TimerState> idle = decodeText(R"({"revision":0,"server_time":"2026-10-16T09:00:00.000Z","running_entry":null,"pause":null,"pomodoro":null,"discarded_pomodoro":null})");
+        QVERIFY(idle);
+        QCOMPARE(idle->revision, 0);
+        QVERIFY(!idle->runningEntry && !idle->pause && !idle->pomodoro && !idle->discardedPomodoro);
+    }
+
+    void timerStateIsStrict_data()
+    {
+        QTest::addColumn<QJsonValue>("state");
+
+        const QJsonValue session = sessionState();
+        const QJsonValue paused = pausedState();
+        const QJsonValue undefined(QJsonValue::Undefined);
+        QTest::newRow("not an object") << QJsonValue(QJsonArray{session});
+        QTest::newRow("no revision") << withValue(session, u"revision", undefined);
+        QTest::newRow("negative revision") << withValue(session, u"revision", -1);
+        QTest::newRow("fractional revision") << withValue(session, u"revision", 1.5);
+        QTest::newRow("revision as text") << withValue(session, u"revision", QStringLiteral("12"));
+        QTest::newRow("no server time") << withValue(session, u"server_time", undefined);
+        QTest::newRow("server time not a timestamp") << withValue(session, u"server_time", QStringLiteral("now"));
+        QTest::newRow("no running entry key") << withValue(session, u"running_entry", undefined);
+        QTest::newRow("running entry stopped") << withValue(session, u"running_entry/stop", QStringLiteral("2026-10-16T08:55:00.000Z"));
+        QTest::newRow("running entry not an entry") << withValue(session, u"running_entry", QStringLiteral("41"));
+        QTest::newRow("unknown phase") << withValue(session, u"pomodoro/phase/kind", QStringLiteral("nap"));
+        QTest::newRow("unknown upcoming phase") << withValue(session, u"pomodoro/upcoming_phase", QStringLiteral("nap"));
+        QTest::newRow("unknown transition") << withValue(session, u"pomodoro/transition", QStringLiteral("napToWork"));
+        QTest::newRow("no planned end") << withValue(session, u"pomodoro/phase/planned_end", undefined);
+        QTest::newRow("negative completed") << withValue(session, u"pomodoro/phase/completed", -1);
+        QTest::newRow("zero work minutes") << withValue(session, u"pomodoro/work_minutes", 0);
+        QTest::newRow("no session entry") << withValue(session, u"pomodoro/entry_id", 0);
+        QTest::newRow("no pomodoro start") << withValue(session, u"pomodoro/pomodoro_start", undefined);
+        QTest::newRow("discarded without stop") << withValue(session, u"discarded_pomodoro/stop", undefined);
+        QTest::newRow("pause flag as text") << withValue(paused, u"pause/paused", QStringLiteral("true"));
+        QTest::newRow("negative pause seconds") << withValue(paused, u"pause/seconds", -5);
+        QTest::newRow("pause without workspace") << withValue(paused, u"pause/workspace_id", undefined);
+        QTest::newRow("pause tag id as text") << withValue(paused, u"pause/tag_ids", QJsonArray{QStringLiteral("3")});
+        QTest::newRow("pause tag not text") << withValue(paused, u"pause/tags", QJsonArray{3});
+        QTest::newRow("pause clone id zero") << withValue(paused, u"pause/clone_entry_id", 0);
+    }
+
+    // Any value of the wrong shape refuses the whole state.
+    void timerStateIsStrict()
+    {
+        QFETCH(QJsonValue, state);
+        QVERIFY(!decodeTimerState(state));
+    }
+
+    void encodeTimerActions()
+    {
+        QCOMPARE(encodeRevision(12), QByteArray(R"({"revision":12})"));
+
+        PomodoroStart start;
+        start.projectId = 11;
+        start.billable = true;
+        const QJsonObject body = QJsonDocument::fromJson(encodePomodoroStart(start, 7, QStringLiteral("tokkl-test"))).object();
+        QCOMPARE(body.value(QLatin1String("workspace_id")).toInteger(), 7);
+        QCOMPARE(body.value(QLatin1String("project_id")).toInteger(), 11);
+        QCOMPARE(body.value(QLatin1String("billable")), QJsonValue(true));
+        QCOMPARE(body.value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-test"));
+        QCOMPARE(body.value(QLatin1String("description")).toString(), QString());
+        // The session lengths are the account's preferences unless set.
+        QVERIFY(!body.contains(QLatin1String("work_minutes")));
+
+        const QJsonObject plain = QJsonDocument::fromJson(encodePomodoroStart(PomodoroStart(), 7, QStringLiteral("tokkl-test"))).object();
+        QVERIFY(plain.value(QLatin1String("project_id")).isNull());
+        QVERIFY(!plain.contains(QLatin1String("billable")));
     }
 };
 
