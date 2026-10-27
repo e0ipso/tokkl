@@ -262,10 +262,10 @@ No circular dependencies. Tasks 09 and 10 change the core API, so the KDE, GNOME
 - ✔️ Task 04: Web timer state stream and action hooks (depends on: 03)
 - ✔️ Task 08: Desktop core: timer state client and SSE stream (depends on: 03)
 
-### Phase 5: Sessions and timer controller
+### ✅ Phase 5: Sessions and timer controller
 **Parallel Tasks:**
-- Task 05: Web Pomodoro views on the server state (depends on: 04)
-- Task 09: Desktop core: TimerController on the server state (depends on: 08)
+- ✔️ Task 05: Web Pomodoro views on the server state (depends on: 04)
+- ✔️ Task 09: Desktop core: TimerController on the server state (depends on: 08)
 
 ### Phase 6: Pause chain and session view
 **Parallel Tasks:**

@@ -1,7 +1,7 @@
-import type { TransitionKind } from '@tokkl/common/pomodoroSession';
+import type { PomodoroTransition, TimerState } from '../api/types.ts';
 
 /** Same-origin WAV phrases have no MP3 encoder padding at the loop boundary. */
-const SOUNDS: Record<TransitionKind, string> = {
+const SOUNDS: Record<PomodoroTransition, string> = {
   workToShortRest: '/sounds/pomodoro-work-to-short-rest.wav',
   shortRestToWork: '/sounds/pomodoro-short-rest-to-work.wav',
   workToLongRest: '/sounds/pomodoro-work-to-long-rest.wav',
@@ -10,10 +10,20 @@ const SOUNDS: Record<TransitionKind, string> = {
 
 export interface SessionAlarm {
   key: string;
-  transition: TransitionKind;
+  transition: PomodoroTransition;
 }
 
-/** Owns only audio. Its lock must never be the account's session mutation/save lock. */
+/**
+ * What should ring at `serverNow` (ms, on the server's clock): nothing before the phase's planned
+ * end, then the server's transition under the phase start. A state with another phase start or no
+ * session gives another key or none, which stops the alarm whichever device made the change.
+ */
+export function phaseAlarm(pomodoro: TimerState['pomodoro'] | undefined, serverNow: number): SessionAlarm | null {
+  if (!pomodoro || serverNow < Date.parse(pomodoro.phase.planned_end)) return null;
+  return { key: pomodoro.phase.start, transition: pomodoro.transition };
+}
+
+/** Owns only audio: one tab of the account plays it, under its own Web Lock. */
 export function createPomodoroSessionAlarm(accountId: number, options: {
   current: () => SessionAlarm | null;
   onError: (blocked: boolean) => void;
@@ -54,7 +64,7 @@ export function createPomodoroSessionAlarm(accountId: number, options: {
       release();
     };
     cancel = cancelRequest;
-    void navigator.locks.request(`tokkl.pomodoroSessionAudio.${accountId}`, { signal: abort.signal }, async () => {
+    void navigator.locks.request(`tokkl.pomodoroAudio.${accountId}`, { signal: abort.signal }, async () => {
       try {
         await priming;
         if (!stillCurrent()) return;
@@ -87,7 +97,7 @@ export function createPomodoroSessionAlarm(accountId: number, options: {
       if (active) return;
       active = true;
       try {
-        channel = new BroadcastChannel(`tokkl.pomodoroSessionAudio.${accountId}`);
+        channel = new BroadcastChannel(`tokkl.pomodoroAudio.${accountId}`);
         channel.onmessage = (event: MessageEvent<unknown>) => {
           const data = event.data as { playing?: unknown } | null;
           if (target && data?.playing === target.key) {

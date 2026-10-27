@@ -2,7 +2,7 @@
 id: 9
 group: "desktop-core"
 dependencies: [8]
-status: "pending"
+status: "completed"
 created: 2026-10-27
 skills:
   - cpp-qt

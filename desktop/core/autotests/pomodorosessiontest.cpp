@@ -10,6 +10,7 @@
 #include "pomodorosession.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
+#include "timerstateclient.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -28,7 +29,7 @@ namespace
 const QString instanceA = QStringLiteral("https://a.example.test");
 const QString instanceB = QStringLiteral("https://b.example.test/tokkl");
 const QString token = QStringLiteral("tok-session-1");
-const QByteArray currentPath = "/me/time_entries/current";
+const QByteArray statePath = "/app/timer";
 const QByteArray entriesPath = "/workspaces/7/time_entries";
 const QByteArray preferencesPath = "/me/preferences";
 // Lengths of one minute and a long rest after every second work phase.
@@ -82,15 +83,6 @@ QByteArray runningEntry(qint64 id, const QDateTime &start, std::optional<qint64>
         .toJson(QJsonDocument::Compact);
 }
 
-// The entry a stop answers with: stopped, with the duration stored.
-QByteArray stoppedEntryBody(qint64 id, const QDateTime &start, qint64 duration)
-{
-    QJsonObject entry = QJsonDocument::fromJson(runningEntry(id, start)).object();
-    entry.insert(QStringLiteral("stop"), iso(start.addSecs(duration)));
-    entry.insert(QStringLiteral("duration"), duration);
-    return QJsonDocument(entry).toJson(QJsonDocument::Compact);
-}
-
 // The stopped entry the server answers a POST with.
 QByteArray stoppedEntry(qint64 id, const QJsonObject &posted)
 {
@@ -116,20 +108,20 @@ class PomodoroSessionTest : public QObject
         FakeTransport transport;
         FakeCredentialStore credentials;
         FakeClock clock;
-        FakeChainStore chains;
         SettingsPomodoroStore store{&settings};
         Connection connection{&transport, &credentials, testClientName()};
+        TimerStateClient state{&connection, &clock};
         TimerController timer{&clock};
         PomodoroPreferences preferences{&connection, &store};
         PomodoroQueue queue{&connection, &clock, &store};
         // Absent for a test that creates it later, after a restart.
         std::unique_ptr<PomodoroSession> session;
         QSet<qsizetype> answered;
+        qint64 revision = 0; // of the last timer state built
 
         explicit Fixture(bool withSession = true)
         {
-            timer.setChainStore(&chains);
-            timer.setConnection(&connection);
+            timer.setStateClient(&state);
             if (withSession) {
                 createSession();
             }
@@ -170,6 +162,36 @@ class PomodoroSessionTest : public QObject
             transport.respond(index, response);
         }
 
+        // The timer state at the next revision: the running entry as JSON
+        // ("null" for none), or a paused chain.
+        HttpResponse timerState(const QByteArray &running = "null", bool paused = false)
+        {
+            QJsonValue pause = QJsonValue::Null;
+            if (paused) {
+                pause = QJsonObject{
+                    {QStringLiteral("paused"), true},
+                    {QStringLiteral("seconds"), 65},
+                    {QStringLiteral("workspace_id"), 7},
+                    {QStringLiteral("description"), QString()},
+                    {QStringLiteral("project_id"), QJsonValue::Null},
+                    {QStringLiteral("task_id"), QJsonValue::Null},
+                    {QStringLiteral("tag_ids"), QJsonArray()},
+                    {QStringLiteral("tags"), QJsonArray()},
+                    {QStringLiteral("billable"), false},
+                    {QStringLiteral("clone_entry_id"), QJsonValue::Null},
+                };
+            }
+            const QJsonObject body{
+                {QStringLiteral("revision"), ++revision},
+                {QStringLiteral("server_time"), clock.now().toUTC().toString(Qt::ISODateWithMs)},
+                {QStringLiteral("running_entry"), parseJsonBody(running).value_or(QJsonValue())},
+                {QStringLiteral("pause"), pause},
+                {QStringLiteral("pomodoro"), QJsonValue::Null},
+                {QStringLiteral("discarded_pomodoro"), QJsonValue::Null},
+            };
+            return FakeTransport::answer(200, QJsonDocument(body).toJson(QJsonDocument::Compact));
+        }
+
         qsizetype posts() const
         {
             return find("POST", entriesPath).size();
@@ -200,13 +222,13 @@ class PomodoroSessionTest : public QObject
             return false;
         }
         f.respond(before, FakeTransport::answer(200, meBody(3, 7, timezone)));
-        const qsizetype entry = f.last("GET", currentPath);
+        const qsizetype entry = f.last("GET", statePath);
         const qsizetype projects = f.last("GET", "/projects");
         const qsizetype preferences = f.last("GET", preferencesPath);
         if (!f.unanswered(entry) || !f.unanswered(projects) || !f.unanswered(preferences)) {
             return false;
         }
-        f.respond(entry, FakeTransport::answer(200, current));
+        f.respond(entry, f.timerState(current));
         f.respond(projects, FakeTransport::answer(200, projectsBody()));
         f.respond(preferences, FakeTransport::answer(200, preferencesBody(lengths)));
         return f.timer.isConnected() && f.preferences.config() == lengths;
@@ -502,13 +524,9 @@ private Q_SLOTS:
 
         // Paused.
         QVERIFY(f.timer.pause());
-        const qsizetype stop = f.last("PATCH", "/stop");
-        QVERIFY(f.unanswered(stop));
-        f.respond(stop, FakeTransport::answer(200, stoppedEntryBody(5, at.addSecs(-65), 65)));
-        const qsizetype read = f.last("GET", currentPath);
-        if (f.unanswered(read)) {
-            f.respond(read, FakeTransport::answer(200, "null"));
-        }
+        const qsizetype pause = f.last("POST", "/timer/pause");
+        QVERIFY(f.unanswered(pause));
+        f.respond(pause, f.timerState("null", true));
         QVERIFY(f.timer.isPaused());
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.session->modeLocked());
@@ -517,6 +535,7 @@ private Q_SLOTS:
 
         // Stopped: the mode can change, and a session locks it again.
         QVERIFY(f.timer.stop());
+        f.respond(f.last("POST", "/timer/discard"), f.timerState());
         QVERIFY(!f.timer.isPaused());
         QVERIFY(!f.session->modeLocked());
         QCOMPARE(locks.size(), 1);
@@ -547,15 +566,13 @@ private Q_SLOTS:
         QVERIFY(f.timer.isRunning());
         QVERIFY(f.session->setPomodoroMode(false));
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
-        const qsizetype stop = f.last("PATCH", "/stop");
-        QVERIFY(f.unanswered(stop));
-        f.respond(stop, FakeTransport::answer(200, stoppedEntryBody(5, at, 1)));
-        const qsizetype read = f.last("GET", currentPath);
-        if (f.unanswered(read)) {
-            f.respond(read, FakeTransport::answer(200, "null"));
-        }
+        const qsizetype pause = f.last("POST", "/timer/pause");
+        QVERIFY(f.unanswered(pause));
+        f.respond(pause, f.timerState("null", true));
         QVERIFY(f.timer.isPaused());
         QVERIFY(f.timer.stop());
+        f.respond(f.last("POST", "/timer/discard"), f.timerState());
+        QVERIFY(!f.timer.isPaused());
 
         // Pomodoro mode without a session: the click starts one, and
         // another click while the lengths are read does nothing.
@@ -585,12 +602,12 @@ private Q_SLOTS:
 
         // A foreign timer in Pomodoro mode still gets the timer click.
         tick(f, 30);
-        const qsizetype poll = f.last("GET", currentPath);
+        const qsizetype poll = f.last("GET", statePath);
         QVERIFY(f.unanswered(poll));
-        f.respond(poll, FakeTransport::answer(200, runningEntry(9, f.clock.now().addSecs(-5))));
+        f.respond(poll, f.timerState(runningEntry(9, f.clock.now().addSecs(-5))));
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
-        QVERIFY(f.unanswered(f.last("PATCH", "/stop")));
+        QVERIFY(f.unanswered(f.last("POST", "/timer/pause")));
     }
 
     void ignoresTheClickWithoutAnAccount()
@@ -616,9 +633,9 @@ private Q_SLOTS:
         // An entry started at the pomodoro start or before is not a
         // handoff.
         tick(f, 30);
-        qsizetype poll = f.last("GET", currentPath);
+        qsizetype poll = f.last("GET", statePath);
         QVERIFY(f.unanswered(poll));
-        f.respond(poll, FakeTransport::answer(200, runningEntry(8, at)));
+        f.respond(poll, f.timerState(runningEntry(8, at)));
         QVERIFY(f.timer.isRunning());
         QVERIFY(f.session->isActive());
         QVERIFY(f.session->modeLocked());
@@ -626,9 +643,9 @@ private Q_SLOTS:
 
         // One started later ends the session at its start.
         tick(f, 30);
-        poll = f.last("GET", currentPath);
+        poll = f.last("GET", statePath);
         QVERIFY(f.unanswered(poll));
-        f.respond(poll, FakeTransport::answer(200, runningEntry(9, at.addSecs(40))));
+        f.respond(poll, f.timerState(runningEntry(9, at.addSecs(40))));
         QVERIFY(!f.session->isActive());
         QCOMPARE(f.posts(), 1);
         const QJsonObject body = f.body(f.last("POST", entriesPath));

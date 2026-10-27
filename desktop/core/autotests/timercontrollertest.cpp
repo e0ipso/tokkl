@@ -1,16 +1,16 @@
-// The timer controller, driven through a fake clock, a scripted transport and
-// a scripted credential store.
+// The timer controller on the server's timer state, driven through a fake
+// clock, a scripted transport with scripted streams and a scripted
+// credential store.
 
 #include "connection.h"
 #include "fakes.h"
 #include "timercontroller.h"
+#include "timerstateclient.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSettings>
 #include <QSignalSpy>
-#include <QTemporaryDir>
 #include <QTest>
 
 using namespace Tokkl;
@@ -20,7 +20,7 @@ namespace
 const QString instanceA = QStringLiteral("https://a.example.test");
 const QString instanceB = QStringLiteral("https://b.example.test/tokkl");
 const QString token = QStringLiteral("tok-timer-1");
-const QByteArray currentPath = "/me/time_entries/current";
+const QByteArray statePath = "/app/timer";
 const QByteArray listPath = "/me/time_entries";
 
 QByteArray meBody(qint64 id, qint64 workspace)
@@ -125,15 +125,66 @@ QByteArray detailedEntry(qint64 id, const QString &start, std::optional<qint64> 
     return json(entry);
 }
 
-// The detailed entry as GET /me/time_entries?meta=true lists it once stopped
-// with the duration, under the description the server holds.
-QJsonObject listedDetailedEntry(qint64 id, const QString &start, qint64 duration, const QString &description)
+// The server's pause chain of the detailed entry, with the seconds its
+// stopped entries stored, and the running clone unless paused.
+QJsonObject pauseObject(bool paused, qint64 seconds, std::optional<qint64> clone = std::nullopt, qint64 workspace = 7)
 {
-    QJsonObject entry = QJsonDocument::fromJson(detailedEntry(id, start, duration)).object();
-    entry.insert(QStringLiteral("description"), description);
-    entry.insert(QStringLiteral("project_active"), true);
-    entry.insert(QStringLiteral("project_billable"), true);
-    return entry;
+    return QJsonObject{
+        {QStringLiteral("paused"), paused},
+        {QStringLiteral("seconds"), seconds},
+        {QStringLiteral("workspace_id"), workspace},
+        {QStringLiteral("description"), QStringLiteral("Write the report")},
+        {QStringLiteral("project_id"), 11},
+        {QStringLiteral("task_id"), 4},
+        {QStringLiteral("tag_ids"), QJsonArray{3, 5}},
+        {QStringLiteral("tags"), QJsonArray{QStringLiteral("client"), QStringLiteral("focus")}},
+        {QStringLiteral("billable"), false},
+        {QStringLiteral("clone_entry_id"), clone ? QJsonValue(*clone) : QJsonValue(QJsonValue::Null)},
+    };
+}
+
+// A session in its first work phase, whose open pomodoro started at start
+// and is the running entry.
+QJsonObject pomodoroObject(qint64 entry, const QString &start)
+{
+    const QDateTime begin = QDateTime::fromString(start, Qt::ISODate);
+    return QJsonObject{
+        {QStringLiteral("work_minutes"), 25},
+        {QStringLiteral("short_rest_minutes"), 5},
+        {QStringLiteral("long_rest_minutes"), 15},
+        {QStringLiteral("long_rest_every"), 4},
+        {QStringLiteral("phase"),
+         QJsonObject{
+             {QStringLiteral("kind"), QStringLiteral("work")},
+             {QStringLiteral("start"), start},
+             {QStringLiteral("completed"), 0},
+             {QStringLiteral("planned_end"), begin.addSecs(25 * 60).toString(Qt::ISODate)},
+         }},
+        {QStringLiteral("upcoming_phase"), QStringLiteral("shortRest")},
+        {QStringLiteral("transition"), QStringLiteral("workToShortRest")},
+        {QStringLiteral("number"), 1},
+        {QStringLiteral("entry_id"), entry},
+        {QStringLiteral("pomodoro_start"), start},
+    };
+}
+
+// A timer state built at serverTime. running is the running entry as JSON,
+// "null" for none.
+QByteArray stateJson(qint64 revision, const QDateTime &serverTime, const QByteArray &running, const QJsonValue &pause, const QJsonValue &pomodoro)
+{
+    return json(QJsonObject{
+        {QStringLiteral("revision"), revision},
+        {QStringLiteral("server_time"), serverTime.toUTC().toString(Qt::ISODateWithMs)},
+        {QStringLiteral("running_entry"), parseJsonBody(running).value_or(QJsonValue())},
+        {QStringLiteral("pause"), pause},
+        {QStringLiteral("pomodoro"), pomodoro},
+        {QStringLiteral("discarded_pomodoro"), QJsonValue::Null},
+    });
+}
+
+QByteArray revisionBody(qint64 revision)
+{
+    return "{\"revision\":" + QByteArray::number(revision) + "}";
 }
 
 QString clockText(const QDateTime &time)
@@ -150,18 +201,18 @@ class TimerControllerTest : public QObject
         FakeTransport transport;
         FakeCredentialStore store;
         FakeClock clock;
-        FakeChainStore chains;
         Connection connection{&transport, &store, testClientName()};
+        TimerStateClient state{&connection, &clock};
         TimerController timer{&clock};
+        QSet<qsizetype> answered;
+        qint64 revision = 0; // of the last state built
 
-        // The chain store outlives the fixture when a test passes its own.
-        explicit Fixture(ChainStore *chainStore = nullptr)
+        Fixture()
         {
-            timer.setChainStore(chainStore ? chainStore : &chains);
-            timer.setConnection(&connection);
+            timer.setStateClient(&state);
         }
 
-        // Requests whose API path (after /api/v9) ends with the given text.
+        // Requests whose path ends with the given text.
         QList<qsizetype> find(const QByteArray &method, const QByteArray &suffix) const
         {
             QList<qsizetype> found;
@@ -191,16 +242,62 @@ class TimerControllerTest : public QObject
             transport.respond(index, response);
         }
 
-        QSet<qsizetype> answered;
+        // The state at the next revision, built on the clock's time: the
+        // running entry as JSON ("null" for none), the chain and the session.
+        QByteArray nextState(const QByteArray &running = "null", const QJsonValue &pause = QJsonValue::Null, const QJsonValue &pomodoro = QJsonValue::Null)
+        {
+            return stateJson(++revision, clock.now(), running, pause, pomodoro);
+        }
+
+        HttpResponse stateAnswer(const QByteArray &running = "null", const QJsonValue &pause = QJsonValue::Null, const QJsonValue &pomodoro = QJsonValue::Null)
+        {
+            return FakeTransport::answer(200, nextState(running, pause, pomodoro));
+        }
+
+        // Answers the latest state read with the next state; false when that
+        // read was answered already.
+        bool answerState(const QByteArray &running = "null", const QJsonValue &pause = QJsonValue::Null, const QJsonValue &pomodoro = QJsonValue::Null)
+        {
+            const qsizetype read = last("GET", statePath);
+            if (!unanswered(read)) {
+                return false;
+            }
+            respond(read, stateAnswer(running, pause, pomodoro));
+            return true;
+        }
+
+        // Sends the next state as an event on the open stream.
+        bool push(const QByteArray &running = "null", const QJsonValue &pause = QJsonValue::Null, const QJsonValue &pomodoro = QJsonValue::Null)
+        {
+            FakeStream *stream = transport.lastStream();
+            if (!stream) {
+                return false;
+            }
+            stream->push("event: timer\ndata: " + nextState(running, pause, pomodoro) + "\n\n");
+            return true;
+        }
+
+        qsizetype stateReads() const
+        {
+            return find("GET", statePath).size();
+        }
+
+        // Requests other than state reads.
+        qsizetype otherRequests() const
+        {
+            return transport.requests.size() - stateReads();
+        }
     };
 
-    // Configure token auth for the instance, answer /me, then the reads the
-    // controller sends for the new context.
+    // Configure token auth for the instance, answer /me, then the state read
+    // and the projects read the new context sends.
     static bool connectAccount(Fixture &f,
                                const QString &url = instanceA,
                                qint64 userId = 3,
                                qint64 workspace = 7,
-                               const QByteArray &current = entryBody(5, 7, startedAt))
+                               const QByteArray &current = entryBody(5, 7, startedAt),
+                               const QJsonValue &pause = QJsonValue::Null,
+                               const QJsonValue &pomodoro = QJsonValue::Null)
     {
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
@@ -211,17 +308,18 @@ class TimerControllerTest : public QObject
             return false;
         }
         f.respond(before, FakeTransport::answer(200, meBody(userId, workspace)));
-        const qsizetype entry = f.last("GET", currentPath);
+        const qsizetype read = f.last("GET", statePath);
         const qsizetype projects = f.last("GET", "/projects");
-        if (!f.unanswered(entry) || !f.unanswered(projects)) {
+        if (!f.unanswered(read) || !f.unanswered(projects)) {
             return false;
         }
-        f.respond(entry, FakeTransport::answer(200, current));
+        f.respond(read, f.stateAnswer(current, pause, pomodoro));
         f.respond(projects, FakeTransport::answer(200, projectsBody(workspace)));
         return f.timer.isConnected();
     }
 
-    // Thirty one-second ticks: the next poll of the current entry goes out.
+    // Thirty one-second ticks: while no stream delivers, the state client
+    // reads the state again.
     static void poll(Fixture &f)
     {
         for (int i = 0; i < 30; ++i) {
@@ -229,50 +327,35 @@ class TimerControllerTest : public QObject
         }
     }
 
-    // Pauses the running detailed entry, which the server stores with the
-    // given duration, and answers the read after it.
-    static bool pauseEntry(Fixture &f, qint64 id, const QString &start, qint64 duration)
+    // A click pauses the running entry. The server answers with the paused
+    // chain, which now holds seconds.
+    static bool pauseEntry(Fixture &f, qint64 seconds)
     {
         if (!f.timer.isRunning() || !f.timer.toggle()) {
             return false;
         }
-        const qsizetype patch = f.last("PATCH", "/stop");
-        if (!f.unanswered(patch) || !f.transport.requests.at(patch).url.path().endsWith(QStringLiteral("/time_entries/%1/stop").arg(id))) {
+        const qsizetype post = f.last("POST", "/timer/pause");
+        if (!f.unanswered(post) || f.transport.requests.at(post).body != "{}") {
             return false;
         }
-        f.respond(patch, FakeTransport::answer(200, detailedEntry(id, start, duration)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        f.respond(post, f.stateAnswer("null", pauseObject(true, seconds)));
         return f.timer.isPaused() && !f.timer.isRunning() && !f.timer.isBusy();
     }
 
-    // Pauses the running entry, and its stop times out. The read after it
-    // is left unanswered.
-    static bool pauseUnanswered(Fixture &f, qint64 id)
+    // A click resumes the paused chain against the revision shown. The server
+    // starts the clone with the id now.
+    static bool resumeEntry(Fixture &f, qint64 id, qint64 seconds)
     {
-        if (!f.timer.isRunning() || !f.timer.toggle()) {
-            return false;
-        }
-        const qsizetype patch = f.last("PATCH", "/stop");
-        if (!f.unanswered(patch) || !f.transport.requests.at(patch).url.path().endsWith(QStringLiteral("/time_entries/%1/stop").arg(id))) {
-            return false;
-        }
-        f.respond(patch, FakeTransport::failure(HttpResponse::Outcome::Timeout, QStringLiteral("timed out")));
-        return f.timer.isBusy() && f.unanswered(f.last("GET", currentPath));
-    }
-
-    // Resumes the paused chain; the server creates the clone with the id.
-    // Returns the body of the POST.
-    static QJsonObject resumeEntry(Fixture &f, qint64 id)
-    {
+        const qint64 shown = f.revision;
         if (!f.timer.isPaused() || !f.timer.toggle()) {
-            return {};
+            return false;
         }
-        const qsizetype post = f.last("POST", "/time_entries");
-        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(post).body).object();
-        const QString start = body.value(QStringLiteral("start")).toString();
-        f.respond(post, FakeTransport::answer(200, detailedEntry(id, start)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, detailedEntry(id, start)));
-        return body;
+        const qsizetype post = f.last("POST", "/timer/resume");
+        if (!f.unanswered(post) || f.transport.requests.at(post).body != revisionBody(shown)) {
+            return false;
+        }
+        f.respond(post, f.stateAnswer(detailedEntry(id, clockText(f.clock.now())), pauseObject(false, seconds, id)));
+        return f.timer.isRunning() && !f.timer.isPaused() && !f.timer.isBusy() && f.timer.currentEntry()->id == id;
     }
 
 private Q_SLOTS:
@@ -374,41 +457,42 @@ private Q_SLOTS:
         const qsizetype requests = f.transport.requests.size();
 
         // Two hours asleep: the next tick arrives late.
+        const qsizetype streams = f.transport.streams.size();
         f.clock.advance(2 * 3600 * 1000);
         QCOMPARE(f.timer.elapsedSeconds(), 2 * 3600 + 66);
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("2:01"));
-        // Resume reads the entry and the projects at once.
-        QCOMPARE(f.transport.requests.size(), requests + 2);
-        QVERIFY(f.unanswered(f.last("GET", currentPath)));
-        QVERIFY(f.unanswered(f.last("GET", "/projects")));
+        // The state client reads the state and replaces the stream at once.
+        QCOMPARE(f.transport.requests.size(), requests + 1);
+        QVERIFY(f.unanswered(f.last("GET", statePath)));
+        QCOMPARE(f.transport.streams.size(), streams + 1);
 
         // The web app stopped the timer meanwhile.
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
 
-        // The explicit hook does the same.
-        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
+        // The explicit hook reads the projects too.
         f.timer.resumed();
-        QVERIFY(f.unanswered(f.last("GET", currentPath)));
+        QVERIFY(f.unanswered(f.last("GET", statePath)));
+        QVERIFY(f.unanswered(f.last("GET", "/projects")));
     }
 
-    void pollsEveryThirtySeconds()
+    void pollsWhileNoStreamDelivers()
     {
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(!f.timer.isRunning());
-        const qsizetype reads = f.find("GET", currentPath).size();
+        const qsizetype reads = f.find("GET", statePath).size();
 
         for (int i = 0; i < 29; ++i) {
             f.clock.advance(1000);
         }
-        QCOMPARE(f.find("GET", currentPath).size(), reads);
+        QCOMPARE(f.find("GET", statePath).size(), reads);
         f.clock.advance(1000);
-        QCOMPARE(f.find("GET", currentPath).size(), reads + 1);
+        QCOMPARE(f.find("GET", statePath).size(), reads + 1);
 
         // A timer started in the web app appears.
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(9, 7, QStringLiteral("2026-10-16T09:00:10Z"))));
+        QVERIFY(f.answerState(entryBody(9, 7, QStringLiteral("2026-10-16T09:00:10Z"))));
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.timer.currentEntry()->id, 9);
         QCOMPARE(f.timer.elapsedSeconds(), 20);
@@ -417,24 +501,33 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        QCOMPARE(f.find("GET", currentPath).size(), reads + 2);
+        QCOMPARE(f.find("GET", statePath).size(), reads + 2);
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        QCOMPARE(f.find("GET", currentPath).size(), reads + 2);
+        QCOMPARE(f.find("GET", statePath).size(), reads + 2);
 
         // Edited in the web app: the panel shows the new start.
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(9, 7, QStringLiteral("2026-10-16T08:00:00Z"))));
+        QVERIFY(f.answerState(entryBody(9, 7, QStringLiteral("2026-10-16T08:00:00Z"))));
         QCOMPARE(f.timer.elapsedSeconds(), 3690);
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("1:01"));
 
         // A clock set far back counts as a resume and reads at once.
         f.clock.current = f.clock.current.addSecs(-20);
         f.clock.advance(0);
-        QCOMPARE(f.find("GET", currentPath).size(), reads + 3);
+        QCOMPARE(f.find("GET", statePath).size(), reads + 3);
+
+        // Once the stream delivers, its events replace the polls.
+        QVERIFY(f.answerState(entryBody(9, 7, QStringLiteral("2026-10-16T08:00:00Z"))));
+        QVERIFY(f.push());
+        QVERIFY(!f.timer.isRunning());
+        for (int i = 0; i < 90; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.find("GET", statePath).size(), reads + 3);
     }
 
-    void startWaitsForTheFirstCurrentEntryRead()
+    void startWaitsForTheFirstStateRead()
     {
         Fixture f;
         f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
@@ -446,7 +539,7 @@ private Q_SLOTS:
         QVERIFY(f.timer.isConnected());
 
         // The first read has not answered: a server timer may be running.
-        QVERIFY(f.unanswered(f.last("GET", currentPath)));
+        QVERIFY(f.unanswered(f.last("GET", statePath)));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.toggle());
@@ -454,7 +547,7 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", "/time_entries").size(), 0);
 
         // It fails: start stays disabled.
-        f.respond(f.last("GET", currentPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        f.respond(f.last("GET", statePath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.toggle());
         QCOMPARE(f.find("POST", "/time_entries").size(), 0);
@@ -463,7 +556,7 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         if (f.unanswered(f.last("GET", "/projects"))) {
             f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         }
@@ -509,12 +602,12 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.currentEntry()->id, 21);
         // The action is followed by a read.
-        QVERIFY(f.unanswered(f.last("GET", currentPath)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"))));
+        QVERIFY(f.unanswered(f.last("GET", statePath)));
+        QVERIFY(f.answerState(entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"))));
 
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"), false)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         // The stopped entry had no project, so the next start has none either.
         QVERIFY(f.timer.selectedProjectId().isNull());
         QVERIFY(!f.timer.billable());
@@ -541,7 +634,7 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isRunning());
         QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
-        QVERIFY(f.unanswered(f.last("GET", currentPath)));
+        QVERIFY(f.unanswered(f.last("GET", statePath)));
     }
 
     void pauseAndResumeKeepTheChainTotal()
@@ -550,25 +643,27 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
         QCOMPARE(f.timer.elapsedSeconds(), 65);
 
-        // A click pauses: the entry stops, and the server stored 65 s.
+        // A click pauses on the server; clicks while it runs are ignored.
+        QSignalSpy chain(&f.timer, &TimerController::chainChanged);
         QVERIFY(f.timer.toggle());
         QVERIFY(f.timer.isBusy());
         QVERIFY(!f.timer.toggle());
         QVERIFY(!f.timer.resume());
         QVERIFY(!f.timer.pause());
         QVERIFY(!f.timer.stop());
-        QCOMPARE(f.find("PATCH", "/stop").size(), 1);
-        QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5/stop"));
-        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, detailedEntry(5, startedAt, 65)));
+        QCOMPARE(f.find("POST", "/timer/pause").size(), 1);
+        const qsizetype pause = f.last("POST", "/timer/pause");
+        QCOMPARE(f.transport.requests.at(pause).url.path(), QStringLiteral("/api/app/timer/pause"));
+        QCOMPARE(f.transport.requests.at(pause).body, QByteArray("{}"));
+        QVERIFY(f.find("PATCH", "/stop").isEmpty());
+        f.respond(pause, f.stateAnswer("null", pauseObject(true, 65)));
         QVERIFY(f.timer.isPaused());
         QVERIFY(!f.timer.isRunning());
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(chain.count() > 0);
         QCOMPARE(f.timer.chainSeconds(), 65);
         QCOMPARE(f.timer.elapsedSeconds(), 65);
         QCOMPARE(f.timer.elapsedText(), TimerController::formatElapsed(65));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
-        QVERIFY(f.timer.isPaused());
-        QVERIFY(f.chains.stored.has_value());
-        QVERIFY(f.chains.stored->isPaused());
 
         // Frozen while paused.
         for (int i = 0; i < 10; ++i) {
@@ -576,69 +671,81 @@ private Q_SLOTS:
         }
         QCOMPARE(f.timer.elapsedSeconds(), 65);
 
-        // A click resumes with a clone of the paused entry. Billable comes
-        // from the entry, not from the project's default, which the stop
-        // gave the next start.
+        // A click resumes against the revision shown, and the clone counts
+        // on from the chain's seconds. The paused entry's project gave the
+        // next start its billable default.
         QVERIFY(f.timer.billable());
-        const QDateTime resumedAt = f.clock.now();
-        QVERIFY(f.timer.toggle());
-        QVERIFY(!f.timer.toggle());
-        QVERIFY(!f.timer.stop());
-        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
-        const qsizetype post = f.last("POST", "/time_entries");
-        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(post).body).object();
-        QCOMPARE(body.value(QStringLiteral("start")).toString(), clockText(resumedAt));
-        QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
-        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
-        QCOMPARE(body.value(QStringLiteral("task_id")).toInteger(), 4);
-        QCOMPARE(body.value(QStringLiteral("tags")).toArray(), QJsonArray({QStringLiteral("focus"), QStringLiteral("client")}));
-        QVERIFY(body.contains(QStringLiteral("billable")));
-        QCOMPARE(body.value(QStringLiteral("billable")).toBool(true), false);
-        f.respond(post, FakeTransport::answer(200, detailedEntry(6, clockText(resumedAt))));
-        QVERIFY(f.timer.isRunning());
-        QVERIFY(!f.timer.isPaused());
-        QCOMPARE(f.timer.currentEntry()->id, 6);
+        QVERIFY(resumeEntry(f, 6, 65));
+        QCOMPARE(f.find("POST", "/timer/resume").size(), 1);
+        QVERIFY(f.find("POST", "/time_entries").isEmpty());
         QCOMPARE(f.timer.elapsedSeconds(), 65);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, detailedEntry(6, clockText(resumedAt))));
-        QCOMPARE(f.chains.stored->runningId, 6);
-
-        // Counting on from the stored durations.
         for (int i = 0; i < 5; ++i) {
             f.clock.advance(1000);
         }
         QCOMPARE(f.timer.elapsedSeconds(), 70);
         QCOMPARE(f.timer.chainSeconds(), 65);
 
-        // A second cycle adds what the server stored for the clone.
-        QVERIFY(pauseEntry(f, 6, clockText(resumedAt), 4));
+        // A second cycle: the server added what it stored for the clone.
+        QVERIFY(pauseEntry(f, 69));
         QCOMPARE(f.timer.chainSeconds(), 69);
         QCOMPARE(f.timer.elapsedSeconds(), 69);
-        const QJsonObject again = resumeEntry(f, 7);
-        QCOMPARE(again.value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
-        QCOMPARE(again.value(QStringLiteral("task_id")).toInteger(), 4);
+        QVERIFY(resumeEntry(f, 7, 69));
         for (int i = 0; i < 3; ++i) {
             f.clock.advance(1000);
         }
         QCOMPARE(f.timer.elapsedSeconds(), 72);
 
-        // Stop ends the chain: the next click starts a fresh entry.
+        // Stop is a v9 stop of the clone, and the chain ends with it at once.
+        const QString cloneStart = clockText(f.clock.now().addSecs(-3));
         QVERIFY(f.timer.stop());
         QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/7/stop"));
-        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, detailedEntry(7, again.value(QStringLiteral("start")).toString(), 3)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, detailedEntry(7, cloneStart, 3)));
         QVERIFY(!f.timer.isPaused());
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.chainSeconds(), 0);
         QCOMPARE(f.timer.elapsedSeconds(), 0);
-        QVERIFY(!f.chains.stored.has_value());
+        QVERIFY(f.answerState());
+        QCOMPARE(f.timer.chainSeconds(), 0);
+
+        // The next click starts a fresh entry with the stop's default: the
+        // project and its billable default.
         QVERIFY(f.timer.toggle());
         const QJsonObject fresh = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
         QCOMPARE(fresh.value(QStringLiteral("description")).toString(), QString());
         QVERIFY(!fresh.contains(QStringLiteral("task_id")));
         QVERIFY(!fresh.contains(QStringLiteral("tags")));
-        // The stop's default for the next start: the project and its billable default.
         QCOMPARE(fresh.value(QStringLiteral("project_id")).toInteger(), 11);
         QCOMPARE(fresh.value(QStringLiteral("billable")).toBool(), true);
+        QCOMPARE(f.find("PATCH", "/stop").size(), 1);
+        QCOMPARE(f.find("POST", "/timer/pause").size(), 2);
+        QCOMPARE(f.find("POST", "/timer/resume").size(), 2);
+    }
+
+    // The total of a chain resumed elsewhere before this device connected,
+    // corrected for the server's clock.
+    void chainTotalComesFromTheState()
+    {
+        Fixture f;
+        const QString cloneStart = clockText(f.clock.now().addSecs(-10));
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(6, cloneStart), pauseObject(false, 65, 6)));
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.chainSeconds(), 65);
+        QCOMPARE(f.timer.elapsedSeconds(), 75);
+
+        // The server's clock runs 5 s ahead of this one.
+        poll(f);
+        f.respond(f.last("GET", statePath),
+                  FakeTransport::answer(200, stateJson(++f.revision, f.clock.now().addSecs(5), detailedEntry(6, cloneStart), pauseObject(false, 65, 6), QJsonValue::Null)));
+        QCOMPARE(f.timer.elapsedSeconds(), 65 + 40 + 5);
+        f.clock.advance(1000);
+        QCOMPARE(f.timer.elapsedSeconds(), 65 + 41 + 5);
+
+        // Paused elsewhere: frozen at what the server stored.
+        poll(f);
+        QVERIFY(f.answerState("null", pauseObject(true, 110)));
+        QCOMPARE(f.timer.chainSeconds(), 110);
+        QCOMPARE(f.timer.elapsedSeconds(), 110);
     }
 
     void choicesAreLockedWhilePaused()
@@ -646,9 +753,10 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
         QSignalSpy choice(&f.timer, &TimerController::choiceChanged);
-        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QVERIFY(pauseEntry(f, 65));
         QVERIFY(choice.count() > 0);
         QVERIFY(f.timer.canWrite());
+        // The project and billable flag are the chain's.
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
         QCOMPARE(f.timer.chosenBillable(), false);
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
@@ -663,56 +771,99 @@ private Q_SLOTS:
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
         QCOMPARE(f.timer.chosenBillable(), false);
 
-        // Stop while paused only clears the chain; choices work again.
+        // Stop while paused discards the chain against the revision shown.
+        const qint64 shown = f.revision;
         QVERIFY(f.timer.stop());
-        QCOMPARE(f.transport.requests.size(), requests);
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.stop());
+        QCOMPARE(f.find("POST", "/timer/discard").size(), 1);
+        const qsizetype discard = f.last("POST", "/timer/discard");
+        QCOMPARE(f.transport.requests.at(discard).url.path(), QStringLiteral("/api/app/timer/discard"));
+        QCOMPARE(f.transport.requests.at(discard).body, revisionBody(shown));
+        f.respond(discard, f.stateAnswer());
+        QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.elapsedSeconds(), 0);
+
+        // Choices work again.
         QCOMPARE(f.timer.chosenBillable(), true);
         QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
         QVERIFY(f.timer.chosenProjectId().isNull());
         QVERIFY(f.timer.chooseBillable(true));
         QVERIFY(f.timer.chosenBillable());
         QVERIFY(!f.timer.entryProject().has_value());
-        QCOMPARE(f.transport.requests.size(), requests);
+        QCOMPARE(f.transport.requests.size(), requests + 1);
     }
 
     void refusedResumeStaysPaused()
     {
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QVERIFY(pauseEntry(f, 65));
 
         // The project or task went while paused: nothing was created.
         QVERIFY(f.timer.resume());
-        f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(404, "\"Project not found\""));
+        f.respond(f.last("POST", "/timer/resume"), FakeTransport::answer(404, "\"Project not found\""));
         QVERIFY(f.timer.isPaused());
         QVERIFY(!f.timer.isRunning());
+        QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
         QCOMPARE(f.timer.status(), TimerController::Error);
         // The read after the refusal keeps the message and the status.
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null", pauseObject(true, 65)));
         QVERIFY(f.timer.isPaused());
         QCOMPARE(f.timer.elapsedSeconds(), 65);
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
         QCOMPARE(f.timer.status(), TimerController::Error);
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
-        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        QVERIFY(f.answerState("null", pauseObject(true, 65)));
+        QCOMPARE(f.find("POST", "/timer/resume").size(), 1);
         QVERIFY(f.timer.isPaused());
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
 
-        // Stop clears the chain; the next click starts a fresh entry.
-        const qsizetype requests = f.transport.requests.size();
+        // Stop discards the chain and clears the message; the next click
+        // starts a fresh entry.
         QVERIFY(f.timer.stop());
-        QCOMPARE(f.transport.requests.size(), requests);
-        QVERIFY(!f.timer.isPaused());
         QCOMPARE(f.timer.errorString(), QString());
+        f.respond(f.last("POST", "/timer/discard"), f.stateAnswer());
+        QVERIFY(!f.timer.isPaused());
         QCOMPARE(f.timer.elapsedSeconds(), 0);
         QVERIFY(f.timer.toggle());
-        QCOMPARE(f.find("POST", "/time_entries").size(), 2);
-        const QJsonObject fresh = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
-        QCOMPARE(fresh.value(QStringLiteral("description")).toString(), QString());
-        QVERIFY(!fresh.contains(QStringLiteral("task_id")));
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        QCOMPARE(f.find("POST", "/timer/resume").size(), 1);
+    }
+
+    // Another device acted first: the 409 carries the server's state, which
+    // the timer shows at once. Nothing is sent again, and the message stays
+    // until the next action.
+    void conflictAdoptsTheServerState()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QVERIFY(pauseEntry(f, 65));
+        const qint64 shown = f.revision;
+        QVERIFY(f.timer.resume());
+        const qsizetype post = f.last("POST", "/timer/resume");
+        QCOMPARE(f.transport.requests.at(post).body, revisionBody(shown));
+        f.respond(post, FakeTransport::answer(409, f.nextState(detailedEntry(6, clockText(f.clock.now().addSecs(-4))), pauseObject(false, 65, 6))));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.currentEntry()->id, 6);
+        QCOMPARE(f.timer.elapsedSeconds(), 69);
+        QVERIFY(!f.timer.errorString().isEmpty());
+        QCOMPARE(f.timer.status(), TimerController::Error);
+        QVERIFY(f.timer.canWrite());
+
+        poll(f);
+        QVERIFY(f.answerState(detailedEntry(6, clockText(f.clock.now().addSecs(-34))), pauseObject(false, 65, 6)));
+        QVERIFY(!f.timer.errorString().isEmpty());
+        QCOMPARE(f.find("POST", "/timer/resume").size(), 1);
+
+        // The next click pauses the clone, and clears the message.
+        QVERIFY(f.timer.toggle());
+        QVERIFY(f.timer.errorString().isEmpty());
+        QCOMPARE(f.find("POST", "/timer/pause").size(), 2);
     }
 
     void refusedStartKeepsItsMessage()
@@ -721,7 +872,7 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.start());
         f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(404, "\"Project not found\""));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
         QCOMPARE(f.timer.status(), TimerController::Error);
         QVERIFY(f.timer.canWrite());
@@ -734,12 +885,12 @@ private Q_SLOTS:
         // So does a start that succeeds, after another refusal.
         QVERIFY(f.timer.start());
         f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(404, "\"Project not found\""));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
         QVERIFY(f.timer.start());
         QCOMPARE(f.timer.errorString(), QString());
         f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(21, 7, clockText(f.clock.now()))));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(21, 7, clockText(f.clock.now()))));
+        QVERIFY(f.answerState(entryBody(21, 7, clockText(f.clock.now()))));
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.timer.errorString(), QString());
         QCOMPARE(f.timer.status(), TimerController::Ready);
@@ -757,210 +908,209 @@ private Q_SLOTS:
         QFETCH(bool, created);
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QVERIFY(pauseEntry(f, 65));
         const QString resumedAt = clockText(f.clock.now());
         QVERIFY(f.timer.resume());
-        f.respond(f.last("POST", "/time_entries"), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("reset")));
+        f.respond(f.last("POST", "/timer/resume"), FakeTransport::failure(HttpResponse::Outcome::Timeout, QStringLiteral("timed out")));
         QVERIFY(f.timer.isBusy());
+        QCOMPARE(f.timer.status(), TimerController::Busy);
+        QVERIFY(!f.timer.errorString().isEmpty());
         QVERIFY(!f.timer.toggle());
         QVERIFY(!f.timer.stop());
 
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, created ? detailedEntry(6, resumedAt) : QByteArray("null")));
+        // The read sent after the failure tells what the server did.
+        if (created) {
+            QVERIFY(f.answerState(detailedEntry(6, resumedAt), pauseObject(false, 65, 6)));
+        } else {
+            QVERIFY(f.answerState("null", pauseObject(true, 65)));
+        }
         QVERIFY(!f.timer.isBusy());
-        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        QVERIFY(f.timer.errorString().isEmpty());
+        QCOMPARE(f.find("POST", "/timer/resume").size(), 1);
         QCOMPARE(f.timer.isRunning(), created);
         QCOMPARE(f.timer.isPaused(), !created);
         QCOMPARE(f.timer.chainSeconds(), 65);
         QCOMPARE(f.timer.elapsedSeconds(), 65);
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, created ? detailedEntry(6, resumedAt) : QByteArray("null")));
-        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        if (created) {
+            QVERIFY(f.answerState(detailedEntry(6, resumedAt), pauseObject(false, 65, 6)));
+        } else {
+            QVERIFY(f.answerState("null", pauseObject(true, 65)));
+        }
+        QCOMPARE(f.find("POST", "/timer/resume").size(), 1);
         QCOMPARE(f.timer.elapsedSeconds(), created ? 95 : 65);
     }
 
-    // A pause whose stop gets no answer, then a read in which nothing runs.
-    // The account's entries list the paused entry as stopped, and another
-    // client renamed it. The pause finishes with what the server stored.
-    void unansweredPauseThatStoppedStaysPaused_data()
+    // A pause with no answer, while a poll is on its way. The poll may have
+    // been answered before the pause, so only a read sent after the failure
+    // settles it. A failed read is tried again.
+    void unansweredPauseIsSettledByTheNextState_data()
     {
-        QTest::addColumn<bool>("resumed");
-        QTest::addColumn<qint64>("duration");
-        QTest::newRow("first pause") << false << qint64(66);
-        QTest::newRow("resumed chain") << true << qint64(4);
+        QTest::addColumn<bool>("paused");
+        QTest::newRow("the server paused") << true;
+        QTest::newRow("nothing happened") << false;
     }
 
-    void unansweredPauseThatStoppedStaysPaused()
+    void unansweredPauseIsSettledByTheNextState()
     {
-        QFETCH(bool, resumed);
-        QFETCH(qint64, duration);
+        QFETCH(bool, paused);
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        qint64 id = 5;
-        QString start = startedAt;
-        qint64 earlier = 0;
-        if (resumed) {
-            QVERIFY(pauseEntry(f, 5, startedAt, 65));
-            id = 6;
-            start = resumeEntry(f, 6).value(QStringLiteral("start")).toString();
-            QVERIFY(f.timer.isRunning());
-            earlier = 65;
-        }
-        const qsizetype stops = f.find("PATCH", "/stop").size();
-        QVERIFY(pauseUnanswered(f, id));
-
-        // Nothing runs. The timer stays busy until the account's entries
-        // say what happened to the paused one.
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        poll(f);
+        const qsizetype early = f.last("GET", statePath);
+        QVERIFY(f.unanswered(early));
+        QVERIFY(f.timer.toggle());
+        f.respond(f.last("POST", "/timer/pause"), FakeTransport::failure(HttpResponse::Outcome::Timeout, QStringLiteral("timed out")));
         QVERIFY(f.timer.isBusy());
         QVERIFY(!f.timer.toggle());
         QVERIFY(!f.timer.stop());
-        const qsizetype list = f.last("GET", listPath);
-        QVERIFY(f.unanswered(list));
-        f.respond(list,
-                  FakeTransport::answer(200, listBody({listedDetailedEntry(id, start, duration, QStringLiteral("Write the summary")), listedEntry(99, 7, 11, true)})));
-        QVERIFY(!f.timer.isBusy());
-        QVERIFY(f.timer.isPaused());
-        QVERIFY(!f.timer.isRunning());
-        QCOMPARE(f.timer.chainSeconds(), earlier + duration);
-        QCOMPARE(f.timer.elapsedSeconds(), earlier + duration);
-        QVERIFY(f.chains.stored.has_value());
-        QVERIFY(f.chains.stored->isPaused());
-        QCOMPARE(f.chains.stored->seconds, earlier + duration);
-
-        // The next click resumes a clone of the entry the server stopped.
-        // The stop was never sent again.
-        QVERIFY(f.timer.toggle());
-        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
-        QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Write the summary"));
-        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
-        QCOMPARE(body.value(QStringLiteral("task_id")).toInteger(), 4);
-        QCOMPARE(body.value(QStringLiteral("tags")).toArray(), QJsonArray({QStringLiteral("focus"), QStringLiteral("client")}));
-        QCOMPARE(body.value(QStringLiteral("billable")).toBool(true), false);
-        QCOMPARE(f.find("PATCH", "/stop").size(), stops + 1);
-    }
-
-    // After a pause with no answer, the chain ends when another entry runs,
-    // or when the account's entries do not list the paused one as stopped.
-    void unansweredPauseEndsTheChainForAnotherEntry_data()
-    {
-        QTest::addColumn<QByteArray>("current");
-        QTest::addColumn<bool>("running");
-        QTest::newRow("another entry runs") << entryBody(99, 7, startedAt) << true;
-        QTest::newRow("another entry stopped") << QByteArray("null") << false;
-    }
-
-    void unansweredPauseEndsTheChainForAnotherEntry()
-    {
-        QFETCH(QByteArray, current);
-        QFETCH(bool, running);
-        Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        QVERIFY(pauseEntry(f, 5, startedAt, 65));
-        QVERIFY(!resumeEntry(f, 6).isEmpty());
-        QVERIFY(pauseUnanswered(f, 6));
-
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
-        const qsizetype list = f.last("GET", listPath);
-        QCOMPARE(f.unanswered(list), !running);
-        if (!running) {
-            // Only the chain's first entry and another one are stopped.
-            f.respond(list,
-                      FakeTransport::answer(200,
-                                            listBody({listedEntry(99, 7, 11, true), listedDetailedEntry(5, startedAt, 65, QStringLiteral("Write the report"))})));
-        }
-        QVERIFY(!f.timer.isBusy());
-        QVERIFY(!f.timer.isPaused());
-        QCOMPARE(f.timer.isRunning(), running);
-        QCOMPARE(f.timer.chainSeconds(), 0);
-        QVERIFY(!f.chains.stored.has_value());
-        QCOMPARE(f.find("PATCH", "/stop").size(), 2);
-    }
-
-    // A pause with no answer whose entry still runs did not happen. When the
-    // account's entries cannot be read, the timer stays busy and the next
-    // read asks again.
-    void unansweredPauseWaitsForTheServer()
-    {
-        Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        QVERIFY(pauseUnanswered(f, 5));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, detailedEntry(5, startedAt)));
-        QVERIFY(!f.timer.isBusy());
         QVERIFY(f.timer.isRunning());
-        QVERIFY(!f.timer.isPaused());
-        QCOMPARE(f.find("GET", listPath).size(), 0);
 
-        QVERIFY(pauseUnanswered(f, 5));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
-        QCOMPARE(f.find("GET", listPath).size(), 1);
-        f.respond(f.last("GET", listPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("reset")));
+        f.respond(early, f.stateAnswer(detailedEntry(5, startedAt)));
         QVERIFY(f.timer.isBusy());
-        QVERIFY(!f.timer.isPaused());
+        const qsizetype later = f.last("GET", statePath);
+        QVERIFY(later > early);
+        QVERIFY(f.unanswered(later));
+        f.respond(later, FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("reset")));
+        QVERIFY(f.timer.isBusy());
         QVERIFY(!f.timer.toggle());
 
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
-        QCOMPARE(f.find("GET", listPath).size(), 2);
-        f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedDetailedEntry(5, startedAt, 65, QStringLiteral("Write the report"))})));
-        QVERIFY(!f.timer.isBusy());
-        QVERIFY(f.timer.isPaused());
-        QCOMPARE(f.timer.chainSeconds(), 65);
-        QCOMPARE(f.find("PATCH", "/stop").size(), 2);
-    }
-
-    void chainEndsWhenAnotherEntryTakesOver_data()
-    {
-        QTest::addColumn<bool>("paused");
-        QTest::addColumn<QByteArray>("current");
-        QTest::addColumn<qint64>("elapsed");
-        QTest::newRow("clone stopped elsewhere") << false << QByteArray("null") << qint64(0);
-        QTest::newRow("another entry replaces the clone") << false << entryBody(99, 7, startedAt) << qint64(95);
-        QTest::newRow("another entry starts while paused") << true << entryBody(99, 7, startedAt) << qint64(95);
-    }
-
-    void chainEndsWhenAnotherEntryTakesOver()
-    {
-        QFETCH(bool, paused);
-        QFETCH(QByteArray, current);
-        QFETCH(qint64, elapsed);
-        Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        QVERIFY(pauseEntry(f, 5, startedAt, 65));
-        if (!paused) {
-            QVERIFY(!resumeEntry(f, 6).isEmpty());
-            QVERIFY(f.timer.isRunning());
+        if (paused) {
+            QVERIFY(f.answerState("null", pauseObject(true, 66)));
+        } else {
+            QVERIFY(f.answerState(detailedEntry(5, startedAt)));
         }
-        poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
-        QVERIFY(!f.timer.isPaused());
-        QCOMPARE(f.timer.chainSeconds(), 0);
-        QCOMPARE(f.timer.elapsedSeconds(), elapsed);
-        QVERIFY(!f.chains.stored.has_value());
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.timer.isPaused(), paused);
+        QCOMPARE(f.timer.isRunning(), !paused);
+        QCOMPARE(f.timer.elapsedSeconds(), paused ? 66 : QDateTime::fromString(startedAt, Qt::ISODate).secsTo(f.clock.now()));
+        QCOMPARE(f.find("POST", "/timer/pause").size(), 1);
+
+        // The next click sends one request: a resume, or a new pause.
+        QVERIFY(f.timer.toggle());
+        QCOMPARE(f.find("POST", "/timer/resume").size(), paused ? 1 : 0);
+        QCOMPARE(f.find("POST", "/timer/pause").size(), paused ? 1 : 2);
     }
 
-    void entryInAnotherWorkspaceEndsThePausedChain()
+    // A stop, a discard or a billable edit with no answer: busy until the
+    // read after it, and never sent again.
+    void unknownWriteIsNeverReplayed_data()
+    {
+        QTest::addColumn<QString>("write");
+        QTest::newRow("stop") << QStringLiteral("stop");
+        QTest::newRow("discard") << QStringLiteral("discard");
+        QTest::newRow("billable") << QStringLiteral("billable");
+    }
+
+    void unknownWriteIsNeverReplayed()
+    {
+        QFETCH(QString, write);
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
+        QByteArray method = "PATCH";
+        QByteArray path = "/stop";
+        if (write == QLatin1String("discard")) {
+            QVERIFY(pauseEntry(f, 65));
+            QVERIFY(f.timer.stop());
+            method = "POST";
+            path = "/timer/discard";
+        } else if (write == QLatin1String("billable")) {
+            QVERIFY(f.timer.chooseBillable(true));
+            method = "PUT";
+            path = "/time_entries/5";
+        } else {
+            QVERIFY(f.timer.stop());
+        }
+        const qsizetype sent = f.last(method, path);
+        QVERIFY(f.unanswered(sent));
+        f.respond(sent, FakeTransport::answer(502, "\"Bad gateway\""));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.canWrite());
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(!f.timer.stop());
+        QVERIFY(!f.timer.chooseBillable(false));
+
+        QVERIFY(f.answerState(write == QLatin1String("billable") ? detailedEntry(5, startedAt) : QByteArray("null")));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.canWrite());
+        QCOMPARE(f.find(method, path).size(), 1);
+    }
+
+    // A pause, resume and discard made on another device arrive with the
+    // stream's events; nothing is read for them.
+    void otherDevicesArriveOnTheStream()
     {
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QVERIFY(f.push(detailedEntry(5, startedAt)));
+        QVERIFY(f.state.streaming());
+        const qsizetype reads = f.stateReads();
 
-        // Another client starts an entry in workspace 9.
-        poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(99, 9, startedAt)));
-        QVERIFY(!f.timer.isPaused());
-        QCOMPARE(f.timer.chainSeconds(), 0);
-        QVERIFY(!f.chains.stored.has_value());
-        // Only this workspace's entry is shown.
+        QSignalSpy chain(&f.timer, &TimerController::chainChanged);
+        QSignalSpy entry(&f.timer, &TimerController::currentEntryChanged);
+        QVERIFY(f.push("null", pauseObject(true, 65)));
+        QVERIFY(f.timer.isPaused());
         QVERIFY(!f.timer.isRunning());
+        QCOMPARE(chain.count(), 1);
+        QCOMPARE(entry.count(), 1);
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+        QVERIFY(!f.timer.chosenBillable());
+        poll(f);
+        QCOMPARE(f.timer.elapsedSeconds(), 65);
+
+        QVERIFY(f.push(detailedEntry(6, clockText(f.clock.now())), pauseObject(false, 65, 6)));
+        QVERIFY(f.timer.isRunning());
+        QCOMPARE(f.timer.currentEntry()->id, 6);
+        for (int i = 0; i < 5; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.timer.elapsedSeconds(), 70);
+
+        // A chain in another workspace is not shown here.
+        QVERIFY(f.push("null", pauseObject(true, 70, std::nullopt, 9)));
+        QVERIFY(!f.timer.isPaused());
+        QVERIFY(!f.timer.isRunning());
+        QCOMPARE(f.timer.chainSeconds(), 0);
+        QCOMPARE(f.timer.elapsedSeconds(), 0);
+
+        QVERIFY(f.push());
+        QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.stateReads(), reads);
+        QVERIFY(f.find("POST", "/timer/pause").isEmpty());
+    }
+
+    // While a session runs, its open pomodoro is the session's: the timer
+    // reports nothing running, and its actions do nothing.
+    void sessionOwnsTheRunningEntry()
+    {
+        Fixture f;
+        QSignalSpy session(&f.timer, &TimerController::sessionActiveChanged);
+        const QString start = clockText(f.clock.now().addSecs(-120));
+        QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(41, 7, start, true, 11), QJsonValue::Null, pomodoroObject(41, start)));
+        QVERIFY(f.timer.isSessionActive());
+        QCOMPARE(session.count(), 1);
+        QVERIFY(!f.timer.isRunning());
+        QVERIFY(!f.timer.isPaused());
         QVERIFY(f.timer.currentEntryVariant().isNull());
         QCOMPARE(f.timer.elapsedSeconds(), 0);
 
-        // The next click starts a fresh entry, not a clone.
+        const qsizetype requests = f.transport.requests.size();
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(!f.timer.start());
+        QVERIFY(!f.timer.stop());
+        QVERIFY(!f.timer.pause());
+        QVERIFY(!f.timer.resume());
+        QCOMPARE(f.transport.requests.size(), requests);
+
+        // The session ends on another device: the timer is free again.
+        poll(f);
+        QVERIFY(f.answerState());
+        QVERIFY(!f.timer.isSessionActive());
+        QCOMPARE(session.count(), 2);
         QVERIFY(f.timer.toggle());
-        const QJsonObject fresh = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
-        QCOMPARE(fresh.value(QStringLiteral("description")).toString(), QString());
-        QVERIFY(!fresh.contains(QStringLiteral("task_id")));
-        QVERIFY(!fresh.contains(QStringLiteral("tags")));
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
     }
 
     void newGenerationEndsTheChain_data()
@@ -975,7 +1125,7 @@ private Q_SLOTS:
         QFETCH(bool, signOut);
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-        QVERIFY(pauseEntry(f, 5, startedAt, 65));
+        QVERIFY(pauseEntry(f, 65));
         QSignalSpy chain(&f.timer, &TimerController::chainChanged);
         if (signOut) {
             const QString key = credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString());
@@ -985,87 +1135,9 @@ private Q_SLOTS:
             f.connection.setInstanceUrl(instanceB);
         }
         QVERIFY(!f.timer.isPaused());
+        QCOMPARE(f.timer.chainSeconds(), 0);
         QCOMPARE(f.timer.elapsedSeconds(), 0);
         QVERIFY(chain.count() > 0);
-        QVERIFY(!f.chains.stored.has_value());
-    }
-
-    void chainSurvivesARestart()
-    {
-        FakeChainStore chains;
-        QString resumedAt;
-        {
-            Fixture f(&chains);
-            QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(5, startedAt)));
-            QVERIFY(pauseEntry(f, 5, startedAt, 65));
-        }
-        QVERIFY(chains.stored.has_value());
-        {
-            // Paused across the restart.
-            Fixture f(&chains);
-            QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
-            QVERIFY(f.timer.isPaused());
-            QCOMPARE(f.timer.elapsedSeconds(), 65);
-            QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
-            const QJsonObject body = resumeEntry(f, 6);
-            QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Write the report"));
-            QCOMPARE(body.value(QStringLiteral("task_id")).toInteger(), 4);
-            resumedAt = body.value(QStringLiteral("start")).toString();
-            QCOMPARE(chains.stored->runningId, 6);
-        }
-        {
-            // Running across the restart: the clone keeps counting on.
-            Fixture f(&chains);
-            f.clock.current = f.clock.current.addSecs(10);
-            QVERIFY(connectAccount(f, instanceA, 3, 7, detailedEntry(6, resumedAt)));
-            QVERIFY(f.timer.isRunning());
-            QCOMPARE(f.timer.chainSeconds(), 65);
-            QCOMPARE(f.timer.elapsedSeconds(), 75);
-        }
-        QVERIFY(chains.stored.has_value());
-        {
-            // Another account does not inherit it.
-            Fixture f(&chains);
-            QVERIFY(connectAccount(f, instanceA, 4, 7, "null"));
-            QVERIFY(!f.timer.isPaused());
-            QCOMPARE(f.timer.elapsedSeconds(), 0);
-            QVERIFY(!chains.stored.has_value());
-        }
-    }
-
-    void settingsChainStoreKeepsTheChain()
-    {
-        QTemporaryDir dir;
-        QVERIFY(dir.isValid());
-        QSettings settings(dir.filePath(QStringLiteral("chain.ini")), QSettings::IniFormat);
-        SettingsChainStore store(&settings);
-        QVERIFY(!store.load().has_value());
-
-        PauseChain chain;
-        chain.owner = QStringLiteral("https://a.example.test 3 7");
-        chain.seconds = 65;
-        chain.description = QStringLiteral("Write the report");
-        chain.projectId = 11;
-        chain.taskId = 4;
-        chain.tags = {QStringLiteral("focus")};
-        chain.billable = true;
-        store.save(chain);
-        {
-            QSettings reopened(dir.filePath(QStringLiteral("chain.ini")), QSettings::IniFormat);
-            QCOMPARE(SettingsChainStore(&reopened).load(), chain);
-        }
-        chain.runningId = 6;
-        chain.projectId.reset();
-        chain.taskId.reset();
-        chain.tags.clear();
-        store.save(chain);
-        QCOMPARE(store.load(), chain);
-
-        settings.setValue(QStringLiteral("PauseChain/seconds"), QStringLiteral("many"));
-        QVERIFY(!store.load().has_value());
-        store.save(std::nullopt);
-        QVERIFY(!store.load().has_value());
-        QVERIFY(settings.childGroups().isEmpty());
     }
 
     void projectIsLockedWhileRunning()
@@ -1095,10 +1167,10 @@ private Q_SLOTS:
 
         // Stopped, the project is a choice again.
         f.respond(put, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(f.timer.chooseProject(11));
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
         QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
@@ -1119,7 +1191,7 @@ private Q_SLOTS:
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
 
         // The read after the stop changes nothing, and the next start sends it.
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
         QVERIFY(f.find("GET", listPath).isEmpty());
         QVERIFY(f.timer.start());
@@ -1133,7 +1205,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
         QVERIFY(f.timer.billable());
@@ -1170,7 +1242,7 @@ private Q_SLOTS:
 
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.selectedProjectId().isNull());
         QVERIFY(!f.timer.billable());
@@ -1218,7 +1290,7 @@ private Q_SLOTS:
         // Polls that keep seeing nothing running neither ask again nor change it.
         f.timer.setSelectedProjectId(QVariant::fromValue(nullptr));
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QCOMPARE(f.find("GET", listPath).size(), 1);
         QVERIFY(f.timer.selectedProjectId().isNull());
     }
@@ -1228,7 +1300,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f));
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
         QVERIFY(f.find("GET", listPath).isEmpty());
     }
 
@@ -1260,7 +1332,7 @@ private Q_SLOTS:
         QVERIFY(f.timer.chooseProject(11));
         QVERIFY(f.timer.chooseBillable(false));
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QCOMPARE(f.find("GET", listPath).size(), 1);
         QVERIFY(f.timer.start());
         const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
@@ -1314,14 +1386,14 @@ private Q_SLOTS:
         }));
         f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
         const qsizetype projects = f.last("GET", "/projects");
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt, true, 11)));
         QVERIFY(f.unanswered(projects));
         QVERIFY(f.timer.canWrite());
 
         // The stop answers before the project list.
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         if (pick) {
             QVERIFY(f.timer.chooseBillable(true));
@@ -1343,7 +1415,7 @@ private Q_SLOTS:
         const QByteArray projects = "[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]";
         QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
         f.timer.refresh();
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt, true, 11)));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projects));
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
 
@@ -1375,10 +1447,10 @@ private Q_SLOTS:
         // Meanwhile an entry on project 12 ran and stopped elsewhere.
         const qsizetype before = f.transport.requests.size();
         f.timer.reconnect();
-        const qsizetype read = f.last("GET", currentPath);
+        const qsizetype read = f.last("GET", statePath);
         QVERIFY(read >= before);
         QVERIFY(f.unanswered(read));
-        f.respond(read, FakeTransport::answer(200, "null"));
+        f.respond(read, f.stateAnswer());
         if (pick) {
             QCOMPARE(f.find("GET", listPath).size(), 1);
             QVERIFY(f.timer.selectedProjectId().isNull());
@@ -1409,10 +1481,10 @@ private Q_SLOTS:
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(status, body));
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.errorString().isEmpty());
-        const qsizetype read = f.last("GET", currentPath);
+        const qsizetype read = f.last("GET", statePath);
         QVERIFY(f.unanswered(read));
 
-        f.respond(read, FakeTransport::answer(200, "null"));
+        f.respond(read, f.stateAnswer());
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.errorString().isEmpty());
         QCOMPARE(f.find("PATCH", "/stop").size(), 1);
@@ -1451,7 +1523,7 @@ private Q_SLOTS:
         QVERIFY(!f.timer.start());
         QVERIFY(!f.timer.toggle());
         QVERIFY(!f.timer.errorString().isEmpty());
-        qsizetype read = f.last("GET", currentPath);
+        qsizetype read = f.last("GET", statePath);
         QVERIFY(f.unanswered(read));
 
         // The reconciling read fails too: still busy, nothing replayed.
@@ -1461,9 +1533,9 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        read = f.last("GET", currentPath);
+        read = f.last("GET", statePath);
         QVERIFY(f.unanswered(read));
-        f.respond(read, FakeTransport::answer(200, serverStarted ? entryBody(30, 7, QStringLiteral("2026-10-16T09:00:00Z")) : QByteArray("null")));
+        f.respond(read, f.stateAnswer(serverStarted ? entryBody(30, 7, QStringLiteral("2026-10-16T09:00:00Z")) : QByteArray("null")));
 
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.isStale());
@@ -1477,28 +1549,29 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         // A poll is in flight when the user starts the timer.
-        for (int i = 0; i < 30; ++i) {
-            f.clock.advance(1000);
-        }
-        const qsizetype stalePoll = f.last("GET", currentPath);
+        poll(f);
+        const qsizetype stalePoll = f.last("GET", statePath);
         QVERIFY(f.unanswered(stalePoll));
+        const qint64 before = f.revision;
         QVERIFY(f.timer.start());
-        // No poll runs while the mutation does.
-        for (int i = 0; i < 31; ++i) {
-            f.clock.advance(1000);
-        }
-        QCOMPARE(f.last("GET", currentPath), stalePoll);
-
         f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(40, 7, QStringLiteral("2026-10-16T09:01:01Z"))));
-        const qsizetype fresh = f.last("GET", currentPath);
-        QVERIFY(fresh != stalePoll);
-        f.respond(fresh, FakeTransport::answer(200, entryBody(40, 7, QStringLiteral("2026-10-16T09:01:01Z"))));
         QCOMPARE(f.timer.currentEntry()->id, 40);
 
-        // The poll from before the start answers last, with no entry.
-        f.respond(stalePoll, FakeTransport::answer(200, "null"));
+        // The poll answers late, with the state the start was sent against.
+        f.respond(stalePoll, FakeTransport::answer(200, stateJson(before, f.clock.now(), "null", QJsonValue::Null, QJsonValue::Null)));
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.timer.currentEntry()->id, 40);
+
+        // The read after the start shows the newer state, and a later one
+        // replaces it.
+        const qsizetype fresh = f.last("GET", statePath);
+        QVERIFY(fresh != stalePoll);
+        QVERIFY(f.unanswered(fresh));
+        f.respond(fresh, f.stateAnswer(entryBody(40, 7, QStringLiteral("2026-10-16T09:01:01Z"))));
+        QCOMPARE(f.timer.currentEntry()->id, 40);
+        poll(f);
+        QVERIFY(f.answerState());
+        QVERIFY(!f.timer.isRunning());
     }
 
     void transientFailureKeepsStaleDataAndRecovers()
@@ -1508,7 +1581,7 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        f.respond(f.last("GET", currentPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        f.respond(f.last("GET", statePath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
         QVERIFY(f.timer.isStale());
         QVERIFY(f.timer.isConnected());
         QVERIFY(f.timer.isRunning());
@@ -1522,7 +1595,7 @@ private Q_SLOTS:
             f.clock.advance(1000);
         }
         const qsizetype projectsBefore = f.find("GET", "/projects").size();
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isStale());
         QCOMPARE(f.timer.connectionState(), Connection::Connected);
         QVERIFY(!f.timer.isRunning());
@@ -1530,32 +1603,7 @@ private Q_SLOTS:
         // Our own read brought the connection back; it is not read twice,
         // and the reconnection reads the projects.
         QCOMPARE(f.find("GET", "/projects").size(), projectsBefore + 1);
-        QVERIFY(!f.unanswered(f.last("GET", currentPath)));
-    }
-
-    void timerStaysStaleUntilTheEntryIsReadAgain()
-    {
-        Fixture f;
-        QVERIFY(connectAccount(f));
-        for (int i = 0; i < 30; ++i) {
-            f.clock.advance(1000);
-        }
-        f.respond(f.last("GET", currentPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
-        QVERIFY(f.timer.isStale());
-
-        // An unrelated read succeeds and the connection recovers.
-        f.timer.refresh();
-        const qsizetype read = f.last("GET", currentPath);
-        QVERIFY(f.unanswered(read));
-        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
-        QCOMPARE(f.timer.connectionState(), Connection::Connected);
-        QVERIFY(f.timer.isRunning());
-        QVERIFY(f.timer.isStale());
-
-        // Only an accepted current-entry read clears the mark.
-        f.respond(read, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
-        QVERIFY(!f.timer.isStale());
-        QVERIFY(f.timer.isRunning());
+        QVERIFY(!f.unanswered(f.last("GET", statePath)));
     }
 
     void reconnectionRefreshes()
@@ -1565,15 +1613,15 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(503, "\"Unavailable\""));
+        f.respond(f.last("GET", statePath), FakeTransport::answer(503, "\"Unavailable\""));
         QCOMPARE(f.timer.connectionState(), Connection::Disconnected);
-        const qsizetype reads = f.find("GET", currentPath).size();
+        const qsizetype reads = f.find("GET", statePath).size();
 
         f.connection.refreshAccount();
         f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
         QCOMPARE(f.timer.connectionState(), Connection::Connected);
-        QCOMPARE(f.find("GET", currentPath).size(), reads + 1);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(6, 7, startedAt)));
+        QCOMPARE(f.find("GET", statePath).size(), reads + 1);
+        QVERIFY(f.answerState(entryBody(6, 7, startedAt)));
         QCOMPARE(f.timer.currentEntry()->id, 6);
     }
 
@@ -1581,7 +1629,7 @@ private Q_SLOTS:
     {
         QTest::addColumn<int>("status");
         QTest::newRow("401") << 401;
-        QTest::newRow("403 on the current entry") << 403;
+        QTest::newRow("403 on the state") << 403;
     }
 
     void authenticationFailureClears()
@@ -1593,7 +1641,7 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(status, "\"Incorrect username and/or password\""));
+        f.respond(f.last("GET", statePath), FakeTransport::answer(status, "\"Incorrect username and/or password\""));
         QVERIFY(!f.timer.isConnected());
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.projects().isEmpty());
@@ -1630,7 +1678,7 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(429, "\"Too many requests\"", "1"));
+        f.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "1"));
         QCOMPARE(f.timer.connectionState(), Connection::RateLimited);
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.errorString().isEmpty());
@@ -1650,7 +1698,7 @@ private Q_SLOTS:
                 return f.timer.connectionState() == Connection::Connected;
             },
             5000));
-        QVERIFY(f.unanswered(f.last("GET", currentPath)));
+        QVERIFY(f.unanswered(f.last("GET", statePath)));
         QVERIFY(f.transport.requests.size() > requests);
     }
 
@@ -1690,7 +1738,7 @@ private Q_SLOTS:
         const QByteArray forbidden("\"User does not have access to this resource.\"");
         if (trigger == "projects") {
             f.timer.refresh();
-            f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+            QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
             f.respond(f.last("GET", "/projects"), FakeTransport::answer(403, forbidden));
         } else if (trigger == "start") {
             QVERIFY(f.timer.start());
@@ -1720,8 +1768,10 @@ private Q_SLOTS:
         f.respond(rediscovery, FakeTransport::answer(200, meBody(3, 7)));
         QVERIFY(f.timer.workspaceAccessLost());
 
-        // Nothing more is sent: no polls, no replay, no second rediscovery.
-        const qsizetype requests = f.transport.requests.size();
+        // Nothing more is sent: no workspace reads, no replay, no second
+        // rediscovery. The state is the account's, so the state client goes
+        // on reading it.
+        const qsizetype requests = f.otherRequests();
         for (int i = 0; i < 95; ++i) {
             f.clock.advance(1000);
         }
@@ -1729,7 +1779,7 @@ private Q_SLOTS:
         f.timer.refresh();
         QVERIFY(!f.timer.start());
         QVERIFY(!f.timer.stop());
-        QCOMPARE(f.transport.requests.size(), requests);
+        QCOMPARE(f.otherRequests(), requests);
         QCOMPARE(f.find("POST", "/time_entries").size(), trigger == "start" ? 1 : 0);
         QCOMPARE(f.find("PATCH", "/stop").size(), trigger == "stop" ? 1 : 0);
 
@@ -1740,7 +1790,9 @@ private Q_SLOTS:
             return f.unanswered(f.last("GET", "/me"));
         }));
         f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        if (f.unanswered(f.last("GET", statePath))) {
+            QVERIFY(f.answerState("null"));
+        }
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         QVERIFY(f.timer.canWrite());
         QCOMPARE(f.timer.projects().size(), 1);
@@ -1752,7 +1804,7 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         // A start goes out while a projects read is pending.
         f.timer.refresh();
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(f.timer.start());
         const qsizetype post = f.last("POST", "/time_entries");
 
@@ -1777,16 +1829,21 @@ private Q_SLOTS:
         QVERIFY(!f.timer.start());
         QVERIFY(!f.timer.toggle());
         QCOMPARE(f.find("POST", "/time_entries").size(), 1);
+        // The state read the reconnect sent answers first: nothing changed
+        // yet.
+        if (f.unanswered(f.last("GET", statePath))) {
+            f.respond(f.last("GET", statePath), FakeTransport::answer(200, stateJson(f.revision, f.clock.now(), "null", QJsonValue::Null, QJsonValue::Null)));
+        }
 
-        // The start answers: a current-entry read runs before writes return.
-        const qsizetype readsBefore = f.find("GET", currentPath).size();
+        // The start answers: a state read runs before writes return.
+        const qsizetype readsBefore = f.find("GET", statePath).size();
         f.respond(post, FakeTransport::answer(200, entryBody(40, 7, QStringLiteral("2026-10-16T09:00:00Z"))));
-        QCOMPARE(f.find("GET", currentPath).size(), readsBefore + 1);
-        const qsizetype read = f.last("GET", currentPath);
+        QCOMPARE(f.find("GET", statePath).size(), readsBefore + 1);
+        const qsizetype read = f.last("GET", statePath);
         QVERIFY(f.unanswered(read));
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.toggle());
-        f.respond(read, FakeTransport::answer(200, entryBody(40, 7, QStringLiteral("2026-10-16T09:00:00Z"))));
+        f.respond(read, f.stateAnswer(entryBody(40, 7, QStringLiteral("2026-10-16T09:00:00Z"))));
         QVERIFY(!f.timer.isBusy());
         QVERIFY(f.timer.canWrite());
         QCOMPARE(f.timer.currentEntry()->id, 40);
@@ -1807,7 +1864,7 @@ private Q_SLOTS:
         QCOMPARE(f.timer.workspaceId(), 8);
         const HttpRequest projects = f.transport.requests.at(f.last("GET", "/projects"));
         QCOMPARE(projects.url.path(), QStringLiteral("/api/v9/workspaces/8/projects"));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(8)));
         // The entry from the lost workspace is not shown in the new one.
         QVERIFY(!f.timer.isRunning());
@@ -1871,13 +1928,13 @@ private Q_SLOTS:
             return f.unanswered(f.last("GET", "/me"));
         }));
         f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
-        const qsizetype newRead = f.last("GET", currentPath);
+        const qsizetype newRead = f.last("GET", statePath);
         QVERIFY(f.unanswered(newRead));
         QVERIFY(f.transport.requests.at(newRead).url.host() == (switchInstance ? QStringLiteral("b.example.test") : QStringLiteral("a.example.test")));
 
         // The old stop answers late: ignored, even though entry 5 exists again.
         f.respond(oldStop, FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
-        f.respond(newRead, FakeTransport::answer(200, entryBody(5, 7, QStringLiteral("2026-10-16T08:00:00Z"))));
+        f.respond(newRead, f.stateAnswer(entryBody(5, 7, QStringLiteral("2026-10-16T08:00:00Z"))));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("1:00"));
@@ -1905,7 +1962,7 @@ private Q_SLOTS:
             return f.transport.requests.size() == 1;
         }));
         f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 11)));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt, true, 11)));
         // The project is not known until the project list answers.
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
         QVERIFY(f.timer.indicatorColor().isEmpty());
@@ -1917,7 +1974,7 @@ private Q_SLOTS:
 
         // An entry without a project shows nothing.
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(indicator.count(), 3);
@@ -1953,7 +2010,7 @@ private Q_SLOTS:
         // Deleted on the server: 404 gives None.
         if (running) {
             poll(f);
-            f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, true, 44)));
+            QVERIFY(f.answerState(entryBody(5, 7, startedAt, true, 44)));
         } else {
             f.timer.setSelectedProjectId(44);
         }
@@ -2003,9 +2060,9 @@ private Q_SLOTS:
         } else {
             f.timer.refresh();
         }
-        const qsizetype read = f.last("GET", currentPath);
+        const qsizetype read = f.last("GET", statePath);
         QVERIFY(read >= before);
-        f.respond(read, FakeTransport::answer(200, current));
+        f.respond(read, f.stateAnswer(current));
         const qsizetype list = f.last("GET", "/projects");
         QVERIFY(list >= before);
         f.respond(list, FakeTransport::answer(200, projectsBody(7)));
@@ -2017,10 +2074,10 @@ private Q_SLOTS:
 
         // Another refresh and a poll while that read is out ask nothing more.
         f.timer.refresh();
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QVERIFY(f.answerState(current));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QVERIFY(f.answerState(current));
         QCOMPARE(f.find("GET", "/projects/33").size(), 2);
 
         // That read began before the second reload, so its answer is shown
@@ -2032,7 +2089,7 @@ private Q_SLOTS:
         f.respond(f.last("GET", "/projects/33"), FakeTransport::answer(404, "\"Project not found\""));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QVERIFY(f.answerState(current));
         QCOMPARE(f.find("GET", "/projects/33").size(), 3);
     }
 
@@ -2055,7 +2112,7 @@ private Q_SLOTS:
             // Known from a first read, then read again after a reload.
             f.respond(older, FakeTransport::answer(200, archived));
             f.timer.refresh();
-            f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+            QVERIFY(f.answerState(current));
             f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
             older = f.last("GET", "/projects/33");
         }
@@ -2065,7 +2122,7 @@ private Q_SLOTS:
         // Project 33 is deleted, a reload completes, then the older read
         // answers with the project as it was.
         f.timer.refresh();
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QVERIFY(f.answerState(current));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         QCOMPARE(f.find("GET", "/projects/33").size(), reads);
         f.respond(older, FakeTransport::answer(200, archived));
@@ -2076,12 +2133,12 @@ private Q_SLOTS:
         const qsizetype followUp = f.last("GET", "/projects/33");
         QVERIFY(f.unanswered(followUp));
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QVERIFY(f.answerState(current));
         QCOMPARE(f.find("GET", "/projects/33").size(), reads + 1);
         f.respond(followUp, FakeTransport::answer(404, "\"Project not found\""));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, current));
+        QVERIFY(f.answerState(current));
         QCOMPARE(f.find("GET", "/projects/33").size(), reads + 1);
     }
 
@@ -2126,18 +2183,18 @@ private Q_SLOTS:
         f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         QCOMPARE(indicator.count(), 2);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
+        QVERIFY(f.answerState(entryBody(21, 7, startedAt)));
         QCOMPARE(indicator.count(), 2);
 
         // A stop of an entry on a project: the next start takes it.
         poll(f);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, entryBody(22, 7, startedAt, true, 11)));
+        QVERIFY(f.answerState(entryBody(22, 7, startedAt, true, 11)));
         QCOMPARE(indicator.count(), 3);
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(22, 7, startedAt, false, 11)));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
         QCOMPARE(indicator.count(), 3);
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
 
         // A projects reload with a new colour.
         f.timer.refresh();
@@ -2161,7 +2218,7 @@ private Q_SLOTS:
             return f.unanswered(f.last("GET", "/me"));
         }));
         f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(3, 7)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.projectsIncomplete());
 
         // Every page up to the limit is full and new.
@@ -2190,7 +2247,7 @@ private Q_SLOTS:
             return f.unanswered(f.last("GET", "/me"));
         }));
         f.respond(f.last("GET", "/me"), FakeTransport::answer(200, meBody(4, 7)));
-        f.respond(f.last("GET", currentPath), FakeTransport::answer(200, "null"));
+        QVERIFY(f.answerState("null"));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 7)));
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectPage(1000, 3, 7)));
         QCOMPARE(f.timer.projects().size(), Connection::projectPageSize + 3);
@@ -2205,27 +2262,36 @@ private Q_SLOTS:
         QVERIFY(f.timer.currentEntryVariant().isNull());
     }
 
-    void connectionCanBeReplaced()
+    void stateClientCanBeReplaced()
     {
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
-        for (int i = 0; i < 30; ++i) {
-            f.clock.advance(1000);
-        }
-        const qsizetype poll = f.last("GET", currentPath);
+        poll(f);
+        const qsizetype poll = f.last("GET", statePath);
         QVERIFY(f.unanswered(poll));
 
         FakeTransport otherTransport;
         FakeCredentialStore otherStore;
         Connection other(&otherTransport, &otherStore, testClientName());
-        f.timer.setConnection(&other);
+        TimerStateClient otherState(&other, &f.clock);
+        f.timer.setStateClient(&otherState);
+        QCOMPARE(f.timer.stateClient(), &otherState);
+        QCOMPARE(f.timer.connection(), &other);
         QVERIFY(!f.timer.isRunning());
         QVERIFY(!f.timer.isConnected());
-        // Replies to the first connection no longer reach the controller.
-        f.respond(poll, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
+        // Replies to the first client no longer reach the controller.
+        f.respond(poll, f.stateAnswer(entryBody(5, 7, startedAt)));
         QVERIFY(!f.timer.isRunning());
         QVERIFY(otherTransport.requests.isEmpty());
-        f.timer.setConnection(nullptr);
+
+        // A client that goes away takes its connection with it.
+        {
+            TimerStateClient scoped(&f.connection, &f.clock);
+            f.timer.setStateClient(&scoped);
+            QCOMPARE(f.timer.connection(), &f.connection);
+        }
+        QVERIFY(!f.timer.stateClient());
+        QVERIFY(!f.timer.connection());
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.start());
     }

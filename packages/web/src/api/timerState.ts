@@ -1,3 +1,4 @@
+import type { Mutation, QueryClient } from '@tanstack/react-query';
 import { ApiError } from './client.ts';
 import { clockOffset } from './serverClock.ts';
 import type { TimeEntry, TimerState } from './types.ts';
@@ -64,4 +65,44 @@ export function explainTimerActionError(error: unknown): unknown {
   }
   if (error instanceof TypeError) return new TimerActionError('offline');
   return error;
+}
+
+/** The mutation key of every timer action, so waiting for other writes can leave them out. */
+export const TIMER_ACTION_KEY = ['timerAction'] as const;
+
+function isOtherWrite(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
+  return mutation.state.status === 'pending' && mutation.options.mutationKey?.[0] !== TIMER_ACTION_KEY[0];
+}
+
+/**
+ * Waits until no write other than a timer action is in flight, and says whether it had to wait. An
+ * edit of the running entry moves the revision, so an action that reads the revision while that
+ * edit is pending would send a stale one and conflict with this tab's own edit.
+ */
+export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
+  const cache = qc.getMutationCache();
+  const pending = () => cache.getAll().some(isOtherWrite);
+  if (!pending()) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const unsubscribe = cache.subscribe(() => {
+      if (pending()) return;
+      unsubscribe();
+      resolve(true);
+    });
+  });
+}
+
+/** Whether two states show the same session phase and the same pause, whatever else moved the revision. */
+function sameSubject(a: TimerState, b: TimerState): boolean {
+  return a.pomodoro?.phase.start === b.pomodoro?.phase.start
+    && a.pause?.paused === b.pause?.paused && a.pause?.clone_entry_id === b.pause?.clone_entry_id;
+}
+
+/**
+ * The revision an action sends after waiting for this tab's own edit. If the phase and pause the
+ * user saw are still the server's, only the edit moved the revision, so the action goes out at the
+ * new one. Otherwise it keeps the revision the user saw and the server answers with a conflict.
+ */
+export function revisionToSend(seen: TimerState, fresh: TimerState): number {
+  return sameSubject(seen, fresh) ? fresh.revision : seen.revision;
 }

@@ -65,15 +65,16 @@ export function notifyInBackground(title: string, body: string, tag: string): vo
  * https://developer.mozilla.org/en-US/docs/Web/API/Notification/requireInteraction
  * https://developer.mozilla.org/en-US/docs/Web/API/Notification/renotify
  */
-export function notifySessionPhaseEnd(sessionId: string, phaseLabel: string): Notification | null {
+export function notifySessionPhaseEnd(phaseStart: string, phaseLabel: string): Notification | null {
   if (document.hasFocus()) return null;
   const api = notificationApi();
   if (!api || notificationAccess() !== 'granted') return null;
   try {
-    // renotify needs a non-empty tag. The same session replaces its previous phase notification.
+    // renotify needs a non-empty tag. It is the phase start, the alarm's key, so the tabs of this
+    // browser that ring for the same phase share one notification.
     const options = {
       body: 'Choose Next phase or End session in Tokkl.', icon: ICON_URL,
-      tag: `tokkl-pomodoro-session-${sessionId}`, requireInteraction: true, renotify: true,
+      tag: `tokkl-pomodoro-session-${phaseStart}`, requireInteraction: true, renotify: true,
     };
     const notification = new api(`${phaseLabel} phase over`, options);
     notification.onclick = () => { window.focus(); notification.close(); };

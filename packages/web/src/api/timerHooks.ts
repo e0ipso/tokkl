@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { api } from './client.ts';
 import { keys } from './hooks.ts';
 import { getClockOffset, setClockOffset } from './serverClock.ts';
-import { TimerActionError, explainTimerActionError, planTimerUpdate } from './timerState.ts';
+import {
+  TIMER_ACTION_KEY, TimerActionError, explainTimerActionError, planTimerUpdate, revisionToSend, settleOtherWrites,
+} from './timerState.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { TimeEntryInput, TimerState } from './types.ts';
 import { useNow } from '../lib/settings.ts';
@@ -58,11 +60,23 @@ export function useServerNow(intervalMs = 1000): Date {
   return new Date(Date.now() + getClockOffset());
 }
 
-/** The revision actions send: the cached one, read first if the state has not loaded yet. */
+/**
+ * The revision actions send: the cached one, read first if the state has not loaded yet. An edit
+ * still in flight, such as the running entry's description saved as the user clicks Next phase,
+ * moves the revision, so the action waits for it and reads the state again (see `revisionToSend`).
+ */
 async function currentRevision(qc: QueryClient): Promise<number> {
-  const state = await qc.ensureQueryData({ queryKey: keys.timer, queryFn: () => readTimerState(qc) });
-  return state.revision;
+  const seen = await qc.ensureQueryData({ queryKey: keys.timer, queryFn: () => readTimerState(qc) });
+  if (!(await settleOtherWrites(qc))) return seen.revision;
+  return revisionToSend(seen, await readTimerState(qc));
 }
+
+/**
+ * Timer actions run even while the browser reports being offline. TanStack's default would hold
+ * them until the connection returns and then send them late; they fail at once instead, with the
+ * offline message.
+ */
+const actionOptions = { mutationKey: TIMER_ACTION_KEY, networkMode: 'always' } as const;
 
 /**
  * Posts a timer action. The reply is the new state. A 409 replaces the cached state with the one in
@@ -82,6 +96,7 @@ async function postAction(qc: QueryClient, path: string, body: Record<string, un
 function useRevisionAction(path: string) {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, void>({
+    ...actionOptions,
     mutationFn: async () => postAction(qc, path, { revision: await currentRevision(qc) }),
   });
 }
@@ -101,6 +116,7 @@ export interface StartPomodoroInput extends Pick<TimeEntryInput, 'description' |
 export function useStartPomodoro() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, StartPomodoroInput>({
+    ...actionOptions,
     mutationFn: (input) => postAction(qc, pomodoroPath, { created_with: 'tokkl-web', ...input }),
   });
 }
@@ -119,6 +135,7 @@ export function useEndPomodoro() {
 export function usePauseTimer() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, void>({
+    ...actionOptions,
     mutationFn: () => postAction(qc, `${timerPath}/pause`, undefined),
   });
 }

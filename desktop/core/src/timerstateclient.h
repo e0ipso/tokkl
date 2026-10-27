@@ -33,13 +33,18 @@ class Clock;
 //
 // Actions go through the client so it adopts the state they return, the new
 // one or, on a 409, the server's current one. After an unknown outcome it
-// reads the state; it never sends the action again.
+// never sends the action again: it is settling until a read sent after the
+// outcome brings a state. A read already on its way does not count, as the
+// server may have answered it before the action. While settling, a failed
+// read is tried again every 30 s, also while the stream delivers.
 class TimerStateClient : public QObject
 {
     Q_OBJECT
 
     // A stream is open and has delivered a state.
     Q_PROPERTY(bool streaming READ streaming NOTIFY streamingChanged)
+    // A write's outcome is unknown and no read sent since has answered.
+    Q_PROPERTY(bool settling READ settling NOTIFY settlingChanged)
 
 public:
     using ActionCallback = Connection::ActionCallback;
@@ -57,8 +62,10 @@ public:
     TimerStateClient(Connection *connection, Clock *clock, QObject *parent = nullptr);
     ~TimerStateClient() override;
 
+    Connection *connection() const;
     const std::optional<TimerState> &state() const;
     bool streaming() const;
+    bool settling() const;
     // The server's clock minus this device's, from the server_time of the
     // state held. 0 without one.
     qint64 serverOffsetMs() const;
@@ -74,6 +81,11 @@ public:
     void nextPhase(ActionCallback done = {});
     void endPomodoro(ActionCallback done = {});
 
+    // A write made elsewhere, such as a v9 start, had an unknown outcome:
+    // read the state and stay settling until a read sent from now on
+    // answers. The actions above do this themselves.
+    void settle();
+
 public Q_SLOTS:
     // Reads the state, after the read on its way if there is one.
     void refresh();
@@ -85,6 +97,7 @@ Q_SIGNALS:
     // dropped.
     void stateChanged();
     void streamingChanged();
+    void settlingChanged();
 
 private:
     // The fields of the event being read from the stream.
@@ -110,6 +123,7 @@ private:
     void dispatchEvent();
     bool adopt(const TimerState &state);
     void setStreaming(bool streaming);
+    void setSettling(bool settling);
     ActionCallback adopting(ActionCallback done);
     void withRevision(void (Connection::*action)(qint64, ActionCallback), ActionCallback done);
     void refuseLater(const ActionCallback &done, const QString &message);
@@ -124,6 +138,10 @@ private:
     qint64 m_offsetMs = 0;
     bool m_reading = false;
     bool m_readAgain = false;
+    quint64 m_readsSent = 0;
+    // Settling until a read numbered above m_settleAfter brings a state.
+    bool m_settling = false;
+    quint64 m_settleAfter = 0;
     QDateTime m_nextPoll;
     QDateTime m_lastTick;
 

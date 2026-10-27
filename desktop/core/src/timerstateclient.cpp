@@ -35,6 +35,11 @@ TimerStateClient::~TimerStateClient()
     }
 }
 
+Connection *TimerStateClient::connection() const
+{
+    return m_connection;
+}
+
 const std::optional<TimerState> &TimerStateClient::state() const
 {
     return m_state;
@@ -43,6 +48,11 @@ const std::optional<TimerState> &TimerStateClient::state() const
 bool TimerStateClient::streaming() const
 {
     return m_streaming;
+}
+
+bool TimerStateClient::settling() const
+{
+    return m_settling;
 }
 
 qint64 TimerStateClient::serverOffsetMs() const
@@ -84,18 +94,44 @@ void TimerStateClient::requestRead(bool fresh)
     }
     QPointer<TimerStateClient> self(this);
     const quint64 generation = m_generation;
-    m_connection->fetchTimerState([self, generation](const ApiResult<TimerState> &result) {
+    const quint64 serial = ++m_readsSent;
+    m_connection->fetchTimerState([self, generation, serial](const ApiResult<TimerState> &result) {
         if (!self || generation != self->m_generation) {
             return;
         }
         self->m_reading = false;
+        // Sent after the outcome, so it shows what the server did. The
+        // state held may be newer still, from the stream.
+        const bool settled = result.ok() && self->m_settling && serial > self->m_settleAfter;
+        if (settled) {
+            self->m_settling = false;
+        }
         if (result.ok()) {
             self->adopt(*result.value);
+        }
+        if (settled) {
+            Q_EMIT self->settlingChanged();
         }
         if (std::exchange(self->m_readAgain, false)) {
             self->requestRead(false);
         }
     });
+}
+
+void TimerStateClient::settle()
+{
+    m_settleAfter = m_readsSent;
+    setSettling(true);
+    requestRead(true);
+}
+
+void TimerStateClient::setSettling(bool settling)
+{
+    if (settling == m_settling) {
+        return;
+    }
+    m_settling = settling;
+    Q_EMIT settlingChanged();
 }
 
 bool TimerStateClient::adopt(const TimerState &state)
@@ -144,6 +180,8 @@ void TimerStateClient::onGenerationChanged()
     m_nextPoll = QDateTime();
     m_started = false;
     m_offsetMs = 0;
+    // The write belonged to the earlier account.
+    setSettling(false);
     if (m_state) {
         m_state.reset();
         Q_EMIT stateChanged();
@@ -177,7 +215,7 @@ void TimerStateClient::onTick()
     if (m_reconnectAt.isValid() && (now >= m_reconnectAt || now.msecsTo(m_reconnectAt) > reconnectMaxMs)) {
         openStream();
     }
-    if (!m_streaming && (!m_nextPoll.isValid() || now >= m_nextPoll || now.msecsTo(m_nextPoll) > pollIntervalMs)) {
+    if ((!m_streaming || m_settling) && (!m_nextPoll.isValid() || now >= m_nextPoll || now.msecsTo(m_nextPoll) > pollIntervalMs)) {
         requestRead(false);
     }
 }
@@ -337,7 +375,7 @@ TimerStateClient::ActionCallback TimerStateClient::adopting(ActionCallback done)
                 self->adopt(*result.state);
             } else if (result.outcome == TimerActionResult::Outcome::Unknown) {
                 // Settled by what the server holds, never by sending again.
-                self->refresh();
+                self->settle();
             }
         }
         if (done) {

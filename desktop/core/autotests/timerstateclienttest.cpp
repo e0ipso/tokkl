@@ -460,7 +460,9 @@ private Q_SLOTS:
             QVERIFY(!results.last().state);
             QCOMPARE(f.find("POST", unknown.path).last(), post);
             QCOMPARE(f.reads(), reads + 1);
+            QVERIFY(f.client.settling());
             f.answerRead(stateBody(10, f.clock.now()));
+            QVERIFY(!f.client.settling());
         }
 
         // Any other refusal changed nothing.
@@ -469,6 +471,56 @@ private Q_SLOTS:
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Refused);
         QCOMPARE(results.last().error.status, 400);
         QCOMPARE(f.client.state()->revision, 10);
+        QVERIFY(!f.client.settling());
+    }
+
+    // After an unknown outcome the client is settling until a read sent
+    // after it brings a state. A read already on its way does not count. A
+    // failed read is tried again every 30 s, even while the stream
+    // delivers, and the action is never sent again.
+    void unknownOutcomeSettlesOnALaterRead()
+    {
+        Fixture f;
+        QVERIFY(streamAt(f, 5));
+        QSignalSpy settling{&f.client, &TimerStateClient::settlingChanged};
+        QVERIFY(!f.client.settling());
+
+        f.client.refresh();
+        const qsizetype early = f.last("GET", statePath);
+        f.client.pause();
+        const qsizetype post = f.last("POST", QStringLiteral("/api/app/timer/pause"));
+        f.respond(post, FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        QVERIFY(f.client.settling());
+        QCOMPARE(settling.size(), 1);
+        QCOMPARE(f.last("GET", statePath), early);
+
+        // The early read may predate the pause.
+        f.respond(early, FakeTransport::answer(200, stateBody(5, f.clock.now())));
+        QVERIFY(f.client.settling());
+        const qsizetype later = f.last("GET", statePath);
+        QVERIFY(later > early);
+
+        f.respond(later, FakeTransport::answer(502, "\"Bad gateway\""));
+        QVERIFY(f.client.settling());
+        const qsizetype reads = f.reads();
+        f.tick(29);
+        QCOMPARE(f.reads(), reads);
+        f.tick(1);
+        QCOMPARE(f.reads(), reads + 1);
+
+        f.answerRead(stateBody(6, f.clock.now()));
+        QVERIFY(!f.client.settling());
+        QCOMPARE(settling.size(), 2);
+        QCOMPARE(f.client.state()->revision, 6);
+        QCOMPARE(f.find("POST", QStringLiteral("/api/app/timer/pause")).size(), 1);
+
+        // A new generation drops the wait with the state.
+        f.client.pause();
+        f.respond(f.last("POST", QStringLiteral("/api/app/timer/pause")), FakeTransport::failure(HttpResponse::Outcome::NetworkError));
+        QVERIFY(f.client.settling());
+        f.connection.setInstanceUrl(instanceB);
+        QVERIFY(!f.client.settling());
+        QVERIFY(!f.client.state());
     }
 };
 

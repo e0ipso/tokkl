@@ -3,6 +3,7 @@ import {
   useCreateEntry, useCurrentEntry, useDeleteEntry, useMe, usePreferences, useRestoreEntry, useSavePreferences, useStopEntry,
   useUpdateEntry,
 } from '../api/hooks.ts';
+import { useTimerState } from '../api/timerHooks.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
@@ -17,7 +18,6 @@ import {
   withSnapshot, type PauseChain,
 } from './pauseChain.ts';
 import { usePauseCoordination } from './PauseCoordination.tsx';
-import { usePomodoroSession } from './PomodoroSessionProvider.tsx';
 import { readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
 import { EMPTY_DRAFT as EMPTY, type EntryDraft as Draft } from './useEntryFields.ts';
 
@@ -69,7 +69,12 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const now = useNow(1000);
   const { data: me } = useMe();
   const accountId = me?.id ?? 0;
-  const { data: current, dataUpdatedAt: currentFetchedAt } = useCurrentEntry();
+  const { data: running, dataUpdatedAt: currentFetchedAt } = useCurrentEntry();
+  // A Pomodoro session's open pomodoro is the running entry. The bar leaves it to the Pomodoro page
+  // and shows its idle form; a timer started there stops the pomodoro, which ends the session.
+  const { data: timer } = useTimerState();
+  const inSession = (timer?.pomodoro ?? null) !== null;
+  const current = inSession ? null : running;
   const { data: prefs } = usePreferences();
   const savePrefs = useSavePreferences();
   const create = useCreateEntry();
@@ -78,7 +83,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const remove = useDeleteEntry();
   const restore = useRestoreEntry();
   const toast = useToast();
-  const session = usePomodoroSession();
 
   // Pause stops the running entry and Resume starts a clone of it; the chain keeps what to clone
   // and the total, in localStorage per account so a reload keeps it. `chainRef` is set at once, so
@@ -116,7 +120,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       window.removeEventListener('storage', onStorage);
     };
   }, [accountId]);
-  const paused = !current && isPaused(chain);
+  const paused = !current && !inSession && isPaused(chain);
 
   const manual = !current && !paused && (prefs?.manualMode ?? false);
   const [draft, setDraft] = useState<Draft>(() => (isPaused(chain) ? chain.snapshot : EMPTY));
@@ -231,23 +235,20 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         toast.show(`Added ${formatDuration(entrySeconds(saved, stop))}`);
         setDraft(EMPTY);
       } else {
+        // Another tab may have stopped the chain since this Resume was pressed.
+        if (resuming && !isPaused(readTabChain(accountId))) return null;
         const startAt = new Date();
-        const entry = await session.startTimer(startAt, async () => {
-          ownStart.current = { startMs: Math.floor(startAt.getTime() / 1000) * 1000, base: draft };
-          const clone = await create.mutateAsync({ ...from, start: startAt.toISOString(), duration: -1 });
-          // Publish the chain before releasing the account lock to a waiting session start.
-          if (!resuming) endChain();
-          else if (stopAfterResume.current) {
-            ownStart.current = null;
-            await stopEntry.mutateAsync(clone.id);
-          } else {
-            const held = readTabChain(accountId);
-            if (isPaused(held)) setChain(resumeChain(held, clone.id, Date.now()));
-          }
-          return clone;
-        }, resuming);
-        if (!entry) return null;
-        saved = entry;
+        ownStart.current = { startMs: Math.floor(startAt.getTime() / 1000) * 1000, base: draft };
+        const clone = await create.mutateAsync({ ...from, start: startAt.toISOString(), duration: -1 });
+        if (!resuming) endChain();
+        else if (stopAfterResume.current) {
+          ownStart.current = null;
+          await stopEntry.mutateAsync(clone.id);
+        } else {
+          const held = readTabChain(accountId);
+          if (isPaused(held)) setChain(resumeChain(held, clone.id, Date.now()));
+        }
+        saved = clone;
       }
       setTimerDuration('');
       if (!resuming && seconds !== null && seconds > 0) endChain();
@@ -293,15 +294,13 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       }
       return;
     }
-    await session.pauseTimer(async () => {
-      const stopped = await stopRunning();
-      if (!stopped) return;
-      endChain();
-      // The server keeps no entry that rounds to zero at the time resolution: it went to the trash.
-      if (stopped.server_deleted_at) {
-        toast.show('Too short to keep, so the entry went to the trash', { action: { label: 'Undo', run: () => restore.mutate(stopped.id) } });
-      }
-    }).catch(toast.error);
+    const stopped = await stopRunning();
+    if (!stopped) return;
+    endChain();
+    // The server keeps no entry that rounds to zero at the time resolution: it went to the trash.
+    if (stopped.server_deleted_at) {
+      toast.show('Too short to keep, so the entry went to the trash', { action: { label: 'Undo', run: () => restore.mutate(stopped.id) } });
+    }
   };
 
   const pause = async () => {
@@ -312,19 +311,17 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     try {
       // A failed stop leaves the entry running, and a Stop pressed meanwhile with it; the error
       // toast says so.
-      await session.pauseTimer(async () => {
-        const stopped = await stopRunning();
-        if (!stopped) return;
-        setTimerDuration('');
-        if (pending.stopAfter) {
-          endChain();
-          setDraft(EMPTY);
-          return;
-        }
-        const next = pauseChain(chainRef.current, stopped, Date.now());
-        setChain(next);
-        setDraft(next.snapshot);
-      });
+      const stopped = await stopRunning();
+      if (!stopped) return;
+      setTimerDuration('');
+      if (pending.stopAfter) {
+        endChain();
+        setDraft(EMPTY);
+        return;
+      }
+      const next = pauseChain(chainRef.current, stopped, Date.now());
+      setChain(next);
+      setDraft(next.snapshot);
     } catch (error) {
       toast.error(error);
     } finally {

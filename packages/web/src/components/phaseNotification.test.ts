@@ -161,21 +161,21 @@ test('a request asks the browser only while the permission is undecided', async 
 });
 
 for (const hidden of [false, true]) {
-  test(`an unfocused ${hidden ? 'hidden' : 'visible'} session requests persistent, session-tagged renotification`, () => {
+  test(`an unfocused ${hidden ? 'hidden' : 'visible'} session requests persistent renotification tagged with the phase start`, () => {
     setup({ hidden });
     for (const phase of ['Work', 'Short rest', 'Long rest']) {
-      const notification = notifySessionPhaseEnd('session-a', phase);
+      const notification = notifySessionPhaseEnd('2026-10-27T10:00:00.000Z', phase);
       assert.equal(notification, shown.at(-1));
     }
     assert.deepEqual(shown.map(({ title }) => title), ['Work phase over', 'Short rest phase over', 'Long rest phase over']);
     for (const notification of shown) {
       assert.deepEqual(notification.options, {
         body: 'Choose Next phase or End session in Tokkl.', icon: '/icons/icon-192.png',
-        tag: 'tokkl-pomodoro-session-session-a', requireInteraction: true, renotify: true,
+        tag: 'tokkl-pomodoro-session-2026-10-27T10:00:00.000Z', requireInteraction: true, renotify: true,
       });
     }
-    notifySessionPhaseEnd('session-b', 'Work');
-    assert.equal(shown.at(-1)?.options.tag, 'tokkl-pomodoro-session-session-b');
+    notifySessionPhaseEnd('2026-10-27T10:31:00.000Z', 'Short rest');
+    assert.equal(shown.at(-1)?.options.tag, 'tokkl-pomodoro-session-2026-10-27T10:31:00.000Z');
     assert.equal(page.requests, 0);
   });
 }
