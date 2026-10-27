@@ -365,7 +365,7 @@ No circular dependencies. Task 12's Preview button makes sound only once task 10
 
 ## Post-execution Validation Status
 
-**Status**: Halted at POST_EXECUTION, waiting on self-validation step 9 (2026-10-27).
+**Status**: All gates pass (2026-10-27).
 
 | Gate | Result |
 | --- | --- |
@@ -380,7 +380,28 @@ No circular dependencies. Task 12's Preview button makes sound only once task 10
 | Self validation 6 | Pass after a fix: the alarm streams from the plasmoid while ringing and the stream closes after Next phase. It used to stay open, paused. |
 | Self validation 7 | Pass: a work length changed in the KDE Pomodoro page reached `/me/preferences`; a value posted with `curl` showed after reopening. |
 | Self validation 8 | Pass: a timer started with `curl` ended the session within one poll and the partial pomodoro was saved. |
-| Self validation 9 | **Not run.** The Linux portable macOS build passes, but the Objective-C++ files (`macstatusitem.mm`, `macalarmplayer.mm`, `main.mm`) compile only on the CI `macos` job, which needs the branch pushed. Pushing publishes to the public repository and waits on the user's approval. The macOS UI was not checked by hand. |
+| Self validation 9 | Pass: on PR #46, CI run 40458490176 passed the `macos` job, which compiles the Objective-C++ files (`macstatusitem.mm`, `macalarmplayer.mm`, `main.mm`), and the `gnome-extension` matrix for Shell 46–51. The macOS UI was not checked by hand. |
 | Self validation 10 | Pass: the desktop copies of the four sounds match `packages/web/public/sounds` and the sums in `docs/sounds/README.md`. |
 
-**Next steps**: push `feature/2--pomodoro-mode-for-desktop-tray-apps`, confirm the `macos` job (and the `gnome-extension` matrix for Shell 46–51) pass, then rerun `/st-execute-blueprint 2` to finish the review gate, the execution summary and archival.
+## Execution Summary
+
+**Status**: ✅ Completed Successfully
+**Completed Date**: 2026-10-27
+
+### Results
+Pomodoro mode now runs in the KDE, GNOME and macOS tray apps on the shared core: the cycle and snapping rules ported from the web app, sounds, preferences, a durable save queue and a session controller. Each app gets a panel glyph, menu actions, an alarm and a settings section. All 15 tasks in 7 phases are complete, and every check passes locally and in CI on PR #46.
+
+### Noteworthy Events
+- Review gate output: `{"kind":"skipped","reason":"review-disabled","detail":"Code review is disabled. Set code_review.enabled to true in config/config.yaml or select Enable code review in Customize to opt in.","action":"continue","codeReview":"Skipped; Code review is disabled. Set code_review.enabled to true in config/config.yaml or select Enable code review in Customize to opt in."}`. No findings to act on.
+- Changing the instance, account or secret aborted the final save before it was sent. Fixed with detached stopped-entry requests that use the old credentials.
+- The KDE hourglass needs the Qt SVG image plugin, which the packages did not declare; the KDE settings page showed the defaults offline. Both fixed in follow-ups to tasks 07 and 08.
+- The CI mock told the D-Bus `NextPhase` property and method apart by inspecting the call stack. Fixed by renaming the property to `UpcomingPhase`.
+- Self-validation found that `realservice.sh` lacked libpulse and that the KDE alarm stream stayed open after Next phase. Both fixed.
+- Memory pressure in the agent cgroup from other projects' builds stalled node commands, the `commit-msg` hook included, for long stretches. The commits waited for it to clear; no hook was skipped.
+- A self-validation run let `kactivitymanagerd` rewrite its backup files under the real home directory. Later runs used a throwaway HOME.
+
+### Necessary follow-ups
+- Check the macOS UI by hand on a Mac.
+- With KF 6.31 and Qt Quick's software renderer, the monochrome hourglass draws black on a dark panel.
+- After switching to an account that never connects, the KDE settings page shows the previous account's lengths.
+- Times snap in UTC when the account's time zone is unknown.
