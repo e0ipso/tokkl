@@ -1,3 +1,19 @@
+## [1.9.0](https://github.com/e0ipso/tokkl/compare/v1.8.2...v1.9.0) (2026-10-27)
+
+### Features
+
+* **desktop:** add a durable save queue for ended pomodoros ([16dbda7](https://github.com/e0ipso/tokkl/commit/16dbda79927fffbad9718abc6f3d2e71c56914f0))
+* **desktop:** add Pomodoro panels, menus, alarms and settings ([e136574](https://github.com/e0ipso/tokkl/commit/e13657402d8a1906daa510ba5ad53d4143e9ce71))
+* **desktop:** add Pomodoro sounds, glyph, store and preferences to the core ([9144bad](https://github.com/e0ipso/tokkl/commit/9144bad0b202f8b3f63308efa8fa370cc35a4681))
+* **desktop:** port the Pomodoro cycle and snapping rules to the core ([1e0ed71](https://github.com/e0ipso/tokkl/commit/1e0ed7167e81a23a5879b6b936b448b7bf41081d))
+* **desktop:** run Pomodoro sessions in the core next to the timer ([6d21c89](https://github.com/e0ipso/tokkl/commit/6d21c8964545f185485ee66c1e079cf7b79caef9))
+* **desktop:** wire Pomodoro sessions into the KDE, GNOME and macOS apps ([ce103c1](https://github.com/e0ipso/tokkl/commit/ce103c10b69c0c625d504266cf2d059d4117f75b))
+
+### Bug Fixes
+
+* **gnome:** install libpulse for the real-service check ([5d1dcdf](https://github.com/e0ipso/tokkl/commit/5d1dcdfc62d62885dbee83d0217f43a8cd0b7b55))
+* **kde:** close the alarm's audio stream when the alarm stops ([ae213c0](https://github.com/e0ipso/tokkl/commit/ae213c0719fb2688ab1fb85306fc8a50fbac756f))
+
 ## [1.8.2](https://github.com/e0ipso/tokkl/compare/v1.8.1...v1.8.2) (2026-10-26)
 
 ### Bug Fixes
