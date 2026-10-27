@@ -22,7 +22,7 @@ The package installs `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1
 
 ### Build the service from source
 
-You need CMake 3.27 or later, a C++ compiler, Qt 6.8 or later (Core, Network, DBus) and QtKeychain for Qt 6. On Debian 13 that is `cmake g++ qt6-base-dev qtkeychain-qt6-dev`, on Fedora `cmake gcc-c++ qt6-qtbase-devel qtkeychain-qt6-devel`.
+You need CMake 3.27 or later, a C++ compiler, Qt 6.8 or later (Core, Network, DBus), QtKeychain for Qt 6, and libpulse with pkg-config. On Debian 13 that is `cmake g++ qt6-base-dev qtkeychain-qt6-dev libpulse-dev pkgconf`, on Fedora `cmake gcc-c++ qt6-qtbase-devel qtkeychain-qt6-devel pulseaudio-libs-devel pkgconf-pkg-config`.
 
 ```sh
 cmake -S desktop/gnome -B desktop/gnome/build -DCMAKE_INSTALL_PREFIX=/usr

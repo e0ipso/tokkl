@@ -27,7 +27,8 @@ image="fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798
 container='
     dnf install -y -q --setopt=install_weak_deps=False gnome-shell gjs dbus-daemon dbus-tools \
         dconf glib2 unzip google-noto-sans-fonts python3-dbusmock \
-        cmake gcc-c++ make qt6-qtbase-devel qtkeychain-qt6-devel libsecret gnome-keyring \
+        cmake gcc-c++ make qt6-qtbase-devel qtkeychain-qt6-devel pulseaudio-libs-devel \
+        pkgconf-pkg-config libsecret gnome-keyring \
         > /tmp/install.log 2>&1 || { cat /tmp/install.log; exit 1; }
     echo "== $(gnome-shell --version), Qt $(rpm -q --qf "%{VERSION}" qt6-qtbase), QtKeychain $(rpm -q --qf "%{VERSION}" qtkeychain-qt6)"
     useradd --create-home tester
