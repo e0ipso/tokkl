@@ -362,3 +362,25 @@ No circular dependencies. Task 12's Preview button makes sound only once task 10
 ### Execution Summary
 - Total Phases: 7
 - Total Tasks: 15
+
+## Post-execution Validation Status
+
+**Status**: Halted at POST_EXECUTION, waiting on self-validation step 9 (2026-10-27).
+
+| Gate | Result |
+| --- | --- |
+| Tasks | All 15 tasks `completed`; all 7 phases ✅. |
+| Tests | `npm test` 802/802; `desktop/core/ci/check.sh` 11/11; `desktop/gnome/ci/check.sh` 16/16 with bus and systemd activation; GNOME DEB, RPM and zip packaging; extension harness on Shell 49 and 24/24 node tests; macOS portable build 13/13; KDE container check for DEB and RPM, 26/26 each with package checks. |
+| AGENTS.md | Unchanged and still correct: it does not cover the desktop apps. |
+| Self validation 1 | Pass: 64 `pomodoroSession.json` and 34 `snap.json` rows run and pass; Qt Gui link still rejected. |
+| Self validation 2 | Pass: GNOME service check and the Shell 49 extension harness. |
+| Self validation 3 | Pass: `realservice.sh` passes after its package list gained libpulse; over D-Bus a session rang `workToShortRest`, and two `NextPhase` calls saved one stopped entry spanning the work phase and its rest, `created_with` `tokkl-gnome`. |
+| Self validation 4 | Pass: KDE Debian container check and `realserver.sh`; panel test 52/52. |
+| Self validation 5 | Pass: `plasmawindowed` screenshots of Work, overtime, short rest and the menu show the hourglass, `M:SS`/`+M:SS`, "Pomodoro N of M" and the locked mode item. |
+| Self validation 6 | Pass after a fix: the alarm streams from the plasmoid while ringing and the stream closes after Next phase. It used to stay open, paused. |
+| Self validation 7 | Pass: a work length changed in the KDE Pomodoro page reached `/me/preferences`; a value posted with `curl` showed after reopening. |
+| Self validation 8 | Pass: a timer started with `curl` ended the session within one poll and the partial pomodoro was saved. |
+| Self validation 9 | **Not run.** The Linux portable macOS build passes, but the Objective-C++ files (`macstatusitem.mm`, `macalarmplayer.mm`, `main.mm`) compile only on the CI `macos` job, which needs the branch pushed. Pushing publishes to the public repository and waits on the user's approval. The macOS UI was not checked by hand. |
+| Self validation 10 | Pass: the desktop copies of the four sounds match `packages/web/public/sounds` and the sums in `docs/sounds/README.md`. |
+
+**Next steps**: push `feature/2--pomodoro-mode-for-desktop-tray-apps`, confirm the `macos` job (and the `gnome-extension` matrix for Shell 46–51) pass, then rerun `/st-execute-blueprint 2` to finish the review gate, the execution summary and archival.
