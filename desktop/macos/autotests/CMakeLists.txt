@@ -6,10 +6,12 @@
 add_executable(menubarapptest menubarapptest.cpp)
 target_link_libraries(menubarapptest PRIVATE tokklmacos tokklcorefakes Qt6::Test)
 # The iconset and the outline the menu bar logos are compiled from, to
-# compare them with.
+# compare them with, and the sounds the bundle ships, for the fake alarm
+# player.
 target_compile_definitions(menubarapptest PRIVATE
     TOKKL_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources"
-    TOKKL_ICONSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset")
+    TOKKL_ICONSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset"
+    TOKKL_SOUNDS_DIR="${TOKKL_CORE_DIR}/sounds")
 add_test(NAME menubarapp COMMAND menubarapptest)
 
 set(_tests menubarapp)

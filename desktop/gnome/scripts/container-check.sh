@@ -93,7 +93,8 @@ for format in $formats; do
                 export DEBIAN_FRONTEND=noninteractive
                 apt-get update -qq
                 apt-get install -y -qq --no-install-recommends build-essential debhelper cmake \
-                    qt6-base-dev qtkeychain-qt6-dev > /tmp/install.log 2>&1 || { cat /tmp/install.log; exit 1; }
+                    qt6-base-dev qtkeychain-qt6-dev libpulse-dev pkgconf > /tmp/install.log 2>&1 \
+                    || { cat /tmp/install.log; exit 1; }
                 echo "Qt $(dpkg-query -W -f "\${Version}" qt6-base-dev)"
                 /repo/desktop/gnome/scripts/package-release.sh --version "$1" --format deb --output /out
             ' bash "$version"
@@ -106,7 +107,8 @@ for format in $formats; do
             # shellcheck disable=SC2016
             in_container "$fedora" '
                 dnf install -y -q --setopt=install_weak_deps=False rpm-build cmake gcc-c++ make \
-                    systemd-rpm-macros qt6-qtbase-devel qtkeychain-qt6-devel > /tmp/install.log 2>&1 \
+                    systemd-rpm-macros qt6-qtbase-devel qtkeychain-qt6-devel pulseaudio-libs-devel \
+                    pkgconf-pkg-config > /tmp/install.log 2>&1 \
                     || { cat /tmp/install.log; exit 1; }
                 echo "Qt $(rpm -q --qf "%{VERSION}" qt6-qtbase)"
                 /repo/desktop/gnome/scripts/package-release.sh --version "$1" --format rpm --output /out

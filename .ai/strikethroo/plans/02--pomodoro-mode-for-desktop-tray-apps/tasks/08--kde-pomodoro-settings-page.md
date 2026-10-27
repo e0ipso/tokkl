@@ -2,7 +2,7 @@
 id: 8
 group: "kde-pomodoro"
 dependencies: [6]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - qml
@@ -19,13 +19,13 @@ Add a "Pomodoro" page to the plasmoid's configuration dialog. It edits the four 
 QML with Kirigami and KCMUtils for the page, and Qt Quick Test for `autotests/qml/tst_configure.qml`.
 
 ## Acceptance Criteria
-- [ ] `desktop/kde/package/contents/config/config.qml` has a second `ConfigCategory` named "Pomodoro" with a fitting Breeze icon, whose source is a new `configPomodoro.qml`.
-- [ ] The page shows four number fields, "Work", "Short rest", "Long rest" (minutes) and "Long rest every" (pomodoros), with ranges 1–180, 1–60, 1–60 and 1–12. It loads them from `TokklPomodoroPreferences` and calls its `refresh()` when the page opens.
-- [ ] Apply posts the changed lengths through `save()`. A server error appears next to its field, and the dialog stays changed (`configurationChanged()`), as the page already does for a refused secret.
-- [ ] Without a validated account the four fields are read-only, show the cached values, and a note says the lengths need a connection to the Tokkl server.
-- [ ] Four sound pickers, one per transition ("Work → short rest", "Short rest → work", "Work → long rest", "Long rest → work"), list the catalogue's four labels and are bound to the four `cfg_` sound entries from task 6. Each has a Preview button that plays the selected sound once through the alarm player.
-- [ ] `desktop/kde/autotests/qml/tst_configure.qml` covers: values loaded from the server; Apply posting only a changed key; a 400 shown on its field; read-only fields when disconnected; a sound choice changing its `cfg_` property; and Preview calling the player.
-- [ ] `desktop/kde/scripts/container-check.sh` passes for the Debian 13 leg with the new tests passed.
+- [x] `desktop/kde/package/contents/config/config.qml` has a second `ConfigCategory` named "Pomodoro" with a fitting Breeze icon, whose source is a new `configPomodoro.qml`.
+- [x] The page shows four number fields, "Work", "Short rest", "Long rest" (minutes) and "Long rest every" (pomodoros), with ranges 1–180, 1–60, 1–60 and 1–12. It loads them from `TokklPomodoroPreferences` and calls its `refresh()` when the page opens.
+- [x] Apply posts the changed lengths through `save()`. A server error appears next to its field, and the dialog stays changed (`configurationChanged()`), as the page already does for a refused secret.
+- [x] Without a validated account the four fields are read-only, show the cached values, and a note says the lengths need a connection to the Tokkl server.
+- [x] Four sound pickers, one per transition ("Work → short rest", "Short rest → work", "Work → long rest", "Long rest → work"), list the catalogue's four labels and are bound to the four `cfg_` sound entries from task 6. Each has a Preview button that plays the selected sound once through the alarm player.
+- [x] `desktop/kde/autotests/qml/tst_configure.qml` covers: values loaded from the server; Apply posting only a changed key; a 400 shown on its field; read-only fields when disconnected; a sound choice changing its `cfg_` property; and Preview calling the player.
+- [x] `desktop/kde/scripts/container-check.sh` passes for the Debian 13 leg with the new tests passed.
 
 Use your internal Todo tool to track these and keep on track.
 
@@ -55,3 +55,12 @@ Use your internal Todo tool to track these and keep on track.
 
 Test philosophy: write a few tests, mostly integration. Test custom logic, critical workflows, data transformations, edge cases and error conditions in core behaviour, and integration points. Do not test third-party library or framework behaviour, simple CRUD, trivial getters and setters, static configuration, or obvious behaviour that would break at once.
 </details>
+
+### Follow-up: cached lengths without a connection
+Offline the page showed 25/5/15/4. Its own connection never learns the account, and the panel's cache is keyed by account, so the page had nothing to read.
+- `package/contents/config/main.xml` has four Int entries, `cachedWorkMinutes`, `cachedShortRestMinutes`, `cachedLongRestMinutes` and `cachedLongRestEvery`, with the server's defaults.
+- `package/contents/ui/PomodoroLengthsCache.qml`, created in `main.qml`, copies the panel's `TokklPomodoro.preferences` lengths into them and calls `writeConfig()`, but only while the panel's connection knows the account. An offline start therefore keeps what an earlier run stored.
+- `configPomodoro.qml` reads them as `cfg_cached*` and shows them read-only until its own connection has answered `/me/preferences` (`lengthsRead`). Editing and Apply wait for that read too, so Apply never posts cached values measured against the defaults.
+- Dirty state and feedback: The `AppletConfiguration.qml` of Debian 13's plasma-desktop 6.3.6 turns Apply on only for the page's `cfg_*Changed` signals and `configurationChanged`. The page never assigns its `cfg_cached*` and the panel writes only the settings, so neither marks the dialog dirty. Apply writes the page's opening values back; the cache sees the change, writes the panel's values once and stops, since it writes only values that differ.
+- Tests: `test_unreachableServerShowsTheCachedLengths` and a reworked `test_loadsLengthsFromServer` in `tst_configure.qml`; `test_lengthsCacheKeepsTheAccountsLastKnownLengths` in `tst_panel.qml`; `smokeload` checks the four schema entries, that an offline panel keeps a stored value, and that a write to `Plasmoid.configuration` reaches the cache.
+- Known limit: after switching to an account that never connects, the page shows the previous account's lengths until the new one connects.

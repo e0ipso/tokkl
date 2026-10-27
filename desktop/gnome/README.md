@@ -18,7 +18,7 @@ sudo dnf install ./tokkl-timerd-<version>-1.fc44.x86_64.rpm     # Fedora 44
 
 The RPM depends on the Qt it was built with, so it needs an updated Fedora 44, not the release media. A pre-release version such as `1.2.0-rc.1` is packaged as `1.2.0~rc1`, which sorts before `1.2.0`.
 
-The package installs `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1.service`, the systemd user unit `tokkl-timerd.service` and the interface description, and runs no scripts. Nothing has to be started by hand: the first call to `org.tokkl.Timer1`, which the extension makes when it is enabled, starts the service. Its log is in `journalctl --user -u tokkl-timerd`. To remove it, remove the `tokkl-timerd` package.
+The package installs `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1.service`, the systemd user unit `tokkl-timerd.service`, the interface description and the four Pomodoro alarm sounds under `/usr/share/tokkl-timerd/sounds`, and runs no scripts. The service plays the alarm itself, on the sound server through libpulse (`libpulse0` on Debian, `pulseaudio-libs` on Fedora), which PipeWire serves on GNOME; a desktop without a sound server gets a line in the service's log and no sound. Nothing has to be started by hand: the first call to `org.tokkl.Timer1`, which the extension makes when it is enabled, starts the service. Its log is in `journalctl --user -u tokkl-timerd`. To remove it, remove the `tokkl-timerd` package.
 
 ### Build the service from source
 

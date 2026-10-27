@@ -2,7 +2,7 @@
 id: 11
 group: "gnome-pomodoro"
 dependencies: [2, 9]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - gjs
@@ -20,25 +20,25 @@ Show Pomodoro mode in the GNOME top bar button: the hourglass glyph, the countdo
 GJS for GNOME Shell 46–51 (St, PopupMenu, Gio D-Bus proxies), and the extension's Node and Shell test harnesses.
 
 ## Acceptance Criteria
-- [ ] `desktop/gnome/extension/timer1.js` gains pure helpers, testable in Node:
+- [x] `desktop/gnome/extension/timer1.js` gains pure helpers, testable in Node:
   - the countdown text from `PlannedEnd` and now: `M:SS` rounded up before the end, `+M:SS` rounded down after it;
   - the phase names "Work", "Short rest" and "Long rest";
   - the session line `<Phase> · <M:SS> left · Pomodoro <N> of <M>`, or `<Phase> · +<M:SS> overtime · Pomodoro <N> of <M>`;
   - the "Next phase: <Phase>" label;
   - the mode item label, "Pomodoro mode" or "Pomodoro mode (locked while running)".
-- [ ] `desktop/gnome/extension/indicator.js` shows the hourglass after the logo whenever `PomodoroMode` is true: the colour SVG normally, and `hourglass-symbolic.svg` when the `monochrome-icon` key is on. During a session, unless a timer runs or is paused, the label shows the countdown. The existing 1 s tick also runs while `SessionActive` is true. Timer mode and a running or paused timer look as they do today.
-- [ ] Left-click calls `Activate`, and opens the menu when the reply is `open-menu`. Keyboard activation follows the same path. Keep the existing Shell 50 click-gesture and Shell 51 key-controller handling.
-- [ ] The accessible name follows the session line during a session. With Pomodoro mode on and no session, " · Pomodoro mode" is appended to the existing text.
-- [ ] Menu:
+- [x] `desktop/gnome/extension/indicator.js` shows the hourglass after the logo whenever `PomodoroMode` is true: the colour SVG normally, and `hourglass-symbolic.svg` when the `monochrome-icon` key is on. During a session, unless a timer runs or is paused, the label shows the countdown. The existing 1 s tick also runs while `SessionActive` is true. Timer mode and a running or paused timer look as they do today.
+- [x] Left-click calls `Activate`, and opens the menu when the reply is `open-menu`. Keyboard activation follows the same path. Keep the existing Shell 50 click-gesture and Shell 51 key-controller handling.
+- [x] The accessible name follows the session line during a session. With Pomodoro mode on and no session, " · Pomodoro mode" is appended to the existing text.
+- [x] Menu:
   - the status line shows the session line during a session, and `SessionMessage` when it is set;
   - "Start session" (`StartSession`) shows when Pomodoro mode is on, no session is active and no timer runs or is paused;
   - "Next phase: …" (`NextPhase`) and "End session" (`EndSession`) show during a session;
   - a "Pomodoro mode" switch item (`SetPomodoroMode`) is insensitive while `ModeLocked` is true;
   - Start and Stop show only in Timer mode or while a timer runs or is paused;
   - Project and Billable stay sensitive during a session.
-- [ ] `desktop/gnome/extension/ci/mock-timer.js` implements the new properties and methods, and `desktop/gnome/extension/tests/timer1.test.js` covers the new helpers.
-- [ ] `desktop/gnome/extension/ci/shell-check.js` (or the harness file that drives the panel) checks: the mode switch and its lock; glyph visibility in both icon modes; the countdown and the overtime label; each `Activate` reply, including the menu opening; and the menu items per state.
-- [ ] `desktop/gnome/extension/ci/check.sh 49` exits 0. Run one Shell version locally; the PR's `gnome-extension` CI job covers 46–51.
+- [x] `desktop/gnome/extension/ci/mock-timer.js` implements the new properties and methods, and `desktop/gnome/extension/tests/timer1.test.js` covers the new helpers.
+- [x] `desktop/gnome/extension/ci/shell-check.js` (or the harness file that drives the panel) checks: the mode switch and its lock; glyph visibility in both icon modes; the countdown and the overtime label; each `Activate` reply, including the menu opening; and the menu items per state.
+- [x] `desktop/gnome/extension/ci/check.sh 49` exits 0. Run one Shell version locally; the PR's `gnome-extension` CI job covers 46–51.
 
 Use your internal Todo tool to track these and keep on track.
 

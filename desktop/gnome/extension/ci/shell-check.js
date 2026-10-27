@@ -8,7 +8,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {exit, programArgs} from 'system';
 import {call, contrastRatio, delay, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
-import {formatElapsed} from '../timer1.js';
+import {countdown, formatElapsed} from '../timer1.js';
 
 const [uuid, mockTimer, timer1Xml] = programArgs;
 
@@ -73,14 +73,15 @@ const sameSlot = () => {
 
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
-await step('the button shows the packed clock logo, then the project indicator, then the time', async () => {
+await step('the button shows the packed clock logo, then the hourglass slot, the project indicator and the time', async () => {
     const logo = () => shell(`(() => {
         const button = ${button};
         const file = button._logo.gicon.get_file();
         const packed = Main.extensionManager.lookup(${JSON.stringify(uuid)}).dir.get_child('tokkl.png');
         const order = button._logo.get_parent().get_children().map(child =>
-            child === button._logo ? 'logo' : child === button._projectIndicator ? 'indicator'
-                : child === button._label ? 'time' : child.constructor.name);
+            child === button._logo ? 'logo' : child === button._hourglass ? 'hourglass'
+                : child === button._projectIndicator ? 'indicator'
+                    : child === button._label ? 'time' : child.constructor.name);
         // The icon keeps its size when the PNG does not decode; only its
         // child's image content shows that the picture loaded.
         const image = button._logo.get_first_child()?.content;
@@ -98,13 +99,16 @@ await step('the button shows the packed clock logo, then the project indicator, 
             imageWidth,
             imageHeight,
             order,
+            hourglassShown: button._hourglass.visible,
         };
     })()`);
     const shown = logo();
     if (!shown.packed)
         throw new Error(`the logo is not ${shown.path}: ${JSON.stringify(shown)}`);
-    if (JSON.stringify(shown.order) !== JSON.stringify(['logo', 'indicator', 'time']))
+    if (JSON.stringify(shown.order) !== JSON.stringify(['logo', 'hourglass', 'indicator', 'time']))
         throw new Error(`order: ${JSON.stringify(shown.order)}`);
+    if (shown.hourglassShown)
+        throw new Error('the hourglass shows without Pomodoro mode');
     // GNOME Shell can enable the extension while it is still starting up,
     // before the top bar is shown, and the logo is drawn only after that.
     await waitFor('the drawn logo', () => {
@@ -154,7 +158,8 @@ await step('a primary click starts the timer through the service', async () => {
     await pointAtButton();
     const before = mockCalls().length;
     click(1);
-    await waitFor('Start', () => mockCalls().length > before && lastCall()[0] === 'Start' || mockCalls());
+    await waitFor('Activate', () => mockCalls().length > before && lastCall()[0] === 'Activate' || mockCalls());
+    await waitFor('Running', () => timerProperty('Running') === true);
     if (menuOpen())
         throw new Error('the click opened the menu');
 });
@@ -187,7 +192,7 @@ await step('the project is locked while running, billable is not', async () => {
 await step('a second primary click pauses the timer, and the time holds the chain total', async () => {
     const before = mockCalls().length;
     click(1);
-    await waitFor('Pause', () => mockCalls().length > before && lastCall()[0] === 'Pause' || mockCalls());
+    await waitFor('Activate', () => mockCalls().length > before && lastCall()[0] === 'Activate' || mockCalls());
     await waitFor('Paused', () => timerProperty('Paused') === true);
     const total = chainTotal();
     if (!/^1:0[3-9]$/.test(total))
@@ -232,7 +237,7 @@ await step('a paused timer says Paused with the chain total in the menu status l
 await step('a primary click resumes, and the time counts on from the chain total', async () => {
     const before = mockCalls().length;
     click(1);
-    await waitFor('Resume', () => mockCalls().length > before && lastCall()[0] === 'Resume' || mockCalls());
+    await waitFor('Activate', () => mockCalls().length > before && lastCall()[0] === 'Activate' || mockCalls());
     await waitFor('Running', () => timerProperty('Running') === true);
     await waitFor('the chain total', () => label() === chainTotal() || [label(), chainTotal()]);
     if (!/^1:0[3-9]$/.test(label()))
@@ -318,7 +323,7 @@ if (uninhibited)
 
 await step('a paused timer turns the dot into a still square, and Stop clears the chain', async () => {
     click(1);
-    await waitFor('Pause', () => lastCall()[0] === 'Pause' || mockCalls());
+    await waitFor('Paused', () => timerProperty('Paused') === true);
     await indicatorIs('a still square', {kind: 'filled', round: false, pulsing: false, fillOpacity: 255});
     const before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
@@ -447,11 +452,11 @@ await step('a secondary click opens the menu and sends nothing', async () => {
 });
 
 await step('Space and Return do what a primary click does, and Down opens the menu', async () => {
-    await pressFor('KEY_space', 'Start');
+    await pressFor('KEY_space', 'Activate');
     await waitFor('Running', () => timerProperty('Running') === true);
-    await pressFor('KEY_Return', 'Pause');
+    await pressFor('KEY_Return', 'Activate');
     await waitFor('Paused', () => timerProperty('Paused') === true);
-    await pressFor('KEY_space', 'Resume');
+    await pressFor('KEY_space', 'Activate');
     await waitFor('Running', () => timerProperty('Running') === true);
     const before = mockCalls().length;
     await waitFor('the menu from Down', () => {
@@ -467,6 +472,291 @@ await step('Space and Return do what a primary click does, and Down opens the me
     await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls().slice(before));
     shell(`${button}.menu.close()`);
     await waitFor('0:00', () => label() === '0:00' || label());
+});
+
+// Pomodoro mode. The mock keeps no clock: the checks move PlannedEnd and set
+// Ringing themselves.
+const hourglass = () => shell(`(() => {
+    const icon = ${button}._hourglass;
+    const image = icon.get_first_child()?.content;
+    const decoded = image instanceof imports.gi.St.ImageContent;
+    const [, width, height] = decoded ? image.get_preferred_size() : [false, 0, 0];
+    return {visible: icon.visible, symbolic: icon.is_symbolic, path: icon.gicon?.get_file().get_basename() ?? '',
+        loaded: decoded && width > 0 && height > 0};
+})()`);
+const hourglassIs = (what, expected) => waitFor(what, () => {
+    const shown = hourglass();
+    return Object.entries(expected).every(([key, value]) => shown[key] === value) || shown;
+});
+const setMonochrome = value => shell(`Main.extensionManager.lookup(${JSON.stringify(uuid)}).stateObj.getSettings()` +
+    `.set_boolean('monochrome-icon', ${value})`);
+const sessionItems = () => shell(`(() => {
+    const button = ${button};
+    return {toggle: button._toggleItem.visible, startSession: button._startSessionItem.visible,
+        nextPhase: button._nextPhaseItem.visible, endSession: button._endSessionItem.visible};
+})()`);
+const sessionItemsAre = (what, expected) => waitFor(what, () => {
+    const shown = sessionItems();
+    return JSON.stringify(shown) === JSON.stringify(expected) || shown;
+});
+const modeItem = () => shell(`(() => {
+    const item = ${button}._modeItem;
+    return {label: item.label.text, state: item.state, sensitive: item.sensitive};
+})()`);
+const modeItemIs = (what, expected) => waitFor(what, () => {
+    const shown = modeItem();
+    return Object.entries(expected).every(([key, value]) => shown[key] === value) || shown;
+});
+const accessibleName = () => shell(`${button}.accessible_name`);
+// What the label may show now: the countdown of this second or of the one
+// before, as the panel ticks once a second.
+const countdownShown = () => {
+    const end = timerProperty('PlannedEnd');
+    const now = Date.now() / 1000;
+    return [countdown(end, now).text, countdown(end, now - 1.5).text].includes(label());
+};
+const setPlannedEnd = secondsFromNow =>
+    mockSet('PlannedEnd', new GLib.Variant('x', Math.floor(Date.now() / 1000) + secondsFromNow));
+// Waits for the call after before, then for the menu to open or stay shut.
+const activateFrom = async (before, opens) => {
+    await waitFor('Activate', () => mockCalls().length > before && lastCall()[0] === 'Activate' || mockCalls());
+    if (opens) {
+        await waitFor('the menu', () => menuOpen() === true);
+    } else {
+        await delay(300);
+        if (menuOpen())
+            throw new Error('the click opened the menu');
+    }
+    const sent = mockCalls().slice(before);
+    if (JSON.stringify(sent) !== JSON.stringify([['Activate']]))
+        throw new Error(`the click sent ${JSON.stringify(sent)}`);
+};
+
+await step('the Pomodoro mode switch turns the mode on and shows the colour hourglass', async () => {
+    await sessionItemsAre('the Timer mode items', {toggle: true, startSession: false, nextPhase: false, endSession: false});
+    await modeItemIs('the mode switch off', {label: 'Pomodoro mode', state: false, sensitive: true});
+    const before = mockCalls().length;
+    shell(`${button}._modeItem.toggle()`);
+    await waitFor('SetPomodoroMode', () => mockCalls().length > before && lastCall()[0] === 'SetPomodoroMode' &&
+        lastCall()[1] === true || mockCalls());
+    await waitFor('Pomodoro mode', () => timerProperty('PomodoroMode') === true);
+    await hourglassIs('the colour hourglass', {visible: true, symbolic: false, path: 'hourglass.svg', loaded: true});
+    await sessionItemsAre('Start session instead of Start', {toggle: false, startSession: true, nextPhase: false,
+        endSession: false});
+    if (!sensitive('_startSessionItem'))
+        throw new Error('Start session is insensitive');
+    if (label() !== '0:00')
+        throw new Error(`label: ${label()}`);
+    const name = accessibleName();
+    if (!name.startsWith('Stopped · ') || !name.endsWith(' · Connected · Pomodoro mode'))
+        throw new Error(`button name: ${name}`);
+});
+
+await step('the hourglass takes the symbolic picture with the monochrome logo, and hides in Timer mode', async () => {
+    try {
+        setMonochrome(true);
+        await hourglassIs('the symbolic hourglass', {visible: true, symbolic: true, path: 'hourglass-symbolic.svg',
+            loaded: true});
+        mockSet('PomodoroMode', new GLib.Variant('b', false));
+        await hourglassIs('no hourglass in Timer mode', {visible: false});
+        mockSet('PomodoroMode', new GLib.Variant('b', true));
+        await hourglassIs('the symbolic hourglass again', {visible: true, symbolic: true, loaded: true});
+    } finally {
+        setMonochrome(false);
+        mockSet('PomodoroMode', new GLib.Variant('b', true));
+    }
+    await hourglassIs('the colour hourglass', {visible: true, symbolic: false, path: 'hourglass.svg', loaded: true});
+});
+
+await step('a mode change from the service sends nothing back', async () => {
+    const before = mockCalls().length;
+    mockSet('PomodoroMode', new GLib.Variant('b', false));
+    await modeItemIs('the switch off', {state: false});
+    mockSet('PomodoroMode', new GLib.Variant('b', true));
+    await modeItemIs('the switch on', {state: true});
+    await delay(300);
+    if (mockCalls().length !== before)
+        throw new Error(`unexpected calls: ${JSON.stringify(mockCalls().slice(before))}`);
+});
+
+await step('a primary click with the service not ready is ignored and opens nothing', async () => {
+    mockSet('Status', new GLib.Variant('s', 'stale'));
+    try {
+        await waitFor('the mark', () => label() === '0:00!' || label());
+        const before = mockCalls().length;
+        click(1);
+        await activateFrom(before, false);
+        if (timerProperty('SessionActive'))
+            throw new Error('a session started');
+    } finally {
+        mockSet('Status', new GLib.Variant('s', 'ready'));
+    }
+    await waitFor('no mark', () => label() === '0:00' || label());
+});
+
+await step('a primary click starts a session, and the label counts the phase down', async () => {
+    const before = mockCalls().length;
+    click(1);
+    await activateFrom(before, false);
+    await waitFor('the session', () => timerProperty('SessionActive') === true);
+    await waitFor('the countdown', () => countdownShown() || [label(), timerProperty('PlannedEnd')]);
+    if (!/^2[45]:\d\d$/.test(label()))
+        throw new Error(`label: ${label()}`);
+    const first = label();
+    await waitFor('the next second', () => label() !== first || label(), 3000);
+    await sessionItemsAre('the session items', {toggle: false, startSession: false, nextPhase: true, endSession: true});
+    const next = shell(`${button}._nextPhaseItem.label.text`);
+    if (next !== 'Next phase: Short rest' || timerProperty('NextPhase') !== 'shortRest')
+        throw new Error(`next phase: ${next}, ${timerProperty('NextPhase')}`);
+    if (!/^Work · 2[45]:\d\d left · Pomodoro 1 of 4$/.test(statusLine()))
+        throw new Error(`status: ${statusLine()}`);
+    const name = accessibleName();
+    if (!/^Work · 2[45]:\d\d left · Pomodoro 1 of 4 · Website \(Acme\) · Connected$/.test(name))
+        throw new Error(`button name: ${name}`);
+    await hourglassIs('the hourglass', {visible: true});
+});
+
+await step('the mode is locked during a session, and project and billable are not', async () => {
+    await modeItemIs('the locked switch', {label: 'Pomodoro mode (locked while running)', state: true,
+        sensitive: false});
+    if (!sensitive('_projectMenu') || !sensitive('_billableItem'))
+        throw new Error('the project or billable is insensitive during a session');
+    // A refused change puts the switch back.
+    const before = mockCalls().length;
+    shell(`${button}._modeItem.toggle()`);
+    await waitFor('SetPomodoroMode', () => mockCalls().length > before && lastCall()[0] === 'SetPomodoroMode' ||
+        mockCalls());
+    await modeItemIs('the switch back on', {state: true});
+    if (!timerProperty('PomodoroMode'))
+        throw new Error('the locked mode changed');
+});
+
+await step('a primary click before the planned end opens the menu', async () => {
+    const before = mockCalls().length;
+    click(1);
+    try {
+        await activateFrom(before, true);
+        if (!/^Work · \d+:\d\d left · Pomodoro 1 of 4$/.test(statusLine()))
+            throw new Error(`status: ${statusLine()}`);
+    } finally {
+        shell(`${button}.menu.close()`);
+    }
+    await waitFor('the menu closed', () => menuOpen() === false);
+});
+
+await step('Space before the planned end opens the menu too', async () => {
+    const before = mockCalls().length;
+    for (let attempt = 1; ; attempt++) {
+        press('KEY_space');
+        try {
+            await waitFor('Activate from KEY_space', () => mockCalls().length > before, 2000);
+            break;
+        } catch (error) {
+            if (attempt === 5)
+                throw error;
+        }
+    }
+    try {
+        await activateFrom(before, true);
+    } finally {
+        shell(`${button}.menu.close()`);
+    }
+    await waitFor('the menu closed', () => menuOpen() === false);
+});
+
+await step('past the planned end the label shows the overtime', async () => {
+    setPlannedEnd(-62);
+    await waitFor('+1:02', () => /^\+1:0[2-4]$/.test(label()) || label());
+    // One read, so a tick cannot fall between the two.
+    const [status, name] = shell(`[${button}._statusItem.label.text, ${button}.accessible_name]`);
+    if (!/^Work · \+1:0[2-5] overtime · Pomodoro 1 of 4$/.test(status))
+        throw new Error(`status: ${status}`);
+    if (!name.startsWith(`${status} · `))
+        throw new Error(`button name: ${name}`);
+    // Minutes past the hour do not wrap.
+    setPlannedEnd(-(75 * 60 + 5));
+    await waitFor('+75:05', () => /^\+75:0[5-7]$/.test(label()) || label());
+});
+
+await step('a primary click while the phase rings confirms the next phase', async () => {
+    mockSet('Ringing', new GLib.Variant('b', true));
+    mockSet('RingingTransition', new GLib.Variant('s', 'workToShortRest'));
+    const before = mockCalls().length;
+    click(1);
+    await activateFrom(before, false);
+    await waitFor('the short rest', () => timerProperty('Phase') === 'shortRest');
+    await waitFor('the rest countdown', () => /^[45]:\d\d$/.test(label()) || label());
+    await waitFor('Short rest in the name', () => accessibleName().startsWith('Short rest · ') || accessibleName());
+    await waitFor('Next phase: Work', () => shell(`${button}._nextPhaseItem.label.text`) === 'Next phase: Work');
+});
+
+await step('Next phase in the menu starts the next work phase', async () => {
+    const before = mockCalls().length;
+    shell(`${button}._nextPhaseItem.activate(null)`);
+    await waitFor('NextPhase', () => mockCalls().length > before && lastCall()[0] === 'NextPhase' || mockCalls());
+    await waitFor('the status line', () => /^Work · 2[45]:\d\d left · Pomodoro 2 of 4$/.test(statusLine()) ||
+        statusLine());
+});
+
+await step('a timer during a session shows the timer, not the countdown', async () => {
+    mockSet('StartTime', new GLib.Variant('x', Math.floor(Date.now() / 1000) - 3775));
+    mockSet('Running', new GLib.Variant('b', true));
+    try {
+        await waitFor('the elapsed time', () => /^1:0[2-4]$/.test(label()) || label());
+        await sessionItemsAre('Stop and the session items', {toggle: true, startSession: false, nextPhase: true,
+            endSession: true});
+        if (toggleItem() !== 'Stop')
+            throw new Error(`the menu offers ${toggleItem()}`);
+        if (!accessibleName().startsWith('Running 1:0'))
+            throw new Error(`button name: ${accessibleName()}`);
+    } finally {
+        mockSet('Running', new GLib.Variant('b', false));
+        mockSet('StartTime', new GLib.Variant('x', 0));
+    }
+    await waitFor('the countdown', () => countdownShown() || label());
+});
+
+await step('the session message shows in the menu and stays after End session', async () => {
+    const message = 'This pomodoro was too short to save.';
+    mockSet('SessionMessage', new GLib.Variant('s', message));
+    await waitFor('the message', () => shell(`${button}._messageItem.visible`) === true &&
+        shell(`${button}._messageItem.label.text`) === message);
+    const before = mockCalls().length;
+    shell(`${button}._endSessionItem.activate(null)`);
+    await waitFor('EndSession', () => mockCalls().length > before && lastCall()[0] === 'EndSession' || mockCalls());
+    await waitFor('0:00', () => label() === '0:00' || label());
+    await sessionItemsAre('Start session again', {toggle: false, startSession: true, nextPhase: false,
+        endSession: false});
+    await modeItemIs('the unlocked switch', {label: 'Pomodoro mode', state: true, sensitive: true});
+    if (shell(`${button}._messageItem.label.text`) !== message)
+        throw new Error('the message went with the session');
+    if (statusLine() !== 'Connected')
+        throw new Error(`status: ${statusLine()}`);
+});
+
+await step('Start session in the menu starts a session and clears the message', async () => {
+    const before = mockCalls().length;
+    shell(`${button}._startSessionItem.activate(null)`);
+    await waitFor('StartSession', () => mockCalls().length > before && lastCall()[0] === 'StartSession' ||
+        mockCalls());
+    await waitFor('the session', () => timerProperty('SessionActive') === true);
+    await waitFor('no message', () => shell(`${button}._messageItem.visible`) === false);
+    shell(`${button}._endSessionItem.activate(null)`);
+    await waitFor('the session ended', () => timerProperty('SessionActive') === false);
+});
+
+await step('the Pomodoro mode switch turns Timer mode back on', async () => {
+    const before = mockCalls().length;
+    shell(`${button}._modeItem.toggle()`);
+    await waitFor('SetPomodoroMode', () => mockCalls().length > before && lastCall()[0] === 'SetPomodoroMode' &&
+        lastCall()[1] === false || mockCalls());
+    await hourglassIs('no hourglass', {visible: false});
+    await sessionItemsAre('the Timer mode items', {toggle: true, startSession: false, nextPhase: false,
+        endSession: false});
+    if (toggleItem() !== 'Start')
+        throw new Error(`the menu offers ${toggleItem()}`);
+    if (accessibleName().endsWith('Pomodoro mode'))
+        throw new Error(`button name: ${accessibleName()}`);
 });
 
 await step('a status other than ready marks the time and disables writes', async () => {

@@ -344,14 +344,14 @@ No circular dependencies. Task 12's Preview button makes sound only once task 10
 - ✔️ Task 09: tokkl-timerd: Pomodoro on org.tokkl.Timer1 (depends on: 02, 03, 05)
 - ✔️ Task 13: macOS menu bar item and menu for Pomodoro mode (depends on: 02, 03, 05)
 
-### Phase 6: Platform surfaces
+### ✅ Phase 6: Platform surfaces
 **Parallel Tasks:**
-- Task 07: KDE panel item and menu for Pomodoro mode (depends on: 02, 06)
-- Task 08: KDE Pomodoro settings page (depends on: 06)
-- Task 10: tokkl-timerd: alarm playback and packaging (depends on: 02, 09)
-- Task 11: GNOME Shell extension: Pomodoro panel button and menu (depends on: 02, 09)
-- Task 12: GNOME preferences: Pomodoro group (depends on: 09)
-- Task 14: macOS alarm player and Pomodoro settings section (depends on: 02, 13)
+- ✔️ Task 07: KDE panel item and menu for Pomodoro mode (depends on: 02, 06)
+- ✔️ Task 08: KDE Pomodoro settings page (depends on: 06)
+- ✔️ Task 10: tokkl-timerd: alarm playback and packaging (depends on: 02, 09)
+- ✔️ Task 11: GNOME Shell extension: Pomodoro panel button and menu (depends on: 02, 09)
+- ✔️ Task 12: GNOME preferences: Pomodoro group (depends on: 09)
+- ✔️ Task 14: macOS alarm player and Pomodoro settings section (depends on: 02, 13)
 
 ### Phase 7: Documentation
 **Parallel Tasks:**

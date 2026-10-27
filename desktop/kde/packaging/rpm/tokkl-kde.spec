@@ -51,6 +51,8 @@ BuildRequires:  qt6qml(org.kde.kcmutils)
 # together, so rpm's library dependency covers them. It is named here so
 # the plugins stay a declared dependency should Fedora ever split them.
 Requires:       qt6-qtmultimedia%{?_isa} >= 6.8.0
+# The Pomodoro hourglass is an SVG image; Qt's SVG image plugin draws it.
+Requires:       qt6-qtsvg%{?_isa} >= 6.8.0
 Requires:       libplasma%{?_isa} >= 6.3.0
 Requires:       hicolor-icon-theme
 Requires:       kf6-kirigami%{?_isa} >= 6.13.0

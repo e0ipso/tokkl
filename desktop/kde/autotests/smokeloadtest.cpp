@@ -22,6 +22,7 @@
 #include <QFileInfo>
 #include <QIcon>
 #include <QImage>
+#include <QJSValue>
 #include <QMetaProperty>
 #include <QRegularExpression>
 #include <QQmlComponent>
@@ -259,6 +260,11 @@ private Q_SLOTS:
         QVERIFY(applet);
         QCOMPARE(applet->pluginMetaData().pluginId(), plasmoidId);
         QCOMPARE(applet->pluginMetaData().version(), version);
+        // Lengths an earlier run kept for the settings page.
+        KConfigSkeletonItem *cachedWork = applet->configScheme()->findItemByName(QStringLiteral("cachedWorkMinutes"));
+        QVERIFY(cachedWork);
+        cachedWork->setProperty(40);
+        applet->configScheme()->save();
 
         PlasmaQuick::AppletQuickItem *item = PlasmaQuick::AppletQuickItem::itemForApplet(applet);
         QVERIFY(item);
@@ -289,6 +295,41 @@ private Q_SLOTS:
         QTRY_VERIFY(label->isVisible());
         QTRY_VERIFY(label->width() > 0 && label->height() > 0);
         QTRY_VERIFY(window.contentItem()->contains(label->mapToItem(window.contentItem(), label->boundingRect().center())));
+
+        // Pomodoro mode: the session reaches the panel and the tooltip, and
+        // the alarm follows it with the configured sounds.
+        auto *pomodoro = item->property("pomodoro").value<QObject *>();
+        QVERIFY(pomodoro);
+        auto *session = pomodoro->property("session").value<QObject *>();
+        QVERIFY(session);
+        QCOMPARE(panel->property("session").value<QObject *>(), session);
+        auto *alarm = item->property("alarm").value<QObject *>();
+        QVERIFY(alarm);
+        QCOMPARE(alarm->property("ringing").toBool(), false);
+        const QVariantMap sounds = alarm->property("sounds").toMap();
+        QCOMPARE(sounds.value(QStringLiteral("workToShortRest")).toString(), QStringLiteral("work-to-short-rest"));
+        QCOMPARE(sounds.value(QStringLiteral("shortRestToWork")).toString(), QStringLiteral("short-rest-to-work"));
+        QCOMPARE(sounds.value(QStringLiteral("workToLongRest")).toString(), QStringLiteral("work-to-long-rest"));
+        QCOMPARE(sounds.value(QStringLiteral("longRestToWork")).toString(), QStringLiteral("long-rest-to-work"));
+        // Without an account the session's lengths are the defaults, which
+        // must not replace the kept ones.
+        auto *lengthsCache = item->property("lengthsCache").value<QObject *>();
+        QVERIFY(lengthsCache);
+        QCOMPARE(lengthsCache->property("configuration").value<QObject *>(), applet->property("configuration").value<QObject *>());
+        QTest::qWait(50);
+        QCOMPARE(applet->configScheme()->property(QStringLiteral("cachedWorkMinutes")).toInt(), 40);
+        // A write as the settings page's Apply makes reaches the settings
+        // and the cache, which would put the account's lengths back.
+        QVERIFY(applet->property("configuration").value<QObject *>()->setProperty("cachedWorkMinutes", 41));
+        QCOMPARE(applet->configScheme()->property(QStringLiteral("cachedWorkMinutes")).toInt(), 41);
+        QTRY_COMPARE(lengthsCache->property("stored").value<QJSValue>().property(0).toInt(), 41);
+        bool switched = false;
+        QVERIFY(QMetaObject::invokeMethod(session, "setPomodoroMode", Q_RETURN_ARG(bool, switched), Q_ARG(bool, true)));
+        QVERIFY(switched);
+        QVERIFY2(item->property("toolTipMainText").toString().endsWith(QStringLiteral(" · Pomodoro mode")), qPrintable(item->property("toolTipMainText").toString()));
+        auto *glyph = panel->findChild<QQuickItem *>(QStringLiteral("pomodoroGlyph"));
+        QVERIFY(glyph);
+        QTRY_VERIFY(glyph->isVisible());
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 
@@ -311,6 +352,10 @@ private Q_SLOTS:
         names.sort();
         QCOMPARE(names,
                  QStringList({QStringLiteral("authMode"),
+                              QStringLiteral("cachedLongRestEvery"),
+                              QStringLiteral("cachedLongRestMinutes"),
+                              QStringLiteral("cachedShortRestMinutes"),
+                              QStringLiteral("cachedWorkMinutes"),
                               QStringLiteral("email"),
                               QStringLiteral("instanceUrl"),
                               QStringLiteral("longRestToWorkSound"),
@@ -326,6 +371,12 @@ private Q_SLOTS:
         QCOMPARE(scheme->property(QStringLiteral("shortRestToWorkSound")).toString(), QStringLiteral("short-rest-to-work"));
         QCOMPARE(scheme->property(QStringLiteral("workToLongRestSound")).toString(), QStringLiteral("work-to-long-rest"));
         QCOMPARE(scheme->property(QStringLiteral("longRestToWorkSound")).toString(), QStringLiteral("long-rest-to-work"));
+        // The panel's copy of the account's lengths starts at the server's
+        // defaults.
+        QCOMPARE(scheme->property(QStringLiteral("cachedWorkMinutes")).toInt(), 25);
+        QCOMPARE(scheme->property(QStringLiteral("cachedShortRestMinutes")).toInt(), 5);
+        QCOMPARE(scheme->property(QStringLiteral("cachedLongRestMinutes")).toInt(), 15);
+        QCOMPARE(scheme->property(QStringLiteral("cachedLongRestEvery")).toInt(), 4);
     }
 
     void configPageLoads()
@@ -347,7 +398,9 @@ private Q_SLOTS:
         localized->setTranslationDomain(QStringLiteral("plasma_applet_") + plasmoidId);
         engine.rootContext()->setContextObject(localized);
 
-        for (const QString &file : {QStringLiteral("/contents/config/config.qml"), QStringLiteral("/contents/ui/configGeneral.qml")}) {
+        for (const QString &file : {QStringLiteral("/contents/config/config.qml"),
+                                    QStringLiteral("/contents/ui/configGeneral.qml"),
+                                    QStringLiteral("/contents/ui/configPomodoro.qml")}) {
             QQmlComponent component(&engine, QUrl::fromLocalFile(stagedPlasmoidDir + file));
             std::unique_ptr<QObject> object(component.create());
             QVERIFY2(object, qPrintable(component.errorString()));
@@ -363,6 +416,28 @@ private Q_SLOTS:
                 }
                 QVERIFY(meta->indexOfMethod("saveConfig()") >= 0);
                 checkPersistedUrl(object.get());
+            }
+            if (file.endsWith(QLatin1String("configPomodoro.qml"))) {
+                // Plasma saves a cfg_ property only when it names a setting.
+                // Each transition's sound is one; the lengths live on the
+                // server and are saved by saveConfig().
+                QStringList keys;
+                for (const KConfigSkeletonItem *item : applet->configScheme()->items()) {
+                    keys.append(item->name());
+                }
+                QStringList settings;
+                const QMetaObject *meta = object->metaObject();
+                for (int i = 0; i < meta->propertyCount(); ++i) {
+                    const QString name = QString::fromLatin1(meta->property(i).name());
+                    if (name.startsWith(QLatin1String("cfg_"))) {
+                        settings.append(name.mid(4));
+                        QVERIFY2(keys.contains(name.mid(4)), qPrintable(name));
+                    }
+                }
+                for (const char *sound : {"workToShortRestSound", "shortRestToWorkSound", "workToLongRestSound", "longRestToWorkSound"}) {
+                    QVERIFY2(settings.contains(QLatin1String(sound)), sound);
+                }
+                QVERIFY(meta->indexOfMethod("saveConfig()") >= 0);
             }
         }
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));

@@ -38,6 +38,28 @@ TestCase {
         PanelButton {}
     }
 
+    // Stands in for Plasmoid.configuration: the four cached lengths, as an
+    // earlier run left them, and the call that saves the settings.
+    Component {
+        id: settingsComponent
+        QtObject {
+            property int cachedWorkMinutes: 40
+            property int cachedShortRestMinutes: 8
+            property int cachedLongRestMinutes: 20
+            property int cachedLongRestEvery: 3
+            property int saves: 0
+
+            function writeConfig() {
+                saves++;
+            }
+        }
+    }
+
+    Component {
+        id: lengthsCacheComponent
+        PomodoroLengthsCache {}
+    }
+
     SignalSpy {
         id: openSpy
         signalName: "openRequested"
@@ -182,7 +204,8 @@ TestCase {
     function init() {
         fixture = fixtureComponent.createObject(testCase);
         button = buttonComponent.createObject(testCase, {
-            timer: fixture.timer
+            timer: fixture.timer,
+            session: fixture.session
         });
         verify(button);
         button.width = button.implicitWidth;
@@ -412,6 +435,8 @@ TestCase {
         verify(labels.indexOf("Reconnect") >= 0, labels);
         verify(labels.indexOf("Open Tokkl") >= 0, labels);
         verify(labels.indexOf("Configure Tokkl…") >= 0, labels);
+        verify(labels.indexOf("Pomodoro mode") >= 0, labels);
+        verify(labels.indexOf("Start session") < 0, "no session items in Timer mode: " + labels);
 
         keyClick(Qt.Key_Escape);
         tryVerify(() => !menu.visible, 3000, "Escape closes");
@@ -714,7 +739,8 @@ TestCase {
         verify(!menu.openItem.enabled, "no address to open");
         verify(!menu.reconnectItem.enabled);
         verify(menu.configureItem.enabled);
-        compare(menu.itemAt(menu.currentIndex), menu.configureItem, "focus starts on the first enabled entry");
+        verify(menu.modeItem.enabled, "the mode belongs to the device, not the account");
+        compare(menu.itemAt(menu.currentIndex), menu.modeItem, "focus starts on the first enabled entry");
         closeMenu();
 
         mouseClick(button, 5, 5, Qt.LeftButton);
@@ -1093,5 +1119,434 @@ TestCase {
         compare(button.timer.chosenProjectId, null, "no fallback to the earlier choice");
         verify(!button.timer.chosenBillable);
         verify(button.menu.noProjectItem.checked);
+    }
+
+    // ----- Pomodoro mode -----------------------------------------------------
+
+    function preferences(work, shortRest, longRest, every) {
+        return {
+            pomodoro_focus_interval_in_minutes: work,
+            pomodoro_break_interval_in_minutes: shortRest,
+            pomodoro_long_break_interval_in_minutes: longRest,
+            pomodoro_long_break_every: every
+        };
+    }
+
+    function minutes(count) {
+        return count * 60 * 1000;
+    }
+
+    function glyph() {
+        return findChild(button, "pomodoroGlyph");
+    }
+
+    function checkGlyphFile(name) {
+        const source = glyph().source.toString();
+        verify(source.endsWith("/contents/images/" + name), source);
+    }
+
+    function startSessionWith(lengths) {
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        answer("GET", "/me/preferences", 200, lengths);
+        tryVerify(() => fixture.session.active, 3000, "the session starts once the lengths are read");
+        verify(!button.menu.visible, "starting a session opens no menu");
+    }
+
+    // Opens the menu with the keyboard and checks the session items and the
+    // mode item. Leaves it open.
+    function checkSessionMenu(state) {
+        openMenu();
+        const menu = button.menu;
+        compare(menu.runItem.visible, state.run, "Start or Stop");
+        compare(menu.startSessionItem.visible, state.startSession, "Start session");
+        compare(menu.nextPhaseItem.visible, state.nextPhase !== undefined, "Next phase");
+        if (state.nextPhase !== undefined) {
+            compare(menu.nextPhaseItem.text, state.nextPhase);
+        }
+        compare(menu.endSessionItem.visible, state.endSession, "End session");
+        compare(menu.modeItem.checked, state.mode, "Pomodoro mode checked");
+        compare(menu.modeItem.enabled, !state.locked, "Pomodoro mode enabled");
+        compare(menu.modeItem.text, state.locked ? "Pomodoro mode (locked while running)" : "Pomodoro mode");
+        verify(menu.itemAt(menu.currentIndex).visible, "the highlighted entry is shown");
+        // Hidden entries take no room.
+        let y = 0;
+        for (let i = 0; i < menu.count; ++i) {
+            const item = menu.itemAt(i);
+            if (item.visible) {
+                compare(item.y, y, "no gap before " + item.text);
+                y += item.height;
+            }
+        }
+        return menu;
+    }
+
+    function test_timerModeLocksTheModeWhileATimerRuns() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 11, true));
+        const session = fixture.session;
+        verify(!session.pomodoroMode);
+        verify(!glyph().visible, "no hourglass in Timer mode");
+        compare(findChild(button, "elapsedLabel").text, "0:01");
+        compare(button.Accessible.name, "Pause the Tokkl timer");
+        verify(button.words.summary.indexOf("Pomodoro") < 0, button.words.summary);
+
+        let menu = checkSessionMenu({
+            run: true,
+            startSession: false,
+            endSession: false,
+            mode: false,
+            locked: true
+        });
+        compare(menu.runItem.text, "Stop");
+        verify(!menu.messageItem.visible);
+        closeMenu();
+        verify(!session.setPomodoroMode(true), "refused while a timer runs");
+
+        // Stopped, the mode is a choice again.
+        verify(button.timer.stop());
+        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(stoppedEntry(5, 11, true, 65)));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        tryCompare(button.timer, "canWrite", true);
+        menu = checkSessionMenu({
+            run: true,
+            startSession: false,
+            endSession: false,
+            mode: false,
+            locked: false
+        });
+        compare(menu.runItem.text, "Start");
+        compare(menu.itemAt(menu.currentIndex), menu.runItem, "Start is still highlighted first");
+        closeMenu();
+    }
+
+    function test_pomodoroModeWithoutASession() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        verify(button.timer.chooseProject(11));
+        const menu = button.menu;
+        const logo = findChild(button, "logoIcon");
+        verify(!glyph().visible);
+
+        // Turned on from the menu with the keyboard.
+        openMenu();
+        moveTo(menu, menu.modeItem);
+        keyClick(Qt.Key_Space);
+        tryVerify(() => !menu.visible, 3000, "menu closes after a choice");
+        verify(fixture.session.pomodoroMode);
+
+        // The colour hourglass right of the logo; the indicator and the
+        // time keep their order after it.
+        verify(glyph().visible);
+        verify(!glyph().isMask);
+        const left = glyph().mapToItem(button, 0, 0).x;
+        verify(left >= logo.mapToItem(button, logo.width, 0).x, "right of the logo");
+        verify(left + glyph().width <= indicator().mapToItem(button, 0, 0).x, "left of the project indicator");
+        verify(glyph().width > 0 && glyph().width <= logo.width);
+        checkGlyphFile("hourglass.svg");
+        compare(findChild(button, "elapsedLabel").text, "0:00", "the time as in Timer mode");
+        compare(button.words.summary, "Stopped 0:00 · Alpha · Connected · Pomodoro mode");
+        compare(button.Accessible.name, "Start a Pomodoro session · Pomodoro mode");
+
+        checkSessionMenu({
+            run: false,
+            startSession: true,
+            endSession: false,
+            mode: true,
+            locked: false
+        });
+        verify(menu.startSessionItem.enabled);
+        compare(menu.itemAt(menu.currentIndex), menu.startSessionItem, "Start session is highlighted first");
+        verify(menu.projectMenu.enabled);
+        verify(menu.billableItem.enabled);
+        closeMenu();
+
+        // Monochrome: the single-colour hourglass, tinted with the panel
+        // text colour as the logo is.
+        button.monochromeIcon = true;
+        verify(glyph().isMask);
+        checkGlyphFile("hourglass-mono.svg");
+        for (const ink of ["#ffffff", "#000000"]) {
+            button.Kirigami.Theme.textColor = ink;
+            verify(Qt.colorEqual(glyph().color, ink), "tinted with " + ink);
+            verify(Qt.colorEqual(glyph().color, findChild(button, "logoIcon").color), "as the logo");
+        }
+        button.monochromeIcon = false;
+        verify(!glyph().isMask);
+        checkGlyphFile("hourglass.svg");
+
+        // Off again: the panel is the Timer mode's.
+        openMenu();
+        moveTo(menu, menu.modeItem);
+        keyClick(Qt.Key_Space);
+        tryVerify(() => !menu.visible, 3000, "menu closes after a choice");
+        verify(!fixture.session.pomodoroMode);
+        verify(!glyph().visible);
+        compare(button.words.summary, "Stopped 0:00 · Alpha · Connected");
+        compare(button.Accessible.name, "Start the Tokkl timer");
+    }
+
+    // The drawn hourglass: how many of its pixels have each of the colours,
+    // and how many are not a shade of grey.
+    function glyphPixels(colors) {
+        const image = grabImage(button);
+        const item = glyph();
+        const origin = item.mapToItem(button, 0, 0);
+        const drawn = {
+            counts: colors.map(() => 0),
+            notGrey: 0
+        };
+        for (let y = 0; y < item.height; ++y) {
+            for (let x = 0; x < item.width; ++x) {
+                const pixel = image.pixel(Math.floor(origin.x + x), Math.floor(origin.y + y));
+                colors.forEach((color, i) => {
+                    if (Qt.colorEqual(pixel, color)) {
+                        drawn.counts[i]++;
+                    }
+                });
+                if (Math.abs(pixel.r - pixel.g) > 0.02 || Math.abs(pixel.g - pixel.b) > 0.02) {
+                    drawn.notGrey++;
+                }
+            }
+        }
+        return drawn;
+    }
+
+    function test_hourglassIsDrawnInColourAndMonochrome() {
+        connectAccount(instanceA, 3, 7);
+        verify(fixture.session.setPomodoroMode(true));
+        tryVerify(() => glyph().visible && glyph().width > 0, 3000, "the hourglass is shown");
+
+        // The colour file: a magenta frame around yellow sand. Of the 16 × 16
+        // pixels, 40 are exactly the frame colour and about 24 exactly the
+        // sand colour; the sand's slanted edges are blended.
+        tryVerify(() => {
+            const drawn = glyphPixels(["#f6209b", "#f7b817"]);
+            return drawn.counts[0] >= 30 && drawn.counts[1] >= 15;
+        }, 3000, "the colour hourglass is drawn");
+
+        // Monochrome: the single-colour file, a black shape on the white
+        // window. Black ink is the file's own colour. Kirigami 6.31 tints a
+        // mask only in a shader, which the software renderer used here
+        // does not run, so another ink would draw black there too.
+        // test_pomodoroModeWithoutASession checks the tint the icon is given.
+        button.monochromeIcon = true;
+        button.Kirigami.Theme.textColor = "#000000";
+        tryVerify(() => {
+            const drawn = glyphPixels(["#000000", "#ffffff"]);
+            return drawn.notGrey === 0 && drawn.counts[0] >= 40 && drawn.counts[1] >= 60;
+        }, 3000, "the monochrome hourglass is drawn");
+    }
+
+    function cachedLengths(settings) {
+        return [settings.cachedWorkMinutes, settings.cachedShortRestMinutes, settings.cachedLongRestMinutes, settings.cachedLongRestEvery];
+    }
+
+    function test_lengthsCacheKeepsTheAccountsLastKnownLengths() {
+        const settings = createTemporaryObject(settingsComponent, testCase);
+        verify(createTemporaryObject(lengthsCacheComponent, testCase, {
+            configuration: settings,
+            connection: fixture.connection,
+            preferences: fixture.preferences
+        }));
+        // Without an account the preferences show the defaults, which must
+        // not replace what an earlier run kept.
+        wait(50);
+        compare(cachedLengths(settings), [40, 8, 20, 3]);
+        compare(settings.saves, 0);
+
+        // Once the account is known, its lengths are kept and saved.
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/preferences", 200, preferences(50, 10, 30, 2));
+        tryVerify(() => cachedLengths(settings).join() === "50,10,30,2", 3000, "the account's lengths are kept");
+        verify(settings.saves > 0);
+
+        // Apply on the settings page writes back the lengths the page opened
+        // with. They are put right with one save, and nothing more follows.
+        const saves = settings.saves;
+        settings.cachedWorkMinutes = 40;
+        settings.cachedLongRestEvery = 3;
+        tryVerify(() => cachedLengths(settings).join() === "50,10,30,2", 3000, "the account's lengths are put back");
+        compare(settings.saves, saves + 1);
+        wait(50);
+        compare(settings.saves, saves + 1);
+
+        // Another account: until it is known, the last one's lengths stay.
+        fixture.configure(instanceB, "tok-4");
+        wait(50);
+        compare(cachedLengths(settings), [50, 10, 30, 2]);
+        compare(settings.saves, saves + 1);
+    }
+
+    function test_sessionCountsDownAndOpensTheMenu() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        verify(fixture.session.setPomodoroMode(true));
+        const menu = button.menu;
+        const label = findChild(button, "elapsedLabel");
+
+        startSessionWith(preferences(25, 5, 15, 4));
+        compare(fixture.pending("POST", "/time_entries"), -1, "a session starts no timer");
+        compare(label.text, "25:00");
+        fixture.advance(1000);
+        compare(label.text, "24:59");
+        verify(glyph().visible);
+        compare(button.words.summary, "Work · 24:59 left · Pomodoro 1 of 4");
+        compare(button.Accessible.name, "Work · 24:59 left · Pomodoro 1 of 4");
+        verify(button.Accessible.description.indexOf("No project") >= 0, "the project stays in words: " + button.Accessible.description);
+
+        // Mid-phase, a click opens the menu.
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        tryVerify(() => menu.opened, 3000, "a click mid-phase opens the menu");
+        compare(fixture.session.phase, "work", "and confirms nothing");
+        closeMenu();
+
+        // So does Space, with the first entry highlighted.
+        checkSessionMenu({
+            run: false,
+            startSession: false,
+            nextPhase: "Next phase: Short rest",
+            endSession: true,
+            mode: true,
+            locked: true
+        });
+        compare(menu.stateItem.text, "Work · 24:59 left · Pomodoro 1 of 4");
+        compare(menu.itemAt(menu.currentIndex), menu.nextPhaseItem, "Next phase is highlighted first");
+        verify(menu.projectMenu.enabled, "Project applies to the open pomodoro");
+        verify(menu.billableItem.enabled, "so does Billable");
+        closeMenu();
+        focusButton();
+        keyClick(Qt.Key_Space);
+        tryVerify(() => menu.opened, 3000, "Space mid-phase opens the menu");
+        compare(menu.itemAt(menu.currentIndex), menu.nextPhaseItem);
+
+        // End session: a pomodoro this short is not saved, and the menu says so.
+        moveTo(menu, menu.endSessionItem);
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !menu.visible, 3000, "menu closes after End session");
+        verify(!fixture.session.active);
+        compare(label.text, "0:00", "the timer's time again");
+        compare(button.words.summary, "Stopped 0:00 · No project · Connected · Pomodoro mode");
+        checkSessionMenu({
+            run: false,
+            startSession: true,
+            endSession: false,
+            mode: true,
+            locked: false
+        });
+        verify(menu.messageItem.visible);
+        verify(!menu.messageItem.enabled, "the message is not a choice");
+        compare(menu.messageItem.text, "This pomodoro was too short to save.");
+        compare(menu.itemAt(menu.currentIndex), menu.startSessionItem);
+
+        // Start session from the menu clears it.
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !menu.visible, 3000, "menu closes after Start session");
+        answer("GET", "/me/preferences", 200, preferences(25, 5, 15, 4));
+        tryVerify(() => fixture.session.active, 3000, "a new session");
+        compare(fixture.session.message, "");
+        openMenu();
+        verify(!menu.messageItem.visible);
+        closeMenu();
+    }
+
+    function test_ringingPhaseConfirmsOnClick() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        verify(fixture.session.setPomodoroMode(true));
+        const label = findChild(button, "elapsedLabel");
+        startSessionWith(preferences(25, 5, 15, 2));
+
+        // Past the planned end the label counts the overtime.
+        fixture.advance(minutes(25) + 5000);
+        verify(fixture.session.ringing);
+        compare(label.text, "+0:05");
+        compare(button.words.summary, "Work · +0:05 overtime · Pomodoro 1 of 2");
+        compare(button.Accessible.name, "Work · +0:05 overtime · Pomodoro 1 of 2");
+
+        // A click confirms Next phase and opens no menu.
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        compare(fixture.session.phase, "shortRest");
+        verify(!fixture.session.ringing);
+        verify(!button.menu.visible);
+        compare(label.text, "5:00");
+        compare(button.words.summary, "Short rest · 5:00 left · Pomodoro 1 of 2");
+        checkSessionMenu({
+            run: false,
+            startSession: false,
+            nextPhase: "Next phase: Work",
+            endSession: true,
+            mode: true,
+            locked: true
+        });
+        compare(button.menu.stateItem.text, "Short rest · 5:00 left · Pomodoro 1 of 2");
+        closeMenu();
+
+        // Return on a ringing rest starts the next work phase.
+        fixture.advance(minutes(5));
+        compare(label.text, "+0:00");
+        verify(fixture.session.ringing);
+        focusButton();
+        keyClick(Qt.Key_Return);
+        compare(fixture.session.phase, "work");
+        verify(!button.menu.visible);
+        compare(button.words.summary, "Work · 25:00 left · Pomodoro 2 of 2");
+        verify(waitFor("POST", "/workspaces/7/time_entries") >= 0, "the pomodoro is saved");
+
+        // The last work phase of the round leads to the long rest.
+        checkSessionMenu({
+            run: false,
+            startSession: false,
+            nextPhase: "Next phase: Long rest",
+            endSession: true,
+            mode: true,
+            locked: true
+        });
+        moveTo(button.menu, button.menu.nextPhaseItem);
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !button.menu.visible, 3000, "menu closes after Next phase");
+        compare(fixture.session.phase, "longRest");
+        compare(button.words.summary, "Long rest · 15:00 left · Pomodoro 2 of 2");
+        compare(label.text, "15:00");
+    }
+
+    function test_runningTimerInPomodoroModeKeepsItsControls() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        verify(fixture.session.setPomodoroMode(true));
+
+        // Another client starts a timer; the next poll shows it.
+        fixture.advance(31000);
+        answer("GET", "/me/time_entries/current", 200, entry(9, 7, 11, true));
+        tryCompare(button.timer, "running", true);
+        verify(glyph().visible, "the hourglass stays in Pomodoro mode");
+        compare(findChild(button, "elapsedLabel").text, "0:01");
+        compare(button.Accessible.name, "Pause the Tokkl timer · Pomodoro mode");
+        verify(button.words.summary.indexOf("Running 0:01 · Alpha") === 0, button.words.summary);
+        checkSessionMenu({
+            run: true,
+            startSession: false,
+            endSession: false,
+            mode: true,
+            locked: true
+        });
+        compare(button.menu.runItem.text, "Stop");
+        closeMenu();
+
+        // A click pauses it, as in Timer mode.
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        fixture.respond(waitFor("PATCH", "/time_entries/9/stop"), 200, JSON.stringify(stoppedEntry(9, 11, true, 65)));
+        answer("GET", "/me/time_entries/current", 200, "null");
+        tryCompare(button.timer, "canWrite", true);
+        verify(button.timer.paused);
+        verify(fixture.session.modeLocked, "locked while paused");
+        compare(button.Accessible.name, "Resume the Tokkl timer · Pomodoro mode");
+        checkSessionMenu({
+            run: true,
+            startSession: false,
+            endSession: false,
+            mode: true,
+            locked: true
+        });
+        compare(button.menu.runItem.text, "Stop");
+        closeMenu();
     }
 }

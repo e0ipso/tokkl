@@ -2,7 +2,7 @@
 id: 10
 group: "gnome-pomodoro"
 dependencies: [2, 9]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - cpp-qt
@@ -55,3 +55,16 @@ Use your internal Todo tool to track these and keep on track.
 
 Test philosophy: write a few tests, mostly integration. Test custom logic, critical workflows, data transformations, edge cases and error conditions in core behaviour, and integration points. Do not test third-party library or framework behaviour, simple CRUD, trivial getters and setters, static configuration, or obvious behaviour that would break at once. Do not test that the backend makes sound in CI; test what the player asks the backend to do.
 </details>
+
+## Output
+
+Backend: libpulse's simple API (`libpulse-simple`), in `desktop/gnome/src/pulsealarmbackend.cpp` behind `AlarmBackend` (`alarmbackend.h`), driven by `AlarmPlayer` (`alarmplayer.cpp`). Packages: Debian 13 `libpulse-dev` + `pkgconf` to build, `libpulse0` at runtime through shlibs; Fedora 44 `pkgconfig(libpulse-simple)` (`pulseaudio-libs-devel`) to build, `pulseaudio-libs` at runtime through the automatic soname requires. PipeWire serves the protocol on GNOME (`pipewire-pulse`).
+
+Ruled out: Qt Multimedia links Qt Gui on both targets (Fedora 44 `readelf -d libQt6Multimedia.so.6` lists libQt6Gui; Debian 13 `libqt6multimedia6` depends on libqt6gui6, libqt6quick6, libegl1, libx11-6), which `ci/check.sh` forbids for the headless service. GStreamer would need the core plus the base and good plugin sets for one buffer of PCM.
+
+Manual check (Fedora 44 container, `pulseaudio` with `module-null-sink`, the built `tokkl-timerd` on a private bus against a stand-in instance with one-minute lengths, 2026-10-26):
+
+- `PreviewSound work-to-short-rest`: `pactl list sink-inputs` shows one input, `media.name = "Sound preview"`, `application.name = "tokkl-timerd"`, `s16le 1ch 22050Hz`; none five seconds later.
+- At the planned end `Ringing` is true and `pactl` shows `media.name = "Pomodoro alarm"` from `tokkl-timerd`; six seconds later (the clip is two seconds) it is still there, so the loop holds.
+- After `NextPhase`, `Ringing` is false and the sink input is gone within one second.
+- With `PULSE_SERVER` pointing at a missing socket the service keeps running and reports `Connection refused` (the `pulsebackend` test).

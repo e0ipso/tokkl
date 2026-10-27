@@ -1,12 +1,13 @@
 # Tokkl GNOME companion: tokkl-timerd, a headless Qt program that runs the
 # shared core in desktop/core and exposes its timer as org.tokkl.Timer1 on
 # the session bus, with a systemd user unit and a D-Bus activation file.
-# Credentials go to the keyring through QtKeychain (libsecret on GNOME).
+# Credentials go to the keyring through QtKeychain (libsecret on GNOME), and
+# the Pomodoro alarm to the sound server through libpulse.
 # Standalone project; the npm workspaces and the server image do not build or
 # ship anything from this directory.
 #
 # TOKKL_GNOME_DAEMON=OFF builds only the D-Bus service library and its tests,
-# which need Qt Core, Network and DBus but not QtKeychain.
+# which need Qt Core, Network and DBus but not QtKeychain or libpulse.
 
 cmake_minimum_required(VERSION 3.27...3.31)
 
@@ -59,6 +60,11 @@ add_compile_definitions(
 find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Network DBus)
 if(TOKKL_GNOME_DAEMON)
     find_package(Qt6Keychain REQUIRED)
+    # The alarm goes to the sound server through libpulse's simple API,
+    # which PipeWire serves too (pipewire-pulse). It needs no display and no
+    # Qt library beyond Core.
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(PulseSimple REQUIRED IMPORTED_TARGET libpulse-simple)
 endif()
 
 message(STATUS "Tokkl GNOME companion version: ${TOKKL_RESOLVED_VERSION}")

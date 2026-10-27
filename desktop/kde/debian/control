@@ -29,8 +29,10 @@ Architecture: amd64
 # libqt6multimedia6, which on Debian 13 and Ubuntu 26.04 also ships the
 # FFmpeg media plugin and depends on libpulse0, the audio output; there is no
 # separate plugin package to name.
+# The Pomodoro hourglass is an SVG image; Qt's SVG image plugin draws it.
 Depends: plasma-desktoptheme (>= 6.3.0~),
          hicolor-icon-theme,
+         qt6-svg-plugins (>= 6.8.0~),
          qml6-module-org-kde-kcmutils (>= 6.13.0~),
          qml6-module-org-kde-kirigami (>= 6.13.0~),
          qml6-module-qtqml (>= 6.8.0~),

@@ -16,4 +16,4 @@ RUN /opt/tokkl-kde/ci/baseline.sh --format ubuntu-deb > /opt/tokkl-kde/baseline.
 FROM build AS test
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
         appstream dbus dbus-x11 hicolor-icon-theme libkf6config-dev libkf6i18n-dev libkirigami-dev \
-        qml6-module-qttest rpm xauth xvfb
+        qml6-module-qttest qt6-svg-plugins rpm xauth xvfb

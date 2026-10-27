@@ -21,6 +21,8 @@ add_library(tokklkde STATIC
     kdepomodoro.h
     kwalletcredentialstore.cpp
     kwalletcredentialstore.h
+    pomodorolengthsclient.cpp
+    pomodorolengthsclient.h
     pomodorosoundcatalogue.cpp
     pomodorosoundcatalogue.h
 )

@@ -2,7 +2,7 @@
 id: 14
 group: "macos-pomodoro"
 dependencies: [2, 13]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - qt-widgets
@@ -20,14 +20,14 @@ Play the alarm in the macOS app: loop the chosen sound while the session rings, 
 Qt 6 Widgets for the settings section and the player, and macOS packaging (CMake, `macdeployqt`, `desktop/macos/scripts/package-dmg.sh`, `check-dmg.sh`, the CI `macos` job).
 
 ## Acceptance Criteria
-- [ ] An `AlarmPlayer` interface in the portable library has a Qt Multimedia `QSoundEffect` implementation, or an AppKit `NSSound` one in a `.mm` shim if Qt Multimedia cannot be bundled. A fake is used in tests. `MenuBarApp` connects it to the session: loop the sound chosen for `ringingTransition` while `ringing` is true, and stop when it turns false.
-- [ ] The four sound choices are stored in `QSettings` under keys next to `SettingsWindow::monochromeIconKey`, defaulting to the catalogue's sound per transition.
-- [ ] `SettingsWindow` gains a "Pomodoro" section:
+- [x] An `AlarmPlayer` interface in the portable library has a Qt Multimedia `QSoundEffect` implementation, or an AppKit `NSSound` one in a `.mm` shim if Qt Multimedia cannot be bundled. A fake is used in tests. `MenuBarApp` connects it to the session: loop the sound chosen for `ringingTransition` while `ringing` is true, and stop when it turns false.
+- [x] The four sound choices are stored in `QSettings` under keys next to `SettingsWindow::monochromeIconKey`, defaulting to the catalogue's sound per transition.
+- [x] `SettingsWindow` gains a "Pomodoro" section:
   - four `QSpinBox`es, "Work", "Short rest", "Long rest" (minutes) and "Long rest every" (pomodoros), with ranges 1–180, 1–60, 1–60 and 1–12, filled from `PomodoroPreferences`, which is refreshed when the window loads;
   - four `QComboBox`es, "Work → short rest", "Short rest → work", "Work → long rest" and "Long rest → work", with the catalogue labels, each with a "Preview" `QPushButton` that plays the selected sound once.
-- [ ] Save posts the changed lengths through `PomodoroPreferences::save()` and stores the sound choices. A server error appears in a label next to its field, and the window stays open. Without a validated account the spin boxes are read-only with the cached values, and a note says the lengths need a connection to the Tokkl server.
-- [ ] The WAVs from `TOKKL_POMODORO_SOUND_FILES` end up in the app bundle's `Contents/Resources/sounds/` (or are compiled into the Qt resources), and the player finds them there. `desktop/macos/scripts/check-dmg.sh` checks for them. If Qt Multimedia is used, the `macos` job in `.github/workflows/ci.yml` installs the module (in both the CI and release jobs that build the DMG), and `package-dmg.sh` bundles its plugins.
-- [ ] `desktop/macos/autotests/menubarapptest.cpp` covers:
+- [x] Save posts the changed lengths through `PomodoroPreferences::save()` and stores the sound choices. A server error appears in a label next to its field, and the window stays open. Without a validated account the spin boxes are read-only with the cached values, and a note says the lengths need a connection to the Tokkl server.
+- [ ] The WAVs from `TOKKL_POMODORO_SOUND_FILES` end up in the app bundle's `Contents/Resources/sounds/` (or are compiled into the Qt resources), and the player finds them there. `desktop/macos/scripts/check-dmg.sh` checks for them. If Qt Multimedia is used, the `macos` job in `.github/workflows/ci.yml` installs the module (in both the CI and release jobs that build the DMG), and `package-dmg.sh` bundles its plugins. (NSSound was chosen, so CI and `package-dmg.sh` are unchanged. The CMake rule, the `.mm` shim and the `check-dmg.sh` check are written but only the CI `macos` job can run them; the Linux configure does prove `TOKKL_POMODORO_SOUND_FILES` reaches `src/` with four files.)
+- [x] `desktop/macos/autotests/menubarapptest.cpp` covers:
   - the spin box ranges and the values loaded from the server;
   - Save posting only the changed keys;
   - a 400 shown next to its field;
@@ -35,7 +35,7 @@ Qt 6 Widgets for the settings section and the player, and macOS packaging (CMake
   - a sound choice stored and read back;
   - Preview calling the fake player;
   - the fake player looping on ringing and stopping on Next phase.
-- [ ] The portable build and CTest pass on Linux. The CI `macos` job passes on the PR, including `check-dmg.sh`.
+- [ ] The portable build and CTest pass on Linux (verified: 13/13). The CI `macos` job passes on the PR, including `check-dmg.sh` (only the CI job can prove this; not run here).
 
 Use your internal Todo tool to track these and keep on track.
 

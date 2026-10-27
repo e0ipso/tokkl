@@ -3,6 +3,7 @@
 #include "chainstore.h"
 #include "clock.h"
 #include "connection.h"
+#include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
 #include "pomodoroqueue.h"
 #include "pomodorosession.h"
@@ -33,6 +34,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
                        CredentialStore *store,
                        StatusItem *statusItem,
                        LoginItem *loginItem,
+                       AlarmPlayer *alarmPlayer,
                        QSettings *settings,
                        Clock *clock,
                        QObject *parent)
@@ -45,7 +47,6 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_chainStore(settings ? std::make_unique<SettingsChainStore>(settings) : nullptr)
     , m_pomodoroStore(settings ? std::make_unique<SettingsPomodoroStore>(settings) : nullptr)
     , m_timer(std::make_unique<TimerController>(m_clock))
-    , m_settingsWindow(std::make_unique<SettingsWindow>(transport, store, settings, loginItem))
 {
     // Before the connection: the stored chain is read with its first entry.
     m_timer->setChainStore(m_chainStore.get());
@@ -54,7 +55,9 @@ MenuBarApp::MenuBarApp(Transport *transport,
     m_preferences = std::make_unique<PomodoroPreferences>(m_connection.get(), m_pomodoroStore.get());
     m_queue = std::make_unique<PomodoroQueue>(m_connection.get(), m_clock, m_pomodoroStore.get());
     m_session = std::make_unique<PomodoroSession>(m_clock, m_timer.get(), m_preferences.get(), m_queue.get(), m_pomodoroStore.get());
+    m_alarm = std::make_unique<PomodoroAlarm>(m_session.get(), alarmPlayer, settings);
     m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_session.get());
+    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences.get(), m_alarm.get());
 
     connect(m_menu.get(), &StatusMenu::settingsRequested, this, &MenuBarApp::showSettings);
     connect(m_menu.get(), &StatusMenu::openRequested, this, &MenuBarApp::openUrlRequested);
@@ -83,8 +86,8 @@ MenuBarApp::MenuBarApp(Transport *transport,
     updateItem();
 }
 
-// The menu and the window go before the session, timer and connection they
-// show, and the session before the parts it uses.
+// The menu, the window and the alarm go before the session, timer and
+// connection they show, and the session before the parts it uses.
 MenuBarApp::~MenuBarApp()
 {
     if (m_statusItem) {
@@ -92,6 +95,7 @@ MenuBarApp::~MenuBarApp()
     }
     m_settingsWindow.reset();
     m_menu.reset();
+    m_alarm.reset();
     m_session.reset();
     m_queue.reset();
     m_preferences.reset();
@@ -125,6 +129,11 @@ PomodoroSession *MenuBarApp::pomodoroSession() const
 PomodoroPreferences *MenuBarApp::pomodoroPreferences() const
 {
     return m_preferences.get();
+}
+
+PomodoroAlarm *MenuBarApp::pomodoroAlarm() const
+{
+    return m_alarm.get();
 }
 
 StatusMenu *MenuBarApp::statusMenu() const

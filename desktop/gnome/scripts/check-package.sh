@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installs a tokkl-timerd DEB or RPM on a clean target and checks it: the
-# package version, the installed files, that the program finds every library
-# it links, and that the first call to org.tokkl.Timer1 starts it, on a plain
+# package version, the installed files (the alarm sounds among them), that
+# the program finds every library it links (libpulse through the declared
+# dependencies), and that the first call to org.tokkl.Timer1 starts it, on a plain
 # dbus-daemon and then through the systemd user unit. It changes the
 # system's packages, so scripts/container-check.sh runs it in a privileged
 # throwaway container of the target (Debian 13 or Fedora 44) with the
@@ -61,7 +62,11 @@ echo "package version: $installed"
 for file in /usr/bin/tokkl-timerd \
             /usr/share/dbus-1/services/org.tokkl.Timer1.service \
             /usr/lib/systemd/user/tokkl-timerd.service \
-            /usr/share/dbus-1/interfaces/org.tokkl.Timer1.xml; do
+            /usr/share/dbus-1/interfaces/org.tokkl.Timer1.xml \
+            /usr/share/tokkl-timerd/sounds/pomodoro-work-to-short-rest.wav \
+            /usr/share/tokkl-timerd/sounds/pomodoro-short-rest-to-work.wav \
+            /usr/share/tokkl-timerd/sounds/pomodoro-work-to-long-rest.wav \
+            /usr/share/tokkl-timerd/sounds/pomodoro-long-rest-to-work.wav; do
     if [ -f "$file" ]; then
         echo "installed: $file"
     else

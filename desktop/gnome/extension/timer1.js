@@ -134,6 +134,95 @@ export function formatElapsed(seconds) {
     return `${hours}:${String(minutes).padStart(2, '0')}`;
 }
 
+// M:SS with the minutes unwrapped, so three hours are 180:00.
+function minutesAndSeconds(seconds) {
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+// Fills each %s or %d of a translated template with the next value, in
+// order, since String.prototype.format exists only inside GNOME Shell.
+function fill(template, ...values) {
+    let next = 0;
+    return template.replace(/%[sd]/g, () => String(values[next++]));
+}
+
+/**
+ * The phase's countdown as the panel shows it, from the PlannedEnd property
+ * (Unix seconds): M:SS left, rounded up, before the planned end, and +M:SS
+ * overtime, rounded down, from the planned end on. It is display only: the
+ * service decides when a phase rings.
+ *
+ * @param {number} plannedEnd
+ * @param {number} nowSeconds the current Unix time in seconds
+ * @returns {{text: string, overtime: boolean}}
+ */
+export function countdown(plannedEnd, nowSeconds) {
+    const ms = Math.round((plannedEnd - nowSeconds) * 1000);
+    if (ms > 0)
+        return {text: minutesAndSeconds(Math.ceil(ms / 1000)), overtime: false};
+    return {text: `+${minutesAndSeconds(Math.floor(-ms / 1000))}`, overtime: true};
+}
+
+/**
+ * Work, Short rest or Long rest for the Phase or NextPhase property; empty
+ * for anything else.
+ *
+ * @param {string} phase
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function phaseName(phase, _) {
+    switch (phase) {
+    case 'work':
+        return _('Work');
+    case 'shortRest':
+        return _('Short rest');
+    case 'longRest':
+        return _('Long rest');
+    default:
+        return '';
+    }
+}
+
+/**
+ * The session in one line, as the KDE and macOS apps write it: "Short rest ·
+ * 4:10 left · Pomodoro 2 of 4", or "Work · +1:02 overtime · Pomodoro 3 of 4".
+ *
+ * @param {{phase: string, plannedEnd: number, pomodoroNumber: number, longRestEvery: number}} session
+ *     the Phase, PlannedEnd, PomodoroNumber and LongRestEvery properties
+ * @param {number} nowSeconds the current Unix time in seconds
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function sessionLine(session, nowSeconds, _) {
+    const {text, overtime} = countdown(session.plannedEnd, nowSeconds);
+    const time = fill(overtime ? _('%s overtime') : _('%s left'), text);
+    return fill(_('%s · %s · Pomodoro %d of %d'), phaseName(session.phase, _), time,
+        session.pomodoroNumber, session.longRestEvery);
+}
+
+/**
+ * The menu item that calls NextPhase, named after the NextPhase property.
+ *
+ * @param {string} nextPhase
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function nextPhaseLabel(nextPhase, _) {
+    return fill(_('Next phase: %s'), phaseName(nextPhase, _));
+}
+
+/**
+ * The menu switch that calls SetPomodoroMode; it says so while ModeLocked.
+ *
+ * @param {boolean} locked
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function pomodoroModeLabel(locked, _) {
+    return locked ? _('Pomodoro mode (locked while running)') : _('Pomodoro mode');
+}
+
 /**
  * The words for the service's state. status is the Status property, or null
  * when nothing owns the bus name. detail is empty or a longer explanation;

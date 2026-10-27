@@ -40,5 +40,26 @@
       <label>Sound when a long rest ends</label>
       <default>long-rest-to-work</default>
     </entry>
+    <!-- The account's Pomodoro lengths as the panel last knew them. The
+         lengths live on the Tokkl server. The panel keeps this copy, with
+         PomodoroLengthsCache.qml, for the Pomodoro settings page, which
+         shows it read-only until it has read the server's. No page edits
+         these entries. The defaults match the server's. -->
+    <entry name="cachedWorkMinutes" type="Int">
+      <label>Last known work length, in minutes</label>
+      <default>25</default>
+    </entry>
+    <entry name="cachedShortRestMinutes" type="Int">
+      <label>Last known short rest length, in minutes</label>
+      <default>5</default>
+    </entry>
+    <entry name="cachedLongRestMinutes" type="Int">
+      <label>Last known long rest length, in minutes</label>
+      <default>15</default>
+    </entry>
+    <entry name="cachedLongRestEvery" type="Int">
+      <label>Last known number of pomodoros between long rests</label>
+      <default>4</default>
+    </entry>
   </group>
 </kcfg>

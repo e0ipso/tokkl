@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Builds, tests and installs desktop/gnome (tokkl-timerd, with desktop/core)
-# in a throwaway Fedora 44 container that has the Qt base and QtKeychain
-# development packages, GNOME Keyring, dbus-daemon, CMake and a compiler. The
-# Qt Gui runtime is removed before configuring, and tokkl-timerd may load no
-# Qt library other than Core, Network and DBus, so the service stays headless.
+# in a throwaway Fedora 44 container that has the Qt base, QtKeychain and
+# libpulse development packages, GNOME Keyring, dbus-daemon, CMake and a
+# compiler. The Qt Gui runtime is removed before configuring, and
+# tokkl-timerd may load no Qt library other than Core, Network and DBus, so
+# the service stays headless. No sound server runs: the tests use a fake
+# alarm backend, and the libpulse one only has to report the missing server.
 # The install is checked for the program, the D-Bus activation file, the
-# systemd user unit (with systemd-analyze verify) and the interface
-# description. activation.sh then checks that a call to org.tokkl.Timer1
+# systemd user unit (with systemd-analyze verify), the interface description
+# and the alarm sounds. activation.sh then checks that a call to org.tokkl.Timer1
 # starts the installed program: first on a dbus-daemon without systemd, then
 # with systemd booted in the container, through the systemd user unit. The
 # container exits with the result of that last check. CI runs it.
@@ -43,7 +45,8 @@ status=0
     -e container=docker -e LANG=C.UTF-8 -e ACTIVATION_LOG=/log/activation.log \
     -v "$repo:/repo:ro" -v "$log_dir:/log" "$image" bash -euc '
     dnf install -y -q --setopt=install_weak_deps=False cmake gcc-c++ make qt6-qtbase-devel \
-        qtkeychain-qt6-devel libsecret gnome-keyring dbus-daemon dbus-tools dbus-broker \
+        qtkeychain-qt6-devel pulseaudio-libs-devel pkgconf-pkg-config \
+        libsecret gnome-keyring dbus-daemon dbus-tools dbus-broker \
         systemd util-linux \
         > /tmp/dnf.log 2>&1 || { cat /tmp/dnf.log; exit 1; }
     # The development package pulls in the Gui runtime. Remove it, so the
@@ -74,7 +77,11 @@ status=0
     for file in /usr/bin/tokkl-timerd \
                 /usr/share/dbus-1/services/org.tokkl.Timer1.service \
                 /usr/lib/systemd/user/tokkl-timerd.service \
-                /usr/share/dbus-1/interfaces/org.tokkl.Timer1.xml; do
+                /usr/share/dbus-1/interfaces/org.tokkl.Timer1.xml \
+                /usr/share/tokkl-timerd/sounds/pomodoro-work-to-short-rest.wav \
+                /usr/share/tokkl-timerd/sounds/pomodoro-short-rest-to-work.wav \
+                /usr/share/tokkl-timerd/sounds/pomodoro-work-to-long-rest.wav \
+                /usr/share/tokkl-timerd/sounds/pomodoro-long-rest-to-work.wav; do
         if [ -f "$file" ]; then
             echo "installed: $file"
         else

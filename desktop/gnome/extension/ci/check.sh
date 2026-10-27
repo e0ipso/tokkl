@@ -48,9 +48,11 @@ for version in "${versions[@]}"; do
                 || { cat /tmp/install.log; exit 1; }
         else
             export DEBIAN_FRONTEND=noninteractive
+            # librsvg2-common holds the SVG loader the Shell draws the
+            # hourglass with; a desktop install gets it as a recommendation.
             { apt-get update -q && apt-get install -y -q --no-install-recommends gnome-shell \
                 gnome-shell-extension-prefs gjs dbus dbus-user-session dconf-service libglib2.0-bin \
-                unzip fonts-dejavu-core python3-dbusmock; } > /tmp/install.log 2>&1 \
+                librsvg2-common unzip fonts-dejavu-core python3-dbusmock; } > /tmp/install.log 2>&1 \
                 || { cat /tmp/install.log; exit 1; }
         fi
         actual="$(gnome-shell --version | grep -o "[0-9][0-9]*" | head -1)"

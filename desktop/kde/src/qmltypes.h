@@ -12,6 +12,7 @@
 #include "connectionsetup.h"
 #include "kdeconnection.h"
 #include "kdepomodoro.h"
+#include "pomodorolengthsclient.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosoundcatalogue.h"
@@ -57,9 +58,10 @@ struct TokklTimerForeign {
 };
 
 // Pomodoro mode. TokklPomodoro builds the session and the preferences
-// client from its connection, timer and store; the two have QML names so
-// the panel and the Configure page can declare properties of their type,
-// but only TokklPomodoro creates them.
+// client from its connection, timer and store, and TokklPomodoroLengths
+// builds another preferences client for the Configure page; the two have
+// QML names so the panel and the page can declare properties of their type,
+// but only those types create them.
 struct TokklPomodoroStoreForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::PomodoroStore)
@@ -89,7 +91,15 @@ struct TokklPomodoroPreferencesForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::PomodoroPreferences)
     QML_NAMED_ELEMENT(TokklPomodoroPreferences)
-    QML_UNCREATABLE("Created by TokklPomodoro")
+    QML_UNCREATABLE("Created by TokklPomodoro and TokklPomodoroLengths")
+};
+
+// The Configure page's own connection and preferences client for the
+// lengths, since the page cannot reach the panel's.
+struct TokklPomodoroLengthsForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::PomodoroLengthsClient)
+    QML_NAMED_ELEMENT(TokklPomodoroLengths)
 };
 
 struct TokklAlarmForeign {

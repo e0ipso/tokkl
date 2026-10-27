@@ -76,20 +76,22 @@ set_tests_properties(kdepomodoro alarmplayer PROPERTIES
 
 # The panel item, its menu and the Configure page (package/contents/ui),
 # driven by QtQuickTest through the QML tests in qml/. The backend types come
-# from tokklcore, wired to the fakes of desktop/core; the test never loads
-# main.qml, the real connection, KDE Wallet or a plugin copy of the backend.
+# from tokklcore and tokklkde, wired to the fakes of desktop/core; the test
+# never loads main.qml, the real connection, KDE Wallet or a plugin copy of
+# the backend. The Pomodoro page previews the core's copies of the sounds.
 # Kept out of bin/, where the build-tree backend module lives.
 # KF6::KirigamiPlatform lets the fixture set Kirigami.Units.longDuration for
 # the reduced-motion test.
 set(_panel_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-panel")
 ecm_add_test(panelquicktest.cpp
     TEST_NAME panel
-    LINK_LIBRARIES tokklcore tokklcorefakes Qt6::Qml Qt6::Quick Qt6::QuickTest KF6::I18n KF6::I18nQml KF6::KirigamiPlatform)
+    LINK_LIBRARIES tokklcore tokklkde tokklcorefakes Qt6::Qml Qt6::Quick Qt6::QuickTest KF6::I18n KF6::I18nQml KF6::KirigamiPlatform)
 set_target_properties(panel PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(panel PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"
     TOKKL_PLASMOID_ID="${TOKKL_PLASMOID_ID}"
-    TOKKL_BACKEND_URI="${TOKKL_BACKEND_URI}")
+    TOKKL_BACKEND_URI="${TOKKL_BACKEND_URI}"
+    TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
 set_tests_properties(panel PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;XDG_DATA_HOME=${_panel_xdg}/data;XDG_CONFIG_HOME=${_panel_xdg}/config;XDG_CACHE_HOME=${_panel_xdg}/cache;XDG_STATE_HOME=${_panel_xdg}/state")
 

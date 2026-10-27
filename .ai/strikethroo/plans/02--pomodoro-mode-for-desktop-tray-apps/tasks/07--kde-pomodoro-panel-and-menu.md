@@ -2,7 +2,7 @@
 id: 7
 group: "kde-pomodoro"
 dependencies: [2, 6]
-status: "pending"
+status: "completed"
 created: 2026-10-26
 skills:
   - qml
@@ -20,11 +20,11 @@ Show Pomodoro mode in the plasmoid: the hourglass glyph, the countdown label, th
 QML with Kirigami and Plasma components for the panel and menu, and Qt Quick Test for `autotests/qml/tst_panel.qml`.
 
 ## Acceptance Criteria
-- [ ] `desktop/kde/package/contents/ui/main.qml` creates the session, its store and the alarm player from task 6, next to the existing timer and chain store. The player's `ringing` and `transition` follow the session, and its `sounds` follow the four sound entries in `Plasmoid.configuration`.
-- [ ] `PanelButton.qml` shows the hourglass next to the logo whenever Pomodoro mode is on: the colour glyph normally, and the tinted single-colour glyph when `monochromeIcon` is on. During a session, unless a timer runs or is paused, the label shows the session's `countdownText`. Timer mode, and any running or paused timer, look exactly as they do today.
-- [ ] Left-click calls the session's `activate()` and opens the menu when it returns `OpenMenu`.
-- [ ] Tooltip and accessible name during a session read `<Phase> · <M:SS> left · Pomodoro <N> of <M>`, or `<Phase> · +<M:SS> overtime · Pomodoro <N> of <M>` in overtime. Phase names are "Work", "Short rest" and "Long rest". With Pomodoro mode on and no session, the existing text gets " · Pomodoro mode" appended.
-- [ ] `PanelMenu.qml`:
+- [x] `desktop/kde/package/contents/ui/main.qml` creates the session, its store and the alarm player from task 6, next to the existing timer and chain store. The player's `ringing` and `transition` follow the session, and its `sounds` follow the four sound entries in `Plasmoid.configuration`.
+- [x] `PanelButton.qml` shows the hourglass next to the logo whenever Pomodoro mode is on: the colour glyph normally, and the tinted single-colour glyph when `monochromeIcon` is on. During a session, unless a timer runs or is paused, the label shows the session's `countdownText`. Timer mode, and any running or paused timer, look exactly as they do today.
+- [x] Left-click calls the session's `activate()` and opens the menu when it returns `OpenMenu`.
+- [x] Tooltip and accessible name during a session read `<Phase> · <M:SS> left · Pomodoro <N> of <M>`, or `<Phase> · +<M:SS> overtime · Pomodoro <N> of <M>` in overtime. Phase names are "Work", "Short rest" and "Long rest". With Pomodoro mode on and no session, the existing text gets " · Pomodoro mode" appended.
+- [x] `PanelMenu.qml`:
   - The status line shows the session text above during a session, and the session's `message` when there is one.
   - "Start session" appears when the session can start.
   - "Next phase: Short rest", "Next phase: Long rest" or "Next phase: Work" appears during a session.
@@ -32,9 +32,9 @@ QML with Kirigami and Plasma components for the panel and menu, and Qt Quick Tes
   - A checkable "Pomodoro mode" item reads "Pomodoro mode (locked while running)" and is disabled while `modeLocked` is true.
   - The existing Start and Stop items appear only in Timer mode or while a timer runs or is paused.
   - Project and Billable stay enabled during a session.
-- [ ] `StatusText.qml` holds the new words, with `i18n`/`i18nc` like the existing strings.
-- [ ] `desktop/kde/autotests/qml/tst_panel.qml` covers: the mode item and its lock while a timer runs and while a session is active; glyph visibility in both modes and in monochrome; the countdown and the overtime label; each left-click branch, including the menu opening mid-phase; the menu items per state; and the tooltip text. `desktop/kde/autotests/panelquicktest.cpp`'s `PanelFixture` exposes what the tests need.
-- [ ] `desktop/kde/scripts/container-check.sh` passes for the Debian 13 leg, with the new QML tests listed as passed.
+- [x] `StatusText.qml` holds the new words, with `i18n`/`i18nc` like the existing strings.
+- [x] `desktop/kde/autotests/qml/tst_panel.qml` covers: the mode item and its lock while a timer runs and while a session is active; glyph visibility in both modes and in monochrome; the countdown and the overtime label; each left-click branch, including the menu opening mid-phase; the menu items per state; and the tooltip text. `desktop/kde/autotests/panelquicktest.cpp`'s `PanelFixture` exposes what the tests need.
+- [x] `desktop/kde/scripts/container-check.sh` passes for the Debian 13 leg, with the new QML tests listed as passed.
 
 Use your internal Todo tool to track these and keep on track.
 
@@ -65,3 +65,10 @@ Use your internal Todo tool to track these and keep on track.
 
 Test philosophy: write a few tests, mostly integration. Test custom logic, critical workflows, data transformations, edge cases and error conditions in core behaviour, and integration points. Do not test third-party library or framework behaviour, simple CRUD, trivial getters and setters, static configuration, or obvious behaviour that would break at once. Group the cases into a few test functions by state (Timer mode, Pomodoro idle, in session, ringing).
 </details>
+
+### Follow-up: the SVG image plugin
+The hourglass is the widget's first SVG image. Qt draws SVG files through its SVG image plugin (`plugins/imageformats/libqsvg.so`), and on Debian 13 neither Kirigami nor libplasma depends on the package that ships it, so the glyph drew nothing in the Debian test image.
+- `desktop/kde/debian/control` Depends on `qt6-svg-plugins (>= 6.8.0~)` (the package with `libqsvg.so` on Debian 13 and Ubuntu 26.04). `packaging/rpm/tokkl-kde.spec` Requires `qt6-qtsvg%{?_isa} >= 6.8.0` (Fedora 44). `scripts/check-package.sh` asserts both.
+- The test stages of `ci/Dockerfile` and `ci/ubuntu.Dockerfile` install `qt6-svg-plugins`. Fedora's test stage already had `qt6-qtsvg`, because `qt6-qtdeclarative` needs its `libQt6Svg.so.6`, so `ci/fedora.Dockerfile` is unchanged.
+- `autotests/qml/tst_panel.qml` checks pixels again in `test_hourglassIsDrawnInColourAndMonochrome`. It counts the frame and sand colours of the colour file, then the black shape of the monochrome file. Without the plugin it fails at the colour check.
+- The monochrome pixel check uses black ink only. Kirigami 6.31 (Fedora 44) tints `isMask` icons only in a scene-graph shader, and the software renderer the tests use draws the untinted file, so a white ink draws black there. Kirigami 6.13 (Debian 13) tints on the CPU. The tint the glyph asks for is still checked through its `color` property. By the same code, a Plasma session on Qt Quick's software renderer with KF 6.31 would draw a black hourglass on a dark panel (not tried in a real session). The logo avoids this with separate light and dark files.

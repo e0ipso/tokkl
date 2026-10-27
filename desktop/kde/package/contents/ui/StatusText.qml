@@ -4,10 +4,33 @@ import QtQuick
 
 import com.github.e0ipso.tokkl.backend
 
-// Words for the timer's state, shared by the panel item, its menu and the
-// tooltip. Every state has its own text, so nothing depends on color.
+// Words for the timer's and the Pomodoro session's state, shared by the
+// panel item, its menu and the tooltip. Every state has its own text, so
+// nothing depends on color.
 QtObject {
     required property TokklTimer timer
+    // Null until the backend has built it, which reads as Timer mode.
+    property TokklPomodoroSession session: null
+
+    readonly property bool pomodoroMode: session !== null && session.pomodoroMode
+    // The panel shows the session rather than the timer: a session is active
+    // and no timer runs or is paused.
+    readonly property bool showsSession: session !== null && session.active && !timer.running && !timer.paused
+
+    // The session in one line, such as "Short rest · 4:10 left · Pomodoro 2
+    // of 4"; empty unless showsSession.
+    readonly property string sessionText: {
+        if (!showsSession) {
+            return "";
+        }
+        // countdownText already starts with + in overtime.
+        const time = session.remainingSeconds > 0 ? i18nc("@info:status countdown to the end of the phase", "%1 left", session.countdownText) : i18nc("@info:status time past the end of the phase", "%1 overtime", session.countdownText);
+        return i18nc("@info:status phase, time left or overtime, pomodoro of the round", "%1 · %2 · Pomodoro %3 of %4", phaseName(session.phase), time, session.pomodoroNumber, session.longRestEvery);
+    }
+
+    readonly property string nextPhaseText: i18nc("@action:inmenu", "Next phase: %1", phaseName(session !== null ? session.nextPhase : ""))
+
+    readonly property string modeText: session !== null && session.modeLocked ? i18nc("@option:check", "Pomodoro mode (locked while running)") : i18nc("@option:check", "Pomodoro mode")
 
     readonly property string runText: {
         if (timer.running) {
@@ -70,12 +93,35 @@ QtObject {
 
     // One line for the tooltip and the accessible description. It names the
     // project, so the panel's project indicator is never the only sign of it.
+    // During a session it is the session's line.
     readonly property string summary: {
+        if (showsSession) {
+            return sessionText;
+        }
         const parts = [i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText), projectText, statusText];
         if (detailText.length > 0) {
             parts.push(detailText);
         }
-        return parts.join(" · ");
+        return withMode(parts.join(" · "));
+    }
+
+    // The text, marked in Pomodoro mode.
+    function withMode(text: string): string {
+        return pomodoroMode ? i18nc("@info:status", "%1 · Pomodoro mode", text) : text;
+    }
+
+    // Work, Short rest or Long rest for a phase as the session names it.
+    function phaseName(phase: string): string {
+        switch (phase) {
+        case "work":
+            return i18nc("@info:status Pomodoro phase", "Work");
+        case "shortRest":
+            return i18nc("@info:status Pomodoro phase", "Short rest");
+        case "longRest":
+            return i18nc("@info:status Pomodoro phase", "Long rest");
+        default:
+            return "";
+        }
     }
 
     function projectLabel(project: var): string {

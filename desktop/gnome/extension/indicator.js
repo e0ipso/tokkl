@@ -13,7 +13,17 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import {describeIndicator, fillColor, pulseOpacity, PULSE_PERIOD_MS, shapeGeometry} from './projectindicator.js';
-import {chosenProjectLabel, describeStatus, elapsedSeconds, formatElapsed, projectLabel} from './timer1.js';
+import {
+    chosenProjectLabel,
+    countdown,
+    describeStatus,
+    elapsedSeconds,
+    formatElapsed,
+    nextPhaseLabel,
+    pomodoroModeLabel,
+    projectLabel,
+    sessionLine,
+} from './timer1.js';
 
 // The project indicator in a slot of its own; projectindicator.js decides
 // what it shows. Two drawing areas share the slot, so the fill can pulse
@@ -132,8 +142,10 @@ class TokklIndicator extends PanelMenu.Button {
         this._syncing = false;
         this._tickId = 0;
 
-        // The button lays out one child: the logo, the project indicator and
-        // the time, in that order. The logo takes the top bar's icon size.
+        // The button lays out one child: the logo, the hourglass of Pomodoro
+        // mode, the project indicator and the time, in that order. The logo
+        // and the hourglass take the top bar's icon size; setHourglass gives
+        // the hourglass its picture.
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box'});
         this._logo = new St.Icon({
             gicon: new Gio.FileIcon({file: logo}),
@@ -141,6 +153,12 @@ class TokklIndicator extends PanelMenu.Button {
             y_align: Clutter.ActorAlign.CENTER,
         });
         box.add_child(this._logo);
+        this._hourglass = new St.Icon({
+            style_class: 'system-status-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: false,
+        });
+        box.add_child(this._hourglass);
         this._projectIndicator = new TokklProjectIndicator();
         box.add_child(this._projectIndicator);
         this._label = new St.Label({
@@ -193,21 +211,52 @@ class TokklIndicator extends PanelMenu.Button {
         this._logo.gicon = new Gio.FileIcon({file});
     }
 
+    setHourglass(file) {
+        this._hourglass.gicon = new Gio.FileIcon({file});
+    }
+
     _buildMenu(openPreferences) {
         this._statusItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
         this.menu.addMenuItem(this._statusItem);
+
+        // The service's last word on a session, such as a pomodoro too short
+        // to save. It stays until the next one.
+        this._messageItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
+        this._messageItem.label.clutter_text.line_wrap = true;
+        this.menu.addMenuItem(this._messageItem);
 
         this._detailItem = new PopupMenu.PopupMenuItem('', {reactive: false, can_focus: false});
         this._detailItem.label.clutter_text.line_wrap = true;
         this.menu.addMenuItem(this._detailItem);
 
         // Start, or Stop while an entry runs or a chain is paused. It never
-        // pauses: Stop ends the chain.
+        // pauses: Stop ends the chain. Pomodoro mode hides it unless a timer
+        // runs or is paused, since the service starts no timer then.
         this._toggleItem = new PopupMenu.PopupMenuItem(_('Start'));
         this._toggleItem.connect('activate', () => this._startOrStop());
         this.menu.addMenuItem(this._toggleItem);
 
+        // The session's actions; _sync shows the ones the state offers.
+        this._startSessionItem = new PopupMenu.PopupMenuItem(_('Start session'));
+        this._startSessionItem.connect('activate', () => this._call('StartSession', []));
+        this.menu.addMenuItem(this._startSessionItem);
+        this._nextPhaseItem = new PopupMenu.PopupMenuItem('');
+        this._nextPhaseItem.connect('activate', () => this._call('NextPhase', []));
+        this.menu.addMenuItem(this._nextPhaseItem);
+        this._endSessionItem = new PopupMenu.PopupMenuItem(_('End session'));
+        this._endSessionItem.connect('activate', () => this._call('EndSession', []));
+        this.menu.addMenuItem(this._endSessionItem);
+
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // Timer mode or Pomodoro mode. Like Billable below, it must not send
+        // back what _sync sets.
+        this._modeItem = new PopupMenu.PopupSwitchMenuItem(_('Pomodoro mode'), false);
+        this._modeItem.connect('toggled', (item, state) => {
+            if (!this._syncing)
+                this._setPomodoroMode(state);
+        });
+        this.menu.addMenuItem(this._modeItem);
 
         // Rebuilt by _syncProjects.
         this._projectMenu = new PopupMenu.PopupSubMenuMenuItem('');
@@ -276,6 +325,15 @@ class TokklIndicator extends PanelMenu.Button {
             chosenProject: this._property('ChosenProject', 0),
             chosenProjectName: this._property('ChosenProjectName', ''),
             billable: this._property('Billable', false),
+            pomodoroMode: this._property('PomodoroMode', false),
+            modeLocked: this._property('ModeLocked', false),
+            sessionActive: this._property('SessionActive', false),
+            phase: this._property('Phase', ''),
+            plannedEnd: this._property('PlannedEnd', 0),
+            pomodoroNumber: this._property('PomodoroNumber', 0),
+            longRestEvery: this._property('LongRestEvery', 0),
+            nextPhase: this._property('NextPhase', ''),
+            sessionMessage: this._property('SessionMessage', ''),
         };
     }
 
@@ -283,27 +341,33 @@ class TokklIndicator extends PanelMenu.Button {
         const state = this._state();
         const words = describeStatus(state.status, state.errorString, _);
         const ready = state.status === 'ready';
+        const timerHeld = state.running || state.paused;
 
         this._words = words;
         this._running = state.running;
         this._paused = state.paused;
         this._startTime = state.startTime;
         this._chainSeconds = state.chainSeconds;
+        this._pomodoroMode = state.pomodoroMode;
+        // The panel counts the phase down while a session is active, unless
+        // a timer runs or is paused.
+        this._session = state.sessionActive && !timerHeld ? state : null;
+        this._ticking = state.running || state.sessionActive;
+        this._hourglass.visible = state.pomodoroMode;
         this._projectIndicator.setShape(describeIndicator(state, this._settings.enable_animations, _));
-        this._updateElapsed();
+        this._updateTime();
         this._syncTick();
 
-        // While paused the line leads with the chain total, then the
-        // connection state, as the KDE and macOS menus do.
-        this._statusItem.label.text = state.paused
-            ? _('Paused %s · %s').format(this._chainTotal(), words.text)
-            : words.text;
+        this._messageItem.label.text = state.sessionMessage;
+        this._messageItem.visible = state.sessionMessage.length > 0;
         this._detailItem.label.text = words.detail;
         this._detailItem.visible = words.detail.length > 0;
 
-        this._toggleItem.label.text = state.running || state.paused ? _('Stop') : _('Start');
+        this._toggleItem.label.text = timerHeld ? _('Stop') : _('Start');
         this._toggleItem.setSensitive(ready);
+        this._toggleItem.visible = !state.pomodoroMode || timerHeld;
 
+        this._syncSession(state, timerHeld);
         this._syncProjects(state, ready);
 
         // Billable stays editable while an entry runs: the service then
@@ -313,6 +377,25 @@ class TokklIndicator extends PanelMenu.Button {
         this._billableItem.setToggleState(state.billable);
         this._syncing = false;
         this._billableItem.setSensitive(ready && !state.paused);
+    }
+
+    // The session's items and the mode switch. Which actions apply is the
+    // service's call: it refuses the others, and the menu only follows the
+    // published state.
+    _syncSession(state, timerHeld) {
+        this._startSessionItem.visible = state.pomodoroMode && !state.sessionActive && !timerHeld;
+        // A session needs an account, but starts while the instance is
+        // unreachable.
+        this._startSessionItem.setSensitive(state.status !== null && state.status !== 'unconfigured');
+        this._nextPhaseItem.label.text = nextPhaseLabel(state.nextPhase, _);
+        this._nextPhaseItem.visible = state.sessionActive;
+        this._endSessionItem.visible = state.sessionActive;
+
+        this._modeItem.label.text = pomodoroModeLabel(state.modeLocked, _);
+        this._syncing = true;
+        this._modeItem.setToggleState(state.pomodoroMode);
+        this._syncing = false;
+        this._modeItem.setSensitive(state.status !== null && !state.modeLocked);
     }
 
     // Project chooses the project of the next start. The service refuses it
@@ -350,84 +433,110 @@ class TokklIndicator extends PanelMenu.Button {
         return formatElapsed(this._chainSeconds + running);
     }
 
-    _updateElapsed() {
-        const elapsed = this._chainTotal();
-        this._label.text = `${elapsed}${this._words.mark}`;
+    // The time on the button, the menu's status line and the button's
+    // accessible name. During a session they show the phase's countdown
+    // instead of the timer.
+    _updateTime() {
+        let timer, status;
+        if (this._session) {
+            const now = GLib.get_real_time() / 1_000_000;
+            this._label.text = `${countdown(this._session.plannedEnd, now).text}${this._words.mark}`;
+            timer = status = sessionLine(this._session, now, _);
+        } else {
+            const elapsed = this._chainTotal();
+            this._label.text = `${elapsed}${this._words.mark}`;
+            timer = _('Stopped');
+            status = this._words.text;
+            if (this._running) {
+                timer = _('Running %s').format(elapsed);
+            } else if (this._paused) {
+                timer = _('Paused %s').format(elapsed);
+                // While paused the line leads with the chain total, then the
+                // connection state, as the KDE and macOS menus do.
+                status = _('Paused %s · %s').format(elapsed, this._words.text);
+            }
+        }
+        this._statusItem.label.text = status;
 
-        let timer = _('Stopped');
-        if (this._running)
-            timer = _('Running %s').format(elapsed);
-        else if (this._paused)
-            timer = _('Paused %s').format(elapsed);
         const parts = [timer];
         if (this._projectIndicator.shape.label)
             parts.push(this._projectIndicator.shape.label);
         parts.push(this._words.text);
         if (this._words.detail)
             parts.push(this._words.detail);
+        if (this._pomodoroMode && !this._session)
+            parts.push(_('Pomodoro mode'));
         this.accessible_name = parts.join(' · ');
     }
 
-    // Ticks once a second while an entry runs, and not at all otherwise.
+    // Ticks once a second while an entry runs or a session is active, and
+    // not at all otherwise.
     _syncTick() {
-        if (this._running && !this._tickId) {
+        if (this._ticking && !this._tickId) {
             this._tickId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
-                this._updateElapsed();
+                this._updateTime();
                 return GLib.SOURCE_CONTINUE;
             });
             GLib.Source.set_name_by_id(this._tickId, '[tokkl] elapsed time');
-        } else if (!this._running && this._tickId) {
+        } else if (!this._ticking && this._tickId) {
             GLib.source_remove(this._tickId);
             this._tickId = 0;
         }
     }
 
-    // What a primary click and Space or Return on the button do.
-    _pauseResumeOrStart() {
-        if (this._paused)
-            this._call('Resume', []);
-        else if (this._running)
-            this._call('Pause', []);
-        else
-            this._call('Start', []);
+    // What a primary click and Space or Return on the button do. The
+    // service decides: with a timer or in Timer mode it pauses, resumes or
+    // starts, and in Pomodoro mode it starts a session or confirms a phase
+    // that rings. Before the planned end it asks for the menu instead.
+    _activate() {
+        this._call('Activate', [], action => {
+            if (action === 'open-menu' && !this.menu.isOpen)
+                this.menu.toggle();
+        });
     }
 
     _startOrStop() {
         this._call(this._running || this._paused ? 'Stop' : 'Start', []);
     }
 
+    // The service answers false when it refused a choice, and then announces
+    // nothing, so a refused choice puts the switch back to the service's
+    // value.
     _setBillable(state) {
-        // A refused choice puts the switch back to the service's value.
-        this._call('SetBillable', [state], () => this._sync());
+        this._call('SetBillable', [state], accepted => accepted || this._sync());
+    }
+
+    _setPomodoroMode(state) {
+        this._call('SetPomodoroMode', [state], accepted => accepted || this._sync());
     }
 
     /**
-     * Calls a Timer1 method. The service answers false when it refused, and
-     * then announces nothing, so onRefused can restore what the menu shows.
+     * Calls a Timer1 method.
      *
      * @param {string} method
      * @param {Array} args
-     * @param {() => void} [onRefused]
+     * @param {(reply: any) => void} [onReply] gets the method's result, or
+     *     null when the call failed; not called once the button is gone
      */
-    _call(method, args, onRefused) {
+    _call(method, args, onReply) {
         if (!this._proxy)
             return;
         this._proxy[`${method}Remote`](...args, (result, error) => {
             if (error)
                 console.warn(`Tokkl: ${method} failed: ${error.message}`);
-            if ((error || !result?.[0]) && onRefused && this._proxy)
-                onRefused();
+            if (onReply && this._proxy)
+                onReply(error ? null : result[0]);
         });
     }
 
-    // A primary click pauses a running timer, resumes a paused one and
-    // otherwise starts; other buttons and touch open the menu, whose Stop
-    // ends the timer. Space and Return on the focused button do what a
-    // primary click does (see _isActivateKey), and Down opens the menu.
+    // A primary click is the service's Activate (see _activate); other
+    // buttons and touch open the menu, whose Stop ends the timer. Space and
+    // Return on the focused button do what a primary click does (see
+    // _isActivateKey), and Down opens the menu.
     _onPress(button) {
         if (button === Clutter.BUTTON_PRIMARY) {
             this.menu.close();
-            this._pauseResumeOrStart();
+            this._activate();
         } else {
             this.menu.toggle();
         }

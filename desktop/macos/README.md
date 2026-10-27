@@ -32,6 +32,8 @@ The menu bar item shows the clock logo in full colour, then a small shape for th
 
 While the timer is loading or saving, the time ends with `…`. When it is offline, refused or failing, the time ends with `!`, and the tooltip and the first menu line say why.
 
+In Pomodoro mode, when a phase reaches its planned end, the sound chosen for that transition plays over and over until you confirm Next phase, end the session or the session ends on its own. A click on the item while it rings confirms Next phase. The sounds are the four the web app plays, bundled in `Contents/Resources/sounds`.
+
 The app sets `LSUIElement`, so it has no Dock icon. Quit it from its menu.
 
 ## Settings
@@ -43,6 +45,8 @@ Test Connection checks the values against the instance without saving them. Save
 Open Tokkl at login registers the app as a login item. macOS may ask you to allow it in System Settings → General → Login Items, and you can turn it off there too.
 
 Use a monochrome menu bar icon switches the clock logo to the menu bar's text colour automatically, including after appearance changes. Save keeps this preference. Full colour is the default; the project indicator keeps its own colour in either mode.
+
+The Pomodoro section shows the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the same preferences the web app and Android use, read again each time the window opens. With a connected account you can edit them, and Save posts the ones that changed; a length the server refuses shows its message next to the field, and the window stays open. Without a connection the last lengths read show and cannot be edited, and a note says so. Below them, each of the four transitions has the sound it plays, chosen from the same four sounds, with a Preview button that plays the selection once. Save keeps the choices in the preferences file next to the address; they never go to the server.
 
 Requests carry the client name `tokkl-macos` in the `User-Agent` header and in the `created_with` field of the entries the app starts.
 
@@ -76,7 +80,7 @@ desktop/macos/scripts/package-dmg.sh --app desktop/macos/build/src/Tokkl.app \
 desktop/macos/scripts/check-dmg.sh desktop/macos/dist/Tokkl-*.dmg "$(node -p 'require("./package.json").version')"
 ```
 
-It copies the bundle, adds Qt and QtKeychain with `macdeployqt`, signs every binary ad hoc, checks that the copy loads no library from outside the bundle or the system, and packages it with a link to `/Applications`. `check-dmg.sh` mounts the DMG, checks the version, the icon and the signature, and starts the app from it for ten seconds. `--identity <identity>` signs with a certificate instead.
+It copies the bundle, adds Qt and QtKeychain with `macdeployqt`, signs every binary ad hoc, checks that the copy loads no library from outside the bundle or the system, and packages it with a link to `/Applications`. `check-dmg.sh` mounts the DMG, checks the version, the icon, the four alarm sounds and the signature, and starts the app from it for ten seconds. `--identity <identity>` signs with a certificate instead.
 
 The build signs the bundle ad hoc. An ad hoc signature changes with every build, so the Keychain may ask for access again after a rebuild. Pass `-DTOKKL_CODESIGN_IDENTITY=<identity>` to sign with a certificate from your keychain instead.
 
@@ -84,7 +88,8 @@ The build signs the bundle ad hoc. An ad hoc signature changes with every build,
 
 - `src/menubarapp.*`, `statusmenu.*`, `statuswords.*`, `projectindicator.*`, `statusimage.*` and `settingswindow.*` are the app without its platform layer. They need only Qt Widgets and the core, so they build and are tested on Linux as well. `statusimage.*` puts the logo and then the project indicator in the menu bar item's image and sets their sizes.
 - `src/keychaincredentialstore.*` stores secrets through QtKeychain. It builds wherever QtKeychain is installed.
-- `src/macstatusitem.mm`, `macloginitem.mm` and `main.mm` are the macOS layer. They hold the NSStatusItem and the drawing of its logo and project indicator, the SMAppService login item and the wiring. The app does not use `QSystemTrayIcon` because it cannot show text. Its API has an icon and a tooltip only, and Qt's Cocoa backend sets only the status button's image.
+- `src/pomodoroalarm.*` decides what the alarm plays: the sound chosen for the ringing transition, from the WAVs in the bundle, looped on an `AlarmPlayer` (`alarmplayer.h`) while the session rings. The settings window previews through the same player. The tests use a fake player and point the alarm at `desktop/core/sounds`.
+- `src/macstatusitem.mm`, `macloginitem.mm`, `macalarmplayer.mm` and `main.mm` are the macOS layer. They hold the NSStatusItem and the drawing of its logo and project indicator, the SMAppService login item, the NSSound alarm player and the wiring. The app does not use `QSystemTrayIcon` because it cannot show text. Its API has an icon and a tooltip only, and Qt's Cocoa backend sets only the status button's image. The alarm uses NSSound rather than Qt Multimedia so the DMG and the CI job need no further module or plugins; `alarmplayer.h` gives the reasons.
 
 On a machine without macOS, the same commands build no app but run the tests: `menubarapp`, `infoplist`, the core's tests, and `keychaincredentialstore` when QtKeychain is installed. The `macos` CI job builds and tests the app on `macos-latest` with a pinned Qt from the Qt installer and a pinned QtKeychain built from source, both set up by `.github/actions/macos-build`. It then packages and checks a DMG with the two scripts. The release waits for it.
 

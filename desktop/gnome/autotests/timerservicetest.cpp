@@ -1,6 +1,8 @@
 // org.tokkl.Timer1 driven over a private D-Bus daemon, as the extension uses
 // it, against the core's scripted transport, credential store and clock.
 
+#include "alarmbackend.h"
+#include "alarmplayer.h"
 #include "connection.h"
 #include "fakes.h"
 #include "instanceurl.h"
@@ -19,6 +21,7 @@
 #include <QDBusPendingCall>
 #include <QDBusVariant>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -221,6 +224,40 @@ public Q_SLOTS:
         }
     }
 };
+
+// Records what the alarm player asks of the audio, one line per call.
+class FakeAlarmBackend : public AlarmBackend
+{
+public:
+    QStringList calls;
+
+    void loop(const QString &file) override
+    {
+        calls.append(QStringLiteral("loop ") + file);
+    }
+
+    void playOnce(const QString &file) override
+    {
+        calls.append(QStringLiteral("once ") + file);
+    }
+
+    void stop() override
+    {
+        calls.append(QStringLiteral("stop"));
+    }
+};
+
+// The bundled sounds, from the core's sounds/ directory.
+QString bundledSoundsDir()
+{
+    const QStringList files = QString::fromUtf8(TOKKL_POMODORO_SOUND_FILES).split(QLatin1Char('|'));
+    return QFileInfo(files.first()).absolutePath();
+}
+
+QString bundled(const QString &soundId)
+{
+    return bundledSoundsDir() + QStringLiteral("/pomodoro-") + soundId + QStringLiteral(".wav");
+}
 }
 
 class TimerServiceTest : public QObject
@@ -1174,6 +1211,63 @@ private Q_SLOTS:
         }
         QVERIFY(f.restart());
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
+    }
+
+    // The alarm player loops the file of the sound chosen for the ringing
+    // transition, follows a change of choice while ringing, stops on Next
+    // phase and on End session, and plays a preview once; with it listening,
+    // PreviewSound is accepted. A player made while the alarm rings starts
+    // at once.
+    void alarmPlayerDrivesTheBackend()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
+        FakeAlarmBackend backend;
+        AlarmPlayer player(f.service.get(), &backend, bundledSoundsDir());
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
+        backend.calls.clear();
+
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
+        QVERIFY(f.serve());
+        f.advance(59);
+        QVERIFY(f.serve());
+        QVERIFY(f.ping());
+        QVERIFY(backend.calls.isEmpty());
+        f.advance(1);
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("long-rest-to-work"))});
+        // Choosing another sound for the ringing transition switches the loop.
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(backend.calls.last(), QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest")));
+        // A choice for another transition changes nothing.
+        backend.calls.clear();
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("longRestToWork"), QStringLiteral("work-to-short-rest")}).toBool(), true);
+        QVERIFY(backend.calls.isEmpty());
+        // A second player hears the alarm that already rings.
+        FakeAlarmBackend late;
+        AlarmPlayer latePlayer(f.service.get(), &late, bundledSoundsDir());
+        QCOMPARE(late.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest"))});
+
+        QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("stop")});
+        QCOMPARE(late.calls.last(), QStringLiteral("stop"));
+        backend.calls.clear();
+        f.advance(60);
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QStringLiteral("shortRestToWork"));
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("short-rest-to-work"))});
+        QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
+        QCOMPARE(backend.calls.last(), QStringLiteral("stop"));
+        QCOMPARE(backend.calls.size(), 2);
+        // A preview while silent plays once and leaves no loop behind.
+        backend.calls.clear();
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("work-to-long-rest"))});
     }
 
 private:

@@ -1,6 +1,7 @@
 # tokklgnome: org.tokkl.Timer1 on tokklcore, with the adaptor generated from
-# the interface description in dbus/. Qt Core, Network and DBus only, so the
-# tests build without QtKeychain.
+# the interface description in dbus/, and the alarm player that turns the
+# service's ringing state into calls on an AlarmBackend. Qt Core, Network and
+# DBus only, so the tests build without QtKeychain or libpulse.
 
 set(_tokkl_adaptor_sources)
 qt_add_dbus_adaptor(_tokkl_adaptor_sources
@@ -11,8 +12,13 @@ qt_add_dbus_adaptor(_tokkl_adaptor_sources
     Timer1Adaptor)
 
 add_library(tokklgnome STATIC
+    alarmbackend.h
+    alarmplayer.cpp
+    alarmplayer.h
     timerservice.cpp
     timerservice.h
+    wavfile.cpp
+    wavfile.h
     ${_tokkl_adaptor_sources}
 )
 target_include_directories(tokklgnome
@@ -38,13 +44,31 @@ if(TOKKL_GNOME_DAEMON)
             Qt6Keychain::Qt6Keychain
     )
 
+    # The sound server backend of the alarm, apart so its test can link it.
+    add_library(tokklalarm STATIC
+        pulsealarmbackend.cpp
+        pulsealarmbackend.h
+    )
+    target_link_libraries(tokklalarm
+        PUBLIC
+            tokklgnome
+        PRIVATE
+            PkgConfig::PulseSimple
+    )
+
+    # The bundled sounds, where the player looks for them.
+    set(_tokkl_sounds_dir "${CMAKE_INSTALL_DATADIR}/tokkl-timerd/sounds")
+
     add_executable(tokkl-timerd main.cpp)
     target_compile_definitions(tokkl-timerd PRIVATE
         TOKKL_VERSION_STRING="${TOKKL_RESOLVED_VERSION}"
+        TOKKL_SOUNDS_DIR="${CMAKE_INSTALL_FULL_DATADIR}/tokkl-timerd/sounds"
     )
     target_link_libraries(tokkl-timerd PRIVATE
+        tokklalarm
         tokklgnome
         tokklkeychain
     )
     install(TARGETS tokkl-timerd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES ${TOKKL_POMODORO_SOUND_FILES} DESTINATION ${_tokkl_sounds_dir})
 endif()

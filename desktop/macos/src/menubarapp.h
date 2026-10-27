@@ -11,11 +11,13 @@ class QSettings;
 namespace Tokkl
 {
 
+class AlarmPlayer;
 class Clock;
 class Connection;
 class SettingsChainStore;
 class CredentialStore;
 class LoginItem;
+class PomodoroAlarm;
 class PomodoroPreferences;
 class PomodoroQueue;
 class PomodoroSession;
@@ -28,9 +30,10 @@ class Transport;
 
 // The menu bar app without its platform layer: the connection, timer and
 // Pomodoro session from the core, the menu bar item's text, logo, project
-// indicator, hourglass and click, its menu and the settings window. main.mm
-// hands it the NSStatusItem, the Keychain store, the SMAppService login item
-// and the network; tests hand it fakes.
+// indicator, hourglass and click, its menu, the alarm and the settings
+// window. main.mm hands it the NSStatusItem, the Keychain store, the
+// SMAppService login item, the NSSound player and the network; tests hand
+// it fakes.
 //
 // A primary click goes to PomodoroSession::activate(). In Timer mode, and on
 // a running or paused timer in either mode, it pauses a running timer,
@@ -51,7 +54,8 @@ public:
     static Transport *createTransport(QObject *parent = nullptr);
 
     // Uses the given parts; the app owns none of them. A null clock is the
-    // system clock; a null login item hides the toggle. The timer keeps its
+    // system clock; a null login item hides the toggle; a null alarm player
+    // keeps the alarm silent. The timer keeps its
     // pause chain in settings, so a relaunch keeps the total, and the session
     // keeps the mode, the session, the cached lengths and the unsaved
     // pomodoros there. With null settings the chain and the mode stay in
@@ -60,6 +64,7 @@ public:
                CredentialStore *store,
                StatusItem *statusItem,
                LoginItem *loginItem,
+               AlarmPlayer *alarmPlayer,
                QSettings *settings,
                Clock *clock = nullptr,
                QObject *parent = nullptr);
@@ -73,6 +78,7 @@ public:
     TimerController *timer() const;
     PomodoroSession *pomodoroSession() const;
     PomodoroPreferences *pomodoroPreferences() const;
+    PomodoroAlarm *pomodoroAlarm() const;
     StatusMenu *statusMenu() const;
     SettingsWindow *settingsWindow() const;
 
@@ -108,6 +114,7 @@ private:
     std::unique_ptr<PomodoroPreferences> m_preferences;
     std::unique_ptr<PomodoroQueue> m_queue;
     std::unique_ptr<PomodoroSession> m_session;
+    std::unique_ptr<PomodoroAlarm> m_alarm;
     std::unique_ptr<StatusMenu> m_menu;
     std::unique_ptr<SettingsWindow> m_settingsWindow;
 };
