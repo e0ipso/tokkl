@@ -304,7 +304,7 @@ int TimerService::longRestEvery() const
     return m_session->longRestEvery();
 }
 
-QString TimerService::nextPhase() const
+QString TimerService::upcomingPhase() const
 {
     return m_session->nextPhase();
 }
@@ -599,7 +599,7 @@ QVariantMap TimerService::snapshot() const
         {QStringLiteral("PlannedEnd"), plannedEnd()},
         {QStringLiteral("PomodoroNumber"), pomodoroNumber()},
         {QStringLiteral("LongRestEvery"), longRestEvery()},
-        {QStringLiteral("NextPhase"), nextPhase()},
+        {QStringLiteral("UpcomingPhase"), upcomingPhase()},
         {QStringLiteral("Ringing"), ringing()},
         {QStringLiteral("RingingTransition"), ringingTransition()},
         {QStringLiteral("SessionMessage"), sessionMessage()},

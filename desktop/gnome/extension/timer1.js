@@ -32,7 +32,7 @@ export const TIMER1_INTERFACE = `<node>
     <property name="PlannedEnd" type="x" access="read"/>
     <property name="PomodoroNumber" type="i" access="read"/>
     <property name="LongRestEvery" type="i" access="read"/>
-    <property name="NextPhase" type="s" access="read"/>
+    <property name="UpcomingPhase" type="s" access="read"/>
     <property name="Ringing" type="b" access="read"/>
     <property name="RingingTransition" type="s" access="read"/>
     <property name="SessionMessage" type="s" access="read"/>
@@ -164,8 +164,8 @@ export function countdown(plannedEnd, nowSeconds) {
 }
 
 /**
- * Work, Short rest or Long rest for the Phase or NextPhase property; empty
- * for anything else.
+ * Work, Short rest or Long rest for the Phase or UpcomingPhase property;
+ * empty for anything else.
  *
  * @param {string} phase
  * @param {(text: string) => string} _ gettext
@@ -202,14 +202,15 @@ export function sessionLine(session, nowSeconds, _) {
 }
 
 /**
- * The menu item that calls NextPhase, named after the NextPhase property.
+ * The menu item that calls NextPhase, named after the UpcomingPhase
+ * property.
  *
- * @param {string} nextPhase
+ * @param {string} upcomingPhase
  * @param {(text: string) => string} _ gettext
  * @returns {string}
  */
-export function nextPhaseLabel(nextPhase, _) {
-    return fill(_('Next phase: %s'), phaseName(nextPhase, _));
+export function nextPhaseLabel(upcomingPhase, _) {
+    return fill(_('Next phase: %s'), phaseName(upcomingPhase, _));
 }
 
 /**

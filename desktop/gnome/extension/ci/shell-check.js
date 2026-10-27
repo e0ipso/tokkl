@@ -606,8 +606,8 @@ await step('a primary click starts a session, and the label counts the phase dow
     await waitFor('the next second', () => label() !== first || label(), 3000);
     await sessionItemsAre('the session items', {toggle: false, startSession: false, nextPhase: true, endSession: true});
     const next = shell(`${button}._nextPhaseItem.label.text`);
-    if (next !== 'Next phase: Short rest' || timerProperty('NextPhase') !== 'shortRest')
-        throw new Error(`next phase: ${next}, ${timerProperty('NextPhase')}`);
+    if (next !== 'Next phase: Short rest' || timerProperty('UpcomingPhase') !== 'shortRest')
+        throw new Error(`next phase: ${next}, ${timerProperty('UpcomingPhase')}`);
     if (!/^Work · 2[45]:\d\d left · Pomodoro 1 of 4$/.test(statusLine()))
         throw new Error(`status: ${statusLine()}`);
     const name = accessibleName();

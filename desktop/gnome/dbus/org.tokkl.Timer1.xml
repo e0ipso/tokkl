@@ -75,9 +75,9 @@
     <!-- Work phases per round, from the lengths the session started with;
          0 without a session. -->
     <property name="LongRestEvery" type="i" access="read"/>
-    <!-- The kind of phase NextPhase would start, as Phase names it; empty
-         without a session. -->
-    <property name="NextPhase" type="s" access="read"/>
+    <!-- The kind of phase the NextPhase method would start, as Phase
+         names it; empty without a session. -->
+    <property name="UpcomingPhase" type="s" access="read"/>
     <!-- The planned end has passed and no action was taken yet. It stays
          true until NextPhase or EndSession, also across a restart. -->
     <property name="Ringing" type="b" access="read"/>

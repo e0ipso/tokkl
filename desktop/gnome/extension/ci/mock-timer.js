@@ -31,7 +31,7 @@ const types = {
     PomodoroLengths: 'a{si}', PomodoroLengthsEditable: 'b', PomodoroLengthErrors: 'a{ss}', Sounds: 'a{ss}',
     SoundChoices: 'aa{sv}',
     PomodoroMode: 'b', ModeLocked: 'b', SessionActive: 'b', Phase: 's', PhaseStart: 'x', PlannedEnd: 'x',
-    PomodoroNumber: 'i', LongRestEvery: 'i', NextPhase: 's', Ringing: 'b', RingingTransition: 's', SessionMessage: 's',
+    PomodoroNumber: 'i', LongRestEvery: 'i', UpcomingPhase: 's', Ringing: 'b', RingingTransition: 's', SessionMessage: 's',
 };
 
 const state = {
@@ -73,7 +73,7 @@ const state = {
     PlannedEnd: 0,
     PomodoroNumber: 0,
     LongRestEvery: 0,
-    NextPhase: '',
+    UpcomingPhase: '',
     Ringing: false,
     RingingTransition: '',
     SessionMessage: '',
@@ -134,7 +134,7 @@ function startPhase(kind, pomodoroNumber) {
         PhaseStart: start,
         PlannedEnd: start + state.PomodoroLengths[kind] * 60,
         PomodoroNumber: pomodoroNumber,
-        NextPhase: next,
+        UpcomingPhase: next,
         Ringing: false,
         RingingTransition: '',
     });
@@ -262,7 +262,7 @@ class Timer1 {
         if (!state.SessionActive)
             return false;
         if (state.Phase === 'work')
-            startPhase(state.NextPhase, state.PomodoroNumber);
+            startPhase(state.UpcomingPhase, state.PomodoroNumber);
         else
             startPhase('work', state.Phase === 'longRest' ? 1 : state.PomodoroNumber + 1);
         return true;
@@ -274,7 +274,7 @@ class Timer1 {
             return false;
         set({
             SessionActive: false, Phase: '', PhaseStart: 0, PlannedEnd: 0, PomodoroNumber: 0, LongRestEvery: 0,
-            NextPhase: '', Ringing: false, RingingTransition: '',
+            UpcomingPhase: '', Ringing: false, RingingTransition: '',
         });
         return true;
     }
@@ -317,15 +317,8 @@ class Timer1 {
 }
 
 const implementation = new Timer1();
-for (const name of Object.keys(types).filter(name => name !== 'NextPhase'))
+for (const name of Object.keys(types))
     Object.defineProperty(implementation, name, {get: () => variant(name).deepUnpack()});
-// NextPhase is both a property and a method, and the exported object looks
-// both up as implementation.NextPhase. A read from GJS's property getter
-// gets the value; every other read, a method call, gets the method.
-const nextPhaseMethod = Timer1.prototype.NextPhase;
-Object.defineProperty(implementation, 'NextPhase', {
-    get: () => new Error().stack.includes('_handlePropertyGet') ? state.NextPhase : nextPhaseMethod,
-});
 timer = Gio.DBusExportedObject.wrapJSObject(timerXml, implementation);
 
 const loop = new GLib.MainLoop(null, false);

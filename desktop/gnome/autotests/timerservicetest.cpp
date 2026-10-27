@@ -475,7 +475,7 @@ private Q_SLOTS:
             {QStringLiteral("PlannedEnd"), QStringLiteral("x read")},
             {QStringLiteral("PomodoroNumber"), QStringLiteral("i read")},
             {QStringLiteral("LongRestEvery"), QStringLiteral("i read")},
-            {QStringLiteral("NextPhase"), QStringLiteral("s read")},
+            {QStringLiteral("UpcomingPhase"), QStringLiteral("s read")},
             {QStringLiteral("Ringing"), QStringLiteral("b read")},
             {QStringLiteral("RingingTransition"), QStringLiteral("s read")},
             {QStringLiteral("SessionMessage"), QStringLiteral("s read")},
@@ -894,7 +894,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PhaseStart")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 0);
-        QCOMPARE(f.get(QStringLiteral("NextPhase")).toString(), QString());
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QString());
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
         QSignalSpy alarms(f.service.get(), &TimerService::alarmChanged);
@@ -926,7 +926,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), at.addSecs(60).toSecsSinceEpoch());
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 1);
         QCOMPARE(f.get(QStringLiteral("LongRestEvery")).toInt(), 2);
-        QCOMPARE(f.get(QStringLiteral("NextPhase")).toString(), QStringLiteral("shortRest"));
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("shortRest"));
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
         QVERIFY(QTest::qWaitFor([&f] {
             return f.recorder.valuesOf(QStringLiteral("SessionActive")).contains(true);
@@ -935,7 +935,7 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("PhaseStart")).contains(at.toSecsSinceEpoch()));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("PlannedEnd")).contains(at.addSecs(60).toSecsSinceEpoch()));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("PomodoroNumber")).contains(1));
-        QVERIFY(f.recorder.valuesOf(QStringLiteral("NextPhase")).contains(QStringLiteral("shortRest")));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("UpcomingPhase")).contains(QStringLiteral("shortRest")));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
@@ -960,7 +960,7 @@ private Q_SLOTS:
         // Work to rest saves nothing and silences the alarm.
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
-        QCOMPARE(f.get(QStringLiteral("NextPhase")).toString(), QStringLiteral("work"));
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("work"));
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QString());
         QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 0);
@@ -982,7 +982,7 @@ private Q_SLOTS:
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
-        QCOMPARE(f.get(QStringLiteral("NextPhase")).toString(), QStringLiteral("longRest"));
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("longRest"));
         QJsonObject saved = body;
         saved.insert(QStringLiteral("id"), 100);
         f.respond(posts.first(), FakeTransport::answer(200, json(saved)));

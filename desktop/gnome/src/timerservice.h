@@ -54,7 +54,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(qint64 PlannedEnd READ plannedEnd)
     Q_PROPERTY(int PomodoroNumber READ pomodoroNumber)
     Q_PROPERTY(int LongRestEvery READ longRestEvery)
-    Q_PROPERTY(QString NextPhase READ nextPhase)
+    Q_PROPERTY(QString UpcomingPhase READ upcomingPhase)
     Q_PROPERTY(bool Ringing READ ringing)
     Q_PROPERTY(QString RingingTransition READ ringingTransition)
     Q_PROPERTY(QString SessionMessage READ sessionMessage)
@@ -114,7 +114,7 @@ public:
     qint64 plannedEnd() const;
     int pomodoroNumber() const;
     int longRestEvery() const;
-    QString nextPhase() const;
+    QString upcomingPhase() const;
     bool ringing() const;
     QString ringingTransition() const;
     QString sessionMessage() const;

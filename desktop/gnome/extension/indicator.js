@@ -332,7 +332,7 @@ class TokklIndicator extends PanelMenu.Button {
             plannedEnd: this._property('PlannedEnd', 0),
             pomodoroNumber: this._property('PomodoroNumber', 0),
             longRestEvery: this._property('LongRestEvery', 0),
-            nextPhase: this._property('NextPhase', ''),
+            upcomingPhase: this._property('UpcomingPhase', ''),
             sessionMessage: this._property('SessionMessage', ''),
         };
     }
@@ -387,7 +387,7 @@ class TokklIndicator extends PanelMenu.Button {
         // A session needs an account, but starts while the instance is
         // unreachable.
         this._startSessionItem.setSensitive(state.status !== null && state.status !== 'unconfigured');
-        this._nextPhaseItem.label.text = nextPhaseLabel(state.nextPhase, _);
+        this._nextPhaseItem.label.text = nextPhaseLabel(state.upcomingPhase, _);
         this._nextPhaseItem.visible = state.sessionActive;
         this._endSessionItem.visible = state.sessionActive;
 
