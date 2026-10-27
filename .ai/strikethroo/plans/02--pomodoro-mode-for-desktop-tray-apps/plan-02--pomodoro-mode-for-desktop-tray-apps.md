@@ -353,9 +353,9 @@ No circular dependencies. Task 12's Preview button makes sound only once task 10
 - ✔️ Task 12: GNOME preferences: Pomodoro group (depends on: 09)
 - ✔️ Task 14: macOS alarm player and Pomodoro settings section (depends on: 02, 13)
 
-### Phase 7: Documentation
+### ✅ Phase 7: Documentation
 **Parallel Tasks:**
-- Task 15: Document Pomodoro mode in the PRD and the desktop READMEs (depends on: 02, 07, 08, 10, 11, 12, 13, 14)
+- ✔️ Task 15: Document Pomodoro mode in the PRD and the desktop READMEs (depends on: 02, 07, 08, 10, 11, 12, 13, 14)
 
 ### Post-phase Actions
 

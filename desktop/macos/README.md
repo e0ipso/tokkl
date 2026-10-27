@@ -22,7 +22,7 @@ The app is signed ad hoc, not with an Apple Developer ID, and is not notarized. 
 
 Click the time to start a stopped timer. A new entry goes on the project selected in the menu. A click on a running timer pauses it, and the next click resumes it with a new entry that copies the paused entry's description, project, task, tags and billable flag. While paused, the time stands still. After a resume it counts on from that total, through every pause, until you stop the timer. Quitting and reopening the app keeps the total.
 
-Right-click or Control-click for the menu. It shows the timer state (Running, Paused or Stopped) and has Start Timer or Stop Timer, Project, Billable, Reconnect, Open Tokkl, Settings and Quit.
+Right-click or Control-click for the menu. It shows the timer state (Running, Paused or Stopped) and has Start Timer or Stop Timer, Project, Billable, Reconnect, Open Tokkl, Settings and Quit. In Pomodoro mode it also has Start session, Next phase and End session, and the Pomodoro mode item (see [Pomodoro mode](#pomodoro-mode)).
 
 - Start Timer starts a new entry while the timer is stopped. Stop Timer stops a running or paused timer, and the next start counts from 0:00. While paused, Stop sends nothing to the server, because the paused entry is already stopped.
 - Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. The project of a running or paused entry is locked. To switch, stop the timer and start a new entry.
@@ -32,9 +32,24 @@ The menu bar item shows the clock logo in full colour, then a small shape for th
 
 While the timer is loading or saving, the time ends with `…`. When it is offline, refused or failing, the time ends with `!`, and the tooltip and the first menu line say why.
 
-In Pomodoro mode, when a phase reaches its planned end, the sound chosen for that transition plays over and over until you confirm Next phase, end the session or the session ends on its own. A click on the item while it rings confirms Next phase. The sounds are the four the web app plays, bundled in `Contents/Resources/sounds`.
-
 The app sets `LSUIElement`, so it has no Dock icon. Quit it from its menu.
+
+## Pomodoro mode
+
+The Pomodoro mode item in the menu switches the app between Timer mode and Pomodoro mode. It is checked while Pomodoro mode is on, and the app remembers the choice on this Mac. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. End the session, or stop the timer, to change it.
+
+A click on the menu bar item depends on the mode:
+
+- In Timer mode, and while a timer runs or is paused, it acts on the timer as above.
+- In Pomodoro mode with no session, it starts one.
+- While a phase rings after its planned end, it confirms Next phase.
+- Mid-phase, it opens the menu.
+
+In Pomodoro mode the menu drops Start Timer and shows Start session while no session is active. During a session it shows Next phase: followed by the phase it starts (Work, Short rest or Long rest), and End session. Start Timer and Stop Timer show only in Timer mode or while a timer runs. Next phase ends the current phase. Ending a work phase starts a rest and saves nothing. Ending a rest saves the pomodoro, the work phase plus the rest, as one stopped entry. End session saves the open pomodoro at once. Starting a timer on another device ends the session at that timer's start and saves the partial pomodoro. A pomodoro too short to save is dropped, and the menu says "This pomodoro was too short to save." until the next session starts.
+
+Whenever Pomodoro mode is on, an hourglass follows the project indicator in the menu bar, in full colour or, with Use a monochrome menu bar icon on, in the menu bar's text colour. During a session the time counts down as `M:SS` to the phase's planned end, then up as `+M:SS` in overtime. The tooltip and VoiceOver read, for example, "Short rest · 4:10 left · Pomodoro 2 of 4". The app posts no notification.
+
+When a phase reaches its planned end, the sound chosen for that transition plays over and over until you confirm Next phase or end the session. The sounds are the four the web app plays, bundled in `Contents/Resources/sounds` and played through AppKit's `NSSound`.
 
 ## Settings
 
@@ -46,7 +61,7 @@ Open Tokkl at login registers the app as a login item. macOS may ask you to allo
 
 Use a monochrome menu bar icon switches the clock logo to the menu bar's text colour automatically, including after appearance changes. Save keeps this preference. Full colour is the default; the project indicator keeps its own colour in either mode.
 
-The Pomodoro section shows the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the same preferences the web app and Android use, read again each time the window opens. With a connected account you can edit them, and Save posts the ones that changed; a length the server refuses shows its message next to the field, and the window stays open. Without a connection the last lengths read show and cannot be edited, and a note says so. Below them, each of the four transitions has the sound it plays, chosen from the same four sounds, with a Preview button that plays the selection once. Save keeps the choices in the preferences file next to the address; they never go to the server.
+The Pomodoro section shows the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the same preferences the web app and Android use, read again each time the window opens. With a connected account you can edit them, and Save posts the ones that changed; a length the server refuses shows its message next to the field, and the window stays open. Without a connection the last lengths read show and cannot be edited, and a note says so. Below them, each of the four transitions has the sound it plays, chosen from the same four sounds, with a Preview button that plays the selection once. Save keeps the choices in the preferences file next to the address; they never go to the server. A session has no lengths of its own: it uses the account's lengths.
 
 Requests carry the client name `tokkl-macos` in the `User-Agent` header and in the `created_with` field of the entries the app starts.
 
