@@ -3,6 +3,7 @@ import type { Db } from '../db/index.ts';
 import type { Config } from '../config.ts';
 import type { UserRow } from '../models/users.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
+import type { TimerStreams } from '../services/timerStreams.ts';
 import { badRequest } from '../lib/errors.ts';
 
 /** Shared by every router; created once in createApp. */
@@ -17,6 +18,11 @@ export interface Deps {
   loginLimiter: FailureLimiter;
   /** Wrong setup codes per client address, counted apart from passwords. */
   setupLimiter: FailureLimiter;
+  /**
+   * Open timer event streams. Anything that may end a credential (logout, token rotation, a
+   * password change or reset, suspension, deletion) calls `recheck` for the account after it commits.
+   */
+  timerStreams: TimerStreams;
 }
 
 declare module 'express-serve-static-core' {

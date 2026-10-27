@@ -113,7 +113,7 @@ function paginate<T>(req: Request, items: T[], defaultPerPage: number): T[] {
 }
 
 export function togglV9Routes(deps: Deps): Router {
-  const { db, config, loginLimiter } = deps;
+  const { db, config, loginLimiter, timerStreams } = deps;
   const api = express.Router();
   api.use(requireAuth(deps));
 
@@ -198,12 +198,14 @@ export function togglV9Routes(deps: Deps): Router {
         deleteOtherSessions(db, user.id, res.locals.authMethod === 'session' ? res.locals.sessionToken : undefined);
       }
     });
+    if (passwordHash !== user.password_hash) timerStreams.recheck(user.id);
     return res.json(serializeUser(getUser(db, user.id)!, { includeToken: true }));
   });
 
   api.post('/me/reset_token', (req, res) => {
     const token = generateApiToken();
     db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?').run(token, nowIso(), res.locals.user.id);
+    timerStreams.recheck(res.locals.user.id);
     return res.json(token);
   });
 

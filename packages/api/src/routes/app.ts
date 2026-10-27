@@ -66,7 +66,7 @@ function readNewAccount(body: Record<string, unknown>): NewAccount {
 }
 
 export function appRoutes(deps: Deps, setup: SetupState): Router {
-  const { db, loginLimiter, setupLimiter } = deps;
+  const { db, loginLimiter, setupLimiter, timerStreams } = deps;
   const app = express.Router();
   const auth = requireAuth(deps);
 
@@ -148,6 +148,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     // scrypt runs before the transaction, which checks the link and the account again.
     const passwordHash = await hashPassword(password);
     resetPassword(db, token, passwordHash);
+    timerStreams.recheck(user.id);
     // Failed logins from before the reset no longer stand between the user and the new password.
     loginLimiter.reset(accountCounters(user.email, clientAddress(req)));
     return res.json({ ok: true });
@@ -174,9 +175,13 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   // Ending an active session is a cookie-authenticated write, so it needs the CSRF header.
   // Without an active session there is nothing to protect and logout stays idempotent.
   app.post('/logout', (req, res) => {
-    const active = sessionTokens(req).filter((token) => findSessionUser(db, token));
+    const active = sessionTokens(req).flatMap((token) => {
+      const user = findSessionUser(db, token);
+      return user ? [{ token, userId: user.id }] : [];
+    });
     if (active.length > 0 && !hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
-    for (const token of active) deleteSession(db, token);
+    for (const { token } of active) deleteSession(db, token);
+    for (const { userId } of active) timerStreams.recheck(userId);
     res.clearCookie(SESSION_COOKIE, { path: '/' });
     res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
     return res.json({ ok: true });

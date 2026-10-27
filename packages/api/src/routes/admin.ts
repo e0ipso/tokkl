@@ -33,7 +33,7 @@ function readAccountChanges(body: Record<string, unknown>): AccountChanges {
 
 /** Instance administration. Every route needs an active admin, signed in like any other API call. */
 export function adminRoutes(deps: Deps): Router {
-  const { db, config } = deps;
+  const { db, config, timerStreams } = deps;
   const api = express.Router();
   api.use(requireAuth(deps), requireAdmin);
 
@@ -60,6 +60,7 @@ export function adminRoutes(deps: Deps): Router {
       if (changes.disabled) deleteOtherSessions(db, id);
       return getUser(db, id)!;
     });
+    timerStreams.recheck(id);
     return res.json(serializeAccount(updated));
   });
 
@@ -83,6 +84,7 @@ export function adminRoutes(deps: Deps): Router {
       // Sessions, memberships, remaining time entries and the tokens tied to the account cascade.
       db.prepare('DELETE FROM users WHERE id = ?').run(id);
     });
+    timerStreams.recheck(id);
     return res.json({ ok: true });
   });
 
@@ -91,6 +93,7 @@ export function adminRoutes(deps: Deps): Router {
     const id = parseId(req.params.id);
     if (!getUser(db, id)) throw notFound('User not found');
     deleteOtherSessions(db, id);
+    timerStreams.recheck(id);
     return res.json({ ok: true });
   });
 
