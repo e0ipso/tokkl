@@ -1,11 +1,12 @@
 import type { Db } from '../db/index.ts';
-import { nowIso } from '../db/index.ts';
+import { nowIso, transaction } from '../db/index.ts';
 import { PROJECT_COLORS, isHexColor } from '@tokkl/common/colors';
 import { badRequest, notFound } from '../lib/errors.ts';
 import {
   asBool, optionalBool, optionalId, optionalNumber, optionalRate, optionalString, requireName, togglTime,
 } from '../lib/values.ts';
 import { createClient, getClient } from './clients.ts';
+import { touchWorkspaceTimers } from './timerState.ts';
 
 export interface ProjectRow {
   id: number;
@@ -193,16 +194,22 @@ export function updateProject(db: Db, wid: number, id: number, body: Record<stri
   return getProject(db, wid, id);
 }
 
-/** Deletes a project. Its time entries are kept without a project unless `deleteEntries` is set. */
+/**
+ * Deletes a project. Its time entries are kept without a project unless `deleteEntries` is set.
+ * Either way its running entries change, other members' included.
+ */
 export function deleteProject(db: Db, wid: number, id: number, deleteEntries: boolean): void {
-  getProject(db, wid, id);
-  const now = nowIso();
-  if (deleteEntries) {
-    db.prepare('UPDATE time_entries SET deleted_at = ?, updated_at = ? WHERE project_id = ? AND deleted_at IS NULL').run(now, now, id);
-  } else {
-    db.prepare('UPDATE time_entries SET updated_at = ? WHERE project_id = ?').run(now, id);
-  }
-  db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+  transaction(db, () => {
+    getProject(db, wid, id);
+    touchWorkspaceTimers(db, wid);
+    const now = nowIso();
+    if (deleteEntries) {
+      db.prepare('UPDATE time_entries SET deleted_at = ?, updated_at = ? WHERE project_id = ? AND deleted_at IS NULL').run(now, now, id);
+    } else {
+      db.prepare('UPDATE time_entries SET updated_at = ? WHERE project_id = ?').run(now, id);
+    }
+    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+  });
 }
 
 function projectStatus(row: ProjectRow): string {

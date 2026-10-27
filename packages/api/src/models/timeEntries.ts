@@ -11,6 +11,7 @@ import { getProjectRef, type ProjectRef } from './projects.ts';
 import { getTimeResolutionMinutes } from './settings.ts';
 import { getTag, resolveTagNames } from './tags.ts';
 import { getTaskRef } from './tasks.ts';
+import { touchTimer } from './timerState.ts';
 import type { UserRow } from './users.ts';
 import { memberWorkspace } from './workspaces.ts';
 
@@ -290,6 +291,7 @@ export function createTimeEntry(
   db: Db, user: UserRow, wid: number, body: Record<string, unknown>, options: CreateOptions = {},
 ): TimeEntryWithMeta {
   return transaction(db, () => {
+    touchTimer(db, user.id);
     assertWorkspace(body, wid);
     const start = readStart(body, new Date());
     const duration = readDuration(body.duration);
@@ -331,6 +333,7 @@ export function updateTimeEntry(
   db: Db, user: UserRow, wid: number, id: number, body: Record<string, unknown>,
 ): TimeEntryWithMeta {
   return transaction(db, () => {
+    touchTimer(db, user.id);
     assertWorkspace(body, wid);
     const current = getTimeEntry(db, user.id, id);
     if (current.workspace_id !== wid) throw notFound('Time entry not found');
@@ -383,6 +386,7 @@ export function updateTimeEntry(
 export function stopTimeEntry(db: Db, user: UserRow, wid: number, id: number, stop?: unknown): TimeEntryWithMeta {
   const at = stop === undefined ? new Date() : parseInstant(stop, 'stop');
   return transaction(db, () => {
+    touchTimer(db, user.id);
     const current = getTimeEntry(db, user.id, id);
     if (current.workspace_id !== wid) throw notFound('Time entry not found');
     if (current.stop) throw conflict('Time entry already stopped');
@@ -392,16 +396,20 @@ export function stopTimeEntry(db: Db, user: UserRow, wid: number, id: number, st
 }
 
 export function deleteTimeEntry(db: Db, userId: number, wid: number, id: number): void {
-  const current = getTimeEntry(db, userId, id);
-  if (current.workspace_id !== wid) throw notFound('Time entry not found');
-  const now = nowIso();
-  db.prepare('UPDATE time_entries SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, id);
+  transaction(db, () => {
+    touchTimer(db, userId);
+    const current = getTimeEntry(db, userId, id);
+    if (current.workspace_id !== wid) throw notFound('Time entry not found');
+    const now = nowIso();
+    db.prepare('UPDATE time_entries SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, id);
+  });
 }
 
 /** Undoes a delete. A restored running entry is stopped if another one started meanwhile. */
 /** Takes `user`'s entry out of the trash. Refused with 403 once the user has left the entry's workspace. */
 export function restoreTimeEntry(db: Db, user: UserRow, id: number): TimeEntryWithMeta {
   return transaction(db, () => {
+    touchTimer(db, user.id);
     const current = getTimeEntry(db, user.id, id, { includeDeleted: true });
     memberWorkspace(db, user.id, current.workspace_id);
     if (!current.deleted_at) return current;
@@ -420,10 +428,13 @@ export function listDeletedEntries(db: Db, userId: number): TimeEntryWithMeta[] 
 
 /** Permanently removes deleted entries: one id, or all of them. Returns how many rows went. */
 export function purgeDeletedEntries(db: Db, userId: number, id?: number): number {
-  const result = id === undefined
-    ? db.prepare('DELETE FROM time_entries WHERE user_id = ? AND deleted_at IS NOT NULL').run(userId)
-    : db.prepare('DELETE FROM time_entries WHERE user_id = ? AND id = ? AND deleted_at IS NOT NULL').run(userId, id);
-  return Number(result.changes);
+  return transaction(db, () => {
+    touchTimer(db, userId);
+    const result = id === undefined
+      ? db.prepare('DELETE FROM time_entries WHERE user_id = ? AND deleted_at IS NOT NULL').run(userId)
+      : db.prepare('DELETE FROM time_entries WHERE user_id = ? AND id = ? AND deleted_at IS NOT NULL').run(userId, id);
+    return Number(result.changes);
+  });
 }
 
 export interface PatchOperation {
@@ -466,30 +477,34 @@ function operationToBody(operation: PatchOperation): Record<string, unknown> {
 
 /**
  * Applies JSON Patch style operations to several entries. Each entry succeeds or fails on its own,
- * matching Toggl's "partial execution, no rollback" behaviour.
+ * matching Toggl's "partial execution, no rollback" behaviour: a savepoint per entry, inside one
+ * transaction.
  */
 export function patchTimeEntries(
   db: Db, user: UserRow, wid: number, ids: number[], operations: unknown,
 ): { success: number[]; failure: Array<{ id: number; message: string }> } {
   if (!Array.isArray(operations) || operations.length === 0) throw badRequest('Expected an array of patch operations');
-  const success: number[] = [];
-  const failure: Array<{ id: number; message: string }> = [];
-  for (const id of ids) {
-    db.exec('SAVEPOINT patch_entry');
-    try {
-      for (const raw of operations as PatchOperation[]) {
-        if (!raw || typeof raw.op !== 'string' || typeof raw.path !== 'string') throw badRequest('Invalid patch operation');
-        updateTimeEntry(db, user, wid, id, operationToBody(raw));
+  return transaction(db, () => {
+    touchTimer(db, user.id);
+    const success: number[] = [];
+    const failure: Array<{ id: number; message: string }> = [];
+    for (const id of ids) {
+      db.exec('SAVEPOINT patch_entry');
+      try {
+        for (const raw of operations as PatchOperation[]) {
+          if (!raw || typeof raw.op !== 'string' || typeof raw.path !== 'string') throw badRequest('Invalid patch operation');
+          updateTimeEntry(db, user, wid, id, operationToBody(raw));
+        }
+        db.exec('RELEASE patch_entry');
+        success.push(id);
+      } catch (error) {
+        db.exec('ROLLBACK TO patch_entry');
+        db.exec('RELEASE patch_entry');
+        failure.push({ id, message: error instanceof Error ? error.message : 'Failed' });
       }
-      db.exec('RELEASE patch_entry');
-      success.push(id);
-    } catch (error) {
-      db.exec('ROLLBACK TO patch_entry');
-      db.exec('RELEASE patch_entry');
-      failure.push({ id, message: error instanceof Error ? error.message : 'Failed' });
     }
-  }
-  return { success, failure };
+    return { success, failure };
+  });
 }
 
 export function entryDurationSeconds(row: Pick<TimeEntryRow, 'start' | 'stop'>, now = new Date()): number {

@@ -1,7 +1,8 @@
 import type { Db } from '../db/index.ts';
-import { nowIso } from '../db/index.ts';
+import { nowIso, transaction } from '../db/index.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import { requireName, togglTime } from '../lib/values.ts';
+import { touchWorkspaceTimers } from './timerState.ts';
 
 export interface TagRow {
   id: number;
@@ -57,14 +58,18 @@ export function updateTag(db: Db, wid: number, id: number, body: Record<string, 
   return getTag(db, wid, id);
 }
 
+/** Deletes a tag. The entries that carry it lose it, running ones included. */
 export function deleteTag(db: Db, wid: number, id: number): void {
-  getTag(db, wid, id);
-  const now = nowIso();
-  db.prepare(`
-    UPDATE time_entries SET updated_at = ?
-    WHERE id IN (SELECT time_entry_id FROM time_entry_tags WHERE tag_id = ?)
-  `).run(now, id);
-  db.prepare('DELETE FROM tags WHERE id = ?').run(id);
+  transaction(db, () => {
+    getTag(db, wid, id);
+    touchWorkspaceTimers(db, wid);
+    const now = nowIso();
+    db.prepare(`
+      UPDATE time_entries SET updated_at = ?
+      WHERE id IN (SELECT time_entry_id FROM time_entry_tags WHERE tag_id = ?)
+    `).run(now, id);
+    db.prepare('DELETE FROM tags WHERE id = ?').run(id);
+  });
 }
 
 export function serializeTag(row: TagRow) {

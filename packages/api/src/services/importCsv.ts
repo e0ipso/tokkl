@@ -1,4 +1,5 @@
 import type { Db } from '../db/index.ts';
+import { transaction } from '../db/index.ts';
 import { parseCsv } from '../lib/csv.ts';
 import { badRequest } from '../lib/errors.ts';
 import { parseDuration } from '@tokkl/common/duration';
@@ -274,13 +275,12 @@ export function importTogglCsv(
     });
   };
 
-  db.exec('BEGIN IMMEDIATE');
   try {
-    run();
-    if (options.dryRun) throw new Rollback();
-    db.exec('COMMIT');
+    transaction(db, () => {
+      run();
+      if (options.dryRun) throw new Rollback();
+    });
   } catch (error) {
-    db.exec('ROLLBACK');
     if (!(error instanceof Rollback)) throw error;
   }
   return result;
