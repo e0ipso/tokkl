@@ -32,6 +32,8 @@ BuildRequires:  cmake(Qt6Gui)
 BuildRequires:  cmake(Qt6Network)
 BuildRequires:  cmake(Qt6Qml)
 BuildRequires:  cmake(Qt6Quick)
+# The Pomodoro alarm plays through Qt Multimedia.
+BuildRequires:  cmake(Qt6Multimedia) >= 6.8.0
 BuildRequires:  cmake(KF6Wallet) >= 6.13.0
 BuildRequires:  cmake(KF6Config) >= 6.13.0
 BuildRequires:  cmake(KF6Package) >= 6.13.0
@@ -43,7 +45,14 @@ BuildRequires:  qt6qml(org.kde.kirigami)
 BuildRequires:  qt6qml(org.kde.kcmutils)
 
 # Shared libraries are found by rpm. The widget's QML imports are loaded at
-# run time, so they are listed here.
+# run time, so they are listed here. The Pomodoro alarm's audio backend
+# comes with libQt6Multimedia.so.6: on Fedora 44 qt6-qtmultimedia ships the
+# library, the FFmpeg and GStreamer media plugins and the PulseAudio output
+# together, so rpm's library dependency covers them. It is named here so
+# the plugins stay a declared dependency should Fedora ever split them.
+Requires:       qt6-qtmultimedia%{?_isa} >= 6.8.0
+# The Pomodoro hourglass is an SVG image; Qt's SVG image plugin draws it.
+Requires:       qt6-qtsvg%{?_isa} >= 6.8.0
 Requires:       libplasma%{?_isa} >= 6.3.0
 Requires:       hicolor-icon-theme
 Requires:       kf6-kirigami%{?_isa} >= 6.13.0

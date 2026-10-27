@@ -3,12 +3,17 @@
 // core's fake transport, store and clock, a fake menu bar item and a fake
 // login item.
 
+#include "alarmplayer.h"
 #include "connection.h"
 #include "connectionsetup.h"
 #include "fakes.h"
 #include "instanceurl.h"
 #include "loginitem.h"
 #include "menubarapp.h"
+#include "pomodoroalarm.h"
+#include "pomodoropreferences.h"
+#include "pomodorosession.h"
+#include "pomodorosounds.h"
 #include "settingswindow.h"
 #include "statusimage.h"
 #include "statusitem.h"
@@ -18,6 +23,7 @@
 
 #include <QAction>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
@@ -31,6 +37,7 @@
 #include <QRadioButton>
 #include <QSettings>
 #include <QSignalSpy>
+#include <QSpinBox>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
@@ -78,6 +85,10 @@ public:
     {
         return reduce;
     }
+    void popUpMenu() override
+    {
+        ++menuPopUps;
+    }
 
     // A primary click.
     void click()
@@ -100,6 +111,8 @@ public:
     // The indicator in the image.
     ProjectIndicator indicator;
     bool reduce = false;
+    // How often the app opened the menu itself.
+    int menuPopUps = 0;
 };
 
 // The core's fake store, with writes that can wait until the test finishes
@@ -164,6 +177,42 @@ public:
     QString failure;
     QList<bool> calls;
 };
+
+// Records what the app asked it to play.
+class FakeAlarmPlayer : public AlarmPlayer
+{
+    Q_OBJECT
+
+public:
+    using AlarmPlayer::AlarmPlayer;
+
+    void loop(const QString &file) override
+    {
+        looping = file;
+        loops.append(file);
+    }
+    void stop() override
+    {
+        looping.clear();
+        ++stops;
+    }
+    void preview(const QString &file) override
+    {
+        previews.append(file);
+    }
+
+    // The file that loops now; empty after stop().
+    QString looping;
+    QStringList loops;
+    QStringList previews;
+    int stops = 0;
+};
+
+// The four WAVs the bundle ships, from the core's sounds directory.
+QString soundFile(const QString &id)
+{
+    return QStringLiteral(TOKKL_SOUNDS_DIR "/pomodoro-") + id + QStringLiteral(".wav");
+}
 
 QByteArray meBody()
 {
@@ -239,9 +288,31 @@ QByteArray recentBody(qint64 project)
         .toUtf8();
 }
 
+// GET /me/preferences: phases of one minute and a long rest after every
+// second work phase.
+QByteArray preferencesBody()
+{
+    return QByteArrayLiteral(
+        R"({"pomodoro_focus_interval_in_minutes":1,"pomodoro_break_interval_in_minutes":1,)"
+        R"("pomodoro_long_break_interval_in_minutes":1,"pomodoro_long_break_every":2})");
+}
+
 QJsonObject jsonBody(const HttpRequest &request)
 {
     return QJsonDocument::fromJson(request.body).object();
+}
+
+// The images match the resource files at 1x and 2x, each 16 points square.
+void compareWithResources(const QList<QImage> &images, const QStringList &files)
+{
+    QCOMPARE(images.size(), files.size());
+    for (qsizetype i = 0; i < files.size(); ++i) {
+        QImage source(QStringLiteral(TOKKL_RESOURCES_DIR "/") + files.at(i));
+        QVERIFY2(!source.isNull(), qPrintable(files.at(i)));
+        source.setDevicePixelRatio(double(i + 1));
+        QCOMPARE(images.at(i), source);
+        QCOMPARE(images.at(i).deviceIndependentSize(), QSizeF(16, 16));
+    }
 }
 
 QAction *projectAction(StatusMenu &menu, const QString &label)
@@ -266,6 +337,8 @@ class MenuBarAppTest : public QObject
         explicit Fixture(const QString &settingsFile = QString())
             : settings(settingsFile.isEmpty() ? dir.filePath(QStringLiteral("tokkl.ini")) : settingsFile, QSettings::IniFormat)
         {
+            // The sounds the bundle would hold in Contents/Resources/sounds.
+            app.pomodoroAlarm()->setSoundsDirectory(QStringLiteral(TOKKL_SOUNDS_DIR));
         }
 
         QTemporaryDir dir;
@@ -275,7 +348,8 @@ class MenuBarAppTest : public QObject
         FakeClock clock;
         FakeStatusItem item;
         FakeLoginItem login;
-        MenuBarApp app{&transport, &store, &item, &login, &settings, &clock};
+        FakeAlarmPlayer player;
+        MenuBarApp app{&transport, &store, &item, &login, &player, &settings, &clock};
 
         QList<qsizetype> find(const QByteArray &method, const QByteArray &suffix) const
         {
@@ -308,7 +382,8 @@ class MenuBarAppTest : public QObject
         }
 
         // Saved settings for token sign-in, the token in the store, then the
-        // answers to /me, the current entry and the projects.
+        // answers to /me, the current entry, the projects and the Pomodoro
+        // lengths.
         bool connect(const QByteArray &current, std::optional<qint64> recentProject = std::nullopt)
         {
             store.secrets.insert(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString()), token);
@@ -319,11 +394,12 @@ class MenuBarAppTest : public QObject
                 return false;
             }
             respond(last("GET", "/me"), 200, meBody());
-            if (!waitFor("GET", "/me/time_entries/current") || !waitFor("GET", "/projects")) {
+            if (!waitFor("GET", "/me/time_entries/current") || !waitFor("GET", "/projects") || !waitFor("GET", "/me/preferences")) {
                 return false;
             }
             respond(last("GET", "/me/time_entries/current"), 200, current);
             respond(last("GET", "/projects"), 200, projectsBody());
+            respond(last("GET", "/me/preferences"), 200, preferencesBody());
             if (recentProject) {
                 if (!waitFor("GET", "/me/time_entries")) {
                     return false;
@@ -360,6 +436,30 @@ class MenuBarAppTest : public QObject
             for (int i = 0; i < seconds; ++i) {
                 clock.advance(1000);
             }
+        }
+
+        // Pomodoro mode on or off through the menu.
+        bool setPomodoroMode(bool on)
+        {
+            QAction *mode = app.statusMenu()->pomodoroModeAction();
+            if (mode->isChecked() != on) {
+                mode->trigger();
+            }
+            return app.pomodoroSession()->pomodoroMode() == on && mode->isChecked() == on;
+        }
+
+        // Start session from the menu, then the answer to the read of the
+        // lengths it sends.
+        bool startSession()
+        {
+            const qsizetype before = transport.requests.size();
+            app.statusMenu()->startSessionAction()->trigger();
+            const qsizetype read = last("GET", "/me/preferences");
+            if (read < before) {
+                return false;
+            }
+            respond(read, 200, preferencesBody());
+            return app.pomodoroSession()->isActive();
         }
     };
 
@@ -912,6 +1012,302 @@ private Q_SLOTS:
         QCOMPARE(relaunched.item.image.logo, before.logo);
     }
 
+    // Pomodoro mode is a checkable menu item, locked while a session is
+    // active and while a timer runs.
+    void pomodoroModeItemAndItsLock()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        QAction *mode = f.app.statusMenu()->pomodoroModeAction();
+        QVERIFY(mode->isCheckable());
+        QVERIFY(!mode->isChecked());
+        QVERIFY(mode->isEnabled());
+        QCOMPARE(mode->text(), QStringLiteral("Pomodoro mode"));
+        QVERIFY(!f.app.pomodoroSession()->pomodoroMode());
+
+        QVERIFY(f.setPomodoroMode(true));
+        QVERIFY(f.startSession());
+        QVERIFY(mode->isChecked());
+        QVERIFY(!mode->isEnabled());
+        QCOMPARE(mode->text(), QStringLiteral("Pomodoro mode (locked while running)"));
+
+        f.app.statusMenu()->endSessionAction()->trigger();
+        QVERIFY(!f.app.pomodoroSession()->isActive());
+        QVERIFY(mode->isEnabled());
+        QCOMPARE(mode->text(), QStringLiteral("Pomodoro mode"));
+        QVERIFY(f.setPomodoroMode(false));
+
+        Fixture running;
+        QVERIFY(running.connect(entryBody(true)));
+        QAction *locked = running.app.statusMenu()->pomodoroModeAction();
+        QVERIFY(!locked->isChecked());
+        QVERIFY(!locked->isEnabled());
+        QCOMPARE(locked->text(), QStringLiteral("Pomodoro mode (locked while running)"));
+    }
+
+    // The menu in Pomodoro mode: Start session while idle, then Next phase
+    // and End session. Start Timer and Stop Timer are for Timer mode, and
+    // Project and Billable stay enabled during a session. A pomodoro too
+    // short to save is reported under the state line.
+    void menuInPomodoroMode()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null"), qint64(12)));
+        StatusMenu &menu = *f.app.statusMenu();
+        PomodoroSession &session = *f.app.pomodoroSession();
+        QVERIFY(menu.startStopAction()->isVisible());
+        QVERIFY(!menu.startSessionAction()->isVisible());
+        QVERIFY(!menu.nextPhaseAction()->isVisible());
+        QVERIFY(!menu.endSessionAction()->isVisible());
+        QVERIFY(!menu.messageAction()->isVisible());
+
+        QVERIFY(f.setPomodoroMode(true));
+        QVERIFY(!menu.startStopAction()->isVisible());
+        QVERIFY(!menu.startStopAction()->isEnabled());
+        QVERIFY(menu.startSessionAction()->isVisible());
+        QVERIFY(menu.startSessionAction()->isEnabled());
+        QCOMPARE(menu.startSessionAction()->text(), QStringLiteral("Start session"));
+        QVERIFY(!menu.nextPhaseAction()->isVisible());
+        QVERIFY(!menu.endSessionAction()->isVisible());
+        QVERIFY(menu.stateAction()->text().startsWith(QStringLiteral("Stopped 0:00")));
+
+        QVERIFY(f.startSession());
+        QVERIFY(!menu.startSessionAction()->isVisible());
+        QVERIFY(!menu.startStopAction()->isVisible());
+        QVERIFY(menu.nextPhaseAction()->isVisible());
+        QCOMPARE(menu.nextPhaseAction()->text(), QStringLiteral("Next phase: Short rest"));
+        QVERIFY(menu.endSessionAction()->isVisible());
+        QCOMPARE(menu.endSessionAction()->text(), QStringLiteral("End session"));
+        QCOMPARE(menu.stateAction()->text(), QStringLiteral("Work · 1:00 left · Pomodoro 1 of 2"));
+        QVERIFY(menu.projectMenu()->menuAction()->isEnabled());
+        QVERIFY(projectAction(menu, QStringLiteral("Alpha"))->isEnabled());
+        QVERIFY(menu.billableAction()->isEnabled());
+
+        menu.nextPhaseAction()->trigger();
+        QCOMPARE(session.phase(), QStringLiteral("shortRest"));
+        QCOMPARE(menu.nextPhaseAction()->text(), QStringLiteral("Next phase: Work"));
+        QCOMPARE(menu.stateAction()->text(), QStringLiteral("Short rest · 1:00 left · Pomodoro 1 of 2"));
+
+        // Skipping the rest at once leaves a pomodoro of no length.
+        menu.nextPhaseAction()->trigger();
+        QCOMPARE(session.phase(), QStringLiteral("work"));
+        QCOMPARE(menu.stateAction()->text(), QStringLiteral("Work · 1:00 left · Pomodoro 2 of 2"));
+        QCOMPARE(menu.nextPhaseAction()->text(), QStringLiteral("Next phase: Long rest"));
+        QVERIFY(menu.messageAction()->isVisible());
+        QVERIFY(!menu.messageAction()->isEnabled());
+        QCOMPARE(menu.messageAction()->text(), QStringLiteral("This pomodoro was too short to save."));
+
+        // Two minutes later End session saves the pomodoro as a stopped
+        // entry on the chosen project, named as the macOS app.
+        f.advance(120);
+        const qsizetype before = f.transport.requests.size();
+        menu.endSessionAction()->trigger();
+        QVERIFY(!session.isActive());
+        const qsizetype post = f.last("POST", "/workspaces/7/time_entries");
+        QVERIFY(post >= before);
+        const QJsonObject body = jsonBody(f.transport.requests.at(post));
+        QCOMPARE(body.value(QStringLiteral("duration")).toInt(), 120);
+        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
+        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-macos"));
+        QVERIFY(menu.startSessionAction()->isVisible());
+        QVERIFY(!menu.nextPhaseAction()->isVisible());
+        QVERIFY(!menu.endSessionAction()->isVisible());
+        QVERIFY(menu.pomodoroModeAction()->isEnabled());
+    }
+
+    // During a session the title counts the phase down, then the overtime up,
+    // and the tooltip and the accessible name name the phase. Without a
+    // session the timer's words get the mode.
+    void titleCountsTheSessionDownThenOvertime()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        QVERIFY(f.setPomodoroMode(true));
+        QCOMPARE(f.item.title, QStringLiteral("0:00"));
+        QCOMPARE(f.item.toolTip, QStringLiteral("Stopped 0:00 · No project · Connected · Pomodoro mode"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Start a Pomodoro session, No project · Pomodoro mode"));
+
+        QVERIFY(f.startSession());
+        QCOMPARE(f.item.title, QStringLiteral("1:00"));
+        QCOMPARE(f.item.toolTip, QStringLiteral("Work · 1:00 left · Pomodoro 1 of 2"));
+        QCOMPARE(f.item.accessibleName, f.item.toolTip);
+        f.advance(59);
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
+        f.advance(1);
+        QCOMPARE(f.item.title, QStringLiteral("+0:00"));
+        f.advance(65);
+        QCOMPARE(f.item.title, QStringLiteral("+1:05"));
+        QCOMPARE(f.item.toolTip, QStringLiteral("Work · +1:05 overtime · Pomodoro 1 of 2"));
+        QCOMPARE(f.item.accessibleName, f.item.toolTip);
+        QCOMPARE(f.app.statusMenu()->stateAction()->text(), f.item.toolTip);
+    }
+
+    // A primary click in Pomodoro mode starts a session, opens the menu in
+    // mid-phase and confirms Next phase while the alarm rings.
+    void clickInPomodoroMode()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        QVERIFY(f.setPomodoroMode(true));
+        PomodoroSession &session = *f.app.pomodoroSession();
+
+        // The session starts once the lengths are read again. A click while
+        // the read runs does nothing.
+        const qsizetype before = f.transport.requests.size();
+        f.item.click();
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        QCOMPARE(f.last("GET", "/me/preferences"), before);
+        f.item.click();
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        QCOMPARE(f.item.menuPopUps, 0);
+        f.respond(before, 200, preferencesBody());
+        QVERIFY(session.isActive());
+        QCOMPARE(session.phase(), QStringLiteral("work"));
+
+        // Mid-phase the click opens the menu and changes nothing.
+        f.item.click();
+        QCOMPARE(f.item.menuPopUps, 1);
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        QCOMPARE(session.phase(), QStringLiteral("work"));
+
+        // Ringing, it confirms Next phase.
+        f.advance(61);
+        QVERIFY(session.isRinging());
+        f.item.click();
+        QCOMPARE(session.phase(), QStringLiteral("shortRest"));
+        QVERIFY(!session.isRinging());
+        QCOMPARE(f.item.menuPopUps, 1);
+    }
+
+    // A timer running from another device keeps the timer's click, words and
+    // menu in Pomodoro mode; only the hourglass shows the mode.
+    void clickInPomodoroModeLeavesARunningTimerToTheTimer()
+    {
+        Fixture f;
+        QVERIFY(f.setPomodoroMode(true));
+        QVERIFY(f.connect(entryBody(true)));
+        QCOMPARE(f.item.title, QStringLiteral("0:01"));
+        QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, No project · Pomodoro mode"));
+        QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Running 0:01 · No project · Connected")), qPrintable(f.item.toolTip));
+        QVERIFY(f.item.toolTip.endsWith(QStringLiteral(" · Pomodoro mode")));
+        QVERIFY(!f.item.image.hourglass.isEmpty());
+        StatusMenu &menu = *f.app.statusMenu();
+        QVERIFY(menu.startStopAction()->isVisible());
+        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(!menu.startSessionAction()->isVisible());
+
+        const qsizetype before = f.transport.requests.size();
+        f.item.click();
+        QCOMPARE(f.last("PATCH", "/stop"), before);
+        QCOMPARE(f.item.menuPopUps, 0);
+    }
+
+    // The wake hook reaches the session as well as the timer: after a sleep
+    // past the planned end the title shows the overtime before the next tick.
+    void wakeUpdatesTheSession()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        QVERIFY(f.setPomodoroMode(true));
+        QVERIFY(f.startSession());
+        f.clock.current = f.clock.current.addSecs(90);
+        QCOMPARE(f.item.title, QStringLiteral("1:00"));
+
+        const qsizetype before = f.transport.requests.size();
+        f.app.resumed();
+        QCOMPARE(f.item.title, QStringLiteral("+0:30"));
+        QVERIFY(f.app.pomodoroSession()->isRinging());
+        QVERIFY(f.waitFor("GET", "/me/time_entries/current", before - 1));
+    }
+
+    // The alarm: the sound chosen for the transition loops from the moment
+    // the phase rings until Next phase, and the choice in settings wins
+    // over the catalogue's default. Nothing plays before the planned end.
+    void alarmLoopsWhileRingingAndStopsOnNextPhase()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        QVERIFY(f.setPomodoroMode(true));
+        QVERIFY(f.startSession());
+        QVERIFY(f.player.loops.isEmpty());
+
+        f.advance(60);
+        QVERIFY(f.app.pomodoroSession()->isRinging());
+        QCOMPARE(f.app.pomodoroSession()->ringingTransition(), QStringLiteral("workToShortRest"));
+        QCOMPARE(f.player.looping, soundFile(QStringLiteral("work-to-short-rest")));
+        // Ticks past the end change nothing: the same file keeps looping.
+        f.advance(5);
+        QCOMPARE(f.player.loops.size(), 1);
+
+        QVERIFY(f.app.statusMenu()->nextPhaseAction()->isEnabled());
+        f.app.statusMenu()->nextPhaseAction()->trigger();
+        QVERIFY(!f.app.pomodoroSession()->isRinging());
+        QVERIFY(f.player.looping.isEmpty());
+        QCOMPARE(f.player.stops, 1);
+
+        // The short rest ends with the sound chosen for it.
+        f.settings.setValue(PomodoroAlarm::soundKey(TransitionKind::ShortRestToWork), QStringLiteral("long-rest-to-work"));
+        f.advance(60);
+        QCOMPARE(f.player.looping, soundFile(QStringLiteral("long-rest-to-work")));
+        // End session stops it too.
+        f.app.statusMenu()->endSessionAction()->trigger();
+        QVERIFY(f.player.looping.isEmpty());
+        QCOMPARE(f.player.stops, 2);
+    }
+
+    // The mode is kept in the app's settings, so a relaunch comes back in
+    // Pomodoro mode.
+    void pomodoroModeSurvivesRelaunch()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        QVERIFY(f.setPomodoroMode(true));
+
+        Fixture relaunched(f.settings.fileName());
+        QVERIFY(relaunched.app.pomodoroSession()->pomodoroMode());
+        QVERIFY(relaunched.app.statusMenu()->pomodoroModeAction()->isChecked());
+        QVERIFY(!relaunched.item.image.hourglass.isEmpty());
+        QVERIFY(relaunched.app.pomodoroPreferences());
+    }
+
+    // In Pomodoro mode the hourglass follows the indicator, with the gap
+    // between the logo and the indicator: the colour glyph, or with the
+    // monochrome logo the outline glyph the menu bar tints the same way.
+    void imageShowsTheHourglassInPomodoroMode()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        const StatusImage timerMode = f.item.image;
+        QVERIFY(timerMode.hourglass.isEmpty());
+        QCOMPARE(timerMode.size, QSize(34, 16));
+
+        QVERIFY(f.setPomodoroMode(true));
+        const StatusImage colour = f.item.image;
+        QCOMPARE(colour.logoRect, timerMode.logoRect);
+        QCOMPARE(colour.indicatorRect, timerMode.indicatorRect);
+        QCOMPARE(colour.hourglassRect, QRect(36, 0, 16, 16));
+        QCOMPARE(colour.size, QSize(52, 16));
+        QVERIFY(!colour.monochromeLogo);
+        compareWithResources(colour.hourglass, {QStringLiteral("hourglass_16x16.png"), QStringLiteral("hourglass_16x16@2x.png")});
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        f.settings.setValue(SettingsWindow::monochromeIconKey, true);
+        f.app.applySettings();
+        QVERIFY(f.item.image.monochromeLogo);
+        QCOMPARE(f.item.image.hourglassRect, colour.hourglassRect);
+        QCOMPARE(f.item.image.size, colour.size);
+        compareWithResources(f.item.image.hourglass, {QStringLiteral("hourglass_mono_16x16.png"), QStringLiteral("hourglass_mono_16x16@2x.png")});
+        if (QTest::currentTestFailed()) {
+            return;
+        }
+
+        QVERIFY(f.setPomodoroMode(false));
+        QVERIFY(f.item.image.hourglass.isEmpty());
+        QCOMPARE(f.item.image.size, timerMode.size);
+    }
+
     void openAndSettingsActions()
     {
         Fixture f;
@@ -1092,6 +1488,197 @@ private Q_SLOTS:
         window.close();
         f.app.showSettings();
         QTRY_COMPARE(window.secretField()->text(), token);
+    }
+
+    // Opening the window reads the lengths again, and the spin boxes take
+    // the server's values inside the shared ranges.
+    void pomodoroSettingsLoadTheLengths()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        SettingsWindow &window = *f.app.settingsWindow();
+        const qsizetype before = f.transport.requests.size();
+        f.app.showSettings();
+        QVERIFY(f.waitFor("GET", "/me/preferences", before - 1));
+        f.respond(f.last("GET", "/me/preferences"), 200, QByteArrayLiteral(
+            R"({"pomodoro_focus_interval_in_minutes":30,"pomodoro_break_interval_in_minutes":7,)"
+            R"("pomodoro_long_break_interval_in_minutes":20,"pomodoro_long_break_every":3})"));
+
+        QTRY_COMPARE(window.lengthBox(PomodoroField::WorkMinutes)->value(), 30);
+        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->value(), 7);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->value(), 20);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->value(), 3);
+        for (const PomodoroField field : {PomodoroField::WorkMinutes, PomodoroField::ShortRestMinutes, PomodoroField::LongRestMinutes, PomodoroField::LongRestEvery}) {
+            QVERIFY(!window.lengthBox(field)->isReadOnly());
+            QVERIFY(!window.lengthError(field)->isVisibleTo(&window));
+        }
+        QCOMPARE(window.lengthBox(PomodoroField::WorkMinutes)->minimum(), 1);
+        QCOMPARE(window.lengthBox(PomodoroField::WorkMinutes)->maximum(), 180);
+        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->minimum(), 1);
+        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->maximum(), 60);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->minimum(), 1);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->maximum(), 60);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->minimum(), 1);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->maximum(), 12);
+        QVERIFY(!window.lengthsNote()->isVisibleTo(&window));
+    }
+
+    // Save posts the lengths that changed, and only those, next to the
+    // Keychain write, and the window closes once both are done.
+    void pomodoroSettingsSavePostsTheChangedLengths()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        SettingsWindow &window = *f.app.settingsWindow();
+        f.app.showSettings();
+        QVERIFY(f.waitFor("GET", "/me/preferences", qsizetype(f.transport.requests.size()) - 2));
+        f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
+        QTRY_COMPARE(window.secretField()->text(), token);
+        QTRY_COMPARE(window.lengthBox(PomodoroField::WorkMinutes)->value(), 1);
+
+        window.lengthBox(PomodoroField::WorkMinutes)->setValue(30);
+        window.lengthBox(PomodoroField::LongRestEvery)->setValue(3);
+        QSignalSpy saved(&window, &SettingsWindow::saved);
+        const qsizetype before = f.transport.requests.size();
+        window.saveButton()->click();
+        const qsizetype post = f.last("POST", "/me/preferences");
+        QVERIFY(post >= before);
+        QCOMPARE(jsonBody(f.transport.requests.at(post)),
+                 (QJsonObject{{QStringLiteral("pomodoro_focus_interval_in_minutes"), 30}, {QStringLiteral("pomodoro_long_break_every"), 3}}));
+        // The Keychain has the secret; the window waits for the server.
+        QTRY_COMPARE(saved.count(), 1);
+        QVERIFY(window.isVisible());
+        QVERIFY(!window.saveButton()->isEnabled());
+
+        f.respond(post, 200, QByteArrayLiteral(
+            R"({"pomodoro_focus_interval_in_minutes":30,"pomodoro_break_interval_in_minutes":1,)"
+            R"("pomodoro_long_break_interval_in_minutes":1,"pomodoro_long_break_every":3})"));
+        QTRY_VERIFY(!window.isVisible());
+        QCOMPARE(f.app.pomodoroPreferences()->workMinutes(), 30);
+        QVERIFY(window.saveButton()->isEnabled());
+
+        // Nothing changed: Save posts no lengths and closes once the
+        // Keychain has the secret.
+        f.app.showSettings();
+        f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
+        QTRY_COMPARE(window.secretField()->text(), token);
+        const qsizetype again = f.transport.requests.size();
+        window.saveButton()->click();
+        QTRY_VERIFY(!window.isVisible());
+        QCOMPARE(f.find("POST", "/me/preferences").size(), 1);
+        QVERIFY(f.transport.requests.size() >= again);
+    }
+
+    // A 400 that names a key shows next to its field, the window stays
+    // open and Save works again.
+    void pomodoroSettingsShowARefusedLengthNextToItsField()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        SettingsWindow &window = *f.app.settingsWindow();
+        f.app.showSettings();
+        f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
+        QTRY_COMPARE(window.secretField()->text(), token);
+
+        window.lengthBox(PomodoroField::LongRestMinutes)->setValue(45);
+        window.saveButton()->click();
+        const qsizetype post = f.last("POST", "/me/preferences");
+        QVERIFY(post >= 0);
+        f.respond(post, 400, QByteArrayLiteral(R"("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")"));
+        QTRY_VERIFY(window.lengthError(PomodoroField::LongRestMinutes)->isVisibleTo(&window));
+        QCOMPARE(window.lengthError(PomodoroField::LongRestMinutes)->text(),
+                 QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
+        QVERIFY(!window.lengthError(PomodoroField::WorkMinutes)->isVisibleTo(&window));
+        QVERIFY(!window.pomodoroError()->isVisibleTo(&window));
+        QVERIFY(window.isVisible());
+        QVERIFY(window.saveButton()->isEnabled());
+        // The typed value stays for another try.
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->value(), 45);
+
+        // A failure that names no field is the general error.
+        window.saveButton()->click();
+        f.respond(f.last("POST", "/me/preferences"), 400, QByteArrayLiteral(R"("Preferences are too large")"));
+        QTRY_VERIFY(window.pomodoroError()->isVisibleTo(&window));
+        QCOMPARE(window.pomodoroError()->text(), QStringLiteral("Preferences are too large"));
+        QVERIFY(!window.lengthError(PomodoroField::LongRestMinutes)->isVisibleTo(&window));
+        QVERIFY(window.isVisible());
+    }
+
+    // Without a validated account the lengths show as last read, cannot be
+    // edited, and a note says why.
+    void pomodoroSettingsAreReadOnlyWithoutAnAccount()
+    {
+        Fixture f;
+        f.app.start();
+        SettingsWindow &window = *f.app.settingsWindow();
+        QVERIFY(window.isVisible());
+        QVERIFY(f.transport.requests.isEmpty());
+        QCOMPARE(window.lengthBox(PomodoroField::WorkMinutes)->value(), 25);
+        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->value(), 5);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->value(), 15);
+        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->value(), 4);
+        for (const PomodoroField field : {PomodoroField::WorkMinutes, PomodoroField::ShortRestMinutes, PomodoroField::LongRestMinutes, PomodoroField::LongRestEvery}) {
+            QVERIFY(window.lengthBox(field)->isReadOnly());
+        }
+        QVERIFY(window.lengthsNote()->isVisibleTo(&window));
+        QVERIFY(window.lengthsNote()->text().contains(QStringLiteral("connection")));
+        QVERIFY(!window.pomodoroError()->isVisibleTo(&window));
+    }
+
+    // The sound choices list the catalogue, default to the sound named
+    // after the transition, are kept by Save next to the other settings and
+    // come back on the next launch.
+    void pomodoroSoundChoiceIsStoredAndReadBack()
+    {
+        const QList<PomodoroSound> sounds = pomodoroSounds();
+        QCOMPARE(sounds.size(), 4);
+        Fixture f;
+        f.app.start();
+        SettingsWindow &window = *f.app.settingsWindow();
+        QComboBox *box = window.soundBox(TransitionKind::WorkToShortRest);
+        QCOMPARE(box->count(), 4);
+        for (int i = 0; i < 4; ++i) {
+            QCOMPARE(box->itemText(i), sounds.at(i).label);
+        }
+        QCOMPARE(box->currentIndex(), 0);
+        QCOMPARE(window.soundBox(TransitionKind::ShortRestToWork)->currentIndex(), 1);
+        QCOMPARE(window.soundBox(TransitionKind::WorkToLongRest)->currentIndex(), 2);
+        QCOMPARE(window.soundBox(TransitionKind::LongRestToWork)->currentIndex(), 3);
+
+        box->setCurrentIndex(3);
+        QVERIFY(!f.settings.contains(PomodoroAlarm::soundKey(TransitionKind::WorkToShortRest)));
+        window.urlField()->setText(instance);
+        QTest::keyClicks(window.secretField(), token);
+        QSignalSpy saved(&window, &SettingsWindow::saved);
+        window.saveButton()->click();
+        QTRY_COMPARE(saved.count(), 1);
+        QCOMPARE(f.settings.value(PomodoroAlarm::soundKey(TransitionKind::WorkToShortRest)).toString(), QStringLiteral("long-rest-to-work"));
+        // The untouched choices are kept as they showed.
+        QCOMPARE(f.settings.value(PomodoroAlarm::soundKey(TransitionKind::ShortRestToWork)).toString(), QStringLiteral("short-rest-to-work"));
+        QCOMPARE(PomodoroAlarm::chosenSound(&f.settings, TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
+        QCOMPARE(PomodoroAlarm::chosenSound(&f.settings, TransitionKind::ShortRestToWork), QStringLiteral("short-rest-to-work"));
+
+        Fixture relaunched(f.settings.fileName());
+        relaunched.app.showSettings();
+        QCOMPARE(relaunched.app.settingsWindow()->soundBox(TransitionKind::WorkToShortRest)->currentIndex(), 3);
+        QCOMPARE(relaunched.app.settingsWindow()->soundBox(TransitionKind::LongRestToWork)->currentIndex(), 3);
+    }
+
+    // Preview plays the sound selected next to it once, through the player,
+    // without saving.
+    void previewPlaysTheSelectedSound()
+    {
+        Fixture f;
+        f.app.start();
+        SettingsWindow &window = *f.app.settingsWindow();
+        window.soundBox(TransitionKind::LongRestToWork)->setCurrentIndex(1);
+        window.previewButton(TransitionKind::LongRestToWork)->click();
+        QCOMPARE(f.player.previews, QStringList{soundFile(QStringLiteral("short-rest-to-work"))});
+        window.previewButton(TransitionKind::WorkToLongRest)->click();
+        QCOMPARE(f.player.previews.size(), 2);
+        QCOMPARE(f.player.previews.last(), soundFile(QStringLiteral("work-to-long-rest")));
+        QVERIFY(f.player.loops.isEmpty());
+        QVERIFY(!f.settings.contains(PomodoroAlarm::soundKey(TransitionKind::LongRestToWork)));
     }
 
     void loginItemToggle()

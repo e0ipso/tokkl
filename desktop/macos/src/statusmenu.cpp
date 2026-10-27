@@ -1,6 +1,7 @@
 #include "statusmenu.h"
 
 #include "connection.h"
+#include "pomodorosession.h"
 #include "statuswords.h"
 #include "timercontroller.h"
 
@@ -18,13 +19,18 @@ bool isNullId(const QVariant &id)
 }
 }
 
-StatusMenu::StatusMenu(TimerController *timer, QObject *parent)
+StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject *parent)
     : QObject(parent)
     , m_timer(timer)
+    , m_session(session)
     , m_menu(std::make_unique<QMenu>())
 {
     m_stateAction = m_menu->addAction(QString());
     m_stateAction->setEnabled(false);
+
+    // The session's message, such as a pomodoro too short to save.
+    m_messageAction = m_menu->addAction(QString());
+    m_messageAction->setEnabled(false);
 
     m_startStopAction = m_menu->addAction(QString());
     connect(m_startStopAction, &QAction::triggered, this, [this] {
@@ -36,6 +42,36 @@ StatusMenu::StatusMenu(TimerController *timer, QObject *parent)
         } else {
             m_timer->start();
         }
+    });
+
+    m_startSessionAction = m_menu->addAction(tr("Start session"));
+    connect(m_startSessionAction, &QAction::triggered, this, [this] {
+        if (m_session) {
+            m_session->startSession();
+        }
+    });
+
+    m_nextPhaseAction = m_menu->addAction(QString());
+    connect(m_nextPhaseAction, &QAction::triggered, this, [this] {
+        if (m_session) {
+            m_session->confirmNextPhase();
+        }
+    });
+
+    m_endSessionAction = m_menu->addAction(tr("End session"));
+    connect(m_endSessionAction, &QAction::triggered, this, [this] {
+        if (m_session) {
+            m_session->endSession();
+        }
+    });
+
+    m_pomodoroModeAction = m_menu->addAction(QString());
+    m_pomodoroModeAction->setCheckable(true);
+    connect(m_pomodoroModeAction, &QAction::triggered, this, [this] {
+        if (m_session) {
+            m_session->setPomodoroMode(!m_session->pomodoroMode());
+        }
+        refresh();
     });
 
     m_menu->addSeparator();
@@ -92,6 +128,16 @@ StatusMenu::StatusMenu(TimerController *timer, QObject *parent)
         connect(m_timer, &TimerController::connectionChanged, this, &StatusMenu::watchConnection);
         watchConnection();
     }
+    if (m_session) {
+        connect(m_session, &PomodoroSession::countdownChanged, this, &StatusMenu::refreshState);
+        for (auto signal : {&PomodoroSession::modeChanged,
+                            &PomodoroSession::modeLockedChanged,
+                            &PomodoroSession::sessionChanged,
+                            &PomodoroSession::canStartSessionChanged,
+                            &PomodoroSession::messageChanged}) {
+            connect(m_session, signal, this, &StatusMenu::refresh);
+        }
+    }
     refresh();
 }
 
@@ -112,9 +158,34 @@ QAction *StatusMenu::stateAction() const
     return m_stateAction;
 }
 
+QAction *StatusMenu::messageAction() const
+{
+    return m_messageAction;
+}
+
 QAction *StatusMenu::startStopAction() const
 {
     return m_startStopAction;
+}
+
+QAction *StatusMenu::startSessionAction() const
+{
+    return m_startSessionAction;
+}
+
+QAction *StatusMenu::nextPhaseAction() const
+{
+    return m_nextPhaseAction;
+}
+
+QAction *StatusMenu::endSessionAction() const
+{
+    return m_endSessionAction;
+}
+
+QAction *StatusMenu::pomodoroModeAction() const
+{
+    return m_pomodoroModeAction;
 }
 
 QAction *StatusMenu::billableAction() const
@@ -159,14 +230,42 @@ void StatusMenu::onGenerationChanged()
     refresh();
 }
 
+bool StatusMenu::pomodoroIdle() const
+{
+    return m_session && m_session->pomodoroMode() && !(m_timer && (m_timer->isRunning() || m_timer->isPaused()));
+}
+
 void StatusMenu::refreshState()
 {
     if (!m_timer) {
         return;
     }
     const QString detail = StatusWords::detailText(*m_timer);
-    m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(*m_timer), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
+    if (m_session && StatusWords::showsSession(*m_timer, *m_session)) {
+        m_stateAction->setText(StatusWords::sessionText(*m_session));
+    } else {
+        m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(*m_timer), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
+    }
     m_stateAction->setToolTip(detail);
+}
+
+void StatusMenu::refreshSession()
+{
+    const bool active = m_session && m_session->isActive();
+    m_startSessionAction->setVisible(pomodoroIdle() && !active);
+    m_startSessionAction->setEnabled(m_session && m_session->canStartSession());
+    m_nextPhaseAction->setVisible(active);
+    m_nextPhaseAction->setText(tr("Next phase: %1").arg(StatusWords::phaseName(m_session ? m_session->nextPhase() : QString())));
+    m_endSessionAction->setVisible(active);
+
+    const bool locked = m_session && m_session->modeLocked();
+    m_pomodoroModeAction->setText(locked ? tr("Pomodoro mode (locked while running)") : tr("Pomodoro mode"));
+    m_pomodoroModeAction->setEnabled(m_session && !locked);
+    m_pomodoroModeAction->setChecked(m_session && m_session->pomodoroMode());
+
+    const QString message = m_session ? m_session->message() : QString();
+    m_messageAction->setText(message);
+    m_messageAction->setVisible(!message.isEmpty());
 }
 
 void StatusMenu::refresh()
@@ -184,8 +283,12 @@ void StatusMenu::refresh()
         m_startStopAction->setEnabled(paused ? !m_timer->isBusy() : m_timer->canWrite());
     } else {
         m_startStopAction->setText(tr("Start Timer"));
-        m_startStopAction->setEnabled(m_timer->canWrite());
+        // Pomodoro mode starts no timer, so a session never has to end for
+        // one started here.
+        m_startStopAction->setEnabled(m_timer->canWrite() && !pomodoroIdle());
     }
+    m_startStopAction->setVisible(!pomodoroIdle());
+    refreshSession();
 
     m_billableAction->setEnabled(m_timer->canWrite() && !paused);
     m_billableAction->setChecked(m_timer->chosenBillable());

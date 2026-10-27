@@ -55,7 +55,9 @@ include(ECMQmlModule)
 include(ECMFindQmlModule)
 include(FeatureSummary)
 
-find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Gui Network Qml Quick)
+# Multimedia plays the Pomodoro alarm; only tokklkde and the backend module
+# link it, never the core.
+find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Gui Multimedia Network Qml Quick)
 # The backend keeps the pause chain in the applet's KConfig group. libplasma's
 # CMake package does not pull in KF6Config, which its link interface names.
 find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Wallet Package Config)

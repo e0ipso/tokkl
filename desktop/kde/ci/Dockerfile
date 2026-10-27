@@ -8,8 +8,8 @@
 #   target  the package lists only, for install, upgrade and removal checks
 #   build   target plus the build dependencies from debian/control
 #   test    build plus what CTest, the load check and the real-server test
-#           need (Qt Test, KF6 Config, I18n and Kirigami, Xvfb, a DBus
-#           session, rpm)
+#           need (Qt Test, KF6 Config, I18n and Kirigami, the Qt SVG image
+#           plugin for the panel's hourglass, Xvfb, a DBus session, rpm)
 #
 # The base image is pinned by digest. The Debian archive is not, so the Qt,
 # KDE Frameworks and Plasma versions are whatever trixie and its updates
@@ -36,4 +36,4 @@ RUN /opt/tokkl-kde/ci/baseline.sh --format deb > /opt/tokkl-kde/baseline.txt \
 FROM build AS test
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
         appstream dbus dbus-x11 hicolor-icon-theme libkf6config-dev libkf6i18n-dev libkirigami-dev \
-        qml6-module-qttest rpm xauth xvfb
+        qml6-module-qttest qt6-svg-plugins rpm xauth xvfb

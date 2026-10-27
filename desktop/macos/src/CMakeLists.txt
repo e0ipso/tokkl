@@ -1,9 +1,12 @@
 # tokklmacos: the menu bar app without the platform layer. It needs Qt
 # Widgets and tokklcore only, so it builds and is tested on any platform.
 add_library(tokklmacos STATIC
+    alarmplayer.h
     loginitem.h
     menubarapp.cpp
     menubarapp.h
+    pomodoroalarm.cpp
+    pomodoroalarm.h
     projectindicator.cpp
     projectindicator.h
     settingswindow.cpp
@@ -45,6 +48,17 @@ qt_add_resources(tokklmacos statuslogomono
         "${_resources}/mono_16x16.png"
         "${_resources}/mono_16x16@2x.png"
 )
+# The Pomodoro mode glyph after the indicator: the colour hourglass, and the
+# outline one the menu bar tints like the monochrome logo.
+qt_add_resources(tokklmacos statushourglass
+    PREFIX "/tokkl/hourglass"
+    BASE "${_resources}"
+    FILES
+        "${_resources}/hourglass_16x16.png"
+        "${_resources}/hourglass_16x16@2x.png"
+        "${_resources}/hourglass_mono_16x16.png"
+        "${_resources}/hourglass_mono_16x16@2x.png"
+)
 
 # The QtKeychain credential store: the macOS Keychain on macOS. Built
 # elsewhere only when QtKeychain is installed, for its tests.
@@ -61,9 +75,19 @@ if(Qt6Keychain_FOUND)
     )
 endif()
 
+# The alarm sounds the core lists, four WAVs. The bundle ships them in
+# Contents/Resources/sounds, where PomodoroAlarm looks for them.
+list(LENGTH TOKKL_POMODORO_SOUND_FILES _sound_count)
+if(NOT _sound_count EQUAL 4)
+    message(FATAL_ERROR "TOKKL_POMODORO_SOUND_FILES lists ${_sound_count} files, not 4; the core did not set it")
+endif()
+
 if(APPLE)
-    # The app bundle: NSStatusItem, SMAppService and the wiring in main.mm.
+    # The app bundle: NSStatusItem, SMAppService, NSSound and the wiring in
+    # main.mm.
     set(_platform_sources
+        macalarmplayer.h
+        macalarmplayer.mm
         macloginitem.h
         macloginitem.mm
         macstatusitem.h
@@ -87,9 +111,10 @@ if(APPLE)
         COMMENT "Packing ${TOKKL_BUNDLE_ICON}.icns"
         VERBATIM)
     set_source_files_properties("${_icns}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    set_source_files_properties(${TOKKL_POMODORO_SOUND_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/sounds)
 
-    add_executable(tokkl-macos MACOSX_BUNDLE ${_platform_sources} "${_icns}")
-    set_source_files_properties(macloginitem.mm macstatusitem.mm main.mm
+    add_executable(tokkl-macos MACOSX_BUNDLE ${_platform_sources} "${_icns}" ${TOKKL_POMODORO_SOUND_FILES})
+    set_source_files_properties(macalarmplayer.mm macloginitem.mm macstatusitem.mm main.mm
         PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     set_target_properties(tokkl-macos PROPERTIES
         OUTPUT_NAME "${TOKKL_BUNDLE_NAME}"

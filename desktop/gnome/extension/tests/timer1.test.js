@@ -9,10 +9,15 @@ import {
     AUTH_MODES,
     TIMER1_INTERFACE,
     chosenProjectLabel,
+    countdown,
     describeStatus,
     elapsedSeconds,
     formatElapsed,
+    nextPhaseLabel,
+    phaseName,
+    pomodoroModeLabel,
     projectLabel,
+    sessionLine,
 } from '../timer1.js';
 
 const identity = text => text;
@@ -75,6 +80,44 @@ test('project labels name the client, an archived project and the missing projec
     // A running entry's archived project is not in Projects but has a name.
     assert.equal(chosenProjectLabel(projects, 42, 'Legacy', identity), 'Legacy');
     assert.equal(chosenProjectLabel(projects, 42, '', identity), 'Unavailable project');
+});
+
+test('the countdown rounds the time left up and the overtime down', () => {
+    const end = 1_700_001_500;
+    assert.deepEqual(countdown(end, end - 1500), {text: '25:00', overtime: false});
+    assert.deepEqual(countdown(end, end - 1499.2), {text: '25:00', overtime: false});
+    assert.deepEqual(countdown(end, end - 0.001), {text: '0:01', overtime: false});
+    // The planned end itself is the first instant of overtime.
+    assert.deepEqual(countdown(end, end), {text: '+0:00', overtime: true});
+    assert.deepEqual(countdown(end, end + 0.999), {text: '+0:00', overtime: true});
+    assert.deepEqual(countdown(end, end + 61.5), {text: '+1:01', overtime: true});
+});
+
+test('the countdown writes minutes past an hour without wrapping them', () => {
+    assert.equal(countdown(1_700_010_800, 1_700_000_000).text, '180:00');
+    assert.equal(countdown(1_700_000_000, 1_700_000_000 + 75 * 60 + 9).text, '+75:09');
+});
+
+test('phases are named Work, Short rest and Long rest', () => {
+    assert.equal(phaseName('work', identity), 'Work');
+    assert.equal(phaseName('shortRest', identity), 'Short rest');
+    assert.equal(phaseName('longRest', identity), 'Long rest');
+    assert.equal(phaseName('', identity), '');
+    assert.equal(phaseName('nap', identity), '');
+});
+
+test('the session line names the phase, the time left or the overtime, and the pomodoro', () => {
+    const session = {phase: 'shortRest', plannedEnd: 1_700_000_250, pomodoroNumber: 2, longRestEvery: 4};
+    assert.equal(sessionLine(session, 1_700_000_000, identity), 'Short rest · 4:10 left · Pomodoro 2 of 4');
+    assert.equal(sessionLine({...session, phase: 'work', pomodoroNumber: 3}, 1_700_000_312, identity),
+        'Work · +1:02 overtime · Pomodoro 3 of 4');
+});
+
+test('the session items name the next phase and the mode lock', () => {
+    assert.equal(nextPhaseLabel('longRest', identity), 'Next phase: Long rest');
+    assert.equal(nextPhaseLabel('work', identity), 'Next phase: Work');
+    assert.equal(pomodoroModeLabel(false, identity), 'Pomodoro mode');
+    assert.equal(pomodoroModeLabel(true, identity), 'Pomodoro mode (locked while running)');
 });
 
 test('the sign-in methods are the ones Configure accepts', () => {

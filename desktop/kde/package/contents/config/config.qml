@@ -8,4 +8,9 @@ ConfigModel {
         icon: "network-connect"
         source: "configGeneral.qml"
     }
+    ConfigCategory {
+        name: i18nc("@title:group configuration page", "Pomodoro")
+        icon: "chronometer"
+        source: "configPomodoro.qml"
+    }
 }

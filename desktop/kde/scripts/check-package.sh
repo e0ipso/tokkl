@@ -76,8 +76,11 @@ case "$package" in
         expected_arch=amd64
         license_file=/usr/share/doc/tokkl-kde/copyright
         # dpkg-shlibdeps adds the libraries; debian/control adds the QML modules.
-        expected_deps="hicolor-icon-theme libkf6wallet6 libqt6core6t64 libqt6network6 libqt6qml6
-            plasma-desktoptheme qml6-module-org-kde-kcmutils qml6-module-org-kde-kirigami
+        # libqt6multimedia6 plays the Pomodoro alarm and carries its media
+        # plugin and PulseAudio output. qt6-svg-plugins draws the Pomodoro
+        # hourglass, an SVG image.
+        expected_deps="hicolor-icon-theme libkf6wallet6 libqt6core6t64 libqt6multimedia6 libqt6network6 libqt6qml6
+            plasma-desktoptheme qml6-module-org-kde-kcmutils qml6-module-org-kde-kirigami qt6-svg-plugins
             qml6-module-qtqml qml6-module-qtquick qml6-module-qtquick-controls
             qml6-module-qtquick-layouts qml6-module-qtquick-templates"
         case "$package" in
@@ -90,8 +93,11 @@ case "$package" in
         backend_dir="/usr/lib64/qt6/qml/com/github/e0ipso/tokkl/backend"
         expected_arch=x86_64
         license_file=/usr/share/licenses/tokkl-kde/LICENSE
-        # rpm finds the libraries; the spec adds the QML modules and floors.
+        # rpm finds the libraries; the spec adds the QML modules, floors,
+        # the Qt Multimedia package that holds the alarm's media plugins and
+        # qt6-qtsvg, whose SVG image plugin draws the Pomodoro hourglass.
         expected_deps="hicolor-icon-theme libKF6Wallet.so.6()(64bit) libQt6Core.so.6()(64bit)
+            libQt6Multimedia.so.6()(64bit) qt6-qtmultimedia(x86-64) qt6-qtsvg(x86-64)
             libQt6Network.so.6()(64bit) libQt6Qml.so.6()(64bit) libplasma(x86-64)
             kf6-kirigami(x86-64) kf6-kcmutils(x86-64)
             qt6qml(org.kde.plasma.plasmoid) qt6qml(org.kde.plasma.core)
@@ -103,9 +109,16 @@ case "$package" in
     *) echo "error: $package is neither a .deb nor a .rpm" >&2; exit 2 ;;
 esac
 
+# The four Pomodoro alarm sounds the widget bundles, which the alarm player
+# resolves inside the installed widget.
+sound_files="$(for sound in work-to-short-rest short-rest-to-work work-to-long-rest long-rest-to-work; do
+    echo "$widget_dir/contents/sounds/pomodoro-$sound.wav"
+done)"
+
 expected_files="$widget_dir/metadata.json
 $widget_dir/contents/ui/main.qml
 $widget_dir/contents/config/main.xml
+$sound_files
 $icon_files
 $backend_dir/qmldir
 $backend_dir/libtokklbackend.so

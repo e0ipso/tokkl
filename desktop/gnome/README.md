@@ -2,7 +2,7 @@
 
 GNOME has no system tray, so Tokkl comes to GNOME in two parts:
 
-- `tokkl-timerd` (`src/`, `dbus/`): a headless service on the session bus. It runs the shared desktop core in `desktop/core`, the same timer and API client as the KDE and macOS apps, and owns `org.tokkl.Timer1` at `/org/tokkl/Timer1`. The interface is described in `dbus/org.tokkl.Timer1.xml`. The token or password goes to the keyring (GNOME Keyring through libsecret).
+- `tokkl-timerd` (`src/`, `dbus/`): a headless service on the session bus. It runs the shared desktop core in `desktop/core`, the same timer and API client as the KDE and macOS apps, and owns `org.tokkl.Timer1` at `/org/tokkl/Timer1`. The interface is described in `dbus/org.tokkl.Timer1.xml`. Besides the timer, it publishes the Pomodoro mode, the session (phase, planned end, pomodoro number, next phase, whether the alarm rings and the last message), the account's lengths and the sound chosen for each transition. Its methods switch the mode, start a session, confirm the next phase, end the session, save the lengths, choose a sound and preview one. The token or password goes to the keyring (GNOME Keyring through libsecret).
 - The GNOME Shell extension (`extension/`): a top bar button for that timer. It shows what the service publishes and calls its methods. The timer, the connection and the credentials stay in the service.
 
 Both are standalone. The npm workspaces, `npm run build` and the server image do not build or ship anything from this directory.
@@ -18,11 +18,11 @@ sudo dnf install ./tokkl-timerd-<version>-1.fc44.x86_64.rpm     # Fedora 44
 
 The RPM depends on the Qt it was built with, so it needs an updated Fedora 44, not the release media. A pre-release version such as `1.2.0-rc.1` is packaged as `1.2.0~rc1`, which sorts before `1.2.0`.
 
-The package installs `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1.service`, the systemd user unit `tokkl-timerd.service` and the interface description, and runs no scripts. Nothing has to be started by hand: the first call to `org.tokkl.Timer1`, which the extension makes when it is enabled, starts the service. Its log is in `journalctl --user -u tokkl-timerd`. To remove it, remove the `tokkl-timerd` package.
+The package installs `tokkl-timerd`, the D-Bus activation file `org.tokkl.Timer1.service`, the systemd user unit `tokkl-timerd.service`, the interface description and the four Pomodoro alarm sounds under `/usr/share/tokkl-timerd/sounds`, and runs no scripts. The service plays the alarm itself, on the sound server through libpulse (`libpulse0` on Debian, `pulseaudio-libs` on Fedora), which PipeWire serves on GNOME; a desktop without a sound server gets a line in the service's log and no sound. Nothing has to be started by hand: the first call to `org.tokkl.Timer1`, which the extension makes when it is enabled, starts the service. Its log is in `journalctl --user -u tokkl-timerd`. To remove it, remove the `tokkl-timerd` package.
 
 ### Build the service from source
 
-You need CMake 3.27 or later, a C++ compiler, Qt 6.8 or later (Core, Network, DBus) and QtKeychain for Qt 6. On Debian 13 that is `cmake g++ qt6-base-dev qtkeychain-qt6-dev`, on Fedora `cmake gcc-c++ qt6-qtbase-devel qtkeychain-qt6-devel`.
+You need CMake 3.27 or later, a C++ compiler, Qt 6.8 or later (Core, Network, DBus), QtKeychain for Qt 6, and libpulse with pkg-config. On Debian 13 that is `cmake g++ qt6-base-dev qtkeychain-qt6-dev libpulse-dev pkgconf`, on Fedora `cmake gcc-c++ qt6-qtbase-devel qtkeychain-qt6-devel pulseaudio-libs-devel pkgconf-pkg-config`.
 
 ```sh
 cmake -S desktop/gnome -B desktop/gnome/build -DCMAKE_INSTALL_PREFIX=/usr
@@ -46,7 +46,8 @@ To use the extension from a checkout instead, pack it first:
 ```sh
 gnome-extensions pack desktop/gnome/extension --force --out-dir=/tmp \
     --extra-source=indicator.js --extra-source=projectindicator.js --extra-source=timer1.js \
-    --extra-source=tokkl.png
+    --extra-source=tokkl.png --extra-source=tokkl-symbolic.symbolic.png \
+    --extra-source=hourglass.svg --extra-source=hourglass-symbolic.svg
 gnome-extensions install --force /tmp/tokkl@e0ipso.github.com.shell-extension.zip
 ```
 
@@ -77,6 +78,23 @@ Click the time to pause a running timer, to resume a paused one, or to start a s
 - Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. It is locked while an entry runs or the timer is paused, because the service refuses to change it then: Stop, then choose and start.
 - Billable sets the next start too. While an entry runs, it changes that entry. While paused it shows the paused entry's flag and is locked.
 - Start, Stop, Project and Billable are available only while the service reports it is connected. Until then the service refuses a click or key on the button too.
+
+## Pomodoro mode
+
+The Pomodoro mode switch in the menu changes the button between Timer mode and Pomodoro mode. The service stores the choice, so it survives a restart. While a timer runs or is paused, or a session is active, the switch reads "Pomodoro mode (locked while running)" and is disabled.
+
+A click on the button depends on the mode:
+
+- In Timer mode, and while a timer runs or is paused, it acts on the timer as above.
+- In Pomodoro mode with no session, it starts one.
+- While a phase rings after its planned end, it confirms Next phase.
+- Mid-phase, it opens the menu.
+
+In Pomodoro mode the menu drops Start and shows Start session while no session is active. During a session it shows Next phase: followed by the phase it starts (Work, Short rest or Long rest), and End session. Start and Stop show only in Timer mode or while a timer runs. Ending a work phase starts a rest and saves nothing. Ending a rest saves the pomodoro, the work phase plus the rest, as one stopped entry. End session saves the open pomodoro at once. Starting a timer on another device ends the session at that timer's start and saves the partial pomodoro. A pomodoro too short to save is dropped, and the menu says "This pomodoro was too short to save." until the next session starts.
+
+Whenever Pomodoro mode is on, an hourglass follows the logo, in full colour or, with the monochrome panel icon on, in the panel's text colour. During a session the time counts down as `M:SS` to the phase's planned end, then up as `+M:SS` in overtime. The button's accessible name and the menu name the phase, the time left and the pomodoro, for example "Short rest · 4:10 left · Pomodoro 2 of 4". The extension posts no notification. The Shell draws the hourglass from an SVG file, which needs the librsvg SVG loader (`librsvg2-common` on Debian). A desktop install gets it as a recommendation.
+
+When a phase reaches its planned end, `tokkl-timerd` plays the sound chosen for that transition, over and over, until you confirm Next phase or end the session. The extension's preferences window has a Pomodoro group with the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the account's preferences, shared with the web app and Android, and a session has no lengths of its own. Save lengths sends the ones that changed and needs a connection to the Tokkl server; without one the last known values show and cannot be edited. Below them, each of the four transitions has the sound it plays, chosen from the four bundled sounds, with a Preview button. The lengths go to the server, and the sound choices stay on this computer, in the service.
 
 ## Supported GNOME Shell versions
 

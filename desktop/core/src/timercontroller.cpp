@@ -988,10 +988,7 @@ void TimerController::setChain(const std::optional<PauseChain> &chain)
 
 QString TimerController::chainOwner() const
 {
-    if (!m_connection || !m_connection->account()) {
-        return QString();
-    }
-    return QStringLiteral("%1 %2 %3").arg(m_connection->webUrl().toString(QUrl::FullyEncoded)).arg(m_connection->account()->id).arg(workspaceId());
+    return m_connection ? m_connection->owner() : QString();
 }
 
 void TimerController::applyStopDefault()

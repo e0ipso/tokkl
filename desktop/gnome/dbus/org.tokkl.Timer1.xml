@@ -51,9 +51,73 @@
          user; empty otherwise. It never contains a secret. -->
     <property name="ErrorString" type="s" access="read"/>
 
+    <!-- Pomodoro mode is on: left-clicks run Pomodoro sessions instead of
+         the timer, and Start is refused. The service stores the mode, so
+         it survives a restart. -->
+    <property name="PomodoroMode" type="b" access="read"/>
+    <!-- The mode cannot change: an entry runs, a chain is paused, or a
+         session is active. -->
+    <property name="ModeLocked" type="b" access="read"/>
+    <!-- A Pomodoro session is active. The service stores the session, so
+         a restart continues it. -->
+    <property name="SessionActive" type="b" access="read"/>
+    <!-- The phase that runs: "work", "shortRest" or "longRest"; empty
+         without a session. -->
+    <property name="Phase" type="s" access="read"/>
+    <!-- Start and planned end of the phase as Unix time in seconds; 0
+         without a session. Clients count down to PlannedEnd themselves:
+         the remaining time is not published. -->
+    <property name="PhaseStart" type="x" access="read"/>
+    <property name="PlannedEnd" type="x" access="read"/>
+    <!-- Work phases of this round: the one that runs counts, and a rest
+         counts the work phase before it. 0 without a session. -->
+    <property name="PomodoroNumber" type="i" access="read"/>
+    <!-- Work phases per round, from the lengths the session started with;
+         0 without a session. -->
+    <property name="LongRestEvery" type="i" access="read"/>
+    <!-- The kind of phase the NextPhase method would start, as Phase
+         names it; empty without a session. -->
+    <property name="UpcomingPhase" type="s" access="read"/>
+    <!-- The planned end has passed and no action was taken yet. It stays
+         true until NextPhase or EndSession, also across a restart. -->
+    <property name="Ringing" type="b" access="read"/>
+    <!-- The transition that rings: "workToShortRest", "shortRestToWork",
+         "workToLongRest" or "longRestToWork"; empty while not ringing. -->
+    <property name="RingingTransition" type="s" access="read"/>
+    <!-- The last message about the session for the user: a pomodoro too
+         short to save, or why the server refused one. Empty when there is
+         none; it stays until the next message. -->
+    <property name="SessionMessage" type="s" access="read"/>
+    <!-- The account's Pomodoro lengths: work, shortRest and longRest in
+         minutes, and longRestEvery in work phases per round. The last
+         known lengths while the account is unreachable; the defaults
+         without an account. -->
+    <property name="PomodoroLengths" type="a{si}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,int&gt;"/>
+    </property>
+    <!-- The account is connected, so SetPomodoroLengths can send. -->
+    <property name="PomodoroLengthsEditable" type="b" access="read"/>
+    <!-- The server's message for each length it refused, keyed as
+         PomodoroLengths, and under "general" a failed read or a refusal
+         that names no length. Only refused keys are present; the next
+         SetPomodoroLengths clears them. -->
+    <property name="PomodoroLengthErrors" type="a{ss}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QString&gt;"/>
+    </property>
+    <!-- The sound each transition plays when it rings: the four transition
+         names of RingingTransition, each with an id from SoundChoices. -->
+    <property name="Sounds" type="a{ss}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QString&gt;"/>
+    </property>
+    <!-- The sounds a transition can play, each with id (s) and label (s),
+         in the order a settings pane lists them. -->
+    <property name="SoundChoices" type="aa{sv}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
+    </property>
+
     <!-- Start a new entry on ChosenProject with Billable. Returns false
          when nothing was sent: an entry runs, a chain is paused, a request
-         is in flight, or the account is not ready. -->
+         is in flight, the account is not ready, or Pomodoro mode is on. -->
     <method name="Start">
       <arg name="sent" type="b" direction="out"/>
     </method>
@@ -100,6 +164,74 @@
       <arg name="authMode" type="s" direction="in"/>
       <arg name="email" type="s" direction="in"/>
       <arg name="secret" type="s" direction="in"/>
+    </method>
+    <!-- Switch between Timer mode (false) and Pomodoro mode (true).
+         Refused (false) while ModeLocked, and when the choice cannot be
+         stored. -->
+    <method name="SetPomodoroMode">
+      <arg name="pomodoro" type="b" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <!-- The panel's left-click. While an entry runs or a chain is paused,
+         and always in Timer mode, it is the timer's toggle: it pauses a
+         running entry, resumes a paused chain, and otherwise starts an
+         entry. In Pomodoro mode it starts a session when there is none and
+         confirms the next phase while Ringing. Returns "handled",
+         "open-menu" (a session runs before its planned end: the client
+         opens its menu) or "ignored" (nothing applied: no account, or a
+         start still waits for its read of the lengths). -->
+    <method name="Activate">
+      <arg name="action" type="s" direction="out"/>
+    </method>
+    <!-- Start a session: in Pomodoro mode, with no session, no entry
+         running or paused, and an account bound, also while the instance
+         is unreachable. The lengths are read once more and the session
+         starts at the click instant with what the read returns, or with
+         the last known lengths. Returns false when nothing was started. -->
+    <method name="StartSession">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <!-- Confirm the next phase, before or after the planned end. Rest to
+         work, and work to rest after a rest, saves the ended pomodoro as a
+         stopped entry. Returns false without a session, and when the
+         session could not be stored. -->
+    <method name="NextPhase">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <!-- End the session and save the open pomodoro. Returns false without
+         a session, and when the session could not be stored. -->
+    <method name="EndSession">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <!-- Save the account's lengths: work, short rest and long rest in
+         minutes, and work phases per round. Only the values that differ
+         from PomodoroLengths are sent. Returns false while not editable,
+         while a save runs, and when nothing differs. A refused value shows
+         in PomodoroLengthErrors. -->
+    <method name="SetPomodoroLengths">
+      <arg name="work" type="i" direction="in"/>
+      <arg name="shortRest" type="i" direction="in"/>
+      <arg name="longRest" type="i" direction="in"/>
+      <arg name="longRestEvery" type="i" direction="in"/>
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <!-- Read the lengths from the server again. -->
+    <method name="RefreshPreferences"/>
+    <!-- Choose the sound a transition plays. Fails with
+         org.freedesktop.DBus.Error.InvalidArgs for a transition or a sound
+         id the service does not know. Returns false when the choice cannot
+         be stored. -->
+    <method name="SetSound">
+      <arg name="transition" type="s" direction="in"/>
+      <arg name="soundId" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <!-- Play a sound once, for a settings pane. Fails with
+         org.freedesktop.DBus.Error.InvalidArgs for a sound id the service
+         does not know. Returns false when the service has no player. -->
+    <method name="PreviewSound">
+      <arg name="soundId" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
     </method>
   </interface>
 </node>

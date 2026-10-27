@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pomodorocycle.h"
+
 #include <QDateTime>
 #include <QJsonValue>
 #include <QList>
@@ -23,6 +25,9 @@ struct Me {
     QString timezone;
     qint64 defaultWorkspaceId = 0;
     int beginningOfWeek = 1;
+    // The step, in minutes, of the clock grid entries snap to. It divides an
+    // hour; a missing or invalid value reads as 1.
+    int timeResolutionMinutes = 1;
 
     QVariantMap toVariantMap() const;
 };
@@ -80,6 +85,17 @@ struct StartEntry {
     QStringList tags;
 };
 
+// Body of POST /workspaces/{wid}/time_entries for an entry that has already
+// stopped, such as an ended pomodoro. It carries no description, task or
+// tags.
+struct StoppedEntry {
+    QDateTime start; // sent in UTC
+    QDateTime stop; // sent in UTC
+    qint64 duration = 0; // whole seconds from start to stop
+    std::optional<qint64> projectId;
+    bool billable = false;
+};
+
 // Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields
 // are left out of the request, so the server keeps them. A project or task of
 // std::nullopt inside the outer optional is sent as null and clears it.
@@ -89,6 +105,33 @@ struct TimeEntryUpdate {
     std::optional<std::optional<qint64>> taskId;
     std::optional<bool> billable;
     std::optional<QDateTime> start;
+};
+
+// The PomodoroConfig fields that GET and POST /api/v9/me/preferences hold,
+// one key each.
+enum class PomodoroField {
+    WorkMinutes,
+    ShortRestMinutes,
+    LongRestMinutes,
+    LongRestEvery,
+};
+
+// The preference key of field, such as "pomodoro_focus_interval_in_minutes".
+QString pomodoroPreferenceKey(PomodoroField field);
+
+// Pomodoro lengths to change with POST /api/v9/me/preferences. Unset fields
+// are left out of the request. The server merges the posted keys into the
+// stored preferences, so it keeps the unset ones and every other client's.
+struct PomodoroConfigUpdate {
+    std::optional<int> workMinutes;
+    std::optional<int> shortRestMinutes;
+    std::optional<int> longRestMinutes;
+    std::optional<int> longRestEvery;
+
+    bool isEmpty() const
+    {
+        return !workMinutes && !shortRestMinutes && !longRestMinutes && !longRestEvery;
+    }
 };
 
 struct ApiError {
@@ -146,9 +189,14 @@ std::optional<Me> decodeMe(const QJsonValue &value);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
+std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value);
 // null for no running entry.
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value);
 std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value);
+// The Pomodoro lengths in a preferences object. As on the server, a value
+// that is missing, not an integer or out of its range reads as its default,
+// one key at a time. nullopt only for a value that is not an object.
+std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value);
 
 // Parses a whole body as one JSON value, including bare null, strings and
 // numbers that QJsonDocument alone rejects.
@@ -160,6 +208,8 @@ ApiError errorFromResponse(const HttpResponse &response);
 
 // createdWith names the client that starts the entry.
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
+QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
+QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 
 }

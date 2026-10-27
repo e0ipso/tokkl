@@ -24,6 +24,23 @@ export const TIMER1_INTERFACE = `<node>
     <property name="Billable" type="b" access="read"/>
     <property name="Status" type="s" access="read"/>
     <property name="ErrorString" type="s" access="read"/>
+    <property name="PomodoroMode" type="b" access="read"/>
+    <property name="ModeLocked" type="b" access="read"/>
+    <property name="SessionActive" type="b" access="read"/>
+    <property name="Phase" type="s" access="read"/>
+    <property name="PhaseStart" type="x" access="read"/>
+    <property name="PlannedEnd" type="x" access="read"/>
+    <property name="PomodoroNumber" type="i" access="read"/>
+    <property name="LongRestEvery" type="i" access="read"/>
+    <property name="UpcomingPhase" type="s" access="read"/>
+    <property name="Ringing" type="b" access="read"/>
+    <property name="RingingTransition" type="s" access="read"/>
+    <property name="SessionMessage" type="s" access="read"/>
+    <property name="PomodoroLengths" type="a{si}" access="read"/>
+    <property name="PomodoroLengthsEditable" type="b" access="read"/>
+    <property name="PomodoroLengthErrors" type="a{ss}" access="read"/>
+    <property name="Sounds" type="a{ss}" access="read"/>
+    <property name="SoundChoices" type="aa{sv}" access="read"/>
     <method name="Start">
       <arg name="sent" type="b" direction="out"/>
     </method>
@@ -49,6 +66,39 @@ export const TIMER1_INTERFACE = `<node>
       <arg name="authMode" type="s" direction="in"/>
       <arg name="email" type="s" direction="in"/>
       <arg name="secret" type="s" direction="in"/>
+    </method>
+    <method name="SetPomodoroMode">
+      <arg name="pomodoro" type="b" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="Activate">
+      <arg name="action" type="s" direction="out"/>
+    </method>
+    <method name="StartSession">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="NextPhase">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="EndSession">
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="SetPomodoroLengths">
+      <arg name="work" type="i" direction="in"/>
+      <arg name="shortRest" type="i" direction="in"/>
+      <arg name="longRest" type="i" direction="in"/>
+      <arg name="longRestEvery" type="i" direction="in"/>
+      <arg name="sent" type="b" direction="out"/>
+    </method>
+    <method name="RefreshPreferences"/>
+    <method name="SetSound">
+      <arg name="transition" type="s" direction="in"/>
+      <arg name="soundId" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
+    </method>
+    <method name="PreviewSound">
+      <arg name="soundId" type="s" direction="in"/>
+      <arg name="accepted" type="b" direction="out"/>
     </method>
   </interface>
 </node>`;
@@ -82,6 +132,96 @@ export function formatElapsed(seconds) {
     const hours = Math.floor(total / 3600);
     const minutes = Math.floor((total % 3600) / 60);
     return `${hours}:${String(minutes).padStart(2, '0')}`;
+}
+
+// M:SS with the minutes unwrapped, so three hours are 180:00.
+function minutesAndSeconds(seconds) {
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+// Fills each %s or %d of a translated template with the next value, in
+// order, since String.prototype.format exists only inside GNOME Shell.
+function fill(template, ...values) {
+    let next = 0;
+    return template.replace(/%[sd]/g, () => String(values[next++]));
+}
+
+/**
+ * The phase's countdown as the panel shows it, from the PlannedEnd property
+ * (Unix seconds): M:SS left, rounded up, before the planned end, and +M:SS
+ * overtime, rounded down, from the planned end on. It is display only: the
+ * service decides when a phase rings.
+ *
+ * @param {number} plannedEnd
+ * @param {number} nowSeconds the current Unix time in seconds
+ * @returns {{text: string, overtime: boolean}}
+ */
+export function countdown(plannedEnd, nowSeconds) {
+    const ms = Math.round((plannedEnd - nowSeconds) * 1000);
+    if (ms > 0)
+        return {text: minutesAndSeconds(Math.ceil(ms / 1000)), overtime: false};
+    return {text: `+${minutesAndSeconds(Math.floor(-ms / 1000))}`, overtime: true};
+}
+
+/**
+ * Work, Short rest or Long rest for the Phase or UpcomingPhase property;
+ * empty for anything else.
+ *
+ * @param {string} phase
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function phaseName(phase, _) {
+    switch (phase) {
+    case 'work':
+        return _('Work');
+    case 'shortRest':
+        return _('Short rest');
+    case 'longRest':
+        return _('Long rest');
+    default:
+        return '';
+    }
+}
+
+/**
+ * The session in one line, as the KDE and macOS apps write it: "Short rest ·
+ * 4:10 left · Pomodoro 2 of 4", or "Work · +1:02 overtime · Pomodoro 3 of 4".
+ *
+ * @param {{phase: string, plannedEnd: number, pomodoroNumber: number, longRestEvery: number}} session
+ *     the Phase, PlannedEnd, PomodoroNumber and LongRestEvery properties
+ * @param {number} nowSeconds the current Unix time in seconds
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function sessionLine(session, nowSeconds, _) {
+    const {text, overtime} = countdown(session.plannedEnd, nowSeconds);
+    const time = fill(overtime ? _('%s overtime') : _('%s left'), text);
+    return fill(_('%s · %s · Pomodoro %d of %d'), phaseName(session.phase, _), time,
+        session.pomodoroNumber, session.longRestEvery);
+}
+
+/**
+ * The menu item that calls NextPhase, named after the UpcomingPhase
+ * property.
+ *
+ * @param {string} upcomingPhase
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function nextPhaseLabel(upcomingPhase, _) {
+    return fill(_('Next phase: %s'), phaseName(upcomingPhase, _));
+}
+
+/**
+ * The menu switch that calls SetPomodoroMode; it says so while ModeLocked.
+ *
+ * @param {boolean} locked
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function pomodoroModeLabel(locked, _) {
+    return locked ? _('Pomodoro mode (locked while running)') : _('Pomodoro mode');
 }
 
 /**

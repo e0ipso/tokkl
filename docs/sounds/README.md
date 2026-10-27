@@ -8,6 +8,8 @@ Tokkl generated all four with FFmpeg and records no outside audio, so they are u
 
 The files are 16-bit mono PCM WAV at 22,050 Hz. Browsers play WAV in an `<audio>` element and Android plays it with `MediaPlayer`, so the web app and Tokkl for Android use the same files. The app serves them from its own origin, because the Content Security Policy allows media only from `'self'`. MP3 does not loop cleanly: the encoder pads the stream to whole frames, and a player that ignores the LAME gapless header plays that padding as silence at every loop. Encoded with libmp3lame at 64 kbit/s, the work to short rest phrase grew from 44,100 to 45,504 samples, which is 64 ms of extra silence per loop. A WAV file has no encoder delay or padding, so its samples are the loop.
 
+The KDE, GNOME and macOS companions play the same files. The KDE widget plays them through Qt Multimedia, `tokkl-timerd` through libpulse and the macOS app through `NSSound`. The KDE and GNOME package builds only see `desktop/core`, so `desktop/core/sounds/` holds byte-for-byte copies of the four files. The `pomodorosounds` test in `desktop/core` checks the copies against the SHA-256 sums below. The KDE package installs them in the widget's `contents/sounds/`, the GNOME package in `/usr/share/tokkl-timerd/sounds` and the macOS bundle in `Contents/Resources/sounds`.
+
 Run each command from the repository root. The bitexact flags leave out encoder versions and metadata, so the same FFmpeg build writes the same file every time. FFmpeg 6.1.1 (Ubuntu build `6.1.1-3ubuntu5`) wrote the committed files.
 
 ### Work to short rest

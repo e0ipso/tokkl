@@ -1,6 +1,7 @@
 #include "connection.h"
 
 #include <QCoreApplication>
+#include <QUrlQuery>
 
 #include <algorithm>
 #include <utility>
@@ -82,6 +83,7 @@ void Connection::setInstanceUrl(const QString &url)
     if (url == m_instanceText) {
         return;
     }
+    Q_EMIT contextAboutToChange();
     m_instanceText = url;
     Q_EMIT instanceUrlChanged();
     settingsChanged();
@@ -111,6 +113,7 @@ void Connection::setAuthMode(AuthMode mode)
     if (mode == m_authMode) {
         return;
     }
+    Q_EMIT contextAboutToChange();
     m_authMode = mode;
     Q_EMIT authModeChanged();
     settingsChanged();
@@ -136,10 +139,14 @@ void Connection::setEmail(const QString &email)
     if (email == m_email) {
         return;
     }
+    // The email only identifies the account in password mode.
+    const bool contextChanges = m_authMode == AuthMode::Password;
+    if (contextChanges) {
+        Q_EMIT contextAboutToChange();
+    }
     m_email = email;
     Q_EMIT emailChanged();
-    // The email only identifies the account in password mode.
-    if (m_authMode == AuthMode::Password) {
+    if (contextChanges) {
         settingsChanged();
     }
 }
@@ -195,6 +202,14 @@ QVariantMap Connection::accountMap() const
 qint64 Connection::workspaceId() const
 {
     return hasContext() ? m_context->me.defaultWorkspaceId : 0;
+}
+
+QString Connection::owner() const
+{
+    if (!hasContext()) {
+        return QString();
+    }
+    return QStringLiteral("%1 %2 %3").arg(webUrl().toString(QUrl::FullyEncoded)).arg(m_context->me.id).arg(m_context->me.defaultWorkspaceId);
 }
 
 QList<Project> Connection::projects() const
@@ -370,6 +385,7 @@ void Connection::onSecretChanged(const QString &key)
         m_failedWrite.reset();
     }
     if (m_instance.isValid() && key == currentCredentialKey()) {
+        Q_EMIT contextAboutToChange();
         settingsChanged();
     }
 }
@@ -495,7 +511,8 @@ void Connection::bind(const Me &me)
         resetAccount();
     }
     const bool changed = !hasContext() || m_context->me.email != me.email || m_context->me.fullname != me.fullname
-        || m_context->me.timezone != me.timezone || m_context->me.beginningOfWeek != me.beginningOfWeek;
+        || m_context->me.timezone != me.timezone || m_context->me.beginningOfWeek != me.beginningOfWeek
+        || m_context->me.timeResolutionMinutes != me.timeResolutionMinutes;
     m_context = Context{m_generation, m_instance.key(), me};
     setState(Connected);
     if (changed) {
@@ -589,14 +606,21 @@ void Connection::onCooldownEnded()
 
 // ----- requests ------------------------------------------------------------
 
-void Connection::send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler)
+void Connection::send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler, bool detached)
 {
     const quint64 generation = m_generation;
     PendingReply *reply = m_transport->send(HttpRequest{method, m_instance.api(path), m_authorization, body});
-    m_pending.insert(reply);
-    connect(reply, &PendingReply::finished, this, [this, reply, generation, handler](const HttpResponse &response) {
-        m_pending.remove(reply);
-        reply->deleteLater();
+    if (detached) {
+        // Deleted on its own, as this object may be gone by then.
+        connect(reply, &PendingReply::finished, reply, &QObject::deleteLater);
+    } else {
+        m_pending.insert(reply);
+    }
+    connect(reply, &PendingReply::finished, this, [this, reply, generation, handler, detached](const HttpResponse &response) {
+        if (!detached) {
+            m_pending.remove(reply);
+            reply->deleteLater();
+        }
         if (generation != m_generation) {
             return; // issued for an earlier instance, account or credential
         }
@@ -628,7 +652,8 @@ void Connection::call(const QByteArray &method,
                       Access access,
                       std::function<std::optional<T>(const QJsonValue &)> decode,
                       std::function<void(const T &)> apply,
-                      Callback<T> done)
+                      Callback<T> done,
+                      bool detached)
 {
     if (!hasContext()) {
         failLater<T>(m_authPaused ? localError(ApiError::Kind::AuthenticationPaused, m_error)
@@ -688,7 +713,7 @@ void Connection::call(const QByteArray &method,
         if (done) {
             done(ApiResult<T>::failure(error));
         }
-    });
+    }, detached);
 }
 
 void Connection::fetchMe(Callback<Me> done)
@@ -829,6 +854,45 @@ void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
         std::move(done));
 }
 
+void Connection::createStoppedEntry(const StoppedEntry &entry, Callback<TimeEntry> done)
+{
+    const qint64 workspace = workspaceId();
+    call<TimeEntry>("POST",
+                    QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
+                    encodeStoppedEntry(entry, workspace, m_clientName),
+                    Access::Write,
+                    &decodeTimeEntry,
+                    {},
+                    std::move(done));
+}
+
+void Connection::createStoppedEntryDetached(const StoppedEntry &entry, Callback<TimeEntry> done)
+{
+    const qint64 workspace = workspaceId();
+    call<TimeEntry>("POST",
+                    QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
+                    encodeStoppedEntry(entry, workspace, m_clientName),
+                    Access::Write,
+                    &decodeTimeEntry,
+                    {},
+                    std::move(done),
+                    true);
+}
+
+void Connection::fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("start_date"), start.toUTC().toString(Qt::ISODate));
+    query.addQueryItem(QStringLiteral("end_date"), end.toUTC().toString(Qt::ISODate));
+    call<QList<TimeEntry>>("GET",
+                           QStringLiteral("/me/time_entries?") + query.toString(QUrl::FullyEncoded),
+                           QByteArray(),
+                           Access::Read,
+                           &decodeTimeEntries,
+                           {},
+                           std::move(done));
+}
+
 void Connection::stopEntry(qint64 entryId, Callback<TimeEntry> done)
 {
     call<TimeEntry>(
@@ -861,6 +925,22 @@ void Connection::updateEntry(qint64 entryId, const TimeEntryUpdate &update, Call
             }
         },
         std::move(done));
+}
+
+void Connection::fetchPreferences(Callback<PomodoroConfig> done)
+{
+    call<PomodoroConfig>("GET", QStringLiteral("/me/preferences"), QByteArray(), Access::Read, &decodePomodoroPreferences, {}, std::move(done));
+}
+
+void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done)
+{
+    call<PomodoroConfig>("POST",
+                         QStringLiteral("/me/preferences"),
+                         encodePomodoroConfigUpdate(update),
+                         Access::Write,
+                         &decodePomodoroPreferences,
+                         {},
+                         std::move(done));
 }
 
 }

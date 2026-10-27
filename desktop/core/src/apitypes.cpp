@@ -1,5 +1,6 @@
 #include "apitypes.h"
 
+#include "snap.h"
 #include "transport.h"
 
 #include <QCoreApplication>
@@ -128,6 +129,39 @@ QString redirectTarget(const QByteArray &location)
     }
     return url.adjusted(QUrl::RemoveUserInfo | QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment).toString();
 }
+
+// The preferences that hold the Pomodoro lengths: the config value each one
+// fills, the range the server accepts and the change that sets it.
+struct PomodoroPreference {
+    PomodoroField field;
+    QLatin1String key;
+    int PomodoroConfig::*value;
+    PomodoroRange range;
+    std::optional<int> PomodoroConfigUpdate::*change;
+};
+
+const PomodoroPreference pomodoroPreferences[] = {
+    {PomodoroField::WorkMinutes,
+     QLatin1String("pomodoro_focus_interval_in_minutes"),
+     &PomodoroConfig::workMinutes,
+     PomodoroConfig::workMinutesRange,
+     &PomodoroConfigUpdate::workMinutes},
+    {PomodoroField::ShortRestMinutes,
+     QLatin1String("pomodoro_break_interval_in_minutes"),
+     &PomodoroConfig::shortRestMinutes,
+     PomodoroConfig::shortRestMinutesRange,
+     &PomodoroConfigUpdate::shortRestMinutes},
+    {PomodoroField::LongRestMinutes,
+     QLatin1String("pomodoro_long_break_interval_in_minutes"),
+     &PomodoroConfig::longRestMinutes,
+     PomodoroConfig::longRestMinutesRange,
+     &PomodoroConfigUpdate::longRestMinutes},
+    {PomodoroField::LongRestEvery,
+     QLatin1String("pomodoro_long_break_every"),
+     &PomodoroConfig::longRestEvery,
+     PomodoroConfig::longRestEveryRange,
+     &PomodoroConfigUpdate::longRestEvery},
+};
 }
 
 QVariantMap Me::toVariantMap() const
@@ -139,6 +173,7 @@ QVariantMap Me::toVariantMap() const
         {QStringLiteral("timezone"), timezone},
         {QStringLiteral("defaultWorkspaceId"), defaultWorkspaceId},
         {QStringLiteral("beginningOfWeek"), beginningOfWeek},
+        {QStringLiteral("timeResolutionMinutes"), timeResolutionMinutes},
     };
 }
 
@@ -211,6 +246,10 @@ std::optional<Me> decodeMe(const QJsonValue &value)
         }
         me.beginningOfWeek = int(*day);
     }
+    // The server snaps on write as well, so an unusable value does not refuse
+    // the account.
+    const std::optional<qint64> resolution = integer(object.value(QLatin1String("time_resolution_minutes")));
+    me.timeResolutionMinutes = resolution && isTimeResolution(*resolution) ? int(*resolution) : 1;
     return me;
 }
 
@@ -298,6 +337,22 @@ std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value)
         return std::nullopt;
     }
     return entry;
+}
+
+std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value)
+{
+    if (!value.isArray()) {
+        return std::nullopt;
+    }
+    QList<TimeEntry> entries;
+    for (const QJsonValue &item : value.toArray()) {
+        std::optional<TimeEntry> entry = decodeTimeEntry(item);
+        if (!entry) {
+            return std::nullopt;
+        }
+        entries.append(std::move(*entry));
+    }
+    return entries;
 }
 
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value)
@@ -399,6 +454,22 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
+QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith)
+{
+    const QJsonObject object{
+        {QStringLiteral("created_with"), createdWith},
+        {QStringLiteral("description"), QString()},
+        {QStringLiteral("start"), utcTimestamp(entry.start)},
+        {QStringLiteral("stop"), utcTimestamp(entry.stop)},
+        {QStringLiteral("duration"), entry.duration},
+        {QStringLiteral("workspace_id"), workspaceId},
+        {QStringLiteral("project_id"), idJson(entry.projectId)},
+        {QStringLiteral("billable"), entry.billable},
+        {QStringLiteral("tags"), QJsonArray()},
+    };
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
 {
     QJsonObject object;
@@ -416,6 +487,43 @@ QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
     }
     if (update.start) {
         object.insert(QStringLiteral("start"), utcTimestamp(*update.start));
+    }
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+QString pomodoroPreferenceKey(PomodoroField field)
+{
+    for (const PomodoroPreference &preference : pomodoroPreferences) {
+        if (preference.field == field) {
+            return preference.key;
+        }
+    }
+    return QString();
+}
+
+std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value)
+{
+    if (!value.isObject()) {
+        return std::nullopt;
+    }
+    const QJsonObject object = value.toObject();
+    PomodoroConfig config;
+    for (const PomodoroPreference &preference : pomodoroPreferences) {
+        const std::optional<qint64> minutes = integer(object.value(preference.key));
+        if (minutes && *minutes >= preference.range.min && *minutes <= preference.range.max) {
+            config.*preference.value = int(*minutes);
+        }
+    }
+    return config;
+}
+
+QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update)
+{
+    QJsonObject object;
+    for (const PomodoroPreference &preference : pomodoroPreferences) {
+        if (const std::optional<int> value = update.*preference.change) {
+            object.insert(preference.key, *value);
+        }
     }
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }

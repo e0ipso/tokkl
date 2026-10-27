@@ -28,6 +28,8 @@ namespace Tokkl
 // Changing a setting or the stored secret starts a new generation: account
 // data and next-start choices are cleared at once, requests in flight are
 // aborted, and replies issued under an older generation are dropped.
+// contextAboutToChange() fires first, while the old account can still be
+// written to; a detached request issued from it is not aborted.
 //
 // When the store refuses to write a secret for this account, also after the
 // settings page that asked for it is gone, the connection drops the account
@@ -110,6 +112,9 @@ public:
     std::optional<Me> account() const;
     QVariantMap accountMap() const;
     qint64 workspaceId() const;
+    // The instance, account and workspace of the validated account as one
+    // key, for what a device keeps per account. Empty without one.
+    QString owner() const;
     QList<Project> projects() const;
     QVariantList projectList() const;
     // True when the workspace has more active projects than the page limit
@@ -141,8 +146,24 @@ public:
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
+    // Saves an entry that has already stopped. The cached current entry is
+    // not touched.
+    void createStoppedEntry(const StoppedEntry &entry, Callback<TimeEntry> done = {});
+    // The same, detached: the request outlives the generation, so a change
+    // of instance, account or secret right after it does not abort it. done
+    // still runs only for a reply of the generation that sent it. For the
+    // save queue, whose POSTs go out just before a sign-out.
+    void createStoppedEntryDetached(const StoppedEntry &entry, Callback<TimeEntry> done = {});
+    // The account's entries that started from start to end, in every
+    // workspace (GET /me/time_entries?start_date=&end_date=).
+    void fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
+    // The Pomodoro lengths of the account preferences.
+    void fetchPreferences(Callback<PomodoroConfig> done = {});
+    // Posts only the lengths the update sets. done gets the lengths the
+    // server holds afterwards.
+    void savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done = {});
 
     // Delay before an automatic retry after a connectivity failure, and the
     // cooldown after a 429 without Retry-After.
@@ -164,6 +185,9 @@ Q_SIGNALS:
     void instanceUrlChanged();
     void authModeChanged();
     void emailChanged();
+    // The instance, sign-in method, email or stored secret is about to
+    // change. The old account is still bound and writable.
+    void contextAboutToChange();
     void stateChanged();
     void generationChanged();
     void accountChanged();
@@ -205,7 +229,9 @@ private:
     QString credentialMessage(const CredentialResult &result) const;
 
     using ResponseHandler = std::function<void(const HttpResponse &)>;
-    void send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler);
+    // A detached request is not tracked, so a new generation does not abort
+    // it; its handler still runs only within the generation that sent it.
+    void send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler, bool detached = false);
     enum class Access {
         Read,
         Write, // needs canWrite()
@@ -218,7 +244,8 @@ private:
               Access access,
               std::function<std::optional<T>(const QJsonValue &)> decode,
               std::function<void(const T &)> apply,
-              Callback<T> done);
+              Callback<T> done,
+              bool detached = false);
     template<typename T>
     void failLater(ApiError error, Callback<T> done);
     struct ProjectPages;

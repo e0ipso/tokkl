@@ -25,6 +25,7 @@ BuildRequires:  cmake(Qt6Core) >= 6.8.0
 BuildRequires:  cmake(Qt6Network)
 BuildRequires:  cmake(Qt6DBus)
 BuildRequires:  cmake(Qt6Keychain)
+BuildRequires:  pkgconfig(libpulse-simple)
 
 Recommends:     gnome-keyring
 
@@ -32,8 +33,9 @@ Recommends:     gnome-keyring
 A session bus service for Tokkl, a self-hosted time tracker with a Toggl
 Track compatible API. It signs in to an account on a Tokkl server, keeps the
 running timer, starts and stops it, and sets the project and billable flag of
-the next or running entry. The Tokkl GNOME Shell extension shows it in the
-top bar.
+the next or running entry. It runs Pomodoro sessions and plays their alarm on
+the sound server (PipeWire or PulseAudio, through libpulse). The Tokkl GNOME
+Shell extension shows it in the top bar.
 
 It owns org.tokkl.Timer1 and starts on the first call to that name, through
 its systemd user unit or D-Bus activation. The token or password is stored in
@@ -57,6 +59,7 @@ the keyring through libsecret. Built for Fedora 44 x86_64.
 %license LICENSE
 %doc README.md
 %{_bindir}/tokkl-timerd
+%{_datadir}/tokkl-timerd/
 %{_datadir}/dbus-1/services/org.tokkl.Timer1.service
 %{_datadir}/dbus-1/interfaces/org.tokkl.Timer1.xml
 %{_userunitdir}/tokkl-timerd.service

@@ -1,10 +1,10 @@
 // Tokkl for the macOS menu bar: the platform parts handed to MenuBarApp.
 
 #include "keychaincredentialstore.h"
+#include "macalarmplayer.h"
 #include "macloginitem.h"
 #include "macstatusitem.h"
 #include "menubarapp.h"
-#include "timercontroller.h"
 #include "transport.h"
 
 #include <QApplication>
@@ -47,9 +47,10 @@ int main(int argc, char *argv[])
     Tokkl::KeychainCredentialStore store;
     Tokkl::MacStatusItem statusItem;
     Tokkl::MacLoginItem loginItem;
+    Tokkl::MacAlarmPlayer alarmPlayer;
     QSettings settings;
 
-    Tokkl::MenuBarApp tokkl(transport.get(), &store, &statusItem, &loginItem, &settings);
+    Tokkl::MenuBarApp tokkl(transport.get(), &store, &statusItem, &loginItem, &alarmPlayer, &settings);
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::settingsShown, &tokkl, &bringToFront);
     // The configured base URL only: it never holds credentials.
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::openUrlRequested, &tokkl, [](const QUrl &url) {
@@ -57,15 +58,16 @@ int main(int argc, char *argv[])
     });
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
 
-    // Read the timer at once after sleep instead of waiting for a late tick.
-    QPointer<Tokkl::TimerController> timer = tokkl.timer();
+    // Read the timer and the Pomodoro session at once after sleep instead of
+    // waiting for a late tick.
+    QPointer<Tokkl::MenuBarApp> menuBarApp(&tokkl);
     id wakeObserver = [NSWorkspace.sharedWorkspace.notificationCenter addObserverForName:NSWorkspaceDidWakeNotification
                                                                                   object:nil
                                                                                    queue:NSOperationQueue.mainQueue
                                                                               usingBlock:^(NSNotification *notification) {
                                                                                   Q_UNUSED(notification);
-                                                                                  if (timer) {
-                                                                                      timer->resumed();
+                                                                                  if (menuBarApp) {
+                                                                                      menuBarApp->resumed();
                                                                                   }
                                                                               }];
 

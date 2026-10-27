@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Checks a DMG from package-dmg.sh the way a user gets it: mounts it read-only
 # and checks that it holds Tokkl.app and a link to /Applications, that the
-# bundle holds Tokkl.icns and its Info.plist names it, that the bundle's
-# version is <version> and its Info.plist keeps it out of the Dock, and that
-# its signature verifies. Then it starts the app from the DMG with
+# bundle holds Tokkl.icns and its Info.plist names it, that it holds the
+# four Pomodoro alarm sounds, that the bundle's version is <version> and
+# its Info.plist keeps it out of the Dock, and that its signature verifies. Then it starts the app from the DMG with
 # no Qt paths in the environment, so it loads only what the bundle holds,
 # and fails unless the app is still running after ten seconds. With no
 # settings the app opens its settings window and touches no keychain item.
@@ -41,6 +41,9 @@ app="$mountpoint/Tokkl.app"
 plist="$app/Contents/Info.plist"
 [ -d "$app" ] || die "the DMG has no Tokkl.app"
 [ -f "$app/Contents/Resources/Tokkl.icns" ] || die "Tokkl.app has no Contents/Resources/Tokkl.icns"
+for sound in work-to-short-rest short-rest-to-work work-to-long-rest long-rest-to-work; do
+    [ -f "$app/Contents/Resources/sounds/pomodoro-$sound.wav" ] || die "Tokkl.app has no Contents/Resources/sounds/pomodoro-$sound.wav"
+done
 [ "$(readlink "$mountpoint/Applications")" = /Applications ] || die "the DMG has no link to /Applications"
 plutil -lint "$plist" > /dev/null
 [ "$(plutil -extract CFBundleVersion raw -o - "$plist")" = "$version" ] || die "CFBundleVersion is not $version"

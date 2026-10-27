@@ -1,7 +1,8 @@
 // Opens the installed extension's preferences in the Extensions app's own
 // preferences window, with the extension as GNOME Shell describes it, fills
 // in the form, presses Connect and checks what mock-timer.js
-// received and what the extension's settings kept. Needs a Wayland display
+// received and what the extension's settings kept. Then it edits the
+// Pomodoro lengths and sounds against the mock. Needs a Wayland display
 // (the headless GNOME Shell of shell-test.sh) and mock-timer.js on the
 // session bus.
 //
@@ -45,6 +46,8 @@ const settings = new Gio.Settings({
 
 const mockCalls = () => JSON.parse(bus.call_sync('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock',
     'Calls', null, new GLib.VariantType('(s)'), Gio.DBusCallFlags.NONE, 10_000, null).recursiveUnpack()[0]);
+const mockSet = (name, value) => bus.call_sync('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock',
+    'Set', new GLib.Variant('(sv)', [name, value]), null, Gio.DBusCallFlags.NONE, 10_000, null);
 
 function delay(ms) {
     return new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
@@ -124,7 +127,7 @@ await step('the monochrome preference persists without configuring the account',
     await waitFor('the saved monochrome preference', () => settings.get_boolean('monochrome-icon'));
     form.window.close();
     form = await openWindow();
-    if (!form.monochrome.active || mockCalls().length !== before)
+    if (!form.monochrome.active || mockCalls().slice(before).some(([name]) => name === 'Configure'))
         throw new Error('reopening lost the icon preference or configured the account');
     await waitFor('the reopened connection', () => form.status.subtitle === 'Connected' || form.status.subtitle);
     form.monochrome.active = false;
@@ -178,6 +181,135 @@ await step('the form opens with the last accepted values', async () => {
     if (again.url.text !== 'https://tokkl.example.com' || again.mode.selected !== 0 || again.secret.text !== '')
         throw new Error(`url ${again.url.text}, mode ${again.mode.selected}, secret ${again.secret.text}`);
     again.window.close();
+});
+
+// The Pomodoro rows by the keys of PomodoroLengths and Sounds.
+const lengthTitles = {work: 'Work', shortRest: 'Short rest', longRest: 'Long rest', longRestEvery: 'Long rest every'};
+const soundTitles = {
+    workToShortRest: 'Work → short rest',
+    shortRestToWork: 'Short rest → work',
+    workToLongRest: 'Work → long rest',
+    longRestToWork: 'Long rest → work',
+};
+
+function pomodoroGroup(window) {
+    const group = [...descendants(window)]
+        .find(widget => widget instanceof Adw.PreferencesGroup && widget.title === 'Pomodoro');
+    if (!group)
+        throw new Error('no Pomodoro group');
+    const widgets = [...descendants(group)];
+    const rows = (type, titles) => Object.fromEntries(Object.entries(titles).map(([key, title]) => {
+        const found = widgets.find(widget => widget instanceof type && widget.title === title);
+        if (!found)
+            throw new Error(`no ${type.name} titled ${title} in the Pomodoro group`);
+        return [key, found];
+    }));
+    const button = (parent, label) => {
+        const found = [...descendants(parent)].find(widget => widget instanceof Gtk.Button && widget.label === label);
+        if (!found)
+            throw new Error(`no ${label} button in ${parent.title}`);
+        return found;
+    };
+    const sounds = rows(Adw.ComboRow, soundTitles);
+    return {
+        window,
+        group,
+        lengths: rows(Adw.SpinRow, lengthTitles),
+        save: button(group, 'Save lengths'),
+        sounds,
+        previews: Object.fromEntries(Object.entries(sounds).map(([key, row]) => [key, button(row, 'Preview')])),
+    };
+}
+
+const lengthValues = form => Object.fromEntries(Object.entries(form.lengths).map(([key, row]) => [key, row.value]));
+const choiceLabels = row => Array.from({length: row.model.get_n_items()}, (_, index) => row.model.get_item(index).string);
+const lengthsVariant = lengths => new GLib.Variant('a{si}', lengths);
+
+let pomodoro;
+await step('the Pomodoro group shows the lengths read on opening and the chosen sounds', async () => {
+    mockSet('PomodoroLengths', lengthsVariant({work: 25, shortRest: 5, longRest: 15, longRestEvery: 4}));
+    const before = mockCalls().length;
+    pomodoro = pomodoroGroup((await openWindow()).window);
+    // mock-timer.js answers RefreshPreferences with these.
+    await waitFor('the account lengths', () => sameCall(lengthValues(pomodoro),
+        {work: 50, shortRest: 10, longRest: 20, longRestEvery: 3}));
+    const labels = ['Two falling notes', 'Three rising notes', 'Four slow falling notes', 'Fast high run'];
+    await waitFor('the sound choices', () => Object.values(pomodoro.sounds).every((row, index) =>
+        row.selected === index && sameCall(choiceLabels(row), labels) === true) ||
+        Object.values(pomodoro.sounds).map(row => [row.selected, choiceLabels(row)]));
+    const names = mockCalls().slice(before).map(([name]) => name);
+    if (!names.includes('RefreshPreferences') || names.includes('SetSound') || names.includes('SetPomodoroLengths'))
+        throw new Error(`calls on opening: ${JSON.stringify(names)}`);
+});
+
+await step('Save lengths sends the edited lengths, also one still being typed', async () => {
+    pomodoro.lengths.work.value = 45;
+    pomodoro.lengths.longRestEvery.text = '6';
+    pomodoro.save.emit('clicked');
+    await waitFor('SetPomodoroLengths', () => sameCall(lastCall(), ['SetPomodoroLengths', 45, 10, 20, 6]));
+    await waitFor('the saved lengths', () => sameCall(lengthValues(pomodoro),
+        {work: 45, shortRest: 10, longRest: 20, longRestEvery: 6}));
+});
+
+await step('lengths changed elsewhere replace the rows', async () => {
+    // Also waits out the service's answer to the last save, which comes
+    // before this change.
+    mockSet('PomodoroLengths', lengthsVariant({work: 40, shortRest: 10, longRest: 20, longRestEvery: 6}));
+    await waitFor('the new lengths', () => sameCall(lengthValues(pomodoro),
+        {work: 40, shortRest: 10, longRest: 20, longRestEvery: 6}));
+});
+
+await step('a refused length shows on its row, the typed lengths stay, and the next save clears it', async () => {
+    const work = pomodoro.lengths.work;
+    const refusal = 'Work must be at most 90 minutes.';
+    work.value = 120;
+    const typed = lengthValues(pomodoro);
+    mockSet('PomodoroLengthErrors', new GLib.Variant('a{ss}', {work: refusal, general: 'The server did not answer.'}));
+    await waitFor('the error on Work', () => (work.subtitle === refusal && work.has_css_class('error')) || work.subtitle);
+    const marked = Object.entries(pomodoro.lengths).filter(([, row]) => row.has_css_class('error')).map(([key]) => key);
+    if (sameCall(marked, ['work']) !== true)
+        throw new Error(`rows marked as refused: ${JSON.stringify(marked)}`);
+    if (sameCall(lengthValues(pomodoro), typed) !== true)
+        throw new Error(`the typed lengths changed to ${JSON.stringify(lengthValues(pomodoro))}`);
+    if (!pomodoro.group.description.includes('The server did not answer.'))
+        throw new Error(`the general error is missing from: ${pomodoro.group.description}`);
+    pomodoro.save.emit('clicked');
+    await waitFor('SetPomodoroLengths', () => sameCall(lastCall(), ['SetPomodoroLengths', 120, 10, 20, 6]));
+    await waitFor('no error', () => (!work.has_css_class('error') && work.subtitle !== refusal &&
+        !pomodoro.group.description.includes('The server did not answer.')) || work.subtitle);
+});
+
+await step('without a connection the lengths are read-only and show the last known values', async () => {
+    const known = lengthValues(pomodoro);
+    pomodoro.lengths.work.value = 33;
+    mockSet('PomodoroLengthsEditable', new GLib.Variant('b', false));
+    await waitFor('read-only lengths', () => (Object.values(pomodoro.lengths).every(row => !row.sensitive) &&
+        !pomodoro.save.sensitive && pomodoro.group.description.includes('connection to the Tokkl server')) ||
+        pomodoro.group.description);
+    if (sameCall(lengthValues(pomodoro), known) !== true)
+        throw new Error(`read-only rows show ${JSON.stringify(lengthValues(pomodoro))}`);
+    if (Object.values(pomodoro.sounds).some(row => !row.sensitive))
+        throw new Error('the sounds turned read-only too');
+    mockSet('PomodoroLengthsEditable', new GLib.Variant('b', true));
+    await waitFor('editable lengths', () => Object.values(pomodoro.lengths).every(row => row.sensitive) &&
+        pomodoro.save.sensitive);
+});
+
+await step('choosing a sound sends it to SetSound once', async () => {
+    const before = mockCalls().length;
+    pomodoro.sounds.workToShortRest.selected = 2;
+    await waitFor('SetSound', () => sameCall(lastCall(), ['SetSound', 'workToShortRest', 'work-to-long-rest']));
+    // The service's update of Sounds comes back and must not be sent again.
+    await delay(500);
+    const sent = mockCalls().slice(before).filter(([name]) => name === 'SetSound');
+    if (sent.length !== 1 || pomodoro.sounds.workToShortRest.selected !== 2)
+        throw new Error(`SetSound calls ${JSON.stringify(sent)}, selected ${pomodoro.sounds.workToShortRest.selected}`);
+});
+
+await step('Preview plays the chosen sound', async () => {
+    pomodoro.previews.workToShortRest.emit('clicked');
+    await waitFor('PreviewSound', () => sameCall(lastCall(), ['PreviewSound', 'work-to-long-rest']));
+    pomodoro.window.close();
 });
 
 print(failures ? `${failures} failed` : 'all passed');

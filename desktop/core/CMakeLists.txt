@@ -53,6 +53,26 @@ find_package(Qt6 ${TOKKL_CORE_QT_MIN_VERSION} REQUIRED COMPONENTS Core Network)
 
 message(STATUS "Tokkl desktop core version: ${TOKKL_CORE_VERSION}")
 
+# The Pomodoro alarm sounds, in the order of the catalogue in
+# src/pomodorosounds.cpp, for the companions to install. sounds/ holds
+# byte-for-byte copies of packages/web/public/sounds rather than pointing
+# there: the KDE and GNOME DEB and RPM builds configure from a copy of
+# desktop/core alone (scripts/package-release.sh), so packages/ is out of
+# their reach. The macOS build has the whole checkout but uses the same
+# copies. The pomodorosounds test checks them against the SHA-256 sums in
+# docs/sounds/README.md.
+set(TOKKL_POMODORO_SOUND_FILES)
+foreach(_sound IN ITEMS work-to-short-rest short-rest-to-work work-to-long-rest long-rest-to-work)
+    set(_file "${CMAKE_CURRENT_LIST_DIR}/sounds/pomodoro-${_sound}.wav")
+    if(NOT EXISTS "${_file}")
+        message(FATAL_ERROR "${_file} does not exist; a copy of desktop/core needs its sounds/ directory.")
+    endif()
+    list(APPEND TOKKL_POMODORO_SOUND_FILES "${_file}")
+endforeach()
+if(NOT PROJECT_IS_TOP_LEVEL)
+    set(TOKKL_POMODORO_SOUND_FILES "${TOKKL_POMODORO_SOUND_FILES}" PARENT_SCOPE)
+endif()
+
 add_subdirectory(src)
 
 if(BUILD_TESTING)

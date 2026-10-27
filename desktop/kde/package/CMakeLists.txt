@@ -22,6 +22,15 @@ foreach(_file IN LISTS _contents)
     configure_file("${_file}" "${_build_dir}/${_file}" COPYONLY)
 endforeach()
 
+# The Pomodoro alarm sounds from desktop/core, installed with the widget in
+# contents/sounds/, where the alarm player finds them through the data
+# directories. The list comes from the core's CMakeLists.txt, so it is empty
+# for a fixture that configures package/ alone.
+foreach(_file IN LISTS TOKKL_POMODORO_SOUND_FILES)
+    get_filename_component(_name "${_file}" NAME)
+    configure_file("${_file}" "${_build_dir}/contents/sounds/${_name}" COPYONLY)
+endforeach()
+
 plasma_install_package("${_build_dir}" ${TOKKL_PLASMOID_ID})
 
 # The widget picker resolves KPlugin.Icon through the system icon theme.

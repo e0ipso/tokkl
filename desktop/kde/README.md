@@ -104,7 +104,7 @@ before a release.
 | Dependency                                                        | Minimum |
 | ----------------------------------------------------------------- | ------- |
 | CMake                                                             | 3.27    |
-| Qt 6: Core, Network, Qml, Quick (DBus, Test, QuickTest for tests) | 6.8     |
+| Qt 6: Core, Multimedia, Network, Qml, Quick (DBus, Test, QuickTest for tests) | 6.8     |
 | Extra CMake Modules; KF6 Wallet, Package, Config                  | 6.13    |
 | KF6 I18n with I18nQml, KF6 KirigamiPlatform (tests only)          | 6.13    |
 | QML modules: Kirigami, KCMUtils                                   | 6.13    |
@@ -116,8 +116,9 @@ Frameworks 6.25.0 and libplasma 6.6.4; see [Packages](#packages) for the
 versions its updates bring). Older Plasma 6 releases are not supported.
 
 Packages on Debian 13: `cmake extra-cmake-modules qt6-base-dev
-qt6-declarative-dev libplasma-dev libkf6wallet-dev libkf6config-dev
-libkf6i18n-dev qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils`, and
+qt6-declarative-dev qt6-multimedia-dev libplasma-dev libkf6wallet-dev
+libkf6config-dev libkf6i18n-dev qml6-module-org-kde-kirigami
+qml6-module-org-kde-kcmutils`, and
 for the tests `libkirigami-dev`, `qml6-module-qttest`,
 `plasma-desktoptheme` (Plasma's QML components) and `dbus-daemon`.
 The CI images in `ci/` hold the complete lists for all targets (see
@@ -422,6 +423,25 @@ sets its `connection` to the widget's `TokklConnection`.
   choices at once and ignores late answers, even if the new account uses the
   same ids.
 
+## Pomodoro mode
+
+The menu has a checkable Pomodoro mode item that switches the widget between Timer mode and Pomodoro mode. The widget remembers the choice on this device. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. Stop the timer or end the session to change it.
+
+A left click on the panel depends on the mode:
+
+- In Timer mode, and while a timer runs or is paused, it acts on the timer as described under [Timer](#timer).
+- In Pomodoro mode with no session, it starts one.
+- While a phase rings after its planned end, it confirms Next phase.
+- Mid-phase, it opens the menu.
+
+In Pomodoro mode the menu drops Start and shows Start session while no session is active. During a session it shows Next phase: followed by the phase it starts (Work, Short rest or Long rest), and End session. Start and Stop show only in Timer mode or while a timer runs. Ending a work phase starts a rest and saves nothing. Ending a rest saves the pomodoro, the work phase plus the rest, as one stopped entry. End session saves the open pomodoro at once. A timer started on another device ends the session at that timer's start and saves the partial pomodoro. A pomodoro too short to save is dropped, and the menu shows "This pomodoro was too short to save." until the next session starts.
+
+Whenever Pomodoro mode is on, an hourglass follows the logo, in full colour or, with Use a monochrome panel icon on, in the panel's text colour. During a session the time counts down as `M:SS` to the phase's planned end, then up as `+M:SS` in overtime. The tooltip and the accessible description name the phase, the time left and the pomodoro, for example "Short rest · 4:10 left · Pomodoro 2 of 4". The widget posts no notification.
+
+The Pomodoro page of Configure holds the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the account's preferences, shared with the web app and Android, and a session has no lengths of its own. Changing them needs a connection to the Tokkl server; without one the page shows the cached values and they cannot be edited. Below them, each of the four transitions has the sound it plays, chosen from the four bundled sounds (see [docs/sounds](../../docs/sounds/README.md)), with a Preview button. The widget keeps the sound choices on this device.
+
+When a phase reaches its planned end, the chosen sound plays over and over until you confirm Next phase or end the session. The widget plays it through Qt Multimedia (`QSoundEffect`). The package installs the four WAV files in the widget's `contents/sounds/`.
+
 ## Version
 
 The version comes from the `version` field of the root `package.json`. A
@@ -534,12 +554,16 @@ accepts them for development builds. The RPM release is always `1`.
 
 Dependencies:
 
-- Libraries (KF6 Wallet, Qt Core, Network and Qml) come from
+- Libraries (KF6 Wallet, Qt Core, Multimedia, Network and Qml) come from
   `dpkg-shlibdeps` and rpm's own scan.
 - The QML modules the widget imports at run time are declared by hand, since
   no tool can see them: `org.kde.plasma.*` (in `plasma-desktoptheme` on
   Debian, `libplasma` on Fedora), Kirigami, KCMUtils and Qt Quick, Controls,
   Layouts and Templates. Floors follow the CMake minimums.
+- Qt Multimedia plays the Pomodoro alarm: `libqt6multimedia6` on Debian and
+  Ubuntu (which `dpkg-shlibdeps` adds), `qt6-qtmultimedia` on Fedora. Qt's SVG
+  image plugin draws the Pomodoro hourglass: `qt6-svg-plugins` on Debian and
+  Ubuntu, `qt6-qtsvg` on Fedora. Both packages declare them.
 - The KDE Wallet daemon is recommended (`kwallet6`, `kf6-kwallet`). Without a
   working wallet the widget shows a KDE Wallet error and keeps no secret
   anywhere else.
@@ -872,6 +896,34 @@ Timer:
       pulsing and stays solid. Set it back: it pulses again.
 - [ ] Suspend and resume with the timer running: the elapsed time matches the
       web app after the resume.
+
+Pomodoro:
+
+- [ ] Open the menu with a timer running: the Pomodoro mode item reads
+      "Pomodoro mode (locked while running)" and is disabled. Stop the timer.
+      The item is enabled and reads "Pomodoro mode". Check it. The panel shows
+      an hourglass after the logo, and Start session replaces Start.
+- [ ] Open Configure, then the Pomodoro page. Set Work to 1 minute and Short
+      rest to 1 minute, and pick a different sound for Work → short rest.
+      Preview plays each sound once. Apply, and the web app's Pomodoro
+      preferences show the same lengths.
+- [ ] Left click starts a session. The panel counts down from `1:00`, the
+      tooltip reads "Work · 0:45 left · Pomodoro 1 of 4" (or the current
+      time), and the menu shows Next phase: Short rest and End session.
+- [ ] At the planned end the count turns into `+0:01`, `+0:02` and so on, and
+      the sound chosen for Work → short rest loops until you act.
+- [ ] Left click confirms Next phase: the alarm stops, the phase is a short
+      rest and the web app shows no new entry yet. Let the rest reach its end
+      and confirm Next phase again: the web app shows one stopped entry from
+      the work start to now.
+- [ ] Left click mid-phase opens the menu. End session stops the countdown
+      and saves the open pomodoro. Start and end a session within the time
+      resolution: the menu shows "This pomodoro was too short to save." and
+      keeps it until the next session starts.
+- [ ] Start a timer in the web app during a session: within 30 seconds the
+      session ends and the web app holds the partial pomodoro.
+- [ ] Uncheck Pomodoro mode: the hourglass goes and a left click acts on the
+      timer again. Restart plasmashell: the mode stays as you left it.
 
 Menu:
 

@@ -6,9 +6,18 @@ import org.kde.plasma.components as PlasmaComponents
 
 import com.github.e0ipso.tokkl.backend
 
-// The panel item's menu: state, Start or Stop, Project, Billable, Reconnect,
-// Open Tokkl and Configure. Arrow keys move, Right opens Project, Return or
-// Space triggers and Escape closes.
+// The panel item's menu: state, the session's message, Start session, Next
+// phase, End session, Start or Stop, Project, Billable, Pomodoro mode,
+// Reconnect, Open Tokkl and Configure. Arrow keys move, Right opens Project,
+// Return or Space triggers and Escape closes. A hidden entry is disabled too,
+// so the arrow keys skip it.
+//
+// Start or Stop shows only in Timer mode or while a timer runs or is
+// paused, so Pomodoro mode starts no timer. In Pomodoro mode Start session
+// shows while no session is active and no timer runs or is paused; Next
+// phase and End session show during a session, and the state line then
+// names the phase. Pomodoro mode is locked while a timer runs or is paused,
+// or a session is active.
 //
 // Stop ends the timer and its pause chain; while paused nothing runs on the
 // server, so it only clears the chain. Project sets only the project of the
@@ -16,18 +25,30 @@ import com.github.e0ipso.tokkl.backend
 // means stopping and starting a new entry. Billable sets the next start too
 // and, while an entry runs, edits that entry in place; while paused the
 // timer refuses it. Both are disabled whenever the timer cannot write, so
-// nothing is queued for another account.
+// nothing is queued for another account. During a session both stay enabled
+// and apply to the open pomodoro.
 PlasmaComponents.Menu {
     id: menu
 
     required property TokklTimer timer
+    // Null until the backend has built it, which reads as Timer mode.
+    property TokklPomodoroSession session: null
     required property StatusText words
 
+    // Pomodoro mode is on and no timer runs or is paused.
+    readonly property bool pomodoroIdle: menu.words.pomodoroMode && !menu.timer.running && !menu.timer.paused
+    readonly property bool sessionActive: menu.session !== null && menu.session.active
+
     property alias stateItem: stateItem
+    property alias messageItem: messageItem
+    property alias startSessionItem: startSessionItem
+    property alias nextPhaseItem: nextPhaseItem
+    property alias endSessionItem: endSessionItem
     property alias runItem: runItem
     property alias projectMenu: projectMenu
     property alias noProjectItem: noProjectItem
     property alias billableItem: billableItem
+    property alias modeItem: modeItem
     property alias reconnectItem: reconnectItem
     property alias openItem: openItem
     property alias configureItem: configureItem
@@ -50,6 +71,17 @@ PlasmaComponents.Menu {
         onToggled: checked = Qt.binding(() => selected)
     }
 
+    // An entry shown only in some states. Hidden, it takes no room and is
+    // disabled, so the keyboard never lands on it.
+    component OptionalItem: PlasmaComponents.MenuItem {
+        required property bool shown
+        property bool available: true
+
+        visible: shown
+        enabled: shown && available
+        height: shown ? implicitHeight : 0
+    }
+
     // Another instance, account or secret: close, so no choice made for the
     // previous context can be triggered.
     Connections {
@@ -64,20 +96,54 @@ PlasmaComponents.Menu {
     PlasmaComponents.MenuItem {
         id: stateItem
         enabled: false
-        text: i18nc("@item:inmenu running state, elapsed time, connection state", "%1 %2 · %3", menu.words.runText, menu.timer.elapsedText, menu.words.statusText)
+        text: menu.words.showsSession ? menu.words.sessionText : i18nc("@item:inmenu running state, elapsed time, connection state", "%1 %2 · %3", menu.words.runText, menu.timer.elapsedText, menu.words.statusText)
         Accessible.description: menu.words.detailText
     }
 
-    PlasmaComponents.MenuItem {
+    // The session's message, such as a pomodoro too short to save.
+    OptionalItem {
+        id: messageItem
+        shown: messageItem.text.length > 0
+        available: false
+        text: menu.session !== null ? menu.session.message : ""
+    }
+
+    OptionalItem {
+        id: startSessionItem
+        shown: menu.pomodoroIdle && !menu.sessionActive
+        available: menu.session !== null && menu.session.canStartSession
+        text: i18nc("@action:inmenu", "Start session")
+        icon.name: "media-playback-start"
+        onTriggered: menu.session.startSession()
+    }
+
+    OptionalItem {
+        id: nextPhaseItem
+        shown: menu.sessionActive
+        text: menu.words.nextPhaseText
+        icon.name: "media-skip-forward"
+        onTriggered: menu.session.confirmNextPhase()
+    }
+
+    OptionalItem {
+        id: endSessionItem
+        shown: menu.sessionActive
+        text: i18nc("@action:inmenu", "End session")
+        icon.name: "media-playback-stop"
+        onTriggered: menu.session.endSession()
+    }
+
+    OptionalItem {
         id: runItem
 
         // Running or paused: the chain is open until Stop.
         readonly property bool stops: menu.timer.running || menu.timer.paused
 
+        shown: !menu.pomodoroIdle
         text: runItem.stops ? i18nc("@action:inmenu", "Stop") : i18nc("@action:inmenu", "Start")
         icon.name: runItem.stops ? "media-playback-stop" : "media-playback-start"
         // Stop while paused sends nothing, so it waits only for a mutation.
-        enabled: menu.timer.paused ? !menu.timer.busy : menu.timer.canWrite
+        available: menu.timer.paused ? !menu.timer.busy : menu.timer.canWrite
         onTriggered: runItem.stops ? menu.timer.stop() : menu.timer.start()
     }
 
@@ -156,6 +222,14 @@ PlasmaComponents.Menu {
         selected: menu.timer.chosenBillable
         enabled: menu.timer.canWrite && !menu.timer.paused
         onTriggered: menu.timer.chooseBillable(!menu.timer.chosenBillable)
+    }
+
+    ChoiceItem {
+        id: modeItem
+        text: menu.words.modeText
+        selected: menu.words.pomodoroMode
+        enabled: menu.session !== null && !menu.session.modeLocked
+        onTriggered: menu.session.setPomodoroMode(!menu.session.pomodoroMode)
     }
 
     PlasmaComponents.MenuSeparator {}

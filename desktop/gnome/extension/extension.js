@@ -18,10 +18,14 @@ export default class TokklExtension extends Extension {
         this._indicator = new TokklIndicator(this.dir.get_child('tokkl.png'), () => this.openPreferences());
         const settings = this.getSettings();
         const indicator = this._indicator;
-        const updateLogo = () => indicator.setLogo(this.dir.get_child(
-            settings.get_boolean('monochrome-icon') ? 'tokkl-symbolic.symbolic.png' : 'tokkl.png'));
-        settings.connectObject('changed::monochrome-icon', updateLogo, indicator);
-        updateLogo();
+        // The monochrome pictures follow the top bar's text colour.
+        const updateIcons = () => {
+            const monochrome = settings.get_boolean('monochrome-icon');
+            indicator.setLogo(this.dir.get_child(monochrome ? 'tokkl-symbolic.symbolic.png' : 'tokkl.png'));
+            indicator.setHourglass(this.dir.get_child(monochrome ? 'hourglass-symbolic.svg' : 'hourglass.svg'));
+        };
+        settings.connectObject('changed::monochrome-icon', updateIcons, indicator);
+        updateIcons();
         Main.panel.addToStatusArea(this.uuid, this._indicator);
 
         // Creating the proxy starts tokkl-timerd through D-Bus activation

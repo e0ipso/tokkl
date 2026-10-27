@@ -102,6 +102,17 @@ void paintIndicator(const Tokkl::ProjectIndicator &indicator, double fillOpacity
     [ring stroke];
 }
 
+// Paints what is drawn in the rect in the menu bar's text colour, as the
+// system tints a template image.
+void tintWithTextColor(NSRect rect)
+{
+    [NSGraphicsContext saveGraphicsState];
+    NSRectClip(rect);
+    [NSColor.labelColor setFill];
+    NSRectFillUsingOperation(rect, NSCompositingOperationSourceIn);
+    [NSGraphicsContext restoreGraphicsState];
+}
+
 // The rect in an unflipped image of the given height, whose origin is at the
 // bottom left.
 NSRect toNSRect(const QRect &rect, int imageHeight)
@@ -135,8 +146,10 @@ struct MacStatusItem::Private {
     NSStatusItem *item = nil;
     TokklStatusItemTarget *target = nil;
     id reduceMotionObserver = nil;
-    // The logo of the current image, made once instead of on every redraw.
+    // The logo and the hourglass of the current image, made once instead of
+    // on every redraw. The hourglass is nil in Timer mode.
     NSImage *logo = nil;
+    NSImage *hourglass = nil;
 };
 
 MacStatusItem::MacStatusItem(QObject *parent)
@@ -153,12 +166,7 @@ MacStatusItem::MacStatusItem(QObject *parent)
             Q_EMIT activated();
             return;
         }
-        // The menu is attached only for this click: with a menu attached,
-        // every click would open it. performClick: opens it and returns when
-        // it closes.
-        d->item.menu = m_menu->toNSMenu();
-        [d->item.button performClick:nil];
-        d->item.menu = nil;
+        popUpMenu();
     };
     d->target = [[TokklStatusItemTarget alloc] initWithHandler:std::move(handler)];
 
@@ -216,6 +224,19 @@ void MacStatusItem::setMenu(QMenu *menu)
     m_menu = menu;
 }
 
+void MacStatusItem::popUpMenu()
+{
+    if (!m_menu) {
+        return;
+    }
+    // The menu is attached only while it is open: with a menu attached,
+    // every click would open it. performClick: opens it and returns when it
+    // closes.
+    d->item.menu = m_menu->toNSMenu();
+    [d->item.button performClick:nil];
+    d->item.menu = nil;
+}
+
 void MacStatusItem::setImage(const StatusImage &image)
 {
     if (m_hasImage && image == m_image) {
@@ -224,6 +245,11 @@ void MacStatusItem::setImage(const StatusImage &image)
     const bool wasPulsing = m_hasImage && m_image.indicator.pulsing;
     if (!m_hasImage || image.logo != m_image.logo || image.logoRect.size() != m_image.logoRect.size()) {
         d->logo = toNSImage(image.logo, NSMakeSize(image.logoRect.width(), image.logoRect.height()));
+    }
+    if (!m_hasImage || image.hourglass != m_image.hourglass || image.hourglassRect.size() != m_image.hourglassRect.size()) {
+        d->hourglass = image.hourglass.isEmpty()
+            ? nil
+            : toNSImage(image.hourglass, NSMakeSize(image.hourglassRect.width(), image.hourglassRect.height()));
     }
     m_image = image;
     m_hasImage = true;
@@ -248,7 +274,9 @@ void MacStatusItem::drawImage()
     const int height = m_image.size.height();
     const NSRect logoRect = toNSRect(m_image.logoRect, height);
     const NSRect indicatorRect = toNSRect(m_image.indicatorRect, height);
+    const NSRect hourglassRect = toNSRect(m_image.hourglassRect, height);
     NSImage *logo = d->logo;
+    NSImage *hourglass = d->hourglass;
     const bool monochromeLogo = m_image.monochromeLogo;
     NSImage *image = [NSImage imageWithSize:NSMakeSize(m_image.size.width(), height)
                                     flipped:NO
@@ -256,18 +284,21 @@ void MacStatusItem::drawImage()
                                  Q_UNUSED(rect);
                                  [logo drawInRect:logoRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
                                  if (monochromeLogo) {
-                                     [NSGraphicsContext saveGraphicsState];
-                                     NSRectClip(logoRect);
-                                     [NSColor.labelColor setFill];
-                                     NSRectFillUsingOperation(logoRect, NSCompositingOperationSourceIn);
-                                     [NSGraphicsContext restoreGraphicsState];
+                                     tintWithTextColor(logoRect);
+                                 }
+                                 if (hourglass) {
+                                     [hourglass drawInRect:hourglassRect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
+                                     if (monochromeLogo) {
+                                         tintWithTextColor(hourglassRect);
+                                     }
                                  }
                                  paintIndicator(indicator, fillOpacity, indicatorRect);
                                  return YES;
                              }];
     // Draw again for each appearance instead of keeping the first drawing.
     image.cacheMode = NSImageCacheNever;
-    // Tint only the logo; a template image would also recolor the project indicator.
+    // Tint only the logo and the hourglass; a template image would also
+    // recolor the project indicator.
     // template is a C++ keyword, so this calls the setter.
     [image setTemplate:NO];
     // VoiceOver reads the button's label, which also names the project.

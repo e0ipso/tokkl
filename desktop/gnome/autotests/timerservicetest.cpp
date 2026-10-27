@@ -1,9 +1,14 @@
 // org.tokkl.Timer1 driven over a private D-Bus daemon, as the extension uses
 // it, against the core's scripted transport, credential store and clock.
 
+#include "alarmbackend.h"
+#include "alarmplayer.h"
 #include "connection.h"
 #include "fakes.h"
 #include "instanceurl.h"
+#include "pomodorocycle.h"
+#include "pomodorosession.h"
+#include "pomodorosounds.h"
 #include "privatebus.h"
 #include "timercontroller.h"
 #include "timerservice.h"
@@ -16,12 +21,14 @@
 #include <QDBusPendingCall>
 #include <QDBusVariant>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMap>
 #include <QSet>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QXmlStreamReader>
@@ -38,6 +45,12 @@ const QString serviceBus = QStringLiteral("timerd-service");
 const QString clientBus = QStringLiteral("timerd-client");
 const QString propertiesInterface = QStringLiteral("org.freedesktop.DBus.Properties");
 const QString startedAt = QStringLiteral("2026-10-16T08:58:55Z");
+const QString invalidArgs = QStringLiteral("org.freedesktop.DBus.Error.InvalidArgs");
+// The a{si} and a{ss} properties, named so the test macros read them whole.
+using IntMap = QMap<QString, int>;
+using StringMap = QMap<QString, QString>;
+// The account's lengths: one minute each, a long rest after two work phases.
+const PomodoroConfig lengths{1, 1, 1, 2};
 
 QByteArray json(const QJsonValue &value)
 {
@@ -99,11 +112,38 @@ const QByteArray meBody = json(QJsonObject{
     {QStringLiteral("timezone"), QStringLiteral("UTC")},
     {QStringLiteral("default_workspace_id"), 7},
     {QStringLiteral("beginning_of_week"), 1},
+    {QStringLiteral("time_resolution_minutes"), 1},
 });
 const QByteArray projectsBody = json(QJsonArray{
     projectObject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), true),
     projectObject(12, QStringLiteral("Beta"), QStringLiteral("#d94182"), false),
 });
+
+QByteArray preferencesBody(const PomodoroConfig &config)
+{
+    return json(QJsonObject{
+        {QStringLiteral("pomodoro_focus_interval_in_minutes"), config.workMinutes},
+        {QStringLiteral("pomodoro_break_interval_in_minutes"), config.shortRestMinutes},
+        {QStringLiteral("pomodoro_long_break_interval_in_minutes"), config.longRestMinutes},
+        {QStringLiteral("pomodoro_long_break_every"), config.longRestEvery},
+    });
+}
+
+// An error body: the API sends the message as a bare JSON string.
+QByteArray errorBody(const char *text)
+{
+    return QByteArrayLiteral("\"") + QByteArray(text) + QByteArrayLiteral("\"");
+}
+
+IntMap lengthsMap(const PomodoroConfig &config)
+{
+    return {
+        {QStringLiteral("work"), config.workMinutes},
+        {QStringLiteral("shortRest"), config.shortRestMinutes},
+        {QStringLiteral("longRest"), config.longRestMinutes},
+        {QStringLiteral("longRestEvery"), config.longRestEvery},
+    };
+}
 
 // The newest entry the account has: stopped, on Alpha.
 QByteArray recentBody()
@@ -115,7 +155,7 @@ QByteArray recentBody()
 }
 
 struct Interface {
-    QMap<QString, QString> properties; // name -> "type access"
+    StringMap properties; // name -> "type access"
     QMap<QString, QStringList> methods; // name -> "direction type" per argument
     QSet<QString> signalNames;
 };
@@ -184,6 +224,40 @@ public Q_SLOTS:
         }
     }
 };
+
+// Records what the alarm player asks of the audio, one line per call.
+class FakeAlarmBackend : public AlarmBackend
+{
+public:
+    QStringList calls;
+
+    void loop(const QString &file) override
+    {
+        calls.append(QStringLiteral("loop ") + file);
+    }
+
+    void playOnce(const QString &file) override
+    {
+        calls.append(QStringLiteral("once ") + file);
+    }
+
+    void stop() override
+    {
+        calls.append(QStringLiteral("stop"));
+    }
+};
+
+// The bundled sounds, from the core's sounds/ directory.
+QString bundledSoundsDir()
+{
+    const QStringList files = QString::fromUtf8(TOKKL_POMODORO_SOUND_FILES).split(QLatin1Char('|'));
+    return QFileInfo(files.first()).absolutePath();
+}
+
+QString bundled(const QString &soundId)
+{
+    return bundledSoundsDir() + QStringLiteral("/pomodoro-") + soundId + QStringLiteral(".wav");
+}
 }
 
 class TimerServiceTest : public QObject
@@ -222,7 +296,29 @@ class TimerServiceTest : public QObject
                 return false;
             }
             // A round trip, so the match rule is in place before anything changes.
+            return ping();
+        }
+
+        bool ping() const
+        {
             return call(QStringLiteral("org.freedesktop.DBus.Peer"), QStringLiteral("Ping")).type() == QDBusMessage::ReplyMessage;
+        }
+
+        // Replaces the service with a new one on the same settings file, as
+        // a restart of tokkl-timerd. The recorder stays connected.
+        bool restart()
+        {
+            service.reset();
+            service = std::make_unique<TimerService>(&transport, &store, settingsFile(), &clock);
+            return service->registerOn(QDBusConnection(serviceBus)) && ping();
+        }
+
+        // One tick per second, as the system clock ticks.
+        void advance(int seconds)
+        {
+            for (int i = 0; i < seconds; ++i) {
+                clock.advance(1000);
+            }
         }
 
         QDBusMessage call(const QString &interface, const QString &method, const QVariantList &arguments = {}) const
@@ -302,6 +398,8 @@ class TimerServiceTest : public QObject
                         body = projectsBody;
                     } else if (path.endsWith("/me/time_entries")) {
                         body = recentBody();
+                    } else if (path.endsWith("/me/preferences")) {
+                        body = preferencesBody(lengths);
                     } else {
                         continue;
                     }
@@ -329,6 +427,8 @@ private Q_SLOTS:
         QVERIFY(QDBusConnection::connectToBus(QString::fromUtf8(address), serviceBus).isConnected());
         QVERIFY(QDBusConnection::connectToBus(QString::fromUtf8(address), clientBus).isConnected());
         qDBusRegisterMetaType<QList<QVariantMap>>();
+        qDBusRegisterMetaType<IntMap>();
+        qDBusRegisterMetaType<StringMap>();
     }
 
     void cleanupTestCase()
@@ -354,7 +454,7 @@ private Q_SLOTS:
 
         QVERIFY(live.contains(TimerService::interfaceName));
         const Interface timer = live.value(TimerService::interfaceName);
-        const QMap<QString, QString> properties{
+        const StringMap properties{
             {QStringLiteral("Running"), QStringLiteral("b read")},
             {QStringLiteral("StartTime"), QStringLiteral("x read")},
             {QStringLiteral("Paused"), QStringLiteral("b read")},
@@ -367,6 +467,23 @@ private Q_SLOTS:
             {QStringLiteral("Billable"), QStringLiteral("b read")},
             {QStringLiteral("Status"), QStringLiteral("s read")},
             {QStringLiteral("ErrorString"), QStringLiteral("s read")},
+            {QStringLiteral("PomodoroMode"), QStringLiteral("b read")},
+            {QStringLiteral("ModeLocked"), QStringLiteral("b read")},
+            {QStringLiteral("SessionActive"), QStringLiteral("b read")},
+            {QStringLiteral("Phase"), QStringLiteral("s read")},
+            {QStringLiteral("PhaseStart"), QStringLiteral("x read")},
+            {QStringLiteral("PlannedEnd"), QStringLiteral("x read")},
+            {QStringLiteral("PomodoroNumber"), QStringLiteral("i read")},
+            {QStringLiteral("LongRestEvery"), QStringLiteral("i read")},
+            {QStringLiteral("UpcomingPhase"), QStringLiteral("s read")},
+            {QStringLiteral("Ringing"), QStringLiteral("b read")},
+            {QStringLiteral("RingingTransition"), QStringLiteral("s read")},
+            {QStringLiteral("SessionMessage"), QStringLiteral("s read")},
+            {QStringLiteral("PomodoroLengths"), QStringLiteral("a{si} read")},
+            {QStringLiteral("PomodoroLengthsEditable"), QStringLiteral("b read")},
+            {QStringLiteral("PomodoroLengthErrors"), QStringLiteral("a{ss} read")},
+            {QStringLiteral("Sounds"), QStringLiteral("a{ss} read")},
+            {QStringLiteral("SoundChoices"), QStringLiteral("aa{sv} read")},
         };
         QCOMPARE(timer.properties, properties);
         const QMap<QString, QStringList> methods{
@@ -377,6 +494,15 @@ private Q_SLOTS:
             {QStringLiteral("SetProject"), {QStringLiteral("in x"), QStringLiteral("out b")}},
             {QStringLiteral("SetBillable"), {QStringLiteral("in b"), QStringLiteral("out b")}},
             {QStringLiteral("Configure"), {QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("in s")}},
+            {QStringLiteral("SetPomodoroMode"), {QStringLiteral("in b"), QStringLiteral("out b")}},
+            {QStringLiteral("Activate"), {QStringLiteral("out s")}},
+            {QStringLiteral("StartSession"), {QStringLiteral("out b")}},
+            {QStringLiteral("NextPhase"), {QStringLiteral("out b")}},
+            {QStringLiteral("EndSession"), {QStringLiteral("out b")}},
+            {QStringLiteral("SetPomodoroLengths"), {QStringLiteral("in i"), QStringLiteral("in i"), QStringLiteral("in i"), QStringLiteral("in i"), QStringLiteral("out b")}},
+            {QStringLiteral("RefreshPreferences"), {}},
+            {QStringLiteral("SetSound"), {QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("out b")}},
+            {QStringLiteral("PreviewSound"), {QStringLiteral("in s"), QStringLiteral("out b")}},
         };
         QCOMPARE(timer.methods, methods);
         QCOMPARE(described.properties, timer.properties);
@@ -749,6 +875,399 @@ private Q_SLOTS:
         TimerService second(&transport, &store, f.dir.filePath(QStringLiteral("second.conf")));
         QVERIFY(!second.registerOn(QDBusConnection(clientBus)));
         QCOMPARE(QDBusConnection(clientBus).interface()->serviceOwner(TimerService::serviceName).value(), QDBusConnection(serviceBus).baseService());
+    }
+
+    // Pomodoro mode is stored and locks while a session runs. The session's
+    // state is published, the planned end rings, with the chosen sound for
+    // the player, and Next phase saves the ended pomodoro through the
+    // transport with the service's client name. A restart continues the
+    // session.
+    void pomodoroSessionOverTheBus()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
+        QCOMPARE(f.get(QStringLiteral("PhaseStart")).toLongLong(), 0);
+        QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), 0);
+        QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 0);
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QString());
+        QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QString());
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
+        QSignalSpy alarms(f.service.get(), &TimerService::alarmChanged);
+
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("PomodoroMode")).contains(true));
+        {
+            const QSettings settings(f.settingsFile(), QSettings::IniFormat);
+            QCOMPARE(settings.value(QStringLiteral("Pomodoro/pomodoroMode")).toBool(), true);
+        }
+        // Start is refused in Pomodoro mode and sends nothing.
+        const qsizetype sent = f.transport.requests.size();
+        QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
+        QCOMPARE(f.transport.requests.size(), sent);
+
+        // Start session reads the lengths once more and starts at the click
+        // instant once the read ends.
+        const QDateTime at = f.clock.now();
+        QCOMPARE(f.find("GET", "/me/preferences").size(), 1);
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
+        QCOMPARE(f.find("GET", "/me/preferences").size(), 2);
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
+        QCOMPARE(f.get(QStringLiteral("PhaseStart")).toLongLong(), at.toSecsSinceEpoch());
+        QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), at.addSecs(60).toSecsSinceEpoch());
+        QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 1);
+        QCOMPARE(f.get(QStringLiteral("LongRestEvery")).toInt(), 2);
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("shortRest"));
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
+        QVERIFY(QTest::qWaitFor([&f] {
+            return f.recorder.valuesOf(QStringLiteral("SessionActive")).contains(true);
+        }));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("Phase")).contains(QStringLiteral("work")));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("PhaseStart")).contains(at.toSecsSinceEpoch()));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("PlannedEnd")).contains(at.addSecs(60).toSecsSinceEpoch()));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("PomodoroNumber")).contains(1));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("UpcomingPhase")).contains(QStringLiteral("shortRest")));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
+
+        // The countdown is not published; the planned end is, as Ringing,
+        // and the player hears the sound chosen for the transition.
+        f.advance(59);
+        QVERIFY(f.serve());
+        QVERIFY(f.ping());
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("Ringing")).isEmpty());
+        QCOMPARE(alarms.size(), 0);
+        f.advance(1);
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QStringLiteral("workToShortRest"));
+        QVERIFY(QTest::qWaitFor([&f] {
+            return f.recorder.valuesOf(QStringLiteral("Ringing")).contains(true);
+        }));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("RingingTransition")).contains(QStringLiteral("workToShortRest")));
+        QCOMPARE(alarms.size(), 1);
+        QCOMPARE(alarms.last(), (QVariantList{true, QStringLiteral("long-rest-to-work")}));
+
+        // Work to rest saves nothing and silences the alarm.
+        QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("work"));
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QString());
+        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 0);
+        QCOMPARE(alarms.size(), 2);
+        QCOMPARE(alarms.last(), (QVariantList{false, QString()}));
+
+        // Rest to work saves the pomodoro from its work start to now,
+        // snapped to the account's minute grid.
+        f.advance(61);
+        QVERIFY(f.serve());
+        QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
+        const QList<qsizetype> posts = f.find("POST", "/workspaces/7/time_entries");
+        QCOMPARE(posts.size(), 1);
+        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(posts.first()).body).object();
+        QCOMPARE(body.value(QStringLiteral("start")).toString(), at.toString(Qt::ISODate));
+        QCOMPARE(body.value(QStringLiteral("stop")).toString(), at.addSecs(120).toString(Qt::ISODate));
+        QCOMPARE(body.value(QStringLiteral("duration")).toInteger(), 120);
+        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-gnome"));
+        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
+        QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("longRest"));
+        QJsonObject saved = body;
+        saved.insert(QStringLiteral("id"), 100);
+        f.respond(posts.first(), FakeTransport::answer(200, json(saved)));
+
+        // A restarted service continues the stored session once it has
+        // connected with the saved settings.
+        QVERIFY(f.restart());
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
+        QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
+
+        // End session saves the open pomodoro and unlocks the mode.
+        f.advance(90);
+        QVERIFY(f.serve());
+        QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
+        QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), 0);
+        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 2);
+        QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
+    }
+
+    // A pomodoro too short to save is reported as SessionMessage.
+    void sessionMessageIsPublished()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
+        QVERIFY(f.serve());
+        f.advance(10);
+        QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
+        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 0);
+        const QString message = f.get(QStringLiteral("SessionMessage")).toString();
+        QVERIFY(!message.isEmpty());
+        QVERIFY(QTest::qWaitFor([&f, &message] {
+            return f.recorder.valuesOf(QStringLiteral("SessionMessage")).contains(message);
+        }));
+    }
+
+    // Activate: in Timer mode, and while an entry runs or a chain is
+    // paused, it toggles the timer (start, pause, resume); in Pomodoro mode
+    // it starts a session, is ignored while the read runs or without an
+    // account, opens the menu during a phase, and confirms the next phase
+    // while ringing.
+    void activateInEachBranch()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), true);
+        QVERIFY(f.connect());
+
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
+        const QList<qsizetype> starts = f.find("POST", "/workspaces/7/time_entries");
+        QCOMPARE(starts.size(), 1);
+        f.current = json(entryObject(5, 11, true));
+        f.respond(starts.first(), FakeTransport::answer(200, f.current));
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
+        const QList<qsizetype> stops = f.find("PATCH", "/workspaces/7/time_entries/5/stop");
+        QCOMPARE(stops.size(), 1);
+        f.current = "null";
+        f.respond(stops.first(), FakeTransport::answer(200, json(entryObject(5, 11, false))));
+        QVERIFY(f.serve());
+        // The click paused the chain, which locks the mode too; Stop while
+        // paused clears it.
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
+
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("open-menu"));
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
+        f.advance(60);
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
+        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
+    }
+
+    // The lengths follow the account; a save sends only what differs, and
+    // the server's refusals show per length or as the general error.
+    void pomodoroLengthsOverTheBus()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QCOMPARE(f.get(QStringLiteral("PomodoroLengthsEditable")).toBool(), false);
+        QCOMPARE(qdbus_cast<IntMap>(f.get(QStringLiteral("PomodoroLengths"))), lengthsMap(PomodoroConfig()));
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 2}).toBool(), false);
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("PomodoroLengthsEditable")).toBool(), true);
+        QCOMPARE(qdbus_cast<IntMap>(f.get(QStringLiteral("PomodoroLengths"))), lengthsMap(lengths));
+        QVERIFY(QTest::qWaitFor([&f] {
+            return f.recorder.valuesOf(QStringLiteral("PomodoroLengthsEditable")).contains(true);
+        }));
+        QVERIFY(!f.recorder.valuesOf(QStringLiteral("PomodoroLengths")).isEmpty());
+        QCOMPARE(qdbus_cast<IntMap>(f.recorder.valuesOf(QStringLiteral("PomodoroLengths")).last()), lengthsMap(lengths));
+
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {200, 1, 1, 2}).toBool(), true);
+        QList<qsizetype> saves = f.find("POST", "/me/preferences");
+        QCOMPARE(saves.size(), 1);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(saves.first()).body).object(),
+                 QJsonObject({{QStringLiteral("pomodoro_focus_interval_in_minutes"), 200}}));
+        // Nothing else is sent while the save runs.
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 2}).toBool(), false);
+        const QString refused = QStringLiteral("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180");
+        f.respond(saves.first(), FakeTransport::answer(400, errorBody("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180")));
+        const StringMap workError{{QStringLiteral("work"), refused}};
+        QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))), workError);
+        QCOMPARE(qdbus_cast<IntMap>(f.get(QStringLiteral("PomodoroLengths"))), lengthsMap(lengths));
+        QVERIFY(QTest::qWaitFor([&f] {
+            return !f.recorder.valuesOf(QStringLiteral("PomodoroLengthErrors")).isEmpty();
+        }));
+        QCOMPARE(qdbus_cast<StringMap>(f.recorder.valuesOf(QStringLiteral("PomodoroLengthErrors")).last()), workError);
+
+        // Nothing differs, nothing is sent.
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {1, 1, 1, 2}).toBool(), false);
+        QCOMPARE(f.find("POST", "/me/preferences").size(), 1);
+
+        // An accepted save shows the new lengths and clears the error.
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 2}).toBool(), true);
+        saves = f.find("POST", "/me/preferences");
+        QCOMPARE(saves.size(), 2);
+        f.respond(saves.last(), FakeTransport::answer(200, preferencesBody({2, 1, 1, 2})));
+        QCOMPARE(qdbus_cast<IntMap>(f.get(QStringLiteral("PomodoroLengths"))), lengthsMap({2, 1, 1, 2}));
+        QVERIFY(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))).isEmpty());
+        QVERIFY(QTest::qWaitFor([&f] {
+            return qdbus_cast<IntMap>(f.recorder.valuesOf(QStringLiteral("PomodoroLengths")).last()) == lengthsMap({2, 1, 1, 2});
+        }));
+        QVERIFY(qdbus_cast<StringMap>(f.recorder.valuesOf(QStringLiteral("PomodoroLengthErrors")).last()).isEmpty());
+
+        // A refusal that names no length is the general error.
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 3}).toBool(), true);
+        f.respond(f.find("POST", "/me/preferences").last(), FakeTransport::answer(400, errorBody("Preferences are too large")));
+        QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))),
+                 (StringMap{{QStringLiteral("general"), QStringLiteral("Preferences are too large")}}));
+
+        // RefreshPreferences reads the lengths again.
+        const qsizetype reads = f.find("GET", "/me/preferences").size();
+        QCOMPARE(f.timer(QStringLiteral("RefreshPreferences")).type(), QDBusMessage::ReplyMessage);
+        const QList<qsizetype> found = f.find("GET", "/me/preferences");
+        QCOMPARE(found.size(), reads + 1);
+        f.respond(found.last(), FakeTransport::answer(200, preferencesBody({3, 1, 1, 3})));
+        QCOMPARE(qdbus_cast<IntMap>(f.get(QStringLiteral("PomodoroLengths"))), lengthsMap({3, 1, 1, 3}));
+        QVERIFY(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))).isEmpty());
+    }
+
+    // Each transition plays its namesake until SetSound chooses another,
+    // which the settings file keeps across a restart. Unknown transitions
+    // and ids are invalid arguments. A preview reaches the player as a Qt
+    // signal and is refused without one.
+    void soundsOverTheBus()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        const StringMap defaults{
+            {QStringLiteral("workToShortRest"), QStringLiteral("work-to-short-rest")},
+            {QStringLiteral("shortRestToWork"), QStringLiteral("short-rest-to-work")},
+            {QStringLiteral("workToLongRest"), QStringLiteral("work-to-long-rest")},
+            {QStringLiteral("longRestToWork"), QStringLiteral("long-rest-to-work")},
+        };
+        QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), defaults);
+        const QList<QVariantMap> choices = qdbus_cast<QList<QVariantMap>>(f.get(QStringLiteral("SoundChoices")));
+        const QList<PomodoroSound> catalogue = pomodoroSounds();
+        QCOMPARE(choices.size(), catalogue.size());
+        for (qsizetype i = 0; i < choices.size(); ++i) {
+            QCOMPARE(choices.at(i).value(QStringLiteral("id")).toString(), catalogue.at(i).id);
+            QCOMPARE(choices.at(i).value(QStringLiteral("label")).toString(), catalogue.at(i).label);
+            QVERIFY(!catalogue.at(i).label.isEmpty());
+        }
+
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
+        StringMap chosen = defaults;
+        chosen.insert(QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work"));
+        QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
+        QVERIFY(QTest::qWaitFor([&f] {
+            return !f.recorder.valuesOf(QStringLiteral("Sounds")).isEmpty();
+        }));
+        QCOMPARE(qdbus_cast<StringMap>(f.recorder.valuesOf(QStringLiteral("Sounds")).last()), chosen);
+
+        QDBusMessage reply = f.timer(QStringLiteral("SetSound"), {QStringLiteral("bogus"), QStringLiteral("long-rest-to-work")});
+        QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
+        QCOMPARE(reply.errorName(), invalidArgs);
+        reply = f.timer(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("bogus")});
+        QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
+        QCOMPARE(reply.errorName(), invalidArgs);
+        QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
+        reply = f.timer(QStringLiteral("PreviewSound"), {QStringLiteral("bogus")});
+        QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
+        QCOMPARE(reply.errorName(), invalidArgs);
+
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
+        QSignalSpy previews(f.service.get(), &TimerService::previewRequested);
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
+        QCOMPARE(previews.size(), 1);
+        QCOMPARE(previews.first(), (QVariantList{QStringLiteral("short-rest-to-work")}));
+
+        {
+            const QSettings settings(f.settingsFile(), QSettings::IniFormat);
+            QCOMPARE(settings.value(QStringLiteral("Sounds/workToShortRest")).toString(), QStringLiteral("long-rest-to-work"));
+        }
+        QVERIFY(f.restart());
+        QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
+    }
+
+    // The alarm player loops the file of the sound chosen for the ringing
+    // transition, follows a change of choice while ringing, stops on Next
+    // phase and on End session, and plays a preview once; with it listening,
+    // PreviewSound is accepted. A player made while the alarm rings starts
+    // at once.
+    void alarmPlayerDrivesTheBackend()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
+        FakeAlarmBackend backend;
+        AlarmPlayer player(f.service.get(), &backend, bundledSoundsDir());
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
+        backend.calls.clear();
+
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
+        QVERIFY(f.serve());
+        f.advance(59);
+        QVERIFY(f.serve());
+        QVERIFY(f.ping());
+        QVERIFY(backend.calls.isEmpty());
+        f.advance(1);
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("long-rest-to-work"))});
+        // Choosing another sound for the ringing transition switches the loop.
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(backend.calls.last(), QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest")));
+        // A choice for another transition changes nothing.
+        backend.calls.clear();
+        QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("longRestToWork"), QStringLiteral("work-to-short-rest")}).toBool(), true);
+        QVERIFY(backend.calls.isEmpty());
+        // A second player hears the alarm that already rings.
+        FakeAlarmBackend late;
+        AlarmPlayer latePlayer(f.service.get(), &late, bundledSoundsDir());
+        QCOMPARE(late.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest"))});
+
+        QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("stop")});
+        QCOMPARE(late.calls.last(), QStringLiteral("stop"));
+        backend.calls.clear();
+        f.advance(60);
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QStringLiteral("shortRestToWork"));
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("short-rest-to-work"))});
+        QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
+        QCOMPARE(backend.calls.last(), QStringLiteral("stop"));
+        QCOMPARE(backend.calls.size(), 2);
+        // A preview while silent plays once and leaves no loop behind.
+        backend.calls.clear();
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("work-to-long-rest"))});
     }
 
 private:
