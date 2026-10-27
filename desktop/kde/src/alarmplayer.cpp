@@ -6,21 +6,28 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 
+#include <utility>
+
 namespace Tokkl
 {
+
+namespace
+{
+// Stops the effect and destroys it on the next event loop pass, which closes
+// its audio stream. Not at once: it may be the sender of the signal being
+// handled.
+void release(QSoundEffect *&effect)
+{
+    if (QSoundEffect *stopped = std::exchange(effect, nullptr)) {
+        stopped->stop();
+        stopped->deleteLater();
+    }
+}
+}
 
 AlarmPlayer::AlarmPlayer(QObject *parent)
     : QObject(parent)
 {
-    m_alarm.setLoopCount(QSoundEffect::Infinite);
-    m_preview.setLoopCount(1);
-    connect(&m_alarm, &QSoundEffect::statusChanged, this, [this] {
-        if (m_alarm.status() == QSoundEffect::Error) {
-            qWarning("Tokkl: the alarm sound %s cannot play", qPrintable(m_alarm.source().toString()));
-            setPlaying(false);
-        }
-    });
-    connect(&m_preview, &QSoundEffect::playingChanged, this, &AlarmPlayer::previewChanged);
 }
 
 bool AlarmPlayer::isRinging() const
@@ -95,7 +102,7 @@ bool AlarmPlayer::isPlaying() const
 
 bool AlarmPlayer::loops() const
 {
-    return m_alarm.loopCount() == QSoundEffect::Infinite;
+    return m_alarm && m_alarm->loopCount() == QSoundEffect::Infinite;
 }
 
 QUrl AlarmPlayer::previewSource() const
@@ -105,7 +112,7 @@ QUrl AlarmPlayer::previewSource() const
 
 bool AlarmPlayer::isPreviewing() const
 {
-    return m_preview.isPlaying();
+    return m_preview && m_preview->isPlaying();
 }
 
 void AlarmPlayer::preview(const QString &soundId)
@@ -114,23 +121,37 @@ void AlarmPlayer::preview(const QString &soundId)
     if (url.isEmpty()) {
         return;
     }
-    m_preview.stop();
+    release(m_preview);
     m_previewSource = url;
-    m_preview.setSource(url);
-    m_preview.play();
+    m_preview = new QSoundEffect(this);
+    connect(m_preview, &QSoundEffect::playingChanged, this, [this, preview = m_preview] {
+        if (preview != m_preview) {
+            return;
+        }
+        if (!preview->isPlaying()) {
+            release(m_preview);
+        }
+        Q_EMIT previewChanged();
+    });
+    m_preview->setSource(url);
+    m_preview->play();
     Q_EMIT previewChanged();
 }
 
 void AlarmPlayer::stopPreview()
 {
-    m_preview.stop();
+    if (!m_preview) {
+        return;
+    }
+    release(m_preview);
+    Q_EMIT previewChanged();
 }
 
 void AlarmPlayer::update()
 {
     const QUrl url = m_ringing ? locate(chosenSound()) : QUrl();
     if (url.isEmpty()) {
-        m_alarm.stop();
+        release(m_alarm);
         setSource(QUrl());
         setPlaying(false);
         return;
@@ -138,9 +159,17 @@ void AlarmPlayer::update()
     if (url == m_source && m_playing) {
         return;
     }
-    m_alarm.stop();
-    m_alarm.setSource(url);
-    m_alarm.play();
+    release(m_alarm);
+    m_alarm = new QSoundEffect(this);
+    m_alarm->setLoopCount(QSoundEffect::Infinite);
+    connect(m_alarm, &QSoundEffect::statusChanged, this, [this, alarm = m_alarm] {
+        if (alarm == m_alarm && alarm->status() == QSoundEffect::Error) {
+            qWarning("Tokkl: the alarm sound %s cannot play", qPrintable(alarm->source().toString()));
+            setPlaying(false);
+        }
+    });
+    m_alarm->setSource(url);
+    m_alarm->play();
     setSource(url);
     setPlaying(true);
 }

@@ -31,6 +31,11 @@ namespace Tokkl
 // ringing turns false, or until the sound effect reports an error, which Qt
 // Multimedia does for a file it cannot read and for a machine without an
 // audio output device. previewing follows the preview sound effect itself.
+//
+// Each ring and each preview gets a sound effect of its own, destroyed once
+// it stops. A stopped effect keeps its audio stream open, paused, for as long
+// as it exists, and the sound server would go on listing the widget as a
+// paused audio application.
 class AlarmPlayer : public QObject
 {
     Q_OBJECT
@@ -60,7 +65,7 @@ public:
 
     QUrl source() const;
     bool isPlaying() const;
-    // The alarm effect is set to loop without end.
+    // Whether the ringing alarm loops without end; false while none rings.
     bool loops() const;
     QUrl previewSource() const;
     bool isPreviewing() const;
@@ -96,8 +101,9 @@ private:
     QUrl m_source;
     bool m_playing = false;
     QUrl m_previewSource;
-    QSoundEffect m_alarm;
-    QSoundEffect m_preview;
+    // Children of the player; null between rings and between previews.
+    QSoundEffect *m_alarm = nullptr;
+    QSoundEffect *m_preview = nullptr;
 };
 
 }

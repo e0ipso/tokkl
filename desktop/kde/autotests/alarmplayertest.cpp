@@ -7,8 +7,10 @@
 
 #include <QDir>
 #include <QFile>
+#include <QPointer>
 #include <QScopeGuard>
 #include <QSignalSpy>
+#include <QSoundEffect>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -133,6 +135,47 @@ private Q_SLOTS:
 
         player.stopPreview();
         QVERIFY(!player.isPreviewing());
+    }
+
+    // A stopped sound effect keeps its audio stream open, paused, until it
+    // is destroyed, so the sound server would go on listing the widget as a
+    // paused player. Each ring gets its own effect, gone once it stops.
+    void aStoppedRingReleasesItsSoundEffect()
+    {
+        AlarmPlayer player;
+        player.setSoundsDirectory(bundledSoundsDir());
+        player.setTransition(QStringLiteral("workToShortRest"));
+        player.setRinging(true);
+        QPointer<QSoundEffect> alarm = player.findChild<QSoundEffect *>();
+        QVERIFY(alarm);
+        QCOMPARE(alarm->source(), bundled(QStringLiteral("work-to-short-rest")));
+        QCOMPARE(alarm->loopCount(), int(QSoundEffect::Infinite));
+
+        // Another sound while it rings replaces the effect.
+        player.setSounds({{QStringLiteral("workToShortRest"), QStringLiteral("short-rest-to-work")}});
+        QTRY_VERIFY(!alarm);
+        alarm = player.findChild<QSoundEffect *>();
+        QVERIFY(alarm);
+        QCOMPARE(alarm->source(), bundled(QStringLiteral("short-rest-to-work")));
+
+        player.setRinging(false);
+        QTRY_VERIFY(!alarm);
+        QVERIFY(player.findChildren<QSoundEffect *>().isEmpty());
+    }
+
+    void aStoppedPreviewReleasesItsSoundEffect()
+    {
+        AlarmPlayer player;
+        player.setSoundsDirectory(bundledSoundsDir());
+        player.preview(QStringLiteral("work-to-long-rest"));
+        QPointer<QSoundEffect> preview = player.findChild<QSoundEffect *>();
+        QVERIFY(preview);
+        QCOMPARE(preview->source(), bundled(QStringLiteral("work-to-long-rest")));
+
+        player.stopPreview();
+        QTRY_VERIFY(!preview);
+        QVERIFY(player.findChildren<QSoundEffect *>().isEmpty());
+        QCOMPARE(player.previewSource(), bundled(QStringLiteral("work-to-long-rest")));
     }
 
     void findsTheSoundsOfTheInstalledWidget()
