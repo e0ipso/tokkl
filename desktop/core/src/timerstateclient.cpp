@@ -319,7 +319,7 @@ void TimerStateClient::readLine(QByteArrayView line)
         return;
     }
     if (line.startsWith(':')) {
-        return; // a comment, such as the keep-alive
+        return; // a comment
     }
     const qsizetype colon = line.indexOf(':');
     const QByteArrayView field = colon < 0 ? line : line.first(colon);

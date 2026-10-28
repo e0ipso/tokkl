@@ -17,22 +17,32 @@ export interface TimerStreamHandlers {
 
 const CLOSED = 2;
 const DEFAULT_RETRY_MS = 5000;
+/** The server sends a `keep-alive` event every 25 s, so a minute without one means it is not getting through. */
+const DEFAULT_SILENCE_MS = 60_000;
 
 /**
  * Holds the timer event stream open. The browser reconnects by itself after a dropped connection,
  * but gives up (readyState CLOSED) when the server replies with an error status, such as a proxy
- * restarting. Then the source is closed and a new one opens after `retryMs`. The returned function
- * stops it for good.
+ * restarting. Then the source is closed and a new one opens after `retryMs`. An open stream that
+ * delivers nothing for `silenceMs`, such as one a buffering proxy holds back, counts as down and is
+ * replaced at once. The returned function stops it for good.
  */
 export function connectTimerStream(
   open: () => TimerEventSource,
   handlers: TimerStreamHandlers,
   retryMs: number = DEFAULT_RETRY_MS,
+  silenceMs: number = DEFAULT_SILENCE_MS,
 ): () => void {
   let source: TimerEventSource | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
+  let silence: ReturnType<typeof setTimeout> | null = null;
   let up = false;
   let stopped = false;
+
+  const quiet = () => {
+    if (silence !== null) clearTimeout(silence);
+    silence = null;
+  };
 
   const setUp = (next: boolean) => {
     if (stopped || up === next) return;
@@ -44,8 +54,24 @@ export function connectTimerStream(
     retry = null;
     const current = open();
     source = current;
-    current.addEventListener('open', () => setUp(true));
+    // Restarts the wait for the next event on the open source.
+    const heard = () => {
+      quiet();
+      if (stopped) return;
+      silence = setTimeout(() => {
+        silence = null;
+        setUp(false);
+        current.close();
+        connect();
+      }, silenceMs);
+    };
+    current.addEventListener('open', () => {
+      setUp(true);
+      heard();
+    });
+    current.addEventListener('keep-alive', heard);
     current.addEventListener('error', () => {
+      quiet();
       setUp(false);
       if (!stopped && current.readyState === CLOSED) {
         current.close();
@@ -54,6 +80,7 @@ export function connectTimerStream(
     });
     current.addEventListener('timer', (event) => {
       if (stopped) return;
+      heard();
       let data: unknown;
       try {
         data = JSON.parse(String(event.data));
@@ -67,6 +94,7 @@ export function connectTimerStream(
   connect();
   return () => {
     stopped = true;
+    quiet();
     if (retry !== null) clearTimeout(retry);
     source?.close();
   };

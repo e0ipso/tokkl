@@ -309,7 +309,7 @@ private Q_SLOTS:
     {
         StreamServer server;
         NetworkTransport transport(clientName);
-        // More than twice the 25 s between the server's keep-alive comments.
+        // More than twice the 25 s between the server's keep-alive events.
         QCOMPARE(transport.streamIdleTimeout(), 60000);
         transport.setTimeout(100);
         transport.setStreamIdleTimeout(1000);
@@ -318,7 +318,7 @@ private Q_SLOTS:
         QTRY_VERIFY(server.socket);
         server.socket->write(streamHead);
         for (int i = 0; i < 4; ++i) {
-            server.writeChunk(": keep-alive\n\n");
+            server.writeChunk("event: keep-alive\ndata:\n\n");
             QTest::qWait(300);
         }
         // 1200 ms since the request, more than the request timeout and the
@@ -326,7 +326,7 @@ private Q_SLOTS:
         QVERIFY(log.finished.isEmpty());
         QTRY_COMPARE(log.finished.size(), 1);
         QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::Timeout);
-        QCOMPARE(log.data, QByteArray(": keep-alive\n\n").repeated(4));
+        QCOMPARE(log.data, QByteArray("event: keep-alive\ndata:\n\n").repeated(4));
         delete stream;
     }
 
@@ -354,7 +354,7 @@ private Q_SLOTS:
         StreamLog log(stream);
         QTRY_VERIFY(server.socket);
         server.socket->write(streamHead);
-        server.writeChunk(": keep-alive\n\n");
+        server.writeChunk("event: keep-alive\ndata:\n\n");
         QTRY_COMPARE(log.chunks, 1);
         stream->abort();
         QTRY_COMPARE(log.finished.size(), 1);

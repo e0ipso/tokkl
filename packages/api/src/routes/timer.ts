@@ -19,7 +19,7 @@ export function timerRoutes(deps: Deps): Router {
 
   /**
    * Server-Sent Events: one `timer` event with the full state on connect and after every change,
-   * and a `: keep-alive` comment between them. The stream ends once the credential that opened it
+   * and a `keep-alive` event between them. The stream ends once the credential that opened it
    * stops signing the request in.
    */
   api.get('/timer/events', auth, (req, res) => {

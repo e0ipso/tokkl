@@ -46,7 +46,7 @@ function setup() {
 }
 
 test('states pass to the handler, malformed events are ignored, and status reports only changes', () => {
-  const { at, states, statuses } = setup();
+  const { at, states, statuses, stop } = setup();
   const source = at(0);
   source.open();
   source.emit('timer', JSON.stringify(state(1)));
@@ -60,6 +60,7 @@ test('states pass to the handler, malformed events are ignored, and status repor
   source.emit('error');
   source.open();
   assert.deepEqual(statuses, [true, false, true]);
+  stop();
 });
 
 test('a source the browser gave up on is closed and reopened after the delay, until stopped', (t) => {
@@ -81,6 +82,41 @@ test('a source the browser gave up on is closed and reopened after the delay, un
   assert.equal(sources.length, 2, 'stopping cancels the pending reopen');
   at(1).open();
   assert.deepEqual(statuses, [true, false], 'a stopped stream reports nothing more');
+});
+
+test('a stream that stays silent past the timeout counts as down and opens again', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { sources, at, states, statuses, stop } = setup();
+  at(0).open();
+  // Each keep-alive or state restarts the wait.
+  t.mock.timers.tick(59_999);
+  at(0).emit('keep-alive', '');
+  t.mock.timers.tick(59_999);
+  at(0).emit('timer', JSON.stringify(state(1)));
+  t.mock.timers.tick(59_999);
+  assert.deepEqual(statuses, [true]);
+  assert.equal(sources.length, 1);
+
+  // A proxy that holds the body back: nothing arrives, so polling takes over and a new source opens.
+  t.mock.timers.tick(1);
+  assert.deepEqual(statuses, [true, false]);
+  assert.equal(at(0).closed, true);
+  assert.equal(sources.length, 2);
+  at(1).open();
+  at(1).emit('timer', JSON.stringify(state(2)));
+  assert.deepEqual(states.map((s) => s.revision), [1, 2]);
+  assert.deepEqual(statuses, [true, false, true]);
+
+  // While the browser reconnects by itself there is nothing to time out, and a stopped stream waits for nothing.
+  at(1).readyState = 0;
+  at(1).emit('error');
+  t.mock.timers.tick(120_000);
+  assert.equal(sources.length, 2);
+  at(1).open();
+  stop();
+  t.mock.timers.tick(120_000);
+  assert.equal(sources.length, 2);
+  assert.deepEqual(statuses, [true, false, true, false, true]);
 });
 
 test('stopping closes the open source', () => {

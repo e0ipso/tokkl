@@ -5,7 +5,7 @@ import { login } from './helpers.ts';
 import { clickNotification, focusCalls, permissionRequests, stubNotifications, type NotificationSetup } from './notification-tests-helpers.ts';
 import { RuntimeErrors } from './runtime-errors.ts';
 import {
-  expectSnapped, holdRequest, instant, metadataOf, nextRunning, openSecondDevice, settleTimerTraffic, TimerApi,
+  expectSnapped, fastForwardStreaming, holdRequest, instant, metadataOf, nextRunning, openSecondDevice, settleTimerTraffic, TimerApi,
   watchTimerTraffic, type Metadata,
 } from './timer-tests-helpers.ts';
 
@@ -53,7 +53,7 @@ async function startPomodoro(page: Page, description = 'Session work') {
 /** Moves the browser clock past the end of a one-minute phase, once the server's states have all arrived. */
 async function ring(page: Page) {
   await settleTimerTraffic(page);
-  await page.clock.fastForward(65_000);
+  await fastForwardStreaming(page, 65_000);
 }
 
 /** Moves the running entry's start two minutes back and waits until the page has the change. */

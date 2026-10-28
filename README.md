@@ -58,7 +58,7 @@ The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DA
 
 ## Behind a reverse proxy
 
-The apps follow the timer through a Server-Sent Events stream at `GET /api/app/timer/events`. The server sends a `: keep-alive` comment every 25 seconds and sets `X-Accel-Buffering: no`. A proxy must not buffer that response, and its read timeout must be well above 25 seconds, or the stream drops and the clients fall back to polling every 30 seconds. nginx honours the header, and this location block sets both explicitly:
+The apps follow the timer through a Server-Sent Events stream at `GET /api/app/timer/events`. The server sends a `keep-alive` event every 25 seconds and sets `X-Accel-Buffering: no`. A proxy must not buffer that response, and its read timeout must be well above 25 seconds. Otherwise the stream drops, or goes a minute without a keep-alive, and the clients fall back to polling every 30 seconds. nginx honours the header, and this location block sets both explicitly:
 
 ```nginx
 location /api/app/timer/events {

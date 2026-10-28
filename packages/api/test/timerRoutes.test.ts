@@ -17,10 +17,10 @@ interface EventStream {
   response: Response;
   /** The next message, or null once the server has ended the stream. */
   next: () => Promise<Message | null>;
-  /** The next `timer` event's state, skipping comments. Fails if the stream ends first. */
+  /** The next `timer` event's state, skipping comments and keep-alives. Fails if the stream ends first. */
   nextState: () => Promise<TimerState>;
-  /** The next comment line, skipping events. Fails if the stream ends first. */
-  nextComment: () => Promise<string>;
+  /** The next `keep-alive` event, skipping everything else. Fails if the stream ends first. */
+  nextKeepAlive: () => Promise<Message>;
   /** Resolves once the server has ended the stream, skipping whatever arrives before. */
   ended: () => Promise<void>;
 }
@@ -87,12 +87,12 @@ async function openStream(t: NodeTestContext, server: TestServer, headers: Recor
     response,
     next,
     nextState: () => nextOf((message) => {
-      if (!('event' in message)) return undefined;
+      if (!('event' in message) || message.event === 'keep-alive') return undefined;
       assert.equal(message.event, 'timer');
       assert.ok(!message.data.includes('\n'));
       return JSON.parse(message.data) as TimerState;
     }),
-    nextComment: () => nextOf((message) => ('comment' in message ? message.comment : undefined)),
+    nextKeepAlive: () => nextOf((message) => ('event' in message && message.event === 'keep-alive' ? message : undefined)),
     ended: async () => {
       while (await next() !== null);
     },
@@ -193,13 +193,14 @@ test('the stream sends the state on connect and on every change', STREAM_TEST, a
   assert.equal(running.running_entry?.id, started.body.id);
 });
 
-test('keep-alive comments go out, and each tick checks the credential again', STREAM_TEST, async (t) => {
+test('keep-alive events go out, and each tick checks the credential again', STREAM_TEST, async (t) => {
   const ctx = await setup();
   const { server } = streamingApp(ctx, { keepAliveMs: 50 });
   const cookie = await sessionCookie(ctx);
   const stream = await openStream(t, server, { cookie });
   await stream.nextState();
-  assert.equal(await stream.nextComment(), 'keep-alive');
+  // A named event with data, because a browser EventSource never surfaces comments.
+  assert.deepEqual(await stream.nextKeepAlive(), { event: 'keep-alive', data: '' });
 
   // Expiry ends a session without any request, so only the tick can notice.
   ctx.db.prepare('UPDATE sessions SET expires_at = ? WHERE user_id = ?').run('2000-01-01T00:00:00.000Z', ctx.user.id);

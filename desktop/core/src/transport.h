@@ -102,7 +102,7 @@ public:
     void setTimeout(int ms);
     // How long a stream may go without receiving a byte, the answer's head
     // included; a stream has no overall timeout. 60 seconds by default, more
-    // than twice the 25 seconds between the server's keep-alive comments.
+    // than twice the 25 seconds between the server's keep-alive events.
     int streamIdleTimeout() const;
     void setStreamIdleTimeout(int ms);
 

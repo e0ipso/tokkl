@@ -7,7 +7,10 @@ import { subscribeTimer } from './timerHub.ts';
 import { getTimerState } from './timerState.ts';
 
 export interface TimerStreamOptions {
-  /** Milliseconds between keep-alive comments. Proxies close streams that stay silent for long. */
+  /**
+   * Milliseconds between keep-alive events. Proxies close streams that stay silent for long, and
+   * clients treat a stream silent for longer as down.
+   */
   keepAliveMs?: number;
   /** Streams one user may hold open. Opening one more closes that user's oldest. */
   maxPerUser?: number;
@@ -34,8 +37,9 @@ const MAX_STREAMS_PER_USER = 10;
 /**
  * The open `GET /api/app/timer/events` streams of one database, as Server-Sent Events. Each sends
  * the full timer state as a `timer` event on connect and after every committed change for its
- * user, and a comment line every `keepAliveMs`. Before each send and on each keep-alive tick the
- * stream's credential check runs, and a stream whose check fails ends.
+ * user, and a `keep-alive` event with empty data every `keepAliveMs`: an event, not a comment,
+ * because a browser's EventSource never surfaces comments. Before each send and on each keep-alive
+ * tick the stream's credential check runs, and a stream whose check fails ends.
  */
 export class TimerStreams {
   readonly #db: Db;
@@ -138,7 +142,7 @@ export class TimerStreams {
   }
 
   #keepAliveTick(userId: number, stream: Stream): void {
-    if (this.#check(stream.check)) stream.res.write(': keep-alive\n\n');
+    if (this.#check(stream.check)) stream.res.write('event: keep-alive\ndata:\n\n');
     else this.#end(userId, stream);
   }
 

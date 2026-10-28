@@ -179,6 +179,8 @@ declare global {
   interface Window {
     /** Timer states this page has received: stream events plus replies from the timer and Pomodoro endpoints. */
     timerTraffic: number;
+    /** Every timer event stream the page opened. */
+    timerStreams: EventSource[];
   }
 }
 
@@ -191,10 +193,12 @@ declare global {
 export async function watchTimerTraffic(page: Page): Promise<void> {
   await page.addInitScript(() => {
     window.timerTraffic = 0;
+    window.timerStreams = [];
     const NativeEventSource = window.EventSource;
     window.EventSource = class extends NativeEventSource {
       constructor(url: string | URL, init?: EventSourceInit) {
         super(url, init);
+        window.timerStreams.push(this);
         this.addEventListener('timer', () => { window.timerTraffic++; });
       }
     };
@@ -205,6 +209,28 @@ export async function watchTimerTraffic(page: Page): Promise<void> {
       return response;
     };
   });
+}
+
+/** The server's interval between `keep-alive` events on the timer stream. */
+const KEEP_ALIVE_MS = 25_000;
+
+/**
+ * Moves a fake browser clock forward by `ms` as time passes with the timer stream connected: in
+ * steps no longer than the server's keep-alive interval, each followed by a `keep-alive` event on
+ * every open stream. One jump past the app's one-minute silence timeout would make it give the
+ * stream up, and the state the new stream sends would set the clock offset back to the server's
+ * time. The clock belongs to the browser context, so every page of it moves and gets the events.
+ * Needs `watchTimerTraffic` on the pages that stream.
+ */
+export async function fastForwardStreaming(page: Page, ms: number): Promise<void> {
+  for (let left = ms; left > 0; left -= KEEP_ALIVE_MS) {
+    await page.clock.fastForward(Math.min(left, KEEP_ALIVE_MS));
+    await Promise.all(page.context().pages().map((open) => open.evaluate(() => {
+      for (const stream of window.timerStreams ?? []) {
+        if (stream.readyState === EventSource.OPEN) stream.dispatchEvent(new MessageEvent('keep-alive', { data: '' }));
+      }
+    })));
+  }
 }
 
 /** Waits until no timer state has reached the page for 300 ms. Needs `watchTimerTraffic`. */

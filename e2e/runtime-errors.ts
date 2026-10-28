@@ -18,6 +18,15 @@ export interface AllowedResponse {
 // sent without the cookie. A 403 that carries the cookie still fails the scenario.
 const SESSION_COOKIE = /(?:^|;\s*)tokkl_session=/;
 
+// The app closes its timer event stream itself when the stream delivers nothing for a minute, and
+// opens another. A fake browser clock moved ahead of the server's keep-alives does that, so the
+// browser reports the closed request as aborted. Any other failure of the stream still counts.
+const TIMER_STREAM_PATH = '/api/app/timer/events';
+
+function isClosedTimerStream(method: string, url: string, errorText: string | undefined): boolean {
+  return method === 'GET' && new URL(url).pathname === TIMER_STREAM_PATH && errorText === 'net::ERR_ABORTED';
+}
+
 async function isLoggedOutProbe(response: Response): Promise<boolean> {
   if (response.status() !== 403 || !new URL(response.url()).pathname.startsWith('/api/')) return false;
   const headers = await response.request().allHeaders();
@@ -48,6 +57,7 @@ export class RuntimeErrors {
       this.pending.push(this.checkResponse(response));
     });
     page.on('requestfailed', (request) => {
+      if (isClosedTimerStream(request.method(), request.url(), request.failure()?.errorText)) return;
       this.issues.push({ kind: 'requestfailed', text: `${request.method()} ${request.url()}: ${request.failure()?.errorText}` });
     });
   }

@@ -196,9 +196,10 @@ private Q_SLOTS:
         QVERIFY(f.client.streaming());
         QCOMPARE(f.streamingChanges.size(), 1);
 
-        // Keep-alive comments, other events and an unreadable state change
+        // Keep-alives, comments, other events and an unreadable state change
         // nothing.
-        stream->push(": keep-alive\n\n");
+        stream->push("event: keep-alive\ndata:\n\n");
+        stream->push(": comment\n\n");
         stream->push("event: other\ndata: " + stateBody(9, f.clock.now()) + "\n\n");
         stream->push("event: timer\ndata: {\"revision\":9}\n\n");
         stream->push("data: " + stateBody(9, f.clock.now()) + "\n\n");
