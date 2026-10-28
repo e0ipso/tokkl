@@ -10,11 +10,11 @@ in KDE Wallet.
 
 It has two parts:
 
-- `package/`: the widget, a QML package with plugin id `com.github.e0ipso.tokkl`.
+- `package/`: the widget, a QML package with plugin id `com.canpicasoft.tokkl`.
   Its entry point is `contents/ui/main.qml`; the panel item and its menu are
   `PanelButton.qml` (with its project indicator, `ProjectIndicator.qml`) and
   `PanelMenu.qml`.
-- `src/`: the backend, a Qt/C++ QML module imported as `com.github.e0ipso.tokkl.backend`.
+- `src/`: the backend, a Qt/C++ QML module imported as `com.canpicasoft.tokkl.backend`.
   The KDE Wallet store and the connection types the widget creates from QML,
   which pass that store in, are in the `tokklkde` static library.
 
@@ -507,7 +507,7 @@ come from the icon pack's transparent logo,
   outline logos.
 - `package/icons/tokkl-<size>.png` at 32, 48, 64, 96, 128 and 256 px. The
   build installs each as
-  `<icon dir>/hicolor/<size>x<size>/apps/com.github.e0ipso.tokkl.png`, where
+  `<icon dir>/hicolor/<size>x<size>/apps/com.canpicasoft.tokkl.png`, where
   the widget picker finds it through `Icon` in `package/metadata.json`. The
   96 px file is a copy of `tokkl.png`. `icons/` is not part of the widget
   package. hicolor declares its `256x256/apps` directory scalable down to
@@ -528,9 +528,9 @@ With `CMAKE_INSTALL_PREFIX=/usr` the staged tree uses the standard paths:
 
 | Part    | Debian                                                         | Fedora                                      |
 | ------- | -------------------------------------------------------------- | ------------------------------------------- |
-| Widget  | `/usr/share/plasma/plasmoids/com.github.e0ipso.tokkl/`         | same                                        |
-| Backend | `/usr/lib/x86_64-linux-gnu/qt6/qml/com/github/e0ipso/tokkl/backend/` | `/usr/lib64/qt6/qml/com/github/e0ipso/tokkl/backend/` |
-| Icons   | `/usr/share/icons/hicolor/<size>x<size>/apps/com.github.e0ipso.tokkl.png` | same                                        |
+| Widget  | `/usr/share/plasma/plasmoids/com.canpicasoft.tokkl/`         | same                                        |
+| Backend | `/usr/lib/x86_64-linux-gnu/qt6/qml/com/canpicasoft/tokkl/backend/` | `/usr/lib64/qt6/qml/com/canpicasoft/tokkl/backend/` |
+| Icons   | `/usr/share/icons/hicolor/<size>x<size>/apps/com.canpicasoft.tokkl.png` | same                                        |
 
 The backend goes to Qt's own QML directory (`KDE_INSTALL_QMLDIR`), so the
 path follows the distribution's Qt layout.

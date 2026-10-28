@@ -55,7 +55,7 @@ When a phase reaches its planned end, the sound chosen for that transition plays
 
 The settings window opens on first start. Enter the instance URL, for example `https://tokkl.example.com`, and either an API token or your email and password. The API token is the default; Tokkl shows it under Settings → API token. A path prefix such as `/tokkl` in the URL is kept.
 
-Test Connection checks the values against the instance without saving them. Save keeps them. The address, sign-in method and email go to `~/Library/Preferences/com.github.e0ipso.Tokkl.plist`. The token or password goes only to the macOS Keychain, as a password of the service `Tokkl`. Settings closes once the Keychain has it. If the Keychain refuses it, Settings stays open with what you typed and shows why, nothing is saved, and Tokkl does not keep the secret anywhere else.
+Test Connection checks the values against the instance without saving them. Save keeps them. The address, sign-in method and email go to `~/Library/Preferences/com.canpicasoft.Tokkl.plist`. The token or password goes only to the macOS Keychain, as a password of the service `Tokkl`. Settings closes once the Keychain has it. If the Keychain refuses it, Settings stays open with what you typed and shows why, nothing is saved, and Tokkl does not keep the secret anywhere else.
 
 Open Tokkl at login registers the app as a login item. macOS may ask you to allow it in System Settings → General → Login Items, and you can turn it off there too.
 

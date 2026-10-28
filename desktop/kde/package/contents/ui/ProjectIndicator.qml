@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import org.kde.kirigami as Kirigami
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // The project of the running or paused entry, or of the next start while
 // stopped, as a small shape in the panel row. A dot pulses while an entry

@@ -8,7 +8,7 @@
 %{!?tokkl_version:%{error:tokkl_version is not set; build with scripts/package-release.sh}}
 %{!?tokkl_native_version:%{error:tokkl_native_version is not set; build with scripts/package-release.sh}}
 
-%global plasmoid_id com.github.e0ipso.tokkl
+%global plasmoid_id com.canpicasoft.tokkl
 
 # The backend is a QML plugin, not a library other packages link against.
 %global __provides_exclude_from ^%{_qt6_qmldir}/.*\\.so$
@@ -102,9 +102,8 @@ The token or password is stored in KDE Wallet. Built for Fedora KDE 44 x86_64.
 %{_kf6_datadir}/icons/hicolor/128x128/apps/%{plasmoid_id}.png
 %{_kf6_datadir}/icons/hicolor/256x256/apps/%{plasmoid_id}.png
 %dir %{_qt6_qmldir}/com
-%dir %{_qt6_qmldir}/com/github
-%dir %{_qt6_qmldir}/com/github/e0ipso
-%{_qt6_qmldir}/com/github/e0ipso/tokkl/
+%dir %{_qt6_qmldir}/com/canpicasoft
+%{_qt6_qmldir}/com/canpicasoft/tokkl/
 
 %changelog
 * %{lua: print(os.date("!%a %b %d %Y", tonumber(os.getenv("SOURCE_DATE_EPOCH")) or os.time()))} Tokkl contributors <contributors@example.invalid> - %{version}-%{release}

@@ -48,20 +48,20 @@ gnome-extensions pack desktop/gnome/extension --force --out-dir=/tmp \
     --extra-source=indicator.js --extra-source=projectindicator.js --extra-source=timer1.js \
     --extra-source=tokkl.png --extra-source=tokkl-symbolic.symbolic.png \
     --extra-source=hourglass.svg --extra-source=hourglass-symbolic.svg
-gnome-extensions install --force /tmp/tokkl@e0ipso.github.com.shell-extension.zip
+gnome-extensions install --force /tmp/tokkl@canpicasoft.com.shell-extension.zip
 ```
 
 On Wayland, GNOME Shell only finds a newly installed extension after a restart: log out and back in. Then enable it:
 
 ```sh
-gnome-extensions enable tokkl@e0ipso.github.com
+gnome-extensions enable tokkl@canpicasoft.com
 ```
 
-To upgrade, install the new zip, then log out and in. To remove it, run `gnome-extensions uninstall tokkl@e0ipso.github.com`.
+To upgrade, install the new zip, then log out and in. To remove it, run `gnome-extensions uninstall tokkl@canpicasoft.com`.
 
 ## Connect to Tokkl
 
-Open the extension's settings from its menu (Settings), from the Extensions app, or with `gnome-extensions prefs tokkl@e0ipso.github.com`. Enter the instance URL, for example `https://tokkl.example.com`, choose API token or email and password, enter the secret and press Connect. The values go to the service's `Configure` method. The service checks them, saves the secret in the keyring and connects; the Timer service row then shows the result.
+Open the extension's settings from its menu (Settings), from the Extensions app, or with `gnome-extensions prefs tokkl@canpicasoft.com`. Enter the instance URL, for example `https://tokkl.example.com`, choose API token or email and password, enter the secret and press Connect. The values go to the service's `Configure` method. The service checks them, saves the secret in the keyring and connects; the Timer service row then shows the result.
 
 The extension keeps the instance URL, sign-in method and email that the service last accepted, so the form opens filled in. It never keeps the token or password. Leave that field empty to keep the secret the keyring already holds for the account.
 
@@ -144,7 +144,7 @@ The `gnome` CI job runs all three for the version in `package.json`, and the rel
 The upload is manual, and the release does not wait for it or for the review:
 
 1. Download `tokkl-gnome-extension-<version>.zip` from the `v<version>` GitHub release.
-2. Sign in at <https://extensions.gnome.org/> with the account that owns `tokkl@e0ipso.github.com`. The first upload creates the extension under the account that sends it.
+2. Sign in at <https://extensions.gnome.org/> with the account that owns `tokkl@canpicasoft.com`. The first upload creates the extension under the account that sends it.
 3. Open <https://extensions.gnome.org/upload/>, choose the zip, accept the license terms and upload it. extensions.gnome.org gives it the next integer version and shows `version-name`.
 4. Wait for the review. Reviewers read the code by hand, which can take days. The description says the extension needs the `tokkl-timerd` service; point the reviewers to the release's DEB and RPM if they ask how to run it.
 

@@ -6,7 +6,7 @@ import QtQuick.Templates as T
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // The panel item: the Tokkl icon, the hourglass in Pomodoro mode, the
 // project indicator, the elapsed time (the session's countdown during a

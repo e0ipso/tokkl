@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // Connection settings. The address, sign-in method and email are ordinary
 // widget settings (cfg_*). The API token or password goes to KDE Wallet

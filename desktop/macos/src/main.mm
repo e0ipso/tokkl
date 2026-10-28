@@ -36,8 +36,8 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     // QSettings keeps the nonsecret settings in
-    // ~/Library/Preferences/com.github.e0ipso.Tokkl.plist.
-    QApplication::setOrganizationDomain(QStringLiteral("e0ipso.github.com"));
+    // ~/Library/Preferences/com.canpicasoft.Tokkl.plist.
+    QApplication::setOrganizationDomain(QStringLiteral("canpicasoft.com"));
     QApplication::setApplicationName(QStringLiteral("Tokkl"));
     QApplication::setApplicationVersion(QStringLiteral(TOKKL_VERSION_STRING));
     // Closing the settings window leaves the menu bar item running.

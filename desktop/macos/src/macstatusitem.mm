@@ -158,7 +158,7 @@ MacStatusItem::MacStatusItem(QObject *parent)
 {
     d->item = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
     // Keeps the position the user dragged the item to.
-    d->item.autosaveName = @"com.github.e0ipso.tokkl.timer";
+    d->item.autosaveName = @"com.canpicasoft.tokkl.timer";
 
     // The target lives no longer than this object, which owns it.
     std::function<void(bool)> handler = [this](bool secondary) {

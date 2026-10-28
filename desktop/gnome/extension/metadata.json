@@ -1,5 +1,5 @@
 {
-  "uuid": "tokkl@e0ipso.github.com",
+  "uuid": "tokkl@canpicasoft.com",
   "name": "Tokkl",
   "description": "Shows the Tokkl timer in the top bar. Click it to start or stop the timer; the menu chooses the project and billable. Needs the tokkl-timerd service.",
   "shell-version": ["46", "47", "48", "49", "50", "51"],

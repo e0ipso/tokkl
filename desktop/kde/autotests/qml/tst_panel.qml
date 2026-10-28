@@ -2,7 +2,7 @@ import QtQuick
 import QtTest
 import org.kde.kirigami as Kirigami
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 import Tokkl.Test
 
 import "../../package/contents/ui"

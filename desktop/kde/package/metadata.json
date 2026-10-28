@@ -11,8 +11,8 @@
         "FormFactors": [
             "desktop"
         ],
-        "Icon": "com.github.e0ipso.tokkl",
-        "Id": "com.github.e0ipso.tokkl",
+        "Icon": "com.canpicasoft.tokkl",
+        "Id": "com.canpicasoft.tokkl",
         "License": "MIT",
         "Name": "Tokkl",
         "Website": "https://github.com/e0ipso/tokkl"
