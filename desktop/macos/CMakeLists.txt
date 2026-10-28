@@ -76,7 +76,7 @@ message(STATUS "Tokkl macOS companion version: ${TOKKL_RESOLVED_VERSION}")
 # The bundle's Info.plist. LSUIElement keeps the app out of the Dock and the
 # app switcher; the menu bar item is its only presence. CFBundleIconFile names
 # <TOKKL_BUNDLE_ICON>.icns, which the build makes from resources/.
-set(TOKKL_BUNDLE_ID "com.github.e0ipso.tokkl")
+set(TOKKL_BUNDLE_ID "com.canpicasoft.tokkl")
 set(TOKKL_BUNDLE_NAME "Tokkl")
 set(TOKKL_BUNDLE_ICON "Tokkl")
 set(TOKKL_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist")

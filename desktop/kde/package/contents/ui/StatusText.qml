@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // Words for the timer's and the Pomodoro session's state, shared by the
 // panel item, its menu and the tooltip. Every state has its own text, so

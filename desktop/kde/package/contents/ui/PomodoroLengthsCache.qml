@@ -1,6 +1,6 @@
 import QtQml
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // Keeps the account's Pomodoro lengths, as the panel last knew them, in four
 // widget settings: cachedWorkMinutes, cachedShortRestMinutes,

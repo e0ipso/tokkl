@@ -4,7 +4,7 @@ import QtQuick
 import QtQuick.Templates as T
 import org.kde.plasma.components as PlasmaComponents
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // The panel item's menu: state, the session's message, Start session, Next
 // phase, End session, Start or Stop, Project, Billable, Pomodoro mode,

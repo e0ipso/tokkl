@@ -1,7 +1,7 @@
 import QtQuick
 import QtTest
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 import Tokkl.Test
 
 // The Configure pages on a scripted wallet and network. Plasma's dialog

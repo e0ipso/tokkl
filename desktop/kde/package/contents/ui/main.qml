@@ -5,7 +5,7 @@ import QtQuick
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // The panel timer and the Pomodoro session: PanelButton shows them and opens
 // PanelMenu.

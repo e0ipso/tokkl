@@ -60,7 +60,7 @@ package="$(realpath "$package")"
 [ -z "$previous" ] || previous="$(realpath "$previous")"
 [ -z "$load_test" ] || load_test="$(realpath "$load_test")"
 
-plasmoid_id="com.github.e0ipso.tokkl"
+plasmoid_id="com.canpicasoft.tokkl"
 widget_dir="/usr/share/plasma/plasmoids/$plasmoid_id"
 # The widget picker's icon in every hicolor size the package installs; the
 # 96px one is a copy of the panel logo in the widget.
@@ -72,7 +72,7 @@ icon_files="$(for size in $icon_sizes; do icon_file "$size"; done)"
 case "$package" in
     *.deb)
         format=deb
-        backend_dir="/usr/lib/x86_64-linux-gnu/qt6/qml/com/github/e0ipso/tokkl/backend"
+        backend_dir="/usr/lib/x86_64-linux-gnu/qt6/qml/com/canpicasoft/tokkl/backend"
         expected_arch=amd64
         license_file=/usr/share/doc/tokkl-kde/copyright
         # dpkg-shlibdeps adds the libraries; debian/control adds the QML modules.
@@ -90,7 +90,7 @@ case "$package" in
         ;;
     *.rpm)
         format=rpm
-        backend_dir="/usr/lib64/qt6/qml/com/github/e0ipso/tokkl/backend"
+        backend_dir="/usr/lib64/qt6/qml/com/canpicasoft/tokkl/backend"
         expected_arch=x86_64
         license_file=/usr/share/licenses/tokkl-kde/LICENSE
         # rpm finds the libraries; the spec adds the QML modules, floors,
@@ -286,9 +286,9 @@ check_installed() { # <native version> <semver> <file>
     expect "widget picker icon matches the bundled logo" \
         "widget picker icon is missing or differs from the bundled logo" \
         same_contents "$(icon_file 96)" "$widget_dir/contents/images/tokkl.png"
-    expect "backend qmldir names com.github.e0ipso.tokkl.backend" \
-        "backend qmldir does not name com.github.e0ipso.tokkl.backend" \
-        grep -qx "module com.github.e0ipso.tokkl.backend" "$backend_dir/qmldir"
+    expect "backend qmldir names com.canpicasoft.tokkl.backend" \
+        "backend qmldir does not name com.canpicasoft.tokkl.backend" \
+        grep -qx "module com.canpicasoft.tokkl.backend" "$backend_dir/qmldir"
 
     # ldd fails on a file that is not a dynamic ELF object; a missing library
     # shows as "not found" with a zero exit status.
@@ -372,7 +372,7 @@ mkdir -p "$fixture_home/.config" "$fixture_home/.local/share/kwalletd"
 cat > "$fixture_home/.config/plasma-org.kde.plasma.desktop-appletsrc" <<'EOF'
 [Containments][2][Applets][42]
 immutability=1
-plugin=com.github.e0ipso.tokkl
+plugin=com.canpicasoft.tokkl
 
 [Containments][2][Applets][42][Configuration][General]
 authMode=token

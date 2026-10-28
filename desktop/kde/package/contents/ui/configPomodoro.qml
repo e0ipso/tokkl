@@ -5,7 +5,7 @@ import QtQuick.Layouts
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
 
-import com.github.e0ipso.tokkl.backend
+import com.canpicasoft.tokkl.backend
 
 // Pomodoro settings. The four lengths are the account's preferences on the
 // Tokkl server, shared with the web app, so Apply sends the changed ones
