@@ -287,6 +287,7 @@ export interface ReportEntry {
   tags: string[];
   amount_cents: number | null;
   currency: string;
+  all_day: boolean;
 }
 
 export interface Report {

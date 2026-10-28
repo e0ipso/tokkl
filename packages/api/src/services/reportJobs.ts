@@ -100,6 +100,7 @@ function detailedRow(entry: ReportEntry, rowNumber: number, user: { id: number; 
       start: togglTime(entry.start),
       stop: togglTime(entry.stop),
       at: togglTime(entry.at),
+      all_day: entry.allDay,
     }],
   };
 }
@@ -143,7 +144,7 @@ function appEntry(entry: ReportEntry) {
     id: entry.id, description: entry.description, start: entry.start, stop: entry.stop, seconds: entry.seconds,
     billable: entry.billable, project_id: entry.projectId, project_name: entry.projectName, project_color: entry.projectColor,
     client_name: entry.clientName, task_name: entry.taskName, tags: entry.tags.map((tag) => tag.name),
-    amount_cents: entry.amountCents, currency: entry.currency,
+    amount_cents: entry.amountCents, currency: entry.currency, all_day: entry.allDay,
   };
 }
 

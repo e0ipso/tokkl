@@ -59,6 +59,8 @@ export interface CsvItem {
   stop: string;
   seconds: number;
   tags: string[];
+  /** No-time entries keep their stored instants, but the CSV leaves the time cells blank. */
+  allDay: boolean;
 }
 
 export function toTogglCsv(items: CsvItem[], user: UserRow, durationFormat: DurationFormat = 'improved'): string {
@@ -68,7 +70,7 @@ export function toTogglCsv(items: CsvItem[], user: UserRow, durationFormat: Dura
     const [endDate, endTime] = localDateTime(item.stop, user.timezone);
     rows.push([
       user.fullname, user.email, item.clientName, item.projectName, item.taskName, item.description,
-      item.billable ? 'Yes' : 'No', startDate, startTime, endDate, endTime,
+      item.billable ? 'Yes' : 'No', startDate, item.allDay ? '' : startTime, endDate, item.allDay ? '' : endTime,
       formatDuration(item.seconds, durationFormat), item.tags.join(', '),
     ]);
   }
@@ -87,6 +89,7 @@ function csvItem(entry: TimeEntryWithMeta): CsvItem | null {
     stop: entry.stop,
     seconds: Math.floor((Date.parse(entry.stop) - Date.parse(entry.start)) / 1000),
     tags: (JSON.parse(entry.tags_json) as Array<{ name: string }>).map((tag) => tag.name),
+    allDay: entry.all_day === 1,
   };
 }
 

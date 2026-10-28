@@ -237,6 +237,55 @@ test('app CSV exports cover multi-year ranges and match the app report; v3 CSVs 
   }
 });
 
+test('no-time entries count in totals, carry all_day in report rows and leave the CSV time cells blank', async () => {
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  const noTime = await ctx.json('POST', `${base}/time_entries`, {
+    all_day: true, start_date: '2026-10-14', duration: 5400, description: 'Reading', created_with: 'test',
+  });
+  assert.equal(noTime.status, 200);
+  await ctx.json('POST', `${base}/time_entries`, {
+    start: '2026-10-14T08:00:00Z', duration: 1800, description: 'Call', created_with: 'test',
+  });
+  const range = { start_date: '2026-10-14', end_date: '2026-10-14' };
+  const csvRows = async (path: string, init: { method: string; body?: Record<string, unknown> }) => {
+    const res = await ctx.request(init.method, path, init.body);
+    assert.equal(res.status, 200);
+    return parseCsv(await res.text()).slice(1);
+  };
+  // Description, start date, start time, end date, end time and duration.
+  const cells = (rows: string[][]): string[][] =>
+    rows.map((row) => [5, 7, 8, 9, 10, 11].map((column) => row[column] ?? ''));
+  const expected = [
+    ['Call', '2026-10-14', '10:00:00', '2026-10-14', '10:30:00', '0:30:00'],
+    ['Reading', '2026-10-14', '', '2026-10-14', '', '1:30:00'],
+  ];
+  const sortByDescription = (rows: string[][]) => [...rows].sort((a, b) => a[0]!.localeCompare(b[0]!));
+
+  const detailed = await csvRows('/api/app/report/detailed.csv', { method: 'POST', body: range });
+  assert.deepEqual(sortByDescription(cells(detailed)), expected);
+  const v3 = await csvRows(`/reports/api/v3/workspace/${ctx.wid}/search/time_entries.csv`, { method: 'POST', body: range });
+  assert.deepEqual(sortByDescription(cells(v3)), expected);
+  const exported = await csvRows('/api/app/export.csv?start_date=2026-10-14&end_date=2026-10-14', { method: 'GET' });
+  assert.deepEqual(sortByDescription(cells(exported)), expected);
+
+  const search = await ctx.json('POST', `/reports/api/v3/workspace/${ctx.wid}/search/time_entries`, range);
+  const items = Object.fromEntries(search.body.map((row: any) => [row.description, row.time_entries[0]]));
+  assert.equal(items.Reading.all_day, true);
+  assert.equal(items.Reading.start, '2026-10-13T22:00:00+00:00');
+  assert.equal(items.Reading.stop, '2026-10-13T23:30:00+00:00');
+  assert.equal(items.Reading.seconds, 5400);
+  assert.equal(items.Call.all_day, false);
+
+  const entries = (await ctx.json('POST', '/api/app/report/entries', range)).body.entries as any[];
+  assert.deepEqual(Object.fromEntries(entries.map((entry) => [entry.description, entry.all_day])), { Reading: true, Call: false });
+
+  const summary = await ctx.json('POST', `/reports/api/v3/workspace/${ctx.wid}/summary/time_entries`, range);
+  assert.equal(summary.body.groups.reduce((sum: number, group: any) =>
+    sum + group.sub_groups.reduce((inner: number, sub: any) => inner + sub.seconds, 0), 0), 7200);
+  assert.equal((await ctx.json('POST', '/api/app/report', range)).body.totals.seconds, 7200);
+});
+
 test('app CSV totals equal the displayed report for each workspace rounding mode; stored and v3 durations stay raw', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;

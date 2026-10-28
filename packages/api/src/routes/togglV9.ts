@@ -20,7 +20,7 @@ import { getInstanceSettings } from '../models/settings.ts';
 import { createTag, deleteTag, listTags, serializeTag, updateTag } from '../models/tags.ts';
 import { createTask, deleteTask, getTask, listTasks, serializeTask, updateTask } from '../models/tasks.ts';
 import {
-  createTimeEntry, deleteTimeEntry, getRunningEntry, getTimeEntry, listTimeEntries, patchTimeEntries,
+  createTimeEntry, deleteTimeEntry, getRunningEntry, getTimeEntry, listTimeEntries, patchTimeEntries, reanchorNoTimeEntries,
   serializeTimeEntry, stopTimeEntry, updateTimeEntry, type TimeEntryFilter,
 } from '../models/timeEntries.ts';
 import {
@@ -190,6 +190,7 @@ export function togglV9Routes(deps: Deps): Router {
         WHERE id = ?
       `).run(email ?? user.email, fullname ?? user.fullname, timezone ?? user.timezone, beginningOfWeek,
         defaultWorkspaceId ?? user.default_workspace_id, passwordHash, nowIso(), user.id);
+      if (timezone && timezone !== user.timezone) reanchorNoTimeEntries(db, user.id, user.timezone, timezone);
       // A new password replaces the API token, so a token saved on a lost or leaked device stops working,
       // and signs out every other browser; the one making the change stays signed in. The response
       // carries the new token, so a caller signed in with the old one can go on with it.

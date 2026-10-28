@@ -1,4 +1,4 @@
-import { addDays } from '@tokkl/common/time';
+import { addDays, dateKey } from '@tokkl/common/time';
 
 /**
  * Matches below 760px, where the calendar shows one day at a time. Exactly 760px stays in week
@@ -80,4 +80,28 @@ export function fitMoveInDay(movedStartMs: number, durationMs: number, originalS
  */
 export function stepDay(day: string, step: number): string {
   return addDays(day, step);
+}
+
+/**
+ * Splits entries for the calendar: `timed` goes to the hour grid, and `allDay` holds each shown
+ * day's no-time entries by their local start date. A no-time entry on a day that is not shown is
+ * in neither, and a day without chips has no key.
+ */
+export function splitAllDay<T extends { all_day: boolean; start: string }>(
+  entries: T[],
+  days: string[],
+  timeZone: string,
+): { timed: T[]; allDay: Map<string, T[]> } {
+  const timed: T[] = [];
+  const allDay = new Map<string, T[]>();
+  const shown = new Set(days);
+  for (const entry of entries) {
+    if (!entry.all_day) {
+      timed.push(entry);
+      continue;
+    }
+    const day = dateKey(new Date(entry.start), timeZone);
+    if (shown.has(day)) allDay.set(day, [...(allDay.get(day) ?? []), entry]);
+  }
+  return { timed, allDay };
 }

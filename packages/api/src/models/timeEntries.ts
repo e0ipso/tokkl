@@ -257,6 +257,24 @@ export function noTimeSpan(
 }
 
 /**
+ * Moves the owner's no-time entries, trashed ones too, to midnight of the same local day in `toZone`,
+ * keeping each duration. Entries that do not move are left alone.
+ */
+export function reanchorNoTimeEntries(db: Db, userId: number, fromZone: string, toZone: string): void {
+  const rows = db.prepare('SELECT id, start, stop FROM time_entries WHERE user_id = ? AND all_day = 1')
+    .all(userId) as Array<{ id: number; start: string; stop: string }>;
+  const update = db.prepare('UPDATE time_entries SET start = ?, stop = ?, updated_at = ? WHERE id = ?');
+  const now = nowIso();
+  for (const row of rows) {
+    const oldStart = new Date(row.start);
+    const duration = seconds(new Date(row.stop)) - seconds(oldStart);
+    const start = startOfDay(dateKey(oldStart, fromZone), toZone);
+    if (seconds(start) === seconds(oldStart)) continue;
+    update.run(isoSeconds(start), isoSeconds(new Date(start.getTime() + duration * 1000)), now, row.id);
+  }
+}
+
+/**
  * The span of a no-time entry from a create body. The day is `start_date`, else the local date of
  * `start`, else today. The duration is `duration`, else `stop - start`.
  */
@@ -272,6 +290,44 @@ function readNoTimeSpan(db: Db, user: UserRow, body: Record<string, unknown>, ex
   if (duration === undefined) throw badRequest('No-time entries need a duration');
   const day = readStartDate(body) ?? dateKey(start ?? new Date(), user.timezone);
   return noTimeSpan(db, user, day, duration, { exact });
+}
+
+/**
+ * The span of a no-time entry from an update body. The day is `start_date`, else the local date of
+ * `start`, else the entry's own. The duration is `duration`, else `stop - start` when the entry is
+ * being turned on, else its own. Once an entry has no times, a `start` must be local midnight and a
+ * `stop` must be the anchored stop. An edit that keeps the day and the duration keeps the stored
+ * span, so an imported entry off the grid can still be renamed.
+ */
+function readNoTimeUpdate(db: Db, user: UserRow, current: TimeEntryRow, body: Record<string, unknown>): SnappedSpan {
+  if (!current.stop) throw badRequest('No-time entries can not be running');
+  const wasAllDay = asBool(current.all_day);
+  const currentStart = new Date(current.start);
+  const currentStop = new Date(current.stop);
+  const start = body.start == null ? undefined : parseInstant(body.start, 'start');
+  const stop = body.stop == null ? undefined : parseInstant(body.stop, 'stop');
+  let duration = readDuration(body.duration);
+  if (duration !== undefined && duration < 0) throw badRequest('No-time entries can not be running');
+  if (wasAllDay && start && seconds(start) !== seconds(startOfDay(dateKey(start, user.timezone), user.timezone))) {
+    throw badRequest('No-time entries have no start time: change start_date or duration instead');
+  }
+  if (!wasAllDay && stop) {
+    const from = start ?? currentStart;
+    if (seconds(stop) < seconds(from)) throw badRequest('Stop time must be after start time');
+    assertConsistentDuration(from, stop, duration, body);
+    duration ??= seconds(stop) - seconds(from);
+  }
+  const currentDay = dateKey(currentStart, user.timezone);
+  const currentDuration = seconds(currentStop) - seconds(currentStart);
+  const day = readStartDate(body) ?? (start ? dateKey(start, user.timezone) : currentDay);
+  duration ??= currentDuration;
+  const span = wasAllDay && day === currentDay && duration === currentDuration
+    ? { start: currentStart, stop: currentStop }
+    : noTimeSpan(db, user, day, duration);
+  if (wasAllDay && stop && seconds(stop) !== seconds(span.stop)) {
+    throw badRequest('No-time entries have no end time: change duration instead');
+  }
+  return span;
 }
 
 /**
@@ -387,16 +443,29 @@ export function updateTimeEntry(
 
     const currentStart = new Date(current.start);
     const currentStop = current.stop ? new Date(current.stop) : null;
-    const start = readStart(body, currentStart);
-    const duration = readDuration(body.duration);
-    let stop = currentStop;
-    if (body.stop !== undefined && body.stop !== null) {
-      stop = parseInstant(body.stop, 'stop');
-    } else if (duration !== undefined) {
-      stop = duration >= 0 ? new Date(start.getTime() + duration * 1000) : null;
+    const wasAllDay = asBool(current.all_day);
+    const allDay = optionalBool(body.all_day, 'all_day') ?? wasAllDay;
+    let start: Date;
+    let stop: Date | null;
+    let unchanged = false;
+    if (allDay) {
+      ({ start, stop } = readNoTimeUpdate(db, user, current, body));
+    } else {
+      if (wasAllDay && (body.start == null || body.stop == null)) {
+        throw badRequest('Turning off all_day needs a start and a stop');
+      }
+      start = readStart(body, currentStart);
+      const duration = readDuration(body.duration);
+      stop = currentStop;
+      if (body.stop !== undefined && body.stop !== null) {
+        stop = parseInstant(body.stop, 'stop');
+      } else if (duration !== undefined) {
+        stop = duration >= 0 ? new Date(start.getTime() + duration * 1000) : null;
+      }
+      assertConsistentDuration(start, stop, duration, body);
+      // Editing only the start of a stopped entry keeps its stop time, as the Toggl web app does.
+      unchanged = !wasAllDay && seconds(start) === seconds(currentStart) && stop?.getTime() === currentStop?.getTime();
     }
-    assertConsistentDuration(start, stop, duration, body);
-    // Editing only the start of a stopped entry keeps its stop time, as the Toggl web app does.
 
     const { projectId, taskId, project, projectChanged } = resolveProjectAndTask(db, wid, body, {
       projectId: current.project_id, taskId: current.task_id,
@@ -415,16 +484,15 @@ export function updateTimeEntry(
       billable,
       tagIds: applyTagAction(currentTagIds(current), readTagIds(db, wid, body), body.tag_action),
     };
-    const unchanged = seconds(start) === seconds(currentStart) && stop?.getTime() === currentStop?.getTime();
-    settleSpan(db, user, draft, { unchanged });
+    if (!allDay) settleSpan(db, user, draft, { unchanged });
     if (!draft.stop && currentStop) stopRunning(db, user, new Date(), id);
 
     db.prepare(`
       UPDATE time_entries SET project_id = ?, task_id = ?, description = ?, start = ?, stop = ?, billable = ?,
-        updated_at = ?
+        all_day = ?, updated_at = ?
       WHERE id = ?
     `).run(draft.projectId, draft.taskId, draft.description, isoSeconds(draft.start),
-      draft.stop ? isoSeconds(draft.stop) : null, Number(draft.billable), nowIso(), id);
+      draft.stop ? isoSeconds(draft.stop) : null, Number(draft.billable), Number(allDay), nowIso(), id);
     saveTags(db, id, draft.tagIds);
     return getTimeEntry(db, user.id, id);
   });
@@ -540,6 +608,9 @@ export function patchTimeEntries(
       try {
         for (const raw of operations as PatchOperation[]) {
           if (!raw || typeof raw.op !== 'string' || typeof raw.path !== 'string') throw badRequest('Invalid patch operation');
+          if ((raw.path === '/start' || raw.path === '/stop') && asBool(getTimeEntry(db, user.id, id).all_day)) {
+            throw badRequest('No-time entries have no start or end time');
+          }
           updateTimeEntry(db, user, wid, id, operationToBody(raw));
         }
         db.exec('RELEASE patch_entry');

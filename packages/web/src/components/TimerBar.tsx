@@ -6,6 +6,7 @@ import { useDiscardPause, usePauseTimer, useResumeTimer, useServerNow, useTimerS
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
+import { noTimeDuration } from '../lib/noTimeDuration.ts';
 import { entrySeconds, formatTime, minutesOfDay, snappedSeconds, today, useNow, useSettings } from '../lib/settings.ts';
 import { EntryFields, type EntryFieldsHandle } from './EntryFields.tsx';
 import { useFieldErrors } from './FieldError.tsx';
@@ -96,7 +97,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const [manualDay, setManualDay] = useState(() => today(settings.timeZone));
   const [manualStart, setManualStart] = useState('');
   const [manualEnd, setManualEnd] = useState('');
-  const manualErrors = useFieldErrors<'start' | 'end'>();
+  const [manualNoTimes, setManualNoTimes] = useState(false);
+  const [manualDuration, setManualDuration] = useState('');
+  const manualErrors = useFieldErrors<'start' | 'end' | 'duration'>();
   const [timerDuration, setTimerDuration] = useState('');
   const timerErrors = useFieldErrors<'duration'>();
   const fields = useRef<EntryFieldsHandle>(null);
@@ -272,7 +275,23 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     }
   };
 
+  /** Adds a no-time entry for the chosen day. The next start stays where the last timed entry ended. */
+  const addNoTimes = async () => {
+    const { seconds, error } = noTimeDuration(manualDuration, settings.timeResolution);
+    if (!manualErrors.validate([['duration', error]]) || seconds === null) return;
+    try {
+      const saved = await create.mutateAsync({ ...draft, all_day: true, start_date: manualDay, duration: seconds });
+      toast.show(`Added ${formatDuration(entrySeconds(saved, new Date()))}`);
+      setDraft(EMPTY);
+      setManualDuration('');
+      fields.current?.focus();
+    } catch (error) {
+      toast.error(error);
+    }
+  };
+
   const addManual = async () => {
+    if (manualNoTimes) return addNoTimes();
     const options = { timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(new Date(), settings.timeZone) };
     const range = resolveRange(manualDay, manualStart, manualEnd, options);
     const unreadable = !range && unreadableTime(manualStart, options);
@@ -321,7 +340,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   // The chain total while paused or while its clone runs, otherwise the running entry's own time.
   const elapsed = barSeconds(current, chain, serverNow.getTime());
   const announcement = paused ? 'Timer paused' : chain && current && chain.clone_entry_id === current.id ? 'Timer resumed' : '';
-  const manualRange = manual ? resolveRange(manualDay, manualStart, manualEnd, {
+  const manualRange = manual && !manualNoTimes ? resolveRange(manualDay, manualStart, manualEnd, {
     timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(now, settings.timeZone),
   }) : null;
 
@@ -354,32 +373,61 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       >
         {manual ? (
           <div className="manual-fields">
+            <label className="manual-switch">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={manualNoTimes}
+                onChange={(event) => {
+                  setManualNoTimes(event.target.checked);
+                  (['start', 'end', 'duration'] as const).forEach(manualErrors.clear);
+                }}
+              />
+              No times
+            </label>
             <input type="date" aria-label="Date" value={manualDay} onChange={(event) => event.target.value && setManualDay(event.target.value)} />
-            <input
-              {...manualErrors.field('start')}
-              className="time-field"
-              aria-label="Start time"
-              placeholder="Start"
-              value={manualStart}
-              onChange={(event) => setManualStart(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
-            />
-            <span className="muted">–</span>
-            <input
-              {...manualErrors.field('end')}
-              className="time-field"
-              aria-label="End time"
-              placeholder="End"
-              value={manualEnd}
-              onChange={(event) => setManualEnd(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
-            />
+            {manualNoTimes ? (
+              <input
+                {...manualErrors.field('duration')}
+                className="time-field"
+                aria-label="Duration"
+                placeholder="Duration"
+                value={manualDuration}
+                onChange={(event) => setManualDuration(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
+              />
+            ) : (
+              <>
+                <input
+                  {...manualErrors.field('start')}
+                  className="time-field"
+                  aria-label="Start time"
+                  placeholder="Start"
+                  value={manualStart}
+                  onChange={(event) => setManualStart(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
+                />
+                <span className="muted">–</span>
+                <input
+                  {...manualErrors.field('end')}
+                  className="time-field"
+                  aria-label="End time"
+                  placeholder="End"
+                  value={manualEnd}
+                  onChange={(event) => setManualEnd(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
+                />
+              </>
+            )}
             <span className="manual-duration">
-              {manualRange ? formatDuration(snappedSeconds(manualRange.start, manualRange.stop, settings)) : '0:00:00'}
+              {manualNoTimes
+                ? formatDuration(noTimeDuration(manualDuration, settings.timeResolution).seconds ?? 0)
+                : manualRange ? formatDuration(snappedSeconds(manualRange.start, manualRange.stop, settings)) : '0:00:00'}
             </span>
             {manualRange && localDay(manualRange.stop, settings.timeZone) !== manualDay ? <span className="hint">+1 day</span> : null}
             {manualErrors.message('start')}
             {manualErrors.message('end')}
+            {manualErrors.message('duration')}
           </div>
         ) : current ? (
           <>
