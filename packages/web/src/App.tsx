@@ -8,7 +8,6 @@ import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
-import { PauseCoordinationProvider } from './components/PauseCoordination.tsx';
 import { PomodoroSessionBanner } from './components/PomodoroSessionBanner.tsx';
 import { sessionTitle } from './components/pomodoroSessionPresentation.ts';
 import { PomodoroSessionProvider, usePomodoroSession } from './components/PomodoroSessionProvider.tsx';
@@ -345,7 +344,7 @@ export function App() {
   }
   return (
     <TimerStateProvider>
-      <PauseCoordinationProvider><PomodoroSessionProvider><Shell /></PomodoroSessionProvider></PauseCoordinationProvider>
+      <PomodoroSessionProvider><Shell /></PomodoroSessionProvider>
     </TimerStateProvider>
   );
 }

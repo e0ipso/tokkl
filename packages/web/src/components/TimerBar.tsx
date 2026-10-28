@@ -1,9 +1,8 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type RefObject } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type RefObject } from 'react';
 import {
-  useCreateEntry, useCurrentEntry, useDeleteEntry, useMe, usePreferences, useRestoreEntry, useSavePreferences, useStopEntry,
-  useUpdateEntry,
+  useCreateEntry, useDeleteEntry, usePreferences, useRestoreEntry, useSavePreferences, useStopEntry, useUpdateEntry,
 } from '../api/hooks.ts';
-import { useTimerState } from '../api/timerHooks.ts';
+import { useDiscardPause, usePauseTimer, useResumeTimer, useServerNow, useTimerState } from '../api/timerHooks.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
@@ -13,12 +12,7 @@ import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { useToast } from './Toast.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
-import {
-  chainKey, chainSeconds, isPaused, pause as pauseChain, reconcile, resume as resumeChain, sameSnapshot,
-  withSnapshot, type PauseChain,
-} from './pauseChain.ts';
-import { usePauseCoordination } from './PauseCoordination.tsx';
-import { readTabChain, subscribeTabChain, writeTabChain } from './tabChain.ts';
+import { barSeconds, pauseDraft } from './pauseView.ts';
 import { EMPTY_DRAFT as EMPTY, type EntryDraft as Draft } from './useEntryFields.ts';
 
 /**
@@ -67,14 +61,16 @@ export interface TimerBarHandle {
 export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] }>(function TimerBar({ recentEntries }, ref) {
   const settings = useSettings();
   const now = useNow(1000);
-  const { data: me } = useMe();
-  const accountId = me?.id ?? 0;
-  const { data: running, dataUpdatedAt: currentFetchedAt } = useCurrentEntry();
-  // A Pomodoro session's open pomodoro is the running entry. The bar leaves it to the Pomodoro page
-  // and shows its idle form; a timer started there stops the pomodoro, which ends the session.
+  const serverNow = useServerNow(1000);
+  // The server owns the running entry, the pause chain and the Pomodoro session; the bar reads them
+  // from the timer state and every change goes through an action or a v9 write. A Pomodoro
+  // session's open pomodoro is the running entry. The bar leaves it to the Pomodoro page and shows
+  // its idle form; a timer started there stops the pomodoro, which ends the session.
   const { data: timer } = useTimerState();
   const inSession = (timer?.pomodoro ?? null) !== null;
-  const current = inSession ? null : running;
+  const current = inSession ? null : (timer?.running_entry ?? null);
+  const chain = timer?.pause ?? null;
+  const paused = !current && chain?.paused === true;
   const { data: prefs } = usePreferences();
   const savePrefs = useSavePreferences();
   const create = useCreateEntry();
@@ -82,48 +78,20 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const stopEntry = useStopEntry();
   const remove = useDeleteEntry();
   const restore = useRestoreEntry();
+  const pauseTimer = usePauseTimer();
+  const resumeTimer = useResumeTimer();
+  const discardPause = useDiscardPause();
   const toast = useToast();
-
-  // Pause stops the running entry and Resume starts a clone of it; the chain keeps what to clone
-  // and the total, in localStorage per account so a reload keeps it. `chainRef` is set at once, so
-  // code after an await reads the chain as it is now.
-  const [chain, setChainState] = useState<PauseChain | null>(() => readTabChain(accountId));
-  const chainRef = useRef(chain);
-  const setChain = (next: PauseChain | null) => {
-    chainRef.current = next;
-    setChainState(next);
-    writeTabChain(accountId, next);
-  };
-  const endChain = () => {
-    if (chainRef.current) setChain(null);
-  };
-  // Another tab of this account, or the Pomodoro in this one, paused, resumed or stopped.
-  useEffect(() => {
-    if (!accountId) return;
-    const adopt = (next: PauseChain | null) => {
-      chainRef.current = next;
-      setChainState(next);
-      // With no running entry shown here, the bar shows what Resume will start: the other
-      // writer's snapshot, before any edit made here is saved into it.
-      if (isPaused(next) && shownEntryId.current === null) setDraft(next.snapshot);
-    };
-    const key = chainKey(accountId);
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === key || event.key === null) adopt(readTabChain(accountId));
-    };
-    const unsubscribe = subscribeTabChain((written, next) => {
-      if (written === accountId && next !== chainRef.current) adopt(next);
-    });
-    window.addEventListener('storage', onStorage);
-    return () => {
-      unsubscribe();
-      window.removeEventListener('storage', onStorage);
-    };
-  }, [accountId]);
-  const paused = !current && !inSession && isPaused(chain);
+  // Pause, Resume and Stop while paused wait for the server's answer, and nothing else starts or
+  // stops an entry until it arrives, so two writes never race.
+  const chainBusy = pauseTimer.isPending || resumeTimer.isPending || discardPause.isPending;
 
   const manual = !current && !paused && (prefs?.manualMode ?? false);
-  const [draft, setDraft] = useState<Draft>(() => (isPaused(chain) ? chain.snapshot : EMPTY));
+  const [draft, setDraft] = useState<Draft>(EMPTY);
+  // While paused the bar shows the fields Resume will start. The server holds them, so they are not editable.
+  const held = useMemo(() => (paused && chain ? pauseDraft(chain) : null), [
+    paused, chain?.description, chain?.project_id, chain?.task_id, chain?.billable, chain?.tags.join('\u0000'),
+  ]);
   const [editing, setEditing] = useState(false);
   const [manualDay, setManualDay] = useState(() => today(settings.timeZone));
   const [manualStart, setManualStart] = useState('');
@@ -169,33 +137,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     } else if (shownEntryId.current !== null) {
       shownEntryId.current = null;
       ownStart.current = null;
-      // A paused bar keeps showing what Resume will start.
-      const held = chainRef.current;
-      setDraft(isPaused(held) ? held.snapshot : EMPTY);
+      setDraft(EMPTY);
     }
   }, [current?.id, current?.at, current?.description, current?.project_id, current?.task_id, current?.billable, current?.tags.join('\u0000')]);
-
-  // Set while this bar pauses or resumes. The current entry refetches in the middle of both, and
-  // that answer must not end the chain before the bar records the change.
-  const { busy: chainBusy, pausing } = usePauseCoordination();
-  // Set while Resume's start request is pending, and whether Stop was pressed in that time.
-  const resumePending = useRef(false);
-  const stopAfterResume = useRef(false);
-
-  // The chain ends when the current entry shows another client started a timer, or stopped or
-  // replaced the clone.
-  useEffect(() => {
-    if (chainBusy.current) return;
-    const next = reconcile(chainRef.current, current, currentFetchedAt);
-    if (next !== chainRef.current) setChain(next);
-  }, [chain, current, currentFetchedAt]);
-
-  // Edits made while paused go into the snapshot, so Resume and a reload use them.
-  useEffect(() => {
-    const held = chainRef.current;
-    if (current || !isPaused(held) || sameSnapshot(held.snapshot, draft)) return;
-    setChain(withSnapshot(held, draft));
-  }, [draft]);
 
   const patchRunning = (changes: TimeEntryInput) => {
     // While a start is loading, `current` is missing or the entry being replaced; the sync effect
@@ -210,11 +154,11 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   /**
    * Starts `from` and returns the created entry, or null when nothing was created. Continue and
    * favorites pass `replace`: the server then stops the running entry at the new entry's start,
-   * keeping exactly one running entry. Any start but Resume's (`resuming`) ends the pause chain.
+   * keeping exactly one running entry.
    */
-  const start = async (from: Draft = draft, { replace = false, resuming = false } = {}): Promise<TimeEntry | null> => {
+  const start = async (from: Draft = draft, { replace = false } = {}): Promise<TimeEntry | null> => {
     // A double click or key repeat must not start two entries before the first one shows up.
-    if (starting.current || create.isPending) return null;
+    if (starting.current || create.isPending || chainBusy) return null;
     if (current && (!replace || stopEntry.isPending || remove.isPending)) return null;
     // An empty duration starts a running timer; text that does not parse is an error, not empty.
     const typed = !current && timerDuration.trim() !== '';
@@ -235,23 +179,11 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         toast.show(`Added ${formatDuration(entrySeconds(saved, stop))}`);
         setDraft(EMPTY);
       } else {
-        // Another tab may have stopped the chain since this Resume was pressed.
-        if (resuming && !isPaused(readTabChain(accountId))) return null;
         const startAt = new Date();
         ownStart.current = { startMs: Math.floor(startAt.getTime() / 1000) * 1000, base: draft };
-        const clone = await create.mutateAsync({ ...from, start: startAt.toISOString(), duration: -1 });
-        if (!resuming) endChain();
-        else if (stopAfterResume.current) {
-          ownStart.current = null;
-          await stopEntry.mutateAsync(clone.id);
-        } else {
-          const held = readTabChain(accountId);
-          if (isPaused(held)) setChain(resumeChain(held, clone.id, Date.now()));
-        }
-        saved = clone;
+        saved = await create.mutateAsync({ ...from, start: startAt.toISOString(), duration: -1 });
       }
       setTimerDuration('');
-      if (!resuming && seconds !== null && seconds > 0) endChain();
       return saved;
     } catch (error) {
       ownStart.current = null;
@@ -262,13 +194,22 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     }
   };
 
+  /** Saves a changed description, so the entry stops or pauses with it. Returns false when saving failed. */
+  const saveDescription = async (): Promise<boolean> => {
+    if (!current || draft.description === current.description) return true;
+    try {
+      await update.mutateAsync({ id: current.id, description: draft.description });
+      return true;
+    } catch (error) {
+      toast.error(error);
+      return false;
+    }
+  };
+
   /** Saves a changed description, then stops the running entry. Returns the stopped entry, or null. */
   const stopRunning = async (): Promise<TimeEntry | null> => {
-    if (!current) return null;
+    if (!current || !(await saveDescription())) return null;
     try {
-      if (draft.description !== current.description) {
-        await update.mutateAsync({ id: current.id, description: draft.description });
-      }
       return await stopEntry.mutateAsync(current.id);
     } catch (error) {
       toast.error(error);
@@ -277,72 +218,47 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   };
 
   /**
-   * Stop ends the pause chain. While paused every entry is already stopped, so nothing is sent.
-   * While a pause is stopping the entry, Stop leaves the request to it and the pause ends the chain.
+   * Stop on a running entry is a v9 stop; the server ends the pause chain when the stopped entry
+   * is its clone. Stop while paused ends the chain on the server: every entry is already stopped.
    */
   const stop = async () => {
-    if (pausing.current) {
-      pausing.current.stopAfter = true;
-      return;
-    }
+    if (chainBusy) return;
     if (!current) {
-      // The clone does not exist yet; Resume stops it once its start returns.
-      if (resumePending.current) stopAfterResume.current = true;
-      if (isPaused(chainRef.current)) {
-        setChain(null);
-        setDraft(EMPTY);
+      if (!paused) return;
+      try {
+        await discardPause.mutateAsync();
+      } catch (error) {
+        toast.error(error);
       }
       return;
     }
     const stopped = await stopRunning();
     if (!stopped) return;
-    endChain();
     // The server keeps no entry that rounds to zero at the time resolution: it went to the trash.
     if (stopped.server_deleted_at) {
       toast.show('Too short to keep, so the entry went to the trash', { action: { label: 'Undo', run: () => restore.mutate(stopped.id) } });
     }
   };
 
+  /** Pauses the running entry on the server. A failure leaves the entry running; the toast says why. */
   const pause = async () => {
-    if (!current || chainBusy.current) return;
-    chainBusy.current = true;
-    const pending = { stopAfter: false };
-    pausing.current = pending;
+    if (!current || chainBusy || stopEntry.isPending || remove.isPending) return;
     try {
-      // A failed stop leaves the entry running, and a Stop pressed meanwhile with it; the error
-      // toast says so.
-      const stopped = await stopRunning();
-      if (!stopped) return;
+      if (!(await saveDescription())) return;
+      await pauseTimer.mutateAsync();
       setTimerDuration('');
-      if (pending.stopAfter) {
-        endChain();
-        setDraft(EMPTY);
-        return;
-      }
-      const next = pauseChain(chainRef.current, stopped, Date.now());
-      setChain(next);
-      setDraft(next.snapshot);
     } catch (error) {
       toast.error(error);
-    } finally {
-      pausing.current = null;
-      chainBusy.current = false;
     }
   };
 
-  /** Starts a clone of the paused entry, the call Continue makes. */
+  /** Starts a clone of the paused chain on the server. */
   const resume = async () => {
-    const held = chainRef.current;
-    if (!isPaused(held) || chainBusy.current) return;
-    chainBusy.current = true;
-    resumePending.current = true;
-    stopAfterResume.current = false;
+    if (!paused || chainBusy) return;
     try {
-      await start(held.snapshot, { replace: true, resuming: true });
-    } finally {
-      resumePending.current = false;
-      stopAfterResume.current = false;
-      chainBusy.current = false;
+      await resumeTimer.mutateAsync();
+    } catch (error) {
+      toast.error(error);
     }
   };
 
@@ -350,7 +266,6 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     if (!current) return;
     try {
       await remove.mutateAsync(current.id);
-      endChain();
       toast.show('Running entry discarded', { action: { label: 'Undo', run: () => restore.mutate(current.id) } });
     } catch (error) {
       toast.error(error);
@@ -381,7 +296,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   };
 
   const toggleManual = () => {
-    if (current || isPaused(chainRef.current)) return;
+    if (current || paused) return;
     savePrefs.mutate({ manualMode: !manual });
   };
 
@@ -404,8 +319,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   }));
 
   // The chain total while paused or while its clone runs, otherwise the running entry's own time.
-  const elapsed = chainSeconds(chain, current, now.getTime());
-  const announcement = paused ? 'Timer paused' : chain && current && chain.runningId === current.id ? 'Timer resumed' : '';
+  const elapsed = barSeconds(current, chain, serverNow.getTime());
+  const announcement = paused ? 'Timer paused' : chain && current && chain.clone_entry_id === current.id ? 'Timer resumed' : '';
   const manualRange = manual ? resolveRange(manualDay, manualStart, manualEnd, {
     timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(now, settings.timeZone),
   }) : null;
@@ -414,7 +329,8 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     <section ref={barRef} className={`timer-bar${current ? ' is-running' : paused ? ' is-paused' : ''}`} aria-label="Timer">
       <EntryFields
         ref={fields}
-        draft={draft}
+        draft={held ?? draft}
+        readOnly={paused}
         recentEntries={recentEntries}
         placeholder={manual ? 'What did you work on?' : current || paused ? 'Add a description' : 'What are you working on?'}
         onType={(description) => setDraft((d) => ({ ...d, description }))}
@@ -505,17 +421,17 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         ) : current || paused ? (
           <>
             {current ? (
-              <button type="button" className="timer-button pause" onClick={() => void pause()} aria-label="Pause timer" title="Pause">
+              <button type="button" className="timer-button pause" onClick={() => void pause()} disabled={chainBusy} aria-label="Pause timer" title="Pause">
                 <Icon name="pause" size={22} />
                 <span className="timer-button-label">Pause</span>
               </button>
             ) : (
-              <button type="button" className="timer-button start" onClick={() => void resume()} aria-label="Resume timer" title="Resume">
+              <button type="button" className="timer-button start" onClick={() => void resume()} disabled={chainBusy} aria-label="Resume timer" title="Resume">
                 <Icon name="play" size={22} />
                 <span className="timer-button-label">Resume</span>
               </button>
             )}
-            <button type="button" className="timer-button stop" onClick={() => void stop()} aria-label="Stop timer" title="Stop (S)">
+            <button type="button" className="timer-button stop" onClick={() => void stop()} disabled={chainBusy} aria-label="Stop timer" title="Stop (S)">
               <Icon name="stop" size={22} />
               <span className="timer-button-label">Stop</span>
             </button>

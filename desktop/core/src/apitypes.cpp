@@ -1,6 +1,5 @@
 #include "apitypes.h"
 
-#include "snap.h"
 #include "transport.h"
 
 #include <QCoreApplication>
@@ -618,22 +617,6 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith)
-{
-    const QJsonObject object{
-        {QStringLiteral("created_with"), createdWith},
-        {QStringLiteral("description"), QString()},
-        {QStringLiteral("start"), utcTimestamp(entry.start)},
-        {QStringLiteral("stop"), utcTimestamp(entry.stop)},
-        {QStringLiteral("duration"), entry.duration},
-        {QStringLiteral("workspace_id"), workspaceId},
-        {QStringLiteral("project_id"), idJson(entry.projectId)},
-        {QStringLiteral("billable"), entry.billable},
-        {QStringLiteral("tags"), QJsonArray()},
-    };
-    return QJsonDocument(object).toJson(QJsonDocument::Compact);
-}
-
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
 {
     QJsonObject object;
@@ -653,6 +636,66 @@ QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
         object.insert(QStringLiteral("start"), utcTimestamp(*update.start));
     }
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+bool PomodoroConfig::isValid() const
+{
+    return workMinutesRange.contains(workMinutes) && shortRestMinutesRange.contains(shortRestMinutes) && longRestMinutesRange.contains(longRestMinutes)
+        && longRestEveryRange.contains(longRestEvery);
+}
+
+QString phaseKindName(PhaseKind kind)
+{
+    switch (kind) {
+    case PhaseKind::Work:
+        return QStringLiteral("work");
+    case PhaseKind::ShortRest:
+        return QStringLiteral("shortRest");
+    case PhaseKind::LongRest:
+        return QStringLiteral("longRest");
+    }
+    return QString();
+}
+
+std::optional<PhaseKind> parsePhaseKind(QStringView name)
+{
+    for (const PhaseKind kind : {PhaseKind::Work, PhaseKind::ShortRest, PhaseKind::LongRest}) {
+        if (name == phaseKindName(kind)) {
+            return kind;
+        }
+    }
+    return std::nullopt;
+}
+
+QString transitionKindName(TransitionKind kind)
+{
+    switch (kind) {
+    case TransitionKind::WorkToShortRest:
+        return QStringLiteral("workToShortRest");
+    case TransitionKind::ShortRestToWork:
+        return QStringLiteral("shortRestToWork");
+    case TransitionKind::WorkToLongRest:
+        return QStringLiteral("workToLongRest");
+    case TransitionKind::LongRestToWork:
+        return QStringLiteral("longRestToWork");
+    }
+    return QString();
+}
+
+std::optional<TransitionKind> parseTransitionKind(QStringView name)
+{
+    for (const TransitionKind kind :
+         {TransitionKind::WorkToShortRest, TransitionKind::ShortRestToWork, TransitionKind::WorkToLongRest, TransitionKind::LongRestToWork}) {
+        if (name == transitionKindName(kind)) {
+            return kind;
+        }
+    }
+    return std::nullopt;
+}
+
+bool isTimeResolution(qint64 minutes)
+{
+    return minutes >= 1 && 60 % minutes == 0;
 }
 
 QString pomodoroPreferenceKey(PomodoroField field)

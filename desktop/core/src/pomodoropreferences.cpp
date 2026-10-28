@@ -1,7 +1,5 @@
 #include "pomodoropreferences.h"
 
-#include "pomodororecord.h"
-
 namespace Tokkl
 {
 
@@ -30,10 +28,9 @@ std::optional<PomodoroField> refusedField(const ApiError &error)
 }
 }
 
-PomodoroPreferences::PomodoroPreferences(Connection *connection, PomodoroStore *store, QObject *parent)
+PomodoroPreferences::PomodoroPreferences(Connection *connection, QObject *parent)
     : QObject(parent)
     , m_connection(connection)
-    , m_store(store)
 {
     if (m_connection) {
         connect(m_connection, &Connection::stateChanged, this, &PomodoroPreferences::onConnectionChanged);
@@ -180,11 +177,7 @@ void PomodoroPreferences::followOwner()
         return;
     }
     m_owner = owner;
-    std::optional<PomodoroConfig> cached;
-    if (m_store && !m_owner.isEmpty()) {
-        cached = PomodoroRecord::fromJson(m_store->loadRecord(m_owner)).config;
-    }
-    setConfig(cached.value_or(PomodoroConfig()));
+    setConfig(PomodoroConfig());
 }
 
 void PomodoroPreferences::fetch()
@@ -219,7 +212,7 @@ void PomodoroPreferences::finishRead(const ApiResult<PomodoroConfig> &result, qu
     }
     if (current && number > m_lastAppliedRead) {
         m_lastAppliedRead = number;
-        apply(*result.value);
+        setConfig(*result.value);
     }
     if (!m_error.isEmpty()) {
         m_error.clear();
@@ -232,27 +225,13 @@ void PomodoroPreferences::finishSave(const ApiResult<PomodoroConfig> &result)
 {
     m_saving = false;
     if (result.ok()) {
-        apply(*result.value);
+        setConfig(*result.value);
     } else if (const std::optional<PomodoroField> field = refusedField(result.error)) {
         m_fieldErrors.at(std::size_t(*field)) = result.error.message;
     } else {
         m_error = result.error.message;
     }
     Q_EMIT stateChanged();
-}
-
-void PomodoroPreferences::apply(const PomodoroConfig &config)
-{
-    setConfig(config);
-    if (!m_store || m_owner.isEmpty()) {
-        return;
-    }
-    PomodoroRecord record = PomodoroRecord::fromJson(m_store->loadRecord(m_owner));
-    if (record.config == config) {
-        return;
-    }
-    record.config = config;
-    m_store->saveRecord(m_owner, record.toJson());
 }
 
 void PomodoroPreferences::setConfig(const PomodoroConfig &config)

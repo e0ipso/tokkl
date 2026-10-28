@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pomodorocycle.h"
+#include "apitypes.h"
 
 #include <QList>
 #include <QString>

@@ -1,7 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.ts';
-import { forgetChains } from '../components/pauseChain.ts';
-import { forgetTabChain } from '../components/tabChain.ts';
 import { clearCachedTheme } from './theme.ts';
 
 /**
@@ -18,20 +16,10 @@ function forgetLogoutFailure(): void {
   }
 }
 
-function forgetTimerState(): void {
-  // The tab's own copy goes first and outside the try, so blocked storage cannot skip it.
-  forgetTabChain();
-  try {
-    forgetChains(window.localStorage);
-  } catch {
-    // Storage can be blocked; then nothing was stored.
-  }
-}
-
 /**
- * Forgets what the signed-in user left in this tab: every cached query, the cached theme, paused
- * timer chains and a pending logout failure message. The page returns to the
- * system theme, so the login page and the next user start clean.
+ * Forgets what the signed-in user left in this tab: every cached query, the cached theme and a
+ * pending logout failure message. The page returns to the system theme, so the login page and the
+ * next user start clean.
  *
  * Clearing the cache does not notify mounted queries; they keep their last result until their
  * component renders again. Callers either load a new page or re-render the components that read
@@ -40,7 +28,6 @@ function forgetTimerState(): void {
 export function endSession(qc: QueryClient): void {
   qc.clear();
   clearCachedTheme();
-  forgetTimerState();
   forgetLogoutFailure();
 }
 

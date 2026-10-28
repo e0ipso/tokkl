@@ -8,7 +8,6 @@ import type { PomodoroTransition, TimerPomodoro, TimerPomodoroPhase, TimerState 
 import { createPomodoroSessionAlarm, phaseAlarm } from './pomodoroSessionAlarm.ts';
 import { notifySessionPhaseEnd } from './phaseNotification.ts';
 import { SESSION_PHASE_LABEL, createDiscardNotices } from './pomodoroSessionPresentation.ts';
-import { writeTabChain } from './tabChain.ts';
 import { useToast } from './Toast.tsx';
 import type { EntryDraft } from './useEntryFields.ts';
 
@@ -98,12 +97,6 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
   useEffect(() => {
     if (state && discards.current(state)) toast.show('This pomodoro was too short to save.');
   }, [state]);
-
-  // The server ended any pause chain when the session started. The timer bar's local copy follows.
-  const running = session !== null;
-  useEffect(() => {
-    if (running) writeTabChain(accountId, null);
-  }, [accountId, running]);
 
   const run = async (operation: () => Promise<unknown>) => {
     if (acting.current) return;

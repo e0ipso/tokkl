@@ -2,7 +2,7 @@
 id: 10
 group: "desktop-core"
 dependencies: [9]
-status: "pending"
+status: "completed"
 created: 2026-10-27
 skills:
   - cpp-qt
@@ -20,27 +20,27 @@ Turn `PomodoroSession` into a view of `state.pomodoro` plus local alarm state, w
 C++20 with Qt 6 Core, and state-machine reasoning for the ringing and click rules.
 
 ## Acceptance Criteria
-- [ ] `PomodoroSession` takes the `Clock`, `TimerController`, `TimerStateClient` and `PomodoroStore`. The panels see the same properties as today:
+- [x] `PomodoroSession` takes the `Clock`, `TimerController`, `TimerStateClient` and `PomodoroStore`. The panels see the same properties as today:
   - `pomodoroMode`, `modeLocked`, `active` and `phase`;
   - `phaseStart`, `plannedEnd`, `remainingSeconds`, `overtimeSeconds` and `countdownText`;
   - `pomodoroNumber`, `longRestEvery` and `nextPhase` (the upcoming phase);
   - `ringing`, `ringingTransition`, `canStartSession` and `message`.
   Each value comes from `state.pomodoro`, and the time comes from `TimerStateClient::serverNow()`.
-- [ ] Start session sends the start action with the chosen project and billable flag and `created_with` set to the client name. It sends no length override. Next phase and End session send the current revision.
-- [ ] `ringing` is true when a session is active and `serverNow()` is at or past `planned_end`. It is checked on every tick, on `resumed()` and on each new state. It turns false when a state arrives with a different phase start or no session, from any device.
-- [ ] `activate()` rules:
+- [x] Start session sends the start action with the chosen project and billable flag and `created_with` set to the client name. It sends no length override. Next phase and End session send the current revision.
+- [x] `ringing` is true when a session is active and `serverNow()` is at or past `planned_end`. It is checked on every tick, on `resumed()` and on each new state. It turns false when a state arrives with a different phase start or no session, from any device.
+- [x] `activate()` rules:
   - an active session, started on any device and in either mode: ringing goes to Next phase, otherwise `OpenMenu`;
   - idle in Timer mode: `TimerController::toggle()`;
   - idle in Pomodoro mode: Start session.
   `modeLocked` is true while a timer runs or is paused, or a session is active.
-- [ ] `message` shows "This pomodoro was too short to save." for a new `discarded_pomodoro`. It shows a connection message when an action fails with no network. The countdown and ringing continue from the last state while offline.
-- [ ] Removed, after listing callers:
+- [x] `message` shows "This pomodoro was too short to save." for a new `discarded_pomodoro`. It shows a connection message when an action fails with no network. The countdown and ringing continue from the last state while offline.
+- [x] Removed, after listing callers:
   - `pomodorocycle.*`, `snap.*`, `pomodoroqueue.*` and `pomodororecord.*`, with their tests (`pomodorocycletest.cpp`, `pomodoroqueuetest.cpp`) and CMake entries;
   - `createStoppedEntryDetached` and `Connection::contextAboutToChange`, if the queue was their only user.
   `isTimeResolution`, which `apitypes.cpp` uses, moves into `apitypes`.
-- [ ] `pomodorostore.*` keeps only the mode and the per-transition sound picks. `pomodoropreferences.*` and `pomodorosounds.*` stay.
-- [ ] `grep -rnE "pomodorocycle|pomodoroqueue|pomodororecord|snap\.h|ChainStore" desktop/core` prints nothing.
-- [ ] `pomodorosessiontest.cpp` is rewritten around scripted states from the fake transport. It covers:
+- [x] `pomodorostore.*` keeps only the mode and the per-transition sound picks. `pomodoropreferences.*` and `pomodorosounds.*` stay.
+- [x] `grep -rnE "pomodorocycle|pomodoroqueue|pomodororecord|snap\.h|ChainStore" desktop/core` prints nothing.
+- [x] `pomodorosessiontest.cpp` is rewritten around scripted states from the fake transport. It covers:
   - a session started elsewhere appearing in Timer mode, with `activate()` going to Next phase when ringing;
   - ringing at the planned end with a clock offset;
   - ringing stopping on a new phase state;
@@ -50,7 +50,7 @@ C++20 with Qt 6 Core, and state-machine reasoning for the ringing and click rule
   - the mode lock while a session is active;
   - the start body.
   `pomodorostoretest.cpp` matches the trimmed store.
-- [ ] `desktop/core/ci/check.sh` exits 0.
+- [x] `desktop/core/ci/check.sh` exits 0.
 
 Use your internal Todo tool to track these and keep on track.
 

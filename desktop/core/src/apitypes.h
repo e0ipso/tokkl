@@ -1,12 +1,11 @@
 #pragma once
 
-#include "pomodorocycle.h"
-
 #include <QDateTime>
 #include <QJsonValue>
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <QStringView>
 #include <QVariantMap>
 
 #include <optional>
@@ -15,6 +14,62 @@ namespace Tokkl
 {
 
 struct HttpResponse;
+
+// The inclusive range of whole numbers a Pomodoro length accepts.
+struct PomodoroRange {
+    int min = 0;
+    int max = 0;
+
+    constexpr bool contains(int value) const
+    {
+        return value >= min && value <= max;
+    }
+};
+
+// The account's Pomodoro lengths, which a session keeps from its start.
+struct PomodoroConfig {
+    static constexpr PomodoroRange workMinutesRange{1, 180};
+    static constexpr PomodoroRange shortRestMinutesRange{1, 60};
+    static constexpr PomodoroRange longRestMinutesRange{1, 60};
+    static constexpr PomodoroRange longRestEveryRange{1, 12};
+
+    // Phase lengths in whole minutes.
+    int workMinutes = 25;
+    int shortRestMinutes = 5;
+    int longRestMinutes = 15;
+    // A long rest follows every this many ended work phases.
+    int longRestEvery = 4;
+
+    // True when every value is inside its range.
+    bool isValid() const;
+
+    bool operator==(const PomodoroConfig &other) const = default;
+};
+
+enum class PhaseKind {
+    Work,
+    ShortRest,
+    LongRest,
+};
+
+// The change Next phase makes, which picks the sound that rings.
+enum class TransitionKind {
+    WorkToShortRest,
+    ShortRestToWork,
+    WorkToLongRest,
+    LongRestToWork,
+};
+
+// The names the API and the web app use: "work", "shortRest",
+// "workToShortRest" and so on. The parsers return nullopt for any other text.
+QString phaseKindName(PhaseKind kind);
+std::optional<PhaseKind> parsePhaseKind(QStringView name);
+QString transitionKindName(TransitionKind kind);
+std::optional<TransitionKind> parseTransitionKind(QStringView name);
+
+// True for the time resolutions, in minutes, that divide an hour evenly: 1,
+// 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 and 60.
+bool isTimeResolution(qint64 minutes);
 
 // GET /api/v9/me. The response also carries api_token, which is a credential
 // and is deliberately not decoded.
@@ -83,17 +138,6 @@ struct StartEntry {
     std::optional<bool> billable;
     std::optional<qint64> taskId;
     QStringList tags;
-};
-
-// Body of POST /workspaces/{wid}/time_entries for an entry that has already
-// stopped, such as an ended pomodoro. It carries no description, task or
-// tags.
-struct StoppedEntry {
-    QDateTime start; // sent in UTC
-    QDateTime stop; // sent in UTC
-    qint64 duration = 0; // whole seconds from start to stop
-    std::optional<qint64> projectId;
-    bool billable = false;
 };
 
 // Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields
@@ -293,7 +337,6 @@ ApiError errorFromResponse(const HttpResponse &response);
 
 // createdWith names the client that starts the entry.
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
-QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent

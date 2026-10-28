@@ -88,7 +88,6 @@ void Connection::setInstanceUrl(const QString &url)
     if (url == m_instanceText) {
         return;
     }
-    Q_EMIT contextAboutToChange();
     m_instanceText = url;
     Q_EMIT instanceUrlChanged();
     settingsChanged();
@@ -118,7 +117,6 @@ void Connection::setAuthMode(AuthMode mode)
     if (mode == m_authMode) {
         return;
     }
-    Q_EMIT contextAboutToChange();
     m_authMode = mode;
     Q_EMIT authModeChanged();
     settingsChanged();
@@ -146,9 +144,6 @@ void Connection::setEmail(const QString &email)
     }
     // The email only identifies the account in password mode.
     const bool contextChanges = m_authMode == AuthMode::Password;
-    if (contextChanges) {
-        Q_EMIT contextAboutToChange();
-    }
     m_email = email;
     Q_EMIT emailChanged();
     if (contextChanges) {
@@ -390,7 +385,6 @@ void Connection::onSecretChanged(const QString &key)
         m_failedWrite.reset();
     }
     if (m_instance.isValid() && key == currentCredentialKey()) {
-        Q_EMIT contextAboutToChange();
         settingsChanged();
     }
 }
@@ -615,26 +609,19 @@ void Connection::onCooldownEnded()
 
 // ----- requests ------------------------------------------------------------
 
-void Connection::send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler, bool detached)
+void Connection::send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler)
 {
-    send(method, m_instance.api(path), body, std::move(handler), detached);
+    send(method, m_instance.api(path), body, std::move(handler));
 }
 
-void Connection::send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler, bool detached)
+void Connection::send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler)
 {
     const quint64 generation = m_generation;
     PendingReply *reply = m_transport->send(HttpRequest{method, url, m_authorization, body});
-    if (detached) {
-        // Deleted on its own, as this object may be gone by then.
-        connect(reply, &PendingReply::finished, reply, &QObject::deleteLater);
-    } else {
-        m_pending.insert(reply);
-    }
-    connect(reply, &PendingReply::finished, this, [this, reply, generation, handler, detached](const HttpResponse &response) {
-        if (!detached) {
-            m_pending.remove(reply);
-            reply->deleteLater();
-        }
+    m_pending.insert(reply);
+    connect(reply, &PendingReply::finished, this, [this, reply, generation, handler](const HttpResponse &response) {
+        m_pending.remove(reply);
+        reply->deleteLater();
         if (generation != m_generation) {
             return; // issued for an earlier instance, account or credential
         }
@@ -700,10 +687,9 @@ void Connection::call(const QByteArray &method,
                       Access access,
                       std::function<std::optional<T>(const QJsonValue &)> decode,
                       std::function<void(const T &)> apply,
-                      Callback<T> done,
-                      bool detached)
+                      Callback<T> done)
 {
-    call<T>(method, m_instance.api(path), body, access, std::move(decode), std::move(apply), std::move(done), detached);
+    call<T>(method, m_instance.api(path), body, access, std::move(decode), std::move(apply), std::move(done));
 }
 
 template<typename T>
@@ -713,8 +699,7 @@ void Connection::call(const QByteArray &method,
                       Access access,
                       std::function<std::optional<T>(const QJsonValue &)> decode,
                       std::function<void(const T &)> apply,
-                      Callback<T> done,
-                      bool detached)
+                      Callback<T> done)
 {
     if (const std::optional<ApiError> refused = refusal(access)) {
         failLater<T>(*refused, done);
@@ -752,7 +737,7 @@ void Connection::call(const QByteArray &method,
         if (done) {
             done(ApiResult<T>::failure(error));
         }
-    }, detached);
+    });
 }
 
 void Connection::fetchMe(Callback<Me> done)
@@ -891,31 +876,6 @@ void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
             Q_EMIT currentEntryChanged();
         },
         std::move(done));
-}
-
-void Connection::createStoppedEntry(const StoppedEntry &entry, Callback<TimeEntry> done)
-{
-    const qint64 workspace = workspaceId();
-    call<TimeEntry>("POST",
-                    QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
-                    encodeStoppedEntry(entry, workspace, m_clientName),
-                    Access::Write,
-                    &decodeTimeEntry,
-                    {},
-                    std::move(done));
-}
-
-void Connection::createStoppedEntryDetached(const StoppedEntry &entry, Callback<TimeEntry> done)
-{
-    const qint64 workspace = workspaceId();
-    call<TimeEntry>("POST",
-                    QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
-                    encodeStoppedEntry(entry, workspace, m_clientName),
-                    Access::Write,
-                    &decodeTimeEntry,
-                    {},
-                    std::move(done),
-                    true);
 }
 
 void Connection::fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done)
