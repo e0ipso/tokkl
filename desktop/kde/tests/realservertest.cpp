@@ -28,6 +28,7 @@
 #include <QNetworkRequest>
 #include <QTest>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 
@@ -186,6 +187,14 @@ public:
     QList<std::shared_ptr<Exchange>> sinceApp(qsizetype from, const QByteArray &method = {}, const QString &path = {}) const
     {
         return since(from, method, path, QStringLiteral("/api/app"));
+    }
+
+    // Every recorded request has its answer.
+    bool settled() const
+    {
+        return std::all_of(log.cbegin(), log.cend(), [](const auto &exchange) {
+            return exchange->response.has_value();
+        });
     }
 
     QList<std::shared_ptr<Exchange>> log;
@@ -738,6 +747,9 @@ private Q_SLOTS:
         s.signIn(dt);
         QTRY_VERIFY_WITH_TIMEOUT(s.ready(dt), timeoutMs);
         QTRY_VERIFY_WITH_TIMEOUT(s.state.streaming(), timeoutMs);
+        // A read still on its way when the account is disabled would be the
+        // first request refused.
+        QTRY_VERIFY_WITH_TIMEOUT(s.transport.settled(), timeoutMs);
         // The server ends the account's stream when it disables it. The stream
         // goes silent first, so the stop is the first request to be refused.
         StreamStall stall(QStringLiteral("a"));
@@ -775,6 +787,7 @@ private Q_SLOTS:
         QTRY_VERIFY_WITH_TIMEOUT(s.ready(dp), timeoutMs);
         QTRY_VERIFY_WITH_TIMEOUT(s.state.streaming(), timeoutMs);
         QCOMPARE(s.timer.currentEntry()->id, dp.running->id);
+        QTRY_VERIFY_WITH_TIMEOUT(s.transport.settled(), timeoutMs);
         // As above, the read is the first request to be refused.
         StreamStall stall(QStringLiteral("a"));
         QVERIFY(stall.active());
