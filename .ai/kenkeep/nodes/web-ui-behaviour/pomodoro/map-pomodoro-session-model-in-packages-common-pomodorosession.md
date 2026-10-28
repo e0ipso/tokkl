@@ -2,8 +2,8 @@
 type: map
 title: Pomodoro session model in packages/common/pomodoroSession.ts
 description: >-
-  Clock-free confirm-driven phases: startSession, plannedEnd, overtimeSeconds,
-  transitionKind, nextPhase, pomodoroEntrySpan.
+  Clock-free confirm-driven phases: startSession, plannedEnd, transitionKind and
+  nextPhase, run by the server.
 tags:
   - common
   - pomodoro
@@ -26,14 +26,14 @@ kk_confidence: high
 ---
 `packages/common/pomodoroSession.ts`, exported as `@tokkl/common/pomodoroSession`, models a Pomodoro session in which a phase changes only when the user confirms the next phase. It is the only Pomodoro module in `@tokkl/common`. The API's timer state service (`packages/api/src/services/timerState.ts`) runs the session with these functions and keeps the session; clients read the resulting state and apply no phase rule of their own (see `map-timer-state-service-settlement-revision-and-discarded-pomodoro`). It reads no clock, keeps no state and knows nothing about stored preferences. The caller passes every instant.
 
-Exports: `DEFAULT_POMODORO_SESSION_CONFIG` (25, 5, 15 minutes, long rest every 4) and `POMODORO_SESSION_CONFIG_RANGES` (work 1-180, short and long rest 1-60, long-rest-every 1-12). `packages/api/src/models/users.ts` imports both constants to derive the `pomodoro_focus_interval_in_minutes`, `pomodoro_break_interval_in_minutes`, `pomodoro_long_break_interval_in_minutes` and `pomodoro_long_break_every` defaults and validation rules. `PreferencesSection.tsx` uses the common defaults, and `PomodoroPage.tsx` uses both defaults and ranges. Change the shared declarations in common; literal test expectations pin the defaults and ranges independently. Functions: `startSession`, `plannedEnd`, `overtimeSeconds`, `transitionKind`, `nextPhase` (returns `{ next, transition, skipped }`) and `pomodoroEntrySpan`, which wraps `snapSpan`. Phase kinds are `work`, `shortRest` and `longRest`; transitions are `workToShortRest`, `shortRestToWork`, `workToLongRest` and `longRestToWork`.
+Exports: `DEFAULT_POMODORO_SESSION_CONFIG` (25, 5, 15 minutes, long rest every 4) and `POMODORO_SESSION_CONFIG_RANGES` (work 1-180, short and long rest 1-60, long-rest-every 1-12). `packages/api/src/models/users.ts` imports both constants to derive the `pomodoro_focus_interval_in_minutes`, `pomodoro_break_interval_in_minutes`, `pomodoro_long_break_interval_in_minutes` and `pomodoro_long_break_every` defaults and validation rules. `PreferencesSection.tsx` uses the common defaults, and `PomodoroPage.tsx` uses both defaults and ranges. Change the shared declarations in common; literal test expectations pin the defaults and ranges independently. Functions: `startSession`, `plannedEnd`, `transitionKind` and `nextPhase` (returns `{ next, transition, skipped }`). Clients compute overtime by subtracting the current time from the state's `planned_end`. Phase kinds are `work`, `shortRest` and `longRest`; transitions are `workToShortRest`, `shortRestToWork`, `workToLongRest` and `longRestToWork`.
 
 Settled rules:
 
 - Confirming before the planned end is a skip (`skipped: true`); confirming after it means the phase ran overtime.
 - Every ended work phase counts toward the long rest, skipped or not. A phase carries `completed`: a work phase counts the ones before it, a rest counts the work phase it follows. The rest is long when `completed + 1 >= longRestEvery`, and the count restarts at 0 after a long rest.
 - Confirming before the phase start, a config value out of range or a malformed phase throws `RangeError`.
-- A pomodoro's time entry runs from its work start to the next confirmed work start or the session end. The server stops it with the normal timer-stop snapping and starts the next one at the exact confirm instant. `pomodoroEntrySpan` has no production caller now; it stays as part of the cross-client fixtures.
+- A pomodoro's time entry runs from its work start to the next confirmed work start or the session end. The server stops it with the normal timer-stop snapping and starts the next one at the exact confirm instant.
 
 `packages/common/fixtures/pomodoroSession.json` is the cross-client contract, run by `pomodoroSession.test.ts`; each case names its function in `input.function`, and `fixtures/README.md` documents the fields.
 
