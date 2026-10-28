@@ -25,5 +25,8 @@ Never edit a pack file, and do not run `docs/brand/icon-pack/scripts/build.mjs` 
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-app-icons-script](map-app-icons-script.md)
+- Related: [map-app-icons-script → map-desktop-colour-and-monochrome-icons](app-icons-script/map-desktop-colour-and-monochrome-icons.md)
+- Related: [map-app-icons-script → map-icons-test-ts-checks-and-rerunning-the-script](app-icons-script/map-icons-test-ts-checks-and-rerunning-the-script.md)
+- Related: [map-app-icons-script → map-npm-run-icons-inputs-and-web-icons](app-icons-script/map-npm-run-icons-inputs-and-web-icons.md)
+- Related: [map-app-icons-script → map-wordmark-crop-and-its-four-outputs](app-icons-script/map-wordmark-crop-and-its-four-outputs.md)
 <!-- kk:related:end -->

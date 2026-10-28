@@ -31,6 +31,11 @@ summaries:
     fallbacks, tests, e2e, bench, generated assets, the KDE desktop companion
     and the macOS and GNOME desktop apps; read before adding a package, script
     or test, committing, running a check or changing desktop/
+  tooling-and-project/gnome-shell-extension: >-
+    the GNOME Shell extension in desktop/gnome/extension: its panel button and
+    menu across Shell 46 to 51, project indicator, packaging, preferences and
+    the two headless Shell CI harnesses; read before changing the extension, its
+    supported Shell versions or its CI checks
   tooling-and-project/kde-companion: >-
     the KDE Plasma companion and desktop/core: layout, timer and connection
     rules, native packages, CI and release; read before changing anything under
@@ -39,13 +44,26 @@ summaries:
     the KDE companion's HTTP client, access kinds, settings generations,
     credential stores and Configure page; read before changing desktop
     connection, auth, KWallet or configGeneral.qml code
+  tooling-and-project/kde-companion/kde-ci-and-release-pipeline: >-
+    the kde and core CI jobs, the KDE real-server test, the three-stage release
+    with its semantic-release plugin and GNOME assets, and the tests for
+    release-only steps; read before changing ci.yml, desktop/kde/ci or
+    .releaserc.json
   tooling-and-project/kde-companion/plasma-companion: >-
     the desktop/core and desktop/kde projects, the panel UI and the CTest suite;
     read before changing desktop CMake, panel QML or desktop tests
+  tooling-and-project/macos-menu-bar-app: >-
+    the macOS menu bar app: portable library and shims, timer actions and
+    settings, icon and status image, CI and DMG release; read when changing
+    desktop/macos or its CI jobs
   tooling-and-project/repo-and-scripts: >-
     npm workspace layout, commit message rules, the Tokkl rename fallbacks, and
     the screenshot and icon scripts; read before adding a package or script,
     committing, or regenerating images
+  tooling-and-project/repo-and-scripts/app-icons-script: >-
+    the npm run icons script that derives every served brand image from
+    docs/brand, its web, wordmark and desktop outputs and the tests that check
+    them; read before changing a brand pack output or scripts/icons.ts
   tooling-and-project/testing: >-
     the Playwright e2e suite, visual baselines, what npm test and typecheck run,
     and the history bench; read before adding, running or debugging a test, spec
@@ -90,10 +108,14 @@ summaries:
 - `api-and-data/toggl-compat-and-import`: Toggl v9 DELETE responses, Toggl CSV import and JSON restore; read before changing a v9 route or an import or restore path
 - `api-and-data/users-and-admin`: accounts, roles, workspace membership, preferences, the admin API, invites, password resets and instance settings; read before changing users, admin routes, sign-in refusal or instance settings
 - `tooling-and-project`: workspace layout, commit and tracker-reference rules, the Tokkl rename fallbacks, tests, e2e, bench, generated assets, the KDE desktop companion and the macOS and GNOME desktop apps; read before adding a package, script or test, committing, running a check or changing desktop/
+- `tooling-and-project/gnome-shell-extension`: the GNOME Shell extension in desktop/gnome/extension: its panel button and menu across Shell 46 to 51, project indicator, packaging, preferences and the two headless Shell CI harnesses; read before changing the extension, its supported Shell versions or its CI checks
 - `tooling-and-project/kde-companion`: the KDE Plasma companion and desktop/core: layout, timer and connection rules, native packages, CI and release; read before changing anything under desktop/ or the kde release job
 - `tooling-and-project/kde-companion/connection-and-credentials`: the KDE companion's HTTP client, access kinds, settings generations, credential stores and Configure page; read before changing desktop connection, auth, KWallet or configGeneral.qml code
+- `tooling-and-project/kde-companion/kde-ci-and-release-pipeline`: the kde and core CI jobs, the KDE real-server test, the three-stage release with its semantic-release plugin and GNOME assets, and the tests for release-only steps; read before changing ci.yml, desktop/kde/ci or .releaserc.json
 - `tooling-and-project/kde-companion/plasma-companion`: the desktop/core and desktop/kde projects, the panel UI and the CTest suite; read before changing desktop CMake, panel QML or desktop tests
+- `tooling-and-project/macos-menu-bar-app`: the macOS menu bar app: portable library and shims, timer actions and settings, icon and status image, CI and DMG release; read when changing desktop/macos or its CI jobs
 - `tooling-and-project/repo-and-scripts`: npm workspace layout, commit message rules, the Tokkl rename fallbacks, and the screenshot and icon scripts; read before adding a package or script, committing, or regenerating images
+- `tooling-and-project/repo-and-scripts/app-icons-script`: the npm run icons script that derives every served brand image from docs/brand, its web, wordmark and desktop outputs and the tests that check them; read before changing a brand pack output or scripts/icons.ts
 - `tooling-and-project/testing`: the Playwright e2e suite, visual baselines, what npm test and typecheck run, and the history bench; read before adding, running or debugging a test, spec or benchmark
 - `tooling-and-project/testing/e2e-suite`: how the Playwright e2e suite runs, isolates workers and accounts, and how to write specs; read before running, adding or debugging an e2e spec
 - `web-ui-behaviour`: web UI logic: page states, keyboard focus, time entry parsing, wall-clock math, refetch handling and clipboard; read before changing components or client-side helpers

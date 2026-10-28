@@ -41,7 +41,13 @@ The service may load only Qt Core, Network and DBus. `desktop/gnome/ci/check.sh`
 # Related
 
 - Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
-- Related: [map-kde-ci-and-release-pipeline](kde-companion/map-kde-ci-and-release-pipeline.md)
-- Related: [map-gnome-shell-extension-for-tokkl-timerd](map-gnome-shell-extension-for-tokkl-timerd.md)
+- Related: [map-kde-ci-and-release-pipeline → map-kde-and-core-ci-jobs](kde-companion/kde-ci-and-release-pipeline/map-kde-and-core-ci-jobs.md)
+- Related: [map-kde-ci-and-release-pipeline → map-kde-real-server-test](kde-companion/kde-ci-and-release-pipeline/map-kde-real-server-test.md)
+- Related: [map-kde-ci-and-release-pipeline → map-release-stages-kde-semantic-release-plugin-and-gnome-assets](kde-companion/kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md)
+- Related: [map-kde-ci-and-release-pipeline → map-tests-for-release-only-ci-steps](kde-companion/kde-ci-and-release-pipeline/map-tests-for-release-only-ci-steps.md)
+- Related: [map-gnome-shell-extension-for-tokkl-timerd → map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix](gnome-shell-extension/map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix.md)
+- Related: [map-gnome-shell-extension-for-tokkl-timerd → map-gnome-shell-extension-packaging-and-preferences](gnome-shell-extension/map-gnome-shell-extension-packaging-and-preferences.md)
+- Related: [map-gnome-shell-extension-for-tokkl-timerd → map-gnome-shell-extension-panel-button-and-menu](gnome-shell-extension/map-gnome-shell-extension-panel-button-and-menu.md)
+- Related: [map-gnome-shell-extension-for-tokkl-timerd → map-gnome-shell-extension-project-indicator-and-chosen-project-label](gnome-shell-extension/map-gnome-shell-extension-project-indicator-and-chosen-project-label.md)
 - Related: [map-desktop-timer-state-client-stream-poll-settling-and-revisions](kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md)
 <!-- kk:related:end -->

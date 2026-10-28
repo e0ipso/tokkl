@@ -33,6 +33,9 @@ Two gotchas. A raw string literal (`R"(...)"`) inside a test class once hid `Q_O
 # Related
 
 - Related: [map-test-and-static-analysis-layout](../../testing/map-test-and-static-analysis-layout.md)
-- Related: [map-kde-ci-and-release-pipeline](../map-kde-ci-and-release-pipeline.md)
+- Related: [map-kde-ci-and-release-pipeline → map-kde-and-core-ci-jobs](../kde-ci-and-release-pipeline/map-kde-and-core-ci-jobs.md)
+- Related: [map-kde-ci-and-release-pipeline → map-kde-real-server-test](../kde-ci-and-release-pipeline/map-kde-real-server-test.md)
+- Related: [map-kde-ci-and-release-pipeline → map-release-stages-kde-semantic-release-plugin-and-gnome-assets](../kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md)
+- Related: [map-kde-ci-and-release-pipeline → map-tests-for-release-only-ci-steps](../kde-ci-and-release-pipeline/map-tests-for-release-only-ci-steps.md)
 - Related: [map-kde-native-packaging](../map-kde-native-packaging.md)
 <!-- kk:related:end -->

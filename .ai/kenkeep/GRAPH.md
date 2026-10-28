@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:7926bbc0fe9fd90d35e47986aa38b134e437ed1b7ca7d0284a99f755570d7c5f'
-node_count: 88
+nodes_hash: 'sha256:294bb57ce5224241421c90f654f6ac4a7a796a6d8d76712525724cefdf383404'
+node_count: 106
 ---
 # kenkeep Graph
 
-Total nodes: 88
+Total nodes: 106
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -14,14 +14,6 @@ Total nodes: 88
 - **path:** api-and-data/users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md
 - **tags:** server, auth, admin
 - **relates_to:** map-users-roles-and-workspace-membership
-
-## map-app-icons-script
-
-- **kind:** map
-- **title:** Brand images: npm run icons derives every served file from docs/brand
-- **path:** tooling-and-project/repo-and-scripts/map-app-icons-script.md
-- **tags:** tooling, pwa, icons, imagemagick, maskable, wordmark, web
-- **relates_to:** map-readme-screenshots-script, practice-playwright-gotchas-in-the-e2e-specs, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-app-shell-brand-and-navigation, map-test-and-static-analysis-layout, map-pwa-manifest-and-head-icon-links, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes
 
 ## map-app-report-endpoints
 
@@ -48,6 +40,15 @@ Total nodes: 88
 - **relates_to:** map-npm-workspaces-package-layout, practice-do-not-mark-commits-as-breaking-changes
 - **derived_from:** 5470b272-9bff-4eb0-8fe5-ffc3d686cda3:map:0
 
+## map-desktop-colour-and-monochrome-icons
+
+- **kind:** map
+- **title:** Desktop colour and monochrome icons
+- **path:** tooling-and-project/repo-and-scripts/app-icons-script/map-desktop-colour-and-monochrome-icons.md
+- **tags:** icons, monochrome, tooling, imagemagick
+- **relates_to:** map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-npm-run-icons-inputs-and-web-icons, map-icons-test-ts-checks-and-rerunning-the-script
+- **derived_from:** b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:map:0
+
 ## map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
 
 - **kind:** map
@@ -57,6 +58,15 @@ Total nodes: 88
 - **relates_to:** practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-npm-workspaces-package-layout, map-kde-native-packaging
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
+## map-desktop-pomodoro-alarm-playback-one-backend-per-platform
+
+- **kind:** map
+- **title:** Desktop Pomodoro alarm playback: one backend per platform
+- **path:** tooling-and-project/map-desktop-pomodoro-alarm-playback-one-backend-per-platform.md
+- **tags:** desktop, pomodoro, audio, kde, gnome
+- **relates_to:** map-gnome-timerd-d-bus-timer-service, map-macos-menu-bar-app, map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-native-packaging, practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav
+- **derived_from:** 379941d5-dedc-4c27-8c6e-544c94d411c6:map:0
+
 ## map-desktop-timer-state-client-stream-poll-settling-and-revisions
 
 - **kind:** map
@@ -65,13 +75,37 @@ Total nodes: 88
 - **tags:** desktop, timer, sse, kde, gnome, macos
 - **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, practice-kde-timer-controller-rules, map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
 
-## map-gnome-shell-extension-for-tokkl-timerd
+## map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix
 
 - **kind:** map
-- **title:** GNOME Shell extension: panel button, versions and the two CI harnesses
-- **path:** tooling-and-project/map-gnome-shell-extension-for-tokkl-timerd.md
-- **tags:** tooling, desktop, gnome, ci, testing
-- **relates_to:** map-gnome-timerd-d-bus-timer-service, map-kde-ci-and-release-pipeline, map-test-and-static-analysis-layout
+- **title:** GNOME Shell extension CI harnesses and Shell version matrix
+- **path:** tooling-and-project/gnome-shell-extension/map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix.md
+- **tags:** gnome, ci, testing, desktop
+- **relates_to:** map-gnome-timerd-d-bus-timer-service, map-kde-ci-and-release-pipeline, map-test-and-static-analysis-layout, practice-run-the-gnome-extension-shell-harness-locally-on-one-version-only, map-gnome-shell-extension-panel-button-and-menu, map-gnome-shell-extension-packaging-and-preferences
+
+## map-gnome-shell-extension-packaging-and-preferences
+
+- **kind:** map
+- **title:** GNOME Shell extension packaging and preferences
+- **path:** tooling-and-project/gnome-shell-extension/map-gnome-shell-extension-packaging-and-preferences.md
+- **tags:** gnome, desktop, tooling, packaging
+- **relates_to:** map-gnome-timerd-d-bus-timer-service, map-gnome-shell-extension-panel-button-and-menu
+
+## map-gnome-shell-extension-panel-button-and-menu
+
+- **kind:** map
+- **title:** GNOME Shell extension panel button and menu
+- **path:** tooling-and-project/gnome-shell-extension/map-gnome-shell-extension-panel-button-and-menu.md
+- **tags:** gnome, desktop, tooling
+- **relates_to:** map-gnome-timerd-d-bus-timer-service, map-gnome-shell-extension-project-indicator-and-chosen-project-label, map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix
+
+## map-gnome-shell-extension-project-indicator-and-chosen-project-label
+
+- **kind:** map
+- **title:** GNOME Shell extension project indicator and chosen project label
+- **path:** tooling-and-project/gnome-shell-extension/map-gnome-shell-extension-project-indicator-and-chosen-project-label.md
+- **tags:** gnome, desktop, tooling
+- **relates_to:** map-gnome-timerd-d-bus-timer-service, map-gnome-shell-extension-panel-button-and-menu, map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix
 
 ## map-gnome-timerd-d-bus-timer-service
 
@@ -89,6 +123,15 @@ Total nodes: 88
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
 
+## map-icons-test-ts-checks-and-rerunning-the-script
+
+- **kind:** map
+- **title:** icons.test.ts checks and rerunning the script
+- **path:** tooling-and-project/repo-and-scripts/app-icons-script/map-icons-test-ts-checks-and-rerunning-the-script.md
+- **tags:** tooling, icons, maskable, wordmark, monochrome
+- **relates_to:** map-test-and-static-analysis-layout, map-npm-run-icons-inputs-and-web-icons, map-wordmark-crop-and-its-four-outputs, map-desktop-colour-and-monochrome-icons
+- **derived_from:** b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:map:0
+
 ## map-instance-settings-api-app-admin-settings-and-setting-rules
 
 - **kind:** map
@@ -105,13 +148,13 @@ Total nodes: 88
 - **tags:** server, auth, admin, invites
 - **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-go-through-failurelimiter-attempt, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 
-## map-kde-ci-and-release-pipeline
+## map-kde-and-core-ci-jobs
 
 - **kind:** map
-- **title:** KDE CI job and release: kde matrix, real-server test, semantic-release plugin
-- **path:** tooling-and-project/kde-companion/map-kde-ci-and-release-pipeline.md
-- **tags:** tooling, kde, ci, release
-- **relates_to:** map-kde-native-packaging, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-test-and-static-analysis-layout, map-kde-ci-dependency-image-cache, map-kde-release-upgrade-check-from-the-published-predecessor, map-tokkl-kde-live-widgets-reload-with-plasmashell
+- **title:** KDE and core CI jobs
+- **path:** tooling-and-project/kde-companion/kde-ci-and-release-pipeline/map-kde-and-core-ci-jobs.md
+- **tags:** tooling, kde, ci, packaging
+- **relates_to:** map-kde-ci-dependency-image-cache, map-kde-native-packaging, map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-tokkl-kde-live-widgets-reload-with-plasmashell, map-kde-real-server-test, map-release-stages-kde-semantic-release-plugin-and-gnome-assets
 
 ## map-kde-ci-dependency-image-cache
 
@@ -136,6 +179,7 @@ Total nodes: 88
 - **path:** tooling-and-project/kde-companion/map-kde-native-packaging.md
 - **tags:** tooling, kde, packaging, release
 - **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline, map-kde-release-upgrade-check-from-the-published-predecessor
+- **derived_from:** 379941d5-dedc-4c27-8c6e-544c94d411c6:map:1
 
 ## map-kde-panel-button-menu-and-project-indicator
 
@@ -145,6 +189,14 @@ Total nodes: 88
 - **tags:** kde, desktop
 - **relates_to:** practice-kde-timer-controller-rules
 
+## map-kde-real-server-test
+
+- **kind:** map
+- **title:** KDE real-server test
+- **path:** tooling-and-project/kde-companion/kde-ci-and-release-pipeline/map-kde-real-server-test.md
+- **tags:** tooling, kde, ci, testing
+- **relates_to:** map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-kde-and-core-ci-jobs
+
 ## map-kde-release-upgrade-check-from-the-published-predecessor
 
 - **kind:** map
@@ -153,13 +205,55 @@ Total nodes: 88
 - **tags:** tooling, kde, release, packaging
 - **relates_to:** map-kde-ci-and-release-pipeline, map-kde-native-packaging
 
-## map-macos-menu-bar-app
+## map-macos-app-layout-portable-qt-library-and-native-shims
 
 - **kind:** map
-- **title:** macOS menu bar app: portable library, Objective-C++ shims and CI
-- **path:** tooling-and-project/map-macos-menu-bar-app.md
-- **tags:** tooling, desktop, macos, ci
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-gnome-timerd-d-bus-timer-service, map-desktop-timer-state-client-stream-poll-settling-and-revisions
+- **title:** macOS app layout: portable Qt library and native shims
+- **path:** tooling-and-project/macos-menu-bar-app/map-macos-app-layout-portable-qt-library-and-native-shims.md
+- **tags:** tooling, desktop, macos
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-gnome-timerd-d-bus-timer-service, map-macos-menu-bar-timer-actions-and-settings-window-save, map-macos-bundle-icon-and-nsstatusitem-status-image, map-macos-ci-job-and-dmg-release-publishing
+
+## map-macos-bundle-icon-and-nsstatusitem-status-image
+
+- **kind:** map
+- **title:** macOS bundle icon and NSStatusItem status image
+- **path:** tooling-and-project/macos-menu-bar-app/map-macos-bundle-icon-and-nsstatusitem-status-image.md
+- **tags:** desktop, macos
+- **relates_to:** map-macos-app-layout-portable-qt-library-and-native-shims
+
+## map-macos-ci-job-and-dmg-release-publishing
+
+- **kind:** map
+- **title:** macOS CI job and DMG release publishing
+- **path:** tooling-and-project/macos-menu-bar-app/map-macos-ci-job-and-dmg-release-publishing.md
+- **tags:** tooling, macos, ci
+- **relates_to:** map-macos-app-layout-portable-qt-library-and-native-shims, map-macos-bundle-icon-and-nsstatusitem-status-image
+
+## map-macos-menu-bar-timer-actions-and-settings-window-save
+
+- **kind:** map
+- **title:** macOS menu bar timer actions and Settings window save
+- **path:** tooling-and-project/macos-menu-bar-app/map-macos-menu-bar-timer-actions-and-settings-window-save.md
+- **tags:** desktop, macos
+- **relates_to:** map-desktop-timer-state-client-stream-poll-settling-and-revisions, map-macos-app-layout-portable-qt-library-and-native-shims
+
+## map-no-time-manual-entries-all-day
+
+- **kind:** map
+- **title:** No-time manual entries (all_day)
+- **path:** api-and-data/time-handling/map-no-time-manual-entries-all-day.md
+- **tags:** time-entries, api, web, timezones
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-time-zone-names-are-stored-in-canonical-form, practice-json-restore-rules, practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top
+- **derived_from:** 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:0
+
+## map-npm-run-icons-inputs-and-web-icons
+
+- **kind:** map
+- **title:** npm run icons inputs and web icons
+- **path:** tooling-and-project/repo-and-scripts/app-icons-script/map-npm-run-icons-inputs-and-web-icons.md
+- **tags:** tooling, pwa, icons, imagemagick, maskable
+- **relates_to:** map-pwa-manifest-and-head-icon-links, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, practice-playwright-gotchas-in-the-e2e-specs, map-readme-screenshots-script, map-icons-test-ts-checks-and-rerunning-the-script
+- **derived_from:** b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:map:0
 
 ## map-npm-workspaces-package-layout
 
@@ -203,6 +297,23 @@ Total nodes: 88
 - **tags:** tooling, docs, screenshots, playwright
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-test-and-static-analysis-layout
 
+## map-release-stages-kde-semantic-release-plugin-and-gnome-assets
+
+- **kind:** map
+- **title:** Release stages, KDE semantic-release plugin and GNOME assets
+- **path:** tooling-and-project/kde-companion/kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md
+- **tags:** tooling, kde, ci, release
+- **relates_to:** map-kde-release-upgrade-check-from-the-published-predecessor, map-kde-native-packaging, map-kde-and-core-ci-jobs, map-tests-for-release-only-ci-steps
+
+## map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts
+
+- **kind:** map
+- **title:** rewindDatabase: the migration-upgrade e2e scenarios in auth-browser.spec.ts
+- **path:** tooling-and-project/testing/e2e-suite/map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts.md
+- **tags:** testing, e2e, migrations
+- **relates_to:** practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
+- **derived_from:** 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:1
+
 ## map-shared-list-controls-in-manage-ui
 
 - **kind:** map
@@ -219,6 +330,14 @@ Total nodes: 88
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-npm-workspaces-package-layout
 - **derived_from:** package.json
+
+## map-tests-for-release-only-ci-steps
+
+- **kind:** map
+- **title:** Tests for release-only CI steps
+- **path:** tooling-and-project/kde-companion/kde-ci-and-release-pipeline/map-tests-for-release-only-ci-steps.md
+- **tags:** tooling, ci, release, testing
+- **relates_to:** map-test-and-static-analysis-layout, map-kde-release-upgrade-check-from-the-published-predecessor, map-release-stages-kde-semantic-release-plugin-and-gnome-assets
 
 ## map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap
 
@@ -304,6 +423,15 @@ Total nodes: 88
 - **tags:** web, pomodoro, timer, sse
 - **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, map-pomodoro-session-model-in-packages-common-pomodorosession, map-pomodoro-cycle-functions-in-packages-common, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-end-sessions-through-lib-session
 
+## map-wordmark-crop-and-its-four-outputs
+
+- **kind:** map
+- **title:** Wordmark crop and its four outputs
+- **path:** tooling-and-project/repo-and-scripts/app-icons-script/map-wordmark-crop-and-its-four-outputs.md
+- **tags:** wordmark, web, icons, imagemagick
+- **relates_to:** map-app-shell-brand-and-navigation, map-readme-screenshots-script, map-icons-test-ts-checks-and-rerunning-the-script
+- **derived_from:** b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:map:0
+
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
 - **kind:** practice
@@ -359,6 +487,15 @@ Total nodes: 88
 - **path:** api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md
 - **tags:** server, auth, csrf
 
+## practice-desktop-app-identifiers-use-the-canpicasoft-com-domain
+
+- **kind:** practice
+- **title:** Desktop app identifiers use the canpicasoft.com domain
+- **path:** tooling-and-project/practice-desktop-app-identifiers-use-the-canpicasoft-com-domain.md
+- **tags:** desktop, kde, macos, gnome, packaging
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-macos-menu-bar-app, map-gnome-shell-extension-for-tokkl-timerd, map-kde-native-packaging
+- **derived_from:** ff145c98-d4fa-437e-9a73-8d0d0a861a99:practice:0
+
 ## practice-display-font-and-reduced-motion
 
 - **kind:** practice
@@ -401,6 +538,15 @@ Total nodes: 88
 - **tags:** server, validation, reports, money
 - **relates_to:** map-app-report-endpoints
 - **derived_from:** packages/api/src/lib/values.ts
+
+## practice-isolate-home-and-xdg-dirs-before-running-plasmawindowed-checks
+
+- **kind:** practice
+- **title:** Isolate HOME and XDG dirs before running plasmawindowed checks
+- **path:** tooling-and-project/kde-companion/practice-isolate-home-and-xdg-dirs-before-running-plasmawindowed-checks.md
+- **tags:** kde, testing, desktop, plasmoid
+- **relates_to:** map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, map-tokkl-kde-live-widgets-reload-with-plasmashell, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite
+- **derived_from:** 8e0fca55-8bce-4b20-8442-82d327ec3272:practice:0
 
 ## practice-json-restore-rules
 
@@ -553,11 +699,11 @@ Total nodes: 88
 ## practice-readme-describes-the-current-project-never-its-history
 
 - **kind:** practice
-- **title:** README describes the current project, never its history
+- **title:** README, docs and comments describe the current project, never its history
 - **path:** tooling-and-project/repo-and-scripts/practice-readme-describes-the-current-project-never-its-history.md
-- **tags:** docs, readme
+- **tags:** docs, readme, comments
 - **relates_to:** practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs, map-tokkl-rename-legacy-name-fallbacks
-- **derived_from:** a8ccde73-a7bd-471e-8daf-eafb3524a6fb:practice:0
+- **derived_from:** a8ccde73-a7bd-471e-8daf-eafb3524a6fb:practice:0, b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:practice:0
 
 ## practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break
 
@@ -566,6 +712,15 @@ Total nodes: 88
 - **path:** web-ui-styling-and-layout/shell-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md
 - **tags:** web, css, reports, layout, mobile, e2e
 - **relates_to:** practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, map-readme-screenshots-script
+
+## practice-run-the-gnome-extension-shell-harness-locally-on-one-version-only
+
+- **kind:** practice
+- **title:** Run the GNOME extension Shell harness locally on one version only
+- **path:** tooling-and-project/practice-run-the-gnome-extension-shell-harness-locally-on-one-version-only.md
+- **tags:** gnome, testing, ci, desktop
+- **relates_to:** map-gnome-shell-extension-for-tokkl-timerd, map-test-and-static-analysis-layout
+- **derived_from:** 7d565109-89a4-4625-9883-dd0baef2634a:practice:0
 
 ## practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 

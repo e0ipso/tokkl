@@ -41,7 +41,10 @@ Phone e2e specs navigate with `tapNav(page, name)` and `openMore(page)` from `e2
 - Related: [practice-contrast-tables-and-project-colours](../theme-and-tokens/practice-contrast-tables-and-project-colours.md)
 - Related: [practice-phone-layout-css-gotchas](practice-phone-layout-css-gotchas.md)
 - Related: [practice-visual-screenshot-baselines](../../tooling-and-project/testing/practice-visual-screenshot-baselines.md)
-- Related: [map-app-icons-script](../../tooling-and-project/repo-and-scripts/map-app-icons-script.md)
+- Related: [map-app-icons-script → map-desktop-colour-and-monochrome-icons](../../tooling-and-project/repo-and-scripts/app-icons-script/map-desktop-colour-and-monochrome-icons.md)
+- Related: [map-app-icons-script → map-icons-test-ts-checks-and-rerunning-the-script](../../tooling-and-project/repo-and-scripts/app-icons-script/map-icons-test-ts-checks-and-rerunning-the-script.md)
+- Related: [map-app-icons-script → map-npm-run-icons-inputs-and-web-icons](../../tooling-and-project/repo-and-scripts/app-icons-script/map-npm-run-icons-inputs-and-web-icons.md)
+- Related: [map-app-icons-script → map-wordmark-crop-and-its-four-outputs](../../tooling-and-project/repo-and-scripts/app-icons-script/map-wordmark-crop-and-its-four-outputs.md)
 - Related: [practice-section-hues-data-section-maps-each-nav-section-to-a-hue](../theme-and-tokens/practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md)
 <!-- kk:related:end -->
 

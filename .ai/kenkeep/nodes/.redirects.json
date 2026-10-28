@@ -4,10 +4,34 @@
     "map-invites-and-password-reset-links-in-account-tokens",
     "map-instance-settings-api-app-admin-settings-and-setting-rules"
   ],
+  "map-app-icons-script": [
+    "map-npm-run-icons-inputs-and-web-icons",
+    "map-wordmark-crop-and-its-four-outputs",
+    "map-desktop-colour-and-monochrome-icons",
+    "map-icons-test-ts-checks-and-rerunning-the-script"
+  ],
+  "map-gnome-shell-extension-for-tokkl-timerd": [
+    "map-gnome-shell-extension-panel-button-and-menu",
+    "map-gnome-shell-extension-project-indicator-and-chosen-project-label",
+    "map-gnome-shell-extension-packaging-and-preferences",
+    "map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix"
+  ],
+  "map-kde-ci-and-release-pipeline": [
+    "map-kde-and-core-ci-jobs",
+    "map-kde-real-server-test",
+    "map-release-stages-kde-semantic-release-plugin-and-gnome-assets",
+    "map-tests-for-release-only-ci-steps"
+  ],
   "map-kde-plasma-companion-desktop-kde": [
     "map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types",
     "map-kde-panel-button-menu-and-project-indicator",
     "map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes"
+  ],
+  "map-macos-menu-bar-app": [
+    "map-macos-app-layout-portable-qt-library-and-native-shims",
+    "map-macos-menu-bar-timer-actions-and-settings-window-save",
+    "map-macos-bundle-icon-and-nsstatusitem-status-image",
+    "map-macos-ci-job-and-dmg-release-publishing"
   ],
   "practice-e2e-test-workflow": [
     "practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory",

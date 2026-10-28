@@ -16,7 +16,7 @@ _None._
 - Open [**Writing e2e specs: areas, shared helpers and extra accounts**](practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md) to learn about: Specs live by area with per-area helpers; ReportApi, transfer fixtures, disposable servers, the users fixture and login. #testing #e2e
 
 ## Components (what exists)
-_None yet._
+- Open [**rewindDatabase: the migration-upgrade e2e scenarios in auth-browser.spec.ts**](map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts.md) to learn about: rewindDatabase makes a current DB look pre-migration N; upgrade scenarios restart on it and assert the latest user_version. #testing #e2e #migrations
 
 ## By topic
 
@@ -27,7 +27,11 @@ _None yet._
 ### #e2e
 - Open [**E2E isolation: worker accounts, the reset fixture and the error guard**](practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md) — Each worker has its own admin; the data fixture wipes that user's data; runtimeErrors fails tests unless a spec allows the failure.
 - Open [**Writing e2e specs: areas, shared helpers and extra accounts**](practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md) — Specs live by area with per-area helpers; ReportApi, transfer fixtures, disposable servers, the users fixture and login.
-- Open [**Week calendar hour height lives in three places**](../../../web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
+- Open [**Running the e2e suite: build, Chromium, ports and the data directory**](practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md) — test:e2e builds first; desktop runs in parallel and instance on one worker; E2E_PORT per run; a preset data dir is locked.
+### #migrations
+- Open [**Project and task totals rely on the live-entry partial indexes**](../../../api-and-data/reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
+- Open [**Users, roles and workspace membership**](../../../api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md) — Migration 3 schema, createFirstAdmin, memberWorkspace and where it gates access, shared-workspace preconditions, and multi-user API test helpers.
+- Open [**rewindDatabase: the migration-upgrade e2e scenarios in auth-browser.spec.ts**](map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts.md) — rewindDatabase makes a current DB look pre-migration N; upgrade scenarios restart on it and assert the latest user_version.
 ### #playwright
 - Open [**Playwright gotchas in the e2e specs**](practice-playwright-gotchas-in-the-e2e-specs.md) — 200 is not proof a file exists; clock.install not pauseAt; phone helpers, expectFits, cellTexts polling, networkidle limits; group entries on a past day.
 - Open [**Visual baselines: e2e/visual.spec.ts and how to refresh them**](../practice-visual-screenshot-baselines.md) — 32 toHaveScreenshot baselines tied to the default headless shell; refresh with --update-snapshots=all; tiny elements need their own check.

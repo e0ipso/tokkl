@@ -27,6 +27,9 @@ The download goes to a scratch directory under `<dir>` that is always removed, a
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-kde-ci-and-release-pipeline](map-kde-ci-and-release-pipeline.md)
+- Related: [map-kde-ci-and-release-pipeline → map-kde-and-core-ci-jobs](kde-ci-and-release-pipeline/map-kde-and-core-ci-jobs.md)
+- Related: [map-kde-ci-and-release-pipeline → map-kde-real-server-test](kde-ci-and-release-pipeline/map-kde-real-server-test.md)
+- Related: [map-kde-ci-and-release-pipeline → map-release-stages-kde-semantic-release-plugin-and-gnome-assets](kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md)
+- Related: [map-kde-ci-and-release-pipeline → map-tests-for-release-only-ci-steps](kde-ci-and-release-pipeline/map-tests-for-release-only-ci-steps.md)
 - Related: [map-kde-native-packaging](map-kde-native-packaging.md)
 <!-- kk:related:end -->

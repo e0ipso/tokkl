@@ -37,7 +37,10 @@ Because the threshold is a ratio of the whole page, a small element can break wi
 # Related
 
 - Related: [practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory](e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md)
-- Related: [map-app-icons-script](../repo-and-scripts/map-app-icons-script.md)
+- Related: [map-app-icons-script → map-desktop-colour-and-monochrome-icons](../repo-and-scripts/app-icons-script/map-desktop-colour-and-monochrome-icons.md)
+- Related: [map-app-icons-script → map-icons-test-ts-checks-and-rerunning-the-script](../repo-and-scripts/app-icons-script/map-icons-test-ts-checks-and-rerunning-the-script.md)
+- Related: [map-app-icons-script → map-npm-run-icons-inputs-and-web-icons](../repo-and-scripts/app-icons-script/map-npm-run-icons-inputs-and-web-icons.md)
+- Related: [map-app-icons-script → map-wordmark-crop-and-its-four-outputs](../repo-and-scripts/app-icons-script/map-wordmark-crop-and-its-four-outputs.md)
 - Related: [map-readme-screenshots-script](../repo-and-scripts/map-readme-screenshots-script.md)
 <!-- kk:related:end -->
 

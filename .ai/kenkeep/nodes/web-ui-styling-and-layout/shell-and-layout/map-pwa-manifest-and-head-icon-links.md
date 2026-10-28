@@ -33,7 +33,10 @@ The manifest lists five PNG icons in a fixed order, each with an explicit `purpo
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-app-icons-script](../../tooling-and-project/repo-and-scripts/map-app-icons-script.md)
+- Related: [map-app-icons-script → map-desktop-colour-and-monochrome-icons](../../tooling-and-project/repo-and-scripts/app-icons-script/map-desktop-colour-and-monochrome-icons.md)
+- Related: [map-app-icons-script → map-icons-test-ts-checks-and-rerunning-the-script](../../tooling-and-project/repo-and-scripts/app-icons-script/map-icons-test-ts-checks-and-rerunning-the-script.md)
+- Related: [map-app-icons-script → map-npm-run-icons-inputs-and-web-icons](../../tooling-and-project/repo-and-scripts/app-icons-script/map-npm-run-icons-inputs-and-web-icons.md)
+- Related: [map-app-icons-script → map-wordmark-crop-and-its-four-outputs](../../tooling-and-project/repo-and-scripts/app-icons-script/map-wordmark-crop-and-its-four-outputs.md)
 - Related: [practice-playwright-gotchas-in-the-e2e-specs](../../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 - Related: [practice-theme-tokens-data-theme-and-cached-theme](../theme-and-tokens/practice-theme-tokens-data-theme-and-cached-theme.md)
 - Related: [map-app-shell-brand-and-navigation](map-app-shell-brand-and-navigation.md)
