@@ -77,17 +77,25 @@ function isOtherWrite(mutation: Mutation<unknown, Error, unknown, unknown>): boo
 /**
  * Waits until no write other than a timer action is in flight, and says whether it had to wait. An
  * edit of the running entry moves the revision, so an action that reads the revision while that
- * edit is pending would send a stale one and conflict with this tab's own edit.
+ * edit is pending would send a stale one and conflict with this tab's own edit. A write held until
+ * the browser is back online would release the action only then, so the action fails at once with
+ * a `TimerActionError` of kind `offline`, as one sent without a connection does.
  */
 export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   const cache = qc.getMutationCache();
-  const pending = () => cache.getAll().some(isOtherWrite);
-  if (!pending()) return Promise.resolve(false);
-  return new Promise((resolve) => {
+  const others = () => cache.getAll().filter(isOtherWrite);
+  const held = () => others().some((mutation) => mutation.state.isPaused);
+  if (held()) return Promise.reject(new TimerActionError('offline'));
+  if (others().length === 0) return Promise.resolve(false);
+  return new Promise((resolve, reject) => {
     const unsubscribe = cache.subscribe(() => {
-      if (pending()) return;
-      unsubscribe();
-      resolve(true);
+      if (held()) {
+        unsubscribe();
+        reject(new TimerActionError('offline'));
+      } else if (others().length === 0) {
+        unsubscribe();
+        resolve(true);
+      }
     });
   });
 }

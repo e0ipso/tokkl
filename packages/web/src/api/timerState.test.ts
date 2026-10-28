@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, onlineManager } from '@tanstack/react-query';
 import type { TimeEntry, TimerState } from './types.ts';
 import {
   TIMER_ACTION_KEY, TIMER_CONFLICT_MESSAGE, TIMER_OFFLINE_MESSAGE, TimerActionError, explainTimerActionError, isTimerState,
@@ -104,6 +104,38 @@ test('another timer action in flight is not waited for, so an action never waits
   } finally {
     release();
   }
+});
+
+test('a write held for the connection fails the action as offline instead of sending it after reconnect', async (t) => {
+  const qc = new QueryClient();
+  onlineManager.setOnline(false);
+  t.after(() => onlineManager.setOnline(true));
+  const release = pendingWrite(qc);
+  try {
+    await assert.rejects(settleOtherWrites(qc), (error: unknown) =>
+      error instanceof TimerActionError && error.kind === 'offline' && error.message === TIMER_OFFLINE_MESSAGE);
+  } finally {
+    release();
+  }
+});
+
+test('a write that the connection holds while the action waits for it fails the action as offline', async (t) => {
+  const qc = new QueryClient();
+  t.after(() => onlineManager.setOnline(true));
+  // The edit fails once and is held for its retry while the browser is offline.
+  let calls = 0;
+  void qc.getMutationCache().build(qc, {
+    retry: 1, retryDelay: 0,
+    mutationFn: () => {
+      calls += 1;
+      if (calls === 1) {
+        onlineManager.setOnline(false);
+        return Promise.reject(new TypeError('Failed to fetch'));
+      }
+      return Promise.resolve();
+    },
+  }).execute(undefined);
+  await assert.rejects(settleOtherWrites(qc), (error: unknown) => error instanceof TimerActionError && error.kind === 'offline');
 });
 
 const phase = (start: string) => ({
