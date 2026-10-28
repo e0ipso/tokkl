@@ -4,6 +4,7 @@ import {
   type PatchOperation,
 } from '../api/hooks.ts';
 import type { Favorite, TimeEntry } from '../api/types.ts';
+import { overlappingIds } from '../lib/entryOverlap.ts';
 import { localDay } from '../lib/entryTime.ts';
 import { dayLabel, duration, entrySeconds, formatTime, today, useNow, useSettings } from '../lib/settings.ts';
 import { EmptyState } from './EmptyState.tsx';
@@ -19,23 +20,17 @@ interface Row {
   entries: TimeEntry[];
 }
 
-function similarityKey(entry: TimeEntry): string {
-  return [entry.description, entry.project_id, entry.task_id, entry.billable, [...entry.tags].sort().join(',')].join('\u0000');
+/** The clock range spanned by the timed entries, or '' when there are none. */
+function rangeLabel(entries: TimeEntry[], format: (iso: string) => string): string {
+  const timed = entries.filter((e) => e.stop && !e.all_day);
+  if (timed.length === 0) return '';
+  const starts = timed.map((e) => e.start).sort();
+  const stops = timed.map((e) => e.stop!).sort();
+  return `${format(starts[0]!)} – ${format(stops[stops.length - 1]!)}`;
 }
 
-/** Ids of finished entries whose time range overlaps another entry. Toggl allows overlaps; we only flag them. */
-function overlappingIds(entries: TimeEntry[]): Set<number> {
-  const sorted = entries.filter((e) => e.stop).sort((a, b) => a.start.localeCompare(b.start));
-  const ids = new Set<number>();
-  let latest: TimeEntry | null = null;
-  for (const entry of sorted) {
-    if (latest && Date.parse(entry.start) < Date.parse(latest.stop!)) {
-      ids.add(entry.id);
-      ids.add(latest.id);
-    }
-    if (!latest || Date.parse(entry.stop!) > Date.parse(latest.stop!)) latest = entry;
-  }
-  return ids;
+function similarityKey(entry: TimeEntry): string {
+  return [entry.description, entry.project_id, entry.task_id, entry.billable, [...entry.tags].sort().join(',')].join('\u0000');
 }
 
 const entryCount = (count: number) => (count === 1 ? '1 entry' : `${count} entries`);
@@ -181,7 +176,6 @@ function EntryRow({ row, selected, overlaps, onToggle, onContinue }: {
   const ids = row.entries.map((e) => e.id);
   const grouped = row.entries.length > 1;
   const total = row.entries.reduce((sum, e) => sum + entrySeconds(e, new Date()), 0);
-  const first = row.entries[row.entries.length - 1]!;
 
   return (
     <li className={`entry-row-wrap${grouped ? ' grouped' : ''}`}>
@@ -191,7 +185,7 @@ function EntryRow({ row, selected, overlaps, onToggle, onContinue }: {
         onSelect={(on) => onToggle(ids, on)}
         seconds={total}
         overlap={row.entries.some((e) => overlaps.has(e.id))}
-        timeRange={`${formatTime(first.start, settings)} – ${formatTime(entry.stop!, settings)}`}
+        timeRange={rangeLabel(row.entries, (iso) => formatTime(iso, settings))}
         countBadge={grouped ? (
           <button type="button" className="count-badge" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} title="Show entries">
             {row.entries.length}
@@ -209,7 +203,7 @@ function EntryRow({ row, selected, overlaps, onToggle, onContinue }: {
                 onSelect={(on) => onToggle([member.id], on)}
                 seconds={entrySeconds(member, new Date())}
                 overlap={overlaps.has(member.id)}
-                timeRange={`${formatTime(member.start, settings)} – ${formatTime(member.stop!, settings)}`}
+                timeRange={rangeLabel([member], (iso) => formatTime(iso, settings))}
                 onContinue={() => onContinue(member)}
               />
             </li>
@@ -277,7 +271,10 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
     try {
       await create.mutateAsync({
         description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-        billable: entry.billable, start: entry.start, stop: entry.stop,
+        billable: entry.billable,
+        ...(entry.all_day
+          ? { all_day: true, start_date: localDay(entry.start, settings.timeZone), duration: entry.duration }
+          : { start: entry.start, stop: entry.stop }),
       });
       toast.show('Entry duplicated');
     } catch (error) {
@@ -333,7 +330,7 @@ function EntryLine({ entries, selected, onSelect, seconds, overlap, timeRange, c
       >
         <Icon name="dollar" size={16} />
       </button>
-      <button type="button" className="entry-times" onClick={() => single ? setEditing(true) : undefined} disabled={!single} title={single ? 'Edit times' : undefined}>
+      <button type="button" className="entry-times" onClick={() => single ? setEditing(true) : undefined} disabled={!single} title={single ? 'Edit times' : undefined} aria-label={single && !timeRange ? 'Edit times' : undefined}>
         {overlap ? <span className="overlap-mark" title="Overlaps another entry" aria-label="Overlaps another entry">!</span> : null}
         {timeRange}
       </button>

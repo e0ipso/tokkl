@@ -1,12 +1,13 @@
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
+import { canonicalTimeZone, dateKey } from '@tokkl/common/time';
 import { badRequest } from '../lib/errors.ts';
 import { parseInstant } from '../lib/values.ts';
 import { createClient, setClientArchived } from '../models/clients.ts';
 import { createProject } from '../models/projects.ts';
 import { resolveTagNames } from '../models/tags.ts';
 import { createTask } from '../models/tasks.ts';
-import { createTimeEntry } from '../models/timeEntries.ts';
+import { createTimeEntry, noTimeSpan } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
 import { memberWorkspace } from '../models/workspaces.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './export.ts';
@@ -37,7 +38,9 @@ class Rollback extends Error {}
  * Restores a file written by GET /api/app/export.json into the current account. Clients, projects,
  * tasks and tags are matched by name (created when missing); entries that already exist with the
  * same start, stop, description and project are skipped, so restoring twice changes nothing.
- * A running entry in the file is reported and skipped while another timer runs here.
+ * A running entry in the file is reported and skipped while another timer runs here. A no-time
+ * entry (`all_day: true`) keeps its local date in the exporting account's timezone and is anchored
+ * at midnight of that date in this account's timezone.
  */
 export function importJsonExport(db: Db, user: UserRow, data: unknown, options: { dryRun: boolean }): JsonImportResult {
   const format = typeof data === 'object' && data !== null ? (data as Item).format : undefined;
@@ -146,6 +149,9 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
       SELECT 1 FROM time_entries WHERE user_id = ? AND deleted_at IS NULL AND start = ? AND IFNULL(stop, '') = ?
         AND description = ? AND IFNULL(project_id, 0) = ?
     `);
+    // The day of a no-time entry is its local date where it was exported.
+    const exporter = typeof file.user === 'object' && file.user !== null ? (file.user as Item).timezone : undefined;
+    const exporterZone = (typeof exporter === 'string' ? canonicalTimeZone(exporter) : null) ?? user.timezone;
     const runningHere = db.prepare('SELECT 1 FROM time_entries WHERE user_id = ? AND stop IS NULL AND deleted_at IS NULL');
     for (const entry of list(file.time_entries, 'time_entries')) {
       db.exec('SAVEPOINT import_entry');
@@ -154,8 +160,15 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
           db.exec('RELEASE import_entry');
           continue;
         }
-        const start = parseInstant(entry.start, 'start');
-        const stop = entry.stop === undefined || entry.stop === null ? null : parseInstant(entry.stop, 'stop');
+        let start = parseInstant(entry.start, 'start');
+        let stop = entry.stop === undefined || entry.stop === null ? null : parseInstant(entry.stop, 'stop');
+        let noTime: { day: string; duration: number } | null = null;
+        if (entry.all_day === true && stop) {
+          const day = dateKey(start, exporterZone);
+          const duration = Math.floor(stop.getTime() / 1000) - Math.floor(start.getTime() / 1000);
+          noTime = { day, duration };
+          ({ start, stop } = noTimeSpan(db, user, day, duration, { exact: true }));
+        }
         const projectId = mapped(projectIds, entry.project_id, 'project');
         const taskId = mapped(taskIds, entry.task_id, 'task');
         const entryTagIds = Array.isArray(entry.tag_ids)
@@ -173,8 +186,9 @@ export function importJsonExport(db: Db, user: UserRow, data: unknown, options: 
         }
         createTimeEntry(db, user, wid, {
           description,
-          start: start.toISOString(),
-          ...(stop ? { stop: stop.toISOString() } : { duration: -1 }),
+          ...(noTime
+            ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
+            : { start: start.toISOString(), ...(stop ? { stop: stop.toISOString() } : { duration: -1 }) }),
           project_id: projectId,
           task_id: taskId,
           billable: entry.billable === true,

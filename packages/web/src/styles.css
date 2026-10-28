@@ -728,7 +728,7 @@ input.entry-duration:is(:hover, :focus) {
 .manual-fields input[type='date'] { width: 140px; }
 .time-field { width: 76px; text-align: center; }
 .manual-duration { min-width: 4em; text-align: right; }
-/* The "No times" switch in the manual form: a checkbox switch with its visible label. */
+/* The "No times" switch in the manual form and the entry editor: a checkbox switch with its visible label. */
 .manual-switch { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-md); color: var(--muted); cursor: pointer; }
 .suggestions {
   position: absolute; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 4px; list-style: none; z-index: 30;

@@ -3,11 +3,11 @@ import { transaction } from '../db/index.ts';
 import { parseCsv } from '../lib/csv.ts';
 import { badRequest } from '../lib/errors.ts';
 import { parseDuration } from '@tokkl/common/duration';
-import { zonedToUtc } from '@tokkl/common/time';
+import { pad2, zonedToUtc } from '@tokkl/common/time';
 import { createClient } from '../models/clients.ts';
 import { createProject } from '../models/projects.ts';
 import { createTask } from '../models/tasks.ts';
-import { createTimeEntry } from '../models/timeEntries.ts';
+import { createTimeEntry, noTimeSpan } from '../models/timeEntries.ts';
 import type { UserRow } from '../models/users.ts';
 import { memberWorkspace } from '../models/workspaces.ts';
 import type { ImportResult, ImportUser } from '@tokkl/types';
@@ -82,6 +82,12 @@ function instant(dateValue: string, timeValue: string, timeZone: string): Date |
   return zonedToUtc(date.year, date.month, date.day, time.hour, time.minute, time.second, timeZone);
 }
 
+/** The `YYYY-MM-DD` key of a date cell, or null when it is not a real date. */
+function dayKey(dateValue: string): string | null {
+  const date = parseDate(dateValue.trim());
+  return date ? `${date.year}-${pad2(date.month)}-${pad2(date.day)}` : null;
+}
+
 /** Undoes the quote prefix that spreadsheet-safe CSV writers add before =, +, - and @. */
 function unescapeCell(value: string): string {
   return /^'[=+\-@]/.test(value) ? value.slice(1) : value;
@@ -111,7 +117,8 @@ function skippedReason(found: ImportUser): string {
 /**
  * Imports a Toggl Track detailed-report CSV export. Times are read in the account's timezone.
  * Missing clients, projects, tasks and tags are created. Rows matching an existing entry
- * (same start, stop, description and project) are skipped, so re-importing a file is safe.
+ * (same start, stop, description and project) are skipped, so re-importing a file is safe. A row
+ * with a date, a duration and blank times becomes a no-time entry on that date.
  *
  * A team export holds several people's rows. `users` lists the `ImportUser.key`s whose rows to
  * import; the rest are skipped. Without it every row is imported, which a real import refuses
@@ -228,16 +235,29 @@ export function importTogglCsv(
       const createdClients = result.created_clients.length;
       db.exec('SAVEPOINT import_row');
       try {
-        const start = instant(cell(row, 'startDate'), cell(row, 'startTime'), user.timezone);
-        if (!start) throw new Error('Invalid start date or time');
+        // Tokkl exports no-time entries with a date and a duration and blank times.
+        const noTime = !cell(row, 'startTime') && !cell(row, 'endTime') && cell(row, 'duration') !== '';
+        let start: Date | null;
         let stop: Date | null = null;
-        if (cell(row, 'endDate') && cell(row, 'endTime')) {
-          stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
-        } else if (cell(row, 'duration')) {
-          const seconds = parseDuration(cell(row, 'duration'));
-          if (seconds !== null) stop = new Date(start.getTime() + seconds * 1000);
+        let noTimeEntry: { day: string; duration: number } | null = null;
+        if (noTime) {
+          const day = dayKey(cell(row, 'startDate'));
+          if (!day) throw new Error('Invalid start date');
+          const duration = parseDuration(cell(row, 'duration'));
+          if (duration === null) throw new Error('Invalid duration');
+          noTimeEntry = { day, duration };
+          ({ start, stop } = noTimeSpan(db, user, day, duration, { exact: true }));
+        } else {
+          start = instant(cell(row, 'startDate'), cell(row, 'startTime'), user.timezone);
+          if (!start) throw new Error('Invalid start date or time');
+          if (cell(row, 'endDate') && cell(row, 'endTime')) {
+            stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
+          } else if (cell(row, 'duration')) {
+            const seconds = parseDuration(cell(row, 'duration'));
+            if (seconds !== null) stop = new Date(start.getTime() + seconds * 1000);
+          }
+          if (!stop) throw new Error('Invalid end time or duration');
         }
-        if (!stop) throw new Error('Invalid end time or duration');
 
         const pid = projectId(cell(row, 'project'), cell(row, 'client'));
         const description = cell(row, 'description');
@@ -249,8 +269,9 @@ export function importTogglCsv(
         const tags = cell(row, 'tags').split(',').map((tag) => tag.trim()).filter(Boolean);
         createTimeEntry(db, user, wid, {
           description,
-          start: start.toISOString(),
-          stop: stop.toISOString(),
+          ...(noTimeEntry
+            ? { all_day: true, start_date: noTimeEntry.day, duration: noTimeEntry.duration }
+            : { start: start.toISOString(), stop: stop.toISOString() }),
           project_id: pid,
           task_id: taskId(cell(row, 'task'), pid),
           billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),

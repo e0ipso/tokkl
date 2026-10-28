@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { noTimeDuration } from './noTimeDuration.ts';
+import { noTimeDuration, noTimeSeconds } from './noTimeDuration.ts';
 
 // A no-time entry stores its duration snapped to the resolution, so the form checks that value.
 
@@ -19,4 +19,10 @@ test('more than 24 hours after snapping is an error, exactly 24 hours is not', (
   assert.deepEqual(noTimeDuration('24h', 15), { seconds: 24 * 3600 });
   assert.deepEqual(noTimeDuration('24:07', 15), { seconds: 24 * 3600 });
   assert.deepEqual(noTimeDuration('24:08', 15), { seconds: 24 * 3600 + 15 * 60, error: 'No-time entries can be at most 24 hours' });
+});
+
+test('a duration in seconds gets the same checks', () => {
+  assert.deepEqual(noTimeSeconds(3180, 15), { seconds: 3600 });
+  assert.deepEqual(noTimeSeconds(0, 5), { seconds: 0, error: 'The duration rounds to zero at the 5-minute time resolution' });
+  assert.deepEqual(noTimeSeconds(24 * 3600 + 15 * 60, 15), { seconds: 24 * 3600 + 15 * 60, error: 'No-time entries can be at most 24 hours' });
 });

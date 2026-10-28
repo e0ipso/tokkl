@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentPropsWithRef } from 'react';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 import type { DurationFormat } from '../api/types.ts';
 
 /** Text field that accepts any duration grammar from @tokkl/common/duration and commits on blur or Enter. */
-export function DurationField({ seconds, onCommit, format = 'improved', disabled, className, ariaLabel }: {
+export function DurationField({ seconds, onCommit, format = 'improved', disabled, className, ariaLabel, inputProps }: {
   seconds: number;
   onCommit: (seconds: number) => void;
   format?: DurationFormat;
   disabled?: boolean;
   className?: string;
   ariaLabel?: string;
+  /** Extra props for the input, such as the id, ref and aria attributes of a form field. */
+  inputProps?: Omit<ComponentPropsWithRef<'input'>, 'value' | 'onChange' | 'onBlur' | 'onFocus' | 'onKeyDown'>;
 }) {
   const shown = formatDuration(seconds, format === 'decimal' ? 'improved' : format);
   const [text, setText] = useState(shown);
@@ -26,6 +28,7 @@ export function DurationField({ seconds, onCommit, format = 'improved', disabled
   };
   return (
     <input
+      {...inputProps}
       className={className}
       value={text}
       disabled={disabled}
