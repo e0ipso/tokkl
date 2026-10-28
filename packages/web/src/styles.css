@@ -727,7 +727,10 @@ input.entry-duration:is(:hover, :focus) {
 .manual-fields { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .manual-fields input[type='date'] { width: 140px; }
 .time-field { width: 76px; text-align: center; }
+.manual-duration-field { width: 96px; }
 .manual-duration { min-width: 4em; text-align: right; }
+/* The "No times" switch in the manual form and the entry editor: a checkbox switch with its visible label. */
+.manual-switch { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-md); color: var(--muted); cursor: pointer; }
 .suggestions {
   position: absolute; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 4px; list-style: none; z-index: 30;
   box-shadow: var(--shadow);
@@ -1178,6 +1181,29 @@ table.table { width: 100%; border-collapse: collapse; }
 .calendar-strip-day[aria-pressed='true'] { background: var(--state-selected); border-bottom-color: var(--primary); }
 .calendar-strip-day[aria-pressed='true'] .calendar-strip-date, .calendar-strip-day[aria-pressed='true'] small { color: var(--text); font-weight: 800; }
 .calendar-strip-day.today .calendar-strip-weekday { padding: 0 4px; border-radius: var(--radius-pill); background: var(--primary); color: var(--on-primary); }
+/* The all-day row is a panel between the day heads (or the strip) and the hour grid, in the same
+   columns. It exists only while a shown day has a no-time entry, so a week without one takes no height. A
+   chip is a block's tint and bar on surface, with text and focus ring from the shared tokens; its
+   pairs are the block rows of the table at .project-dot and the primary ring on surface. */
+.calendar-all-day {
+  display: grid; grid-template-columns: 56px repeat(7, minmax(90px, 1fr));
+  background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow);
+}
+.calendar-all-day-label { padding: 6px 6px 0 0; text-align: right; font-size: var(--text-xs); font-weight: 600; color: var(--muted); }
+.calendar-all-day-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 3px; border-left: 1px solid var(--border); }
+.calendar-chip {
+  --block-tint: color-mix(in srgb, var(--project-color, var(--primary)) 18%, var(--surface));
+  --block-bar: color-mix(in srgb, var(--project-color, var(--primary)) 60%, var(--project-mix));
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; min-height: 24px;
+  padding: 3px 6px; border: none; border-left: 5px solid var(--block-bar); border-radius: var(--radius-sm);
+  background: var(--block-tint); color: var(--text); font-size: var(--text-xs); line-height: 1.25; text-align: left; cursor: pointer;
+}
+.calendar-chip strong { min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-chip .calendar-block-duration { flex: none; font-stretch: 100%; font-weight: 700; }
+@media (max-width: 760px) {
+  .calendar-all-day { grid-template-columns: 40px repeat(7, minmax(0, 1fr)); }
+}
+.calendar.day-mode .calendar-all-day { grid-template-columns: 40px minmax(0, 1fr); }
 /* A day change slides the grid in from the side it came from. The first render has no data-slide,
    so nothing moves on load. */
 .calendar.day-mode .calendar-grid[data-slide='next'] { --calendar-slide-from: 24px; animation: calendar-slide-in var(--duration-base) var(--ease); }

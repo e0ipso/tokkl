@@ -235,4 +235,9 @@ export const MIGRATIONS: string[] = [
     discarded_stop TEXT
   );
   `,
+  // Marks a no-time entry: start is local midnight of its day in the owner's timezone and stop is
+  // start plus the duration. Existing entries are timed.
+  `
+  ALTER TABLE time_entries ADD COLUMN all_day INTEGER NOT NULL DEFAULT 0;
+  `,
 ];

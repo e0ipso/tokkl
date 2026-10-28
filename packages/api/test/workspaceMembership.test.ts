@@ -75,7 +75,9 @@ test('upgrading a single-user database makes the user admin and owner, and keeps
         { workspace_id: wid, user_id: userId, role: 'owner' },
         { workspace_id: orphanWid, user_id: userId, role: 'owner' },
       ]);
-      assert.deepEqual(db.prepare('SELECT * FROM time_entries ORDER BY id').all(), entriesBefore);
+      // Entries from before the all_day column read as timed.
+      assert.deepEqual(db.prepare('SELECT * FROM time_entries ORDER BY id').all().map((row) => ({ ...row })),
+        entriesBefore.map((row) => ({ ...row, all_day: 0 })));
 
       const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
       const byCookie = await app.request('/api/v9/me', { headers: { cookie: `tokkl_session=${session}` } });

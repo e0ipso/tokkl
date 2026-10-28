@@ -117,7 +117,7 @@ export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update
                     {entry.tags.map((tag) => <span key={tag} className="tag-chip">{tag}</span>)}
                   </span>
                 </td>
-                <td className="nowrap muted">{formatTime(entry.start, settings)} – {formatTime(entry.stop, settings)}</td>
+                <td className="nowrap muted">{entry.all_day ? '' : `${formatTime(entry.start, settings)} – ${formatTime(entry.stop, settings)}`}</td>
                 <td className="num">{duration(entry.seconds, settings)}</td>
                 {data.has_amounts ? <td className="num">{money(entry.amount_cents, entry.currency)}</td> : null}
               </tr>

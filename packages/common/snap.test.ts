@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isTimeResolution, snapInstant, snapSpan } from './snap.ts';
+import { MAX_ALL_DAY_SECONDS } from './duration.ts';
+import { isTimeResolution, snapDuration, snapInstant, snapSpan } from './snap.ts';
 import snapFixture from './fixtures/snap.json' with { type: 'json' };
 
 interface SnapCase {
@@ -31,6 +32,15 @@ test('snapInstant moves an instant to the nearest grid point, the later one on a
   assert.equal(at('2026-10-14T09:02:29Z'), '2026-10-14T09:00:00.000Z');
   assert.equal(at('2026-10-14T09:02:30Z'), '2026-10-14T09:05:00.000Z');
   assert.throws(() => snapInstant(new Date(), 7, 'UTC'), RangeError);
+});
+
+test('snapDuration moves a duration to the nearest step, a tie going up', () => {
+  assert.equal(snapDuration(449, 15), 0);
+  assert.equal(snapDuration(450, 15), 900);
+  assert.equal(snapDuration(1349.9, 15), 900);
+  assert.equal(snapDuration(5400, 5), 5400);
+  assert.equal(snapDuration(MAX_ALL_DAY_SECONDS, 60), MAX_ALL_DAY_SECONDS);
+  assert.equal(MAX_ALL_DAY_SECONDS, 24 * 3600);
 });
 
 test('only divisors of 60 are resolutions', () => {

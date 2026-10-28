@@ -13,7 +13,7 @@ function entry(extra: Partial<TimeEntry> = {}): TimeEntry {
   return {
     id: nextId++, workspace_id: 1, project_id: null, task_id: null, billable: false, start: '2026-10-20T09:00:00Z',
     stop: '2026-10-20T10:00:00Z', duration: 3600, description: '', tags: [], tag_ids: [], at: '2026-10-20T10:00:00Z',
-    server_deleted_at: null, ...extra,
+    server_deleted_at: null, all_day: false, ...extra,
   };
 }
 

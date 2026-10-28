@@ -89,6 +89,98 @@ test('CSV export round-trips through the importer and neutralises formulas', asy
   assert.deepEqual(shape(after), shape(before));
 });
 
+test('a no-time entry survives CSV export and import into another timezone, once', async () => {
+  const source = await setup({ timezone: 'Europe/Madrid' });
+  const created = await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
+    all_day: true, start_date: '2026-09-10', duration: 5400, description: 'Planning',
+  });
+  assert.equal(created.status, 200);
+  const csv = await (await source.request('GET', '/api/app/export.csv')).text();
+
+  const target = await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' });
+  const importCsv = async () => (await target.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  const first = await importCsv();
+  assert.deepEqual([first.created, first.skipped_duplicates, first.errors], [1, 0, []]);
+
+  const [entry] = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
+  assert.equal(entry.all_day, true);
+  assert.equal(entry.description, 'Planning');
+  assert.equal(entry.start, '2026-09-10T04:00:00+00:00');
+  assert.equal(entry.duration, 5400);
+
+  const again = await importCsv();
+  assert.deepEqual([again.created, again.skipped_duplicates], [0, 1]);
+});
+
+test('a no-time entry under an hour survives the detailed CSV in the classic duration format', async () => {
+  const source = await setup({ timezone: 'Europe/Madrid' });
+  await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
+    all_day: true, start_date: '2026-09-10', duration: 1800, description: 'Standup notes',
+  });
+  const exported = await source.request('POST', '/api/app/report/detailed.csv', {
+    start_date: '2026-09-01', end_date: '2026-09-30', duration_format: 'classic',
+  });
+  const csv = await exported.text();
+  assert.match(csv, /,30:00 min,/);
+
+  const target = await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' });
+  const result = await (await target.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  assert.deepEqual([result.created, result.errors], [1, []]);
+  const [entry] = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
+  assert.deepEqual([entry.all_day, entry.start, entry.duration], [true, '2026-09-10T04:00:00+00:00', 1800]);
+});
+
+test('CSV import refuses blank-time rows with no duration or one outside 0 to 24 hours, and imports the rest', async () => {
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const csv = [
+    'User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags',
+    'Me,me@example.com,,,,Zero,No,2026-09-10,,2026-09-10,,0:00:00,',
+    'Me,me@example.com,,,,Too long,No,2026-09-10,,2026-09-11,,25:00:00,',
+    'Me,me@example.com,,,,Bad day,No,not-a-date,,,,1:00:00,',
+    'Me,me@example.com,,,,Unreadable,No,2026-09-10,,,,soon,',
+    'Me,me@example.com,,,,Fine,No,2026-09-10,,2026-09-10,,1:00:00,',
+  ].join('\n');
+  const send = async (query: string) =>
+    (await ctx.request('POST', `/api/app/import/toggl-csv${query}`, csv, { 'content-type': 'text/csv' })).json() as any;
+
+  const dry = await send('?dry_run=true');
+  assert.deepEqual([dry.created, dry.errors.map((e: any) => e.row)], [1, [2, 3, 4, 5]]);
+  const result = await send('');
+  assert.deepEqual([result.created, result.errors.map((e: any) => e.row)], [1, [2, 3, 4, 5]]);
+  assert.equal(result.errors[2].message, 'Invalid start date');
+  assert.equal(result.errors[3].message, 'Invalid duration');
+  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
+  assert.deepEqual(entries.map((e: any) => [e.description, e.all_day]), [['Fine', true]]);
+});
+
+test('a no-time entry restores from JSON onto the same date at midnight in the restoring timezone, once', async () => {
+  const source = await setup({ timezone: 'Europe/Madrid' });
+  await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
+    all_day: true, start_date: '2026-09-10', duration: 7200, description: 'Review',
+  });
+  const exported = JSON.parse(await (await source.request('GET', '/api/app/export.json')).text());
+  assert.equal(exported.time_entries[0].all_day, true);
+
+  const target = await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' });
+  const dry = await restoreJson(target, exported, { dryRun: true });
+  assert.equal(dry.time_entries, 1);
+  const restored = await restoreJson(target, exported);
+  assert.deepEqual([restored.time_entries, restored.errors], [1, []]);
+  const [entry] = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
+  assert.equal(entry.all_day, true);
+  assert.equal(entry.start, '2026-09-10T04:00:00+00:00');
+  assert.equal(entry.duration, 7200);
+
+  const again = await restoreJson(target, exported);
+  assert.deepEqual([again.time_entries, again.skipped_duplicates], [0, 1]);
+
+  // Backups written before the flag existed, and any value but true, restore as timed entries.
+  const timed = { format: 'tokkl-export', time_entries: [{ id: 9, start: '2026-09-11T08:00:00Z', stop: '2026-09-11T09:00:00Z', all_day: 'true' }] };
+  assert.equal((await restoreJson(target, timed)).time_entries, 1);
+  const found = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-11&end_date=2026-09-12')).body;
+  assert.deepEqual(found.map((e: any) => [e.start, e.all_day]), [['2026-09-11T08:00:00+00:00', false]]);
+});
+
 test('JSON export contains every entity and never the password hash or token', async () => {
   const ctx = await setup();
   await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600, tags: ['a'] });

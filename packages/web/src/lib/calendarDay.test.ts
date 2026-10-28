@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addClockMinutes, addDays, clockMinutes, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
-import { SWIPE_MIN_PX, SWIPE_RATIO, clampDayMove, classifySwipe, dragStep, droppedMinute, fitMoveInDay, stepDay } from './calendarDay.ts';
+import { SWIPE_MIN_PX, SWIPE_RATIO, clampDayMove, classifySwipe, dragStep, droppedMinute, fitMoveInDay, splitAllDay, stepDay } from './calendarDay.ts';
 import { snappedInstant } from './settings.ts';
 
 const MADRID = 'Europe/Madrid';
@@ -198,4 +198,22 @@ test('droppedMinute shows the clock minute that snappedInstant drops the boundar
       }
     }
   }
+});
+
+test('splitAllDay keeps no-time entries out of the grid list and groups them by local start date', () => {
+  const entry = (id: number, start: string, all_day: boolean) => ({ id, start, all_day });
+  const midnight = entry(1, '2026-06-16T22:00:00Z', true); // 2026-06-17 00:00 in Madrid
+  const timed = entry(2, '2026-06-17T07:00:00Z', false);
+  const sameDay = entry(3, '2026-06-17T22:00:00Z', true); // 2026-06-18 00:00 in Madrid
+  const elsewhere = entry(4, '2026-06-25T22:00:00Z', true);
+  const days = ['2026-06-17', '2026-06-18'];
+  const { timed: grid, allDay } = splitAllDay([midnight, timed, sameDay, elsewhere], days, MADRID);
+  assert.deepEqual(grid, [timed]);
+  assert.deepEqual(allDay.get('2026-06-17'), [midnight]);
+  assert.deepEqual(allDay.get('2026-06-18'), [sameDay]);
+  // The day comes from the account zone: the same instants fall on the previous days in New York.
+  assert.deepEqual(splitAllDay([midnight], ['2026-06-16', '2026-06-17'], 'America/New_York').allDay.get('2026-06-16'), [midnight]);
+  // A day with no chips has no entry in the map.
+  assert.equal(allDay.has('2026-06-19'), false);
+  assert.equal(splitAllDay([timed], days, MADRID).allDay.size, 0);
 });

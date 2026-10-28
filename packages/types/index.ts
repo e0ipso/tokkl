@@ -154,6 +154,8 @@ export interface TimeEntry {
   tag_ids: number[];
   at: string;
   server_deleted_at: string | null;
+  /** A no-time entry: start is local midnight of its day, and only its date and duration count. */
+  all_day: boolean;
   project_name?: string | null;
   project_color?: string | null;
   client_name?: string | null;
@@ -250,8 +252,11 @@ export interface TimeEntryInput {
   task_id?: number | null;
   billable?: boolean;
   start?: string;
+  /** YYYY-MM-DD; the day of a no-time entry, or the date part of `start`. */
+  start_date?: string;
   stop?: string | null;
   duration?: number;
+  all_day?: boolean;
   tags?: string[];
   tag_ids?: number[];
   tag_action?: 'add' | 'delete';
@@ -282,6 +287,7 @@ export interface ReportEntry {
   tags: string[];
   amount_cents: number | null;
   currency: string;
+  all_day: boolean;
 }
 
 export interface Report {

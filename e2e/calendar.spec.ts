@@ -3,8 +3,8 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { openCalendar } from './history-calendar-tests-helpers.ts';
-import { calendarBodyBox, entryWrites, px, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
-import { PHONE, tap } from './mobile-tests-helpers.ts';
+import { calendarBodyBox, dragBy, entryWrites, expectBrowserTimeZone, px, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
+import { PHONE, expectFits, tap } from './mobile-tests-helpers.ts';
 // Its `api` fixture puts the account's first weekday back after each scenario.
 import { test as testWithSettings } from './report-tests-helpers.ts';
 
@@ -445,3 +445,50 @@ for (const viewport of [{ width: 760, height: 900 }, { width: 1024, height: 768 
     });
   });
 }
+
+// The account is in Europe/Madrid and the browser in New York, where Madrid's midnight is still
+// the evening before, so a chip on the wrong day would show up a column early.
+test.describe('no-time entries', () => {
+  test.use({ timezoneId: 'America/New_York', viewport: { width: 1280, height: 800 } });
+
+  test('sit as chips in the all-day row on the account day, count in the day total and have no drag handles', async ({ page, data }) => {
+    // Madrid: Monday 15 June, today, and the Sunday that ends the week.
+    await data.createEntry({ description: 'Standup', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
+    const chores = await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
+    await data.createNoTimeEntry({ description: 'Sunday errands', day: '2026-06-21', duration: 2700 });
+    await page.clock.setFixedTime(new Date('2026-06-15T10:00:00Z'));
+    await login(page);
+    await expectBrowserTimeZone(page, 'America/New_York');
+    await openCalendar(page);
+
+    const allDay = page.getByRole('group', { name: 'All-day entries' });
+    const cells = allDay.locator('.calendar-all-day-cell');
+    await expect(cells).toHaveCount(7);
+    const chip = cells.nth(0).getByRole('button', { name: 'Admin chores, 1:30:00', exact: true });
+    await expect(chip).toBeVisible();
+    await expect(cells.nth(6).getByRole('button', { name: 'Sunday errands, 0:45:00', exact: true })).toBeVisible();
+    await expect(allDay.getByRole('button')).toHaveCount(2);
+    // Chips stay out of the hour grid, whose only block is the timed entry.
+    await expect(page.locator('.calendar-block:not(.calendar-ghost)')).toHaveCount(1);
+    await expect(page.locator('.calendar-day-head').first().locator('small')).toHaveText('2:30:00');
+    await expect(page.locator('.calendar-toolbar strong')).toHaveText('3:15:00');
+
+    // No resize handle, and dragging a chip moves nothing.
+    await expect(chip.locator('.calendar-resize')).toHaveCount(0);
+    const writes = entryWrites(page);
+    await dragBy(page, chip, 2);
+    await expect(page.getByRole('dialog', { name: 'Edit entry' })).toHaveCount(0);
+    expect(writes).toEqual([]);
+    expect(await savedTimes(page, chores.id)).toEqual({ start: '2026-06-14T22:00:00+00:00', stop: '2026-06-14T23:30:00+00:00' });
+
+    // The phone day view keeps today's chip and total.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.calendar-column')).toHaveCount(1);
+    await expect(page.getByRole('group', { name: 'Days of the week' }).getByRole('button', { name: 'Mon 15 Jun, 2:30:00' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(allDay.locator('.calendar-all-day-cell')).toHaveCount(1);
+    const phoneChip = allDay.getByRole('button', { name: 'Admin chores, 1:30:00', exact: true });
+    await expect(phoneChip).toBeVisible();
+    await expectFits(phoneChip);
+    await expect(allDay.getByRole('button')).toHaveCount(1);
+  });
+});

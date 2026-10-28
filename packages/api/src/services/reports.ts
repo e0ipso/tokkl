@@ -51,6 +51,7 @@ export interface ReportEntry {
   hourlyRateCents: number | null;
   currency: string;
   amountCents: number | null;
+  allDay: boolean;
 }
 
 interface EntryQueryRow {
@@ -60,6 +61,7 @@ interface EntryQueryRow {
   stop: string;
   updated_at: string;
   billable: number;
+  all_day: number;
   project_id: number | null;
   project_name: string | null;
   project_color: string | null;
@@ -164,7 +166,7 @@ export function collectEntries(db: Db, user: UserRow, workspace: WorkspaceRow, f
   }
 
   const rows = db.prepare(`
-    SELECT te.id, te.description, te.start, te.stop, te.updated_at, te.billable, te.project_id, te.task_id,
+    SELECT te.id, te.description, te.start, te.stop, te.updated_at, te.billable, te.all_day, te.project_id, te.task_id,
       p.name AS project_name, p.color AS project_color, p.rate AS project_rate, p.currency AS project_currency,
       c.id AS client_id, c.name AS client_name, t.name AS task_name,
       (SELECT json_group_array(json_object('id', id, 'name', name)) FROM (
@@ -207,6 +209,7 @@ export function collectEntries(db: Db, user: UserRow, workspace: WorkspaceRow, f
       hourlyRateCents,
       currency,
       amountCents: hourlyRateCents === null ? null : Math.round((seconds / 3600) * hourlyRateCents),
+      allDay: asBool(row.all_day),
     };
   });
 }

@@ -139,3 +139,20 @@ test('Toggl compatibility CSV exports keep their 366-day cap while the app expor
     expect(kind === 'detailed' ? rows[1]![11] : rows[1]![2]).toBe('0:15:00');
   }
 });
+
+test('the detailed CSV leaves the time cells of a no-time entry blank and keeps its date and duration', async ({ page, api, data }) => {
+  await api.entry({ description: 'Standup', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
+  await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
+  await login(page);
+  await page.goto('/reports?from=2026-06-15&to=2026-06-15&tab=detailed');
+  await expect(page.locator('tr.entry-row')).toHaveCount(2);
+
+  const detailed = await downloadCsv(page, 'CSV (detailed)');
+  expect(detailed.rows[0]).toEqual(DETAILED_HEADER);
+  // Start date, Start time, End date, End time and Duration, by description.
+  const cells = Object.fromEntries(detailed.rows.slice(1).map((row) => [row[5]!, row.slice(7, 12)]));
+  expect(cells).toEqual({
+    'Admin chores': ['2026-06-15', '', '2026-06-15', '', '1:30:00'],
+    Standup: ['2026-06-15', '09:00:00', '2026-06-15', '10:00:00', '1:00:00'],
+  });
+});

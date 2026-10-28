@@ -4,7 +4,7 @@ import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
 import { assignLanes, heightClearingMarkers } from '../lib/calendarLanes.ts';
-import { DAY_MODE_QUERY, classifySwipe, clampDayMove, dragStep, droppedMinute, fitMoveInDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
+import { DAY_MODE_QUERY, classifySwipe, clampDayMove, dragStep, droppedMinute, fitMoveInDay, splitAllDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { arrowTarget } from './arrowKeys.ts';
@@ -95,7 +95,9 @@ export function WeekCalendar() {
   const stripButtons = useRef<(HTMLButtonElement | null)[]>([]);
   // Where a day-mode gesture on the grid began, until pointer up decides whether it was a swipe.
   const swipeStart = useRef<{ pointerId: number; x: number; y: number } | null>(null);
-  const blocks = useMemo(() => layout(entries, days, settings.timeZone, now), [entries, days, settings.timeZone, now]);
+  // No-time entries have no place on the clock, so only timed ones reach the lane layout.
+  const { timed, allDay } = useMemo(() => splitAllDay(entries, days, settings.timeZone), [entries, days, settings.timeZone]);
+  const blocks = useMemo(() => layout(timed, days, settings.timeZone, now), [timed, days, settings.timeZone, now]);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: 7 * HOUR_HEIGHT });
@@ -314,6 +316,34 @@ export function WeekCalendar() {
           ))}
         </div>
       )}
+      {allDay.size > 0 ? (
+        // One cell per shown day, in the columns of the day heads. Chips open the editor and take no part in grid gestures.
+        <div className="calendar-all-day" role="group" aria-label="All-day entries">
+          <div className="calendar-all-day-label">All day</div>
+          {days.map((day) => (
+            <div key={day} className="calendar-all-day-cell">
+              {(allDay.get(day) ?? []).map((entry) => {
+                const elapsed = duration(entrySeconds(entry, now), settings);
+                const label = [entry.description || '(no description)', entry.project_name, elapsed].filter(Boolean).join(', ');
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className="calendar-chip"
+                    style={projectColorStyle(entry.project_color ?? 'var(--muted)')}
+                    aria-label={label}
+                    title={label}
+                    onClick={() => setEditing(entry)}
+                  >
+                    <strong>{entry.description || entry.project_name || '(no description)'}</strong>
+                    <span className="calendar-block-duration">{elapsed}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="calendar-frame">
         <div
           className="calendar-body"

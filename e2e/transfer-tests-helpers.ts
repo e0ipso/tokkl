@@ -45,6 +45,7 @@ export interface Entry {
   description: string;
   start: string;
   stop: string | null;
+  all_day: boolean;
   billable: boolean;
   project_id: number | null;
   project_name: string | null;

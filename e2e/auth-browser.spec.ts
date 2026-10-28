@@ -56,10 +56,11 @@ test('the startup log prints the setup code until the first admin exists', async
 
 /**
  * Makes a database that the current server created look like one from before migration `version`.
- * The tables that later migrations create go, because the migrations would create them again.
+ * The tables and columns that later migrations create go, because the migrations would create them again.
  */
 function rewindDatabase(db: DatabaseSync, version: number) {
   db.exec('DROP TABLE pomodoro_sessions; DROP TABLE pause_chains; DROP TABLE timer_states');
+  db.exec('ALTER TABLE time_entries DROP COLUMN all_day');
   db.exec(`PRAGMA user_version = ${version}`);
 }
 
@@ -145,7 +146,7 @@ test('an upgraded account drops retired Pomodoro toggles and restores a legacy b
   try {
     const row = migrated.prepare('SELECT preferences FROM users WHERE email = ?').get(ACCOUNT.email) as { preferences: string };
     expect(JSON.parse(row.preferences)).toEqual(retained);
-    expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 });
+    expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 9 });
   } finally {
     migrated.close();
   }

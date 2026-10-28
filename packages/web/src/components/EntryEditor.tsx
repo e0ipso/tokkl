@@ -2,9 +2,12 @@ import { useMemo, useRef, useState } from 'react';
 import { useCreateEntry, useDeleteEntry, useProjects, useRestoreEntry, useUpdateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
+import { snapDuration } from '@tokkl/common/snap';
 import { addDays } from '@tokkl/common/time';
 import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
+import { noTimeSeconds } from '../lib/noTimeDuration.ts';
+import { noTimeFields } from '../lib/noTimeEdit.ts';
 import {
   entrySeconds, formatTime, minutesOfDay, snappedSeconds, snappedSplit, useNow, useSettings, type SplitHalves,
 } from '../lib/settings.ts';
@@ -12,6 +15,7 @@ import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { Modal } from './Overlay.tsx';
 import { ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
+import { DurationField } from './TimeFields.tsx';
 import { useToast } from './Toast.tsx';
 
 const SPLIT_PROBLEMS = {
@@ -34,19 +38,26 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const [tags, setTags] = useState(entry.tags);
   const [billable, setBillable] = useState(entry.billable);
   const [day, setDay] = useState(localDay(entry.start, settings.timeZone));
-  const [startText, setStartText] = useState(formatTime(entry.start, settings));
-  const [endText, setEndText] = useState(entry.stop ? formatTime(entry.stop, settings) : '');
+  // A no-time entry has no times to show: its start and end stay empty until it becomes timed.
+  const [noTimes, setNoTimes] = useState(entry.all_day);
+  const [startText, setStartText] = useState(entry.all_day ? '' : formatTime(entry.start, settings));
+  const [endText, setEndText] = useState(entry.stop && !entry.all_day ? formatTime(entry.stop, settings) : '');
   // Saving snaps the entry to the time resolution, so the duration shows the snapped length.
-  const [durationText, setDurationText] = useState(formatDuration(
+  const [durationText, setDurationText] = useState(entry.all_day ? '' : formatDuration(
     entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : entrySeconds(entry, now),
   ));
+  // The duration a no-time entry is stored with, which a no-time save sends when it changes.
+  const [storedNoTimeLength] = useState(() => entry.all_day
+    ? snapDuration(entrySeconds(entry, now), settings.timeResolution)
+    : entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : 0);
+  const [noTimeLength, setNoTimeLength] = useState(storedNoTimeLength);
   // What the fields showed when the editor opened, and the duration last derived from start/end.
   // Times are typed to the minute, so unchanged fields must not be sent back: that would drop the
   // seconds, or pick the wrong hour when a DST change makes a wall time ambiguous.
   const [initial] = useState(() => ({
     day: localDay(entry.start, settings.timeZone),
-    start: formatTime(entry.start, settings),
-    end: entry.stop ? formatTime(entry.stop, settings) : '',
+    start: entry.all_day ? '' : formatTime(entry.start, settings),
+    end: entry.stop && !entry.all_day ? formatTime(entry.stop, settings) : '',
   }));
   const [syncedDuration, setSyncedDuration] = useState(durationText);
   const [splitText, setSplitText] = useState('');
@@ -63,12 +74,13 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
 
   const timeOptions = { timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(now, settings.timeZone) };
   const range = useMemo(() => {
+    if (noTimes) return null;
     if (running) {
       const minutes = parseTimeOfDay(startText, { twelveHour: settings.twelveHour, reference: timeOptions.nowMinutes });
       return minutes === null ? null : { start: instantAt(day, minutes, settings.timeZone), stop: null };
     }
     return resolveRange(day, startText, endText, timeOptions);
-  }, [day, startText, endText, running, settings.timeZone, settings.twelveHour, timeOptions.nowMinutes]);
+  }, [day, startText, endText, running, noTimes, settings.timeZone, settings.twelveHour, timeOptions.nowMinutes]);
 
   const startChanged = day !== initial.day || startText !== initial.start;
   const endChanged = day !== initial.day || endText !== initial.end;
@@ -91,7 +103,32 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     setDurationText(formatDuration(snappedSeconds(start, stop, settings)));
   };
 
+  const toggleNoTimes = (on: boolean) => {
+    setNoTimes(on);
+    (['start', 'end', 'duration'] as const).forEach(fields.clear);
+    if (!on || entry.all_day) return;
+    // A timed entry keeps its date and takes the length its fields show now.
+    const typed = parseDuration(durationText);
+    if (typed) setNoTimeLength(snapDuration(typed, settings.timeResolution));
+  };
+
+  const saveNoTimes = async () => {
+    const send = noTimeFields(entry, { day, seconds: noTimeLength }, { day: initial.day, seconds: storedNoTimeLength });
+    // Only a changed day or duration is sent, so only then must it be valid.
+    const { error: problem } = noTimeSeconds(noTimeLength, settings.timeResolution);
+    if (!fields.validate([['duration', send.all_day && problem]])) return;
+    try {
+      await update.mutateAsync({
+        id: entry.id, description, project_id: projectId, task_id: taskId, tags, billable, ...send,
+      });
+      onClose();
+    } catch (error) {
+      toast.error(error);
+    }
+  };
+
   const save = async () => {
+    if (noTimes) return saveNoTimes();
     const unreadable = !range && (running ? 'start' : unreadableTime(startText, timeOptions));
     const seconds = !running && durationChanged ? parseDuration(durationText) : null;
     const timesMessage = 'Check the start and end times';
@@ -101,7 +138,9 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
       ['duration', !running && durationChanged && seconds === null && 'Check the duration'],
     ]);
     if (!valid || !range) return;
-    const times: { start?: string; stop?: string } = {};
+    const times: { start?: string; stop?: string; all_day?: boolean } = {};
+    // Leaving no-time mode needs both ends, which the range already guarantees.
+    if (entry.all_day) times.all_day = false;
     const start = startChanged ? range.start : new Date(entry.start);
     if (startChanged) times.start = start.toISOString();
     if (!running) {
@@ -120,10 +159,13 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
 
   const duplicate = async () => {
     if (!entry.stop) return;
+    const when = entry.all_day
+      ? { all_day: true, start_date: localDay(entry.start, settings.timeZone), duration: entrySeconds(entry, now) }
+      : { start: entry.start, stop: entry.stop };
     try {
       await create.mutateAsync({
         description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-        billable: entry.billable, start: entry.start, stop: entry.stop,
+        billable: entry.billable, ...when,
       });
       toast.show('Entry duplicated');
       onClose();
@@ -227,16 +269,35 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           <input type="checkbox" checked={billable} onChange={(event) => setBillable(event.target.checked)} />
           <span>Billable{project?.billable ? ' (project default)' : ''}</span>
         </label>
+        {!running ? (
+          <label className="manual-switch field-full">
+            <input type="checkbox" role="switch" checked={noTimes} onChange={(event) => toggleNoTimes(event.target.checked)} />
+            No times
+          </label>
+        ) : null}
         <label className="field">
           <span>Date</span>
           <input type="date" value={day} onChange={(event) => event.target.value && setDay(event.target.value)} />
         </label>
-        <div className="field">
-          <label htmlFor={fields.id('start')}>Start</label>
-          <input {...fields.field('start')} value={startText} onChange={(event) => setStartText(event.target.value)} onBlur={() => syncDuration(range)} />
-          {fields.message('start')}
-        </div>
-        {!running ? (
+        {noTimes ? (
+          <div className="field">
+            <label htmlFor={fields.id('duration')}>Duration</label>
+            <DurationField
+              format={settings.durationFormat}
+              seconds={noTimeLength}
+              onCommit={(seconds) => setNoTimeLength(snapDuration(seconds, settings.timeResolution))}
+              inputProps={fields.field('duration')}
+            />
+            {fields.message('duration')}
+          </div>
+        ) : (
+          <div className="field">
+            <label htmlFor={fields.id('start')}>Start</label>
+            <input {...fields.field('start')} value={startText} onChange={(event) => setStartText(event.target.value)} onBlur={() => syncDuration(range)} />
+            {fields.message('start')}
+          </div>
+        )}
+        {!running && !noTimes ? (
           <>
             <div className="field">
               <label htmlFor={fields.id('end')}>End</label>
@@ -253,7 +314,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
         {range?.stop && localDay(range.stop, settings.timeZone) !== day ? (
           <p className="field-full hint">Ends the next day, {localDay(range.stop, settings.timeZone)}.</p>
         ) : null}
-        {!running ? (
+        {!running && !noTimes && !entry.all_day ? (
           <div className="field field-full">
             <label htmlFor={fields.id('split')}>Split at</label>
             <div className="inline-controls">
