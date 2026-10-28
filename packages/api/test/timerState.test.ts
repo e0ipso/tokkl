@@ -285,6 +285,41 @@ test('deleting the task, tag or project of running entries publishes to each use
   assertHeardOnce('project delete that keeps the entries');
 });
 
+test('renaming the project, client, task or tag a timer shows publishes the new name to each user', async () => {
+  const ctx = await setup();
+  const bob = await addUser(ctx, { email: 'bob@example.com', role: 'user' });
+  addWorkspaceMember(ctx.db, ctx.wid, bob.user.id, 'member');
+  const ws = `/api/v9/workspaces/${ctx.wid}`;
+  const client = (await ctx.json('POST', `${ws}/clients`, { name: 'Acme' })).body.id as number;
+  const project = (await ctx.json('POST', `${ws}/projects`, { name: 'Alpha', client_id: client })).body.id as number;
+  const task = (await ctx.json('POST', `${ws}/projects/${project}/tasks`, { name: 'Build' })).body.id as number;
+  const tag = (await ctx.json('POST', `${ws}/tags`, { name: 'deep' })).body.id as number;
+  // Bob runs an entry in the admin's workspace. The admin is paused, with the tag on the chain.
+  await startTimer(bob, { project_id: project, task_id: task, tag_ids: [tag] }, ctx.wid);
+  putChain(ctx, null, { tag_ids: [tag] });
+  const heard = [watch(ctx), watch(bob)];
+  const state = async (who: TestContext) => (await who.json('GET', '/api/app/timer')).body;
+
+  const renames: Array<[string, string, string, (bobs: any, admins: any) => void]> = [
+    ['client', `${ws}/clients/${client}`, 'Acme Ltd', (bobs) => assert.equal(bobs.running_entry.client_name, 'Acme Ltd')],
+    ['project', `${ws}/projects/${project}`, 'Beta', (bobs) => assert.equal(bobs.running_entry.project_name, 'Beta')],
+    ['task', `${ws}/projects/${project}/tasks/${task}`, 'Ship', (bobs) => assert.equal(bobs.running_entry.task_name, 'Ship')],
+    ['tag', `${ws}/tags/${tag}`, 'focus', (bobs, admins) => {
+      assert.deepEqual(bobs.running_entry.tags, ['focus']);
+      assert.deepEqual(admins.pause.tags, ['focus']);
+    }],
+  ];
+  for (const [label, url, name, check] of renames) {
+    assert.equal((await ctx.json('PUT', url, { name })).status, 200, label);
+    // The tag is the only name the admin's paused chain shows.
+    assert.deepEqual(heard.map((seen) => seen.splice(0).length), [label === 'tag' ? 1 : 0, 1], `${label} rename`);
+    check(await state(bob), await state(ctx));
+  }
+  // A rename that shows nothing new moves no revision.
+  assert.equal((await ctx.json('PUT', `${ws}/tags/${tag}`, { name: 'focus' })).status, 200);
+  assert.deepEqual(heard.map((seen) => seen.splice(0).length), [0, 0], 'a rename to the same name');
+});
+
 test('a listener that throws is logged and the write stands; one that settles again finds nothing new', async (t) => {
   const ctx = await setup();
   const errors = t.mock.method(console, 'error', () => {});

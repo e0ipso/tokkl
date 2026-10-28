@@ -167,31 +167,34 @@ export function createProject(db: Db, wid: number, body: Record<string, unknown>
 }
 
 export function updateProject(db: Db, wid: number, id: number, body: Record<string, unknown>): ProjectWithStats {
-  const current = getProject(db, wid, id);
-  const name = body.name === undefined ? current.name : requireName(body.name, 'Project name', 255);
-  const clientId = resolveClientId(db, wid, body, current.client_id);
-  assertUniqueName(db, wid, clientId, name, id);
-  const pick = <T>(value: T | undefined, fallback: T): T => (value === undefined ? fallback : value);
-  db.prepare(`
-    UPDATE projects SET client_id = ?, name = ?, color = ?, active = ?, is_private = ?, billable = ?,
-      estimated_hours = ?, rate = ?, currency = ?, fixed_fee = ?, start_date = ?, end_date = ?, template = ?,
-      updated_at = ?
-    WHERE id = ?
-  `).run(
-    clientId, name, parseColor(body.color, current.color),
-    Number(pick(optionalBool(body.active, 'active'), asBool(current.active))),
-    Number(pick(optionalBool(body.is_private, 'is_private'), asBool(current.is_private))),
-    Number(pick(optionalBool(body.billable, 'billable'), asBool(current.billable))),
-    pick(optionalNumber(body.estimated_hours, 'estimated_hours'), current.estimated_hours),
-    pick(optionalRate(body.rate, 'rate'), current.rate),
-    parseCurrency(body.currency, current.currency),
-    pick(optionalNumber(body.fixed_fee, 'fixed_fee'), current.fixed_fee),
-    parseDate(body.start_date, 'start_date', current.start_date),
-    parseDate(body.end_date, 'end_date', current.end_date),
-    Number(pick(optionalBool(body.template, 'template'), asBool(current.template))),
-    nowIso(), id,
-  );
-  return getProject(db, wid, id);
+  return transaction(db, () => {
+    const current = getProject(db, wid, id);
+    const name = body.name === undefined ? current.name : requireName(body.name, 'Project name', 255);
+    const clientId = resolveClientId(db, wid, body, current.client_id);
+    assertUniqueName(db, wid, clientId, name, id);
+    const pick = <T>(value: T | undefined, fallback: T): T => (value === undefined ? fallback : value);
+    touchWorkspaceTimers(db, wid);
+    db.prepare(`
+      UPDATE projects SET client_id = ?, name = ?, color = ?, active = ?, is_private = ?, billable = ?,
+        estimated_hours = ?, rate = ?, currency = ?, fixed_fee = ?, start_date = ?, end_date = ?, template = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(
+      clientId, name, parseColor(body.color, current.color),
+      Number(pick(optionalBool(body.active, 'active'), asBool(current.active))),
+      Number(pick(optionalBool(body.is_private, 'is_private'), asBool(current.is_private))),
+      Number(pick(optionalBool(body.billable, 'billable'), asBool(current.billable))),
+      pick(optionalNumber(body.estimated_hours, 'estimated_hours'), current.estimated_hours),
+      pick(optionalRate(body.rate, 'rate'), current.rate),
+      parseCurrency(body.currency, current.currency),
+      pick(optionalNumber(body.fixed_fee, 'fixed_fee'), current.fixed_fee),
+      parseDate(body.start_date, 'start_date', current.start_date),
+      parseDate(body.end_date, 'end_date', current.end_date),
+      Number(pick(optionalBool(body.template, 'template'), asBool(current.template))),
+      nowIso(), id,
+    );
+    return getProject(db, wid, id);
+  });
 }
 
 /**

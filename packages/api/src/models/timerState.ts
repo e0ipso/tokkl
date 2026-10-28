@@ -51,6 +51,8 @@ interface RunningFields {
   billable: number;
   /** A JSON array of tag ids, in id order. */
   tag_ids_json: string;
+  /** The names and flags the state shows with it, as a JSON object, so renaming one moves the revision. */
+  labels_json: string;
 }
 
 /** What a revision numbers. Its JSON is the fingerprint stored with the revision. */
@@ -58,6 +60,8 @@ interface SettledState {
   running: RunningFields | null;
   session: PomodoroSessionRow | null;
   chain: PauseChainRow | null;
+  /** The names of the chain's tags that still exist, in id order, which the state shows with the pause. */
+  chain_tags: string[] | null;
 }
 
 /** A pomodoro entry that a stop sent to the trash at zero length. */
@@ -68,7 +72,7 @@ interface DiscardedPomodoro {
 }
 
 /** The fingerprint of revision 0: nothing runs, no session, no chain. A user has no row until it changes. */
-const IDLE_FINGERPRINT = JSON.stringify({ running: null, session: null, chain: null } satisfies SettledState);
+const IDLE_FINGERPRINT = JSON.stringify({ running: null, session: null, chain: null, chain_tags: null } satisfies SettledState);
 
 export function getPomodoroSession(db: Db, userId: number): PomodoroSessionRow | undefined {
   return db.prepare('SELECT * FROM pomodoro_sessions WHERE user_id = ?').get(userId) as PomodoroSessionRow | undefined;
@@ -149,7 +153,8 @@ export function touchTimer(db: Db, userId: number): void {
 
 /**
  * Touches every user whose running entry or pause chain is in workspace `wid`, for writes that
- * change other users' entries, such as deleting a project, task or tag. Call it before the write:
+ * change other users' entries, such as deleting a project, task or tag, or that rename what their
+ * timer shows, such as renaming a client, project, task or tag. Call it before the write:
  * deleting a project with its entries trashes the running entries this looks for.
  */
 export function touchWorkspaceTimers(db: Db, wid: number): void {
@@ -179,7 +184,8 @@ export function settleTimer(db: Db, userId: number): boolean {
     const running = getRunningFields(db, userId);
     const runningId = running?.id ?? null;
     const { session, ended } = settleSession(db, userId, runningId);
-    const state: SettledState = { running, session, chain: settleChain(db, userId, runningId) };
+    const chain = settleChain(db, userId, runningId);
+    const state: SettledState = { running, session, chain, chain_tags: chain && chainTagNames(db, chain) };
     const fingerprint = JSON.stringify(state);
     const stored = getTimerStateRow(db, userId);
     if (fingerprint === (stored?.fingerprint ?? IDLE_FINGERPRINT)) return false;
@@ -200,10 +206,25 @@ export function settleTimer(db: Db, userId: number): boolean {
 function getRunningFields(db: Db, userId: number): RunningFields | null {
   const row = db.prepare(`
     SELECT id, workspace_id, project_id, task_id, description, start, billable,
-      (SELECT json_group_array(tag_id ORDER BY tag_id) FROM time_entry_tags WHERE time_entry_id = te.id) AS tag_ids_json
+      (SELECT json_group_array(tag_id ORDER BY tag_id) FROM time_entry_tags WHERE time_entry_id = te.id) AS tag_ids_json,
+      json_object(
+        'project', (SELECT json_array(p.name, p.color, p.active, p.billable, c.name)
+          FROM projects p LEFT JOIN clients c ON c.id = p.client_id WHERE p.id = te.project_id),
+        'task', (SELECT json_array(t.name, t.active) FROM tasks t WHERE t.id = te.task_id),
+        'tags', (SELECT json_group_array(g.name ORDER BY g.id)
+          FROM time_entry_tags et JOIN tags g ON g.id = et.tag_id WHERE et.time_entry_id = te.id)
+      ) AS labels_json
     FROM time_entries te WHERE user_id = ? AND stop IS NULL AND deleted_at IS NULL
   `).get(userId) as RunningFields | undefined;
   return row ?? null;
+}
+
+/** The names of `chain`'s tags that still exist, in id order. */
+function chainTagNames(db: Db, chain: PauseChainRow): string[] {
+  const rows = db.prepare(`
+    SELECT name FROM tags WHERE id IN (SELECT value FROM json_each(?)) AND workspace_id = ? ORDER BY id
+  `).all(chain.tag_ids_json, chain.workspace_id) as Array<{ name: string }>;
+  return rows.map((row) => row.name);
 }
 
 /** Ends the session when its entry is not the running one. Returns the session that stays, and the entry of one that ended. */

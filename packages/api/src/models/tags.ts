@@ -57,12 +57,15 @@ export function resolveTagNames(db: Db, wid: number, names: string[]): number[] 
 }
 
 export function updateTag(db: Db, wid: number, id: number, body: Record<string, unknown>): TagRow {
-  getTag(db, wid, id);
-  const name = requireName(body.name, 'Tag name', 255);
-  const existing = findByName(db, wid, name);
-  if (existing && existing.id !== id) throw badRequest('A tag with the same name already exists');
-  db.prepare('UPDATE tags SET name = ?, updated_at = ? WHERE id = ?').run(name, nowIso(), id);
-  return getTag(db, wid, id);
+  return transaction(db, () => {
+    getTag(db, wid, id);
+    const name = requireName(body.name, 'Tag name', 255);
+    const existing = findByName(db, wid, name);
+    if (existing && existing.id !== id) throw badRequest('A tag with the same name already exists');
+    touchWorkspaceTimers(db, wid);
+    db.prepare('UPDATE tags SET name = ?, updated_at = ? WHERE id = ?').run(name, nowIso(), id);
+    return getTag(db, wid, id);
+  });
 }
 
 /** Deletes a tag. The entries that carry it lose it, running ones included, and so do pause chains. */

@@ -89,16 +89,19 @@ export function createTask(db: Db, wid: number, projectId: number, body: Record<
 }
 
 export function updateTask(db: Db, wid: number, projectId: number, id: number, body: Record<string, unknown>): TaskWithMeta {
-  const current = getTask(db, wid, id, projectId);
-  const name = body.name === undefined ? current.name : requireName(body.name, 'Task name', 255);
-  assertUniqueName(db, projectId, name, id);
-  const active = optionalBool(body.active, 'active');
-  const estimate = optionalNumber(body.estimated_seconds, 'estimated_seconds');
-  db.prepare('UPDATE tasks SET name = ?, active = ?, estimated_seconds = ?, updated_at = ? WHERE id = ?').run(
-    name, active === undefined ? current.active : Number(active),
-    estimate === undefined ? current.estimated_seconds : estimate, nowIso(), id,
-  );
-  return getTask(db, wid, id);
+  return transaction(db, () => {
+    const current = getTask(db, wid, id, projectId);
+    const name = body.name === undefined ? current.name : requireName(body.name, 'Task name', 255);
+    assertUniqueName(db, projectId, name, id);
+    const active = optionalBool(body.active, 'active');
+    const estimate = optionalNumber(body.estimated_seconds, 'estimated_seconds');
+    touchWorkspaceTimers(db, wid);
+    db.prepare('UPDATE tasks SET name = ?, active = ?, estimated_seconds = ?, updated_at = ? WHERE id = ?').run(
+      name, active === undefined ? current.active : Number(active),
+      estimate === undefined ? current.estimated_seconds : estimate, nowIso(), id,
+    );
+    return getTask(db, wid, id);
+  });
 }
 
 /** Deletes a task. Its entries are kept without it, running ones included. */
