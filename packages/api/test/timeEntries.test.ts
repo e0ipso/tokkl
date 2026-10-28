@@ -731,3 +731,78 @@ test('an older entry that rounds to zero keeps its times through edits that leav
   const moved = await ctx.json('PUT', `${url}/${entry.body.id}`, { start: '2026-10-14T09:01:00Z' });
   assert.equal(moved.status, 400);
 });
+
+function entryCount(ctx: TestContext): number {
+  return (ctx.db.prepare('SELECT COUNT(*) AS n FROM time_entries').get() as { n: number }).n;
+}
+
+test('a no-time entry starts at local midnight and keeps a snapped duration', async () => {
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  await setResolution(ctx, 15);
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+
+  // 5000 seconds is nearer 5400 than 4500 at 15 minutes.
+  const byDate = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 5000, description: 'reading' });
+  assert.equal(byDate.status, 200);
+  assertStored(ctx, byDate.body, '2026-10-13T22:00:00+00:00', '2026-10-13T23:30:00+00:00');
+  assert.equal(byDate.body.duration, 5400);
+  assert.equal(byDate.body.all_day, true);
+  assert.equal(byDate.body.duronly, true);
+  const row = ctx.db.prepare('SELECT all_day FROM time_entries WHERE id = ?').get(byDate.body.id) as { all_day: number };
+  assert.equal(row.all_day, 1);
+
+  // 23:30Z on the 14th is already the 15th in Madrid. A duration of exactly half a step goes up.
+  const byStart = await ctx.json('POST', url, { all_day: true, start: '2026-10-14T23:30:00Z', duration: 450 });
+  assert.equal(byStart.status, 200);
+  assertStored(ctx, byStart.body, '2026-10-14T22:00:00+00:00', '2026-10-14T22:15:00+00:00');
+
+  const byStop = await ctx.json('POST', url, { all_day: true, start: '2026-10-16T09:10:00+02:00', stop: '2026-10-16T17:10:00+02:00' });
+  assert.equal(byStop.status, 200);
+  assertStored(ctx, byStop.body, '2026-10-15T22:00:00+00:00', '2026-10-16T06:00:00+00:00');
+
+  const timed = await ctx.json('POST', url, { all_day: false, start: '2026-10-14T09:07:00Z', duration: 900 });
+  assert.equal(timed.status, 200);
+  assertStored(ctx, timed.body, '2026-10-14T09:00:00+00:00', '2026-10-14T09:15:00+00:00');
+  assert.equal(timed.body.all_day, false);
+});
+
+test('a no-time entry that is running, rounds to zero, runs over a day or has no duration is refused', async () => {
+  const ctx = await setup({ timezone: 'America/New_York' });
+  await setResolution(ctx, 15);
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const cases: Array<[Record<string, unknown>, string]> = [
+    [{ duration: 0 }, 'Time entry is too short: it rounds to zero at the 15-minute time resolution'],
+    [{ duration: 449 }, 'Time entry is too short: it rounds to zero at the 15-minute time resolution'],
+    [{ duration: 90000 }, 'No-time entries can not be longer than 24 hours'],
+    [{ duration: -1 }, 'No-time entries can not be running'],
+    [{}, 'No-time entries need a duration'],
+    [{ start_date: '2026-02-30', duration: 3600 }, 'Invalid start_date: expected YYYY-MM-DD'],
+  ];
+  for (const [body, message] of cases) {
+    const created = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', ...body });
+    assert.deepEqual([created.status, created.body], [400, message], JSON.stringify(body));
+  }
+  assert.equal(entryCount(ctx), 0);
+  assert.equal(runningCount(ctx), 0);
+
+  const day = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 86400 });
+  assert.equal(day.status, 200);
+  assert.equal(day.body.duration, 86400);
+});
+
+test('entry lists and since sync return all_day', async () => {
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+  const before = Math.floor(Date.now() / 1000) - 1;
+  const noTime = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
+  const timed = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 600 });
+  const flags = (entries: any[]) => Object.fromEntries(entries.map((e) => [e.id, e.all_day]));
+  const expected = { [noTime.body.id]: true, [timed.body.id]: false };
+
+  const range = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-14&end_date=2026-10-15');
+  assert.deepEqual(flags(range.body), expected);
+  const withMeta = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-14&end_date=2026-10-15&meta=true');
+  assert.deepEqual(flags(withMeta.body), expected);
+  const since = await ctx.json('GET', `/api/v9/me/time_entries?since=${before}`);
+  assert.deepEqual(flags(since.body), expected);
+});

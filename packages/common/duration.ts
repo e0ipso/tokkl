@@ -3,6 +3,9 @@ import type { DurationFormat } from '@tokkl/types';
 /** Toggl rejects entries longer than 999 hours. */
 export const MAX_DURATION_SECONDS = 999 * 3600;
 
+/** The longest no-time entry: one day's worth. */
+export const MAX_ALL_DAY_SECONDS = 24 * 3600;
+
 const UNIT_SECONDS: ReadonlyMap<string, number> = new Map([
   ['h', 3600], ['hr', 3600], ['hrs', 3600], ['hour', 3600], ['hours', 3600],
   ['m', 60], ['min', 60], ['mins', 60], ['minute', 60], ['minutes', 60],

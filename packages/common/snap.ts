@@ -42,6 +42,12 @@ export function snapSpan(start: Date, stop: Date, minutes: number, timeZone: str
   return snappedStop > snappedStart ? { start: snappedStart, stop: snappedStop } : null;
 }
 
+/** A duration snapped to the nearest multiple of the resolution, a tie going up. */
+export function snapDuration(seconds: number, minutes: number): number {
+  const step = minutes * 60;
+  return Math.floor((Math.trunc(seconds) + step / 2) / step) * step;
+}
+
 /** The grid point of a resolution of `minutes` nearest `at` on the wall clock of `timeZone`, the later one on a tie. */
 export function snapInstant(at: Date, minutes: number, timeZone: string): Date {
   if (!isTimeResolution(minutes)) throw new RangeError(`Invalid time resolution: ${minutes}`);

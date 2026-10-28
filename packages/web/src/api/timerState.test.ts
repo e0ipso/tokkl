@@ -12,6 +12,7 @@ import { clockOffset, serverNow } from './serverClock.ts';
 const entry: TimeEntry = {
   id: 7, workspace_id: 1, project_id: null, task_id: null, billable: false, start: '2026-10-27T10:00:00.000Z',
   stop: null, duration: -1, description: 'Write', tags: [], tag_ids: [], at: '2026-10-27T10:00:00.000Z', server_deleted_at: null,
+  all_day: false,
 };
 
 function state(revision: number, overrides: Partial<TimerState> = {}): TimerState {
