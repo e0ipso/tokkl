@@ -278,6 +278,14 @@ export class TestData {
     }));
   }
 
+  /** Seeds a no-time entry on `day` (YYYY-MM-DD in the account zone) that lasts `duration` seconds. */
+  async createNoTimeEntry(entry: { description: string; day: string; duration: number }): Promise<{ id: number }> {
+    return json(this.api.post(`/api/v9/workspaces/${this.workspaceId}/time_entries`, {
+      headers: CSRF,
+      data: { description: entry.description, all_day: true, start_date: entry.day, duration: entry.duration, created_with: 'e2e' },
+    }));
+  }
+
   async createClient(name: string): Promise<{ id: number }> {
     return json(this.api.post(`/api/v9/workspaces/${this.workspaceId}/clients`, { headers: CSRF, data: { name } }));
   }

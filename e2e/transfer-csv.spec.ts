@@ -1,5 +1,6 @@
 import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { login, loginAs } from './helpers.ts';
+import { parseCsv } from './report-tests-helpers.ts';
 import {
   accountTime, chooseCsv, expectEmptyAccount, openSettings, readAccount, recentDate, transferFixture,
 } from './transfer-tests-helpers.ts';
@@ -194,4 +195,46 @@ test('a Toggl CSV from several users imports only the users picked in the previe
     ['Alice with an email', accountTime('2026-04-07', '09:00:00'), 'Website'],
     ['Sam second', accountTime('2026-04-07', '10:00:00'), 'Internal'],
   ]);
+});
+
+// The exported file blanks the time cells of a no-time entry and keeps its date and duration. The
+// target account is in New York, so the entry must land on the file's date there, not shift with the zone.
+test('a no-time entry round-trips through the CSV export into another account, and a second import adds nothing', async ({ page, data, users }) => {
+  await data.createEntry({ description: 'Standup', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
+  await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
+  await login(page);
+  const text = await (await page.request.get('/api/app/export.csv')).text();
+  const rows = parseCsv(text);
+  // Start date, Start time, End date, End time and Duration.
+  const cells = (description: string) => rows.find((row) => row[5] === description)!.slice(7, 12);
+  expect(cells('Admin chores')).toEqual(['2026-06-15', '', '2026-06-15', '', '1:30:00']);
+  expect(cells('Standup')).toEqual(['2026-06-15', '09:00:00', '2026-06-15', '10:00:00', '1:00:00']);
+
+  const fresh = await users.create({ timezone: 'America/New_York' });
+  await page.context().clearCookies();
+  await loginAs(page, fresh.account);
+  await expectEmptyAccount(page, fresh.workspaceId);
+  await openSettings(page);
+  const summary = page.locator('.import-summary').first();
+  const file = { name: 'tokkl-export.csv', mimeType: 'text/csv', buffer: Buffer.from(text) };
+  await chooseCsv(page, file);
+  await expect(summary).toContainText('2 entries to import');
+  await page.getByRole('button', { name: 'Import 2 entries' }).click();
+  await expect(summary).toContainText('2 entries imported');
+
+  const imported = async () => (await readAccount(page, fresh.workspaceId)).entries.map((e) => ({
+    description: e.description, all_day: e.all_day, start: e.start, stop: e.stop,
+  }));
+  // New York is on summer time, four hours behind UTC: the no-time entry starts at its local midnight.
+  const expected = [
+    { description: 'Admin chores', all_day: true, start: '2026-06-15T04:00:00+00:00', stop: '2026-06-15T05:30:00+00:00' },
+    { description: 'Standup', all_day: false, start: '2026-06-15T13:00:00+00:00', stop: '2026-06-15T14:00:00+00:00' },
+  ];
+  expect(await imported()).toEqual(expected);
+
+  await chooseCsv(page, file);
+  await expect(summary).toContainText('0 entries to import');
+  await expect(summary).toContainText('2 already here, skipped');
+  await expect(page.getByRole('button', { name: /^Import \d+ entr/ })).toBeDisabled();
+  expect(await imported()).toEqual(expected);
 });

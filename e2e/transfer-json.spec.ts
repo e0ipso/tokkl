@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures.ts';
-import { login } from './helpers.ts';
+import { login, loginAs } from './helpers.ts';
 import { chooseJson, expectEmptyAccount, openSettings, readAccount, transferFixture } from './transfer-tests-helpers.ts';
 
 test('JSON restore previews without writing, then restores missing entities with their metadata once', async ({ page, data }) => {
@@ -190,4 +190,45 @@ test('JSON restore committed while a timer runs skips the running entry and keep
   await page.getByRole('link', { name: 'Timer' }).click();
   await expect(timer.getByLabel('Description')).toHaveValue('Running here');
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+});
+
+// The backup records the account zone, so a no-time entry restored into a New York account keeps
+// the Madrid date it was made on.
+test('a no-time entry round-trips through the JSON backup into another account, and a second restore adds nothing', async ({ page, data, users }) => {
+  await data.createEntry({ description: 'Standup', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
+  await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
+  await login(page);
+  const backup = await (await page.request.get('/api/app/export.json')).body();
+  const chores = JSON.parse(backup.toString()).time_entries.find((e: { description: string }) => e.description === 'Admin chores');
+  expect(chores).toMatchObject({ all_day: true, start: '2026-06-14T22:00:00+00:00', stop: '2026-06-14T23:30:00+00:00' });
+
+  const fresh = await users.create({ timezone: 'America/New_York' });
+  await page.context().clearCookies();
+  await loginAs(page, fresh.account);
+  await expectEmptyAccount(page, fresh.workspaceId);
+  await openSettings(page);
+  const summary = page.locator('.import-summary').last();
+  const restore = page.getByRole('button', { name: 'Restore' });
+  const file = { name: 'tokkl-backup.json', mimeType: 'application/json', buffer: backup };
+  await chooseJson(page, file);
+  await expect(summary).toContainText('2 entries to add');
+  await restore.click();
+  await expect(summary).toContainText('2 entries added');
+
+  const restored = async () => (await readAccount(page, fresh.workspaceId)).entries.map((e) => ({
+    description: e.description, all_day: e.all_day, start: e.start, stop: e.stop,
+  }));
+  // New York is on summer time, four hours behind UTC: the no-time entry starts at its local midnight.
+  const expected = [
+    { description: 'Admin chores', all_day: true, start: '2026-06-15T04:00:00+00:00', stop: '2026-06-15T05:30:00+00:00' },
+    { description: 'Standup', all_day: false, start: '2026-06-15T07:00:00+00:00', stop: '2026-06-15T08:00:00+00:00' },
+  ];
+  expect(await restored()).toEqual(expected);
+
+  await chooseJson(page, file);
+  await expect(summary).toContainText('0 entries to add');
+  await expect(summary).toContainText('2 already here, skipped');
+  await restore.click();
+  await expect(summary).toContainText('0 entries added');
+  expect(await restored()).toEqual(expected);
 });

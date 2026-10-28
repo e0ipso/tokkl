@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-import { TimerApi } from './timer-tests-helpers.ts';
+import { TimerApi, madridWallClock } from './timer-tests-helpers.ts';
+import { accountTime } from './transfer-tests-helpers.ts';
 
 // Manual mode persists per user (docs/PRD.md M1), an end before the start rolls to the next
 // account-local day (M3), and each saved entry's stored stop becomes the next start (M5). The e2e
@@ -132,4 +133,40 @@ test('a 12-hour sequence with explicit suffixes chains across both clock changes
     { end: '9am', duration: '6:30:00', next: { date: '2025-10-26', start: '9:00 AM' }, saved: ['2025-10-26T01:30:00Z', '2025-10-26T08:00:00Z'] },
   ]);
   await expectChained(page, api, '2025-10-25 11pm', 2);
+});
+
+test('a no-time manual entry lists with its duration, no time range and no overlap mark, and bad durations show an error', async ({ page, data }) => {
+  // A past day inside the list's window, so midnight never moves it. The timed entry sits inside
+  // the no-time entry's stored span, which would overlap if that span counted.
+  const day = madridWallClock(new Date(Date.now() - 3 * 86_400_000)).day;
+  await data.createEntry({ description: 'Timed neighbour', start: accountTime(day, '00:30:00'), stop: accountTime(day, '01:00:00') });
+  await login(page);
+  const timer = page.getByRole('region', { name: 'Timer' });
+  await timer.getByRole('button', { name: 'Manual mode' }).click();
+  await timer.getByRole('switch', { name: 'No times' }).check();
+  await expect(timer.getByLabel('Start time')).toHaveCount(0);
+  await expect(timer.getByLabel('End time')).toHaveCount(0);
+  await timer.getByLabel('Date').fill(day);
+  await timer.getByLabel('Description').fill('Offline workshop');
+
+  await timer.getByLabel('Duration').fill('0');
+  await timer.getByLabel('Duration').press('Enter');
+  await expect(timer.getByText('The duration rounds to zero at the 5-minute time resolution')).toBeVisible();
+  await timer.getByLabel('Duration').fill('25h');
+  await timer.getByLabel('Duration').press('Enter');
+  await expect(timer.getByText('No-time entries can be at most 24 hours')).toBeVisible();
+  await expect(page.locator('.entry-line', { has: page.locator('input[value="Offline workshop"]') })).toHaveCount(0);
+
+  await timer.getByLabel('Duration').fill('1h 30m');
+  await timer.getByLabel('Duration').press('Enter');
+  const row = page.locator('.entry-line', { has: page.locator('input[value="Offline workshop"]') });
+  await expect(row).toHaveCount(1);
+  await expect(row.locator('.entry-duration')).toHaveValue('1:30:00');
+  await expect(row.getByRole('button', { name: 'Edit times' })).toHaveText('');
+  await expect(page.locator('.overlap-mark')).toHaveCount(0);
+  await expect(page.locator('.day-group', { has: row }).locator('.day-total')).toHaveText('2:00:00');
+
+  const saved = (await (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01')).json() as Array<{ description: string; all_day: boolean; start: string; stop: string }>)
+    .find((entry) => entry.description === 'Offline workshop')!;
+  expect([saved.all_day, saved.start, saved.stop]).toEqual([true, accountTime(day, '00:00:00'), accountTime(day, '01:30:00')]);
 });
