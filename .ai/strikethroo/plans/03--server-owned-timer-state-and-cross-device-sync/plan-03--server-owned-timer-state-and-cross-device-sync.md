@@ -289,3 +289,41 @@ No circular dependencies. Tasks 09 and 10 change the core API, so the KDE, GNOME
 ### Execution Summary
 - Total Phases: 8
 - Total Tasks: 15
+
+## Execution Summary
+
+**Status**: ✅ Completed Successfully
+**Completed Date**: 2026-10-28
+
+### Results
+
+All 8 phases and 15 tasks are complete on `feature/3--server-owned-timer-state-and-cross-device-sync`, in 10 commits from `6c78f5e` to `cc8d027` on top of the Strikethroo 4.4.1 update (`59acff8`).
+
+- The API keeps one timer state per user (running entry, pause chain or Pomodoro session), settles it on every entry write, serves it at `GET /api/app/timer` with six revision-checked actions, and pushes it over `GET /api/app/timer/events`.
+- The web follows the stream, polls only while it is down, and keeps no session or pause data in `localStorage`. Its session store, unsaved queue, Web Lock, retry, lifecycle, pause chain and tab chain modules are deleted.
+- `desktop/core` has a shared `TimerStateClient`; `TimerController` and `PomodoroSession` are views of the server state. The cycle, snap, queue, record and chain store code is deleted. KDE, GNOME and macOS run on it.
+- Docs, PRD and kenkeep nodes describe the new model, including reverse proxy settings for the stream.
+
+Verification on the final tree: `npm test` (api 245, common 155 after the cleanup, web 113, root 226), `npm run typecheck`, `check:tracker-refs` and `npx kenkeep lint` all pass. `npm run test:e2e -- --workers=2` passed 335/335 on the phase 7 tree; phase 8 did not touch the web. `desktop/core/ci/check.sh` 10/10; KDE `container-check.sh --format deb` 25/25 with the package check; KDE `realserver.sh` 14/14 Qt cases and 3/3 node tests; GNOME `ci/check.sh` 15/15 and the extension harness on Shell 50; macOS portable library 12/12 on Qt 6.11.2. Self Validation steps 1 to 10 all passed: curl against a fresh server (revisions 0 to 4 on the stream, 409 on a stale revision, snapped stopped entries, a v9 start ending the session at its start, pause and resume in the stream); two browser contexts (session visible in B 35 ms after A started it, A's alarm cleared 61 ms after B's Next phase, pause seen in B after 62 ms); `tokkl-timerd` starting a session over D-Bus that the web showed and ended; the KDE real-server test; and the greps for removed keys and modules.
+
+### Noteworthy Events
+
+- Code review gate result, verbatim: `{"kind":"skipped","reason":"review-disabled","detail":"Code review is disabled. Set code_review.enabled to true in config/config.yaml or select Enable code review in Customize to opt in.","action":"continue","codeReview":"Skipped; Code review is disabled. Set code_review.enabled to true in config/config.yaml or select Enable code review in Customize to opt in."}`. No findings were produced, so none were acted on or ignored.
+- The feature branch script refused the uncommitted Strikethroo 4.4.1 update. It was committed separately as `59acff8` and the review base commit was captured again at that commit, so the plan diff excludes it.
+- The user asked for task workers at `high` effort, never `max`. Workers ran at `high` (or `medium` for docs) even where the route asked for `xhigh` or `max`.
+- The T3 cgroup ran over its 5 GiB memory.high for hours because of another project's C++ builds. The docker CLI and host builds stalled for up to 40 minutes, a T3 restart cancelled the phase 6 workers mid-run (both were resumed from their transcripts), and one GNOME extension check hung in GNOME Shell teardown after passing (re-run clean).
+- The first full e2e run had 112 failures across unrelated specs. Running the same specs on main under the same load showed more failures there (68 vs 49 of 88), so the cause was load; the suite passes reliably with 2 workers on this host. Four real failures caused by the timer stream were fixed in the specs.
+- The web action hooks had two bugs found by their first caller: TanStack Query held offline mutations for replay (fixed with `networkMode: 'always'`), and an edit followed by Next phase sent a stale revision (fixed by waiting for the tab's own writes and re-reading the revision only when phase and pause are unchanged).
+- The post-execution cleanup removed `overtimeSeconds` and `pomodoroEntrySpan` from `packages/common/pomodoroSession.ts` with their 18 fixture cases (`cc8d027`), since their only caller was the deleted web controller.
+- The task 10 brief said `pomodorostore.*` keeps the per-transition sound picks; it never held them. The store now holds only the mode. The Pomodoro lengths are no longer remembered across restarts while offline.
+- The GNOME D-Bus interface gained `CanStartSession`. The KDE menu disables Project and Billable during a session.
+
+### Necessary follow-ups
+
+- Desktop transport resends a POST when the connection closes before any reply byte (Qt rewinds the `QByteArray` body). This predates the plan (`transport.cpp` on main sends the same way) but now surfaces as a false 409 on a resent action, and a resent v9 start can duplicate an entry. Passing the body as a sequential `QIODevice` should stop it. The KDE real-server test cuts replies partway to avoid it.
+- Decide whether the web timer bar's fields stay read-only while paused or whether the server gains an action to edit a paused chain.
+- Confirm the KDE choice to disable Project and Billable during a session.
+- The web timer bar's Start and Continue send the browser clock as the new entry's start (older behaviour). With a skewed device clock, a session ended that way stops at the server's time, not the new start.
+- The Android app (`tokkl-android`) needs its own plan against the new API.
+- Release notes: a local session or pause in flight at upgrade is dropped, and old Android builds keep device-local sessions that don't sync.
+- The macOS `*.mm` shims were only reviewed by hand; the `macos` CI job is their first real build. GNOME Shell versions other than 50 are covered by the `gnome-extension` CI matrix.
