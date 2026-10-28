@@ -1,3 +1,16 @@
+## [1.11.0](https://github.com/e0ipso/tokkl/compare/v1.10.0...v1.11.0) (2026-10-28)
+
+### Features
+
+* **api:** create no-time entries with an all_day flag ([840e288](https://github.com/e0ipso/tokkl/commit/840e288132bcd6e1cc596156b5d7a69a67715392))
+* edit, re-anchor, export and show no-time entries ([45f2fcb](https://github.com/e0ipso/tokkl/commit/45f2fcb2937a4960ff1506c81bc365a8e9dee42f))
+* import, restore and edit no-time entries ([69a5c70](https://github.com/e0ipso/tokkl/commit/69a5c7076fe6abb5e432d578cfb8a49d3b13f28a))
+
+### Bug Fixes
+
+* **api:** re-anchor from the stored timezone and read classic CSV minutes ([a6052b9](https://github.com/e0ipso/tokkl/commit/a6052b96cfd1364f65a4bb560c279b37ebf73d34))
+* **web:** fit the no-time duration field's placeholder ([5069282](https://github.com/e0ipso/tokkl/commit/50692828c4f17f5d4eda1a6647d7f98ee9c18bce))
+
 ## [1.10.0](https://github.com/e0ipso/tokkl/compare/v1.9.0...v1.10.0) (2026-10-28)
 
 ### Features
