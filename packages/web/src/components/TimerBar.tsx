@@ -389,7 +389,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             {manualNoTimes ? (
               <input
                 {...manualErrors.field('duration')}
-                className="time-field"
+                className="time-field manual-duration-field"
                 aria-label="Duration"
                 placeholder="Duration"
                 value={manualDuration}
