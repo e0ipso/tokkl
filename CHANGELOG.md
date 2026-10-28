@@ -1,3 +1,22 @@
+## [1.10.0](https://github.com/e0ipso/tokkl/compare/v1.9.0...v1.10.0) (2026-10-28)
+
+### Features
+
+* **api:** run Pomodoro sessions and the pause chain on the server ([691e348](https://github.com/e0ipso/tokkl/commit/691e3488565b6a311f62dc765631f1a5f28f9d16))
+* **api:** serve the timer state and push its changes over SSE ([6882c0b](https://github.com/e0ipso/tokkl/commit/6882c0b72eb477619a58a7c0f50938213d0fc992))
+* **api:** store per-user timer state and publish its changes ([6c78f5e](https://github.com/e0ipso/tokkl/commit/6c78f5e3b425245d50d7fd814b23c9132d2a6dd3))
+* **desktop:** run the KDE, GNOME and macOS apps on the server timer ([215a05f](https://github.com/e0ipso/tokkl/commit/215a05fc37f41af2ab4e2495429e510202f07f20))
+* drive web Pomodoro sessions and the desktop timer from the server ([fd7dbde](https://github.com/e0ipso/tokkl/commit/fd7dbdeef17bb2ca227416eeecab6f92020af481))
+* follow the server timer state on the web and the desktop core ([1e1a29f](https://github.com/e0ipso/tokkl/commit/1e1a29fc8363aa8b9b4ccc8a0304f1db07661c95))
+* move the web pause chain and desktop sessions onto the server ([9e61537](https://github.com/e0ipso/tokkl/commit/9e61537a70c089f972f149beceda9d3ce145de67))
+
+### Bug Fixes
+
+* **api:** move the timer revision when a name it shows changes ([6e2c59d](https://github.com/e0ipso/tokkl/commit/6e2c59d260b5404b287a69e98b9448a862517723))
+* **desktop:** free the Pomodoro controls after an account change ([283c52f](https://github.com/e0ipso/tokkl/commit/283c52f34e183cdbd4719383fed66a7cd4bac8c3))
+* **web:** fail a timer action at once behind a write held offline ([6110486](https://github.com/e0ipso/tokkl/commit/6110486ec519d81c7abfdc802f80822256dc6584))
+* **web:** treat a silent timer stream as down ([70f1e52](https://github.com/e0ipso/tokkl/commit/70f1e5262fe2ad7c76edc6afb4bff00a270dddaa))
+
 ## [1.9.0](https://github.com/e0ipso/tokkl/compare/v1.8.2...v1.9.0) (2026-10-27)
 
 ### Features
