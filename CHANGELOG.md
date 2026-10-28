@@ -1,3 +1,9 @@
+## [1.11.1](https://github.com/e0ipso/tokkl/compare/v1.11.0...v1.11.1) (2026-10-28)
+
+### Bug Fixes
+
+* **desktop:** use the canpicasoft.com domain for app identifiers ([6dd1200](https://github.com/e0ipso/tokkl/commit/6dd120009cbe06142b2929e9448370438ebe1518)), closes [#51](https://github.com/e0ipso/tokkl/issues/51)
+
 ## [1.11.0](https://github.com/e0ipso/tokkl/compare/v1.10.0...v1.11.0) (2026-10-28)
 
 ### Features
