@@ -112,6 +112,24 @@ test('a no-time entry survives CSV export and import into another timezone, once
   assert.deepEqual([again.created, again.skipped_duplicates], [0, 1]);
 });
 
+test('a no-time entry under an hour survives the detailed CSV in the classic duration format', async () => {
+  const source = await setup({ timezone: 'Europe/Madrid' });
+  await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
+    all_day: true, start_date: '2026-09-10', duration: 1800, description: 'Standup notes',
+  });
+  const exported = await source.request('POST', '/api/app/report/detailed.csv', {
+    start_date: '2026-09-01', end_date: '2026-09-30', duration_format: 'classic',
+  });
+  const csv = await exported.text();
+  assert.match(csv, /,30:00 min,/);
+
+  const target = await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' });
+  const result = await (await target.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  assert.deepEqual([result.created, result.errors], [1, []]);
+  const [entry] = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
+  assert.deepEqual([entry.all_day, entry.start, entry.duration], [true, '2026-09-10T04:00:00+00:00', 1800]);
+});
+
 test('CSV import refuses blank-time rows with no duration or one outside 0 to 24 hours, and imports the rest', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
   const csv = [

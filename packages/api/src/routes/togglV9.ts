@@ -184,13 +184,16 @@ export function togglV9Routes(deps: Deps): Router {
     }
 
     transaction(db, () => {
+      // Read again: another request may have changed the timezone while this one awaited scrypt, and
+      // no-time entries must move from the zone they were anchored in.
+      const storedTimeZone = getUser(db, user.id)!.timezone;
       db.prepare(`
         UPDATE users SET email = ?, fullname = ?, timezone = ?, beginning_of_week = ?, default_workspace_id = ?,
           password_hash = ?, updated_at = ?
         WHERE id = ?
-      `).run(email ?? user.email, fullname ?? user.fullname, timezone ?? user.timezone, beginningOfWeek,
+      `).run(email ?? user.email, fullname ?? user.fullname, timezone ?? storedTimeZone, beginningOfWeek,
         defaultWorkspaceId ?? user.default_workspace_id, passwordHash, nowIso(), user.id);
-      if (timezone && timezone !== user.timezone) reanchorNoTimeEntries(db, user.id, user.timezone, timezone);
+      if (timezone && timezone !== storedTimeZone) reanchorNoTimeEntries(db, user.id, storedTimeZone, timezone);
       // A new password replaces the API token, so a token saved on a lost or leaked device stops working,
       // and signs out every other browser; the one making the change stays signed in. The response
       // carries the new token, so a caller signed in with the old one can go on with it.

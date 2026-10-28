@@ -126,6 +126,22 @@ test('an API-token password change is refused when a reset commits while it hash
   await assertOnlyPasswordWorks(admin, NEW_PASSWORD);
 });
 
+test('a timezone change committed while a password change checks the password still keeps no-time entries on their day', async () => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user', timezone: 'Europe/Madrid' });
+  const created = await bob.json('POST', `/api/v9/workspaces/${bob.wid}/time_entries`, { all_day: true, start_date: '2026-06-15', duration: 3600 });
+  assert.equal(created.status, 200);
+  const cookie = await sessionCookie(bob);
+  const during = duringScrypt(CHECK, async () => {
+    assert.equal((await bob.request('PUT', '/api/v9/me', { timezone: 'Asia/Tokyo' })).status, 200);
+  });
+  const changed = await putWithCookie(admin, cookie, { current_password: PASSWORD, password: NEW_PASSWORD, timezone: 'America/New_York' });
+  assert.equal(changed.status, 200);
+  await during;
+  const stored = admin.db.prepare('SELECT start FROM time_entries WHERE id = ?').get(created.body.id) as { start: string };
+  assert.equal(stored.start, '2026-06-15T04:00:00.000Z', 'midnight of the same day in New York');
+});
+
 test('a session password change is refused when an admin ends its sessions while it hashes', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });

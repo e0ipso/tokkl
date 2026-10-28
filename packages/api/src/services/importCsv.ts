@@ -88,6 +88,15 @@ function dayKey(dateValue: string): string | null {
   return date ? `${date.year}-${pad2(date.month)}-${pad2(date.day)}` : null;
 }
 
+/**
+ * The seconds in a Duration cell. Besides the shared duration grammar it reads the classic format's
+ * "m:ss min" for spans under an hour, which the grammar would take for hours and minutes.
+ */
+function csvDuration(value: string): number | null {
+  const minutes = /^(\d+):([0-5]\d) min$/.exec(value.trim());
+  return minutes ? Number(minutes[1]) * 60 + Number(minutes[2]) : parseDuration(value);
+}
+
 /** Undoes the quote prefix that spreadsheet-safe CSV writers add before =, +, - and @. */
 function unescapeCell(value: string): string {
   return /^'[=+\-@]/.test(value) ? value.slice(1) : value;
@@ -243,7 +252,7 @@ export function importTogglCsv(
         if (noTime) {
           const day = dayKey(cell(row, 'startDate'));
           if (!day) throw new Error('Invalid start date');
-          const duration = parseDuration(cell(row, 'duration'));
+          const duration = csvDuration(cell(row, 'duration'));
           if (duration === null) throw new Error('Invalid duration');
           noTimeEntry = { day, duration };
           ({ start, stop } = noTimeSpan(db, user, day, duration, { exact: true }));
@@ -253,7 +262,7 @@ export function importTogglCsv(
           if (cell(row, 'endDate') && cell(row, 'endTime')) {
             stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
           } else if (cell(row, 'duration')) {
-            const seconds = parseDuration(cell(row, 'duration'));
+            const seconds = csvDuration(cell(row, 'duration'));
             if (seconds !== null) stop = new Date(start.getTime() + seconds * 1000);
           }
           if (!stop) throw new Error('Invalid end time or duration');
