@@ -193,4 +193,46 @@ export const MIGRATIONS: string[] = [
     preferences, '$.pomodoro_enabled', '$.pomodoro_stop_timer_at_end'
   );
   `,
+  // Timer state the server keeps for each user, so every device sees the same one
+  // (models/timerState.ts). A Pomodoro session's open pomodoro is the user's running entry,
+  // entry_id; the four lengths are the ones the session started with. A pause chain holds the
+  // fields its resumed clone copies and the seconds stored so far; clone_entry_id is set while a
+  // clone runs. Neither entry id has a foreign key: a purge removes the entry, and settlement must
+  // see that it is gone. A chain loses a deleted project or task, as entries do. timer_states holds
+  // the revision, the fingerprint of the state it numbers, and the pomodoro that the change which
+  // produced the revision sent to the trash for rounding to zero.
+  `
+  CREATE TABLE pomodoro_sessions (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    entry_id INTEGER NOT NULL,
+    work_minutes INTEGER NOT NULL,
+    short_rest_minutes INTEGER NOT NULL,
+    long_rest_minutes INTEGER NOT NULL,
+    long_rest_every INTEGER NOT NULL,
+    phase_kind TEXT NOT NULL CHECK (phase_kind IN ('work', 'shortRest', 'longRest')),
+    phase_start TEXT NOT NULL,
+    completed INTEGER NOT NULL
+  );
+
+  CREATE TABLE pause_chains (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+    task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+    description TEXT NOT NULL,
+    tag_ids_json TEXT NOT NULL,
+    billable INTEGER NOT NULL,
+    seconds INTEGER NOT NULL,
+    clone_entry_id INTEGER
+  );
+
+  CREATE TABLE timer_states (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL,
+    fingerprint TEXT NOT NULL,
+    discarded_entry_id INTEGER,
+    discarded_start TEXT,
+    discarded_stop TEXT
+  );
+  `,
 ];

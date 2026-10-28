@@ -56,6 +56,22 @@ The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DA
 | `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs |
 | `TOKKL_WEB_ROOT` | `dist/web` | Built web app folder |
 
+## Behind a reverse proxy
+
+The apps follow the timer through a Server-Sent Events stream at `GET /api/app/timer/events`. The server sends a `keep-alive` event every 25 seconds and sets `X-Accel-Buffering: no`. A proxy must not buffer that response, and its read timeout must be well above 25 seconds. Otherwise the stream drops, or goes a minute without a keep-alive, and the clients fall back to polling every 30 seconds. nginx honours the header, and this location block sets both explicitly:
+
+```nginx
+location /api/app/timer/events {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+}
+```
+
+Each user may hold 10 streams. Opening an 11th closes the oldest.
+
 ## Moving from Toggl Track
 
 1. Set Toggl's duration format to "Improved", then export Reports → Detailed as CSV.

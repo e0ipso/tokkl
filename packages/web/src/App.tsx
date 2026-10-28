@@ -3,11 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Switch, useLocation, useRoute } from 'wouter';
 import { ApiError, api } from './api/client.ts';
 import { useCurrentEntry, useMe, usePreferences } from './api/hooks.ts';
+import { TimerStateProvider } from './api/TimerStateProvider.tsx';
 import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Icon, type IconName } from './components/Icon.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
-import { PauseCoordinationProvider } from './components/PauseCoordination.tsx';
 import { PomodoroSessionBanner } from './components/PomodoroSessionBanner.tsx';
 import { sessionTitle } from './components/pomodoroSessionPresentation.ts';
 import { PomodoroSessionProvider, usePomodoroSession } from './components/PomodoroSessionProvider.tsx';
@@ -73,12 +73,13 @@ function useTheme() {
 function useRunningTitle() {
   const { data: current } = useCurrentEntry();
   const now = useNow(1000);
-  const { session } = usePomodoroSession();
+  // A session's countdown runs on the server's clock, like the Pomodoro page's.
+  const { session, now: serverNow } = usePomodoroSession();
   useEffect(() => {
-    document.title = session ? sessionTitle(session, now) : current
+    document.title = session ? sessionTitle(session, serverNow) : current
       ? `${formatDuration(entrySeconds(current, now))} · ${current.description || 'Running'}`
       : 'Tokkl';
-  }, [current, session, now]);
+  }, [current, session, now, serverNow]);
 }
 
 /**
@@ -203,7 +204,8 @@ function Shell() {
       >
         <Icon name={item.icon} className="nav-icon" />
         <span>{item.label}</span>
-        {item.href === '/' && current ? (
+        {/* A session's open pomodoro is the running entry; the session's own marker stands for it. */}
+        {item.href === '/' && current && !session ? (
           <span className="running-dot" title="Timer running"><span className="visually-hidden">Timer running</span></span>
         ) : null}
         {item.href === '/pomodoro' && session ? (
@@ -340,5 +342,9 @@ export function App() {
       </div>
     );
   }
-  return <PauseCoordinationProvider><PomodoroSessionProvider><Shell /></PomodoroSessionProvider></PauseCoordinationProvider>;
+  return (
+    <TimerStateProvider>
+      <PomodoroSessionProvider><Shell /></PomodoroSessionProvider>
+    </TimerStateProvider>
+  );
 }

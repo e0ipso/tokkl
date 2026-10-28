@@ -20,11 +20,11 @@ The app is signed ad hoc, not with an Apple Developer ID, and is not notarized. 
 
 ## Using it
 
-Click the time to start a stopped timer. A new entry goes on the project selected in the menu. A click on a running timer pauses it, and the next click resumes it with a new entry that copies the paused entry's description, project, task, tags and billable flag. While paused, the time stands still. After a resume it counts on from that total, through every pause, until you stop the timer. Quitting and reopening the app keeps the total.
+Click the time to start a stopped timer. A new entry goes on the project selected in the menu. A click on a running timer pauses it, and the next click resumes it with a new entry that copies the paused entry's description, project, task, tags and billable flag. While paused, the time stands still. After a resume it counts on from that total, through every pause, until you stop the timer. The server keeps the pause and its total, so a timer paused on another device shows paused here with the same total, and quitting and reopening the app loses nothing. Pause, resume and Stop while paused go to the server, so they need a connection.
 
-Right-click or Control-click for the menu. It shows the timer state (Running, Paused or Stopped) and has Start Timer or Stop Timer, Project, Billable, Reconnect, Open Tokkl, Settings and Quit. In Pomodoro mode it also has Start session, Next phase and End session, and the Pomodoro mode item (see [Pomodoro mode](#pomodoro-mode)).
+Right-click or Control-click for the menu. It shows the timer state (Running, Paused or Stopped) and has Start Timer or Stop Timer, Project, Billable, Reconnect, Open Tokkl, Settings and Quit. In Pomodoro mode it also has Start session. Next phase and End session show whenever a session is active, in either mode. The Pomodoro mode item is there too (see [Pomodoro mode](#pomodoro-mode)).
 
-- Start Timer starts a new entry while the timer is stopped. Stop Timer stops a running or paused timer, and the next start counts from 0:00. While paused, Stop sends nothing to the server, because the paused entry is already stopped.
+- Start Timer starts a new entry while the timer is stopped. Stop Timer stops a running or paused timer, and the next start counts from 0:00. While paused, Stop discards the paused chain on the server, so it needs a connection. Start Timer and Stop Timer are hidden while a session is active.
 - Project sets the project of the next start. It defaults to the project of your last entry, and a project you pick while the timer is stopped wins. The project of a running or paused entry is locked. To switch, stop the timer and start a new entry.
 - Billable sets the next start too. While an entry runs, it changes that entry. While paused, it is locked.
 
@@ -36,16 +36,16 @@ The app sets `LSUIElement`, so it has no Dock icon. Quit it from its menu.
 
 ## Pomodoro mode
 
-The Pomodoro mode item in the menu switches the app between Timer mode and Pomodoro mode. It is checked while Pomodoro mode is on, and the app remembers the choice on this Mac. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. End the session, or stop the timer, to change it.
+The Pomodoro mode item in the menu switches the app between Timer mode and Pomodoro mode. It sets what a click starts when nothing runs; a session is the server's, so one started on another device shows here in either mode. It is checked while Pomodoro mode is on, and the app remembers the choice on this Mac. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. End the session, or stop the timer, to change it.
 
 A click on the menu bar item depends on the mode:
 
-- In Timer mode, and while a timer runs or is paused, it acts on the timer as above.
-- In Pomodoro mode with no session, it starts one.
+- In Timer mode, and while a timer runs or is paused, it acts on the timer as above, unless a session is active.
+- In Pomodoro mode with no session, it starts one. Start session is disabled until the app has read the timer state from the server, and every session action needs a connection.
 - While a phase rings after its planned end, it confirms Next phase.
 - Mid-phase, it opens the menu.
 
-In Pomodoro mode the menu drops Start Timer and shows Start session while no session is active. During a session it shows Next phase: followed by the phase it starts (Work, Short rest or Long rest), and End session. Start Timer and Stop Timer show only in Timer mode or while a timer runs. Next phase ends the current phase. Ending a work phase starts a rest and saves nothing. Ending a rest saves the pomodoro, the work phase plus the rest, as one stopped entry. End session saves the open pomodoro at once. Starting a timer on another device ends the session at that timer's start and saves the partial pomodoro. A pomodoro too short to save is dropped, and the menu says "This pomodoro was too short to save." until the next session starts.
+In Pomodoro mode the menu drops Start Timer and shows Start session while no session is active. While a session is active, in either mode, it shows Next phase: followed by the phase it starts (Work, Short rest or Long rest), and End session, and hides Start Timer and Stop Timer. Next phase ends the current phase. Ending a work phase starts a rest and saves nothing. Ending a rest saves the pomodoro, the work phase plus the rest, as one stopped entry. End session saves the open pomodoro at once. Next phase and End session carry the revision of the state the menu shows, so a confirm made after another device moved the session is refused, and the menu then shows the newer state. Stopping the pomodoro's entry from any client, or starting a timer on another device, ends the session and saves the partial pomodoro. A pomodoro too short to save is dropped, and the menu says "This pomodoro was too short to save." until the next action. The line under the state also says why an action failed, such as an unreachable instance. A timer action that lost to another device says "The timer changed on another device first." in the tooltip. While the instance is unreachable, the session keeps counting from the last state held, the title ends with `!` and the tooltip adds "Offline, showing the last known state".
 
 Whenever Pomodoro mode is on, an hourglass follows the project indicator in the menu bar, in full colour or, with Use a monochrome menu bar icon on, in the menu bar's text colour. During a session the time counts down as `M:SS` to the phase's planned end, then up as `+M:SS` in overtime. The tooltip and VoiceOver read, for example, "Short rest · 4:10 left · Pomodoro 2 of 4". The app posts no notification.
 

@@ -1,4 +1,5 @@
-import { expect, type APIResponse, type Page } from '@playwright/test';
+import { expect, type APIResponse, type Browser, type Page } from '@playwright/test';
+import { RuntimeErrors } from './runtime-errors.ts';
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
@@ -172,4 +173,109 @@ export async function holdNextStop(
   });
   const sent = page.waitForRequest((request) => request.method() === 'PATCH' && STOP_REQUEST.test(request.url()));
   return { sent, release, stops };
+}
+
+declare global {
+  interface Window {
+    /** Timer states this page has received: stream events plus replies from the timer and Pomodoro endpoints. */
+    timerTraffic: number;
+    /** Every timer event stream the page opened. */
+    timerStreams: EventSource[];
+  }
+}
+
+/**
+ * Counts every timer state the page receives, as `window.timerTraffic`. Install it before the page
+ * loads. The server sets the time of a state and the page takes its clock offset from the latest
+ * one, so a fake browser clock moved forward while a state is still on its way snaps back when it
+ * lands. `settleTimerTraffic` tells when none is.
+ */
+export async function watchTimerTraffic(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    window.timerTraffic = 0;
+    window.timerStreams = [];
+    const NativeEventSource = window.EventSource;
+    window.EventSource = class extends NativeEventSource {
+      constructor(url: string | URL, init?: EventSourceInit) {
+        super(url, init);
+        window.timerStreams.push(this);
+        this.addEventListener('timer', () => { window.timerTraffic++; });
+      }
+    };
+    const nativeFetch = window.fetch;
+    window.fetch = async function (this: unknown, ...args: Parameters<typeof fetch>) {
+      const response = await nativeFetch.apply(this, args);
+      if (/^\/api\/app\/(timer|pomodoro)(\/(pause|resume|discard|next|end))?$/.test(new URL(response.url).pathname)) window.timerTraffic++;
+      return response;
+    };
+  });
+}
+
+/** The server's interval between `keep-alive` events on the timer stream. */
+const KEEP_ALIVE_MS = 25_000;
+
+/**
+ * Moves a fake browser clock forward by `ms` as time passes with the timer stream connected: in
+ * steps no longer than the server's keep-alive interval, each followed by a `keep-alive` event on
+ * every open stream. One jump past the app's one-minute silence timeout would make it give the
+ * stream up, and the state the new stream sends would set the clock offset back to the server's
+ * time. The clock belongs to the browser context, so every page of it moves and gets the events.
+ * Needs `watchTimerTraffic` on the pages that stream.
+ */
+export async function fastForwardStreaming(page: Page, ms: number): Promise<void> {
+  for (let left = ms; left > 0; left -= KEEP_ALIVE_MS) {
+    await page.clock.fastForward(Math.min(left, KEEP_ALIVE_MS));
+    await Promise.all(page.context().pages().map((open) => open.evaluate(() => {
+      for (const stream of window.timerStreams ?? []) {
+        if (stream.readyState === EventSource.OPEN) stream.dispatchEvent(new MessageEvent('keep-alive', { data: '' }));
+      }
+    })));
+  }
+}
+
+/** Waits until no timer state has reached the page for 300 ms. Needs `watchTimerTraffic`. */
+export async function settleTimerTraffic(page: Page): Promise<void> {
+  let last = -1;
+  await expect.poll(async () => {
+    const seen = await page.evaluate(() => window.timerTraffic);
+    const quiet = seen === last;
+    last = seen;
+    return quiet;
+  }, { intervals: [300], timeout: 15_000 }).toBe(true);
+}
+
+/**
+ * A second device of the same user: a browser context with the page's session, and a guard for its
+ * runtime errors. `prepare` runs on the new page before it opens `path`, for init scripts and a
+ * fake clock. Call `errors.verify(testInfo)` at the end of the scenario, as for any other page.
+ */
+export async function openSecondDevice(
+  page: Page,
+  browser: Browser,
+  { path = '/', prepare }: { path?: string; prepare?: (other: Page) => Promise<void> } = {},
+): Promise<{ other: Page; errors: RuntimeErrors }> {
+  const context = await browser.newContext({ storageState: await page.context().storageState(), timezoneId: 'Europe/Madrid' });
+  const other = await context.newPage();
+  const errors = new RuntimeErrors(other);
+  await prepare?.(other);
+  await other.goto(path);
+  return { other, errors };
+}
+
+/**
+ * Holds the first request that matches `path` and `method` before it leaves the page, as a slow
+ * network would, and lets it through on `release()`. `sent` resolves when the page has issued it.
+ */
+export async function holdRequest(page: Page, path: RegExp, method = 'POST'): Promise<{ sent: Promise<void>; release: () => void }> {
+  const sent = Promise.withResolvers<void>();
+  const gate = Promise.withResolvers<void>();
+  let held = false;
+  await page.route(path, async (route) => {
+    if (held || route.request().method() !== method) return route.continue();
+    held = true;
+    sent.resolve();
+    await gate.promise;
+    await route.continue();
+  });
+  return { sent: sent.promise, release: () => gate.resolve() };
 }

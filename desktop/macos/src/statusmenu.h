@@ -19,22 +19,29 @@ class TimerController;
 // Stop Timer, Start session, Next phase, End session, Pomodoro mode, Project,
 // Billable, Reconnect, Open Tokkl, Settings and Quit.
 //
-// Start Timer starts a new entry while the timer is stopped. Stop Timer, while
-// an entry runs or a chain is paused, ends the chain; while paused it sends
-// nothing. The click on the item pauses and resumes. Both show only in Timer
-// mode or while a timer runs or is paused, so Pomodoro mode starts no timer.
+// The timer and the session are the server's, so a timer or session started
+// on another device shows here too. Start Timer starts a new entry while the
+// timer is stopped. Stop Timer, while an entry runs or a chain is paused, ends
+// the chain; stopping a paused chain discards it on the server, so it needs a
+// connection. The click on the item pauses and resumes. Both show only in
+// Timer mode or while a timer runs or is paused, and never while a session is
+// active, so Pomodoro mode and a session started elsewhere leave no timer to
+// start.
 //
-// In Pomodoro mode Start session shows while no session is active and no
-// timer runs or is paused; Next phase and End session show during a session.
-// The state line then names the phase, and the line under it shows the
-// session's message when there is one. Pomodoro mode is locked while a timer
-// runs or is paused, or a session is active.
+// Next phase and End session show whenever a session is active, in either
+// mode, and the state line then names the phase. The line under it shows the
+// session's message when there is one, such as a pomodoro too short to save
+// or why an action failed. Start session shows in Pomodoro mode while no
+// session is active and no timer runs or is paused, and is disabled until a
+// state has been read and while an action is unsettled. Pomodoro mode is
+// locked while a timer runs or is paused, or a session is active.
 //
 // Project sets only the project of the next start and is locked while an
 // entry runs or a chain is paused: changing it means stopping and starting a
 // new entry. Billable sets the next start too and, while an entry runs, edits
-// that entry in place; while paused it is locked. During a session both stay
-// enabled and apply to the open pomodoro. Both are disabled whenever the
+// that entry in place; while paused it is locked. During a session both set the
+// next start only, as the session's pomodoro keeps the choice it started
+// with. Both are disabled whenever the
 // timer cannot write, so nothing is queued for another account. The check
 // marks always show the controller's choice, not the click.
 class StatusMenu : public QObject
@@ -73,6 +80,8 @@ private:
     void refreshSession();
     void onGenerationChanged();
     void watchConnection();
+    // A session is active, started on any device.
+    bool sessionActive() const;
     // Pomodoro mode is on and no timer runs or is paused.
     bool pomodoroIdle() const;
 

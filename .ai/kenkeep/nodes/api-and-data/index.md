@@ -10,6 +10,7 @@
 - Load [`password-and-csrf-rules/`](password-and-csrf-rules/index.md) for more information on password rate limits, Retry-After and the CSRF header rule; read before adding a route that checks or sets a password, starts a session or writes.
 - Load [`reports-and-totals/`](reports-and-totals/index.md) for more information on report endpoints, project and task totals, hourly rates, write-path reference checks and client deletion; read before changing reports, totals, rates or project and client writes.
 - Load [`time-handling/`](time-handling/index.md) for more information on timestamp parsing, canonical time zone names and time-resolution snapping of stopped entries; read before changing how the API reads, stores or rounds times.
+- Load [`timer-state/`](timer-state/index.md) for more information on the server-owned timer state (running entry, pause chain, Pomodoro session), its revisions and actions, and the SSE event stream; read before changing timer routes, writes to the running entry, or stream auth.
 - Load [`toggl-compat-and-import/`](toggl-compat-and-import/index.md) for more information on Toggl v9 DELETE responses, Toggl CSV import and JSON restore; read before changing a v9 route or an import or restore path.
 - Load [`users-and-admin/`](users-and-admin/index.md) for more information on accounts, roles, workspace membership, preferences, the admin API, invites, password resets and instance settings; read before changing users, admin routes, sign-in refusal or instance settings.
 

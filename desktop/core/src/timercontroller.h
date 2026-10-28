@@ -1,11 +1,10 @@
 #pragma once
 
 #include "apitypes.h"
-#include "chainstore.h"
 #include "clock.h"
 #include "connection.h"
+#include "timerstateclient.h"
 
-#include <QDateTime>
 #include <QObject>
 #include <QPointer>
 #include <QSet>
@@ -20,23 +19,36 @@ namespace Tokkl
 // account and workspace, its elapsed time, the project and billable choices
 // for the next start, and start, stop, pause and resume actions.
 //
-// Elapsed time is recomputed from the entry's server start time on every
-// clock tick, so a sleep or a late tick loses nothing. The current entry is
-// polled every 30 seconds and read again after every action, after a resume
-// (a tick that arrives far too late) and whenever the connection becomes
-// Connected again.
+// The timer state is the server's, from a TimerStateClient, and the
+// connection is the client's. The client reads the state, follows its event
+// stream, polls while the stream is down, and reads again on a wake and
+// whenever the connection becomes Connected again. The running entry, the
+// pause chain and the Pomodoro session all come from that state. Elapsed time
+// is recomputed on every clock tick from the entry's server start and the
+// client's server time, so a sleep, a late tick or a skewed clock loses
+// nothing.
 //
-// One mutation runs at a time; clicks while it runs are ignored. Reads issued
-// before a mutation cannot overwrite what it returned. A failure that leaves
-// the server state unknown (no answer, timeout, 5xx, unreadable answer) keeps
-// the controller busy until a read reconciles it; a start is never replayed.
+// One mutation runs at a time; clicks while it runs are ignored. Start, stop
+// and the billable edit are v9 calls. Their reply shows at once, and a state
+// no newer than the one held when the call went out cannot replace it.
+// Pause, resume and stop while paused are the server's timer actions, and
+// the state they return is adopted. A 409 adopts the server's state, ends the
+// action and leaves a message until the next user action. A failure that
+// leaves the outcome unknown (no answer, timeout, 5xx, unreadable answer)
+// keeps the controller busy while the client settles it: until a read sent
+// after the failure brings a state. No write is ever sent again.
+//
+// While the state holds a Pomodoro session, its open pomodoro is the running
+// entry and belongs to the session: running and paused are false,
+// sessionActive is true, and start(), stop(), pause(), resume() and toggle()
+// do nothing.
 //
 // A 403 from a workspace operation may mean the account lost the workspace:
-// the controller clears the workspace data it exposes, blocks writes and
-// polling, and asks /me once whether the account now has another workspace.
-// Only a new connection generation or reconnect() lifts the block. A start or
-// stop still in flight keeps the controller busy through the loss and any
-// reconnect, until its reply arrives and a read reconciles the state.
+// the controller clears the workspace data it exposes, blocks writes and its
+// workspace reads, and asks /me once whether the account now has another
+// workspace. Only a new connection generation or reconnect() lifts the block.
+// A write still in flight keeps the controller busy through the loss and any
+// reconnect, until its reply arrives and a state read after it answers.
 //
 // The next start defaults to the project of the last entry: of the entry
 // that stopped, after every stop (as the stop reply names it, when the panel
@@ -55,21 +67,17 @@ namespace Tokkl
 // project applies its billable default (false for no project); a later
 // billable choice overrides it.
 //
-// pause() stops the running entry and keeps what the stopped entry says:
-// description, project, task, tags and billable flag. resume() starts a clone
-// of it, as the web app's Continue does. The entries a pause and resume
-// produce form a chain, and elapsed time is the chain total: the durations
-// the server stored for its stopped entries plus the running clone's time,
-// frozen while paused. A resume counts as a start: it is never replayed, and
-// a refused one leaves the chain paused. While paused, the project and
-// billable flag are the paused entry's and cannot be chosen. stop() ends the
-// chain; while paused it only clears it. So does another client stopping the
-// clone, a different running entry, and a new connection generation. The
-// chain store keeps the chain for the account across restarts. When a pause's
-// stop gets no answer and then nothing runs, the controller reads the
-// account's recent entries. If they list the paused entry as stopped, the
-// pause finishes as the stop's reply would have finished it; otherwise the
-// chain ends. The stop is never sent again.
+// The server owns the pause chain. pause() asks it to stop the running entry
+// and keep a chain: the stopped entry's description, project, task, tags and
+// billable flag, and the seconds the server stored for the chain's entries.
+// resume() asks it to start a clone, against the revision shown. Elapsed time
+// is the chain total: those seconds plus the running clone's time, frozen
+// while paused. While paused, the project and billable flag are the chain's
+// and cannot be chosen, and stop() discards the chain, also against the
+// revision shown. A refused resume leaves the chain paused. The server ends
+// the chain on a stop of the clone, any other start or a discard, from any
+// device, and the next state shows it. A chain or entry in another workspace
+// is not shown.
 //
 // Everything is tied to the connection's generation. A new instance, account
 // or secret clears the entry, projects, busy state and errors at once, and
@@ -84,9 +92,9 @@ public:
     // whose current entry is known and nothing waits or failed.
     enum Status {
         Unconfigured, // no instance URL or no stored secret
-        Loading, // reading the secret, validating, or the first current-entry read
+        Loading, // reading the secret, validating, or the first state read
         Ready,
-        Busy, // a start, stop or edit is in flight or its outcome is unknown
+        Busy, // a write is in flight or its outcome is unknown
         Stale, // the data shown is the last known; the instance is unreachable
         AuthenticationBlocked, // the instance refused the credentials
         Error, // settings, wallet, workspace, rate limit or another failure; see errorString
@@ -102,22 +110,23 @@ public:
     Q_ENUM(IndicatorState)
 
 private:
-    Q_PROPERTY(Tokkl::Connection *connection READ connection WRITE setConnection NOTIFY connectionChanged)
+    // Not owned. The connection is the client's.
+    Q_PROPERTY(Tokkl::TimerStateClient *stateClient READ stateClient WRITE setStateClient NOTIFY connectionChanged)
+    Q_PROPERTY(Tokkl::Connection *connection READ connection NOTIFY connectionChanged)
 
     // The validated context.
     Q_PROPERTY(bool connected READ isConnected NOTIFY contextChanged)
     Q_PROPERTY(QVariantMap account READ account NOTIFY contextChanged)
     Q_PROPERTY(qint64 workspaceId READ workspaceId NOTIFY contextChanged)
     Q_PROPERTY(Tokkl::Connection::State connectionState READ connectionState NOTIFY statusChanged)
-    // Shown data is the last known: the latest request failed transiently, or
-    // a current-entry read did and none has succeeded since.
+    // Shown data is the last known: the latest request failed transiently.
     Q_PROPERTY(bool stale READ isStale NOTIFY statusChanged)
     // A workspace operation answered 403; writes stay blocked until a new
     // generation or reconnect().
     Q_PROPERTY(bool workspaceAccessLost READ workspaceAccessLost NOTIFY statusChanged)
     Q_PROPERTY(bool busy READ isBusy NOTIFY statusChanged)
-    // start() or stop() would send a request now. False until a current-entry
-    // read for the context has succeeded.
+    // start() or stop() would send a request now. False until the state of
+    // the context has been read.
     Q_PROPERTY(bool canWrite READ canWrite NOTIFY statusChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY statusChanged)
     Q_PROPERTY(Status status READ status NOTIFY statusChanged)
@@ -135,6 +144,10 @@ private:
     // The seconds the server stored for the chain's stopped entries; 0
     // without a chain.
     Q_PROPERTY(qint64 chainSeconds READ chainSeconds NOTIFY chainChanged)
+    // The state holds a Pomodoro session, started on any device. Its open
+    // pomodoro is the running entry, which running and currentEntry leave
+    // out.
+    Q_PROPERTY(bool sessionActive READ isSessionActive NOTIFY sessionActiveChanged)
 
     Q_PROPERTY(QVariantList projects READ projects NOTIFY projectsChanged)
     // The connection could not read every active project: projects is a
@@ -161,25 +174,17 @@ private:
     Q_PROPERTY(QString indicatorColor READ indicatorColor NOTIFY indicatorChanged)
 
 public:
-    static constexpr int pollIntervalMs = 30000;
-    // A tick this late means the machine slept or the clock jumped.
-    static constexpr int resumeGapMs = 10000;
-
-    // Uses the system clock, and a SettingsChainStore on the application's
-    // default QSettings.
+    // Uses the system clock.
     explicit TimerController(QObject *parent = nullptr);
-    // Uses the given clock, which the controller does not own, and no chain
-    // store until setChainStore().
+    // Uses the given clock, which the controller does not own.
     explicit TimerController(Clock *clock, QObject *parent = nullptr);
     ~TimerController() override;
 
+    TimerStateClient *stateClient() const;
+    // The controller does not own the client. Null leaves it without a
+    // connection.
+    void setStateClient(TimerStateClient *client);
     Connection *connection() const;
-    void setConnection(Connection *connection);
-    ChainStore *chainStore() const;
-    // The controller does not own the store. Null keeps the chain in memory
-    // only. Set it before the connection: the stored chain is read with the
-    // first current entry of a connection.
-    void setChainStore(ChainStore *store);
 
     bool isConnected() const;
     QVariantMap account() const;
@@ -199,7 +204,7 @@ public:
     QString elapsedText() const;
     bool isPaused() const;
     qint64 chainSeconds() const;
-    std::optional<PauseChain> chain() const;
+    bool isSessionActive() const;
 
     QVariantList projects() const;
     bool projectsIncomplete() const;
@@ -216,13 +221,13 @@ public:
 
     static QString formatElapsed(qint64 seconds);
 
-    // The actions return true when a request was sent, and stop() while
-    // paused when it cleared the chain.
+    // The actions return true when a request was sent. All are refused
+    // while a session is active.
     //
     // Starts a new entry; refused while paused.
     Q_INVOKABLE bool start();
-    // Stops the running entry and ends the chain. While paused it sends
-    // nothing.
+    // Stops the running entry, which ends its chain. While paused it
+    // discards the chain.
     Q_INVOKABLE bool stop();
     // Stops the running entry and keeps the chain paused.
     Q_INVOKABLE bool pause();
@@ -238,9 +243,10 @@ public:
     Q_INVOKABLE bool chooseBillable(bool billable);
 
 public Q_SLOTS:
-    // Reads the current entry and the projects again.
+    // Reads the state and the projects again.
     void refresh();
-    // The session woke from sleep; refresh at once. Not resume().
+    // The session woke from sleep: the state client reads the state and
+    // replaces its stream, and the projects are read again. Not resume().
     void resumed();
     // Explicit reconnect: lifts a workspace block and revalidates the account.
     void reconnect();
@@ -252,6 +258,7 @@ Q_SIGNALS:
     void currentEntryChanged();
     void elapsedChanged();
     void chainChanged();
+    void sessionActiveChanged();
     void projectsChanged();
     void selectionChanged();
     void choiceChanged();
@@ -262,25 +269,22 @@ private:
     void onTick();
     void onConnectionChanged();
     void onGenerationChanged();
+    void onStateChanged();
+    void onSettlingChanged();
+    void detach();
     void reset();
     void beginMutation();
-    void fetchEntry();
     void fetchProjects();
     void fetchLastEntry();
+    // Shows the reply of a v9 write sent at revision as the running entry,
+    // ending the chain and the session it leaves no place for, unless a
+    // newer state has come since. A state no newer than the one shown then
+    // cannot replace it.
+    void showReply(qint64 revision, const std::optional<TimeEntry> &running, const std::optional<TimeEntry> &stoppedReply = std::nullopt);
+    // Derives the entry, chain and session shown from the state held.
     // stoppedReply is the server's answer to a stop or edit that ended the
-    // entry; its project wins over the one last read.
-    void applyEntry(const std::optional<TimeEntry> &entry, const std::optional<TimeEntry> &stoppedReply = std::nullopt);
-    // Reads the stored chain once per context, then ends or continues the
-    // chain for the entry that runs now, in any workspace.
-    void followChain(const std::optional<TimeEntry> &entry);
-    // The chain a pause of the entry pausedId leaves, from the entry the
-    // server stopped.
-    PauseChain pausedChain(qint64 pausedId, const TimeEntry &stopped) const;
-    // Reads the account's entries to learn whether the server stopped the
-    // entry of a pause that got no answer. Busy until it knows.
-    void confirmPause();
-    void setChain(const std::optional<PauseChain> &chain);
-    QString chainOwner() const;
+    // entry; its project wins over the one last shown.
+    void applyView(const std::optional<TimeEntry> &stoppedReply = std::nullopt);
     void applyStopDefault();
     void setStopDefault(std::optional<qint64> projectId);
     void setNextStart(std::optional<qint64> projectId, bool billable);
@@ -295,43 +299,35 @@ private:
     void resolveProject();
     void setEntryProject(const std::optional<Project> &project);
     void updateIndicator();
-    // start is true for a start or resume.
-    void finishMutation(const ApiError &error, bool succeeded, bool start = false);
+    // start is true for a start or resume, and entryReply for a v9 write,
+    // whose reply is an entry rather than the whole state.
+    void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
-    // Clears the message of a refused start or resume, on a user action.
+    // Clears the message of a refused start or resume, or of a 409, on a
+    // user action.
     void clearKeptError();
     void updateElapsed();
     bool readable() const;
 
     QPointer<Clock> m_clock;
+    QPointer<TimerStateClient> m_state;
     QPointer<Connection> m_connection;
-    QPointer<ChainStore> m_chainStore;
 
     // Bumped by reset(); callbacks from an earlier epoch do nothing.
     quint64 m_epoch = 0;
     Connection::State m_lastState = Connection::Unconfigured;
     // The data of the current context was requested once.
     bool m_loaded = false;
-    // A current-entry read for this context and workspace was applied, so
-    // a start cannot split a timer already running on the server.
-    bool m_entryKnown = false;
-    // A current-entry read failed transiently and none has succeeded since.
-    bool m_entryStale = false;
 
+    // The state shown: the client's latest, or a v9 reply on top of an
+    // older one (m_viewPatched), which only a newer revision replaces.
+    std::optional<TimerState> m_view;
+    bool m_viewPatched = false;
     std::optional<TimeEntry> m_entry;
-    std::optional<PauseChain> m_chain;
-    // The stored chain was read for this context, so the chain it holds is
-    // the account's. A new generation then ends it.
-    bool m_chainChecked = false;
-    // The start time a resume sent, until a reply or the read after it shows
-    // whether the server created the clone.
-    QDateTime m_resumeStart;
-    // The entry of a pause whose stop got no answer, until the reads after
-    // it show whether the server stopped it.
-    std::optional<qint64> m_unansweredPause;
-    quint64 m_pauseChecks = 0;
-    quint64 m_pauseCheck = 0; // number of the entries read in flight for it, or 0
+    // The pause chain shown: paused, or with m_entry as its clone.
+    std::optional<TimerPause> m_chain;
+    bool m_sessionActive = false;
     QList<Project> m_projects;
     bool m_projectsIncomplete = false;
     // The project list of this context was read at least once.
@@ -355,19 +351,14 @@ private:
     QString m_error;
 
     bool m_mutating = false;
-    // m_error is a refused start's or resume's message, which a successful
-    // read leaves in place.
+    // The workspace was lost while a write ran: once it answers, the state
+    // is read before writes return.
+    bool m_settleWhenDone = false;
+    // m_error is a refused start's or resume's message, or a 409's, which a
+    // new state leaves in place.
     bool m_keepError = false;
-    bool m_reconciling = false;
     bool m_workspaceLost = false;
     bool m_rediscoveryUsed = false;
-
-    // Current-entry reads are numbered. A reply is applied only if no newer
-    // read was applied and no mutation started after it was issued.
-    quint64 m_readsIssued = 0;
-    quint64 m_firstValidRead = 1;
-    quint64 m_lastAppliedRead = 0;
-    quint64 m_entryReadPending = 0; // number of the valid read in flight, or 0
     bool m_projectsPending = false;
 
     // The user picked the next-start choice since the last start or stop, so
@@ -376,13 +367,10 @@ private:
     // The project of an entry that stopped before the project list could
     // tell whether it is active; applied when the list arrives.
     std::optional<qint64> m_stopDefault;
-    // Ask for the last entry's project after the next current-entry read.
+    // Ask for the last entry's project after the next state.
     bool m_lastEntryWanted = false;
     quint64 m_lastEntryReads = 0;
     quint64 m_lastEntryRead = 0; // number of the last-entry read that may apply, or 0
-
-    QDateTime m_lastTick;
-    QDateTime m_nextPoll;
 };
 
 }

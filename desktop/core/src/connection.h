@@ -28,8 +28,6 @@ namespace Tokkl
 // Changing a setting or the stored secret starts a new generation: account
 // data and next-start choices are cleared at once, requests in flight are
 // aborted, and replies issued under an older generation are dropped.
-// contextAboutToChange() fires first, while the old account can still be
-// written to; a detached request issued from it is not aborted.
 //
 // When the store refuses to write a secret for this account, also after the
 // settings page that asked for it is gone, the connection drops the account
@@ -85,6 +83,7 @@ public:
 
     template<typename T>
     using Callback = std::function<void(const ApiResult<T> &)>;
+    using ActionCallback = std::function<void(const TimerActionResult &)>;
 
     // Uses the given transport and store; the connection does not own them.
     // clientName goes into the created_with field of the entries it starts.
@@ -146,14 +145,6 @@ public:
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
-    // Saves an entry that has already stopped. The cached current entry is
-    // not touched.
-    void createStoppedEntry(const StoppedEntry &entry, Callback<TimeEntry> done = {});
-    // The same, detached: the request outlives the generation, so a change
-    // of instance, account or secret right after it does not abort it. done
-    // still runs only for a reply of the generation that sent it. For the
-    // save queue, whose POSTs go out just before a sign-out.
-    void createStoppedEntryDetached(const StoppedEntry &entry, Callback<TimeEntry> done = {});
     // The account's entries that started from start to end, in every
     // workspace (GET /me/time_entries?start_date=&end_date=).
     void fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done = {});
@@ -164,6 +155,27 @@ public:
     // Posts only the lengths the update sets. done gets the lengths the
     // server holds afterwards.
     void savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done = {});
+
+    // The account's timer state, GET /api/app/timer. Like the current entry,
+    // a 401 or 403 means the credentials were refused.
+    void fetchTimerState(Callback<TimerState> done = {});
+    // The timer actions. Each needs canWrite(), and done tells apart a change
+    // made, a 409 with the server's state, nothing changed, and an unknown
+    // outcome. Resume, discard, next phase and end apply only to the state
+    // at revision, the one the user saw.
+    void pauseTimer(ActionCallback done = {});
+    void resumeTimer(qint64 revision, ActionCallback done = {});
+    void discardPause(qint64 revision, ActionCallback done = {});
+    void startPomodoro(const PomodoroStart &start, ActionCallback done = {});
+    void nextPomodoroPhase(qint64 revision, ActionCallback done = {});
+    void endPomodoro(qint64 revision, ActionCallback done = {});
+    // Opens GET /api/app/timer/events, or returns nullptr without a bound
+    // account or during a 429 cooldown. The caller reads the stream's
+    // signals; the connection deletes it after finished(). A new generation
+    // aborts it. A refusal ends it as for the current entry: a 401 or 403
+    // refuses the credentials and a 429 starts the cooldown. A clean end, a
+    // failure or another status changes nothing here.
+    PendingStream *openTimerEvents();
 
     // Delay before an automatic retry after a connectivity failure, and the
     // cooldown after a 429 without Retry-After.
@@ -185,9 +197,6 @@ Q_SIGNALS:
     void instanceUrlChanged();
     void authModeChanged();
     void emailChanged();
-    // The instance, sign-in method, email or stored secret is about to
-    // change. The old account is still bound and writable.
-    void contextAboutToChange();
     void stateChanged();
     void generationChanged();
     void accountChanged();
@@ -229,9 +238,8 @@ private:
     QString credentialMessage(const CredentialResult &result) const;
 
     using ResponseHandler = std::function<void(const HttpResponse &)>;
-    // A detached request is not tracked, so a new generation does not abort
-    // it; its handler still runs only within the generation that sent it.
-    void send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler, bool detached = false);
+    void send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler);
+    void send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler);
     enum class Access {
         Read,
         Write, // needs canWrite()
@@ -244,10 +252,25 @@ private:
               Access access,
               std::function<std::optional<T>(const QJsonValue &)> decode,
               std::function<void(const T &)> apply,
-              Callback<T> done,
-              bool detached = false);
+              Callback<T> done);
+    template<typename T>
+    void call(const QByteArray &method,
+              const QUrl &url,
+              const QByteArray &body,
+              Access access,
+              std::function<std::optional<T>(const QJsonValue &)> decode,
+              std::function<void(const T &)> apply,
+              Callback<T> done);
     template<typename T>
     void failLater(ApiError error, Callback<T> done);
+    // The refusal a request got before it was sent, or nullopt when access
+    // allows it.
+    std::optional<ApiError> refusal(Access access) const;
+    // What a failed answer means for the connection: a cooldown, refused
+    // credentials or stale data. False when the credentials were refused,
+    // which starts a new generation, so the caller's state is gone too.
+    bool absorbFailure(const HttpResponse &response, const ApiError &error, Access access);
+    void timerAction(const QString &path, const QByteArray &body, ActionCallback done);
     struct ProjectPages;
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
 
@@ -281,6 +304,7 @@ private:
     QTimer m_cooldownTimer;
     QTimer m_retryTimer;
     QSet<PendingReply *> m_pending;
+    QSet<PendingStream *> m_streams;
 };
 
 }

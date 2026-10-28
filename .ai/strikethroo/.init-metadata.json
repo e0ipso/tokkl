@@ -1,11 +1,11 @@
 {
-  "version": "4.1.1",
+  "version": "4.4.1",
   "workspaceSchemaVersion": 4,
-  "timestamp": "2026-10-14T15:05:28.400Z",
+  "timestamp": "2026-10-27T16:10:05.271Z",
   "files": {
     "config/STRIKETHROO.md": "98331dd4834b916d0b603263ac8d8306a6591bfd5889ea83873b04c3b0437177",
-    "config/config.yaml": "54abc3902467b06ffec98205934628933b99e511e51df53a8f6abcbe6a14a0d1",
-    "config/hooks/CODE_REVIEW.md": "bd4371d39eccbb04bdc0953103e79f51a287cef71300654d54dade0c0c429acc",
+    "config/config.yaml": "4121aad5c479d9c8279f3f61d2312eed89c46f28fcf5ca5f94390251f85442d1",
+    "config/hooks/CODE_REVIEW.md": "ea3ca8ace68553f2493c7335e47015cfdb515605fa00acad18bfbb966c713e2b",
     "config/hooks/POST_ERROR_DETECTION.md": "a8d17efccf8c88f539c22fa9d031d64ff106130280752896a67d4115471846c1",
     "config/hooks/POST_EXECUTION.md": "5fa68acecf31546dfd4fa27d311ff48b1194f7207cc22639d302541ec3e6caf2",
     "config/hooks/POST_PHASE.md": "bc93df1dd0c4569efbef262cb6391708272f554fcbcc874ece76787db2b2b2ff",

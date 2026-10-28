@@ -2,7 +2,7 @@
 // TOKKL_POMODORO_SOUND_FILES names, against the SHA-256 sums in
 // docs/sounds/README.md, and the sound catalogue against those files.
 
-#include "pomodorocycle.h"
+#include "apitypes.h"
 #include "pomodorosounds.h"
 
 #include <QCryptographicHash>

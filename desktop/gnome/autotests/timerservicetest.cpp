@@ -3,10 +3,10 @@
 
 #include "alarmbackend.h"
 #include "alarmplayer.h"
+#include "apitypes.h"
 #include "connection.h"
 #include "fakes.h"
 #include "instanceurl.h"
-#include "pomodorocycle.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
 #include "privatebus.h"
@@ -154,6 +154,88 @@ QByteArray recentBody()
     return json(QJsonArray{entry});
 }
 
+QString iso(const QDateTime &time)
+{
+    return time.toUTC().toString(Qt::ISODateWithMs);
+}
+
+// The server's pause chain of the entries chainEntry() builds: Review on
+// Beta, with the seconds its stopped entries stored, and the running clone
+// unless paused.
+QJsonObject pauseObject(bool paused, qint64 seconds, std::optional<qint64> clone = std::nullopt)
+{
+    return QJsonObject{
+        {QStringLiteral("paused"), paused},
+        {QStringLiteral("seconds"), seconds},
+        {QStringLiteral("workspace_id"), 7},
+        {QStringLiteral("description"), QStringLiteral("Review")},
+        {QStringLiteral("project_id"), 12},
+        {QStringLiteral("task_id"), QJsonValue(QJsonValue::Null)},
+        {QStringLiteral("tag_ids"), QJsonArray()},
+        {QStringLiteral("tags"), QJsonArray()},
+        {QStringLiteral("billable"), true},
+        {QStringLiteral("clone_entry_id"), clone ? QJsonValue(*clone) : QJsonValue(QJsonValue::Null)},
+    };
+}
+
+// The phase of a session on the server's clock, with what the server derives
+// from it. The account's lengths are one minute each, with a long rest after
+// every second work phase.
+struct Phase {
+    QString kind;
+    QDateTime start;
+    int completed = 0;
+    QString upcoming;
+    QString transition;
+    int number = 1;
+    QDateTime pomodoroStart;
+};
+
+Phase work(const QDateTime &start, int completed = 0)
+{
+    const bool longRestNext = completed + 1 >= lengths.longRestEvery;
+    return Phase{QStringLiteral("work"),
+                 start,
+                 completed,
+                 longRestNext ? QStringLiteral("longRest") : QStringLiteral("shortRest"),
+                 longRestNext ? QStringLiteral("workToLongRest") : QStringLiteral("workToShortRest"),
+                 completed + 1,
+                 start};
+}
+
+Phase shortRest(const QDateTime &start, const QDateTime &pomodoroStart)
+{
+    return Phase{QStringLiteral("shortRest"), start, 1, QStringLiteral("work"), QStringLiteral("shortRestToWork"), 1, pomodoroStart};
+}
+
+QJsonObject pomodoroObject(const Phase &phase, qint64 entryId)
+{
+    return QJsonObject{
+        {QStringLiteral("work_minutes"), lengths.workMinutes},
+        {QStringLiteral("short_rest_minutes"), lengths.shortRestMinutes},
+        {QStringLiteral("long_rest_minutes"), lengths.longRestMinutes},
+        {QStringLiteral("long_rest_every"), lengths.longRestEvery},
+        {QStringLiteral("phase"),
+         QJsonObject{
+             {QStringLiteral("kind"), phase.kind},
+             {QStringLiteral("start"), iso(phase.start)},
+             {QStringLiteral("completed"), phase.completed},
+             {QStringLiteral("planned_end"), iso(phase.start.addSecs(60))},
+         }},
+        {QStringLiteral("upcoming_phase"), phase.upcoming},
+        {QStringLiteral("transition"), phase.transition},
+        {QStringLiteral("number"), phase.number},
+        {QStringLiteral("entry_id"), entryId},
+        {QStringLiteral("pomodoro_start"), iso(phase.pomodoroStart)},
+    };
+}
+
+// The body of an action that carries the revision it was made against.
+QJsonObject revisionBody(qint64 revision)
+{
+    return QJsonObject{{QStringLiteral("revision"), revision}};
+}
+
 struct Interface {
     StringMap properties; // name -> "type access"
     QMap<QString, QStringList> methods; // name -> "direction type" per argument
@@ -272,8 +354,13 @@ class TimerServiceTest : public QObject
         std::unique_ptr<TimerService> service;
         ChangeRecorder recorder;
         QSet<qsizetype> answered;
-        // What GET /me/time_entries/current answers.
-        QByteArray current = "null";
+        // What the server holds for the account, at its revision. serve()
+        // answers every state read with it.
+        QJsonValue running = QJsonValue::Null;
+        QJsonValue chain = QJsonValue::Null;
+        QJsonValue session = QJsonValue::Null;
+        QJsonValue dropped = QJsonValue::Null;
+        qint64 revision = 1;
 
         QString settingsFile() const
         {
@@ -358,6 +445,42 @@ class TimerServiceTest : public QObject
             return reply.arguments().constFirst().value<QDBusVariant>().variant();
         }
 
+        // The server's state at its current revision, on the fake clock.
+        QByteArray state() const
+        {
+            return json(QJsonObject{
+                {QStringLiteral("revision"), revision},
+                {QStringLiteral("server_time"), iso(clock.now())},
+                {QStringLiteral("running_entry"), running},
+                {QStringLiteral("pause"), chain},
+                {QStringLiteral("pomodoro"), session},
+                {QStringLiteral("discarded_pomodoro"), dropped},
+            });
+        }
+
+        // A change on the server: the next revision, which is also returned
+        // as the state an action or the event stream sends.
+        QByteArray change(const QJsonValue &runningEntry, const QJsonValue &pauseChain = QJsonValue::Null, const QJsonValue &pomodoro = QJsonValue::Null, const QJsonValue &discardedPomodoro = QJsonValue::Null)
+        {
+            running = runningEntry;
+            chain = pauseChain;
+            session = pomodoro;
+            dropped = discardedPomodoro;
+            ++revision;
+            return state();
+        }
+
+        // A state from the event stream, as another device's change sends it.
+        bool push(const QByteArray &state)
+        {
+            FakeStream *stream = transport.lastStream();
+            if (!stream) {
+                return false;
+            }
+            stream->push("event: timer\ndata: " + state + "\n\n");
+            return true;
+        }
+
         // Requests whose API path ends with the given text.
         QList<qsizetype> find(const QByteArray &method, const QByteArray &suffix) const
         {
@@ -377,6 +500,18 @@ class TimerServiceTest : public QObject
             transport.respond(index, response);
         }
 
+        // Answers the latest request with the method and path, as the
+        // instance would. False when there is none.
+        bool answer(const QByteArray &method, const QByteArray &suffix, const QByteArray &body, int status = 200)
+        {
+            const QList<qsizetype> found = find(method, suffix);
+            if (found.isEmpty()) {
+                return false;
+            }
+            respond(found.last(), FakeTransport::answer(status, body));
+            return true;
+        }
+
         // Answers every read the core sends, as the instance would, until the
         // service reports ready with nothing left to read.
         bool serve()
@@ -392,8 +527,8 @@ class TimerServiceTest : public QObject
                     QByteArray body;
                     if (path.endsWith("/me")) {
                         body = meBody;
-                    } else if (path.endsWith("/me/time_entries/current")) {
-                        body = current;
+                    } else if (path.endsWith("/app/timer")) {
+                        body = state();
                     } else if (path.endsWith("/projects")) {
                         body = projectsBody;
                     } else if (path.endsWith("/me/time_entries")) {
@@ -470,6 +605,7 @@ private Q_SLOTS:
             {QStringLiteral("PomodoroMode"), QStringLiteral("b read")},
             {QStringLiteral("ModeLocked"), QStringLiteral("b read")},
             {QStringLiteral("SessionActive"), QStringLiteral("b read")},
+            {QStringLiteral("CanStartSession"), QStringLiteral("b read")},
             {QStringLiteral("Phase"), QStringLiteral("s read")},
             {QStringLiteral("PhaseStart"), QStringLiteral("x read")},
             {QStringLiteral("PlannedEnd"), QStringLiteral("x read")},
@@ -605,8 +741,8 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
         QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
 
-        f.current = json(entryObject(5, 12, true));
-        f.respond(starts.first(), FakeTransport::answer(200, f.current));
+        f.change(entryObject(5, 12, true));
+        f.respond(starts.first(), FakeTransport::answer(200, json(entryObject(5, 12, true))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
         const qint64 start = QDateTime::fromString(startedAt, Qt::ISODate).toSecsSinceEpoch();
@@ -626,8 +762,8 @@ private Q_SLOTS:
         const QList<qsizetype> updates = f.find("PUT", "/workspaces/7/time_entries/5");
         QCOMPARE(updates.size(), 1);
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(updates.first()).body).object(), QJsonObject({{QStringLiteral("billable"), true}}));
-        f.current = json(entryObject(5, 12, true, true));
-        f.respond(updates.first(), FakeTransport::answer(200, f.current));
+        f.change(entryObject(5, 12, true, true));
+        f.respond(updates.first(), FakeTransport::answer(200, json(entryObject(5, 12, true, true))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), true);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Billable")).contains(true));
@@ -636,7 +772,7 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
         const QList<qsizetype> stops = f.find("PATCH", "/workspaces/7/time_entries/5/stop");
         QCOMPARE(stops.size(), 1);
-        f.current = "null";
+        f.change(QJsonValue::Null);
         f.respond(stops.first(), FakeTransport::answer(200, json(entryObject(5, 12, false, true))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
@@ -655,7 +791,7 @@ private Q_SLOTS:
     void archivedRunningProjectIsNamed()
     {
         Fixture f;
-        f.current = json(entryObject(5, 99, true));
+        f.change(entryObject(5, 99, true));
         QVERIFY(f.start());
         QVERIFY(f.connect());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
@@ -687,14 +823,15 @@ private Q_SLOTS:
         }));
     }
 
-    // Pause stops the running entry and keeps the chain, Resume starts its
-    // clone, and ChainSeconds adds up the stopped entries until Stop ends
-    // the chain. Running and StartTime keep their meaning throughout.
+    // Pause asks the server to stop the running entry and keep the chain,
+    // Resume starts its clone against the revision shown, and ChainSeconds
+    // is what the server stored until Stop ends the chain. Running and
+    // StartTime keep their meaning throughout.
     void pauseAndResume()
     {
         Fixture f;
         const QDateTime begin = QDateTime::fromString(startedAt, Qt::ISODate);
-        f.current = json(chainEntry(5, begin, std::nullopt));
+        f.change(chainEntry(5, begin, std::nullopt));
         QVERIFY(f.start());
         QVERIFY(f.connect());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
@@ -706,14 +843,16 @@ private Q_SLOTS:
         qint64 total = 0;
         qint64 running = 5;
         for (const qint64 seconds : {qint64(60), qint64(300)}) {
-            // Pause sends one stop for the running entry.
+            // Pause sends one request, and the entry stops when the server
+            // says so.
             QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), true);
-            const QList<qsizetype> stops = f.find("PATCH", QStringLiteral("/workspaces/7/time_entries/%1/stop").arg(running).toUtf8());
-            QCOMPARE(stops.size(), 1);
-            f.current = "null";
-            f.respond(stops.first(), FakeTransport::answer(200, json(chainEntry(running, begin, seconds))));
-            QVERIFY(f.serve());
+            const QList<qsizetype> pauses = f.find("POST", "/timer/pause");
+            QCOMPARE(f.transport.requests.at(pauses.last()).body, QByteArray("{}"));
+            QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), false);
+            QVERIFY(f.find("PATCH", "/stop").isEmpty());
             total += seconds;
+            QVERIFY(f.answer("POST", "/timer/pause", f.change(QJsonValue::Null, pauseObject(true, total))));
+            QVERIFY(f.serve());
             QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
             QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), total);
             QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
@@ -731,20 +870,17 @@ private Q_SLOTS:
             QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(false)}).toBool(), false);
             QCOMPARE(f.transport.requests.size(), sent);
 
-            // Resume starts a clone of the paused entry.
-            const qsizetype before = f.find("POST", "/workspaces/7/time_entries").size();
+            // Resume sends the revision shown, and the server starts the clone.
+            const qint64 shown = f.revision;
+            const qsizetype before = f.find("POST", "/timer/resume").size();
             QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), true);
-            const QList<qsizetype> starts = f.find("POST", "/workspaces/7/time_entries");
-            QCOMPARE(starts.size(), before + 1);
-            const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(starts.last()).body).object();
-            QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
-            QCOMPARE(body.value(QStringLiteral("billable")).toBool(), true);
-            QCOMPARE(body.value(QStringLiteral("description")).toString(), QStringLiteral("Review"));
-            QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-gnome"));
+            const QList<qsizetype> resumes = f.find("POST", "/timer/resume");
+            QCOMPARE(resumes.size(), before + 1);
+            QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(resumes.last()).body).object(), revisionBody(shown));
+            QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
             ++running;
             const QDateTime resumed = f.clock.now();
-            f.current = json(chainEntry(running, resumed, std::nullopt));
-            f.respond(starts.last(), FakeTransport::answer(200, f.current));
+            QVERIFY(f.answer("POST", "/timer/resume", f.change(chainEntry(running, resumed, std::nullopt), pauseObject(false, total, running))));
             QVERIFY(f.serve());
             QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
             QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), resumed.toSecsSinceEpoch());
@@ -752,11 +888,11 @@ private Q_SLOTS:
             QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), total);
         }
 
-        // Stop while running ends the chain.
+        // Stop while running stops the clone and ends the chain.
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
         const QList<qsizetype> stops = f.find("PATCH", QStringLiteral("/workspaces/7/time_entries/%1/stop").arg(running).toUtf8());
         QCOMPARE(stops.size(), 1);
-        f.current = "null";
+        f.change(QJsonValue::Null);
         f.respond(stops.first(), FakeTransport::answer(200, json(chainEntry(running, f.clock.now(), 300))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
@@ -766,37 +902,80 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
     }
 
-    // Stop while paused sends nothing and only clears the chain, so the next
-    // Start begins a new one.
-    void stopWhilePausedClearsTheChain()
+    // Stop while paused asks the server to discard the chain against the
+    // revision shown and changes nothing until the server answers. The next
+    // Start begins a new chain.
+    void stopWhilePausedDiscardsTheChain()
     {
         Fixture f;
         const QDateTime begin = QDateTime::fromString(startedAt, Qt::ISODate);
-        f.current = json(chainEntry(5, begin, std::nullopt));
+        f.change(chainEntry(5, begin, std::nullopt));
         QVERIFY(f.start());
         QVERIFY(f.connect());
 
         QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), true);
-        const QList<qsizetype> stops = f.find("PATCH", "/workspaces/7/time_entries/5/stop");
-        QCOMPARE(stops.size(), 1);
-        f.current = "null";
-        f.respond(stops.first(), FakeTransport::answer(200, json(chainEntry(5, begin, 600))));
+        QVERIFY(f.answer("POST", "/timer/pause", f.change(QJsonValue::Null, pauseObject(true, 600))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 600);
 
-        const qsizetype sent = f.transport.requests.size();
+        // Stop sends the discard against the revision shown and changes
+        // nothing until the server answers.
+        const qint64 shown = f.revision;
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
+        QList<qsizetype> discards = f.find("POST", "/timer/discard");
+        QCOMPARE(discards.size(), 1);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(discards.first()).body).object(), revisionBody(shown));
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
+
+        // No answer: the chain stays and the discard is not sent again. A
+        // read that follows settles it, and then Stop can be tried again.
+        f.respond(discards.first(), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
+        QCOMPARE(f.find("POST", "/timer/discard").size(), 1);
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
+        discards = f.find("POST", "/timer/discard");
+        QCOMPARE(discards.size(), 2);
+        QVERIFY(f.answer("POST", "/timer/discard", f.change(QJsonValue::Null)));
+        QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
-        QCOMPARE(f.transport.requests.size(), sent);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Paused")).contains(false));
         // Nothing is left to stop or resume, and the next start is plain.
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
         QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
+    }
+
+    // A 409 shows the state the server sent instead, and says why nothing
+    // happened.
+    void conflictShowsTheChangeFromAnotherDevice()
+    {
+        Fixture f;
+        f.change(QJsonValue::Null, pauseObject(true, 65));
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
+
+        QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), true);
+        // Another device resumed first.
+        const QDateTime resumed = f.clock.now().addSecs(-4);
+        QVERIFY(f.answer("POST", "/timer/resume", f.change(chainEntry(6, resumed, std::nullopt), pauseObject(false, 65, 6)), 409));
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), resumed.toSecsSinceEpoch());
+        QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("error"));
+        const QString message = QStringLiteral("The timer changed on another device first.");
+        QCOMPARE(f.get(QStringLiteral("ErrorString")).toString(), message);
+        QVERIFY(QTest::qWaitFor([&f, &message] {
+            return f.recorder.valuesOf(QStringLiteral("ErrorString")).contains(message);
+        }));
     }
 
     void configureRefusesUnusableSettings_data()
@@ -877,11 +1056,104 @@ private Q_SLOTS:
         QCOMPARE(QDBusConnection(clientBus).interface()->serviceOwner(TimerService::serviceName).value(), QDBusConnection(serviceBus).baseService());
     }
 
-    // Pomodoro mode is stored and locks while a session runs. The session's
-    // state is published, the planned end rings, with the chosen sound for
-    // the player, and Next phase saves the ended pomodoro through the
-    // transport with the service's client name. A restart continues the
-    // session.
+    // A session started on another device shows in Timer mode, locks the
+    // mode and takes the clicks: the menu before the planned end, Next phase
+    // after it. Its actions go to the server against the revision shown, and
+    // the state that follows shows the result.
+    void sessionStartedElsewhereAppearsInTimerMode()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+
+        const QDateTime begin = f.clock.now().addSecs(-10);
+        QVERIFY(f.push(f.change(chainEntry(41, begin, std::nullopt), QJsonValue::Null, pomodoroObject(work(begin), 41))));
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), false);
+        // The open pomodoro belongs to the session, not to the timer.
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
+        QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
+        QCOMPARE(f.get(QStringLiteral("PhaseStart")).toLongLong(), begin.toSecsSinceEpoch());
+        QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), begin.addSecs(60).toSecsSinceEpoch());
+        QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 1);
+        QCOMPARE(f.get(QStringLiteral("LongRestEvery")).toInt(), 2);
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("shortRest"));
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("SessionActive")).contains(true));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
+
+        // The timer is the session's while it runs.
+        const qsizetype sent = f.transport.requests.size();
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), false);
+        // Before the planned end a click opens the menu.
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("open-menu"));
+        QCOMPARE(f.transport.requests.size(), sent);
+
+        // After it the click confirms Next phase against the revision shown.
+        f.advance(50);
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QStringLiteral("workToShortRest"));
+        const qint64 shown = f.revision;
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
+        const QList<qsizetype> nexts = f.find("POST", "/pomodoro/next");
+        QCOMPARE(nexts.size(), 1);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(nexts.first()).body).object(), revisionBody(shown));
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
+        QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
+        const QDateTime rest = f.clock.now();
+        QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(41, begin, std::nullopt), QJsonValue::Null, pomodoroObject(shortRest(rest, begin), 41))));
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("work"));
+
+        // The menu's End session goes to the server too.
+        QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
+        const QList<qsizetype> ends = f.find("POST", "/pomodoro/end");
+        QCOMPARE(ends.size(), 1);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(ends.first()).body).object(), revisionBody(f.revision));
+        QVERIFY(f.answer("POST", "/pomodoro/end", f.change(QJsonValue::Null)));
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
+        // The server saves the pomodoros: the service sends no entry.
+        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
+    }
+
+    // A session ended on another device leaves the timer free again.
+    void sessionEndedElsewhereFreesTheTimer()
+    {
+        Fixture f;
+        const QDateTime begin = f.clock.now().addSecs(-10);
+        f.change(chainEntry(41, begin, std::nullopt), QJsonValue::Null, pomodoroObject(work(begin), 41));
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
+
+        QVERIFY(f.push(f.change(QJsonValue::Null)));
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
+        QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), 0);
+        QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
+    }
+
+    // Pomodoro mode is stored and locks while a session runs. The session is
+    // the server's: Start session, Next phase and End session go to it, the
+    // planned end rings with the chosen sound for the player, and a restart
+    // reads the session again.
     void pomodoroSessionOverTheBus()
     {
         Fixture f;
@@ -890,6 +1162,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("PhaseStart")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), 0);
@@ -901,7 +1174,9 @@ private Q_SLOTS:
 
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), true);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("PomodoroMode")).contains(true));
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("CanStartSession")).contains(true));
         {
             const QSettings settings(f.settingsFile(), QSettings::IniFormat);
             QCOMPARE(settings.value(QStringLiteral("Pomodoro/pomodoroMode")).toBool(), true);
@@ -911,16 +1186,23 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // Start session reads the lengths once more and starts at the click
-        // instant once the read ends.
+        // Start session sends the chosen project, and the server starts the
+        // session with the account's lengths.
         const QDateTime at = f.clock.now();
-        QCOMPARE(f.find("GET", "/me/preferences").size(), 1);
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
-        QCOMPARE(f.find("GET", "/me/preferences").size(), 2);
+        QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), false);
+        const QList<qsizetype> starts = f.find("POST", "/pomodoro");
+        QCOMPARE(starts.size(), 1);
+        const QJsonObject startBody = QJsonDocument::fromJson(f.transport.requests.at(starts.first()).body).object();
+        QCOMPARE(startBody.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-gnome"));
+        QCOMPARE(startBody.value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(startBody.value(QStringLiteral("workspace_id")).toInteger(), 7);
         QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
-        QVERIFY(f.serve());
+        QVERIFY(f.answer("POST", "/pomodoro", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(work(at), 41))));
         QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
         QCOMPARE(f.get(QStringLiteral("PhaseStart")).toLongLong(), at.toSecsSinceEpoch());
         QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), at.addSecs(60).toSecsSinceEpoch());
@@ -957,38 +1239,34 @@ private Q_SLOTS:
         QCOMPARE(alarms.size(), 1);
         QCOMPARE(alarms.last(), (QVariantList{true, QStringLiteral("long-rest-to-work")}));
 
-        // Work to rest saves nothing and silences the alarm.
+        // Next phase asks the server, which starts the rest; the alarm
+        // rings on until the state shows it.
+        const qint64 shown = f.revision;
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(f.find("POST", "/pomodoro/next").first()).body).object(), revisionBody(shown));
+        QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
+        QCOMPARE(alarms.size(), 1);
+        const QDateTime rest = f.clock.now();
+        QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(shortRest(rest, at), 41))));
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("work"));
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QString());
-        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 0);
         QCOMPARE(alarms.size(), 2);
         QCOMPARE(alarms.last(), (QVariantList{false, QString()}));
 
-        // Rest to work saves the pomodoro from its work start to now,
-        // snapped to the account's minute grid.
+        // Rest to work: the server saves the pomodoro, the service sends no entry.
         f.advance(61);
         QVERIFY(f.serve());
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
-        const QList<qsizetype> posts = f.find("POST", "/workspaces/7/time_entries");
-        QCOMPARE(posts.size(), 1);
-        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(posts.first()).body).object();
-        QCOMPARE(body.value(QStringLiteral("start")).toString(), at.toString(Qt::ISODate));
-        QCOMPARE(body.value(QStringLiteral("stop")).toString(), at.addSecs(120).toString(Qt::ISODate));
-        QCOMPARE(body.value(QStringLiteral("duration")).toInteger(), 120);
-        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-gnome"));
-        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
+        const QDateTime second = f.clock.now();
+        QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(42, second, std::nullopt), QJsonValue::Null, pomodoroObject(work(second, 1), 42))));
+        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("longRest"));
-        QJsonObject saved = body;
-        saved.insert(QStringLiteral("id"), 100);
-        f.respond(posts.first(), FakeTransport::answer(200, json(saved)));
 
-        // A restarted service continues the stored session once it has
-        // connected with the saved settings.
+        // A restarted service reads the session from the server.
         QVERIFY(f.restart());
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
@@ -998,32 +1276,57 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
 
-        // End session saves the open pomodoro and unlocks the mode.
+        // End session asks the server and unlocks the mode.
         f.advance(90);
         QVERIFY(f.serve());
         QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
+        QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
+        QVERIFY(f.answer("POST", "/pomodoro/end", f.change(QJsonValue::Null)));
         QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), 0);
-        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 2);
+        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
         QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
     }
 
-    // A pomodoro too short to save is reported as SessionMessage.
+    // A pomodoro the server dropped as too short is reported as
+    // SessionMessage, and so is the reason the server refused an action.
     void sessionMessageIsPublished()
     {
         Fixture f;
         QVERIFY(f.start());
         QVERIFY(f.connect());
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+
+        // A refused start says why, and the session can be started again
+        // once the read after it has answered.
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
+        QVERIFY(f.answer("POST", "/pomodoro", errorBody("Project not found"), 404));
+        QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QStringLiteral("Project not found"));
+        QVERIFY(QTest::qWaitFor([&f] {
+            return f.recorder.valuesOf(QStringLiteral("SessionMessage")).contains(QStringLiteral("Project not found"));
+        }));
         QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), true);
+
+        // The next action clears it.
+        const QDateTime at = f.clock.now();
+        QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QString());
+        QVERIFY(f.answer("POST", "/pomodoro", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(work(at), 41))));
         f.advance(10);
         QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
-        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 0);
+        const QJsonObject discarded{
+            {QStringLiteral("entry_id"), 41},
+            {QStringLiteral("start"), iso(at)},
+            {QStringLiteral("stop"), iso(f.clock.now())},
+        };
+        QVERIFY(f.answer("POST", "/pomodoro/end", f.change(QJsonValue::Null, QJsonValue::Null, QJsonValue::Null, discarded)));
+        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
         const QString message = f.get(QStringLiteral("SessionMessage")).toString();
         QVERIFY(!message.isEmpty());
         QVERIFY(QTest::qWaitFor([&f, &message] {
@@ -1033,9 +1336,9 @@ private Q_SLOTS:
 
     // Activate: in Timer mode, and while an entry runs or a chain is
     // paused, it toggles the timer (start, pause, resume); in Pomodoro mode
-    // it starts a session, is ignored while the read runs or without an
-    // account, opens the menu during a phase, and confirms the next phase
-    // while ringing.
+    // it starts a session, is ignored while that waits for the server or
+    // without an account, opens the menu during a phase, and confirms the
+    // next phase while ringing.
     void activateInEachBranch()
     {
         Fixture f;
@@ -1047,28 +1350,26 @@ private Q_SLOTS:
         QVERIFY(f.connect());
 
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
-        const QList<qsizetype> starts = f.find("POST", "/workspaces/7/time_entries");
-        QCOMPARE(starts.size(), 1);
-        f.current = json(entryObject(5, 11, true));
-        f.respond(starts.first(), FakeTransport::answer(200, f.current));
+        QVERIFY(f.answer("POST", "/workspaces/7/time_entries", json(entryObject(5, 11, true))));
+        f.change(entryObject(5, 11, true));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
-        const QList<qsizetype> stops = f.find("PATCH", "/workspaces/7/time_entries/5/stop");
-        QCOMPARE(stops.size(), 1);
-        f.current = "null";
-        f.respond(stops.first(), FakeTransport::answer(200, json(entryObject(5, 11, false))));
+        QCOMPARE(f.find("POST", "/timer/pause").size(), 1);
+        QVERIFY(f.answer("POST", "/timer/pause", f.change(QJsonValue::Null, pauseObject(true, 65))));
         QVERIFY(f.serve());
         // The click paused the chain, which locks the mode too; Stop while
-        // paused clears it.
+        // paused discards it.
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
+        QVERIFY(f.answer("POST", "/timer/discard", f.change(QJsonValue::Null)));
+        QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
@@ -1076,13 +1377,16 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
-        QVERIFY(f.serve());
+        const QDateTime at = f.clock.now();
+        QVERIFY(f.answer("POST", "/pomodoro", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(work(at), 41))));
         QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("open-menu"));
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
         f.advance(60);
+        QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
+        QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(shortRest(f.clock.now(), at), 41))));
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
         QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
@@ -1232,8 +1536,9 @@ private Q_SLOTS:
         backend.calls.clear();
 
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        const QDateTime at = f.clock.now();
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
-        QVERIFY(f.serve());
+        QVERIFY(f.answer("POST", "/pomodoro", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(work(at), 41))));
         f.advance(59);
         QVERIFY(f.serve());
         QVERIFY(f.ping());
@@ -1254,6 +1559,7 @@ private Q_SLOTS:
         QCOMPARE(late.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest"))});
 
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
+        QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(shortRest(f.clock.now(), at), 41))));
         QCOMPARE(backend.calls, QStringList{QStringLiteral("stop")});
         QCOMPARE(late.calls.last(), QStringLiteral("stop"));
         backend.calls.clear();
@@ -1262,6 +1568,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QStringLiteral("shortRestToWork"));
         QCOMPARE(backend.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("short-rest-to-work"))});
         QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
+        QVERIFY(f.answer("POST", "/pomodoro/end", f.change(QJsonValue::Null)));
         QCOMPARE(backend.calls.last(), QStringLiteral("stop"));
         QCOMPARE(backend.calls.size(), 2);
         // A preview while silent plays once and leaves no loop behind.

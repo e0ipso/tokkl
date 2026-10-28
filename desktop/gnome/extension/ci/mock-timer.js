@@ -2,7 +2,8 @@
 // org.tokkl.Timer1 on the session bus with the interface description from
 // desktop/gnome/dbus, keeps a timer in memory with no server behind it, and
 // records every method call. A second interface, org.tokkl.Timer1Mock,
-// lets the check read the calls, change properties and stop the mock.
+// lets the check read the calls, change properties, start a session as
+// another device would, and stop the mock.
 //
 //   gjs -m mock-timer.js /path/to/org.tokkl.Timer1.xml
 
@@ -18,6 +19,7 @@ const mockXml = `<node>
   <interface name="org.tokkl.Timer1Mock">
     <method name="Calls"><arg name="json" type="s" direction="out"/></method>
     <method name="Quit"/>
+    <method name="StartForeignSession"/>
     <method name="Set">
       <arg name="name" type="s" direction="in"/>
       <arg name="value" type="v" direction="in"/>
@@ -32,6 +34,7 @@ const types = {
     SoundChoices: 'aa{sv}',
     PomodoroMode: 'b', ModeLocked: 'b', SessionActive: 'b', Phase: 's', PhaseStart: 'x', PlannedEnd: 'x',
     PomodoroNumber: 'i', LongRestEvery: 'i', UpcomingPhase: 's', Ringing: 'b', RingingTransition: 's', SessionMessage: 's',
+    CanStartSession: 'b',
 };
 
 const state = {
@@ -68,6 +71,7 @@ const state = {
     PomodoroMode: false,
     ModeLocked: false,
     SessionActive: false,
+    CanStartSession: false,
     Phase: '',
     PhaseStart: 0,
     PlannedEnd: 0,
@@ -113,10 +117,17 @@ function set(values) {
         timer.emit_property_changed(name, variant(name));
     }
     // As the service does: the mode cannot change while an entry runs, a
-    // chain is paused or a session is active.
+    // chain is paused or a session is active, and a session can start in
+    // Pomodoro mode when nothing runs and the account is ready.
+    const derived = {};
     const locked = state.Running || state.Paused || state.SessionActive;
     if (state.ModeLocked !== locked)
-        set({ModeLocked: locked});
+        derived.ModeLocked = locked;
+    const canStart = state.PomodoroMode && !locked && state.Status === 'ready';
+    if (state.CanStartSession !== canStart)
+        derived.CanStartSession = canStart;
+    if (Object.keys(derived).length > 0)
+        set(derived);
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -141,11 +152,12 @@ function startPhase(kind, pomodoroNumber) {
 }
 
 // As the service does: a pause stores the stopped entry's seconds in the
-// chain, a resume starts its clone, and Stop ends the chain.
+// chain, a resume starts its clone, and Stop ends the chain. The timer does
+// nothing while a session is active, whichever device started it.
 class Timer1 {
     Start() {
         calls.push(['Start']);
-        if (state.Running || state.Paused || state.Status !== 'ready' || state.PomodoroMode)
+        if (state.Running || state.Paused || state.SessionActive || state.Status !== 'ready' || state.PomodoroMode)
             return false;
         set({Running: true, StartTime: now()});
         return true;
@@ -153,6 +165,8 @@ class Timer1 {
 
     Stop() {
         calls.push(['Stop']);
+        if (state.SessionActive)
+            return false;
         if (state.Paused) {
             set({Paused: false, ChainSeconds: 0});
             return true;
@@ -165,7 +179,7 @@ class Timer1 {
 
     Pause() {
         calls.push(['Pause']);
-        if (!state.Running || state.Status !== 'ready')
+        if (state.SessionActive || !state.Running || state.Status !== 'ready')
             return false;
         set({
             Running: false,
@@ -178,7 +192,7 @@ class Timer1 {
 
     Resume() {
         calls.push(['Resume']);
-        if (!state.Paused || state.Status !== 'ready')
+        if (state.SessionActive || !state.Paused || state.Status !== 'ready')
             return false;
         set({Paused: false, Running: true, StartTime: now()});
         return true;
@@ -227,19 +241,20 @@ class Timer1 {
     Activate() {
         const before = calls.length;
         let action = 'handled';
-        if (state.Running || state.Paused || !state.PomodoroMode) {
+        if (state.SessionActive) {
+            if (state.Ringing)
+                this.NextPhase();
+            else
+                action = 'open-menu';
+        } else if (state.Running || state.Paused || !state.PomodoroMode) {
             if (state.Paused)
                 this.Resume();
             else if (state.Running)
                 this.Pause();
             else
                 this.Start();
-        } else if (!state.SessionActive) {
-            action = this.StartSession() ? 'handled' : 'ignored';
-        } else if (state.Ringing) {
-            this.NextPhase();
         } else {
-            action = 'open-menu';
+            action = this.StartSession() ? 'handled' : 'ignored';
         }
         calls.splice(before, calls.length - before, ['Activate']);
         return action;
@@ -249,7 +264,7 @@ class Timer1 {
     // them.
     StartSession() {
         calls.push(['StartSession']);
-        if (!state.PomodoroMode || state.SessionActive || state.Running || state.Paused || state.Status !== 'ready')
+        if (!state.CanStartSession)
             return false;
         set({SessionMessage: '', LongRestEvery: state.PomodoroLengths.longRestEvery});
         startPhase('work', 1);
@@ -325,6 +340,13 @@ const loop = new GLib.MainLoop(null, false);
 
 const mock = Gio.DBusExportedObject.wrapJSObject(mockXml, {
     Calls: () => JSON.stringify(calls),
+    // A session another device started: no call of this device's is
+    // recorded, and the mode stays as it is.
+    StartForeignSession: () => {
+        set({SessionMessage: '', LongRestEvery: state.PomodoroLengths.longRestEvery});
+        startPhase('work', 1);
+        set({SessionActive: true});
+    },
     Set: (name, value) => set({[name]: value.recursiveUnpack()}),
     Quit: () => GLib.idle_add(GLib.PRIORITY_DEFAULT, () => loop.quit()),
 });

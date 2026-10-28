@@ -5,18 +5,14 @@
  * after its planned end has run overtime. The user can end the session at any time.
  *
  * These functions read no clock, keep no state and know nothing about stored preferences. The
- * caller passes every instant, so other clients can port them as they are. Results in seconds can
- * be fractional when the instants carry milliseconds.
+ * caller passes every instant. The server runs them to apply the session rules.
  *
  * A pomodoro is a work phase plus the rest after it. Its time entry runs from the work start to the
  * next confirmed work start, or to the instant the session ends. The next pomodoro starts at the
  * previous one's exact, unsnapped end, so their snapped entries share a boundary.
  */
 
-import { snapSpan, type SnappedSpan } from './snap.ts';
-
 const MINUTE_MS = 60_000;
-const SECOND_MS = 1000;
 
 export type SessionPhaseKind = 'work' | 'shortRest' | 'longRest';
 
@@ -84,16 +80,6 @@ export function plannedEnd(phase: SessionPhase, config: PomodoroSessionConfig = 
   return new Date(phase.startedAt.getTime() + phaseMinutes(phase.kind, config) * MINUTE_MS);
 }
 
-/** Seconds `phase` has run past its planned end at `at`, or zero until then. */
-export function overtimeSeconds(
-  phase: SessionPhase,
-  at: Date,
-  config: PomodoroSessionConfig = DEFAULT_POMODORO_SESSION_CONFIG,
-): number {
-  const over = instant(at) - plannedEnd(phase, config).getTime();
-  return Math.max(0, over / SECOND_MS);
-}
-
 /**
  * The transition that ends `phase`. A work phase that brings the count up to `longRestEvery`, or
  * past it after the setting was lowered, is followed by a long rest; any other by a short rest.
@@ -137,15 +123,6 @@ export function nextPhase(
         ? { kind: 'longRest', startedAt, completed: phase.completed + 1 }
         : { kind: 'work', startedAt, completed: transition === 'longRestToWork' ? 0 : phase.completed };
   return { next, transition, skipped };
-}
-
-/**
- * The time entry of a pomodoro that started at `start` and ended at `end`, snapped to a resolution
- * of `minutes` on the wall clock of `timeZone`. Each end moves to the nearest grid point, the later
- * one on a tie. Null when `snapSpan` drops the span, including when both ends snap to one point.
- */
-export function pomodoroEntrySpan(start: Date, end: Date, minutes: number, timeZone: string): SnappedSpan | null {
-  return snapSpan(start, end, minutes, timeZone);
 }
 
 function phaseMinutes(kind: SessionPhaseKind, config: PomodoroSessionConfig): number {

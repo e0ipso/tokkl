@@ -1,60 +1,38 @@
 #include "pomodorosession.h"
 
-#include <QUuid>
-
 #include <algorithm>
 
 namespace Tokkl
 {
 
-namespace
-{
-// The kind of phase a transition starts.
-QString nextPhaseName(TransitionKind transition)
-{
-    switch (transition) {
-    case TransitionKind::WorkToShortRest:
-        return phaseKindName(PhaseKind::ShortRest);
-    case TransitionKind::WorkToLongRest:
-        return phaseKindName(PhaseKind::LongRest);
-    case TransitionKind::ShortRestToWork:
-    case TransitionKind::LongRestToWork:
-        return phaseKindName(PhaseKind::Work);
-    }
-    return QString();
-}
-}
-
-PomodoroSession::PomodoroSession(Clock *clock, TimerController *timer, PomodoroPreferences *preferences, PomodoroQueue *queue, PomodoroStore *store, QObject *parent)
+PomodoroSession::PomodoroSession(Clock *clock, TimerController *timer, TimerStateClient *client, PomodoroStore *store, QObject *parent)
     : QObject(parent)
     , m_clock(clock)
     , m_timer(timer)
-    , m_preferences(preferences)
-    , m_queue(queue)
+    , m_client(client)
     , m_store(store)
 {
     if (m_store) {
         m_pomodoroMode = m_store->loadPomodoroMode();
     }
     if (m_clock) {
-        connect(m_clock, &Clock::ticked, this, &PomodoroSession::onTick);
+        connect(m_clock, &Clock::ticked, this, &PomodoroSession::updateClock);
+    }
+    if (m_client) {
+        connect(m_client, &TimerStateClient::stateChanged, this, &PomodoroSession::onStateChanged);
+        connect(m_client, &TimerStateClient::settlingChanged, this, &PomodoroSession::update);
+        if (Connection *connection = m_client->connection()) {
+            connect(connection, &Connection::generationChanged, this, &PomodoroSession::onGenerationChanged);
+        }
     }
     if (m_timer) {
-        connect(m_timer, &TimerController::connectionChanged, this, &PomodoroSession::onConnectionChanged);
-        connect(m_timer, &TimerController::contextChanged, this, &PomodoroSession::onContextChanged);
-        connect(m_timer, &TimerController::currentEntryChanged, this, &PomodoroSession::onEntryChanged);
+        connect(m_timer, &TimerController::contextChanged, this, &PomodoroSession::update);
+        connect(m_timer, &TimerController::statusChanged, this, &PomodoroSession::update);
+        connect(m_timer, &TimerController::currentEntryChanged, this, &PomodoroSession::update);
         connect(m_timer, &TimerController::chainChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::choiceChanged, this, &PomodoroSession::onChoiceChanged);
+        connect(m_timer, &TimerController::sessionActiveChanged, this, &PomodoroSession::update);
     }
-    if (m_preferences) {
-        connect(m_preferences, &PomodoroPreferences::refreshed, this, &PomodoroSession::onRefreshed);
-    }
-    if (m_queue) {
-        connect(m_queue, &PomodoroQueue::messageChanged, this, [this] {
-            setMessage(m_queue->message());
-        });
-    }
-    onConnectionChanged();
+    onStateChanged();
 }
 
 bool PomodoroSession::pomodoroMode() const
@@ -86,47 +64,37 @@ bool PomodoroSession::modeLocked() const
 
 bool PomodoroSession::isActive() const
 {
-    return m_session.has_value();
+    return m_view.active;
 }
 
 QString PomodoroSession::phase() const
 {
-    return m_session ? phaseKindName(m_session->phase.kind) : QString();
+    return m_view.phase;
 }
 
 QDateTime PomodoroSession::phaseStart() const
 {
-    return m_session ? m_session->phase.startedAt : QDateTime();
+    return m_view.phaseStart;
 }
 
 QDateTime PomodoroSession::plannedEnd() const
 {
-    if (!m_session) {
-        return QDateTime();
-    }
-    return Tokkl::plannedEnd(m_session->phase, m_session->config).value_or(QDateTime());
+    return m_view.plannedEnd;
 }
 
 int PomodoroSession::pomodoroNumber() const
 {
-    if (!m_session) {
-        return 0;
-    }
-    return m_session->phase.kind == PhaseKind::Work ? m_session->phase.completed + 1 : m_session->phase.completed;
+    return m_view.pomodoroNumber;
 }
 
 int PomodoroSession::longRestEvery() const
 {
-    return m_session ? m_session->config.longRestEvery : 0;
+    return m_view.longRestEvery;
 }
 
 QString PomodoroSession::nextPhase() const
 {
-    if (!m_session) {
-        return QString();
-    }
-    const std::optional<TransitionKind> transition = transitionKind(m_session->phase, m_session->config);
-    return transition ? nextPhaseName(*transition) : QString();
+    return m_view.nextPhase;
 }
 
 qint64 PomodoroSession::remainingSeconds() const
@@ -175,21 +143,19 @@ QString PomodoroSession::formatCountdown(qint64 seconds, bool overtime)
 
 PomodoroSession::Activation PomodoroSession::activate()
 {
-    const bool timerHeld = m_timer && (m_timer->isRunning() || m_timer->isPaused());
-    if (timerHeld || !m_pomodoroMode) {
+    if (pomodoro()) {
+        if (!m_ringing) {
+            return Activation::OpenMenu;
+        }
+        return confirmNextPhase() ? Activation::Handled : Activation::Ignored;
+    }
+    if (timerHeld() || !m_pomodoroMode) {
         if (m_timer) {
             m_timer->toggle();
         }
         return Activation::Handled;
     }
-    if (!m_session) {
-        return startSession() ? Activation::Handled : Activation::Ignored;
-    }
-    if (m_ringing) {
-        confirmNextPhase();
-        return Activation::Handled;
-    }
-    return Activation::OpenMenu;
+    return startSession() ? Activation::Handled : Activation::Ignored;
 }
 
 bool PomodoroSession::startSession()
@@ -197,66 +163,75 @@ bool PomodoroSession::startSession()
     if (!m_canStart) {
         return false;
     }
-    // A notice about the last session does not carry into the next one.
-    clearMessage();
-    m_startAt = m_clock->now();
-    if (!m_preferences) {
-        begin(m_startAt);
-        return true;
+    PomodoroStart start;
+    const QVariant project = m_timer->chosenProjectId();
+    bool ok = false;
+    const qint64 id = project.isValid() && !project.isNull() ? project.toLongLong(&ok) : 0;
+    if (ok && id > 0) {
+        start.projectId = id;
     }
-    // The lengths are read once more; the session starts when the read
-    // ends, with what it returned or with the lengths last known.
-    m_startPending = true;
+    start.billable = m_timer->chosenBillable();
+    clearMessage();
+    m_pending = true;
     update();
-    m_preferences->refresh();
+    m_client->startPomodoro(start, finishing());
     return true;
 }
 
 bool PomodoroSession::confirmNextPhase()
 {
-    if (!m_session || !m_clock) {
-        return false;
-    }
-    // A clock set back since the phase started confirms at the phase start.
-    const QDateTime at = std::max(m_clock->now(), m_session->phase.startedAt);
-    const std::optional<PhaseChange> change = Tokkl::nextPhase(m_session->phase, at, m_session->config);
-    if (!change) {
-        return false;
-    }
-    PomodoroSessionRecord next = *m_session;
-    next.revision += 1;
-    next.phase = change->next;
-    const bool completes = change->next.kind == PhaseKind::Work;
-    std::optional<UnsavedPomodoro> item;
-    if (completes) {
-        item = snapshot(at);
-        next.pomodoroStart = at;
-    }
-    if (!write(next, item)) {
-        return false;
-    }
-    m_session = next;
-    m_ringing = false;
-    if (completes && !item) {
-        setMessage(tr("This pomodoro was too short to save."));
-    }
-    update();
-    return true;
+    return sendWithRevision(&TimerStateClient::nextPhase);
 }
 
 bool PomodoroSession::endSession()
 {
-    if (!m_session || !m_clock) {
+    return sendWithRevision(&TimerStateClient::endPomodoro);
+}
+
+bool PomodoroSession::sendWithRevision(void (TimerStateClient::*action)(TimerStateClient::ActionCallback))
+{
+    if (!pomodoro() || busy()) {
         return false;
     }
-    return end(m_clock->now());
+    clearMessage();
+    m_pending = true;
+    update();
+    (m_client->*action)(finishing());
+    return true;
+}
+
+TimerStateClient::ActionCallback PomodoroSession::finishing()
+{
+    QPointer<PomodoroSession> self(this);
+    const quint64 epoch = m_epoch;
+    return [self, epoch](const TimerActionResult &result) {
+        if (!self || epoch != self->m_epoch) {
+            return;
+        }
+        self->m_pending = false;
+        // The state of an applied action or of a 409 is already adopted and
+        // shows what happened. Otherwise the user learns why nothing did, or
+        // that the outcome is being settled.
+        using Outcome = TimerActionResult::Outcome;
+        if (result.outcome == Outcome::Refused || result.outcome == Outcome::Unknown) {
+            self->setMessage(result.error.message);
+        }
+        self->update();
+    };
+}
+
+void PomodoroSession::onGenerationChanged()
+{
+    // Another instance, account or credential: the pending action and its
+    // message belonged to the earlier one.
+    ++m_epoch;
+    m_pending = false;
+    clearMessage();
+    update();
 }
 
 void PomodoroSession::clearMessage()
 {
-    if (m_queue) {
-        m_queue->clearMessage();
-    }
     setMessage(QString());
 }
 
@@ -265,216 +240,56 @@ void PomodoroSession::resumed()
     updateClock();
 }
 
-// ----- session changes -----------------------------------------------------
+// ----- state, timer and clock ----------------------------------------------
 
-void PomodoroSession::begin(const QDateTime &at)
+const TimerPomodoro *PomodoroSession::pomodoro() const
 {
-    PomodoroConfig config = m_preferences ? m_preferences->config() : PomodoroConfig();
-    if (!config.isValid()) {
-        config = PomodoroConfig();
+    if (!m_client || !m_client->state() || !m_client->state()->pomodoro) {
+        return nullptr;
     }
-    PomodoroSessionRecord session;
-    session.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    session.config = config;
-    session.projectId = chosenProject();
-    session.billable = m_timer->chosenBillable();
-    session.phase = Tokkl::startSession(at).value_or(SessionPhase{PhaseKind::Work, at, 0});
-    session.pomodoroStart = at;
-    if (write(session, std::nullopt)) {
-        m_session = session;
-        m_ringing = false;
-    }
-    update();
+    return &*m_client->state()->pomodoro;
 }
 
-bool PomodoroSession::end(const QDateTime &at)
+bool PomodoroSession::timerHeld() const
 {
-    const QDateTime endAt = std::max(at, m_session->pomodoroStart);
-    const std::optional<UnsavedPomodoro> item = snapshot(endAt);
-    if (!write(std::nullopt, item)) {
-        return false;
-    }
-    m_session.reset();
-    m_ringing = false;
-    if (!item) {
+    return m_timer && (m_timer->isRunning() || m_timer->isPaused());
+}
+
+bool PomodoroSession::busy() const
+{
+    return m_pending || !m_client || m_client->settling() || (m_timer && m_timer->isBusy());
+}
+
+void PomodoroSession::onStateChanged()
+{
+    const std::optional<DiscardedPomodoro> discarded = m_client && m_client->state() ? m_client->state()->discardedPomodoro : std::nullopt;
+    if (discarded && discarded->entryId != m_discardedEntry) {
+        m_discardedEntry = discarded->entryId;
         setMessage(tr("This pomodoro was too short to save."));
     }
     update();
-    return true;
-}
-
-std::optional<UnsavedPomodoro> PomodoroSession::snapshot(const QDateTime &end)
-{
-    const std::optional<Me> account = m_connection ? m_connection->account() : std::nullopt;
-    const int minutes = account ? account->timeResolutionMinutes : 1;
-    const QDateTime start = m_session->pomodoroStart;
-    std::optional<std::optional<SnappedSpan>> span = pomodoroEntrySpan(start, end, minutes, account ? account->timezone : QString());
-    if (!span) {
-        // The zone is missing or unknown; the grid in UTC keeps the entry.
-        span = pomodoroEntrySpan(start, end, minutes, QStringLiteral("UTC"));
-    }
-    if (!span || !*span) {
-        return std::nullopt;
-    }
-    UnsavedPomodoro item;
-    item.id = m_session->id + QLatin1Char(':') + QString::number(start.toMSecsSinceEpoch());
-    item.owner = m_owner;
-    item.workspaceId = m_connection ? m_connection->workspaceId() : 0;
-    item.start = (*span)->start;
-    item.stop = (*span)->stop;
-    item.duration = item.start.secsTo(item.stop);
-    item.projectId = m_session->projectId;
-    item.billable = m_session->billable;
-    // Due now, so the queue posts it at once.
-    item.retryAt = m_clock ? m_clock->now() : end;
-    return item;
-}
-
-bool PomodoroSession::write(const std::optional<PomodoroSessionRecord> &session, const std::optional<UnsavedPomodoro> &item)
-{
-    if (item) {
-        return m_queue && m_queue->enqueue(*item, session);
-    }
-    if (!m_store || m_owner.isEmpty()) {
-        return false;
-    }
-    PomodoroRecord record = PomodoroRecord::fromJson(m_store->loadRecord(m_owner));
-    record.session = session;
-    return m_store->saveRecord(m_owner, record.toJson());
-}
-
-std::optional<qint64> PomodoroSession::chosenProject() const
-{
-    const QVariant project = m_timer ? m_timer->chosenProjectId() : QVariant();
-    if (project.isNull() || !project.isValid()) {
-        return std::nullopt;
-    }
-    bool ok = false;
-    const qint64 id = project.toLongLong(&ok);
-    return ok && id > 0 ? std::optional<qint64>(id) : std::nullopt;
-}
-
-// ----- timer, connection and clock -----------------------------------------
-
-void PomodoroSession::onConnectionChanged()
-{
-    Connection *connection = m_timer ? m_timer->connection() : nullptr;
-    if (connection != m_connection) {
-        if (m_connection) {
-            disconnect(m_connection, nullptr, this, nullptr);
-        }
-        m_connection = connection;
-        if (m_connection) {
-            connect(m_connection, &Connection::contextAboutToChange, this, &PomodoroSession::onContextAboutToChange);
-        }
-    }
-    onContextChanged();
-}
-
-void PomodoroSession::onContextChanged()
-{
-    followOwner();
-    update();
-}
-
-void PomodoroSession::onContextAboutToChange()
-{
-    // The old account is still bound: its session ends and its pomodoros
-    // are posted with its credentials.
-    if (m_session && m_clock) {
-        end(m_clock->now());
-    }
-    m_startPending = false;
-    if (m_queue) {
-        m_queue->flushForSignOut();
-    }
-}
-
-void PomodoroSession::followOwner()
-{
-    const QString owner = this->owner();
-    if (owner == m_owner) {
-        return;
-    }
-    m_owner = owner;
-    m_startPending = false;
-    m_session.reset();
-    m_ringing = false;
-    if (m_store && !m_owner.isEmpty()) {
-        const PomodoroRecord record = PomodoroRecord::fromJson(m_store->loadRecord(m_owner));
-        if (record.session && !record.session->ending) {
-            m_session = record.session;
-        }
-    }
-    // The timer may already show the entry of another client.
-    onEntryChanged();
-}
-
-QString PomodoroSession::owner() const
-{
-    return m_connection ? m_connection->owner() : QString();
-}
-
-bool PomodoroSession::accountBound() const
-{
-    return m_timer && m_timer->isConnected() && !owner().isEmpty();
-}
-
-void PomodoroSession::onEntryChanged()
-{
-    if (m_session && m_timer) {
-        const std::optional<TimeEntry> entry = m_timer->currentEntry();
-        if (entry && entry->isRunning() && entry->start > m_session->pomodoroStart && end(entry->start)) {
-            return;
-        }
-    }
-    update();
-}
-
-void PomodoroSession::onChoiceChanged()
-{
-    if (!m_session || !m_timer || m_timer->isRunning() || m_timer->isPaused()) {
-        return;
-    }
-    const std::optional<qint64> project = chosenProject();
-    const bool billable = m_timer->chosenBillable();
-    if (project == m_session->projectId && billable == m_session->billable) {
-        return;
-    }
-    PomodoroSessionRecord next = *m_session;
-    next.projectId = project;
-    next.billable = billable;
-    if (write(next, std::nullopt)) {
-        m_session = next;
-    }
-}
-
-void PomodoroSession::onRefreshed(bool ok)
-{
-    Q_UNUSED(ok)
-    if (!m_startPending) {
-        return;
-    }
-    m_startPending = false;
-    // A timer may have appeared or the account gone while the read ran.
-    const bool startable = m_pomodoroMode && !m_session && accountBound() && m_timer && !m_timer->isRunning() && !m_timer->isPaused();
-    if (startable) {
-        begin(m_startAt);
-    } else {
-        update();
-    }
-}
-
-void PomodoroSession::onTick()
-{
-    updateClock();
 }
 
 void PomodoroSession::update()
 {
-    const bool timerHeld = m_timer && (m_timer->isRunning() || m_timer->isPaused());
-    const bool locked = timerHeld || m_session.has_value();
-    const bool canStart = m_pomodoroMode && !m_session && !m_startPending && !timerHeld && accountBound() && m_clock && m_timer;
+    const TimerPomodoro *session = pomodoro();
+    View view;
+    if (session) {
+        // The server's instants on this device's clock.
+        const qint64 offset = m_client->serverOffsetMs();
+        view.active = true;
+        view.phase = phaseKindName(session->phase.kind);
+        view.phaseStart = session->phase.start.addMSecs(-offset);
+        view.plannedEnd = session->phase.plannedEnd.addMSecs(-offset);
+        view.pomodoroNumber = session->number;
+        view.longRestEvery = session->config.longRestEvery;
+        view.nextPhase = phaseKindName(session->upcomingPhase);
+    }
+
+    const bool sessionActive = session || (m_timer && m_timer->isSessionActive());
+    const bool locked = timerHeld() || sessionActive;
+    const bool canStart = m_pomodoroMode && !sessionActive && !timerHeld() && !busy() && m_clock && m_timer && m_timer->isConnected() && m_client
+        && m_client->state().has_value();
     if (locked != m_modeLocked) {
         m_modeLocked = locked;
         Q_EMIT modeLockedChanged();
@@ -483,8 +298,8 @@ void PomodoroSession::update()
         m_canStart = canStart;
         Q_EMIT canStartSessionChanged();
     }
-    if (m_session != m_published) {
-        m_published = m_session;
+    if (view != m_view) {
+        m_view = view;
         Q_EMIT sessionChanged();
     }
     updateClock();
@@ -492,14 +307,14 @@ void PomodoroSession::update()
 
 void PomodoroSession::updateClock()
 {
+    const TimerPomodoro *session = pomodoro();
     qint64 remaining = 0;
     qint64 overtime = 0;
     QString text;
     bool ringing = false;
     QString transition;
-    if (m_session && m_clock) {
-        const std::optional<QDateTime> end = Tokkl::plannedEnd(m_session->phase, m_session->config);
-        const qint64 ms = end ? m_clock->now().msecsTo(*end) : 0;
+    if (session) {
+        const qint64 ms = m_client->serverNow().msecsTo(session->phase.plannedEnd);
         if (ms > 0) {
             remaining = (ms + 999) / 1000;
             text = formatCountdown(remaining, false);
@@ -507,13 +322,13 @@ void PomodoroSession::updateClock()
             overtime = -ms / 1000;
             text = formatCountdown(overtime, true);
         }
-        // Once rung, a phase rings until it is confirmed, also if the clock
-        // is set back.
-        ringing = ms <= 0 || m_ringing;
+        ringing = ms <= 0 || m_rangPhase == session->phase.start;
         if (ringing) {
-            const std::optional<TransitionKind> kind = transitionKind(m_session->phase, m_session->config);
-            transition = kind ? transitionKindName(*kind) : QString();
+            m_rangPhase = session->phase.start;
+            transition = transitionKindName(session->transition);
         }
+    } else {
+        m_rangPhase = QDateTime();
     }
     if (remaining != m_remaining || overtime != m_overtime || text != m_countdown) {
         m_remaining = remaining;

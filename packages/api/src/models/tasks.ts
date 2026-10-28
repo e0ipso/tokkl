@@ -1,8 +1,9 @@
 import type { Db } from '../db/index.ts';
-import { nowIso } from '../db/index.ts';
+import { nowIso, transaction } from '../db/index.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import { asBool, optionalBool, optionalNumber, requireName, togglTime } from '../lib/values.ts';
 import { getProjectRef } from './projects.ts';
+import { touchWorkspaceTimers } from './timerState.ts';
 
 export interface TaskRow {
   id: number;
@@ -88,22 +89,29 @@ export function createTask(db: Db, wid: number, projectId: number, body: Record<
 }
 
 export function updateTask(db: Db, wid: number, projectId: number, id: number, body: Record<string, unknown>): TaskWithMeta {
-  const current = getTask(db, wid, id, projectId);
-  const name = body.name === undefined ? current.name : requireName(body.name, 'Task name', 255);
-  assertUniqueName(db, projectId, name, id);
-  const active = optionalBool(body.active, 'active');
-  const estimate = optionalNumber(body.estimated_seconds, 'estimated_seconds');
-  db.prepare('UPDATE tasks SET name = ?, active = ?, estimated_seconds = ?, updated_at = ? WHERE id = ?').run(
-    name, active === undefined ? current.active : Number(active),
-    estimate === undefined ? current.estimated_seconds : estimate, nowIso(), id,
-  );
-  return getTask(db, wid, id);
+  return transaction(db, () => {
+    const current = getTask(db, wid, id, projectId);
+    const name = body.name === undefined ? current.name : requireName(body.name, 'Task name', 255);
+    assertUniqueName(db, projectId, name, id);
+    const active = optionalBool(body.active, 'active');
+    const estimate = optionalNumber(body.estimated_seconds, 'estimated_seconds');
+    touchWorkspaceTimers(db, wid);
+    db.prepare('UPDATE tasks SET name = ?, active = ?, estimated_seconds = ?, updated_at = ? WHERE id = ?').run(
+      name, active === undefined ? current.active : Number(active),
+      estimate === undefined ? current.estimated_seconds : estimate, nowIso(), id,
+    );
+    return getTask(db, wid, id);
+  });
 }
 
+/** Deletes a task. Its entries are kept without it, running ones included. */
 export function deleteTask(db: Db, wid: number, projectId: number, id: number): void {
-  getTask(db, wid, id, projectId);
-  db.prepare('UPDATE time_entries SET updated_at = ? WHERE task_id = ?').run(nowIso(), id);
-  db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+  transaction(db, () => {
+    getTask(db, wid, id, projectId);
+    touchWorkspaceTimers(db, wid);
+    db.prepare('UPDATE time_entries SET updated_at = ? WHERE task_id = ?').run(nowIso(), id);
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+  });
 }
 
 export function serializeTask(row: TaskWithMeta) {

@@ -3,6 +3,7 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { openDatabase } from './db/index.ts';
 import { countUsers } from './models/users.ts';
+import { TimerStreams } from './services/timerStreams.ts';
 
 function setupCode(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -15,7 +16,8 @@ const { config, notices } = loadConfig();
 for (const notice of notices) console.warn(notice);
 const db = openDatabase(config.databasePath);
 const setup = { code: countUsers(db) === 0 ? (config.setupCode ?? setupCode()) : null };
-const app = createApp({ db, config, setup });
+const timerStreams = new TimerStreams(db);
+const app = createApp({ db, config, setup, timerStreams });
 
 const server = app.listen(config.port, config.host, () => {
   console.log(`tokkl listening on http://${config.host}:${config.port} (database: ${config.databasePath})`);
@@ -30,6 +32,8 @@ server.on('error', (error) => {
 
 function shutdown(signal: string): void {
   console.log(`${signal} received, shutting down`);
+  // Event streams never end on their own, so server.close() would wait on them until the timeout.
+  timerStreams.closeAll();
   server.close(() => {
     db.close();
     process.exit(0);

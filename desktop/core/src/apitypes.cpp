@@ -1,6 +1,5 @@
 #include "apitypes.h"
 
-#include "snap.h"
 #include "transport.h"
 
 #include <QCoreApplication>
@@ -90,6 +89,147 @@ std::optional<QDateTime> timestamp(const QJsonValue &value)
         return std::nullopt;
     }
     return result;
+}
+
+// A whole number from min up, as an int.
+std::optional<int> count(const QJsonValue &value, int min)
+{
+    const std::optional<qint64> number = integer(value);
+    if (!number || *number < min || *number > std::numeric_limits<int>::max()) {
+        return std::nullopt;
+    }
+    return int(*number);
+}
+
+std::optional<PhaseKind> phaseKind(const QJsonValue &value)
+{
+    return value.isString() ? parsePhaseKind(value.toString()) : std::nullopt;
+}
+
+// A key that must be present: false when it is missing. A null value leaves
+// out empty; anything else must decode.
+template<typename T>
+bool nullable(const QJsonObject &object, QLatin1String key, std::optional<T> (*decode)(const QJsonValue &), std::optional<T> &out)
+{
+    const QJsonValue value = object.value(key);
+    if (value.isUndefined()) {
+        return false;
+    }
+    if (value.isNull()) {
+        out.reset();
+        return true;
+    }
+    out = decode(value);
+    return out.has_value();
+}
+
+std::optional<TimeEntry> runningEntry(const QJsonValue &value)
+{
+    std::optional<TimeEntry> entry = decodeTimeEntry(value);
+    if (!entry || !entry->isRunning()) {
+        return std::nullopt;
+    }
+    return entry;
+}
+
+std::optional<TimerPause> timerPause(const QJsonValue &value)
+{
+    if (!value.isObject()) {
+        return std::nullopt;
+    }
+    const QJsonObject object = value.toObject();
+    TimerPause pause;
+    const QJsonValue paused = object.value(QLatin1String("paused"));
+    const std::optional<qint64> seconds = integer(object.value(QLatin1String("seconds")));
+    const std::optional<qint64> workspace = positiveId(object.value(QLatin1String("workspace_id")));
+    if (!paused.isBool() || !seconds || *seconds < 0 || !workspace) {
+        return std::nullopt;
+    }
+    pause.paused = paused.toBool();
+    pause.seconds = *seconds;
+    pause.workspaceId = *workspace;
+    if (!optionalString(object.value(QLatin1String("description")), pause.description)
+        || !nullableId(object.value(QLatin1String("project_id")), pause.projectId) || !nullableId(object.value(QLatin1String("task_id")), pause.taskId)
+        || !optionalBool(object.value(QLatin1String("billable")), pause.billable, false)
+        || !nullableId(object.value(QLatin1String("clone_entry_id")), pause.cloneEntryId)) {
+        return std::nullopt;
+    }
+    const QJsonValue tagIds = object.value(QLatin1String("tag_ids"));
+    if (!tagIds.isArray()) {
+        return std::nullopt;
+    }
+    for (const QJsonValue &item : tagIds.toArray()) {
+        const std::optional<qint64> id = positiveId(item);
+        if (!id) {
+            return std::nullopt;
+        }
+        pause.tagIds.append(*id);
+    }
+    const QJsonValue tags = object.value(QLatin1String("tags"));
+    if (!tags.isArray()) {
+        return std::nullopt;
+    }
+    for (const QJsonValue &tag : tags.toArray()) {
+        if (!tag.isString()) {
+            return std::nullopt;
+        }
+        pause.tags.append(tag.toString());
+    }
+    return pause;
+}
+
+std::optional<TimerPomodoro> timerPomodoro(const QJsonValue &value)
+{
+    if (!value.isObject()) {
+        return std::nullopt;
+    }
+    const QJsonObject object = value.toObject();
+    const QJsonObject phaseObject = object.value(QLatin1String("phase")).toObject();
+    const std::optional<int> work = count(object.value(QLatin1String("work_minutes")), 1);
+    const std::optional<int> shortRest = count(object.value(QLatin1String("short_rest_minutes")), 1);
+    const std::optional<int> longRest = count(object.value(QLatin1String("long_rest_minutes")), 1);
+    const std::optional<int> every = count(object.value(QLatin1String("long_rest_every")), 1);
+    const std::optional<PhaseKind> kind = phaseKind(phaseObject.value(QLatin1String("kind")));
+    const std::optional<QDateTime> phaseStart = timestamp(phaseObject.value(QLatin1String("start")));
+    const std::optional<int> completed = count(phaseObject.value(QLatin1String("completed")), 0);
+    const std::optional<QDateTime> plannedEnd = timestamp(phaseObject.value(QLatin1String("planned_end")));
+    const std::optional<PhaseKind> upcoming = phaseKind(object.value(QLatin1String("upcoming_phase")));
+    const QJsonValue transitionName = object.value(QLatin1String("transition"));
+    const std::optional<TransitionKind> transition = transitionName.isString() ? parseTransitionKind(transitionName.toString()) : std::nullopt;
+    const std::optional<int> number = count(object.value(QLatin1String("number")), 1);
+    const std::optional<qint64> entry = positiveId(object.value(QLatin1String("entry_id")));
+    const std::optional<QDateTime> pomodoroStart = timestamp(object.value(QLatin1String("pomodoro_start")));
+    if (!work || !shortRest || !longRest || !every || !kind || !phaseStart || !completed || !plannedEnd || !upcoming || !transition || !number || !entry
+        || !pomodoroStart) {
+        return std::nullopt;
+    }
+    TimerPomodoro pomodoro;
+    pomodoro.config = PomodoroConfig{*work, *shortRest, *longRest, *every};
+    if (!pomodoro.config.isValid()) {
+        return std::nullopt;
+    }
+    pomodoro.phase = TimerPomodoroPhase{*kind, *phaseStart, *completed, *plannedEnd};
+    pomodoro.upcomingPhase = *upcoming;
+    pomodoro.transition = *transition;
+    pomodoro.number = *number;
+    pomodoro.entryId = *entry;
+    pomodoro.pomodoroStart = *pomodoroStart;
+    return pomodoro;
+}
+
+std::optional<DiscardedPomodoro> discardedPomodoro(const QJsonValue &value)
+{
+    if (!value.isObject()) {
+        return std::nullopt;
+    }
+    const QJsonObject object = value.toObject();
+    const std::optional<qint64> entry = positiveId(object.value(QLatin1String("entry_id")));
+    const std::optional<QDateTime> start = timestamp(object.value(QLatin1String("start")));
+    const std::optional<QDateTime> stop = timestamp(object.value(QLatin1String("stop")));
+    if (!entry || !start || !stop) {
+        return std::nullopt;
+    }
+    return DiscardedPomodoro{*entry, *start, *stop};
 }
 
 QVariant idVariant(const std::optional<qint64> &id)
@@ -387,6 +527,29 @@ std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value)
     return entries;
 }
 
+std::optional<TimerState> decodeTimerState(const QJsonValue &value)
+{
+    if (!value.isObject()) {
+        return std::nullopt;
+    }
+    const QJsonObject object = value.toObject();
+    TimerState state;
+    const std::optional<qint64> revision = integer(object.value(QLatin1String("revision")));
+    const std::optional<QDateTime> serverTime = timestamp(object.value(QLatin1String("server_time")));
+    if (!revision || *revision < 0 || !serverTime) {
+        return std::nullopt;
+    }
+    state.revision = *revision;
+    state.serverTime = *serverTime;
+    if (!nullable(object, QLatin1String("running_entry"), &runningEntry, state.runningEntry)
+        || !nullable(object, QLatin1String("pause"), &timerPause, state.pause)
+        || !nullable(object, QLatin1String("pomodoro"), &timerPomodoro, state.pomodoro)
+        || !nullable(object, QLatin1String("discarded_pomodoro"), &discardedPomodoro, state.discardedPomodoro)) {
+        return std::nullopt;
+    }
+    return state;
+}
+
 ApiError errorFromResponse(const HttpResponse &response)
 {
     ApiError error;
@@ -454,22 +617,6 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-QByteArray encodeStoppedEntry(const StoppedEntry &entry, qint64 workspaceId, const QString &createdWith)
-{
-    const QJsonObject object{
-        {QStringLiteral("created_with"), createdWith},
-        {QStringLiteral("description"), QString()},
-        {QStringLiteral("start"), utcTimestamp(entry.start)},
-        {QStringLiteral("stop"), utcTimestamp(entry.stop)},
-        {QStringLiteral("duration"), entry.duration},
-        {QStringLiteral("workspace_id"), workspaceId},
-        {QStringLiteral("project_id"), idJson(entry.projectId)},
-        {QStringLiteral("billable"), entry.billable},
-        {QStringLiteral("tags"), QJsonArray()},
-    };
-    return QJsonDocument(object).toJson(QJsonDocument::Compact);
-}
-
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
 {
     QJsonObject object;
@@ -489,6 +636,66 @@ QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
         object.insert(QStringLiteral("start"), utcTimestamp(*update.start));
     }
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+bool PomodoroConfig::isValid() const
+{
+    return workMinutesRange.contains(workMinutes) && shortRestMinutesRange.contains(shortRestMinutes) && longRestMinutesRange.contains(longRestMinutes)
+        && longRestEveryRange.contains(longRestEvery);
+}
+
+QString phaseKindName(PhaseKind kind)
+{
+    switch (kind) {
+    case PhaseKind::Work:
+        return QStringLiteral("work");
+    case PhaseKind::ShortRest:
+        return QStringLiteral("shortRest");
+    case PhaseKind::LongRest:
+        return QStringLiteral("longRest");
+    }
+    return QString();
+}
+
+std::optional<PhaseKind> parsePhaseKind(QStringView name)
+{
+    for (const PhaseKind kind : {PhaseKind::Work, PhaseKind::ShortRest, PhaseKind::LongRest}) {
+        if (name == phaseKindName(kind)) {
+            return kind;
+        }
+    }
+    return std::nullopt;
+}
+
+QString transitionKindName(TransitionKind kind)
+{
+    switch (kind) {
+    case TransitionKind::WorkToShortRest:
+        return QStringLiteral("workToShortRest");
+    case TransitionKind::ShortRestToWork:
+        return QStringLiteral("shortRestToWork");
+    case TransitionKind::WorkToLongRest:
+        return QStringLiteral("workToLongRest");
+    case TransitionKind::LongRestToWork:
+        return QStringLiteral("longRestToWork");
+    }
+    return QString();
+}
+
+std::optional<TransitionKind> parseTransitionKind(QStringView name)
+{
+    for (const TransitionKind kind :
+         {TransitionKind::WorkToShortRest, TransitionKind::ShortRestToWork, TransitionKind::WorkToLongRest, TransitionKind::LongRestToWork}) {
+        if (name == transitionKindName(kind)) {
+            return kind;
+        }
+    }
+    return std::nullopt;
+}
+
+bool isTimeResolution(qint64 minutes)
+{
+    return minutes >= 1 && 60 % minutes == 0;
 }
 
 QString pomodoroPreferenceKey(PomodoroField field)
@@ -524,6 +731,25 @@ QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update)
         if (const std::optional<int> value = update.*preference.change) {
             object.insert(preference.key, *value);
         }
+    }
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+QByteArray encodeRevision(qint64 revision)
+{
+    return QJsonDocument(QJsonObject{{QStringLiteral("revision"), revision}}).toJson(QJsonDocument::Compact);
+}
+
+QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith)
+{
+    QJsonObject object{
+        {QStringLiteral("created_with"), createdWith},
+        {QStringLiteral("description"), start.description},
+        {QStringLiteral("workspace_id"), workspaceId},
+        {QStringLiteral("project_id"), idJson(start.projectId)},
+    };
+    if (start.billable) {
+        object.insert(QStringLiteral("billable"), *start.billable);
     }
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }

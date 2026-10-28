@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { test as base, expect, request, type APIRequestContext, type APIResponse } from '@playwright/test';
+import { test as base, expect, request, type APIRequestContext, type APIResponse, type BrowserContext } from '@playwright/test';
 import { RuntimeErrors } from './runtime-errors.ts';
 import { madridWallClock } from './timer-tests-helpers.ts';
 
@@ -292,13 +292,16 @@ export class TestData {
   }
 
   /**
-   * Deletes every entry (running or not), the trash, projects, clients and tags, and resets
-   * preferences. It touches only this account and its own workspace, so other accounts keep theirs.
+   * Deletes every entry (running or not), the trash, a paused chain, projects, clients and tags,
+   * and resets preferences. It touches only this account and its own workspace, so other accounts keep theirs.
    */
   async reset(): Promise<void> {
     const ws = `/api/v9/workspaces/${this.workspaceId}`;
     for (const entry of await this.entries()) await ok(await this.api.delete(`${ws}/time_entries/${entry.id}`, { headers: CSRF }));
     await ok(await this.api.delete('/api/app/trash', { headers: CSRF }));
+    // A paused chain outlives its entries, because the server keeps it until nothing else runs it.
+    const timer = await json<{ revision: number; pause: { paused: boolean } | null }>(this.api.get('/api/app/timer'));
+    if (timer.pause?.paused) await ok(await this.api.post('/api/app/timer/discard', { headers: CSRF, data: { revision: timer.revision } }));
     for (const project of await this.projects()) {
       await ok(await this.api.delete(`${ws}/projects/${project.id}`, { headers: CSRF }));
     }
@@ -315,6 +318,20 @@ export class TestData {
     await this.api.post('/api/app/logout', { headers: CSRF });
     await this.api.dispose();
   }
+}
+
+/**
+ * Sends every open page to a plain page of its own server. The app reads the timer again as soon as
+ * its event stream ends, so a page left on the app sees the request fail once the server or its
+ * account is gone. Call it before a fixture ends the sessions or stops the server.
+ */
+export async function leavePages(context: BrowserContext): Promise<void> {
+  await Promise.all(context.pages().map((page) => {
+    const url = page.url();
+    return url.startsWith('http') && new URL(url).pathname !== '/healthz'
+      ? page.goto(new URL('/healthz', url).href).catch(() => {})
+      : undefined;
+  }));
 }
 
 /**
@@ -401,11 +418,12 @@ export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErro
       }
     }
   }, { auto: true }],
-  users: async ({ data }, use) => {
+  users: async ({ data, context }, use) => {
     const users = new ExtraUsers(data);
     try {
       await use(users);
     } finally {
+      await leavePages(context);
       await users.dispose();
     }
   },

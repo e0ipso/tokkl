@@ -85,11 +85,14 @@ var checkWorkspaceSchema = (strikethrooRoot) => {
   }
   process.exit(1);
 };
-var findStrikethrooRoot = (startPath = process.cwd()) => {
+var discoverStrikethrooRoot = (startPath = process.cwd()) => {
   const paths = getParentPaths(startPath);
   const found = paths.find((p) => getStrikethrooAt(p));
   if (!found) return null;
-  const root = getStrikethrooAt(found);
+  return getStrikethrooAt(found);
+};
+var findStrikethrooRoot = (startPath = process.cwd()) => {
+  const root = discoverStrikethrooRoot(startPath);
   if (root) checkWorkspaceSchema(root);
   return root;
 };
@@ -200,11 +203,11 @@ var checkStandardRootShortcut = (filePath) => {
   if (path3.basename(dotAiDir) !== ".ai") return null;
   return isValidRootDir(possibleRoot) ? possibleRoot : null;
 };
+var discoverRootForPlanFile = (planFile) => checkStandardRootShortcut(planFile) ?? discoverStrikethrooRoot(path3.dirname(planFile));
 var locateRootForPlanFile = (planFile) => {
-  const shortcut = checkStandardRootShortcut(planFile);
-  if (!shortcut) return findStrikethrooRoot(path3.dirname(planFile));
-  checkWorkspaceSchema(shortcut);
-  return shortcut;
+  const root = discoverRootForPlanFile(planFile);
+  if (root) checkWorkspaceSchema(root);
+  return root;
 };
 var resolveByPath = (absolutePath) => {
   let content;
@@ -1387,12 +1390,12 @@ var validateTaskComplexityScores = (planDir) => {
       continue;
     }
     const frontmatter = extractFrontmatter(content);
-    const match = frontmatter ? frontmatter.match(/^\s*complexity_score\s*:\s*(.*?)\s*(?:#.*)?$/im) : null;
+    const match = frontmatter ? frontmatter.match(/^[ \t]*complexity_score[ \t]*:([^\r\n]*)$/im) : null;
     if (!match || match[1] === void 0) {
       invalid.push(`${file}: missing complexity_score`);
       continue;
     }
-    const raw = match[1].trim();
+    const raw = match[1].split("#", 1)[0].trim();
     const result = validateComplexityScore(raw);
     if (result.valid) continue;
     if (result.reason === "non-integer") {

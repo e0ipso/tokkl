@@ -1,7 +1,6 @@
 #pragma once
 
 #include "apitypes.h"
-#include "pomodorocycle.h"
 
 #include <QPointer>
 #include <QTimer>

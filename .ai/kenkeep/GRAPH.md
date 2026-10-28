@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:305e5d4dd0c31624eb3bd848835a8b761c4e5182b162fd53bdccadf203b62a20'
-node_count: 87
+nodes_hash: 'sha256:7926bbc0fe9fd90d35e47986aa38b134e437ed1b7ca7d0284a99f755570d7c5f'
+node_count: 88
 ---
 # kenkeep Graph
 
-Total nodes: 87
+Total nodes: 88
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -57,6 +57,14 @@ Total nodes: 87
 - **relates_to:** practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-npm-workspaces-package-layout, map-kde-native-packaging
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
+## map-desktop-timer-state-client-stream-poll-settling-and-revisions
+
+- **kind:** map
+- **title:** Desktop TimerStateClient: stream, poll, settling and revisions
+- **path:** tooling-and-project/kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md
+- **tags:** desktop, timer, sse, kde, gnome, macos
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, practice-kde-timer-controller-rules, map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+
 ## map-gnome-shell-extension-for-tokkl-timerd
 
 - **kind:** map
@@ -71,7 +79,7 @@ Total nodes: 87
 - **title:** GNOME timer service: tokkl-timerd and org.tokkl.Timer1
 - **path:** tooling-and-project/map-gnome-timerd-d-bus-timer-service.md
 - **tags:** tooling, desktop, gnome, ci
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline, map-gnome-shell-extension-for-tokkl-timerd
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline, map-gnome-shell-extension-for-tokkl-timerd, map-desktop-timer-state-client-stream-poll-settling-and-revisions
 
 ## map-history-scale-bench
 
@@ -151,7 +159,7 @@ Total nodes: 87
 - **title:** macOS menu bar app: portable library, Objective-C++ shims and CI
 - **path:** tooling-and-project/map-macos-menu-bar-app.md
 - **tags:** tooling, desktop, macos, ci
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-gnome-timerd-d-bus-timer-service
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-gnome-timerd-d-bus-timer-service, map-desktop-timer-state-client-stream-poll-settling-and-revisions
 
 ## map-npm-workspaces-package-layout
 
@@ -167,7 +175,7 @@ Total nodes: 87
 - **title:** Pomodoro length preferences: shared defaults for new sessions
 - **path:** web-ui-behaviour/pomodoro/map-pomodoro-cycle-functions-in-packages-common.md
 - **tags:** pomodoro, preferences, web, common
-- **relates_to:** practice-preferences-validated-by-known-key, map-pomodoro-session-model-in-packages-common-pomodorosession, map-web-pomodoro-sessions-provider-controller-and-account-state
+- **relates_to:** practice-preferences-validated-by-known-key, map-pomodoro-session-model-in-packages-common-pomodorosession, map-web-timer-state-stream-and-pomodoro-session-views
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:0
 
 ## map-pomodoro-session-model-in-packages-common-pomodorosession
@@ -176,7 +184,7 @@ Total nodes: 87
 - **title:** Pomodoro session model in packages/common/pomodoroSession.ts
 - **path:** web-ui-behaviour/pomodoro/map-pomodoro-session-model-in-packages-common-pomodorosession.md
 - **tags:** common, pomodoro, timer, fixtures
-- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write, map-timer-state-service-settlement-revision-and-discarded-pomodoro
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1
 
 ## map-pwa-manifest-and-head-icon-links
@@ -211,6 +219,22 @@ Total nodes: 87
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-npm-workspaces-package-layout
 - **derived_from:** package.json
+
+## map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap
+
+- **kind:** map
+- **title:** Timer event stream: keep-alive, credential rechecks and the stream cap
+- **path:** api-and-data/timer-state/map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap.md
+- **tags:** api, timer, sse, auth
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
+
+## map-timer-state-service-settlement-revision-and-discarded-pomodoro
+
+- **kind:** map
+- **title:** Timer state service: settlement, revision and the discarded pomodoro
+- **path:** api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md
+- **tags:** api, timer, pomodoro, pause
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap
 
 ## map-tokkl-kde-live-widgets-reload-with-plasmashell
 
@@ -269,17 +293,16 @@ Total nodes: 87
 - **title:** Web notifications: phaseNotification.ts and the Allow notifications button
 - **path:** web-ui-behaviour/pomodoro/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md
 - **tags:** web, notifications, pomodoro, timer
-- **relates_to:** map-web-pomodoro-sessions-provider-controller-and-account-state, practice-preferences-validated-by-known-key
+- **relates_to:** map-web-timer-state-stream-and-pomodoro-session-views, practice-preferences-validated-by-known-key
 - **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:3
 
-## map-web-pomodoro-sessions-provider-controller-and-account-state
+## map-web-timer-state-stream-and-pomodoro-session-views
 
 - **kind:** map
-- **title:** Web Pomodoro sessions: provider, controller and account state
-- **path:** web-ui-behaviour/pomodoro/map-web-pomodoro-sessions-provider-controller-and-account-state.md
-- **tags:** web, pomodoro, timer, localstorage
-- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session, practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, map-pomodoro-cycle-functions-in-packages-common
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:0, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:1
+- **title:** Web timer state: one stream per tab, server-corrected clock and Pomodoro views
+- **path:** web-ui-behaviour/pomodoro/map-web-timer-state-stream-and-pomodoro-session-views.md
+- **tags:** web, pomodoro, timer, sse
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, map-pomodoro-session-model-in-packages-common-pomodorosession, map-pomodoro-cycle-functions-in-packages-common, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-end-sessions-through-lib-session
 
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
@@ -296,15 +319,6 @@ Total nodes: 87
 - **path:** web-ui-styling-and-layout/calendar/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md
 - **tags:** web, calendar, css
 - **relates_to:** map-web-calendar-day-view-and-touch-gestures-in-weekcalendar, practice-ui-time-math-uses-wall-clock-helpers, practice-week-calendar-hour-height-agrees-in-three-places, practice-stopped-entries-snap-to-the-time-resolution-on-write
-
-## practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock
-
-- **kind:** practice
-- **title:** Claim Pomodoro session saves durably under the account Web Lock
-- **path:** web-ui-behaviour/pomodoro/practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock.md
-- **tags:** web, pomodoro, localstorage
-- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, practice-end-sessions-through-lib-session
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:0, 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:0
 
 ## practice-client-deletion-keeps-projects
 
@@ -379,15 +393,6 @@ Total nodes: 87
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:2
 
-## practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant
-
-- **kind:** practice
-- **title:** Hand timers and Pomodoro sessions over at one captured instant
-- **path:** web-ui-behaviour/pomodoro/practice-hand-timers-and-pomodoro-sessions-over-at-one-captured-instant.md
-- **tags:** web, pomodoro, timer
-- **relates_to:** practice-claim-pomodoro-session-saves-durably-under-the-account-web-lock, map-web-pomodoro-sessions-provider-controller-and-account-state, practice-web-timer-bar-pause-chain-rules, practice-stopped-entries-snap-to-the-time-resolution-on-write
-- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:1
-
 ## practice-hourly-rates-go-through-optionalrate
 
 - **kind:** practice
@@ -435,7 +440,7 @@ Total nodes: 87
 - **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
 - **path:** tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md
 - **tags:** kde, desktop
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-users-roles-and-workspace-membership, practice-web-timer-bar-pause-chain-rules
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-users-roles-and-workspace-membership, map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-desktop-timer-state-client-stream-poll-settling-and-revisions
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
@@ -688,14 +693,13 @@ Total nodes: 87
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
-## practice-web-timer-bar-pause-chain-rules
+## practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only
 
 - **kind:** practice
-- **title:** Web timer bar pause chain: pauseChain.ts, per-account storage, ending rules
-- **path:** web-ui-behaviour/time-and-timers/practice-web-timer-bar-pause-chain-rules.md
-- **tags:** web, timer, pause, localstorage
-- **relates_to:** practice-end-sessions-through-lib-session, practice-web-ui-survives-background-refetches, practice-kde-timer-controller-rules
-- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:4
+- **title:** Web timer actions: send the seen revision, adopt the reply, fields read-only while paused
+- **path:** web-ui-behaviour/time-and-timers/practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md
+- **tags:** web, timer, pause, pomodoro
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-web-timer-state-stream-and-pomodoro-session-views, practice-web-ui-survives-background-refetches
 
 ## practice-web-ui-survives-background-refetches
 

@@ -2,18 +2,17 @@
 
 #include "timer1adaptor.h"
 
-#include "chainstore.h"
 #include "clock.h"
 #include "connection.h"
 #include "credentialstore.h"
 #include "instanceurl.h"
-#include "pomodorocycle.h"
+#include "apitypes.h"
 #include "pomodoropreferences.h"
-#include "pomodoroqueue.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
+#include "timerstateclient.h"
 
 #include <QDBusMessage>
 #include <QDBusMetaType>
@@ -70,10 +69,10 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     , m_clock(clock ? clock : new SystemClock(this))
     , m_connection(new Connection(transport, store, clientName(), this))
     , m_timer(new TimerController(m_clock, this))
+    , m_client(new TimerStateClient(m_connection, m_clock, this))
     , m_pomodoroStore(new SettingsPomodoroStore(m_settings, this))
-    , m_preferences(new PomodoroPreferences(m_connection, m_pomodoroStore, this))
-    , m_queue(new PomodoroQueue(m_connection, m_clock, m_pomodoroStore, this))
-    , m_session(new PomodoroSession(m_clock, m_timer, m_preferences, m_queue, m_pomodoroStore, this))
+    , m_preferences(new PomodoroPreferences(m_connection, this))
+    , m_session(new PomodoroSession(m_clock, m_timer, m_client, m_pomodoroStore, this))
     , m_store(store)
     , m_bus(QString())
 {
@@ -82,10 +81,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     qDBusRegisterMetaType<QMap<QString, QString>>();
     new Timer1Adaptor(this);
 
-    if (!clock) {
-        m_timer->setChainStore(new SettingsChainStore(nullptr, this));
-    }
-    m_timer->setConnection(m_connection);
+    m_timer->setStateClient(m_client);
     // Each property follows the core signal that announces its change. The
     // countdown is left out: clients count down to PlannedEnd themselves.
     const auto publish = [this] {
@@ -101,6 +97,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     connect(m_session, &PomodoroSession::modeChanged, this, publish);
     connect(m_session, &PomodoroSession::modeLockedChanged, this, publish);
     connect(m_session, &PomodoroSession::sessionChanged, this, publish);
+    connect(m_session, &PomodoroSession::canStartSessionChanged, this, publish);
     connect(m_session, &PomodoroSession::ringingChanged, this, publish);
     connect(m_session, &PomodoroSession::messageChanged, this, publish);
     connect(m_preferences, &PomodoroPreferences::changed, this, publish);
@@ -277,6 +274,11 @@ bool TimerService::modeLocked() const
 bool TimerService::sessionActive() const
 {
     return m_session->isActive();
+}
+
+bool TimerService::canStartSession() const
+{
+    return m_session->canStartSession();
 }
 
 QString TimerService::phase() const
@@ -594,6 +596,7 @@ QVariantMap TimerService::snapshot() const
         {QStringLiteral("PomodoroMode"), pomodoroMode()},
         {QStringLiteral("ModeLocked"), modeLocked()},
         {QStringLiteral("SessionActive"), sessionActive()},
+        {QStringLiteral("CanStartSession"), canStartSession()},
         {QStringLiteral("Phase"), phase()},
         {QStringLiteral("PhaseStart"), phaseStart()},
         {QStringLiteral("PlannedEnd"), plannedEnd()},

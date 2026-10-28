@@ -12,21 +12,23 @@ import com.github.e0ipso.tokkl.backend
 // Return or Space triggers and Escape closes. A hidden entry is disabled too,
 // so the arrow keys skip it.
 //
-// Start or Stop shows only in Timer mode or while a timer runs or is
-// paused, so Pomodoro mode starts no timer. In Pomodoro mode Start session
-// shows while no session is active and no timer runs or is paused; Next
-// phase and End session show during a session, and the state line then
-// names the phase. Pomodoro mode is locked while a timer runs or is paused,
-// or a session is active.
+// The session is the server's, so Next phase and End session show whenever
+// one is active, in either mode and whichever device started it, and the
+// state line then names the phase. Start or Stop is hidden then, as the
+// session owns its pomodoro. Without a session it shows in Timer mode, and
+// in Pomodoro mode while a timer runs or is paused, so Pomodoro mode starts
+// no timer. In Pomodoro mode Start session shows while no session is active
+// and no timer runs or is paused. Pomodoro mode is locked while a timer
+// runs or is paused, or a session is active.
 //
-// Stop ends the timer and its pause chain; while paused nothing runs on the
-// server, so it only clears the chain. Project sets only the project of the
-// next start and is locked while an entry runs or is paused: changing it
-// means stopping and starting a new entry. Billable sets the next start too
-// and, while an entry runs, edits that entry in place; while paused the
-// timer refuses it. Both are disabled whenever the timer cannot write, so
-// nothing is queued for another account. During a session both stay enabled
-// and apply to the open pomodoro.
+// Stop ends the timer and its pause chain; while paused it asks the server
+// to discard the chain. Project sets only the project of the next start and
+// is locked while an entry runs or is paused: changing it means stopping and
+// starting a new entry. Billable sets the next start too and, while an entry
+// runs, edits that entry in place; while paused the timer refuses it. Both
+// are disabled whenever the timer cannot write, so nothing is sent for an
+// account that is not connected. During a session both are disabled, as
+// neither reaches the open pomodoro.
 PlasmaComponents.Menu {
     id: menu
 
@@ -100,12 +102,13 @@ PlasmaComponents.Menu {
         Accessible.description: menu.words.detailText
     }
 
-    // The session's message, such as a pomodoro too short to save.
+    // The session's message, such as a pomodoro too short to save or an
+    // action that could not reach the instance.
     OptionalItem {
         id: messageItem
         shown: messageItem.text.length > 0
         available: false
-        text: menu.session !== null ? menu.session.message : ""
+        text: menu.words.messageText
     }
 
     OptionalItem {
@@ -139,11 +142,12 @@ PlasmaComponents.Menu {
         // Running or paused: the chain is open until Stop.
         readonly property bool stops: menu.timer.running || menu.timer.paused
 
-        shown: !menu.pomodoroIdle
+        shown: !menu.pomodoroIdle && !menu.sessionActive
         text: runItem.stops ? i18nc("@action:inmenu", "Stop") : i18nc("@action:inmenu", "Start")
         icon.name: runItem.stops ? "media-playback-stop" : "media-playback-start"
-        // Stop while paused sends nothing, so it waits only for a mutation.
-        available: menu.timer.paused ? !menu.timer.busy : menu.timer.canWrite
+        // Stop while paused discards the chain on the server, so it needs a
+        // connection too.
+        available: menu.timer.canWrite
         onTriggered: runItem.stops ? menu.timer.stop() : menu.timer.start()
     }
 
@@ -154,9 +158,9 @@ PlasmaComponents.Menu {
         // Items before the active projects: No project and the archived one.
         readonly property int fixedCount: 1 + (hasArchived ? 1 : 0)
 
-        // A choice is possible: the timer can write, nothing runs and no
-        // chain is paused.
-        readonly property bool choosable: menu.timer.canWrite && !menu.timer.running && !menu.timer.paused
+        // A choice is possible: the timer can write, nothing runs, no chain
+        // is paused and no session is active.
+        readonly property bool choosable: menu.timer.canWrite && !menu.timer.running && !menu.timer.paused && !menu.sessionActive
 
         popupType: T.Popup.Window
         delegate: PlasmaComponents.MenuItem {}
@@ -220,7 +224,7 @@ PlasmaComponents.Menu {
         id: billableItem
         text: i18nc("@option:check", "Billable")
         selected: menu.timer.chosenBillable
-        enabled: menu.timer.canWrite && !menu.timer.paused
+        enabled: menu.timer.canWrite && !menu.timer.paused && !menu.sessionActive
         onTriggered: menu.timer.chooseBillable(!menu.timer.chosenBillable)
     }
 

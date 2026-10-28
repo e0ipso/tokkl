@@ -17,7 +17,7 @@ kk_derived_from:
 kk_relates_to:
   - practice-preferences-validated-by-known-key
   - map-pomodoro-session-model-in-packages-common-pomodorosession
-  - map-web-pomodoro-sessions-provider-controller-and-account-state
+  - map-web-timer-state-stream-and-pomodoro-session-views
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -32,7 +32,7 @@ The API defaults/rules and `Preferences` in `packages/types/index.ts` expose onl
 
 - Related: [practice-preferences-validated-by-known-key](../../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
 - Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](map-pomodoro-session-model-in-packages-common-pomodorosession.md)
-- Related: [map-web-pomodoro-sessions-provider-controller-and-account-state](map-web-pomodoro-sessions-provider-controller-and-account-state.md)
+- Related: [map-web-timer-state-stream-and-pomodoro-session-views](map-web-timer-state-stream-and-pomodoro-session-views.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

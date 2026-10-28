@@ -16,6 +16,17 @@ InstanceUrl invalid(const QString &error)
 {
     return InstanceUrl{QUrl(), error};
 }
+
+QUrl endpoint(const QUrl &base, QLatin1String root, const QString &path)
+{
+    QUrl url = base;
+    const qsizetype question = path.indexOf(QLatin1Char('?'));
+    url.setPath(base.path(QUrl::FullyEncoded) + root + path.left(question), QUrl::TolerantMode);
+    if (question >= 0) {
+        url.setQuery(path.mid(question + 1));
+    }
+    return url;
+}
 }
 
 QString InstanceUrl::key() const
@@ -25,13 +36,12 @@ QString InstanceUrl::key() const
 
 QUrl InstanceUrl::api(const QString &path) const
 {
-    QUrl url = base;
-    const qsizetype question = path.indexOf(QLatin1Char('?'));
-    url.setPath(base.path(QUrl::FullyEncoded) + QStringLiteral("/api/v9") + path.left(question), QUrl::TolerantMode);
-    if (question >= 0) {
-        url.setQuery(path.mid(question + 1));
-    }
-    return url;
+    return endpoint(base, QLatin1String("/api/v9"), path);
+}
+
+QUrl InstanceUrl::app(const QString &path) const
+{
+    return endpoint(base, QLatin1String("/api/app"), path);
 }
 
 InstanceUrl parseInstanceUrl(const QString &text)

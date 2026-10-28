@@ -18,12 +18,9 @@ using namespace Tokkl;
 
 namespace
 {
-// Owners the way the core names them: the instance, the user and the
-// workspace. The URL and the spaces must survive as a KConfig key.
-const QString ownerA = QStringLiteral("https://a.example.test/ 3 7");
-const QString ownerB = QStringLiteral("https://b.example.test/tokkl 4 9");
-const QByteArray recordA = QByteArrayLiteral(R"({"version":1,"session":{"id":"s1"}})");
-const QByteArray recordB = QByteArrayLiteral(R"({"version":1,"unsaved":[{"id":"u1"}]})");
+// The key and value an earlier version kept a record under.
+const QString oldRecordKey = QStringLiteral("record-0a1b2c3d4e5f60718293a4b5c6d7e8f901234567");
+const QString oldRecord = QStringLiteral(R"({"version":1,"session":{"id":"s1"}})");
 
 // The smallest shell that can host an applet: one screen and an empty
 // containment, which Plasma creates when the requested plugin does not exist.
@@ -111,41 +108,23 @@ private Q_SLOTS:
         QVERIFY(!reopened.loadPomodoroMode());
     }
 
-    void keepsOneRecordPerOwner()
+    void leavesRecordsOfEarlierVersionsAlone()
     {
+        m_applet->config().group(QStringLiteral("Pomodoro")).writeEntry(oldRecordKey, oldRecord);
+        m_applet->config().sync();
+
         AppletPomodoroStore store;
         store.setApplet(m_applet);
-        QVERIFY(store.loadRecord(ownerA).isEmpty());
+        QVERIFY2(!store.loadPomodoroMode(), "a record is not the mode");
+        QVERIFY(store.savePomodoroMode(true));
+        QVERIFY(store.loadPomodoroMode());
 
-        QVERIFY(store.saveRecord(ownerA, recordA));
-        QVERIFY(store.saveRecord(ownerB, recordB));
-        QCOMPARE(store.loadRecord(ownerA), recordA);
-        QCOMPARE(store.loadRecord(ownerB), recordB);
-        {
-            KConfig file(m_corona->config()->name(), KConfig::SimpleConfig);
-            const KConfigGroup group = storedGroup(file);
-            QVERIFY(group.exists());
-            // Two records, under keys that do not carry the owner's URL.
-            const QStringList keys = group.keyList();
-            QCOMPARE(keys.size(), 2);
-            for (const QString &key : keys) {
-                QVERIFY2(!key.contains(QLatin1Char('/')), qPrintable(key));
-                QVERIFY2(!key.contains(QLatin1Char(' ')), qPrintable(key));
-            }
-        }
-
-        AppletPomodoroStore reopened;
-        reopened.setApplet(m_applet);
-        QCOMPARE(reopened.loadRecord(ownerA), recordA);
-
-        // A write replaces the owner's record, and an empty one removes it.
-        QVERIFY(store.saveRecord(ownerA, recordB));
-        QCOMPARE(reopened.loadRecord(ownerA), recordB);
-        QVERIFY(store.saveRecord(ownerA, QByteArray()));
-        QVERIFY(reopened.loadRecord(ownerA).isEmpty());
-        QCOMPARE(reopened.loadRecord(ownerB), recordB);
+        // Not read, not removed: the file keeps the mode and the record.
         KConfig file(m_corona->config()->name(), KConfig::SimpleConfig);
-        QCOMPARE(storedGroup(file).keyList().size(), 1);
+        const KConfigGroup group = storedGroup(file);
+        QCOMPARE(group.readEntry(oldRecordKey, QString()), oldRecord);
+        QVERIFY(group.readEntry("mode", false));
+        QCOMPARE(group.keyList().size(), 2);
     }
 
     void withoutAnAppletNothingIsStored()
@@ -155,8 +134,6 @@ private Q_SLOTS:
         store.setApplet(&notAnApplet);
         QVERIFY(!store.savePomodoroMode(true));
         QVERIFY(!store.loadPomodoroMode());
-        QVERIFY(!store.saveRecord(ownerA, recordA));
-        QVERIFY(store.loadRecord(ownerA).isEmpty());
         QVERIFY(!m_applet->config().group(QStringLiteral("Pomodoro")).exists());
     }
 };

@@ -4,8 +4,9 @@
 // org.tokkl.Timer1 (described in dbus/org.tokkl.Timer1.xml). The service
 // maps the core's properties onto the interface and forwards the methods;
 // the rules stay in the core. The one thing it adds is where the core's
-// per-device state lives: the mode, the session records and the sound
-// choices go to its settings file.
+// per-device state lives: the mode and the sound choices go to its settings
+// file. The timer and the session are the server's, read through one
+// TimerStateClient.
 
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -23,10 +24,10 @@ class Clock;
 class Connection;
 class CredentialStore;
 class PomodoroPreferences;
-class PomodoroQueue;
 class PomodoroSession;
 class SettingsPomodoroStore;
 class TimerController;
+class TimerStateClient;
 class Transport;
 
 class TimerService : public QObject, protected QDBusContext
@@ -49,6 +50,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(bool PomodoroMode READ pomodoroMode)
     Q_PROPERTY(bool ModeLocked READ modeLocked)
     Q_PROPERTY(bool SessionActive READ sessionActive)
+    Q_PROPERTY(bool CanStartSession READ canStartSession)
     Q_PROPERTY(QString Phase READ phase)
     Q_PROPERTY(qint64 PhaseStart READ phaseStart)
     Q_PROPERTY(qint64 PlannedEnd READ plannedEnd)
@@ -78,10 +80,8 @@ public:
 
     // Runs the core on the given transport and credential store, which the
     // service does not own. Settings (address, sign-in method and email;
-    // never the secret), the Pomodoro mode, the session records and the
-    // sound choices are read from and saved to settingsFile. A null clock
-    // means the system clock, with the pause chain kept in the
-    // application's default settings as the core does by default.
+    // never the secret), the Pomodoro mode and the sound choices are read
+    // from and saved to settingsFile. A null clock means the system clock.
     TimerService(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock = nullptr, QObject *parent = nullptr);
     ~TimerService() override;
 
@@ -109,6 +109,7 @@ public:
     bool pomodoroMode() const;
     bool modeLocked() const;
     bool sessionActive() const;
+    bool canStartSession() const;
     QString phase() const;
     qint64 phaseStart() const;
     qint64 plannedEnd() const;
@@ -166,9 +167,9 @@ private:
     Clock *m_clock;
     Connection *m_connection;
     TimerController *m_timer;
+    TimerStateClient *m_client;
     SettingsPomodoroStore *m_pomodoroStore;
     PomodoroPreferences *m_preferences;
-    PomodoroQueue *m_queue;
     PomodoroSession *m_session;
     CredentialStore *m_store;
     QDBusConnection m_bus;

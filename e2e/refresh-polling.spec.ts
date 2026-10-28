@@ -2,9 +2,9 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { OtherDevice, countPolls, daysAgo, entryRow, setVisibility } from './groups-refresh-tests-helpers.ts';
 
-// Cross-device freshness (docs/PRD.md C3): the running timer refetches every 30 s and on window
-// focus, the history every 60 s. There is no realtime service; another device changes entries
-// through the API while this page only watches.
+// Cross-device freshness (docs/PRD.md C3): the server pushes timer changes over the event stream,
+// the history refetches every 60 s and on window focus, and the running entry polls every 30 s only
+// while the stream is down. Another device changes entries through the API while this page only watches.
 
 let device: OtherDevice;
 test.beforeEach(async ({ baseURL }) => { device = await OtherDevice.open(baseURL!); });
@@ -32,79 +32,61 @@ test('Show more days follows older entries added and deleted on another device',
   await expect(more).toHaveCount(0);
 });
 
-test('another device\'s timer and history changes arrive through the 30- and 60-second polls', async ({ page }) => {
+test('another device\'s timer changes arrive by push and its history edits through the 60-second poll', async ({ page }) => {
   const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
   // The fake clock runs at normal speed; fastForward jumps it and fires each due interval once.
-  // Both polls start when the timer page mounts, so the first jump crosses the 30-second tick
-  // only and the second one also crosses the 60-second tick.
   await page.clock.install();
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
   const polls = countPolls(page);
 
-  const remote = await device.startTimer('Remote timer');
+  // An edit leaves the timer state alone, so nothing pushes it: the history list shows it at the next 60-second tick.
   await device.updateEntry(history.id, { description: 'Edited elsewhere' });
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
   expect(polls).toEqual({ current: 0, history: 0 });
-
-  await page.clock.fastForward(30_000);
-  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
-  await expect(timer.getByLabel('Description')).toHaveValue('Remote timer');
-  await expect.poll(() => ({ ...polls })).toEqual({ current: 1, history: 0 });
-  await expect(entryRow(page, 'Old history')).toHaveCount(1);
-
-  await page.clock.fastForward(30_000);
+  await page.clock.fastForward(60_000);
   await expect(entryRow(page, 'Edited elsewhere')).toHaveCount(1);
   await expect(entryRow(page, 'Old history')).toHaveCount(0);
-  await expect.poll(() => ({ ...polls })).toEqual({ current: 2, history: 1 });
+  await expect.poll(() => ({ ...polls })).toEqual({ current: 0, history: 1 });
 
-  // A stop on the other device reaches the timer at the next 30-second tick and the history at
-  // the next 60-second one.
+  // A start and a stop reach the timer and the history at once, with no poll and no clock jump.
+  const remote = await device.startTimer('Remote timer');
+  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+  await expect(timer.getByLabel('Description')).toHaveValue('Remote timer');
   await device.stopTimer(remote.id);
-  await page.clock.fastForward(30_000);
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
-  await expect.poll(() => ({ ...polls })).toEqual({ current: 3, history: 1 });
-  await expect(entryRow(page, 'Remote timer')).toHaveCount(0);
-  await page.clock.fastForward(30_000);
   await expect(entryRow(page, 'Remote timer')).toHaveCount(1);
-  await expect.poll(() => ({ ...polls })).toEqual({ current: 4, history: 2 });
+  expect(polls.current).toBe(0);
 });
 
-test('making the window visible again refreshes another device\'s changes at once', async ({ page }) => {
+test('making the window visible again refreshes another device\'s history edit at once', async ({ page }) => {
   const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
   await login(page);
-  const timer = page.getByRole('region', { name: 'Timer' });
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
   const polls = countPolls(page);
 
   await setVisibility(page, 'hidden');
-  await device.startTimer('Remote timer');
   await device.updateEntry(history.id, { description: 'Edited elsewhere' });
   expect(polls).toEqual({ current: 0, history: 0 });
 
-  // Well inside both poll intervals, so only the visibility change can fetch.
+  // Well inside the poll interval, so only the visibility change can fetch.
   await setVisibility(page, 'visible');
-  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
-  await expect(timer.getByLabel('Description')).toHaveValue('Remote timer');
   await expect(entryRow(page, 'Edited elsewhere')).toHaveCount(1);
   await expect.poll(() => ({ ...polls })).toEqual({ current: 1, history: 1 });
 });
 
 // Clicking back into a window that stayed visible, such as one beside another app, fires focus
 // but no visibilitychange.
-test('focusing a window that stayed visible refreshes another device\'s changes at once', async ({ page }) => {
+test('focusing a window that stayed visible refreshes another device\'s history edit at once', async ({ page }) => {
   const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
   await login(page);
-  const timer = page.getByRole('region', { name: 'Timer' });
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
   const polls = countPolls(page);
 
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-  await device.startTimer('Remote timer');
   await device.updateEntry(history.id, { description: 'Edited elsewhere' });
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(entryRow(page, 'Edited elsewhere')).toHaveCount(1);
   await expect.poll(() => ({ ...polls })).toEqual({ current: 1, history: 1 });
 });

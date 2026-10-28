@@ -1,75 +1,53 @@
 #pragma once
 
+#include "apitypes.h"
 #include "clock.h"
-#include "pomodorocycle.h"
-#include "pomodoropreferences.h"
-#include "pomodoroqueue.h"
-#include "pomodororecord.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
+#include "timerstateclient.h"
 
 #include <QDateTime>
 #include <QObject>
 #include <QPointer>
 #include <QString>
 
-#include <optional>
-
 namespace Tokkl
 {
 
 // The Pomodoro session for the panels: the mode, the phase that runs, the
 // countdown, the alarm, and the actions Start session, Next phase and End
-// session. It runs next to the timer controller and never starts or stops a
-// timer itself. The cycle rules are the web app's (pomodorocycle.h); what
-// follows are the desktop's.
+// session. The session is the server's, so a session started, advanced or
+// ended on any device shows here, in either mode. Everything shown comes
+// from the pomodoro of the timer state the TimerStateClient holds; the
+// device adds only the mode and the alarm.
 //
-// The mode is stored per device. It cannot change while a timer runs or is
-// paused, or while a session is active.
+// The mode is stored per device. It decides what a click starts when nothing
+// runs, and it cannot change while a timer runs or is paused, or while a
+// session is active.
 //
-// activate() is the panel's left-click. A timer running or paused gets
-// TimerController::toggle(), whatever the mode. In Timer mode so does
-// everything else. In Pomodoro mode a click starts a session when there is
-// none, confirms Next phase while the alarm rings, and otherwise asks the
-// platform to open the menu.
+// activate() is the panel's left-click. With a session active, a click
+// confirms Next phase while the alarm rings and otherwise asks the platform to
+// open the menu. Without one, a timer running or paused gets
+// TimerController::toggle(), and so does everything in Timer mode. In
+// Pomodoro mode the click starts a session.
 //
-// Start session is possible in Pomodoro mode with no session, no timer
-// running or paused, and an account bound, also while the instance is
-// unreachable. It notes the click instant, reads the lengths once more, and
-// starts at that instant with the lengths the read returns, or with the
-// lengths last known when the read fails. A length changed on the web thus
-// applies to the next session. A second click while the read runs does
-// nothing. The session snapshots the timer's chosen project and billable
-// flag and keeps its lengths until it ends.
+// Start session sends the timer's chosen project and billable flag; the
+// server takes the account's lengths and starts the open pomodoro on its own
+// clock. Next phase and End session send the revision of the state shown, so
+// a confirm made after another device already moved the session is refused
+// with a 409, and the state that refused it shows. An answer that leaves the
+// outcome unknown is never sent again: the state client settles it with a
+// later read, and until then no session action is possible. A failed action
+// leaves the connection's message in message; a pomodoro the server dropped
+// as too short leaves a message of its own.
 //
-// A phase ends only on Next phase. Once the planned end has passed the phase
-// rings, and it keeps ringing until Next phase or End session, also when the
-// app starts or wakes after the planned end. Work to rest saves nothing. Rest
-// to work, End session and a handoff save the open pomodoro, from its work
-// start to the confirm instant, snapped on the account's grid and time zone;
-// the next pomodoro starts at the exact, unsnapped instant. The session
-// change and the ended pomodoro go to the store in one write, through the
-// queue, which then posts it as a stopped entry. A span too short to keep is
-// dropped and message says so. When the account's time zone is unknown the
-// span is snapped in UTC rather than dropped; the server snaps on write
-// anyway.
-//
-// A running entry the timer sees, started after the open pomodoro began, is
-// another client's timer: the session ends at that entry's start and the
-// partial pomodoro is saved. The timer's 30 s poll drives this. The desktop
-// starts no timer while Pomodoro mode is on, so every running entry seen
-// during a session is foreign. While a session is active and nothing runs, a
-// change to the timer's chosen project or billable flag goes into the
-// session, so the open pomodoro and the ones after it use it.
-//
-// Before the connection's instance, sign-in method, email or secret changes,
-// an active session ends at that instant and the queue is flushed, while the
-// old account can still be written to.
-//
-// The session is written to the store on every change, under the connection's
-// owner, so a restart finds it. A write the store refuses changes nothing and
-// the action reports false. The record is read again whenever the owner
-// changes.
+// The time is the server's, as TimerStateClient::serverNow() estimates it.
+// phaseStart and plannedEnd are shown on this device's clock, so a panel
+// that counts down by itself agrees with the countdown here. The phase rings
+// from its planned end until a state shows another phase start or no
+// session, also when the app starts or wakes after the planned end, and also
+// while the instance is unreachable, from the last state held. The check
+// runs on every tick, on resumed() and on each new state.
 class PomodoroSession : public QObject
 {
     Q_OBJECT
@@ -82,10 +60,11 @@ class PomodoroSession : public QObject
     Q_PROPERTY(bool active READ isActive NOTIFY sessionChanged)
     // "work", "shortRest" or "longRest"; empty without a session.
     Q_PROPERTY(QString phase READ phase NOTIFY sessionChanged)
+    // On this device's clock; invalid without a session.
     Q_PROPERTY(QDateTime phaseStart READ phaseStart NOTIFY sessionChanged)
     Q_PROPERTY(QDateTime plannedEnd READ plannedEnd NOTIFY sessionChanged)
-    // Work phases of this round: the one that runs counts; a rest counts
-    // the work phase before it. 0 without a session.
+    // The pomodoro's place in the round, from 1: a rest counts the work
+    // phase before it. 0 without a session.
     Q_PROPERTY(int pomodoroNumber READ pomodoroNumber NOTIFY sessionChanged)
     // Work phases per round, from the lengths the session started with.
     Q_PROPERTY(int longRestEvery READ longRestEvery NOTIFY sessionChanged)
@@ -98,14 +77,15 @@ class PomodoroSession : public QObject
     // M:SS to the planned end, +M:SS past it; empty without a session.
     Q_PROPERTY(QString countdownText READ countdownText NOTIFY countdownChanged)
 
-    // The planned end has passed and no action was taken yet.
+    // The planned end has passed and the phase has not changed since.
     Q_PROPERTY(bool ringing READ isRinging NOTIFY ringingChanged)
     // The transition that rings, such as "workToShortRest"; empty otherwise.
     Q_PROPERTY(QString ringingTransition READ ringingTransition NOTIFY ringingChanged)
 
     Q_PROPERTY(bool canStartSession READ canStartSession NOTIFY canStartSessionChanged)
-    // The last message for the user: the queue's, or that a pomodoro was
-    // too short to save. It stays until clearMessage() or the next message.
+    // The last message for the user: why an action failed, or that a
+    // pomodoro was too short to save. It stays until clearMessage(), the
+    // next action or the next message.
     Q_PROPERTY(QString message READ message NOTIFY messageChanged)
 
 public:
@@ -113,13 +93,13 @@ public:
     enum class Activation {
         Handled,
         OpenMenu, // a session runs before its planned end; the platform opens the menu
-        Ignored, // nothing applied: no account, or a Start already waits for its read
+        Ignored, // nothing sent: no account, or an action waits for its answer or its outcome
     };
     Q_ENUM(Activation)
 
-    // Uses the clock, the timer, the preferences, the queue and the store,
+    // Uses the clock, the timer, the timer's state client and the store,
     // none of which it owns.
-    PomodoroSession(Clock *clock, TimerController *timer, PomodoroPreferences *preferences, PomodoroQueue *queue, PomodoroStore *store, QObject *parent = nullptr);
+    PomodoroSession(Clock *clock, TimerController *timer, TimerStateClient *client, PomodoroStore *store, QObject *parent = nullptr);
 
     bool pomodoroMode() const;
     // Returns false, and changes nothing, while modeLocked or when the
@@ -148,7 +128,7 @@ public:
 
     // The panel's left-click.
     Q_INVOKABLE Activation activate();
-    // The actions return true when they applied.
+    // The actions return true when they sent a request.
     Q_INVOKABLE bool startSession();
     Q_INVOKABLE bool confirmNextPhase();
     Q_INVOKABLE bool endSession();
@@ -168,29 +148,29 @@ Q_SIGNALS:
     void messageChanged();
 
 private:
-    void onConnectionChanged();
-    void onContextChanged();
-    void onContextAboutToChange();
-    void onEntryChanged();
-    void onChoiceChanged();
-    void onRefreshed(bool ok);
-    void onTick();
-    // Reads the owner's stored session when the owner changed.
-    void followOwner();
-    QString owner() const;
-    bool accountBound() const;
-    // Starts the session at the instant the click was recorded.
-    void begin(const QDateTime &at);
-    // Ends the session at at and queues the open pomodoro.
-    bool end(const QDateTime &at);
-    // The open pomodoro from its start to end, snapped; nullopt when it is
-    // too short, with the message set.
-    std::optional<UnsavedPomodoro> snapshot(const QDateTime &end);
-    // Writes the session, which replaces the stored one, and an ended
-    // pomodoro when there is one, in one write. Returns false when the
-    // store refused.
-    bool write(const std::optional<PomodoroSessionRecord> &session, const std::optional<UnsavedPomodoro> &item);
-    std::optional<qint64> chosenProject() const;
+    // The session values the panels see, kept so a change can be told from
+    // a recomputation.
+    struct View {
+        bool active = false;
+        QString phase;
+        QDateTime phaseStart;
+        QDateTime plannedEnd;
+        int pomodoroNumber = 0;
+        int longRestEvery = 0;
+        QString nextPhase;
+
+        bool operator==(const View &other) const = default;
+    };
+
+    const TimerPomodoro *pomodoro() const;
+    bool timerHeld() const;
+    // An action is on its way, or the outcome of one is not known yet.
+    bool busy() const;
+    // Sends a session action with the revision shown.
+    bool sendWithRevision(void (TimerStateClient::*action)(TimerStateClient::ActionCallback));
+    TimerStateClient::ActionCallback finishing();
+    void onStateChanged();
+    void onGenerationChanged();
     // Recomputes the derived values and emits what changed.
     void update();
     void updateClock();
@@ -198,22 +178,23 @@ private:
 
     QPointer<Clock> m_clock;
     QPointer<TimerController> m_timer;
-    QPointer<Connection> m_connection;
-    QPointer<PomodoroPreferences> m_preferences;
-    QPointer<PomodoroQueue> m_queue;
+    QPointer<TimerStateClient> m_client;
     QPointer<PomodoroStore> m_store;
 
     bool m_pomodoroMode = false;
-    QString m_owner;
-    std::optional<PomodoroSessionRecord> m_session;
-    // A Start waits for its read of the lengths; m_startAt is its instant.
-    bool m_startPending = false;
-    QDateTime m_startAt;
+    bool m_pending = false; // an action waits for its answer
+    // Bumped when the connection's generation changes: the answer to an
+    // action sent before never comes, and one that does is ignored.
+    quint64 m_epoch = 0;
     QString m_message;
+    // The last discarded pomodoro told about, so a state seen twice tells it
+    // once.
+    qint64 m_discardedEntry = 0;
+    // The server start of the phase that rang. It rings until a state shows
+    // another phase, also if the clock is set back.
+    QDateTime m_rangPhase;
 
-    // Derived values, kept so a change can be told from a recomputation.
-    // m_published is the session as last announced.
-    std::optional<PomodoroSessionRecord> m_published;
+    View m_view;
     bool m_modeLocked = false;
     bool m_canStart = false;
     qint64 m_remaining = 0;

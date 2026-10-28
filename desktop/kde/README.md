@@ -3,8 +3,10 @@
 A Plasma 6 panel widget for Tokkl. It shows the running timer in the panel,
 starts, pauses and resumes it with a click, stops it from its menu, and sets
 the project and billable flag. It is a client of the Toggl-compatible API of
-one Tokkl instance and keeps nothing locally except its settings and a
-paused timer's chain; the API token or password is in KDE Wallet.
+one Tokkl instance and keeps nothing locally except its settings and the
+Pomodoro mode; the timer, its pause chain and the Pomodoro session are the
+server's, so they show the same on every device. The API token or password is
+in KDE Wallet.
 
 It has two parts:
 
@@ -146,18 +148,24 @@ come from `desktop/core`.
 - `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
   and credential store: ticking, sleep gaps, polling, start and stop requests,
   repeated clicks, conflicts, late replies, failures and account switches.
-- `appletchainstore`: the pause chain store (`TokklChainStore`) in the
-  configuration of an applet that a test corona hosts: saving, reading it back
-  from the appletsrc file, unreadable values, deleting the chain, handing the
-  store to the timer, and a timer on the fakes that resumes its own account's
-  chain and deletes another account's.
+- `kdetimerstate`: the timer state client the widget creates from QML
+  (`TokklTimerState`): built once the connection is set, reading through that
+  connection, replaced when the connection changes.
+- `kdepomodoro`: the Pomodoro wiring (`TokklPomodoro`): the session acts
+  through the state client the timer reads, and is built again when the timer
+  gets another client.
+- `appletpomodorostore`: the Pomodoro mode in the configuration of an applet
+  that a test corona hosts, and that records an earlier version kept there are
+  neither read nor removed.
 - `panel`: the panel item, its project indicator and its menu
   (`PanelButton.qml`, `ProjectIndicator.qml`, `PanelMenu.qml`) in QtQuickTest, from the QML tests in `autotests/qml/`, offscreen. The
   backend types come from `tokklcore` wired to the fake clock, transport and
   credential store; the test never loads `main.qml`, the real connection or a
   copy of the backend plugin. It covers clicks and keys, pause, resume and
   Stop from the menu, the menu and its focus, billable defaults, edits of a running entry, paging, archived
-  projects, every state, disabled controls and account switches.
+  projects, every state, disabled controls and account switches, and a session
+  started on another device in Timer mode: its menu items, its clicks, its
+  messages and its end.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
 - `kdeconnection`: the connection and Configure page types the widget creates
@@ -302,7 +310,7 @@ never the only sign.
 | State           | Symbol             | Meaning                                                                                                                                                                  |
 | --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Not configured  | configure          | No address or no saved secret. Open Configure.                                                                                                                           |
-| Loading         | network-connect    | Reading the secret, validating the account or making the first current-entry read.                                                                                       |
+| Loading         | network-connect    | Reading the secret, validating the account or making the first timer state read.                                                                                         |
 | Connected       | none               | Ready. Start, pause, resume, stop, Project and Billable work.                                                                                                            |
 | Saving          | view-refresh       | A start, pause, resume, stop or edit is on its way, or its outcome is not known yet. Clicks are ignored.                                                                 |
 | Offline         | network-disconnect | The instance cannot be reached after a successful connection. The last entry stays, marked stale, and reads are retried.                                                 |
@@ -310,7 +318,9 @@ never the only sign.
 | Error           | dialog-error       | The wallet, the settings, a rate limit, a lost workspace, or a connection that never succeeded. The menu and tooltip give the text.                                      |
 
 - Left click, Space or Return pauses a running timer, resumes a paused one and
-  starts a stopped one, and Stop is in the menu. The accessible name says
+  starts a stopped one, and Stop is in the menu. While a session is active,
+  in either mode, they act on the session instead (see [Pomodoro
+  mode](#pomodoro-mode)). The accessible name says
   what a press does: "Pause the Tokkl timer", "Resume the Tokkl timer" or
   "Start the Tokkl timer". Tab focuses the item and a frame shows the focus.
 - Right click, the Menu key or Shift+F10 opens the menu. It is a separate
@@ -320,8 +330,12 @@ never the only sign.
   closes.
 - The menu's Stop, shown while running or paused, ends the timer and its
   pause chain, so the next start counts from `0:00`. While stopped the item
-  reads Start. Stop while paused sends nothing, because no entry runs on the
-  server.
+  reads Start, and a session hides it. Stop while paused asks the server to
+  discard the chain (`POST /api/app/timer/discard`), so it needs a
+  connection and the chain goes when the server answers.
+- A timer action that another device beat to it shows "The timer changed on
+  another device first." in the tooltip and the accessible description, and the
+  panel shows the state the server answered with.
 - While paused, the menu's state line and the tooltip say Paused with the
   chain total, and Project and Billable are disabled: a resume copies the
   paused entry's project and billable flag.
@@ -367,12 +381,17 @@ hand; the tests run offscreen.
 ## Timer
 
 `TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget. QML
-sets its `connection` to the widget's `TokklConnection`.
+sets its `stateClient` to the `client` of a `TokklTimerState`, which the widget
+builds on its `TokklConnection`. The timer and the Pomodoro session share that
+one client, which reads `GET /api/app/timer`, follows the event stream of
+`GET /api/app/timer/events` and keeps the newest state; the running entry, the
+pause chain and the session all come from it.
 
 - The elapsed time (`elapsedText`, `H:MM` in whole minutes) is recomputed
   every second from the entry's server start time, so time spent asleep is
   not lost.
-- The current entry is read every 30 seconds, after every start or stop,
+- The timer state arrives through the event stream. While no stream delivers
+  it is read every 30 seconds; it is also read after every start or stop,
   after a resume (a clock tick more than 10 seconds late) and when the
   connection comes back. Projects are read on connect, resume and reconnection,
   200 a page with `page` and `per_page` until a page comes back short. When the
@@ -390,25 +409,26 @@ sets its `connection` to the widget's `TokklConnection`.
   an empty description and the selected project and billable choice. Stop
   sends `PATCH /api/v9/workspaces/{wid}/time_entries/{id}/stop` for the
   running entry.
-- Pause stops the running entry the same way and keeps what the server's stop
-  reply says: description, project, task, tags and billable flag. Resume
-  starts a clone of that entry at the current time. The elapsed time is then
-  the chain total, the seconds the server stored for the paused entries plus
-  the clone's running time, and it stays frozen while paused. The chain ends
-  on Stop, when another client stops the clone or starts another entry, and
-  on a change of instance, account or secret. The widget keeps it in the
-  `PauseChain` group of its own section of
-  `~/.config/plasma-org.kde.plasma.desktop-appletsrc`, outside its settings,
-  so a plasmashell restart keeps the total. A stored chain of another
-  instance, account or workspace is dropped.
-- Start and stop stay disabled until a read of the current entry for the
+- Pause (`POST /api/app/timer/pause`) asks the server to stop the running
+  entry and keep a chain: the entry's description, project, task, tags and
+  billable flag, and the seconds it stored. Resume (`POST
+  /api/app/timer/resume`) starts a clone of that entry on the server, against
+  the revision shown. The elapsed time is then the chain total, the seconds the
+  server stored for the paused entries plus the clone's running time, and it
+  stays frozen while paused. The server ends the chain on Stop, when another
+  client stops the clone or starts another entry, and the next state shows it.
+  A change of instance, account or secret drops it from the panel. The widget
+  stores nothing of it.
+- Start and stop stay disabled until a read of the timer state for the
   account and workspace has succeeded, so a start never splits a timer that
   is already running on the server. A failed first read keeps them disabled.
 - One start, pause, resume or stop runs at a time and clicks meanwhile are
   ignored. A read sent before one cannot overwrite its result. When one gets
   no clear answer (no response, timeout, 5xx or an unreadable body)
   the timer stays busy until a read shows what the server did; it never sends
-  the request again. A 409 or 404 on stop just reads the entry again.
+  the request again. A 409 on a timer action adopts the state the server sent
+  and shows "The timer changed on another device first."; a 409 or 404 on stop
+  just reads the entry again.
 - Connection failures keep the last entry, marked stale. After a failed read
   of the entry the mark stays until the entry is read again, even if other
   requests succeed first. Refused credentials clear it. During a 429 cooldown nothing is sent.
@@ -417,7 +437,7 @@ sets its `connection` to the widget's `TokklConnection`.
   another default workspace the widget switches to it; otherwise Reconnect
   lifts the block. The request that got the 403 is not sent again. A start or
   stop still waiting for its answer keeps the timer busy through the block and
-  a reconnect, until it answers and a fresh read of the entry arrives.
+  a reconnect, until it answers and a fresh read of the state arrives.
 - A running entry from a workspace other than the discovered one is not shown.
 - Changing the instance, account or secret clears the entry, projects and
   choices at once and ignores late answers, even if the new account uses the
@@ -427,18 +447,19 @@ sets its `connection` to the widget's `TokklConnection`.
 
 The menu has a checkable Pomodoro mode item that switches the widget between Timer mode and Pomodoro mode. The widget remembers the choice on this device. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. Stop the timer or end the session to change it.
 
-A left click on the panel depends on the mode:
+The session belongs to the server (`POST /api/app/pomodoro`, `/next` and `/end`), so a session started, advanced or ended on any device shows here, in either mode. The widget keeps only the mode and the alarm. Start session sends the chosen project and billable flag; the server takes the account's lengths and times the phases on its own clock. Next phase and End session send the revision of the state shown, so a confirm that another device beat to it is refused and the panel shows the state that refused it. Start session, Next phase and End session need a connection. While the instance is unreachable, a running session keeps counting down and ringing from the last state held.
 
+A left click on the panel depends on the session and the mode:
+
+- While a session is active, in either mode: while a phase rings after its planned end it confirms Next phase, and mid-phase it opens the menu.
 - In Timer mode, and while a timer runs or is paused, it acts on the timer as described under [Timer](#timer).
 - In Pomodoro mode with no session, it starts one.
-- While a phase rings after its planned end, it confirms Next phase.
-- Mid-phase, it opens the menu.
 
-In Pomodoro mode the menu drops Start and shows Start session while no session is active. During a session it shows Next phase: followed by the phase it starts (Work, Short rest or Long rest), and End session. Start and Stop show only in Timer mode or while a timer runs. Ending a work phase starts a rest and saves nothing. Ending a rest saves the pomodoro, the work phase plus the rest, as one stopped entry. End session saves the open pomodoro at once. A timer started on another device ends the session at that timer's start and saves the partial pomodoro. A pomodoro too short to save is dropped, and the menu shows "This pomodoro was too short to save." until the next session starts.
+Whenever a session is active the panel shows the phase, the countdown and "Pomodoro N of M", and the menu shows Next phase: followed by the phase it starts (Work, Short rest or Long rest), and End session. The timer's Start and Stop are hidden then, because the session owns its pomodoro, and Project and Billable are disabled. In Pomodoro mode with no session the menu drops Start and shows Start session, which waits until a timer state has been read and while an action waits for its answer. The server saves the pomodoro. A pomodoro too short to save is dropped, and the menu shows "This pomodoro was too short to save." until the next action. When an action cannot reach the instance, the menu, the tooltip and the accessible description show why, and no session action is sent again until a later read of the state settles the outcome. A timer started on another device ends the session on the server, and the panel follows. Records of the session that earlier versions kept in the widget's configuration are not read; they stay in the file.
 
 Whenever Pomodoro mode is on, an hourglass follows the logo, in full colour or, with Use a monochrome panel icon on, in the panel's text colour. During a session the time counts down as `M:SS` to the phase's planned end, then up as `+M:SS` in overtime. The tooltip and the accessible description name the phase, the time left and the pomodoro, for example "Short rest · 4:10 left · Pomodoro 2 of 4". The widget posts no notification.
 
-The Pomodoro page of Configure holds the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the account's preferences, shared with the web app and Android, and a session has no lengths of its own. Changing them needs a connection to the Tokkl server; without one the page shows the cached values and they cannot be edited. Below them, each of the four transitions has the sound it plays, chosen from the four bundled sounds (see [docs/sounds](../../docs/sounds/README.md)), with a Preview button. The widget keeps the sound choices on this device.
+The Pomodoro page of Configure holds the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the account's preferences, shared with the web app and Android. A session takes them when it starts. Changing them needs a connection to the Tokkl server; without one the page shows the cached values and they cannot be edited. Below them, each of the four transitions has the sound it plays, chosen from the four bundled sounds (see [docs/sounds](../../docs/sounds/README.md)), with a Preview button. The widget keeps the sound choices on this device.
 
 When a phase reaches its planned end, the chosen sound plays over and over until you confirm Next phase or end the session. The widget plays it through Qt Multimedia (`QSoundEffect`). The package installs the four WAV files in the widget's `contents/sounds/`.
 
@@ -762,14 +783,18 @@ server's or refuse a server of another version.
 
 ### Real-server test
 
-`tests/realserver.test.ts` runs the companion's `Connection` and
-`TokklTimer`, with the real HTTP transport, against two Tokkl instances
-started with the API's multi-user test fixtures (`packages/api/test/helpers.ts`)
-on 127.0.0.1. The ids on the two instances collide by construction. A proxy
-in front of each instance can hold a reply back, and the test binary
-(`tests/realservertest.cpp`, built by CMake but not a CTest test) drives a
-control server to hold and release replies, disable an account through the
-admin API and remove a workspace membership. It checks:
+`tests/realserver.test.ts` runs the companion's `Connection`,
+`TimerStateClient`, `TimerController` and `PomodoroSession`, with the real
+HTTP transport, against two Tokkl instances started with the API's multi-user
+test fixtures (`packages/api/test/helpers.ts`) on 127.0.0.1. The instances'
+time resolution is 1 minute, and the ids on the two collide by construction.
+A proxy in front of each instance passes the event stream through as it
+arrives, can hold or cut off a reply to any other request, and counts the
+requests it receives. The test binary (`tests/realservertest.cpp`, built by
+CMake but not a CTest test) drives a control server to hold, release and cut
+off replies, stall the event streams, disable an account through the admin
+API, remove a workspace membership and make a request as another device of
+the same account. It checks:
 
 - isolation: a user who is not an admin, in a workspace other than 1, sees
   only their own projects and timer; start, stop and update requests against
@@ -783,9 +808,28 @@ admin API and remove a workspace membership. It checks:
 - disabled accounts, with a token and with email and password: the 403 is
   the same as for an unknown token, account data is cleared, writes are
   refused, and nothing is sent again until the user reconnects;
-- pause and resume: the clone copies the paused entry's fields, and a resume
-  after the task or the project was deleted is refused with 404, creates
-  nothing and keeps the chain paused with the server's message.
+- pause and resume: the clone copies the paused entry's fields. When another
+  client deletes the task and then the project while the chain is paused,
+  the stream brings the chain without them, and a resume starts a clone
+  without them that keeps the tags and the billable flag. A resume made on a
+  revision the server has left, because the stream was silent while another
+  device resumed, is refused with 409 and the state that is there now, which
+  the companion shows with the refusal; the resume is not sent again;
+- pause, resume, pause again and Stop while paused: the chain total is what
+  the server stored, Stop sends one discard, and no v9 call writes;
+- a Pomodoro session run from the companion: Start session, Next phase twice
+  and End session, each with the revision held and answered with 200. The
+  pomodoros keep the project and the billable flag, and a pomodoro that
+  lasted seconds is reported as too short to save;
+- push: a session started, advanced and ended by another device through the
+  API shows in the companion within 2 s in Timer mode, with the stream up
+  and no read or write sent by the companion;
+- a lost reply: the reply to a pause is cut off after the server paused. The
+  stream shows the pause while the reply is held, the companion keeps its
+  write's outcome as unknown, the proxy receives that one pause only, and a
+  read sent after the loss settles the result. A connection that closes
+  before the first byte of a reply makes Qt send the request again by itself,
+  so the test cuts the reply off partway instead.
 
 Afterwards the script compares each instance's database with a snapshot
 taken before the run: only the changes the companion was allowed to make are
@@ -882,12 +926,13 @@ Timer:
 - [ ] Choose Stop in the menu while running: the web app shows the entry
       stopped, the panel shows `0:00` and the item reads Start. The next
       click starts a new entry from `0:00`. Pause, then choose Stop: the web
-      app shows no new request, and the panel shows `0:00`.
+      app no longer shows a paused timer, and the panel shows `0:00`.
 - [ ] Pause, then restart plasmashell (`systemctl --user restart
       plasma-plasmashell.service`): the panel still says Paused with the
-      same time, and a click resumes from it.
-- [ ] Start in the web app: the panel shows it running within 30 seconds.
-      Stop it in the web app: the panel stops.
+      same time, and a click resumes from it. Pause in the web app: the panel
+      shows Paused with the same time.
+- [ ] Start in the web app: the panel shows it running. Stop it in the web
+      app: the panel stops.
 - [ ] Start on a project: a dot in the project's colour pulses left of the
       time, and the tooltip names the project. Pause: the dot stays, still,
       in the same colour and ring. Stop: a still square stays. Check the dot
@@ -913,15 +958,21 @@ Pomodoro:
 - [ ] At the planned end the count turns into `+0:01`, `+0:02` and so on, and
       the sound chosen for Work → short rest loops until you act.
 - [ ] Left click confirms Next phase: the alarm stops, the phase is a short
-      rest and the web app shows no new entry yet. Let the rest reach its end
+      rest and the web app shows the same phase. Let the rest reach its end
       and confirm Next phase again: the web app shows one stopped entry from
       the work start to now.
 - [ ] Left click mid-phase opens the menu. End session stops the countdown
       and saves the open pomodoro. Start and end a session within the time
       resolution: the menu shows "This pomodoro was too short to save." and
-      keeps it until the next session starts.
-- [ ] Start a timer in the web app during a session: within 30 seconds the
-      session ends and the web app holds the partial pomodoro.
+      keeps it until the next action.
+- [ ] Start a timer in the web app during a session: the session ends and the
+      web app holds the partial pomodoro.
+- [ ] With the widget in Timer mode, start a session in the web app: the
+      panel shows the phase countdown, the menu shows Next phase and End
+      session without Start or Stop, and the Pomodoro mode item is locked.
+      Left click mid-phase opens the menu, and after the planned end it
+      confirms Next phase. End the session in the web app: the panel is the
+      timer's again.
 - [ ] Uncheck Pomodoro mode: the hourglass goes and a left click acts on the
       timer again. Restart plasmashell: the mode stays as you left it.
 

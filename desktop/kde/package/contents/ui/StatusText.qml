@@ -6,16 +6,22 @@ import com.github.e0ipso.tokkl.backend
 
 // Words for the timer's and the Pomodoro session's state, shared by the
 // panel item, its menu and the tooltip. Every state has its own text, so
-// nothing depends on color.
+// nothing depends on color. The session is the server's, so it shows in
+// either mode, whichever device started it.
 QtObject {
     required property TokklTimer timer
     // Null until the backend has built it, which reads as Timer mode.
     property TokklPomodoroSession session: null
 
     readonly property bool pomodoroMode: session !== null && session.pomodoroMode
-    // The panel shows the session rather than the timer: a session is active
-    // and no timer runs or is paused.
-    readonly property bool showsSession: session !== null && session.active && !timer.running && !timer.paused
+    // The panel shows the session rather than the timer: a session is
+    // active. The timer holds no entry then, as the session owns its
+    // pomodoro.
+    readonly property bool showsSession: session !== null && session.active
+
+    // The session's last message for the user, such as a pomodoro too short
+    // to save or why an action did not go through; empty when there is none.
+    readonly property string messageText: session !== null ? session.message : ""
 
     // The session in one line, such as "Short rest · 4:10 left · Pomodoro 2
     // of 4"; empty unless showsSession.
@@ -96,13 +102,18 @@ QtObject {
     // During a session it is the session's line.
     readonly property string summary: {
         if (showsSession) {
-            return sessionText;
+            return withMessage(sessionText);
         }
         const parts = [i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText), projectText, statusText];
         if (detailText.length > 0) {
             parts.push(detailText);
         }
-        return withMode(parts.join(" · "));
+        return withMessage(withMode(parts.join(" · ")));
+    }
+
+    // The text, followed by the session's message when there is one.
+    function withMessage(text: string): string {
+        return messageText.length > 0 ? i18nc("@info:status", "%1 · %2", text, messageText) : text;
     }
 
     // The text, marked in Pomodoro mode.

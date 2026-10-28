@@ -3,9 +3,7 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_POMODORO_SESSION_CONFIG,
   nextPhase,
-  overtimeSeconds,
   plannedEnd,
-  pomodoroEntrySpan,
   startSession,
   transitionKind,
   type PomodoroSessionConfig,
@@ -23,10 +21,8 @@ interface FixturePhase {
 type Input =
   | { function: 'startSession'; at: string }
   | { function: 'plannedEnd'; phase: FixturePhase }
-  | { function: 'overtimeSeconds'; phase: FixturePhase; at: string }
   | { function: 'transitionKind'; phase: FixturePhase }
-  | { function: 'nextPhase'; phase: FixturePhase; at: string }
-  | { function: 'pomodoroEntrySpan'; start: string; end: string; minutes: number; timeZone: string };
+  | { function: 'nextPhase'; phase: FixturePhase; at: string };
 
 interface SessionCase {
   name: string;
@@ -55,17 +51,11 @@ function run(input: Input, config: PomodoroSessionConfig): unknown {
       return fromPhase(startSession(new Date(input.at)));
     case 'plannedEnd':
       return plannedEnd(toPhase(input.phase), config).toISOString();
-    case 'overtimeSeconds':
-      return overtimeSeconds(toPhase(input.phase), new Date(input.at), config);
     case 'transitionKind':
       return transitionKind(toPhase(input.phase), config);
     case 'nextPhase': {
       const change = nextPhase(toPhase(input.phase), new Date(input.at), config);
       return { ...change, next: fromPhase(change.next) };
-    }
-    case 'pomodoroEntrySpan': {
-      const span = pomodoroEntrySpan(new Date(input.start), new Date(input.end), input.minutes, input.timeZone);
-      return span && { start: span.start.toISOString(), stop: span.stop.toISOString() };
     }
     default:
       throw new Error(`unknown function ${(input as { function: unknown }).function}`);

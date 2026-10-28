@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, request, type APIRequestContext, type Page } from '@playwright/test';
-import { test as base } from './fixtures.ts';
+import { leavePages, test as base } from './fixtures.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 // Disposable servers use E2E_PORT + 50 to + 59, so concurrent runs on other E2E_PORT values do not collide.
@@ -107,11 +107,12 @@ export class ServerPool {
 }
 
 export const test = base.extend<{ servers: ServerPool }>({
-  servers: async ({}, use) => {
+  servers: async ({ context }, use) => {
     const pool = new ServerPool();
     try {
       await use(pool);
     } finally {
+      await leavePages(context);
       await pool.dispose();
     }
   },

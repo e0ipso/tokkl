@@ -16,7 +16,7 @@ export interface EntryFieldsHandle {
  * billable toggle, editing `draft`. It knows nothing about a running entry: typing calls `onType`,
  * every other edit calls `onEdit` with the fields it changed, and the owner decides what to save.
  * Enter with no highlighted suggestion calls `onEnter`. `children` follow the attribute buttons in
- * the controls row.
+ * the controls row. With `readOnly` the fields show `draft` and offer no edit.
  */
 export const EntryFields = forwardRef<EntryFieldsHandle, {
   draft: EntryDraft;
@@ -26,8 +26,9 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
   onEdit: (changes: Partial<EntryDraft>) => void;
   onDescriptionBlur: () => void;
   onEnter: (event: KeyboardEvent<HTMLInputElement>) => void;
+  readOnly?: boolean;
   children?: ReactNode;
-}>(function EntryFields({ draft, recentEntries, placeholder, onType, onEdit, onDescriptionBlur, onEnter, children }, ref) {
+}>(function EntryFields({ draft, recentEntries, placeholder, onType, onEdit, onDescriptionBlur, onEnter, readOnly = false, children }, ref) {
   const { data: projects = [] } = useProjects();
   const { suggestions, setShowSuggestions, highlight, setHighlight, project, projectChanges } = useEntryFields({ draft, recentEntries, projects });
   const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
@@ -66,6 +67,7 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
           placeholder={placeholder}
           aria-label="Description"
           maxLength={3000}
+          readOnly={readOnly}
           onChange={(event) => {
             onType(event.target.value);
             setShowSuggestions(true);
@@ -73,7 +75,7 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
           }}
           onFocus={() => {
             clearTimeout(hideSuggestionsTimer.current);
-            setShowSuggestions(!quietFocus.current);
+            setShowSuggestions(!quietFocus.current && !readOnly);
           }}
           onBlur={() => {
             hideSuggestionsTimer.current = setTimeout(() => setShowSuggestions(false), 150);
@@ -95,10 +97,10 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
               }
             } else if (event.key === 'Escape') {
               setShowSuggestions(false);
-            } else if (event.key === '@' && draft.description === '') {
+            } else if (event.key === '@' && draft.description === '' && !readOnly) {
               event.preventDefault();
               setPicker('project');
-            } else if (event.key === '#' && draft.description === '') {
+            } else if (event.key === '#' && draft.description === '' && !readOnly) {
               event.preventDefault();
               setPicker('tags');
             }
@@ -134,6 +136,7 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
           style={projectColorStyle(project?.color)}
           title="Project (@)"
           aria-label="Project"
+          disabled={readOnly}
           onClick={() => setPicker('project')}
         >
           {project ? <ProjectLabel projectId={project.id} taskId={draft.task_id} /> : <Icon name="folder" />}
@@ -144,6 +147,7 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
           className={`icon-button timer-attr${draft.tags.length ? ' active' : ''}`}
           title={draft.tags.length ? draft.tags.join(', ') : 'Tags (#)'}
           aria-label="Tags"
+          disabled={readOnly}
           onClick={() => setPicker('tags')}
         >
           <Icon name="tag" />
@@ -155,6 +159,7 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
           title="Billable"
           aria-label="Billable"
           aria-pressed={draft.billable}
+          disabled={readOnly}
           onClick={() => onEdit({ billable: !draft.billable })}
         >
           <Icon name="dollar" />

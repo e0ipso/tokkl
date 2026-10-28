@@ -311,7 +311,7 @@ test('a version 1 database gains the live-entry indexes when opened', () => {
     const db = openDatabase(path);
     const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
     assert.equal(user_version, MIGRATIONS.length);
-    assert.equal(user_version, 7);
+    assert.equal(user_version, 8);
     const indexes = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'time_entries'").all() as Array<{ name: string }>)
       .map((row) => row.name);
     assert.ok(indexes.includes('time_entries_project_live'), indexes.join());
@@ -373,7 +373,7 @@ test('preference migration preserves every account across repeated database open
     for (let opening = 0; opening < 3; opening++) {
       const db = openDatabase(path);
       try {
-        assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 7);
+        assert.equal(db.prepare('PRAGMA user_version').get()!.user_version, 8);
         const rows = db.prepare('SELECT * FROM users ORDER BY id').all();
         assert.deepEqual(rows.map((row) => ({ ...row, preferences: JSON.parse(row.preferences as string) })), expected);
         if (opening === 0) storedAfterMigration = rows;

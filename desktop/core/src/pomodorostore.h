@@ -1,8 +1,6 @@
 #pragma once
 
-#include <QByteArray>
 #include <QObject>
-#include <QString>
 
 #include <memory>
 
@@ -11,12 +9,9 @@ class QSettings;
 namespace Tokkl
 {
 
-// Where a device keeps Pomodoro mode across restarts: whether the mode is on,
-// and per owner one record of JSON text that PomodoroRecord reads and writes.
-// The store keeps the text as it is and checks nothing in it.
-//
-// A writer replaces the whole record, so it reads the record, changes its own
-// part and writes it back.
+// Where a device keeps Pomodoro mode across restarts. The session itself is
+// the server's, and the platforms keep the per-transition sound picks with
+// their other settings.
 class PomodoroStore : public QObject
 {
     Q_OBJECT
@@ -29,15 +24,10 @@ public:
     virtual bool loadPomodoroMode() = 0;
     // Returns false when the choice may not be stored.
     virtual bool savePomodoroMode(bool pomodoro) = 0;
-    // The record stored for owner, or empty.
-    virtual QByteArray loadRecord(const QString &owner) = 0;
-    // An empty json removes the record. Returns false when it may not be
-    // stored.
-    virtual bool saveRecord(const QString &owner, const QByteArray &json) = 0;
 };
 
-// Keeps the mode and the records in a group of QSettings. A save returns true
-// only once sync() wrote it without error.
+// Keeps the mode in a group of QSettings. A save returns true only once
+// sync() wrote it without error.
 class SettingsPomodoroStore : public PomodoroStore
 {
     Q_OBJECT
@@ -50,8 +40,6 @@ public:
 
     bool loadPomodoroMode() override;
     bool savePomodoroMode(bool pomodoro) override;
-    QByteArray loadRecord(const QString &owner) override;
-    bool saveRecord(const QString &owner, const QByteArray &json) override;
 
 private:
     bool sync();

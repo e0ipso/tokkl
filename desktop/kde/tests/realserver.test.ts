@@ -9,15 +9,20 @@
  * TOKKL_KDE_REALSERVER_COMMAND is a JSON array: the command that runs the test binary, for
  * example through `docker run --network host` (desktop/kde/ci/realserver.sh). It gets the fixture
  * in the TOKKL_REALSERVER_FIXTURE environment variable. Each instance sits behind a proxy on
- * 127.0.0.1 that can hold a reply back, and a control server lets the binary hold and release
- * replies, disable an account and remove a workspace membership. TOKKL_KDE_TEST_PORT sets the
- * first of the three ports; without it the system picks free ones.
+ * 127.0.0.1. The proxy passes an event stream through as it arrives and never holds it; it holds
+ * any other reply back when told to, and it counts every request it receives. A control server
+ * lets the binary hold, release and cut off replies, stall the event streams so a client sees
+ * them go silent, count the requests the proxy received, disable an account, remove a workspace
+ * membership and make a request as one of the fixture accounts, as another device would.
+ * TOKKL_KDE_TEST_PORT sets the first of the three ports; without it the system picks free ones.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { Readable } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { addUser, PASSWORD, setup, type TestContext } from '../../../packages/api/test/helpers.ts';
 import { addWorkspaceMember } from '../../../packages/api/src/models/workspaces.ts';
 
@@ -46,12 +51,20 @@ interface FixtureUser {
   running: Entry | null;
 }
 
+/** A reply the proxy keeps back: send it on release, or cut it off before its end. */
+interface HeldReply { send: () => void; drop: () => void }
+
 /** An instance: its admin's context (and so its database and app) and the proxy in front of it. */
 interface Instance {
   name: string;
   admin: TestContext;
   holds: { method: string; path: string }[];
-  held: (() => void)[];
+  held: HeldReply[];
+  /** While true, an event stream's bytes and its end wait here instead of reaching the client. */
+  streamsStalled: boolean;
+  stalled: (() => void)[];
+  /** Every request the proxy received, in order: what reached the server, not what a client logged. */
+  seen: { method: string; path: string }[];
   url?: string;
 }
 
@@ -95,6 +108,7 @@ async function seed(name: string, extra: boolean) {
   const contexts: Record<string, TestContext> = {};
 
   const admin = await setup();
+  await ok(admin, 'PUT', '/api/app/admin/settings', { time_resolution_minutes: RESOLUTION_MINUTES });
   const adminProject = await project(admin, admin.wid, `${label} admin project`);
   const adminEntry = await running(admin, admin.wid, `${label} admin running`, new Date(now - 3 * hour), { project_id: adminProject.id });
   users[`${name}.admin`] = describeUser(name, admin, admin.wid, [adminProject], adminEntry);
@@ -144,6 +158,31 @@ async function seed(name: string, extra: boolean) {
     const qEntry = await running(q, q.wid, `${label} q running`, new Date(now - hour), { project_id: qProject.id });
     users[`${name}.q`] = describeUser(name, q, q.wid, [qProject], qEntry);
     contexts[`${name}.q`] = q;
+
+    // Runs a Pomodoro session from the companion: starts it, confirms Next phase twice and ends it.
+    const sn = await addUser(admin, { email: `sn@${name}.example.com`, role: 'user' });
+    const snProject = await project(sn, sn.wid, `${label} sn project`);
+    users[`${name}.sn`] = describeUser(name, sn, sn.wid, [snProject], null);
+    contexts[`${name}.sn`] = sn;
+
+    // Pauses, resumes, pauses again and discards the chain.
+    const pc = await addUser(admin, { email: `pc@${name}.example.com`, role: 'user' });
+    const pcProject = await project(pc, pc.wid, `${label} pc project`);
+    const pcEntry = await running(pc, pc.wid, `${label} pc running`, new Date(now - hour), { project_id: pcProject.id, billable: true });
+    users[`${name}.pc`] = describeUser(name, pc, pc.wid, [pcProject], pcEntry);
+    contexts[`${name}.pc`] = pc;
+
+    // Has its session started, advanced and ended by another device, through the API.
+    const pu = await addUser(admin, { email: `pu@${name}.example.com`, role: 'user' });
+    users[`${name}.pu`] = describeUser(name, pu, pu.wid, [], null);
+    contexts[`${name}.pu`] = pu;
+
+    // Pauses, and the reply to the pause is dropped.
+    const hd = await addUser(admin, { email: `hd@${name}.example.com`, role: 'user' });
+    const hdProject = await project(hd, hd.wid, `${label} hd project`);
+    const hdEntry = await running(hd, hd.wid, `${label} hd running`, new Date(now - hour), { project_id: hdProject.id });
+    users[`${name}.hd`] = describeUser(name, hd, hd.wid, [hdProject], hdEntry);
+    contexts[`${name}.hd`] = hd;
   }
   return { admin, users, contexts };
 }
@@ -166,10 +205,20 @@ function tagNames(ctx: TestContext, entryId: unknown): string[] {
   return ctx.db.prepare('SELECT tags.name FROM time_entry_tags JOIN tags ON tags.id = time_entry_tags.tag_id WHERE time_entry_id = ? ORDER BY tags.name')
     .all(entryId as number).map((row) => String(row.name));
 }
+/**
+ * A stopped entry that is snapped. One that lasted under half a step sits in the trash at zero
+ * length; any other is kept.
+ */
+function assertStopped(row: Row, exactStart?: number) {
+  assertSnapped(row, exactStart);
+  if (row.stop === row.start) assert.notEqual(row.deleted_at, null, 'a zero-length entry is in the trash');
+  else assert.equal(row.deleted_at, null, 'a longer entry is kept');
+}
 const without = (row: Row, ...keys: string[]) => Object.fromEntries(Object.entries(row).filter(([key]) => !keys.includes(key)));
 
-/** The instances' default time resolution, five minutes, on the UTC clock of the fixture accounts. */
-const RESOLUTION_MS = 5 * 60_000;
+/** The instances' time resolution, set in the fixture, on the UTC clock of the fixture accounts. */
+const RESOLUTION_MINUTES = 1;
+const RESOLUTION_MS = RESOLUTION_MINUTES * 60_000;
 
 /**
  * A stopped entry snapped to the time resolution: start on the grid, a whole number of steps long
@@ -200,18 +249,60 @@ function listen(server: Server, port: number): Promise<string> {
   });
 }
 
-/** Forwards to the instance's app; a reply matching an armed hold waits for release. */
+/** Whether a request or a reply is an event stream, which the proxy passes through as it arrives. */
+const isEventStream = (value: string | null | undefined) => (value ?? '').startsWith('text/event-stream');
+
+/**
+ * Copies an event stream to `res` chunk by chunk, and cancels the upstream when the client leaves.
+ * While the instance's streams are stalled, what the server sends waits in order, so a client sees
+ * a stream that has gone silent, also when the server ends it.
+ */
+function pipeStream(answer: Response, res: ServerResponse, instance: Instance) {
+  const headers: Record<string, string> = {};
+  for (const name of ['content-type', 'cache-control', 'x-accel-buffering']) {
+    const value = answer.headers.get(name);
+    if (value !== null) headers[name] = value;
+  }
+  res.writeHead(answer.status, headers);
+  res.flushHeaders();
+  const upstream = Readable.fromWeb(answer.body as WebReadableStream<Uint8Array>);
+  const forward = (action: () => void) => {
+    if (instance.streamsStalled) instance.stalled.push(action);
+    else action();
+  };
+  upstream.on('data', (chunk: Buffer) => forward(() => !res.destroyed && res.write(chunk)));
+  upstream.on('end', () => forward(() => !res.destroyed && res.end()));
+  upstream.on('error', () => res.destroy());
+  res.on('close', () => upstream.destroy());
+}
+
+function stallStreams(instance: Instance, stalled: boolean) {
+  instance.streamsStalled = stalled;
+  if (stalled) return;
+  for (const action of instance.stalled.splice(0)) action();
+}
+
+/**
+ * Forwards to the instance's app. A reply matching an armed hold waits for release or drop; an
+ * event stream is never held, and its bytes go to the client as they come.
+ */
 function proxy(instance: Instance): Server {
   return createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
       const body = await readBody(req);
       const method = req.method ?? 'GET';
-      const path = (req.url ?? '/').split('?')[0];
-      const holdIndex = instance.holds.findIndex((hold) => hold.method === method && hold.path === path);
+      const path = (req.url ?? '/').split('?')[0]!;
+      const streamRequest = isEventStream(req.headers.accept);
+      instance.seen.push({ method, path });
+      const holdIndex = streamRequest ? -1 : instance.holds.findIndex((hold) => hold.method === method && hold.path === path);
       if (holdIndex >= 0) instance.holds.splice(holdIndex, 1);
 
       const answer = await instance.admin.request(method, req.url ?? '/', body === '' ? undefined : body,
-        { authorization: req.headers.authorization ?? '' });
+        { authorization: req.headers.authorization ?? '', ...(streamRequest ? { accept: 'text/event-stream' } : {}) });
+      if (answer.body && isEventStream(answer.headers.get('content-type'))) {
+        pipeStream(answer, res, instance);
+        return;
+      }
       const headers: Record<string, string> = {};
       for (const name of ['content-type', 'retry-after', 'location']) {
         const value = answer.headers.get(name);
@@ -223,9 +314,21 @@ function proxy(instance: Instance): Server {
         res.writeHead(answer.status, headers);
         res.end(payload);
       };
-      if (holdIndex >= 0) instance.held.push(send);
+      // The reply is cut off before its last byte. A connection that closes before any byte of the
+      // reply makes Qt send the request again by itself, which no client of it can tell apart or stop.
+      const drop = () => {
+        if (res.destroyed || res.writableEnded) return;
+        res.writeHead(answer.status, { ...headers, 'content-length': String(payload.length) });
+        res.flushHeaders();
+        res.write(payload.subarray(0, Math.max(0, payload.length - 1)), () => res.destroy());
+      };
+      if (holdIndex >= 0) instance.held.push({ send, drop });
       else send();
     } catch (error) {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
       res.writeHead(502, { 'content-type': 'application/json' });
       res.end(JSON.stringify(String(error)));
     }
@@ -241,8 +344,8 @@ test('the KDE companion against real Tokkl servers', async (t) => {
   const a = await seed('a', true);
   const b = await seed('b', false);
   const instances: Record<string, Instance> = {
-    a: { name: 'a', admin: a.admin, holds: [], held: [] },
-    b: { name: 'b', admin: b.admin, holds: [], held: [] },
+    a: { name: 'a', admin: a.admin, holds: [], held: [], streamsStalled: false, stalled: [], seen: [] },
+    b: { name: 'b', admin: b.admin, holds: [], held: [], streamsStalled: false, stalled: [], seen: [] },
   };
   const users = { ...a.users, ...b.users };
   const contexts = { ...a.contexts, ...b.contexts };
@@ -267,8 +370,28 @@ test('the KDE companion against real Tokkl servers', async (t) => {
           break;
         case '/release': {
           const held = instance!.held.splice(0);
-          for (const send of held) send();
+          for (const { send } of held) send();
           answer = { released: held.length };
+          break;
+        }
+        case '/seen':
+          answer = { seen: instance!.seen.filter((request) => request.method === body.method && request.path === body.path).length };
+          break;
+        case '/stall-streams':
+          stallStreams(instance!, body.on === true);
+          answer = { stalled: instance!.streamsStalled };
+          break;
+        case '/drop': {
+          // The server already acted; the client never gets the whole answer.
+          const held = instance!.held.splice(0);
+          for (const { drop } of held) drop();
+          answer = { dropped: held.length };
+          break;
+        }
+        case '/call': {
+          // A request from another device of the same account, straight to the app.
+          const response = await contexts[String(body.user)]!.json(String(body.method), String(body.path), body.body);
+          answer = { status: response.status, body: response.body };
           break;
         }
         case '/disable': {
@@ -321,7 +444,10 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     });
     assert.equal(exitCode, 0, 'realservertest failed; its output is above');
   } finally {
-    for (const instance of Object.values(instances)) for (const send of instance.held.splice(0)) send();
+    for (const instance of Object.values(instances)) {
+      stallStreams(instance, false);
+      for (const { send } of instance.held.splice(0)) send();
+    }
     for (const server of servers) {
       server.closeAllConnections();
       server.close();
@@ -335,8 +461,8 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     const q = users['a.q']!;
     const disabled = new Set([users['a.dt']!.id, users['a.dp']!.id]);
 
-    // p deleted its task and its project while paused, and q its project.
-    const deletedProjects = new Set([p.running!.project_id, q.running!.project_id]);
+    // p deleted its task and its project while paused.
+    const deletedProjects = new Set([p.running!.project_id]);
     assert.deepEqual(after.projects, before.a.projects.filter((row) => !deletedProjects.has(row.id as number)));
     assert.deepEqual(after.tasks, before.a.tasks.filter((row) => row.id !== p.running!.task_id));
     assert.deepEqual(after.workspaces, before.a.workspaces);
@@ -354,7 +480,8 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     }
 
     // Every other account's entries, the admin's running one included, are untouched.
-    const others = (row: Row) => row.user_id !== u.id && row.user_id !== p.id && row.user_id !== q.id;
+    const changed = new Set([u, p, q, ...['sn', 'pc', 'pu', 'hd'].map((key) => users[`a.${key}`]!)].map((user) => user.id));
+    const others = (row: Row) => !changed.has(row.user_id as number);
     assert.deepEqual(after.entries.filter(others), before.a.entries.filter(others));
     // u started and stopped one entry, and the start answered late created another.
     const mine = after.entries.filter((row) => row.user_id === u.id);
@@ -372,22 +499,27 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     assert.equal(stopped.stop, stopped.start);
     assert.notEqual(stopped.deleted_at, null);
 
-    // p paused the seeded entry, resumed one clone of it and paused that seconds later, which sent
-    // the clone to the trash at zero length. The two resumes refused after the task and then the
-    // project went created nothing. The deletions left both entries without a project or task;
-    // everything else the clone copied is still there.
+    // p paused the seeded entry and resumed a clone of it, which it paused seconds later: the
+    // server sent that clone to the trash at zero length. After the task and the project were
+    // deleted, a second clone started without them and was paused the same way, and the chain was
+    // discarded. The deletions left all three entries without a project or task; everything else
+    // the clones copied is still there.
     const chain = after.entries.filter((row) => row.user_id === p.id);
     const original = before.a.entries.find((row) => row.id === p.running!.id)!;
-    assert.equal(chain.length, 2);
+    assert.equal(chain.length, 3);
     assert.equal(chain[0]!.id, p.running!.id);
     assert.deepEqual(without(chain[0]!, 'start', 'stop', 'duration', 'updated_at', 'project_id', 'task_id'),
       without(original, 'start', 'stop', 'duration', 'updated_at', 'project_id', 'task_id'));
     assertSnapped(chain[0]!, Date.parse(String(original.start)));
-    assertSnapped(chain[1]!);
-    assert.ok(Date.parse(String(chain[1]!.start)) >= Date.parse(String(chain[0]!.stop)), 'the clone starts after the pause');
     assert.equal(chain[0]!.deleted_at, null);
-    assert.equal(chain[1]!.stop, chain[1]!.start);
-    assert.notEqual(chain[1]!.deleted_at, null);
+    for (const clone of chain.slice(1)) {
+      assertSnapped(clone);
+      assert.ok(Date.parse(String(clone.start)) >= Date.parse(String(chain[0]!.stop)), 'the clone starts after the pause');
+      assert.equal(clone.stop, clone.start);
+      assert.notEqual(clone.deleted_at, null);
+      // The server made the clone, so it has no client name.
+      assert.equal(clone.created_with, 'api');
+    }
     for (const row of chain) {
       assert.equal(row.workspace_id, p.wid);
       assert.equal(row.description, p.running!.description);
@@ -396,19 +528,72 @@ test('the KDE companion against real Tokkl servers', async (t) => {
       assert.equal(row.task_id, null);
       assert.deepEqual(tagNames(a.admin, row.id), p.running!.tags);
     }
-    assert.equal(chain[1]!.created_with, 'tokkl-kde');
 
-    // q paused its seeded entry; the resume refused after the project went created nothing.
+    // q paused its seeded entry. Another device resumed it, and the companion's resume on a stale
+    // revision was refused, so the one clone is the other device's; the companion stopped it,
+    // which sent it to the trash at zero length. The project is untouched.
     const qChain = after.entries.filter((row) => row.user_id === q.id);
     const qOriginal = before.a.entries.find((row) => row.id === q.running!.id)!;
-    assert.equal(qChain.length, 1);
+    assert.equal(qChain.length, 2);
     assert.equal(qChain[0]!.id, q.running!.id);
     assert.equal(qOriginal.stop, null);
-    assert.notEqual(qChain[0]!.stop, null);
-    assert.deepEqual(without(qChain[0]!, 'start', 'stop', 'duration', 'updated_at', 'project_id'),
-      without(qOriginal, 'start', 'stop', 'duration', 'updated_at', 'project_id'));
-    assert.equal(qChain[0]!.project_id, null);
-    assertSnapped(qChain[0]!, Date.parse(String(qOriginal.start)));
+    assert.deepEqual(without(qChain[0]!, 'start', 'stop', 'duration', 'updated_at'), without(qOriginal, 'start', 'stop', 'duration', 'updated_at'));
+    assertStopped(qChain[0]!, Date.parse(String(qOriginal.start)));
+    assert.equal(qChain[0]!.project_id, q.running!.project_id);
+    assertStopped(qChain[1]!);
+    assert.equal(qChain[1]!.stop, qChain[1]!.start);
+    assert.equal(qChain[1]!.project_id, q.running!.project_id);
+    assert.equal(qChain[1]!.created_with, 'api');
+
+    // sn ran a session: two pomodoros, the first ended by the second Next phase and the second by
+    // End session, both with the project and billable flag the session started with.
+    const sn = users['a.sn']!;
+    const session = after.entries.filter((row) => row.user_id === sn.id);
+    assert.equal(before.a.entries.filter((row) => row.user_id === sn.id).length, 0);
+    assert.equal(session.length, 2);
+    for (const row of session) {
+      assertStopped(row);
+      assert.equal(row.workspace_id, sn.wid);
+      assert.equal(row.project_id, sn.projects[0]!.id);
+      assert.equal(row.billable, 1);
+      assert.equal(row.created_with, 'tokkl-kde');
+    }
+    assert.notEqual(session[0]!.id, session[1]!.id);
+
+    // pc paused, resumed one clone, paused it and discarded the chain: the seeded entry stopped
+    // on the grid and the clone, which ran for seconds, in the trash.
+    const pc = users['a.pc']!;
+    const pcChain = after.entries.filter((row) => row.user_id === pc.id);
+    const pcOriginal = before.a.entries.find((row) => row.id === pc.running!.id)!;
+    assert.equal(pcChain.length, 2);
+    assert.equal(pcChain[0]!.id, pc.running!.id);
+    assert.deepEqual(without(pcChain[0]!, 'start', 'stop', 'duration', 'updated_at'), without(pcOriginal, 'start', 'stop', 'duration', 'updated_at'));
+    assertStopped(pcChain[0]!, Date.parse(String(pcOriginal.start)));
+    assert.ok(Date.parse(String(pcChain[0]!.stop)) > Date.parse(String(pcChain[0]!.start)), 'the seeded entry kept its hour');
+    assertStopped(pcChain[1]!);
+    assert.equal(pcChain[1]!.stop, pcChain[1]!.start);
+    assert.equal(pcChain[1]!.description, pc.running!.description);
+    assert.equal(pcChain[1]!.project_id, pc.running!.project_id);
+    assert.equal(pcChain[1]!.billable, 1);
+
+    // pu's session was started, advanced and ended through the API: one pomodoro, none of the
+    // companion's own writes.
+    const pu = users['a.pu']!;
+    const pushed = after.entries.filter((row) => row.user_id === pu.id);
+    assert.equal(pushed.length, 1);
+    assertStopped(pushed[0]!);
+    assert.equal(pushed[0]!.created_with, 'api');
+
+    // hd paused once; the reply was lost and the pause was never sent again. A second pause would
+    // have been refused, and no clone exists.
+    const hd = users['a.hd']!;
+    const hdChain = after.entries.filter((row) => row.user_id === hd.id);
+    const hdOriginal = before.a.entries.find((row) => row.id === hd.running!.id)!;
+    assert.equal(hdChain.length, 1);
+    assert.equal(hdChain[0]!.id, hd.running!.id);
+    assert.deepEqual(without(hdChain[0]!, 'start', 'stop', 'duration', 'updated_at'), without(hdOriginal, 'start', 'stop', 'duration', 'updated_at'));
+    assertStopped(hdChain[0]!, Date.parse(String(hdOriginal.start)));
+    assert.ok(Date.parse(String(hdChain[0]!.stop)) > Date.parse(String(hdChain[0]!.start)), 'the seeded entry kept its hour');
   });
 
   await t.test('instance b changed only by the stop sent after the switch', () => {

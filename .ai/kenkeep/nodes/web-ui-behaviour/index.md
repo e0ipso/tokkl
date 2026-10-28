@@ -8,8 +8,8 @@
 
 ## Subfolders
 - Load [`interaction-and-state/`](interaction-and-state/index.md) for more information on shared fields, focus, error states, refetches, clipboard and authentication cleanup; read before changing web interactions or account state.
-- Load [`pomodoro/`](pomodoro/index.md) for more information on pomodoro lengths, phases, session storage, timer handoffs, notifications and audio; read before changing Pomodoro behaviour.
-- Load [`time-and-timers/`](time-and-timers/index.md) for more information on time parsing, account-local wall-clock math, snapped previews and pause chains; read before changing entry times or timer state.
+- Load [`pomodoro/`](pomodoro/index.md) for more information on pomodoro lengths, phases, the web views of the server's session and timer state, notifications and audio; read before changing Pomodoro behaviour.
+- Load [`time-and-timers/`](time-and-timers/index.md) for more information on time parsing, account-local wall-clock math, snapped previews and the web timer actions (pause, resume, revisions); read before changing entry times or timer state.
 
 ## Conventions (how we build)
 _None yet._

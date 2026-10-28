@@ -15,6 +15,7 @@ kk_derived_from: []
 kk_relates_to:
   - map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
   - map-gnome-timerd-d-bus-timer-service
+  - map-desktop-timer-state-client-stream-poll-settling-and-revisions
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -22,7 +23,7 @@ kk_confidence: high
 
 The code is split so most of it builds and runs on Linux. The platform-neutral library in `src/` (`menubarapp`, `statusmenu`, `statuswords`, `projectindicator`, `settingswindow`, the `StatusItem` and `LoginItem` interfaces) builds on any machine with Qt 6, and its tests (`menubarapp`, `infoplist`, plus the core's) run there. `keychaincredentialstore` is built only when QtKeychain is installed. Only three files need macOS: `macstatusitem.mm` (`NSStatusItem`), `macloginitem.mm` (`SMAppService`) and `main.mm`. Put new logic in the portable library behind those interfaces so it stays testable; keep the shims thin.
 
-A primary click on the item calls `toggle()` (pause, resume or start). The menu's `startStopAction` (`statusmenu.cpp`) reads Start Timer or, while running or paused, Stop Timer, and calls `start()` or `stop()`. Stop Timer while paused only ends the chain, so it is enabled whenever no mutation is in flight, offline too; `menubarapptest` covers that offline case. The pause chain is kept by a `SettingsChainStore` on the app's `QSettings`.
+A primary click on the item calls `toggle()` (pause, resume or start). The menu's `startStopAction` (`statusmenu.cpp`) reads Start Timer or, while running or paused, Stop Timer, and calls `start()` or `stop()`. Stop Timer while paused posts a discard to the server, so it needs a connection like every other action; `menubarapptest` covers the offline case. The pause chain and the Pomodoro session are the server's, read through the shared `TimerStateClient` (see `map-desktop-timer-state-client-stream-poll-settling-and-revisions`), so the app stores only its settings, the Pomodoro mode and the sound choices on the Mac. While a session is active, in either mode, Start Timer and Stop Timer are hidden and Next phase and End session carry the revision shown.
 
 The bundle icon comes from `desktop/macos/resources/Tokkl.iconset`, the ten PNGs `npm run icons` renders (see `map-app-icons-script`). On macOS the build runs `iconutil -c icns` (found with `find_program(... REQUIRED)`) into `Contents/Resources/Tokkl.icns`; `TOKKL_BUNDLE_ICON` (`Tokkl`) names it, and `cmake/Info.plist.in` sets `CFBundleIconFile` from it. `autotests/infoplisttest.cmake` and `scripts/check-dmg.sh` both check the icon.
 
@@ -41,4 +42,5 @@ The DMG is built and attached after the release exists. `release` exposes `outpu
 
 - Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
 - Related: [map-gnome-timerd-d-bus-timer-service](map-gnome-timerd-d-bus-timer-service.md)
+- Related: [map-desktop-timer-state-client-stream-poll-settling-and-revisions](kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md)
 <!-- kk:related:end -->

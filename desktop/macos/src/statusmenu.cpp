@@ -119,6 +119,7 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject
         for (auto signal : {&TimerController::statusChanged,
                             &TimerController::currentEntryChanged,
                             &TimerController::chainChanged,
+                            &TimerController::sessionActiveChanged,
                             &TimerController::projectsChanged,
                             &TimerController::selectionChanged,
                             &TimerController::choiceChanged,
@@ -230,6 +231,11 @@ void StatusMenu::onGenerationChanged()
     refresh();
 }
 
+bool StatusMenu::sessionActive() const
+{
+    return (m_session && m_session->isActive()) || (m_timer && m_timer->isSessionActive());
+}
+
 bool StatusMenu::pomodoroIdle() const
 {
     return m_session && m_session->pomodoroMode() && !(m_timer && (m_timer->isRunning() || m_timer->isPaused()));
@@ -242,7 +248,7 @@ void StatusMenu::refreshState()
     }
     const QString detail = StatusWords::detailText(*m_timer);
     if (m_session && StatusWords::showsSession(*m_timer, *m_session)) {
-        m_stateAction->setText(StatusWords::sessionText(*m_session));
+        m_stateAction->setText(StatusWords::sessionLine(*m_timer, *m_session));
     } else {
         m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(*m_timer), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
     }
@@ -252,7 +258,7 @@ void StatusMenu::refreshState()
 void StatusMenu::refreshSession()
 {
     const bool active = m_session && m_session->isActive();
-    m_startSessionAction->setVisible(pomodoroIdle() && !active);
+    m_startSessionAction->setVisible(pomodoroIdle() && !sessionActive());
     m_startSessionAction->setEnabled(m_session && m_session->canStartSession());
     m_nextPhaseAction->setVisible(active);
     m_nextPhaseAction->setText(tr("Next phase: %1").arg(StatusWords::phaseName(m_session ? m_session->nextPhase() : QString())));
@@ -278,16 +284,16 @@ void StatusMenu::refresh()
     const bool paused = m_timer->isPaused();
     if (m_timer->isRunning() || paused) {
         m_startStopAction->setText(tr("Stop Timer"));
-        // A paused chain ends here without a request, so only a mutation in
-        // flight holds it.
-        m_startStopAction->setEnabled(paused ? !m_timer->isBusy() : m_timer->canWrite());
+        // Stopping a paused chain discards it on the server, so it needs a
+        // connection like any other write.
+        m_startStopAction->setEnabled(m_timer->canWrite());
     } else {
         m_startStopAction->setText(tr("Start Timer"));
-        // Pomodoro mode starts no timer, so a session never has to end for
-        // one started here.
-        m_startStopAction->setEnabled(m_timer->canWrite() && !pomodoroIdle());
+        // Pomodoro mode starts no timer, and a session, started here or on
+        // another device, holds the timer.
+        m_startStopAction->setEnabled(m_timer->canWrite() && !pomodoroIdle() && !sessionActive());
     }
-    m_startStopAction->setVisible(!pomodoroIdle());
+    m_startStopAction->setVisible(!pomodoroIdle() && !sessionActive());
     refreshSession();
 
     m_billableAction->setEnabled(m_timer->canWrite() && !paused);

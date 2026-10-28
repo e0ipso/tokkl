@@ -201,7 +201,7 @@ async function loginWithCachedDark(page: Page) {
 
 test('a failed logout request still clears the cached theme', async ({ page, runtimeErrors }) => {
   runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/app\/logout$/, reason: 'the logout response is replaced with a server error' });
-  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/v9\/me$/, reason: 'the browser keeps the cookie of the session the server ended' });
+  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/(v9\/me|app\/timer)$/, reason: 'the browser keeps the cookie of the session the server ended' });
   await loginWithCachedDark(page);
 
   // The server ends the session, but the browser gets a 500 and keeps its cookie.
@@ -261,7 +261,7 @@ test('a logout the server never carries out clears the cache, then says the user
 });
 
 test('an expired session clears the cached theme once, and the login page follows the system', async ({ page, browser, baseURL, runtimeErrors }) => {
-  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/v9\/me$/, reason: 'the browser still sends the cookie of a session the server ended' });
+  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/(v9\/me|app\/timer)$/, reason: 'the browser still sends the cookie of a session the server ended' });
   const colours = await systemTokenColours(browser, baseURL!);
   await loginWithCachedDark(page);
 

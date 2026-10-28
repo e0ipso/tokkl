@@ -6,12 +6,12 @@
 // widget's configuration; the core classes they extend have no QML name.
 
 #include "alarmplayer.h"
-#include "appletchainstore.h"
 #include "appletpomodorostore.h"
 #include "connection.h"
 #include "connectionsetup.h"
 #include "kdeconnection.h"
 #include "kdepomodoro.h"
+#include "kdetimerstate.h"
 #include "pomodorolengthsclient.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
@@ -45,10 +45,18 @@ struct TokklConnectionSetupForeign {
     QML_NAMED_ELEMENT(TokklConnectionSetup)
 };
 
-struct TokklChainStoreForeign {
+// The timer state client the timer and the Pomodoro session share. Only
+// TokklTimerState creates it; the timer takes it as a property.
+struct TokklTimerStateClientForeign {
     Q_GADGET
-    QML_FOREIGN(Tokkl::AppletChainStore)
-    QML_NAMED_ELEMENT(TokklChainStore)
+    QML_FOREIGN(Tokkl::TimerStateClient)
+    QML_ANONYMOUS
+};
+
+struct TokklTimerStateForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::KdeTimerState)
+    QML_NAMED_ELEMENT(TokklTimerState)
 };
 
 struct TokklTimerForeign {
@@ -58,7 +66,7 @@ struct TokklTimerForeign {
 };
 
 // Pomodoro mode. TokklPomodoro builds the session and the preferences
-// client from its connection, timer and store, and TokklPomodoroLengths
+// client from its timer and store, and TokklPomodoroLengths
 // builds another preferences client for the Configure page; the two have
 // QML names so the panel and the page can declare properties of their type,
 // but only those types create them.

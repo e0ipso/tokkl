@@ -1,17 +1,13 @@
 // The Pomodoro preferences client, driven through the scripted transport and
-// credential store, with its cache in a QSettings file.
+// credential store.
 
 #include "connection.h"
 #include "fakes.h"
 #include "pomodoropreferences.h"
-#include "pomodororecord.h"
-#include "pomodorostore.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSettings>
 #include <QSignalSpy>
-#include <QTemporaryDir>
 #include <QTest>
 
 using namespace Tokkl;
@@ -64,18 +60,10 @@ class PomodoroPreferencesTest : public QObject
     Q_OBJECT
 
     struct Fixture {
-        QTemporaryDir dir;
-        QSettings settings{dir.filePath(QStringLiteral("pomodoro.ini")), QSettings::IniFormat};
-        SettingsPomodoroStore store{&settings};
         FakeTransport transport;
         FakeCredentialStore credentials;
         Connection connection{&transport, &credentials, testClientName()};
-        PomodoroPreferences preferences{&connection, &store};
-
-        PomodoroConfig cached(const QString &owner)
-        {
-            return PomodoroRecord::fromJson(store.loadRecord(owner)).config.value_or(PomodoroConfig{0, 0, 0, 0});
-        }
+        PomodoroPreferences preferences{&connection};
 
         bool lastIs(const QByteArray &method, const QString &path) const
         {
@@ -124,7 +112,6 @@ private Q_SLOTS:
         // its default on its own: a string, a value out of range and a
         // missing key.
         QVERIFY(connectAccount(f, instanceA, 3, 7));
-        const QString owner = f.connection.owner();
         QVERIFY(f.preferences.isEditable());
         QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
         f.transport.respondLast(FakeTransport::answer(
@@ -133,10 +120,9 @@ private Q_SLOTS:
         QCOMPARE(f.preferences.config(), (PomodoroConfig{50, 5, 15, 4}));
         QCOMPARE(refreshed.size(), 1);
         QVERIFY(refreshed.last().at(0).toBool());
-        QCOMPARE(f.cached(owner), (PomodoroConfig{50, 5, 15, 4}));
 
-        // A save posts only what changed, and shows and caches what the
-        // server then holds.
+        // A save posts only what changed, and shows what the server then
+        // holds.
         QVERIFY(f.preferences.save(50, 10, 15, 4));
         QVERIFY(f.preferences.isSaving());
         QVERIFY(f.lastIs("POST", QStringLiteral("/api/v9/me/preferences")));
@@ -144,7 +130,6 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({50, 10, 15, 4})));
         QVERIFY(!f.preferences.isSaving());
         QCOMPARE(f.preferences.config(), (PomodoroConfig{50, 10, 15, 4}));
-        QCOMPARE(f.cached(owner), (PomodoroConfig{50, 10, 15, 4}));
 
         // Nothing changed, nothing sent.
         const qsizetype requests = f.transport.requests.size();
@@ -184,11 +169,10 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({50, 10, 20, 4})));
         f.transport.respond(read, FakeTransport::answer(200, preferencesBody({50, 10, 15, 4})));
         QCOMPARE(f.preferences.config(), (PomodoroConfig{50, 10, 20, 4}));
-        QCOMPARE(f.cached(owner), (PomodoroConfig{50, 10, 20, 4}));
         QCOMPARE(refreshed.size(), 2);
     }
 
-    void showsCachedLengthsWithoutAConnection()
+    void keepsTheLengthsReadWhileUnreachable()
     {
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7));
@@ -201,34 +185,34 @@ private Q_SLOTS:
         QVERIFY(!f.preferences.isEditable());
         QVERIFY(!f.preferences.save(41, 8, 20, 3));
 
-        // A new client, as after a restart, shows the cached lengths and
-        // reads nothing until the connection is back.
-        const qsizetype requests = f.transport.requests.size();
-        PomodoroPreferences restarted(&f.connection, &f.store);
-        QCOMPARE(restarted.config(), (PomodoroConfig{40, 8, 20, 3}));
-        QVERIFY(!restarted.isEditable());
-        QCOMPARE(f.transport.requests.size(), requests);
-
-        // A read that fails keeps them.
-        QSignalSpy refreshed(&restarted, &PomodoroPreferences::refreshed);
-        restarted.refresh();
+        // A read that fails keeps the lengths.
+        QSignalSpy refreshed(&f.preferences, &PomodoroPreferences::refreshed);
+        f.preferences.refresh();
         f.transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::NetworkError));
         QCOMPARE(refreshed.size(), 1);
         QVERIFY(!refreshed.last().at(0).toBool());
-        QVERIFY(!restarted.errorString().isEmpty());
-        QCOMPARE(restarted.config(), (PomodoroConfig{40, 8, 20, 3}));
+        QVERIFY(!f.preferences.errorString().isEmpty());
+        QCOMPARE(f.preferences.config(), (PomodoroConfig{40, 8, 20, 3}));
+
+        // A new client, as after a restart, shows the defaults and reads
+        // nothing until the connection is back.
+        const qsizetype requests = f.transport.requests.size();
+        PomodoroPreferences restarted(&f.connection);
+        QCOMPARE(restarted.config(), PomodoroConfig());
+        QVERIFY(!restarted.isEditable());
+        QCOMPARE(f.transport.requests.size(), requests);
 
         // Back online, both read again.
         f.connection.refreshAccount();
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
-        QCOMPARE(f.transport.requests.size(), requests + 4);
+        QCOMPARE(f.transport.requests.size(), requests + 3);
+        f.transport.respond(requests + 1, FakeTransport::answer(200, preferencesBody({45, 8, 20, 3})));
         f.transport.respond(requests + 2, FakeTransport::answer(200, preferencesBody({45, 8, 20, 3})));
-        f.transport.respond(requests + 3, FakeTransport::answer(200, preferencesBody({45, 8, 20, 3})));
         QCOMPARE(restarted.config(), (PomodoroConfig{45, 8, 20, 3}));
         QCOMPARE(f.preferences.config(), (PomodoroConfig{45, 8, 20, 3}));
         QVERIFY(restarted.isEditable());
-        QVERIFY(restarted.errorString().isEmpty());
+        QVERIFY(f.preferences.errorString().isEmpty());
     }
 
     void earlierGenerationChangesNothing()
@@ -254,12 +238,11 @@ private Q_SLOTS:
         QVERIFY(!f.preferences.isEditable());
         QCOMPARE(f.preferences.config(), PomodoroConfig());
 
-        // The save's late answer changes nothing, here or in the cache.
+        // The save's late answer changes nothing.
         f.transport.respond(post, FakeTransport::answer(200, preferencesBody({41, 8, 20, 3})));
         QCOMPARE(f.preferences.config(), PomodoroConfig());
-        QCOMPARE(f.cached(ownerA), (PomodoroConfig{40, 8, 20, 3}));
 
-        // The other account reads and caches its own lengths.
+        // The other account reads its own lengths.
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
         const QString ownerB = f.connection.owner();
         QVERIFY(ownerB != ownerA);
@@ -267,16 +250,14 @@ private Q_SLOTS:
         const qsizetype staleRead = f.transport.requests.size() - 1;
         f.transport.respond(staleRead - 1, FakeTransport::answer(200, preferencesBody({30, 6, 18, 2})));
         QCOMPARE(f.preferences.config(), (PomodoroConfig{30, 6, 18, 2}));
-        QCOMPARE(f.cached(ownerB), (PomodoroConfig{30, 6, 18, 2}));
 
-        // Back on the first account, its cached lengths show before the read
+        // Back on the first account, the defaults show until its read
         // answers, and the other account's read in flight is dropped.
         const qsizetype signals = refreshed.size();
         QVERIFY(connectAccount(f, instanceA, 3, 7));
-        QCOMPARE(f.preferences.config(), (PomodoroConfig{40, 8, 20, 3}));
+        QCOMPARE(f.preferences.config(), PomodoroConfig());
         f.transport.respond(staleRead, FakeTransport::answer(200, preferencesBody({31, 6, 18, 2})));
-        QCOMPARE(f.preferences.config(), (PomodoroConfig{40, 8, 20, 3}));
-        QCOMPARE(f.cached(ownerB), (PomodoroConfig{30, 6, 18, 2}));
+        QCOMPARE(f.preferences.config(), PomodoroConfig());
         QCOMPARE(refreshed.size(), signals);
 
         // The same credentials now name another account. The state stays
@@ -289,8 +270,6 @@ private Q_SLOTS:
         QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({35, 7, 25, 5})));
         QCOMPARE(f.preferences.config(), (PomodoroConfig{35, 7, 25, 5}));
-        QCOMPARE(f.cached(f.connection.owner()), (PomodoroConfig{35, 7, 25, 5}));
-        QCOMPARE(f.cached(ownerA), (PomodoroConfig{40, 8, 20, 3}));
     }
 };
 

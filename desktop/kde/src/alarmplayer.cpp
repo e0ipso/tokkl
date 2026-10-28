@@ -1,6 +1,6 @@
 #include "alarmplayer.h"
 
-#include "pomodorocycle.h"
+#include "apitypes.h"
 #include "pomodorosounds.h"
 
 #include <QFileInfo>

@@ -13,7 +13,7 @@ PomodoroLengthsClient::PomodoroLengthsClient(QObject *parent)
 PomodoroLengthsClient::PomodoroLengthsClient(Connection *connection, QObject *parent)
     : QObject(parent)
     , m_connection(connection)
-    , m_preferences(new PomodoroPreferences(connection, nullptr, this))
+    , m_preferences(new PomodoroPreferences(connection, this))
 {
     m_connection->setParent(this);
     connect(m_connection, &Connection::stateChanged, this, [this] {

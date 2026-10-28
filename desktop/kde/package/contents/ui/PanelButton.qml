@@ -14,9 +14,11 @@ import com.github.e0ipso.tokkl.backend
 //
 // Left click, Space or Return pause a running timer and resume a paused one,
 // in either mode. In Timer mode they start a stopped timer; Stop is in the
-// menu. In Pomodoro mode they start a session, confirm Next phase while the
-// alarm rings, and otherwise open the menu. Right click, the Menu key or
-// Shift+F10 opens the menu. Tab focuses the item and a frame shows the focus.
+// menu. In Pomodoro mode they start a session. Whenever a session is active,
+// in either mode and whichever device started it, they confirm Next phase
+// while the alarm rings and otherwise open the menu. Right click, the Menu
+// key or Shift+F10 opens the menu. Tab focuses the item and a frame shows the
+// focus.
 MouseArea {
     id: button
 
@@ -99,7 +101,7 @@ MouseArea {
         return words.pomodoroMode ? words.withMode(i18nc("@action:button", "Start a Pomodoro session")) : i18nc("@action:button", "Start the Tokkl timer");
     }
     // The session's line has no project, so the description names it.
-    Accessible.description: words.showsSession ? words.projectText : words.summary
+    Accessible.description: words.showsSession ? words.withMessage(words.projectText) : words.summary
     Accessible.focusable: true
     Accessible.onPressAction: {
         if (button.activate()) {

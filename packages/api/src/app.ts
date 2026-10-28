@@ -5,16 +5,20 @@ import type { Config } from './config.ts';
 import type { Db } from './db/index.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
-import { HttpError } from './lib/errors.ts';
+import { ConflictWithBody, HttpError } from './lib/errors.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
+import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/togglV9.ts';
+import { TimerStreams } from './services/timerStreams.ts';
 
 export interface AppOptions {
   db: Db;
   config: Config;
   setup: SetupState;
+  /** The timer event streams. Pass them to close them on shutdown; each app gets its own otherwise. */
+  timerStreams?: TimerStreams;
 }
 
 const CONTENT_SECURITY_POLICY = [
@@ -52,6 +56,7 @@ const textBody = (limit: string) => express.text({ type: () => true, limit });
 
 const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   if (res.headersSent) return next(error);
+  if (error instanceof ConflictWithBody) return res.status(409).json(error.body);
   if (error instanceof HttpError) return res.status(error.status).set(error.headers).json(error.message);
   // Date helpers throw RangeError on impossible input; that is the caller's mistake, not ours.
   if (error instanceof RangeError) return res.status(400).json(error.message);
@@ -65,13 +70,14 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   return res.status(500).json('Internal Server Error');
 };
 
-export function createApp({ db, config, setup }: AppOptions): Express {
+export function createApp({ db, config, setup, timerStreams = new TimerStreams(db) }: AppOptions): Express {
   const app = express();
   const deps: Deps = {
     db,
     config,
     loginLimiter: new FailureLimiter(ADDRESS_LIMIT, PASSWORD_WINDOW_MS),
     setupLimiter: new FailureLimiter(SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
+    timerStreams,
   };
 
   app.disable('x-powered-by');
@@ -95,7 +101,7 @@ export function createApp({ db, config, setup }: AppOptions): Express {
   app.use('/api/v9', togglV9Routes(deps));
   app.use('/reports/api/v3', reportsV3Routes(deps));
   app.use('/api/app/admin', adminRoutes(deps));
-  app.use('/api/app', appRoutes(deps, setup), appReportRoutes(deps));
+  app.use('/api/app', appRoutes(deps, setup), appReportRoutes(deps), timerRoutes(deps));
   app.use(['/api', '/reports/api'], (req, res) => {
     res.status(404).json('Not found');
   });

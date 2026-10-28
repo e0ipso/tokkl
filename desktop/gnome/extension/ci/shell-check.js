@@ -17,6 +17,9 @@ const mockCalls = () => JSON.parse(call('org.tokkl.Timer1', '/org/tokkl/Timer1',
 const mockSet = (name, value) => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Set',
     new GLib.Variant('(sv)', [name, value]), null);
 
+const startForeignSession = () => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock',
+    'StartForeignSession', null, null);
+
 const checks = steps();
 const {step} = checks;
 const {button, label, menuOpen, sensitive, indicator, pointAtButton, click, press} = panelButton(uuid);
@@ -698,24 +701,6 @@ await step('Next phase in the menu starts the next work phase', async () => {
         statusLine());
 });
 
-await step('a timer during a session shows the timer, not the countdown', async () => {
-    mockSet('StartTime', new GLib.Variant('x', Math.floor(Date.now() / 1000) - 3775));
-    mockSet('Running', new GLib.Variant('b', true));
-    try {
-        await waitFor('the elapsed time', () => /^1:0[2-4]$/.test(label()) || label());
-        await sessionItemsAre('Stop and the session items', {toggle: true, startSession: false, nextPhase: true,
-            endSession: true});
-        if (toggleItem() !== 'Stop')
-            throw new Error(`the menu offers ${toggleItem()}`);
-        if (!accessibleName().startsWith('Running 1:0'))
-            throw new Error(`button name: ${accessibleName()}`);
-    } finally {
-        mockSet('Running', new GLib.Variant('b', false));
-        mockSet('StartTime', new GLib.Variant('x', 0));
-    }
-    await waitFor('the countdown', () => countdownShown() || label());
-});
-
 await step('the session message shows in the menu and stays after End session', async () => {
     const message = 'This pomodoro was too short to save.';
     mockSet('SessionMessage', new GLib.Variant('s', message));
@@ -745,6 +730,13 @@ await step('Start session in the menu starts a session and clears the message', 
     await waitFor('the session ended', () => timerProperty('SessionActive') === false);
 });
 
+await step('Start session is disabled while the service cannot start one', async () => {
+    mockSet('Status', new GLib.Variant('s', 'busy'));
+    await waitFor('Start session disabled', () => !sensitive('_startSessionItem') || 'sensitive');
+    mockSet('Status', new GLib.Variant('s', 'ready'));
+    await waitFor('Start session enabled', () => sensitive('_startSessionItem') || 'insensitive');
+});
+
 await step('the Pomodoro mode switch turns Timer mode back on', async () => {
     const before = mockCalls().length;
     shell(`${button}._modeItem.toggle()`);
@@ -757,6 +749,53 @@ await step('the Pomodoro mode switch turns Timer mode back on', async () => {
         throw new Error(`the menu offers ${toggleItem()}`);
     if (accessibleName().endsWith('Pomodoro mode'))
         throw new Error(`button name: ${accessibleName()}`);
+});
+
+await step('a session started on another device shows in Timer mode', async () => {
+    startForeignSession();
+    await waitFor('the session', () => timerProperty('SessionActive') === true);
+    if (timerProperty('PomodoroMode'))
+        throw new Error('the session switched the mode');
+    // Start is hidden, and the session items show as they do in Pomodoro mode.
+    await sessionItemsAre('the session items', {toggle: false, startSession: false, nextPhase: true, endSession: true});
+    await waitFor('the countdown', () => countdownShown() || [label(), timerProperty('PlannedEnd')]);
+    await hourglassIs('no hourglass', {visible: false});
+    await modeItemIs('the locked switch', {label: 'Pomodoro mode (locked while running)', state: false,
+        sensitive: false});
+    if (!/^Work · 2[45]:\d\d left · Pomodoro 1 of 4$/.test(statusLine()))
+        throw new Error(`status: ${statusLine()}`);
+    const name = accessibleName();
+    if (!/^Work · 2[45]:\d\d left · Pomodoro 1 of 4 · Website \(Acme\) · Connected$/.test(name))
+        throw new Error(`button name: ${name}`);
+
+    // Before the planned end a click opens the menu, and nothing starts.
+    let before = mockCalls().length;
+    click(1);
+    try {
+        await activateFrom(before, true);
+    } finally {
+        shell(`${button}.menu.close()`);
+    }
+    await waitFor('the menu closed', () => menuOpen() === false);
+
+    // While the phase rings a click confirms the next phase.
+    mockSet('Ringing', new GLib.Variant('b', true));
+    mockSet('RingingTransition', new GLib.Variant('s', 'workToShortRest'));
+    before = mockCalls().length;
+    click(1);
+    await activateFrom(before, false);
+    await waitFor('the short rest', () => timerProperty('Phase') === 'shortRest');
+    await sessionItemsAre('the session items', {toggle: false, startSession: false, nextPhase: true, endSession: true});
+
+    // End session in the menu ends it, and Start comes back.
+    before = mockCalls().length;
+    shell(`${button}._endSessionItem.activate(null)`);
+    await waitFor('EndSession', () => mockCalls().length > before && lastCall()[0] === 'EndSession' || mockCalls());
+    await waitFor('the session ended', () => timerProperty('SessionActive') === false);
+    await sessionItemsAre('the Timer mode items', {toggle: true, startSession: false, nextPhase: false,
+        endSession: false});
+    await modeItemIs('the unlocked switch', {label: 'Pomodoro mode', state: false, sensitive: true});
+    await waitFor('0:00', () => label() === '0:00' || label());
 });
 
 await step('a status other than ready marks the time and disables writes', async () => {

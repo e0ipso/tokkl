@@ -9,6 +9,8 @@ import "../../package/contents/ui"
 
 // The panel item and its menu, against a scripted instance. Every request
 // goes to the fake transport in PanelFixture; time comes from its fake clock.
+// The instance answers with timer states, as the server does, and the panel
+// follows them whichever device caused the change.
 TestCase {
     id: testCase
 
@@ -125,12 +127,107 @@ TestCase {
         return index;
     }
 
+    // The revision of the newest state built. The server raises it with every
+    // change to the running entry, the pause chain or the session.
+    property int revision: 0
+
+    // A timer state as the server sends it: GET /api/app/timer, a timer
+    // action's reply and an event. running is the running entry or null.
+    function stateBody(running, pause, pomodoro, discarded) {
+        return JSON.stringify({
+            revision: ++revision,
+            server_time: fixture.clockIso(),
+            running_entry: running === undefined ? null : running,
+            pause: pause === undefined ? null : pause,
+            pomodoro: pomodoro === undefined ? null : pomodoro,
+            discarded_pomodoro: discarded === undefined ? null : discarded
+        });
+    }
+
+    // Answers the newest state read with the next state.
+    function answerState(running, pause, pomodoro, discarded) {
+        const index = waitFor("GET", "/app/timer");
+        fixture.respond(index, 200, stateBody(running, pause, pomodoro, discarded));
+        return index;
+    }
+
+    // The pause chain of a stopped entry like entry()'s, with the seconds the
+    // server stored for it. A running clone has cloneId.
+    function pauseChain(paused, seconds, cloneId, projectId, billable) {
+        return {
+            paused: paused,
+            seconds: seconds,
+            workspace_id: 7,
+            description: "Write the report",
+            project_id: projectId === undefined ? null : projectId,
+            task_id: projectId === undefined || projectId === null ? null : 41,
+            tag_ids: [3, 5],
+            tags: ["deep work", "q4"],
+            billable: billable === undefined ? false : billable,
+            clone_entry_id: cloneId === undefined ? null : cloneId
+        };
+    }
+
+    // A Pomodoro session in a phase that started startOffset seconds from now,
+    // with the lengths 25, 5 and 15 minutes.
+    function pomodoroSession(kind, startOffset, number, every) {
+        const lengths = {
+            work: 25,
+            shortRest: 5,
+            longRest: 15
+        };
+        let upcoming = "work";
+        let transition = kind === "shortRest" ? "shortRestToWork" : "longRestToWork";
+        if (kind === "work") {
+            const longRest = number % every === 0;
+            upcoming = longRest ? "longRest" : "shortRest";
+            transition = longRest ? "workToLongRest" : "workToShortRest";
+        }
+        return {
+            work_minutes: 25,
+            short_rest_minutes: 5,
+            long_rest_minutes: 15,
+            long_rest_every: every,
+            phase: {
+                kind: kind,
+                start: fixture.clockIso(startOffset),
+                completed: kind === "work" ? number - 1 : number,
+                planned_end: fixture.clockIso(startOffset + lengths[kind] * 60)
+            },
+            upcoming_phase: upcoming,
+            transition: transition,
+            number: number,
+            entry_id: 20 + number,
+            pomodoro_start: fixture.clockIso(startOffset)
+        };
+    }
+
+    // The open pomodoro of a session, which is the running entry.
+    function pomodoroEntry(session) {
+        return entry(session.entry_id, 7, null, false, {
+            start: session.pomodoro_start
+        });
+    }
+
+    // Answers the newest state read with a session in the given phase.
+    function answerSession(kind, startOffset, number, every) {
+        const session = pomodoroSession(kind, startOffset, number, every);
+        answerState(pomodoroEntry(session), null, session);
+    }
+
+    // A session's state as an action's reply.
+    function sessionBody(kind, startOffset, number, every) {
+        const session = pomodoroSession(kind, startOffset, number, every);
+        return stateBody(pomodoroEntry(session), null, session);
+    }
+
     // Configures the instance, validates the account and answers the first
-    // current-entry and project reads.
-    function connectAccount(url, user, workspace, current, projects) {
+    // state and project reads. current is the running entry, if any, and
+    // pause or pomodoro the chain or the session the state holds.
+    function connectAccount(url, user, workspace, current, projects, pause, pomodoro) {
         fixture.configure(url, "tok-" + user);
         answer("GET", "/me", 200, meBody(user, workspace));
-        answer("GET", "/me/time_entries/current", 200, current === undefined ? "null" : JSON.stringify(current));
+        answerState(current === undefined ? null : current, pause, pomodoro);
         answer("GET", "/projects", 200, projects || [project(11, workspace, "Alpha", true), project(12, workspace, "Beta", false)]);
         tryCompare(button.timer, "status", TokklTimer.Ready);
     }
@@ -202,6 +299,7 @@ TestCase {
     }
 
     function init() {
+        revision = 0;
         fixture = fixtureComponent.createObject(testCase);
         button = buttonComponent.createObject(testCase, {
             timer: fixture.timer,
@@ -286,7 +384,7 @@ TestCase {
             start: fixture.clockIso()
         });
         fixture.respond(start, 200, JSON.stringify(running));
-        answer("GET", "/me/time_entries/current", 200, running);
+        answerState(running);
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.running);
         fixture.advance(125000);
@@ -296,10 +394,11 @@ TestCase {
         verify(indicator().round);
         verify(indicator().pulsing);
 
-        // A click pauses: the entry stops and its time is kept.
+        // A click pauses: the server stops the entry and keeps its time.
         mouseClick(button, 5, 5, Qt.LeftButton);
-        fixture.respond(waitFor("PATCH", "/time_entries/9/stop"), 200, JSON.stringify(stoppedEntry(9, 11, true, 125)));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        const pause = waitFor("POST", "/timer/pause");
+        compare(fixture.request(pause).body, {}, "a pause names no revision");
+        fixture.respond(pause, 200, stateBody(null, pauseChain(true, 125, undefined, 11, true)));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.paused);
         verify(!button.timer.running);
@@ -318,23 +417,18 @@ TestCase {
         fixture.advance(120000);
         compare(label.text, "0:02", "frozen while paused");
 
-        // Space resumes with a clone of the paused entry.
+        // Space resumes: the server starts a clone of the paused entry, against
+        // the revision shown.
         button.forceActiveFocus(Qt.TabFocusReason);
         keyClick(Qt.Key_Space);
-        const resume = waitFor("POST", "/workspaces/7/time_entries");
-        verify(resume > start);
-        const clone = fixture.request(resume).body;
-        compare(clone.description, "Write the report");
-        compare(clone.project_id, 11);
-        compare(clone.task_id, 41);
-        compare(clone.tags, ["deep work", "q4"]);
-        compare(clone.billable, true);
-        compare(clone.start, fixture.clockIso());
+        const resume = waitFor("POST", "/timer/resume");
+        compare(fixture.request(resume).body, {
+            revision: revision
+        });
         const resumed = entry(10, 7, 11, true, {
             start: fixture.clockIso()
         });
-        fixture.respond(resume, 200, JSON.stringify(resumed));
-        answer("GET", "/me/time_entries/current", 200, resumed);
+        fixture.respond(resume, 200, stateBody(resumed, pauseChain(false, 125, 10, 11, true)));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.running);
         verify(!button.timer.paused);
@@ -351,7 +445,7 @@ TestCase {
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
         fixture.respond(waitFor("PATCH", "/time_entries/10/stop"), 200, JSON.stringify(stoppedEntry(10, 11, true, 55)));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        answerState(null);
         tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.running);
         verify(!button.timer.paused);
@@ -369,17 +463,13 @@ TestCase {
             start: fixture.clockIso()
         });
         fixture.respond(next, 200, JSON.stringify(fresh));
-        answer("GET", "/me/time_entries/current", 200, fresh);
+        answerState(fresh);
         tryCompare(button.timer, "running", true);
         compare(label.text, "0:00");
     }
 
-    function test_stopWhilePausedSendsNothing() {
-        connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
-        mouseClick(button, 5, 5, Qt.LeftButton);
-        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(stoppedEntry(5, 12, false, 65)));
-        answer("GET", "/me/time_entries/current", 200, "null");
-        tryCompare(button.timer, "canWrite", true);
+    function test_stopWhilePausedDiscardsTheChainOnTheServer() {
+        connectAccount(instanceA, 3, 7, null, undefined, pauseChain(true, 65, undefined, 12, false));
         verify(button.timer.paused);
         const before = fixture.requestCount;
 
@@ -388,12 +478,63 @@ TestCase {
         compare(button.menu.runItem.text, "Stop");
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
+        const discard = waitFor("POST", "/timer/discard");
+        compare(fixture.request(discard).body, {
+            revision: revision
+        }, "against the revision shown");
+        compare(fixture.requestCount, before + 1, "nothing else is sent");
+        compare(button.timer.status, TokklTimer.Busy);
+        verify(button.timer.paused, "the chain stays until the server answers");
+
+        fixture.respond(discard, 200, stateBody(null, null));
+        tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.paused);
-        compare(fixture.requestCount, before, "nothing runs on the server, so nothing is sent");
         compare(findChild(button, "elapsedLabel").text, "0:00");
         checkWords("Stopped", "Start the Tokkl timer");
         verify(button.menu.projectMenu.enabled, "Project is a choice again");
         verify(button.menu.billableItem.enabled);
+    }
+
+    function test_stopWhilePausedWithoutTheServerKeepsTheChain() {
+        connectAccount(instanceA, 3, 7, null, undefined, pauseChain(true, 65, undefined, 12, false));
+        fixture.advance(31000);
+        fixture.failNetwork(waitFor("GET", "/app/timer"));
+        tryCompare(button.timer, "status", TokklTimer.Stale);
+
+        // The discard is the server's, so the chain stays until it answers.
+        openMenu();
+        verify(button.menu.runItem.enabled);
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
+        fixture.failNetwork(waitFor("POST", "/timer/discard"));
+        tryCompare(button.timer, "errorString", "Could not reach the Tokkl instance: unreachable");
+        verify(button.timer.paused, "the chain stays");
+        compare(findChild(button, "elapsedLabel").text, "0:01");
+        compare(button.timer.status, TokklTimer.Busy, "the outcome is not known until a read settles it");
+        verify(!button.timer.stop(), "the discard is not sent again");
+        compare(fixture.pending("POST", "/timer/discard"), -1);
+
+        // The server never got it: the read shows the chain, and Stop works again.
+        answerState(null, pauseChain(true, 65, undefined, 12, false));
+        tryCompare(button.timer, "canWrite", true);
+        verify(button.timer.paused);
+        verify(button.menu.runItem.available);
+    }
+
+    function test_aConflictOnATimerActionTellsTheUser() {
+        connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
+        mouseClick(button, 5, 5, Qt.LeftButton);
+
+        // The web app paused it first: the server answers with its own state.
+        fixture.respond(waitFor("POST", "/timer/pause"), 409, stateBody(null, pauseChain(true, 65, undefined, 12, false)));
+        tryCompare(button.timer, "canWrite", true);
+        verify(button.timer.paused, "the state that refused it shows");
+        compare(button.timer.status, TokklTimer.Error);
+        compare(button.timer.errorString, "The timer changed on another device first.");
+        compare(button.words.statusText, "Error");
+        compare(button.words.detailText, "The timer changed on another device first.");
+        verify(button.words.summary.indexOf("The timer changed on another device first.") >= 0, button.words.summary);
+        verify(button.Accessible.description.indexOf("The timer changed on another device first.") >= 0, button.Accessible.description);
     }
 
     function test_keyboardFocusIsVisible() {
@@ -539,14 +680,16 @@ TestCase {
         connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
         compare(fixture.pending("GET", "/me/time_entries"), -1, "nothing to ask while an entry runs");
 
-        mouseClick(button, 5, 5, Qt.LeftButton);
+        // Stop in the menu ends the entry; a click would pause it.
+        verify(button.timer.stop());
         fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, false, {
             stop: fixture.clockIso(),
             duration: 65
         })));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        answerState(null);
         tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.running);
+        verify(!button.timer.paused);
         compare(button.timer.chosenProjectId, 12, "the stopped entry's project");
         const menu = button.menu;
         compare(menu.projectMenu.title, "Project: Beta");
@@ -567,7 +710,7 @@ TestCase {
         }
         fixture.configure(instanceA, "tok-3");
         answer("GET", "/me", 200, meBody(3, 7));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        answerState(null);
         const first = answer("GET", "/projects", 200, firstPage);
         compare(fixture.request(first).query.page, "1");
         compare(fixture.request(first).query.per_page, "200");
@@ -613,7 +756,7 @@ TestCase {
         tryVerify(() => button.timer.projects.length === 0, 3000, "the first account's projects are gone");
         compare(button.timer.projectsIncomplete, false);
         answer("GET", "/me", 200, meBody(4, 7));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        answerState(null);
         for (let page = 1; page <= 100; ++page) {
             const projects = [];
             for (let i = 1; i <= 200; ++i) {
@@ -644,7 +787,7 @@ TestCase {
     function test_archivedCurrentProjectIsShownNotOffered() {
         fixture.configure(instanceA, "tok-3");
         answer("GET", "/me", 200, meBody(3, 7));
-        answer("GET", "/me/time_entries/current", 200, entry(5, 7, 33, true));
+        answerState(entry(5, 7, 33, true));
         answer("GET", "/projects", 200, [project(11, 7, "Alpha", true)]);
         answer("GET", "/projects/33", 200, project(33, 7, "Legacy", true, false));
         tryCompare(button.words, "projectText", "Legacy (archived)");
@@ -691,7 +834,7 @@ TestCase {
 
         // The server keeps everything else; the same entry keeps running.
         fixture.respond(put, 200, JSON.stringify(entry(5, 7, 12, true)));
-        answer("GET", "/me/time_entries/current", 200, entry(5, 7, 12, true));
+        answerState(entry(5, 7, 12, true));
         tryCompare(button.timer, "canWrite", true);
         const current = button.timer.currentEntry;
         compare(current.id, 5);
@@ -713,7 +856,7 @@ TestCase {
             stop: fixture.clockIso(),
             duration: 65
         })));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        answerState(null);
         tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.running);
         verify(menu.projectMenu.enabled);
@@ -766,7 +909,7 @@ TestCase {
         answer("GET", "/projects", 200, [project(11, 7, "Alpha", true)]);
         compare(button.timer.status, TokklTimer.Loading, "until the current entry is known");
         verify(!button.timer.canWrite);
-        answer("GET", "/me/time_entries/current", 200, "null");
+        answerState(null);
         record(TokklTimer.Ready);
         verify(!findChild(button, "stateIcon").visible, "no state symbol when ready");
 
@@ -774,16 +917,16 @@ TestCase {
         record(TokklTimer.Busy);
         verify(!button.menu.billableItem.enabled);
         fixture.respond(waitFor("POST", "/time_entries"), 200, JSON.stringify(entry(9, 7, null, false)));
-        answer("GET", "/me/time_entries/current", 200, entry(9, 7, null, false));
+        answerState(entry(9, 7, null, false));
         tryCompare(button.timer, "status", TokklTimer.Ready);
 
         fixture.advance(31000);
-        fixture.failNetwork(waitFor("GET", "/me/time_entries/current"));
+        fixture.failNetwork(waitFor("GET", "/app/timer"));
         record(TokklTimer.Stale);
         verify(button.timer.running, "the last known entry stays");
 
         fixture.advance(31000);
-        answer("GET", "/me/time_entries/current", 401, JSON.stringify("Invalid credentials"));
+        answer("GET", "/app/timer", 401, JSON.stringify("Invalid credentials"));
         record(TokklTimer.AuthenticationBlocked);
         verify(!button.timer.canWrite);
         verify(!button.menu.projectMenu.enabled);
@@ -953,7 +1096,7 @@ TestCase {
 
         mouseClick(button, 5, 5, Qt.LeftButton);
         fixture.respond(waitFor("POST", "/workspaces/7/time_entries"), 200, JSON.stringify(entry(9, 7, null, false)));
-        answer("GET", "/me/time_entries/current", 200, entry(9, 7, null, false));
+        answerState(entry(9, 7, null, false));
         tryCompare(button.timer, "running", true);
         verify(ind.dashed, "a dashed circle while running");
         verify(ind.round);
@@ -964,7 +1107,7 @@ TestCase {
     function test_pendingProjectLeavesTheSlotEmpty() {
         fixture.configure(instanceA, "tok-3");
         answer("GET", "/me", 200, meBody(3, 7));
-        answer("GET", "/me/time_entries/current", 200, entry(5, 7, 33, true));
+        answerState(entry(5, 7, 33, true));
         answer("GET", "/projects", 200, [project(11, 7, "Alpha", true)]);
         tryCompare(button.timer, "indicatorState", TokklTimer.IndicatorState.Pending);
         const ind = indicator();
@@ -1090,7 +1233,7 @@ TestCase {
 
         // A read of the first account is still in flight at the switch.
         fixture.advance(31000);
-        const lateRead = waitFor("GET", "/me/time_entries/current");
+        const lateRead = waitFor("GET", "/app/timer");
 
         openMenu();
         fixture.configure(instanceB, "tok-4");
@@ -1108,7 +1251,7 @@ TestCase {
         verify(!button.menu.billableItem.checked);
         verify(projectItem("Gamma"));
         verify(!projectItem("Alpha"));
-        fixture.respond(lateRead, 200, JSON.stringify(entry(77, 7, 11, true)));
+        fixture.respond(lateRead, 200, stateBody(entry(77, 7, 11, true)));
         verify(!button.timer.running, "the first account's late answer is dropped");
         compare(button.timer.chosenProjectId, null);
 
@@ -1145,11 +1288,16 @@ TestCase {
         verify(source.endsWith("/contents/images/" + name), source);
     }
 
-    function startSessionWith(lengths) {
+    // A click in Pomodoro mode asks the server for a session, which answers
+    // with the first work phase.
+    function startSession(every) {
         mouseClick(button, 5, 5, Qt.LeftButton);
-        answer("GET", "/me/preferences", 200, lengths);
-        tryVerify(() => fixture.session.active, 3000, "the session starts once the lengths are read");
+        const start = waitFor("POST", "/pomodoro");
+        verify(!fixture.session.active, "the server starts it, not this device");
+        fixture.respond(start, 200, sessionBody("work", 0, 1, every));
+        tryVerify(() => fixture.session.active, 3000, "the session shows once the server answers");
         verify(!button.menu.visible, "starting a session opens no menu");
+        return start;
     }
 
     // Opens the menu with the keyboard and checks the session items and the
@@ -1204,7 +1352,7 @@ TestCase {
         // Stopped, the mode is a choice again.
         verify(button.timer.stop());
         fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(stoppedEntry(5, 11, true, 65)));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        answerState(null);
         tryCompare(button.timer, "canWrite", true);
         menu = checkSessionMenu({
             run: true,
@@ -1380,10 +1528,13 @@ TestCase {
         connectAccount(instanceA, 3, 7);
         answer("GET", "/me/time_entries", 200, []);
         verify(fixture.session.setPomodoroMode(true));
+        verify(button.timer.chooseProject(11));
         const menu = button.menu;
         const label = findChild(button, "elapsedLabel");
 
-        startSessionWith(preferences(25, 5, 15, 4));
+        const start = startSession(4);
+        compare(fixture.request(start).body.project_id, 11, "the chosen project");
+        compare(fixture.request(start).body.billable, true, "and Alpha's billable default");
         compare(fixture.pending("POST", "/time_entries"), -1, "a session starts no timer");
         compare(label.text, "25:00");
         fixture.advance(1000);
@@ -1391,12 +1542,13 @@ TestCase {
         verify(glyph().visible);
         compare(button.words.summary, "Work · 24:59 left · Pomodoro 1 of 4");
         compare(button.Accessible.name, "Work · 24:59 left · Pomodoro 1 of 4");
-        verify(button.Accessible.description.indexOf("No project") >= 0, "the project stays in words: " + button.Accessible.description);
+        verify(button.Accessible.description.indexOf("Alpha") >= 0, "the project stays in words: " + button.Accessible.description);
 
         // Mid-phase, a click opens the menu.
         mouseClick(button, 5, 5, Qt.LeftButton);
         tryVerify(() => menu.opened, 3000, "a click mid-phase opens the menu");
         compare(fixture.session.phase, "work", "and confirms nothing");
+        compare(fixture.pending("POST", "/pomodoro/next"), -1);
         closeMenu();
 
         // So does Space, with the first entry highlighted.
@@ -1410,8 +1562,8 @@ TestCase {
         });
         compare(menu.stateItem.text, "Work · 24:59 left · Pomodoro 1 of 4");
         compare(menu.itemAt(menu.currentIndex), menu.nextPhaseItem, "Next phase is highlighted first");
-        verify(menu.projectMenu.enabled, "Project applies to the open pomodoro");
-        verify(menu.billableItem.enabled, "so does Billable");
+        verify(!menu.projectMenu.enabled, "Project cannot reach the open pomodoro");
+        verify(!menu.billableItem.enabled, "neither can Billable");
         closeMenu();
         focusButton();
         keyClick(Qt.Key_Space);
@@ -1422,9 +1574,19 @@ TestCase {
         moveTo(menu, menu.endSessionItem);
         keyClick(Qt.Key_Return);
         tryVerify(() => !menu.visible, 3000, "menu closes after End session");
+        const end = waitFor("POST", "/pomodoro/end");
+        compare(fixture.request(end).body, {
+            revision: revision
+        }, "against the revision shown");
+        verify(fixture.session.active, "the session ends when the server says so");
+        fixture.respond(end, 200, stateBody(null, null, null, {
+            entry_id: 21,
+            start: fixture.clockIso(-1),
+            stop: fixture.clockIso(-1)
+        }));
         verify(!fixture.session.active);
         compare(label.text, "0:00", "the timer's time again");
-        compare(button.words.summary, "Stopped 0:00 · No project · Connected · Pomodoro mode");
+        compare(button.words.summary, "Stopped 0:00 · Alpha · Connected · Pomodoro mode · This pomodoro was too short to save.");
         checkSessionMenu({
             run: false,
             startSession: true,
@@ -1440,7 +1602,7 @@ TestCase {
         // Start session from the menu clears it.
         keyClick(Qt.Key_Return);
         tryVerify(() => !menu.visible, 3000, "menu closes after Start session");
-        answer("GET", "/me/preferences", 200, preferences(25, 5, 15, 4));
+        fixture.respond(waitFor("POST", "/pomodoro"), 200, sessionBody("work", 0, 1, 4));
         tryVerify(() => fixture.session.active, 3000, "a new session");
         compare(fixture.session.message, "");
         openMenu();
@@ -1453,7 +1615,7 @@ TestCase {
         answer("GET", "/me/time_entries", 200, []);
         verify(fixture.session.setPomodoroMode(true));
         const label = findChild(button, "elapsedLabel");
-        startSessionWith(preferences(25, 5, 15, 2));
+        startSession(2);
 
         // Past the planned end the label counts the overtime.
         fixture.advance(minutes(25) + 5000);
@@ -1462,8 +1624,15 @@ TestCase {
         compare(button.words.summary, "Work · +0:05 overtime · Pomodoro 1 of 2");
         compare(button.Accessible.name, "Work · +0:05 overtime · Pomodoro 1 of 2");
 
-        // A click confirms Next phase and opens no menu.
+        // A click confirms Next phase against the revision shown and opens no
+        // menu. The phase changes when the server answers.
         mouseClick(button, 5, 5, Qt.LeftButton);
+        const next = waitFor("POST", "/pomodoro/next");
+        compare(fixture.request(next).body, {
+            revision: revision
+        });
+        compare(fixture.session.phase, "work");
+        fixture.respond(next, 200, sessionBody("shortRest", 0, 1, 2));
         compare(fixture.session.phase, "shortRest");
         verify(!fixture.session.ringing);
         verify(!button.menu.visible);
@@ -1486,10 +1655,10 @@ TestCase {
         verify(fixture.session.ringing);
         focusButton();
         keyClick(Qt.Key_Return);
+        fixture.respond(waitFor("POST", "/pomodoro/next"), 200, sessionBody("work", 0, 2, 2));
         compare(fixture.session.phase, "work");
         verify(!button.menu.visible);
         compare(button.words.summary, "Work · 25:00 left · Pomodoro 2 of 2");
-        verify(waitFor("POST", "/workspaces/7/time_entries") >= 0, "the pomodoro is saved");
 
         // The last work phase of the round leads to the long rest.
         checkSessionMenu({
@@ -1503,9 +1672,196 @@ TestCase {
         moveTo(button.menu, button.menu.nextPhaseItem);
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Next phase");
+        fixture.respond(waitFor("POST", "/pomodoro/next"), 200, sessionBody("longRest", 0, 2, 2));
         compare(fixture.session.phase, "longRest");
         compare(button.words.summary, "Long rest · 15:00 left · Pomodoro 2 of 2");
         compare(label.text, "15:00");
+    }
+
+    // ----- a session started on another device ------------------------------
+
+    function test_aSessionFromAnotherDeviceShowsInTimerMode() {
+        connectAccount(instanceA, 3, 7);
+        answer("GET", "/me/time_entries", 200, []);
+        const session = fixture.session;
+        const menu = button.menu;
+        const label = findChild(button, "elapsedLabel");
+        verify(!session.pomodoroMode, "this device is in Timer mode");
+        compare(label.text, "0:00");
+        checkWords("Stopped", "Start the Tokkl timer");
+
+        // The web app starts a session; the event stream brings it.
+        const foreign = pomodoroSession("work", -90, 1, 4);
+        verify(fixture.push(stateBody(pomodoroEntry(foreign), null, foreign)), "an event stream is open");
+        tryVerify(() => session.active, 3000, "the session shows");
+        verify(button.timer.sessionActive);
+        verify(!button.timer.running, "the pomodoro is the session's, not a timer's");
+        verify(!glyph().visible, "the hourglass belongs to the mode");
+        compare(label.text, "23:30");
+        compare(button.words.summary, "Work · 23:30 left · Pomodoro 1 of 4");
+        compare(button.Accessible.name, "Work · 23:30 left · Pomodoro 1 of 4");
+
+        // The menu has the session's items, not the timer's Start or Stop,
+        // and the mode is locked.
+        const state = checkSessionMenu({
+            run: false,
+            startSession: false,
+            nextPhase: "Next phase: Short rest",
+            endSession: true,
+            mode: false,
+            locked: true
+        });
+        compare(state.stateItem.text, "Work · 23:30 left · Pomodoro 1 of 4");
+        compare(menu.itemAt(menu.currentIndex), menu.nextPhaseItem);
+        verify(!menu.runItem.enabled, "Start or Stop is not a choice");
+        verify(!session.setPomodoroMode(true), "the mode is locked while the session runs");
+        closeMenu();
+
+        // A click mid-phase opens the menu and neither starts nor pauses
+        // anything.
+        const before = fixture.requestCount;
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        tryVerify(() => menu.opened, 3000, "a click opens the menu");
+        compare(fixture.requestCount, before, "nothing was sent");
+        closeMenu();
+        verify(!button.timer.toggle(), "the timer does nothing during a session");
+        compare(fixture.requestCount, before);
+
+        // Past the planned end it rings, and a click confirms Next phase.
+        fixture.advance(minutes(24));
+        verify(session.ringing);
+        compare(label.text, "+0:30");
+        mouseClick(button, 5, 5, Qt.LeftButton);
+        const next = waitFor("POST", "/pomodoro/next");
+        compare(fixture.request(next).body, {
+            revision: revision
+        });
+        verify(!menu.visible);
+        fixture.respond(next, 200, stateBody(pomodoroEntry(foreign), null, pomodoroSession("shortRest", 0, 1, 4)));
+        compare(session.phase, "shortRest");
+
+        // The web app ends it: the panel is the timer's again.
+        verify(fixture.push(stateBody(null, null, null)));
+        tryVerify(() => !session.active, 3000, "the session is gone");
+        verify(!button.timer.sessionActive);
+        compare(label.text, "0:00");
+        checkWords("Stopped", "Start the Tokkl timer");
+        const idle = checkSessionMenu({
+            run: true,
+            startSession: false,
+            endSession: false,
+            mode: false,
+            locked: false
+        });
+        compare(idle.runItem.text, "Start");
+        closeMenu();
+    }
+
+    function test_aSessionFoundAtConnectShowsInTimerMode() {
+        const session = pomodoroSession("longRest", -60, 4, 4);
+        connectAccount(instanceA, 3, 7, pomodoroEntry(session), undefined, undefined, session);
+        verify(!fixture.session.pomodoroMode);
+        verify(fixture.session.active);
+        compare(fixture.session.phase, "longRest");
+        compare(findChild(button, "elapsedLabel").text, "14:00");
+        compare(button.words.summary, "Long rest · 14:00 left · Pomodoro 4 of 4");
+        checkSessionMenu({
+            run: false,
+            startSession: false,
+            nextPhase: "Next phase: Work",
+            endSession: true,
+            mode: false,
+            locked: true
+        });
+        closeMenu();
+    }
+
+    function test_endSessionIsRefusedWhenTheSessionMovedOn() {
+        const session = pomodoroSession("work", -30, 1, 4);
+        connectAccount(instanceA, 3, 7, pomodoroEntry(session), undefined, undefined, session);
+        openMenu();
+        moveTo(button.menu, button.menu.endSessionItem);
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !button.menu.visible, 3000, "menu closes after End session");
+        const end = waitFor("POST", "/pomodoro/end");
+        compare(fixture.request(end).body, {
+            revision: revision
+        });
+
+        // The web app moved the session on first: the 409 brings its state.
+        const moved = pomodoroSession("shortRest", 0, 1, 4);
+        fixture.respond(end, 409, stateBody(pomodoroEntry(moved), null, moved));
+        compare(fixture.session.phase, "shortRest", "the state that refused it shows");
+        verify(fixture.session.active);
+    }
+
+    // ----- the session's messages ---------------------------------------------
+
+    function test_sessionMessagesShowInTheMenuAndTheTooltipText() {
+        const session = pomodoroSession("work", -30, 1, 4);
+        connectAccount(instanceA, 3, 7, pomodoroEntry(session), undefined, undefined, session);
+        const menu = button.menu;
+
+        // The instance cannot be reached: the answer to Next phase says why.
+        verify(fixture.session.confirmNextPhase());
+        fixture.failNetwork(waitFor("POST", "/pomodoro/next"));
+        tryVerify(() => fixture.session.message.length > 0, 3000, "a message");
+        compare(fixture.session.message, "Could not reach the Tokkl instance: unreachable");
+        compare(button.words.messageText, fixture.session.message);
+        verify(button.words.summary.indexOf("Could not reach the Tokkl instance") >= 0, button.words.summary);
+        verify(button.Accessible.description.indexOf("Could not reach the Tokkl instance") >= 0, button.Accessible.description);
+        openMenu();
+        verify(menu.messageItem.visible);
+        verify(!menu.messageItem.enabled, "the message is not a choice");
+        compare(menu.messageItem.text, fixture.session.message);
+        closeMenu();
+
+        // The outcome is unknown, so nothing is sent again until a read
+        // settles it; the session still shows.
+        verify(!fixture.session.confirmNextPhase());
+        verify(!fixture.session.endSession());
+        verify(fixture.session.active);
+        answerState(pomodoroEntry(session), null, session);
+        tryCompare(button.timer, "canWrite", true);
+        verify(fixture.session.confirmNextPhase(), "possible again once the state is read");
+        compare(fixture.session.message, "", "the next action clears it");
+        verify(button.words.summary.indexOf("Could not reach") < 0);
+    }
+
+    function test_theTooShortNoticeShowsWhenAnotherDeviceEndsTheSession() {
+        const session = pomodoroSession("work", -30, 1, 4);
+        connectAccount(instanceA, 3, 7, pomodoroEntry(session), undefined, undefined, session);
+        verify(fixture.push(stateBody(null, null, null, {
+            entry_id: session.entry_id,
+            start: fixture.clockIso(-30),
+            stop: fixture.clockIso()
+        })));
+        tryVerify(() => !fixture.session.active, 3000, "the session is gone");
+        compare(fixture.session.message, "This pomodoro was too short to save.");
+        openMenu();
+        compare(button.menu.messageItem.text, "This pomodoro was too short to save.");
+        closeMenu();
+    }
+
+    function test_canStartSessionWaitsForTheStateAndForActions() {
+        fixture.configure(instanceA, "tok-3");
+        answer("GET", "/me", 200, meBody(3, 7));
+        answer("GET", "/projects", 200, [project(11, 7, "Alpha", true)]);
+        verify(fixture.session.setPomodoroMode(true));
+        verify(!fixture.session.canStartSession, "no state has been read");
+        verify(!fixture.session.startSession());
+        compare(fixture.pending("POST", "/pomodoro"), -1);
+        answerState(null);
+        answer("GET", "/me/time_entries", 200, []);
+        tryCompare(fixture.session, "canStartSession", true);
+
+        // While the start waits for its answer, a second one is refused.
+        verify(fixture.session.startSession());
+        verify(!fixture.session.canStartSession);
+        verify(!fixture.session.startSession());
+        fixture.respond(waitFor("POST", "/pomodoro"), 200, sessionBody("work", 0, 1, 4));
+        tryVerify(() => fixture.session.active, 3000, "the session shows");
+        verify(!fixture.session.canStartSession, "not while a session is active");
     }
 
     function test_runningTimerInPomodoroModeKeepsItsControls() {
@@ -1515,7 +1871,7 @@ TestCase {
 
         // Another client starts a timer; the next poll shows it.
         fixture.advance(31000);
-        answer("GET", "/me/time_entries/current", 200, entry(9, 7, 11, true));
+        answerState(entry(9, 7, 11, true));
         tryCompare(button.timer, "running", true);
         verify(glyph().visible, "the hourglass stays in Pomodoro mode");
         compare(findChild(button, "elapsedLabel").text, "0:01");
@@ -1533,8 +1889,7 @@ TestCase {
 
         // A click pauses it, as in Timer mode.
         mouseClick(button, 5, 5, Qt.LeftButton);
-        fixture.respond(waitFor("PATCH", "/time_entries/9/stop"), 200, JSON.stringify(stoppedEntry(9, 11, true, 65)));
-        answer("GET", "/me/time_entries/current", 200, "null");
+        fixture.respond(waitFor("POST", "/timer/pause"), 200, stateBody(null, pauseChain(true, 65, undefined, 11, true)));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.paused);
         verify(fixture.session.modeLocked, "locked while paused");

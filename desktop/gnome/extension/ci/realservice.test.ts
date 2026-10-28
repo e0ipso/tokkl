@@ -2,7 +2,8 @@
  * Runs the GNOME Shell extension against a real tokkl-timerd and a real Tokkl server: this serves
  * an instance built with the API's test fixtures on 127.0.0.1, runs the command that drives the
  * extension (realservice-check.js inside a headless GNOME Shell), then checks that the server's
- * data changed only by the entries the panel started, paused, resumed and stopped.
+ * data changed only by the entries the panel started, paused, resumed and stopped, and by the
+ * sessions the panel and another device started.
  *
  *   TOKKL_GNOME_REALSERVICE_COMMAND='["docker", "run", ...]' \
  *     node --test desktop/gnome/extension/ci/realservice.test.ts
@@ -92,7 +93,7 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
     server.close();
   }
 
-  await t.test('the server changed only by the entries the panel started, paused, resumed and stopped', () => {
+  await t.test('the server changed only by the entries the panel and the other device started, and the sessions ended', () => {
     const after = snapshot(admin);
     assert.deepEqual(after.users, before.users);
     assert.deepEqual(after.workspaces, before.workspaces);
@@ -100,16 +101,13 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
     assert.deepEqual(after.projects, before.projects);
     assert.deepEqual(after.entries.filter((row) => row.user_id !== user.user.id), before.entries);
 
-    // The entry the pause stopped, and the clone the resume started and Stop stopped.
+    // The entry the pause stopped, the clone the server started on resume (the pause chain keeps
+    // no client name) and Stop stopped, the pomodoro of the session the panel started, and the one
+    // of the session another device started.
     const mine = after.entries.filter((row) => row.user_id === user.user.id);
-    assert.equal(mine.length, 2, JSON.stringify(mine));
+    assert.equal(mine.length, 4, JSON.stringify(mine));
     for (const entry of mine) {
       assert.equal(entry.workspace_id, user.wid);
-      assert.equal(entry.project_id, project.id);
-      assert.equal(entry.created_with, 'tokkl-gnome');
-      // Started with the project's billable default (false), then switched on while running; the
-      // clone copies the paused entry.
-      assert.equal(Number(entry.billable), 1);
       assert.notEqual(entry.stop, null);
 
       // Each ran seconds, under half a step of the time resolution, so stopping it rounded it to zero
@@ -119,6 +117,20 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
       assert.equal(entry.stop, entry.start);
       assert.notEqual(entry.deleted_at, null);
     }
-    assert.equal(mine[1]!.description, mine[0]!.description);
+    const [paused, clone, panelSession, otherSession] = mine;
+    // Started with the project's billable default (false), then switched on while running; the
+    // clone copies the paused entry.
+    for (const entry of [paused!, clone!]) {
+      assert.equal(entry.project_id, project.id);
+      assert.equal(Number(entry.billable), 1);
+    }
+    assert.equal(paused!.created_with, 'tokkl-gnome');
+    assert.equal(clone!.created_with, 'api');
+    assert.equal(clone!.description, paused!.description);
+    // The panel's session starts on the chosen project; the other device's names none.
+    assert.equal(panelSession!.created_with, 'tokkl-gnome');
+    assert.equal(panelSession!.project_id, project.id);
+    assert.equal(otherSession!.created_with, 'fixture');
+    assert.equal(otherSession!.project_id, null);
   });
 });

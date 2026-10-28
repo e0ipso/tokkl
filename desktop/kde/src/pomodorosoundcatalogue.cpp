@@ -1,6 +1,6 @@
 #include "pomodorosoundcatalogue.h"
 
-#include "pomodorocycle.h"
+#include "apitypes.h"
 #include "pomodorosounds.h"
 
 #include <QVariantMap>
