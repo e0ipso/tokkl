@@ -447,7 +447,7 @@ pause chain and the session all come from it.
 
 The menu has a checkable Pomodoro mode item that switches the widget between Timer mode and Pomodoro mode. The widget remembers the choice on this device. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. Stop the timer or end the session to change it.
 
-The session belongs to the server (`POST /api/app/pomodoro`, `/next` and `/end`), so a session started, advanced or ended on any device shows here, in either mode. The widget keeps only the mode and the alarm. Start session sends the chosen project and billable flag; the server takes the account's lengths and times the phases on its own clock. Next phase and End session send the revision of the state shown, so a confirm that another device beat to it is refused and the panel shows the state that refused it.
+The session belongs to the server (`POST /api/app/pomodoro`, `/next` and `/end`), so a session started, advanced or ended on any device shows here, in either mode. The widget keeps only the mode and the alarm. Start session sends the chosen project and billable flag; the server takes the account's lengths and times the phases on its own clock. Next phase and End session send the revision of the state shown, so a confirm that another device beat to it is refused and the panel shows the state that refused it. Start session, Next phase and End session need a connection. While the instance is unreachable, a running session keeps counting down and ringing from the last state held.
 
 A left click on the panel depends on the session and the mode:
 
@@ -783,14 +783,18 @@ server's or refuse a server of another version.
 
 ### Real-server test
 
-`tests/realserver.test.ts` runs the companion's `Connection` and
-`TokklTimer`, with the real HTTP transport, against two Tokkl instances
-started with the API's multi-user test fixtures (`packages/api/test/helpers.ts`)
-on 127.0.0.1. The ids on the two instances collide by construction. A proxy
-in front of each instance can hold a reply back, and the test binary
-(`tests/realservertest.cpp`, built by CMake but not a CTest test) drives a
-control server to hold and release replies, disable an account through the
-admin API and remove a workspace membership. It checks:
+`tests/realserver.test.ts` runs the companion's `Connection`,
+`TimerStateClient`, `TimerController` and `PomodoroSession`, with the real
+HTTP transport, against two Tokkl instances started with the API's multi-user
+test fixtures (`packages/api/test/helpers.ts`) on 127.0.0.1. The instances'
+time resolution is 1 minute, and the ids on the two collide by construction.
+A proxy in front of each instance passes the event stream through as it
+arrives, can hold or cut off a reply to any other request, and counts the
+requests it receives. The test binary (`tests/realservertest.cpp`, built by
+CMake but not a CTest test) drives a control server to hold, release and cut
+off replies, stall the event streams, disable an account through the admin
+API, remove a workspace membership and make a request as another device of
+the same account. It checks:
 
 - isolation: a user who is not an admin, in a workspace other than 1, sees
   only their own projects and timer; start, stop and update requests against
@@ -804,9 +808,28 @@ admin API and remove a workspace membership. It checks:
 - disabled accounts, with a token and with email and password: the 403 is
   the same as for an unknown token, account data is cleared, writes are
   refused, and nothing is sent again until the user reconnects;
-- pause and resume: the clone copies the paused entry's fields, and a resume
-  after the task or the project was deleted is refused with 404, creates
-  nothing and keeps the chain paused with the server's message.
+- pause and resume: the clone copies the paused entry's fields. When another
+  client deletes the task and then the project while the chain is paused,
+  the stream brings the chain without them, and a resume starts a clone
+  without them that keeps the tags and the billable flag. A resume made on a
+  revision the server has left, because the stream was silent while another
+  device resumed, is refused with 409 and the state that is there now, which
+  the companion shows with the refusal; the resume is not sent again;
+- pause, resume, pause again and Stop while paused: the chain total is what
+  the server stored, Stop sends one discard, and no v9 call writes;
+- a Pomodoro session run from the companion: Start session, Next phase twice
+  and End session, each with the revision held and answered with 200. The
+  pomodoros keep the project and the billable flag, and a pomodoro that
+  lasted seconds is reported as too short to save;
+- push: a session started, advanced and ended by another device through the
+  API shows in the companion within 2 s in Timer mode, with the stream up
+  and no read or write sent by the companion;
+- a lost reply: the reply to a pause is cut off after the server paused. The
+  stream shows the pause while the reply is held, the companion keeps its
+  write's outcome as unknown, the proxy receives that one pause only, and a
+  read sent after the loss settles the result. A connection that closes
+  before the first byte of a reply makes Qt send the request again by itself,
+  so the test cuts the reply off partway instead.
 
 Afterwards the script compares each instance's database with a snapshot
 taken before the run: only the changes the companion was allowed to make are
