@@ -5,6 +5,11 @@ and the Pomodoro session rules. The TypeScript tests in `packages/common` (`dura
 `timeOfDay.test.ts`, `snap.test.ts`, `pomodoroSession.test.ts`) run every case in these files, so a
 changed case fails here first.
 
+The server runs the session rules these cases test (`pomodoroSession.ts`) when a client starts a
+session or confirms Next phase, and keeps the session. A client that reads the server's timer state
+(`GET /api/app/timer`) gets the phase, its planned end and the next transition from it, so it needs
+no port of `pomodoroSession.ts`. Only a client that runs its own sessions needs these files.
+
 Other clients port from these files and the tests at a fixed tokkl commit. Tokkl for Android copies
 cases by hand into its own tests and names the tokkl commit it copied from in each test file, so a
 changed case reaches it only when it copies again from a newer commit.

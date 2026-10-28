@@ -28,15 +28,16 @@
 - Open [**macOS menu bar app: portable library, Objective-C++ shims and CI**](map-macos-menu-bar-app.md) — desktop/macos: a Linux-testable Qt library and three macOS shims; click and menu actions, the bundle icon, NSStatusItem, the CI job.
 ### #desktop
 - Open [**KDE panel: button, menu and project indicator**](kde-companion/plasma-companion/map-kde-panel-button-menu-and-project-indicator.md) — PanelButton and PanelMenu: clicks and keys, the Start or Stop item, the Open Tokkl URL, and the project indicator's shapes and pulse.
-- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](kde-companion/practice-kde-timer-controller-rules.md) — TokklTimer derives elapsed from the server start, polls 30 s, runs one mutation at a time, never replays a start or resume, keeps a pause chain; the project is locked while running or paused.
-- Open [**desktop/core and desktop/kde: CMake projects, libraries and QML types**](kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md) — tokklcore is Qt-only in desktop/core; tokklkde adds KWallet and the applet chain store; QML_FOREIGN types; version and README.
+- Open [**KDE timer controller: server-derived time, one mutation, no replayed starts**](kde-companion/practice-kde-timer-controller-rules.md) — TokklTimer shows the server's timer state, derives elapsed from the server start and clock, runs one mutation at a time and never replays a write; the pause chain and sessions are the server's; the project is locked while running or paused.
+- Open [**desktop/core and desktop/kde: CMake projects, libraries and QML types**](kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md) — tokklcore is Qt-only in desktop/core; tokklkde adds KWallet, the applet Pomodoro store and the KDE wiring; QML_FOREIGN types; version and README.
 ### #tooling
 - Open [**KDE CI job and release: kde matrix, real-server test, semantic-release plugin**](kde-companion/map-kde-ci-and-release-pipeline.md) — The kde CI job builds, tests and checks the DEB and RPM in pinned containers; the release builds each on its own leg, then a gate attaches both to v<version>.
-- Open [**desktop/core and desktop/kde: CMake projects, libraries and QML types**](kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md) — tokklcore is Qt-only in desktop/core; tokklkde adds KWallet and the applet chain store; QML_FOREIGN types; version and README.
+- Open [**desktop/core and desktop/kde: CMake projects, libraries and QML types**](kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md) — tokklcore is Qt-only in desktop/core; tokklkde adds KWallet, the applet Pomodoro store and the KDE wiring; QML_FOREIGN types; version and README.
 - Open [**GNOME timer service: tokkl-timerd and org.tokkl.Timer1**](map-gnome-timerd-d-bus-timer-service.md) — tokkl-timerd is a headless Qt service on the shared core; D-Bus contract rules, activation and the check.sh container.
 ### #gnome
 - Open [**GNOME timer service: tokkl-timerd and org.tokkl.Timer1**](map-gnome-timerd-d-bus-timer-service.md) — tokkl-timerd is a headless Qt service on the shared core; D-Bus contract rules, activation and the check.sh container.
 - Open [**GNOME Shell extension: panel button, versions and the two CI harnesses**](map-gnome-shell-extension-for-tokkl-timerd.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; Shell 50 click gesture; Shell 51 key controller; check.sh mock harness; realservice.sh.
+- Open [**Desktop TimerStateClient: stream, poll, settling and revisions**](kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md) — One TimerStateClient per desktop app reads GET /api/app/timer, follows the event stream, polls only while it is down, and settles unknown write outcomes.
 ### #debian
 - Open [**Target Debian for Debian-family desktop packages, not niche distros**](practice-target-debian-for-debian-family-desktop-packages-not-niche-distros.md) — DEB builds for the desktop companions target stock Debian; niche distros like TUXEDO OS are not targets. Ubuntu is the fallback.
 ### #deployment
@@ -48,6 +49,7 @@
 ### #linux
 - Open [**Target Debian for Debian-family desktop packages, not niche distros**](practice-target-debian-for-debian-family-desktop-packages-not-niche-distros.md) — DEB builds for the desktop companions target stock Debian; niche distros like TUXEDO OS are not targets. Ubuntu is the fallback.
 ### #macos
+- Open [**Desktop TimerStateClient: stream, poll, settling and revisions**](kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md) — One TimerStateClient per desktop app reads GET /api/app/timer, follows the event stream, polls only while it is down, and settles unknown write outcomes.
 - Open [**macOS menu bar app: portable library, Objective-C++ shims and CI**](map-macos-menu-bar-app.md) — desktop/macos: a Linux-testable Qt library and three macOS shims; click and menu actions, the bundle icon, NSStatusItem, the CI job.
 ### #packaging
 - Open [**KDE native packaging: DEB, RPM and the version mapping**](kde-companion/map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.

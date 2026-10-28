@@ -279,10 +279,10 @@ No circular dependencies. Tasks 09 and 10 change the core API, so the KDE, GNOME
 - ✔️ Task 13: GNOME tokkl-timerd and extension on the server state (depends on: 10)
 - ✔️ Task 14: macOS menu bar app on the server state (depends on: 10)
 
-### Phase 8: Real-server test and documentation
+### ✅ Phase 8: Real-server test and documentation
 **Parallel Tasks:**
-- Task 12: KDE real-server test: sessions, pause and the stream (depends on: 11)
-- Task 15: Docs and kenkeep nodes for the server-owned timer (depends on: 03, 06, 10, 11, 13, 14)
+- ✔️ Task 12: KDE real-server test: sessions, pause and the stream (depends on: 11)
+- ✔️ Task 15: Docs and kenkeep nodes for the server-owned timer (depends on: 03, 06, 10, 11, 13, 14)
 
 ### Post-phase Actions
 

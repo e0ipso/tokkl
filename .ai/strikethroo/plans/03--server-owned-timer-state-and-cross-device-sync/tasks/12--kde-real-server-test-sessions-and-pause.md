@@ -2,7 +2,7 @@
 id: 12
 group: "desktop-platforms"
 dependencies: [11]
-status: "pending"
+status: "completed"
 created: 2026-10-27
 skills:
   - cpp-qt
