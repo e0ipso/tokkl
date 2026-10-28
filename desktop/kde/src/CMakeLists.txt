@@ -5,20 +5,20 @@
 # gives the classes their QML names.
 
 # The KDE side: the KDE Wallet store, the connection types the widget
-# creates from QML, which inject it, the pause chain and Pomodoro stores in
-# the widget's own configuration, the Pomodoro session wiring and the alarm
-# player. Qt Multimedia is linked here only; the core never sees it.
+# creates from QML, which inject it, the Pomodoro store in the widget's own
+# configuration, the timer state client and Pomodoro session wiring and the
+# alarm player. Qt Multimedia is linked here only; the core never sees it.
 add_library(tokklkde STATIC
     alarmplayer.cpp
     alarmplayer.h
-    appletchainstore.cpp
-    appletchainstore.h
     appletpomodorostore.cpp
     appletpomodorostore.h
     kdeconnection.cpp
     kdeconnection.h
     kdepomodoro.cpp
     kdepomodoro.h
+    kdetimerstate.cpp
+    kdetimerstate.h
     kwalletcredentialstore.cpp
     kwalletcredentialstore.h
     pomodorolengthsclient.cpp

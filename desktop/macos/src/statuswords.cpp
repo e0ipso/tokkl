@@ -164,6 +164,15 @@ QString sessionText(const PomodoroSession &session)
         .arg(phaseName(session.phase()), time, QString::number(session.pomodoroNumber()), QString::number(session.longRestEvery()));
 }
 
+QString sessionLine(const TimerController &timer, const PomodoroSession &session)
+{
+    const QString text = sessionText(session);
+    if (timer.status() == TimerController::Ready) {
+        return text;
+    }
+    return tr("%1 · %2").arg(text, statusText(timer.status()));
+}
+
 bool showsSession(const TimerController &timer, const PomodoroSession &session)
 {
     return session.isActive() && !timer.isRunning() && !timer.isPaused();
@@ -172,14 +181,24 @@ bool showsSession(const TimerController &timer, const PomodoroSession &session)
 QString summary(const TimerController &timer, const PomodoroSession &session)
 {
     if (showsSession(timer, session)) {
-        return sessionText(session);
+        return sessionLine(timer, session);
     }
     return session.pomodoroMode() ? tr("%1 · Pomodoro mode").arg(summary(timer)) : summary(timer);
 }
 
 QString menuBarTitle(const TimerController &timer, const PomodoroSession &session)
 {
-    return showsSession(timer, session) ? session.countdownText() : menuBarTitle(timer);
+    if (!showsSession(timer, session)) {
+        return menuBarTitle(timer);
+    }
+    switch (timer.status()) {
+    case TimerController::Stale:
+    case TimerController::AuthenticationBlocked:
+    case TimerController::Error:
+        return tr("%1 !").arg(session.countdownText());
+    default:
+        return session.countdownText();
+    }
 }
 
 QString itemName(const TimerController &timer, const PomodoroSession &session)

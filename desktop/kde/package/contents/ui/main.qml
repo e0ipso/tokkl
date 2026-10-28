@@ -19,29 +19,27 @@ PlasmoidItem {
         email: Plasmoid.configuration.email
     }
 
-    // The running entry, its elapsed time, the pause chain and the start,
-    // pause, resume and stop actions.
-    readonly property TokklTimer timer: TokklTimer {
+    // The account's timer state as the server holds it, read once for the
+    // timer and the Pomodoro session to share.
+    readonly property TokklTimerState timerState: TokklTimerState {
         connection: root.connection
     }
 
-    // Keeps the pause chain in this widget's configuration, so a plasmashell
-    // restart keeps its total.
-    readonly property TokklChainStore chainStore: TokklChainStore {
-        applet: Plasmoid
-        timer: root.timer
+    // The running entry, its elapsed time, the pause chain and the start,
+    // pause, resume and stop actions, on the server's timer state.
+    readonly property TokklTimer timer: TokklTimer {
+        stateClient: root.timerState.client
     }
 
-    // Keeps Pomodoro mode and the open session in this widget's
-    // configuration, so a plasmashell restart keeps them.
+    // Keeps Pomodoro mode in this widget's configuration, so a plasmashell
+    // restart keeps it. The session itself is the server's.
     readonly property TokklPomodoroStore pomodoroStore: TokklPomodoroStore {
         applet: Plasmoid
     }
 
-    // Builds the Pomodoro session and the lengths client next to the timer.
-    // Its session is null until this document is complete.
+    // Builds the Pomodoro session and the lengths client on the timer's
+    // state client. Its session is null until this document is complete.
     readonly property TokklPomodoro pomodoro: TokklPomodoro {
-        connection: root.connection
         timer: root.timer
         store: root.pomodoroStore
     }

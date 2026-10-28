@@ -1,8 +1,9 @@
 // Runs the QML tests in autotests/qml against the widget's panel components
 // and its Configure page. The backend types are registered from tokklcore
 // under the backend URI, and a PanelFixture wires them to the scripted
-// transport, credential store and clock from fakes.h, with a Pomodoro
-// session that keeps its mode and records in a temporary QSettings file.
+// transport, credential store and clock from fakes.h, with a timer and a
+// Pomodoro session that share one timer state client and keep the mode in a
+// temporary QSettings file.
 // The Configure pages' TokklConnectionSetup and TokklPomodoroLengths use
 // another such transport and store, which a WalletFixture controls, and
 // their TokklAlarm plays the core's copies of the sounds. Nothing reaches a
@@ -14,11 +15,11 @@
 #include "fakes.h"
 #include "pomodorolengthsclient.h"
 #include "pomodoropreferences.h"
-#include "pomodoroqueue.h"
 #include "pomodorosession.h"
 #include "pomodorosoundcatalogue.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
+#include "timerstateclient.h"
 
 #include <Kirigami/Platform/Units>
 #include <KLocalizedQmlContext>
@@ -53,7 +54,7 @@ public:
     explicit PanelFixture(QObject *parent = nullptr)
         : QObject(parent)
     {
-        m_timer.setConnection(&m_connection);
+        m_timer.setStateClient(&m_client);
     }
 
     TimerController *timer()
@@ -134,6 +135,18 @@ public:
         m_transport.respond(index, FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("unreachable")));
     }
 
+    // Sends a state to the open event stream, as the server does when the
+    // state changes. False when no stream is open.
+    Q_INVOKABLE bool push(const QString &body)
+    {
+        FakeStream *stream = m_transport.lastStream();
+        if (!stream) {
+            return false;
+        }
+        stream->push("event: timer\ndata: " + body.toUtf8() + "\n\n");
+        return true;
+    }
+
     // The fake clock's time as an RFC 3339 UTC string, shifted by seconds.
     Q_INVOKABLE QString clockIso(int offsetSeconds = 0) const
     {
@@ -170,14 +183,14 @@ private:
     FakeCredentialStore m_store;
     FakeClock m_clock;
     Connection m_connection{&m_transport, &m_store, testClientName()};
+    TimerStateClient m_client{&m_connection, &m_clock};
     TimerController m_timer{&m_clock};
     QTemporaryDir m_dir;
     QSettings m_settings{m_dir.filePath(QStringLiteral("pomodoro.ini")), QSettings::IniFormat};
     SettingsPomodoroStore m_pomodoroStore{&m_settings};
-    PomodoroPreferences m_preferences{&m_connection, &m_pomodoroStore};
-    PomodoroQueue m_queue{&m_connection, &m_clock, &m_pomodoroStore};
+    PomodoroPreferences m_preferences{&m_connection};
     // Last, so it goes first: it still reads the others while it ends.
-    PomodoroSession m_session{&m_clock, &m_timer, &m_preferences, &m_queue, &m_pomodoroStore};
+    PomodoroSession m_session{&m_clock, &m_timer, &m_client, &m_pomodoroStore};
     QSet<qsizetype> m_answered;
 };
 

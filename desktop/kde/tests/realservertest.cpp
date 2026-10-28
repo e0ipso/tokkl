@@ -13,6 +13,7 @@
 #include "fakes.h"
 #include "instanceurl.h"
 #include "timercontroller.h"
+#include "timerstateclient.h"
 #include "transport.h"
 
 #include <QEventLoop>
@@ -189,12 +190,13 @@ struct Session {
     RecordingTransport transport;
     Connection connection{&transport, &store, QStringLiteral("tokkl-kde")};
     FakeClock clock;
+    TimerStateClient state{&connection, &clock};
     TimerController timer{&clock};
 
     Session()
     {
         clock.current = QDateTime::currentDateTimeUtc();
-        timer.setConnection(&connection);
+        timer.setStateClient(&state);
     }
 
     QString keyFor(const User &user, AuthMode mode) const
@@ -226,7 +228,7 @@ struct Session {
     void idle()
     {
         for (int i = 0; i < 4; ++i) {
-            clock.advance(TimerController::pollIntervalMs);
+            clock.advance(TimerStateClient::pollIntervalMs);
         }
         QTest::qWait(quietMs);
     }

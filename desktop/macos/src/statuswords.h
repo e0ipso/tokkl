@@ -42,14 +42,20 @@ QString phaseName(const QString &phase);
 // the pomodoro of the round, such as "Short rest · 4:10 left · Pomodoro 2 of
 // 4".
 QString sessionText(const PomodoroSession &session);
+// sessionText with the timer's status after it unless the timer is Ready, so
+// an offline or failing connection shows next to the countdown of the last
+// state held, such as "Work · 4:10 left · Pomodoro 2 of 4 · Offline,
+// showing the last known state".
+QString sessionLine(const TimerController &timer, const PomodoroSession &session);
 // The item shows the session rather than the timer: a session is active and
 // no timer runs or is paused.
 bool showsSession(const TimerController &timer, const PomodoroSession &session);
-// The tooltip with the session: sessionText while showsSession, otherwise
+// The tooltip with the session: sessionLine while showsSession, otherwise
 // the timer's summary, with " · Pomodoro mode" in Pomodoro mode.
 QString summary(const TimerController &timer, const PomodoroSession &session);
 // The menu bar text with the session: the session's countdown while
-// showsSession, otherwise the timer's.
+// showsSession, with " !" after it when the instance is offline, refusing the
+// sign-in or failing; otherwise the timer's.
 QString menuBarTitle(const TimerController &timer, const PomodoroSession &session);
 // The screen reader's name with the session: sessionText while
 // showsSession, otherwise the timer's, with " · Pomodoro mode" in Pomodoro

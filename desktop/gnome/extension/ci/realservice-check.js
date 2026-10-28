@@ -12,7 +12,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {exit, programArgs} from 'system';
 import {call, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
-import {formatElapsed} from '../timer1.js';
+import {countdown, formatElapsed} from '../timer1.js';
 
 const [uuid, timerd] = programArgs;
 const fixture = JSON.parse(GLib.getenv('TOKKL_GNOME_FIXTURE') ?? 'null');
@@ -32,6 +32,29 @@ const timer = (method, params = null, replyType = null) => call('org.tokkl.Timer
 const property = name => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.freedesktop.DBus.Properties', 'Get',
     new GLib.Variant('(ss)', ['org.tokkl.Timer1', name]), '(v)')[0];
 
+// What another device does: a call to the app API with the account's token.
+function otherDevice(method, path, body = null) {
+    const argv = ['curl', '-sS', '--fail-with-body', '-X', method, '-u', `${fixture.token}:api_token`,
+        '-H', 'Content-Type: application/json', ...(body ? ['-d', JSON.stringify(body)] : []),
+        `${fixture.url}/api/app${path}`];
+    const process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE);
+    const [, output] = process.communicate_utf8(null, null);
+    if (!process.get_successful())
+        throw new Error(`${method} ${path}: ${output}`);
+    return JSON.parse(output);
+}
+
+// Which of the menu's start, stop and session items show.
+const items = () => shell(`(() => {
+    const button = ${button};
+    return {toggle: button._toggleItem.visible, startSession: button._startSessionItem.visible,
+        nextPhase: button._nextPhaseItem.visible, endSession: button._endSessionItem.visible};
+})()`);
+const itemsAre = (what, expected) => waitFor(what, () => {
+    const shown = items();
+    return JSON.stringify(shown) === JSON.stringify(expected) || shown;
+});
+
 let service = null;
 
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
@@ -47,7 +70,7 @@ await step('an unconfigured service marks the button and says so', async () => {
 
 await step('Configure connects the service and the button follows to ready', async () => {
     timer('Configure', new GLib.Variant('(ssss)', [fixture.url, 'token', '', fixture.token]));
-    await waitFor('Status ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+    await waitFor('Status ready', () => property('Status') === 'ready' || [property('Status'), property('ErrorString')], 30_000);
     await waitFor('no mark', () => label() === '0:00' || label());
     await waitFor('the status', () => statusText() === 'Connected' || statusText());
     if (!sensitive('_toggleItem'))
@@ -55,9 +78,11 @@ await step('Configure connects the service and the button follows to ready', asy
 });
 
 await step('the server\'s projects reach the project menu', async () => {
-    const ids = property('Projects').map(project => project.id);
-    if (!ids.includes(fixture.project.id))
-        throw new Error(`Projects: ${JSON.stringify(ids)}`);
+    // The projects are read next to the state, so Ready can come first.
+    await waitFor('Projects', () => {
+        const ids = property('Projects').map(project => project.id);
+        return ids.includes(fixture.project.id) || `Projects: ${JSON.stringify(ids)}`;
+    }, 30_000);
     await waitFor('the project item', () => {
         const items = shell(`${button}._projectMenu.menu._getMenuItems().map(item => item.label.text)`);
         return items.includes(fixture.project.name) || items;
@@ -135,6 +160,50 @@ await step('Stop in the menu stops the clone on the server and ends the chain', 
     await waitFor('0:00', () => label() === '0:00' || label());
     await waitFor('Start', () => shell(`${button}._toggleItem.label.text`) === 'Start');
     await waitFor('the unlocked project', () => sensitive('_projectMenu') === true);
+});
+
+await step('a primary click in Pomodoro mode starts a session on the server', async () => {
+    timer('SetPomodoroMode', new GLib.Variant('(b)', [true]), '(b)');
+    await waitFor('CanStartSession', () => property('CanStartSession') === true || property('CanStartSession'));
+    click(1);
+    await waitFor('SessionActive', () => property('SessionActive') === true, 30_000);
+    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+    if (property('Running') || property('Phase') !== 'work' || property('PomodoroNumber') !== 1 || !property('ModeLocked'))
+        throw new Error(`the session: ${property('Running')}, ${property('Phase')}, ${property('PomodoroNumber')}`);
+    await itemsAre('the session items', {toggle: false, startSession: false, nextPhase: true, endSession: true});
+});
+
+await step('a session ended on another device clears the panel', async () => {
+    const {revision} = otherDevice('GET', '/timer');
+    otherDevice('POST', '/pomodoro/end', {revision});
+    await waitFor('no session', () => property('SessionActive') === false, 30_000);
+    await waitFor('unlocked', () => property('ModeLocked') === false);
+    await itemsAre('Start session', {toggle: false, startSession: true, nextPhase: false, endSession: false});
+});
+
+await step('a session started on another device shows in Timer mode and answers the menu', async () => {
+    timer('SetPomodoroMode', new GLib.Variant('(b)', [false]), '(b)');
+    await waitFor('Timer mode', () => property('PomodoroMode') === false);
+    otherDevice('POST', '/pomodoro', {created_with: 'fixture'});
+    await waitFor('SessionActive', () => property('SessionActive') === true, 30_000);
+    if (property('PomodoroMode') || property('Running') || property('Phase') !== 'work')
+        throw new Error(`the session: ${property('PomodoroMode')}, ${property('Running')}, ${property('Phase')}`);
+    await itemsAre('the session items without Start', {toggle: false, startSession: false, nextPhase: true,
+        endSession: true});
+    await waitFor('the countdown', () => {
+        const end = property('PlannedEnd');
+        const now = Date.now() / 1000;
+        return [countdown(end, now).text, countdown(end, now - 1.5).text].includes(label()) || [label(), end];
+    });
+    if (sensitive('_modeItem'))
+        throw new Error('the mode switch stayed sensitive during the session');
+
+    shell(`${button}._nextPhaseItem.activate(null)`);
+    await waitFor('the rest', () => property('Phase') === 'shortRest', 30_000);
+    shell(`${button}._endSessionItem.activate(null)`);
+    await waitFor('no session', () => property('SessionActive') === false, 30_000);
+    await itemsAre('Start', {toggle: true, startSession: false, nextPhase: false, endSession: false});
+    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
 });
 
 await step('the button says so when the service goes away', async () => {

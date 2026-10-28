@@ -40,7 +40,7 @@ test('changing the password keeps this browser logged in and logs the other one 
   const other = await otherContext.newPage();
   const otherErrors = new RuntimeErrors(other);
   otherErrors.allowResponse({
-    status: 403, method: 'GET', path: /^\/api\/v9\/me(\/|$)/,
+    status: 403, method: 'GET', path: /^\/api\/(v9\/me(\/|$)|app\/timer$)/,
     reason: 'the other browser still sends its session cookie after the password change revoked it',
   });
   try {
@@ -99,7 +99,7 @@ test('a password change over Basic auth revokes every cookie session', async ({ 
   const session = await sessionCookie(page, server.baseURL);
 
   runtimeErrors.allowResponse({
-    status: 403, method: 'GET', path: /^\/api\/v9\/me(\/|$)/,
+    status: 403, method: 'GET', path: /^\/api\/(v9\/me(\/|$)|app\/timer$)/,
     reason: 'the browser still sends the session cookie the Basic password change revoked',
   });
 

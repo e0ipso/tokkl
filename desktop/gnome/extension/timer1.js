@@ -27,6 +27,7 @@ export const TIMER1_INTERFACE = `<node>
     <property name="PomodoroMode" type="b" access="read"/>
     <property name="ModeLocked" type="b" access="read"/>
     <property name="SessionActive" type="b" access="read"/>
+    <property name="CanStartSession" type="b" access="read"/>
     <property name="Phase" type="s" access="read"/>
     <property name="PhaseStart" type="x" access="read"/>
     <property name="PlannedEnd" type="x" access="read"/>

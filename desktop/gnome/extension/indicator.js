@@ -231,7 +231,9 @@ class TokklIndicator extends PanelMenu.Button {
 
         // Start, or Stop while an entry runs or a chain is paused. It never
         // pauses: Stop ends the chain. Pomodoro mode hides it unless a timer
-        // runs or is paused, since the service starts no timer then.
+        // runs or is paused, since the service starts no timer then. An
+        // active session hides it in either mode: the session owns the
+        // timer, whichever device started it.
         this._toggleItem = new PopupMenu.PopupMenuItem(_('Start'));
         this._toggleItem.connect('activate', () => this._startOrStop());
         this.menu.addMenuItem(this._toggleItem);
@@ -328,6 +330,7 @@ class TokklIndicator extends PanelMenu.Button {
             pomodoroMode: this._property('PomodoroMode', false),
             modeLocked: this._property('ModeLocked', false),
             sessionActive: this._property('SessionActive', false),
+            canStartSession: this._property('CanStartSession', false),
             phase: this._property('Phase', ''),
             plannedEnd: this._property('PlannedEnd', 0),
             pomodoroNumber: this._property('PomodoroNumber', 0),
@@ -349,9 +352,9 @@ class TokklIndicator extends PanelMenu.Button {
         this._startTime = state.startTime;
         this._chainSeconds = state.chainSeconds;
         this._pomodoroMode = state.pomodoroMode;
-        // The panel counts the phase down while a session is active, unless
-        // a timer runs or is paused.
-        this._session = state.sessionActive && !timerHeld ? state : null;
+        // The panel counts the phase down while a session is active, in
+        // either mode.
+        this._session = state.sessionActive ? state : null;
         this._ticking = state.running || state.sessionActive;
         this._hourglass.visible = state.pomodoroMode;
         this._projectIndicator.setShape(describeIndicator(state, this._settings.enable_animations, _));
@@ -365,7 +368,7 @@ class TokklIndicator extends PanelMenu.Button {
 
         this._toggleItem.label.text = timerHeld ? _('Stop') : _('Start');
         this._toggleItem.setSensitive(ready);
-        this._toggleItem.visible = !state.pomodoroMode || timerHeld;
+        this._toggleItem.visible = !state.sessionActive && (!state.pomodoroMode || timerHeld);
 
         this._syncSession(state, timerHeld);
         this._syncProjects(state, ready);
@@ -381,12 +384,13 @@ class TokklIndicator extends PanelMenu.Button {
 
     // The session's items and the mode switch. Which actions apply is the
     // service's call: it refuses the others, and the menu only follows the
-    // published state.
+    // published state. A session started on another device shows the same
+    // items, in either mode.
     _syncSession(state, timerHeld) {
         this._startSessionItem.visible = state.pomodoroMode && !state.sessionActive && !timerHeld;
-        // A session needs an account, but starts while the instance is
-        // unreachable.
-        this._startSessionItem.setSensitive(state.status !== null && state.status !== 'unconfigured');
+        // The service says when a session can start: not before it has read
+        // the server's state, and not while an action waits for its answer.
+        this._startSessionItem.setSensitive(state.canStartSession);
         this._nextPhaseItem.label.text = nextPhaseLabel(state.upcomingPhase, _);
         this._nextPhaseItem.visible = state.sessionActive;
         this._endSessionItem.visible = state.sessionActive;
@@ -485,9 +489,10 @@ class TokklIndicator extends PanelMenu.Button {
     }
 
     // What a primary click and Space or Return on the button do. The
-    // service decides: with a timer or in Timer mode it pauses, resumes or
-    // starts, and in Pomodoro mode it starts a session or confirms a phase
-    // that rings. Before the planned end it asks for the menu instead.
+    // service decides: during a session, in either mode, it confirms a phase
+    // that rings and otherwise asks for the menu. Without a session, with a
+    // timer or in Timer mode it pauses, resumes or starts, and in Pomodoro
+    // mode it starts a session.
     _activate() {
         this._call('Activate', [], action => {
             if (action === 'open-menu' && !this.menu.isOpen)

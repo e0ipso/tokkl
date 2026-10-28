@@ -1,11 +1,9 @@
 #include "menubarapp.h"
 
-#include "chainstore.h"
 #include "clock.h"
 #include "connection.h"
 #include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
-#include "pomodoroqueue.h"
 #include "pomodorosession.h"
 #include "pomodorostore.h"
 #include "settingswindow.h"
@@ -13,6 +11,7 @@
 #include "statusmenu.h"
 #include "statuswords.h"
 #include "timercontroller.h"
+#include "timerstateclient.h"
 #include "transport.h"
 
 #include <QSettings>
@@ -44,17 +43,15 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_ownClock(clock ? nullptr : std::make_unique<SystemClock>())
     , m_clock(clock ? clock : m_ownClock.get())
     , m_connection(std::make_unique<Connection>(transport, store, clientName()))
-    , m_chainStore(settings ? std::make_unique<SettingsChainStore>(settings) : nullptr)
     , m_pomodoroStore(settings ? std::make_unique<SettingsPomodoroStore>(settings) : nullptr)
+    , m_stateClient(std::make_unique<TimerStateClient>(m_connection.get(), m_clock))
     , m_timer(std::make_unique<TimerController>(m_clock))
 {
-    // Before the connection: the stored chain is read with its first entry.
-    m_timer->setChainStore(m_chainStore.get());
-    m_timer->setConnection(m_connection.get());
-    // The session runs next to the timer, on the same clock.
-    m_preferences = std::make_unique<PomodoroPreferences>(m_connection.get(), m_pomodoroStore.get());
-    m_queue = std::make_unique<PomodoroQueue>(m_connection.get(), m_clock, m_pomodoroStore.get());
-    m_session = std::make_unique<PomodoroSession>(m_clock, m_timer.get(), m_preferences.get(), m_queue.get(), m_pomodoroStore.get());
+    // The timer and the session read the same state client, so they agree
+    // on the server's timer and session.
+    m_timer->setStateClient(m_stateClient.get());
+    m_preferences = std::make_unique<PomodoroPreferences>(m_connection.get());
+    m_session = std::make_unique<PomodoroSession>(m_clock, m_timer.get(), m_stateClient.get(), m_pomodoroStore.get());
     m_alarm = std::make_unique<PomodoroAlarm>(m_session.get(), alarmPlayer, settings);
     m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_session.get());
     m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences.get(), m_alarm.get());
@@ -97,9 +94,9 @@ MenuBarApp::~MenuBarApp()
     m_menu.reset();
     m_alarm.reset();
     m_session.reset();
-    m_queue.reset();
     m_preferences.reset();
     m_timer.reset();
+    m_stateClient.reset();
     m_connection.reset();
 }
 
@@ -178,6 +175,7 @@ void MenuBarApp::activate()
 
 void MenuBarApp::resumed()
 {
+    // The timer forwards to the state client, which reads at once.
     m_timer->resumed();
     m_session->resumed();
 }

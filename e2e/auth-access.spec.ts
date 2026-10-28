@@ -78,7 +78,7 @@ test('revoking sessions logs every browser out and keeps the API token', async (
   expect(await meWithSession(server.baseURL, session)).toBe(200);
 
   runtimeErrors.allowResponse({
-    status: 403, method: 'GET', path: /^\/api\/v9\/me(\/|$)/,
+    status: 403, method: 'GET', path: /^\/api\/(v9\/me(\/|$)|app\/timer$)/,
     reason: 'the browser still sends the session cookie the admin revoked',
   });
   await withAuth(server.baseURL, basic(apiToken, 'api_token'), async (api) => {
@@ -122,7 +122,7 @@ test('deleting an invited account signs it out everywhere and frees its email', 
   await page.goto(server.baseURL);
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
   runtimeErrors.allowResponse({
-    status: 403, method: 'GET', path: /^\/api\/v9\/me(\/|$)/,
+    status: 403, method: 'GET', path: /^\/api\/(v9\/me(\/|$)|app\/timer$)/,
     reason: 'the browser still sends the session cookie of the deleted account',
   });
 

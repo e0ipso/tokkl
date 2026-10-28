@@ -2,7 +2,7 @@
 id: 7
 group: "web-client"
 dependencies: [5, 6]
-status: "pending"
+status: "completed"
 created: 2026-10-27
 skills:
   - playwright

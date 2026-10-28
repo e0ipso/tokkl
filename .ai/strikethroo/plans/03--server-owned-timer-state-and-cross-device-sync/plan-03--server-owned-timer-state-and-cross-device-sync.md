@@ -272,12 +272,12 @@ No circular dependencies. Tasks 09 and 10 change the core API, so the KDE, GNOME
 - ✔️ Task 06: Web pause chain on the server state (depends on: 05)
 - ✔️ Task 10: Desktop core: PomodoroSession on the server state, and removal of the ported rules (depends on: 09)
 
-### Phase 7: E2E and desktop platforms
+### ✅ Phase 7: E2E and desktop platforms
 **Parallel Tasks:**
-- Task 07: E2E: Pomodoro sessions and pause on the server state, across devices (depends on: 05, 06)
-- Task 11: KDE companion on the server state (depends on: 10)
-- Task 13: GNOME tokkl-timerd and extension on the server state (depends on: 10)
-- Task 14: macOS menu bar app on the server state (depends on: 10)
+- ✔️ Task 07: E2E: Pomodoro sessions and pause on the server state, across devices (depends on: 05, 06)
+- ✔️ Task 11: KDE companion on the server state (depends on: 10)
+- ✔️ Task 13: GNOME tokkl-timerd and extension on the server state (depends on: 10)
+- ✔️ Task 14: macOS menu bar app on the server state (depends on: 10)
 
 ### Phase 8: Real-server test and documentation
 **Parallel Tasks:**

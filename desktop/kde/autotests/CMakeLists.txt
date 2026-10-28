@@ -34,18 +34,9 @@ set(_kde_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-kde")
 set_tests_properties(kdeconnection kdewallet-disabled PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_kde_xdg}/data;XDG_CONFIG_HOME=${_kde_xdg}/config;XDG_CACHE_HOME=${_kde_xdg}/cache;XDG_STATE_HOME=${_kde_xdg}/state")
 
-# The pause chain store in the configuration of an applet that a test corona
-# hosts, read by a timer on the fakes of desktop/core. The corona's appletsrc
-# file stays in the test's own XDG_CONFIG_HOME.
-set(_chain_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-chain")
-ecm_add_test(appletchainstoretest.cpp
-    TEST_NAME appletchainstore
-    LINK_LIBRARIES tokklkde tokklcorefakes Plasma::Plasma KF6::ConfigCore Qt6::Test)
-set_tests_properties(appletchainstore PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_chain_xdg}/data;XDG_CONFIG_HOME=${_chain_xdg}/config;XDG_CACHE_HOME=${_chain_xdg}/cache;XDG_STATE_HOME=${_chain_xdg}/state")
-
-# The Pomodoro mode and records in the configuration of an applet that a
-# test corona hosts, in the same private XDG_CONFIG_HOME layout.
+# The Pomodoro mode in the configuration of an applet that a test corona
+# hosts, with its own private XDG_CONFIG_HOME. The corona's appletsrc file
+# stays there.
 set(_pomodoro_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-pomodoro")
 ecm_add_test(appletpomodorostoretest.cpp
     TEST_NAME appletpomodorostore
@@ -53,10 +44,13 @@ ecm_add_test(appletpomodorostoretest.cpp
 set_tests_properties(appletpomodorostore PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_pomodoro_xdg}/data;XDG_CONFIG_HOME=${_pomodoro_xdg}/config;XDG_CACHE_HOME=${_pomodoro_xdg}/cache;XDG_STATE_HOME=${_pomodoro_xdg}/state")
 
-# The Pomodoro wiring the widget creates from QML, on the fakes of
-# desktop/core and a QSettings store.
+# The timer state client and the Pomodoro wiring the widget creates from
+# QML, on the fakes of desktop/core and a QSettings store.
 ecm_add_test(kdepomodorotest.cpp
     TEST_NAME kdepomodoro
+    LINK_LIBRARIES tokklkde tokklcorefakes Qt6::Test)
+ecm_add_test(kdetimerstatetest.cpp
+    TEST_NAME kdetimerstate
     LINK_LIBRARIES tokklkde tokklcorefakes Qt6::Test)
 
 # The alarm player: which file it picks per transition, when it starts and
@@ -71,7 +65,7 @@ list(JOIN TOKKL_POMODORO_SOUND_FILES "|" _sound_files)
 target_compile_definitions(alarmplayer PRIVATE
     TOKKL_PLASMOID_ID="${TOKKL_PLASMOID_ID}"
     TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
-set_tests_properties(kdepomodoro alarmplayer PROPERTIES
+set_tests_properties(kdepomodoro kdetimerstate alarmplayer PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_alarm_xdg}/data;XDG_CONFIG_HOME=${_alarm_xdg}/config;XDG_CACHE_HOME=${_alarm_xdg}/cache;XDG_STATE_HOME=${_alarm_xdg}/state")
 
 # The panel item, its menu and the Configure page (package/contents/ui),
