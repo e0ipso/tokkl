@@ -26,6 +26,7 @@ using namespace Tokkl;
 namespace
 {
 const QString instanceA = QStringLiteral("https://a.example.test");
+const QString instanceB = QStringLiteral("https://b.example.test/tokkl");
 const QString token = QStringLiteral("tok-session-1");
 const QByteArray statePath = "/app/timer";
 const QByteArray startPath = "/app/pomodoro";
@@ -227,11 +228,11 @@ class PomodoroSessionTest : public QObject
 
     // Configure token auth, answer /me, then the state read with the given
     // state (nothing running by default) and the project list.
-    static bool connectAccount(Fixture &f, const QByteArray &state = QByteArray())
+    static bool connectAccount(Fixture &f, const QByteArray &state = QByteArray(), const QString &instance = instanceA)
     {
-        f.credentials.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.credentials.secrets.insert(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
-        f.connection.setInstanceUrl(instanceA);
+        f.connection.setInstanceUrl(instance);
         if (!QTest::qWaitFor([&] {
                 return f.transport.requests.size() == before + 1;
             })) {
@@ -478,6 +479,26 @@ private Q_SLOTS:
         QVERIFY(!f.client.settling());
         QVERIFY(!f.session->isActive());
         QCOMPARE(f.find("POST", endPath).size(), 1);
+    }
+
+    void anAccountChangeFreesTheControlsOfAnActionLeftUnanswered()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, f.state(work(f.serverNow().addSecs(-65)))));
+        QVERIFY(f.session->confirmNextPhase());
+        QCOMPARE(f.find("POST", nextPath).size(), 1);
+
+        // The answer for the first instance never comes. On the second one
+        // the session takes actions again.
+        QVERIFY(connectAccount(f, f.state(work(f.serverNow().addSecs(-65))), instanceB));
+        QVERIFY(f.session->isRinging());
+        QVERIFY(f.session->confirmNextPhase());
+        const qsizetype next = f.last("POST", nextPath);
+        QCOMPARE(f.find("POST", nextPath).size(), 2);
+        QVERIFY(f.transport.requests.at(next).url.toString().startsWith(instanceB));
+        f.respond(next, f.state(shortRest(f.serverNow(), f.serverNow().addSecs(-65))));
+        QCOMPARE(f.session->phase(), QStringLiteral("shortRest"));
+        QVERIFY(f.session->endSession());
     }
 
     void keepsCountingWhileOffline()

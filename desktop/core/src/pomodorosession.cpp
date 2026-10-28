@@ -21,6 +21,9 @@ PomodoroSession::PomodoroSession(Clock *clock, TimerController *timer, TimerStat
     if (m_client) {
         connect(m_client, &TimerStateClient::stateChanged, this, &PomodoroSession::onStateChanged);
         connect(m_client, &TimerStateClient::settlingChanged, this, &PomodoroSession::update);
+        if (Connection *connection = m_client->connection()) {
+            connect(connection, &Connection::generationChanged, this, &PomodoroSession::onGenerationChanged);
+        }
     }
     if (m_timer) {
         connect(m_timer, &TimerController::contextChanged, this, &PomodoroSession::update);
@@ -200,8 +203,9 @@ bool PomodoroSession::sendWithRevision(void (TimerStateClient::*action)(TimerSta
 TimerStateClient::ActionCallback PomodoroSession::finishing()
 {
     QPointer<PomodoroSession> self(this);
-    return [self](const TimerActionResult &result) {
-        if (!self) {
+    const quint64 epoch = m_epoch;
+    return [self, epoch](const TimerActionResult &result) {
+        if (!self || epoch != self->m_epoch) {
             return;
         }
         self->m_pending = false;
@@ -214,6 +218,16 @@ TimerStateClient::ActionCallback PomodoroSession::finishing()
         }
         self->update();
     };
+}
+
+void PomodoroSession::onGenerationChanged()
+{
+    // Another instance, account or credential: the pending action and its
+    // message belonged to the earlier one.
+    ++m_epoch;
+    m_pending = false;
+    clearMessage();
+    update();
 }
 
 void PomodoroSession::clearMessage()
