@@ -29,7 +29,8 @@ export async function assertSchema(db: TestDb, backend: Backend): Promise<void> 
     for (const [name, expected] of Object.entries(columns)) {
       const column = actual.find(c => c.name === name);
       assert.ok(column, `${backend} ${table}.${name} exists`);
-      assert.ok((['integer','id'].includes(expected.type) ? ['integer','bigint'] : expected.type === 'real' ? ['real','double','double precision'] : ['text','longtext','varchar','character varying']).includes(column.type), `${table}.${name} physical type: ${column.type}`);
+      const physicalType = table === 'tasks' && name === 'estimated_seconds' && backend !== 'sqlite' ? 'real' : expected.type;
+      assert.ok((['integer','id'].includes(physicalType) ? ['integer','bigint'] : physicalType === 'real' ? ['real','double','double precision'] : ['text','longtext','varchar','character varying']).includes(column.type), `${table}.${name} physical type: ${column.type}`);
       assert.equal(column.nullable, expected.nullable ?? false, `${table}.${name} nullability`);
       if (expected.default !== undefined) {
         const normalized = String(column.default).replace(/::[a-z ]+/g, '').replace(/_utf8mb4/g, '').replace(/[()'\\]/g, '');

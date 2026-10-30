@@ -12,6 +12,9 @@ import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 for(const backend of ['sqlite','postgres','mysql','mariadb'] as const) {
   test(`${backend}: advancement, readers, concurrent owners, failure, interruption and drift refusal`,{timeout:180000},async t=>{
     const fixture=await disposableBackend(backend);
+    const latest=migrations(backend).at(-1)!.version;
+    const next=latest+1;
+    const future=next+10;
     let c=await openConnection<PhysicalDatabase>(fixture.config);
     try {
       t.diagnostic(`actual engine: ${await validateEngine(c)}`);
@@ -53,14 +56,14 @@ for(const backend of ['sqlite','postgres','mysql','mariadb'] as const) {
       } finally { children.forEach(({child})=>child.kill('SIGKILL')); }
       c=await initializeDatabase(fixture.config);
       assert.equal((await sql<{name:string}>`select name from workspaces`.execute(c.db)).rows[0]!.name,'persisted');
-      assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length,2);
-      const saved=await c.db.selectFrom('storage_migrations').selectAll().where('version','=',2).executeTakeFirstOrThrow();
-      await c.db.updateTable('storage_migrations').set({checksum:'tampered'}).where('version','=',2).execute();
+      assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length,latest);
+      const saved=await c.db.selectFrom('storage_migrations').selectAll().where('version','=',latest).executeTakeFirstOrThrow();
+      await c.db.updateTable('storage_migrations').set({checksum:'tampered'}).where('version','=',latest).execute();
       await assert.rejects(verifyCurrent(c),/inconsistent-schema/);
       await assert.rejects(initializeDatabase(fixture.config),/inconsistent-schema/);
-      await c.db.updateTable('storage_migrations').set({checksum:saved.checksum,version:9}).where('version','=',2).execute();
+      await c.db.updateTable('storage_migrations').set({checksum:saved.checksum,version:future}).where('version','=',latest).execute();
       await assert.rejects(verifyCurrent(c),/inconsistent-schema/);
-      await c.db.updateTable('storage_migrations').set({version:2}).where('version','=',9).execute();
+      await c.db.updateTable('storage_migrations').set({version:latest}).where('version','=',future).execute();
       await verifyCurrent(c);
       const reader=await openReadConnection<PhysicalDatabase>(fixture.config);
       try {
@@ -68,12 +71,12 @@ for(const backend of ['sqlite','postgres','mysql','mariadb'] as const) {
         await assert.rejects(migrate(reader),/reader/);
         await assert.rejects(sql`delete from workspaces`.execute(reader.db));
       } finally { await reader.close(); }
-      const fault={version:3,name:'failure_probe',statements:['CREATE TABLE failure_probe (value INTEGER)','THIS IS INVALID DDL secret-password']};
+      const fault={version:next,name:'failure_probe',statements:['CREATE TABLE failure_probe (value INTEGER)','THIS IS INVALID DDL secret-password']};
       await assert.rejects(migrate(c,[...migrations(backend),fault]),error=>{
         assert.match(String(error),/migration-failed/);assert.doesNotMatch(String(error),/secret-password/);assert.equal((error as Error).cause,undefined);return true;
       });
       const ledger=await c.db.selectFrom('storage_migrations').selectAll().orderBy('version').execute();
-      assert.equal(ledger.filter(row=>row.state==='complete').length,2);
+      assert.equal(ledger.filter(row=>row.state==='complete').length,latest);
       if(serverDDL(backend)) {
         assert.equal(ledger.at(-1)!.state,'applying');
         assert.equal(ledger.at(-1)!.schema_hash,null);
@@ -81,9 +84,9 @@ for(const backend of ['sqlite','postgres','mysql','mariadb'] as const) {
         await assert.rejects(migrate(c),/inconsistent-schema/);
         // Fixture-only repair to reuse this disposable database for the process-death test.
         await sql`drop table failure_probe`.execute(c.db);
-        await c.db.deleteFrom('storage_migrations').where('version','=',3).execute();
+        await c.db.deleteFrom('storage_migrations').where('version','=',next).execute();
       } else {
-        assert.equal(ledger.length,2);
+        assert.equal(ledger.length,latest);
         await assert.rejects(sql`select * from failure_probe`.execute(c.db));
       }
       await verifyCurrent(c);
@@ -99,14 +102,14 @@ for(const backend of ['sqlite','postgres','mysql','mariadb'] as const) {
       c=await openConnection<PhysicalDatabase>(fixture.config);
       if(serverDDL(backend)) {
         await assert.rejects(initializeDatabase(fixture.config),/inconsistent-schema/);
-        const dirty=await c.db.selectFrom('storage_migrations').selectAll().where('version','=',3).executeTakeFirstOrThrow();
+        const dirty=await c.db.selectFrom('storage_migrations').selectAll().where('version','=',next).executeTakeFirstOrThrow();
         assert.equal(dirty.state,'applying'); assert.equal(dirty.schema_hash,null);
         await sql`select * from interruption_probe`.execute(c.db);
         await sql`drop table interruption_probe`.execute(c.db);
-        await c.db.deleteFrom('storage_migrations').where('version','=',3).execute();
+        await c.db.deleteFrom('storage_migrations').where('version','=',next).execute();
       } else {
         await verifyCurrent(c);
-        assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length,2);
+        assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length,latest);
         await assert.rejects(sql`select * from interruption_probe`.execute(c.db));
       }
       await verifyCurrent(c);

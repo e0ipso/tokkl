@@ -80,7 +80,7 @@ export interface TasksRow {
   project_id: Int;
   name: string;
   active: DefaultInt;
-  estimated_seconds: Int | null;
+  estimated_seconds: Real | null;
   created_at: string;
   updated_at: string;
   name_key: GeneratedAlways<string | Uint8Array>;

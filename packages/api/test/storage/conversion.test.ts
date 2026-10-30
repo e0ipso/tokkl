@@ -15,7 +15,8 @@ test('IDs and integer counts reject overflow, coercions and partial strings', ()
 test('decimal rates and boolean variants normalize without truthiness', () => {
   assert.equal(finiteNumber('12.50'), 12.5);
   assert.equal(finiteNumber(0), 0);
-  for (const value of ['', ' ', '0x10', null, true, Infinity, 'NaN', '1e999', '9007199254740992']) assert.throws(() => finiteNumber(value));
+  for (const value of ['', ' ', '0x10', null, true, Infinity, 'NaN', '1e999']) assert.throws(() => finiteNumber(value));
+  for (const value of [1e100, Number.MAX_VALUE, '9007199254740992', '1e100']) assert.equal(finiteNumber(value), Number(value));
   for (const value of [true, 1, 1n, '1', 't', 'true']) assert.equal(booleanValue(value), true);
   for (const value of [false, 0, 0n, '0', 'f', 'false']) assert.equal(booleanValue(value), false);
   for (const value of [null, '', 'yes', 2, -1, [], {}]) assert.throws(() => booleanValue(value));

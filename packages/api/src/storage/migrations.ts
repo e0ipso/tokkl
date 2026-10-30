@@ -22,6 +22,9 @@ export function migrations(backend: Backend): readonly Migration[] {
   return [
     { version: 1, name: 'baseline', statements: baselineDDL(backend) },
     { version: 2, name: 'indexed_history_totals', statements: totalsIndexes.map(index => indexDDL(backend, index)) },
+    { version: 3, name: 'fractional_task_estimates', statements: backend === 'sqlite' ? [] : [backend === 'postgres'
+      ? 'ALTER TABLE tasks ALTER COLUMN estimated_seconds TYPE DOUBLE PRECISION'
+      : 'ALTER TABLE tasks MODIFY COLUMN estimated_seconds DOUBLE NULL'] },
   ];
 }
 const run = (db: Kysely<PhysicalDatabase>, statement: string) => sql.raw(statement).execute(db);

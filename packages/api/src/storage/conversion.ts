@@ -15,13 +15,13 @@ export function entityId(value: unknown): number {
   if (number <= 0) throw new Error('Invalid storage ID');
   return number;
 }
-/** Rates/decimals are bounded JS numbers; IDs, durations and aggregate counts use safeInteger. */
+/** Finite amounts retain JS number range. IDs, durations and counts use safeInteger. */
 export function finiteNumber(value: unknown): number {
   if (typeof value !== 'number' && !(typeof value === 'string' && /^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i.test(value))) {
     throw new Error('Invalid storage number');
   }
   const number = Number(value);
-  if (!Number.isFinite(number) || Math.abs(number) > Number.MAX_SAFE_INTEGER) throw new Error('Invalid storage number');
+  if (!Number.isFinite(number)) throw new Error('Invalid storage number');
   return number;
 }
 export function booleanValue(value: unknown): boolean {
@@ -31,7 +31,7 @@ export function booleanValue(value: unknown): boolean {
 }
 function copyJson(value: unknown, ancestors: Set<object>): JsonValue {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
-  if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value !== 'object' || ancestors.has(value)) throw new Error('Invalid storage JSON');
   ancestors.add(value);
   try {

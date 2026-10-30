@@ -10,7 +10,7 @@ function parameters(values: readonly unknown[]): SQLInputValue[] {
   return values.map((value) => {
     if (value === null || typeof value === 'string' || value instanceof Uint8Array) return value;
     if (typeof value === 'bigint') return BigInt(safeInteger(value));
-    if (typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER) return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
     throw new Error('Invalid SQLite binding');
   });
 }

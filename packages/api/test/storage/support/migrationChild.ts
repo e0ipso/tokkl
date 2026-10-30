@@ -7,7 +7,7 @@ const mode = process.env.TOKKL_TEST_MODE!;
 try {
   if (mode === 'interrupt') {
     const connection = await openConnection<PhysicalDatabase>(config);
-    await migrate(connection, [...migrations(config.backend), { version: 3, name: 'interruption_probe', statements: ['CREATE TABLE interruption_probe (value INTEGER)'] }], async () => {
+    await migrate(connection, [...migrations(config.backend), { version: migrations(config.backend).at(-1)!.version + 1, name: 'interruption_probe', statements: ['CREATE TABLE interruption_probe (value INTEGER)'] }], async () => {
       process.send?.('ddl-applied');
       await new Promise<void>(resolve => process.once('message', () => resolve()));
     });

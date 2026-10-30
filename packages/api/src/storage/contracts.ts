@@ -52,7 +52,7 @@ export interface TokensRepository {
   listPendingInvites(now: UtcInstant): Promise<AccountToken[]>;
   findUsable(tokenHash: string, kind: AccountToken['kind'], now: UtcInstant): Promise<AccountToken | undefined>;
   /** Compare-and-set: false for already used, expired or revoked tokens. */
-  consume(id: Id, now: UtcInstant): Promise<boolean>;
+  consume(id: Id, now: UtcInstant, userId?: Id): Promise<boolean>;
   revokeInvite(id: Id): Promise<boolean>;
   revokeInvitesCreatedBy(userId: Id): Promise<void>;
   revokeUnusedPasswordResets(userId: Id): Promise<void>;
@@ -70,7 +70,9 @@ export interface ClientsRepository {
   get(workspaceId: Id, id: Id): Promise<Client | undefined>;
   findByName(workspaceId: Id, name: string): Promise<Client | undefined>;
   create(input: Pick<Client, 'workspaceId' | 'name' | 'notes' | 'archived'>): Promise<Client>;
-  update(workspaceId: Id, id: Id, changes: Partial<Pick<Client, 'name' | 'notes'>>): Promise<Client>;
+  update(workspaceId: Id, id: Id, changes: Partial<Pick<Client, 'name' | 'notes' | 'archived'>>): Promise<Client>;
+  /** Caller validates project ownership before invoking this selective restore. */
+  restore(workspaceId: Id, id: Id, projectIds: Id[], all: boolean): Promise<Client>;
   /** Updates the client and its projects, returning project IDs whose active flag changed. */
   setArchived(workspaceId: Id, id: Id, archived: boolean): Promise<Id[]>;
   /** Atomically detaches projects, resolving resulting name collisions before removing the client. */
@@ -79,6 +81,9 @@ export interface ClientsRepository {
 export interface ProjectFilter { active?: boolean | 'both'; name?: string; clientIds?: Id[]; billable?: boolean; changedSince?: UtcInstant }
 export type ProjectInput = Omit<Project, 'id' | 'createdAt' | 'updatedAt'>;
 export interface ProjectsRepository {
+  count(workspaceId: Id): Promise<number>;
+  getMetadata(workspaceId: Id, id: Id): Promise<Project | undefined>;
+  listForClient(workspaceId: Id, clientId: Id): Promise<Array<Pick<Project, 'id' | 'name'>>>;
   list(workspaceId: Id, filter?: ProjectFilter): Promise<ProjectSummary[]>;
   get(workspaceId: Id, id: Id): Promise<ProjectSummary | undefined>;
   /** Indexed lookup; never computes history totals. */
@@ -90,7 +95,8 @@ export interface ProjectsRepository {
 }
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
 export interface TasksRepository {
-  list(workspaceId: Id, filter?: { projectId?: Id; active?: boolean }): Promise<TaskSummary[]>;
+  getMetadata(workspaceId: Id, id: Id): Promise<Task | undefined>;
+  list(workspaceId: Id, filter?: { projectId?: Id; active?: boolean; name?: string }): Promise<TaskSummary[]>;
   get(workspaceId: Id, id: Id, projectId?: Id): Promise<TaskSummary | undefined>;
   getRef(workspaceId: Id, id: Id): Promise<TaskRef | undefined>;
   findByName(workspaceId: Id, projectId: Id, name: string): Promise<Task | undefined>;
@@ -99,7 +105,8 @@ export interface TasksRepository {
   delete(workspaceId: Id, projectId: Id, id: Id): Promise<void>;
 }
 export interface TagsRepository {
-  list(workspaceId: Id): Promise<Tag[]>;
+  list(workspaceId: Id, search?: string): Promise<Tag[]>;
+  findByIds(workspaceId: Id, ids: readonly Id[]): Promise<Tag[]>;
   get(workspaceId: Id, id: Id): Promise<Tag | undefined>;
   findByName(workspaceId: Id, name: string): Promise<Tag | undefined>;
   resolveNames(workspaceId: Id, names: string[]): Promise<Tag[]>;

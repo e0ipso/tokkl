@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sql } from 'kysely';
-import { initializeDatabase, verifyCurrent } from '../../src/storage/migrations.ts';
+import { initializeDatabase, migrations, verifyCurrent } from '../../src/storage/migrations.ts';
 import { assertSchema, assertDefaultsAndForeignKeys } from './support/schemaAssertions.ts';
 import { assertInvariants } from './support/invariants.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -18,7 +18,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         await assertDefaultsAndForeignKeys(connection.db, backend);
         await assertInvariants(connection.db, backend);
         await verifyCurrent(connection);
-        assert.equal((await sql<{ n: number | string }>`select count(*) as n from storage_migrations`.execute(connection.db)).rows[0]!.n.toString(), '2');
+        assert.equal((await sql<{ n: number | string }>`select count(*) as n from storage_migrations`.execute(connection.db)).rows[0]!.n.toString(), String(migrations(backend).length));
       } finally { await connection.close(); }
       const restart = await initializeDatabase(fixture.config);
       await restart.close();
