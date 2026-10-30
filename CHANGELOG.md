@@ -1,3 +1,9 @@
+## [1.12.0](https://github.com/e0ipso/tokkl/compare/v1.11.1...v1.12.0) (2026-10-30)
+
+### Features
+
+* **web:** show release version in sidebar ([b570f6d](https://github.com/e0ipso/tokkl/commit/b570f6dacd5390c72179ecc2dbdd4d8e98fbd4e9)), closes [#54](https://github.com/e0ipso/tokkl/issues/54)
+
 ## [1.11.1](https://github.com/e0ipso/tokkl/compare/v1.11.0...v1.11.1) (2026-10-28)
 
 ### Bug Fixes
