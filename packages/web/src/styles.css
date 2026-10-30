@@ -596,6 +596,7 @@ input.entry-duration:is(:hover, :focus) {
 .signed-in-name, .signed-in-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .signed-in-name { font-weight: 700; }
 .signed-in-email { color: var(--muted); }
+.app-version { padding: 8px 10px 0; color: var(--muted); font-size: var(--text-sm); }
 .content { flex: 1; min-width: 0; padding: 24px clamp(12px, 3vw, 40px) 80px; }
 .page { max-width: 1100px; margin: 0 auto; }
 .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: var(--space-5); flex-wrap: wrap; }

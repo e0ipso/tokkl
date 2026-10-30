@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Switch, useLocation, useRoute } from 'wouter';
+import { version } from '../../../package.json';
 import { ApiError, api } from './api/client.ts';
 import { useCurrentEntry, useMe, usePreferences } from './api/hooks.ts';
 import { TimerStateProvider } from './api/TimerStateProvider.tsx';
@@ -252,6 +253,7 @@ function Shell() {
                 {moreItems.map((item) => navLink(item, closeMore))}
                 <SignedInUser />
                 {logoutButton}
+                <div className="app-version">Version {version}</div>
               </MoreSheet>
             ) : null}
           </>
@@ -262,6 +264,7 @@ function Shell() {
             <span className="spacer" />
             <SignedInUser />
             {logoutButton}
+            <div className="app-version">Version {version}</div>
           </>
         )}
       </nav>
