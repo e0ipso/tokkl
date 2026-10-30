@@ -1,4 +1,4 @@
-import type { Kysely, Selectable, Updateable } from 'kysely';
+import { sql, type Kysely, type Selectable, type Updateable } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase, TimeEntriesRow } from '../physical.ts';
 import type { EntryFilter, EntryInput, Repositories } from '../contracts.ts';
@@ -113,7 +113,10 @@ export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: B
     },
     async listAllDay(userId) { return (await db.selectFrom('time_entries').selectAll().where('user_id', '=', userId).where('all_day', '=', 1).execute()).map(entryValue); },
     async findDuplicate(key) {
-      let q = db.selectFrom('time_entries').select('id').where('user_id', '=', key.userId).where('start', '=', key.start).where('description', '=', key.description).where('deleted_at', 'is', null);
+      let q = db.selectFrom('time_entries').select('id').where('user_id', '=', key.userId).where('start', '=', key.start).where('deleted_at', 'is', null);
+      q = backend === 'mysql' || backend === 'mariadb'
+        ? q.where(sql<boolean>`cast(description as binary) = cast(${key.description} as binary)`)
+        : q.where('description', '=', key.description);
       q = key.stop === null ? q.where('stop', 'is', null) : q.where('stop', '=', key.stop);
       q = key.projectId === null ? q.where('project_id', 'is', null) : q.where('project_id', '=', key.projectId);
       const row = await q.executeTakeFirst(); return row && entityId(row.id);
