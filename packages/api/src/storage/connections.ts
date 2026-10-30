@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import pg, { type PoolConfig } from 'pg';
 import mysql, { type PoolOptions } from 'mysql2';
 import { Kysely, MysqlDialect, PostgresDialect, sql, type Dialect, type MysqlPool, type MysqlPoolConnection, type MysqlQueryResult } from 'kysely';
+import { StorageTransactionError } from './errors.ts';
 import { utcSqlInstant } from './conversion.ts';
 import { NodeSqliteDialect } from './sqliteBridge.ts';
 import { safeDestination, type ServerConfig, type StorageConfig } from './config.ts';
@@ -64,7 +65,7 @@ function mysqlPool(config: ServerConfig, readOnly: boolean): MysqlPool {
         query: (query, parameters, done) => raw.query({ sql: query, timeout: config.queryTimeoutMs }, parameters,
           done ? (failure, result) => {
             // A timeout makes connection state uncertain. Never return it to the pool.
-            if (failure && failure.code === 'PROTOCOL_SEQUENCE_TIMEOUT') raw.destroy();
+            if (failure && (failure.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || /^(COMMIT|ROLLBACK)$/i.test(query.trim()))) raw.destroy();
             done(failure, result as MysqlQueryResult);
           } : undefined),
       };
@@ -108,7 +109,32 @@ export async function openConnection<Database = Record<string, never>>(config: S
       // An idle socket error must not crash the process or log driver credentials. The next health
       // check/query establishes availability; pg removes failed idle clients from the pool.
       pool.on('error', () => {});
-      dialect = new PostgresDialect({ pool });
+      dialect = new PostgresDialect({ pool: {
+        options: pool.options,
+        end: () => pool.end(),
+        async connect() {
+          const raw = await pool.connect();
+          let poisoned = false;
+          // Discard uncertain sessions rather than returning a transaction to another operation.
+          return new Proxy(raw, {
+            get(target, property) {
+              if (property === 'release') return () => raw.release(poisoned);
+              if (property === 'query') return async (query: string, parameters: readonly unknown[]) => {
+                try {
+                  const result = await raw.query(query, [...parameters]);
+                  // PostgreSQL answers COMMIT with ROLLBACK when an error was swallowed.
+                  if (/^COMMIT$/i.test(query.trim()) && result.command !== 'COMMIT') throw new StorageTransactionError('rolled-back');
+                  return result;
+                } catch (error) {
+                  if (/^(COMMIT|ROLLBACK)$/i.test(query.trim()) || (error instanceof Error && /timeout/i.test(error.message))) poisoned = true;
+                  throw error;
+                }
+              };
+              return Reflect.get(target, property);
+            },
+          });
+        },
+      } });
     } else {
       dialect = new MysqlDialect({ pool: mysqlPool(config, readOnly) });
     }

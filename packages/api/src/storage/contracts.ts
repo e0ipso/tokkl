@@ -167,17 +167,20 @@ export interface Repositories {
   projects: ProjectsRepository; tasks: TasksRepository; tags: TagsRepository;
   entries: EntriesRepository; timers: TimersRepository; reports: ReportsRepository; transfers: TransfersRepository;
 }
-/** Declaration only. A concrete context binds every repository to the same operation connection. */
-export interface TransactionContext extends Repositories {
-  transaction<T>(work: (context: TransactionContext) => Promise<T>): Promise<T>;
-  savepoint<T>(work: (context: TransactionContext) => Promise<T>): Promise<T>;
+/** SQL-free operations shared by transaction-bound repository sets. */
+export interface TransactionScope<R extends object> {
+  transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
+  savepoint<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   beforeCommit(key: string, callback: () => Promise<void>): void;
   afterCommit(callback: () => Promise<void>): void;
   lockUserTimer(userId: Id): Promise<void>;
   lockInstanceAdministration(): Promise<void>;
+  /** Acquire instance, then ascending workspaces, then ascending users, across all calls. */
   lockUsers(userIds: Id[]): Promise<void>;
   lockWorkspaces(workspaceIds: Id[]): Promise<void>;
 }
+export type OperationContext<R extends object> = R & TransactionScope<R>;
+export type TransactionContext = OperationContext<Repositories>;
 export interface Storage extends Repositories {
   transaction<T>(work: (context: TransactionContext) => Promise<T>): Promise<T>;
   readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;

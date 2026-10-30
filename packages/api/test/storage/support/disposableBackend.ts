@@ -21,16 +21,26 @@ export async function disposableBackend(backend: Backend): Promise<DisposableBac
   const environment = backend === 'postgres' ? { POSTGRES_PASSWORD: password, POSTGRES_USER: 'tokkl', POSTGRES_DB: 'tokkl_test' }
     : backend === 'mysql' ? { MYSQL_ROOT_PASSWORD: password, MYSQL_USER: 'tokkl', MYSQL_PASSWORD: password, MYSQL_DATABASE: 'tokkl_test' }
     : { MARIADB_ROOT_PASSWORD: password, MARIADB_USER: 'tokkl', MARIADB_PASSWORD: password, MARIADB_DATABASE: 'tokkl_test' };
-  let owned = false;
+  let ownedId: string | undefined;
   const cleanup = async () => {
-    try { if (owned) await exec('docker', ['rm', '-f', '-v', name]); }
+    try { if (ownedId) await exec('docker', ['rm', '-f', '-v', ownedId]); }
     finally { rmSync(dir, { recursive: true, force: true }); }
   };
   try {
     // Values come from the child environment, so credentials never appear in argv or retained logs.
-    await exec('docker', ['run', '-d', '--name', name, '--label', 'com.tokkl.disposable-test=true', '-p', `127.0.0.1::${backend === 'postgres' ? 5432 : 3306}`, ...Object.keys(environment).flatMap(key => ['-e', key]), images[backend], ...(backend === 'mysql' ? ['--log-bin-trust-function-creators=ON'] : [])], { env: { ...process.env, ...environment } });
-    owned = true;
-    const { stdout } = await exec('docker', ['port', name, backend === 'postgres' ? '5432/tcp' : '3306/tcp']);
+    for (let attempt = 1; ; attempt++) {
+      const created = await exec('docker', ['create', '--name', name, '--label', 'com.tokkl.disposable-test=true', '-p', `127.0.0.1::${backend === 'postgres' ? 5432 : 3306}`, ...Object.keys(environment).flatMap(key => ['-e', key]), images[backend], ...(backend === 'mysql' ? ['--log-bin-trust-function-creators=ON'] : [])], { env: { ...process.env, ...environment } });
+      ownedId = created.stdout.trim();
+      try { await exec('docker', ['start', ownedId]); break; }
+      catch (error) {
+        // Rootless Docker's allocator can choose a port held by a host process. A fresh
+        // container gets a new allocation; always remove the exact failed container first.
+        await exec('docker', ['rm', '-f', '-v', ownedId]);
+        ownedId = undefined;
+        if (attempt >= 5 || !/bind: address already in use/.test(String((error as { stderr?: string }).stderr))) throw error;
+      }
+    }
+    const { stdout } = await exec('docker', ['port', ownedId!, backend === 'postgres' ? '5432/tcp' : '3306/tcp']);
     const port = Number(stdout.trim().split(':').at(-1));
     const config = parseStorageConfig({ TOKKL_DATABASE_URL: `${backend}://tokkl:${password}@127.0.0.1:${port}/tokkl_test?sslmode=disable&connect_timeout_ms=500` }, dir);
     const deadline = Date.now() + 120000;

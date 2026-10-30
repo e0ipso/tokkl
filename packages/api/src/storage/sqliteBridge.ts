@@ -1,5 +1,6 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
+import { setTimeout } from 'node:timers/promises';
 import { dirname } from 'node:path';
 import { CompiledQuery, SqliteDialect, SqliteDriver, type DatabaseConnection, type SqliteDatabase } from 'kysely';
 import { safeInteger } from './conversion.ts';
@@ -40,12 +41,21 @@ function bridge(database: DatabaseSync): SqliteDatabase {
 }
 class NodeSqliteDriver extends SqliteDriver {
   #readOnly: boolean;
+  #queue: Promise<void> = Promise.resolve();
+  #release: (() => void) | undefined;
   constructor(database: SqliteDatabase | (() => Promise<SqliteDatabase>), readOnly: boolean) {
     super({ database });
     this.#readOnly = readOnly;
   }
+  override async acquireConnection(): Promise<DatabaseConnection> {
+    const previous = this.#queue;
+    this.#queue = new Promise(resolve => { void previous.then(() => { this.#release = resolve; }); });
+    await previous;
+    return super.acquireConnection();
+  }
+  override async releaseConnection(): Promise<void> { this.#release?.(); }
   override async beginTransaction(connection: DatabaseConnection): Promise<void> {
-    await connection.executeQuery(CompiledQuery.raw(this.#readOnly ? 'BEGIN' : 'BEGIN IMMEDIATE'));
+    await beginSqliteTransaction(connection, this.#readOnly);
   }
 }
 
@@ -72,4 +82,22 @@ export class NodeSqliteDialect extends SqliteDialect {
     this.#readOnly = readOnly;
   }
   override createDriver(): SqliteDriver { return new NodeSqliteDriver(this.#open, this.#readOnly); }
+}
+
+/** A sync busy wait would block the async owner that needs to commit on another handle. */
+export async function beginSqliteTransaction(connection: DatabaseConnection, readOnly: boolean): Promise<void> {
+  if (readOnly) { await connection.executeQuery(CompiledQuery.raw('BEGIN')); return; }
+  const timeout = await connection.executeQuery<{ timeout: number }>(CompiledQuery.raw('PRAGMA busy_timeout'));
+  const milliseconds = timeout.rows[0]!.timeout;
+  await connection.executeQuery(CompiledQuery.raw('PRAGMA busy_timeout = 0'));
+  try {
+    const deadline = Date.now() + milliseconds;
+    for (;;) {
+      try { await connection.executeQuery(CompiledQuery.raw('BEGIN IMMEDIATE')); break; }
+      catch (error) {
+        if (!(error instanceof Error) || !('errcode' in error) || Number(error.errcode) % 256 !== 5 || Date.now() >= deadline) throw error;
+        await setTimeout(5);
+      }
+    }
+  } finally { await connection.executeQuery(CompiledQuery.raw(`PRAGMA busy_timeout = ${milliseconds}`)); }
 }
