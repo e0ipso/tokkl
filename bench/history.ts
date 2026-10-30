@@ -419,7 +419,13 @@ async function runFixture(spec: FixtureSpec) {
     check(start.data.stop === null && start.data.duration < 0, `${spec.name}: timer start returns a running entry`);
     const stop = await client.ok('PATCH', `${ws}/time_entries/${start.data.id}/stop`);
     check(stop.data.stop !== null, `${spec.name}: timer stop sets stop`);
-    await client.ok('DELETE', `${ws}/time_entries/${start.data.id}`);
+    if (stop.data.server_deleted_at === null) {
+      await client.ok('DELETE', `${ws}/time_entries/${start.data.id}`);
+    } else {
+      check(typeof stop.data.server_deleted_at === 'string', `${spec.name}: rounded-zero timer is marked deleted`);
+      equal(stop.data.start, stop.data.stop, `${spec.name}: rounded-zero timer has no retained span`);
+      equal(stop.data.duration, 0, `${spec.name}: rounded-zero timer has zero duration`);
+    }
     return { start: start.ms, stop: stop.ms };
   };
   const idleStart: number[] = [];
@@ -451,7 +457,7 @@ async function runFixture(spec: FixtureSpec) {
     const index = created.length;
     const start = Date.parse(`${writeDay}T06:00:00Z`) + index * 60_000;
     const result = await client.ok('POST', `${ws}/time_entries`, {
-      description: `Write ${index}`, start: isoSeconds(start), stop: isoSeconds(start + 30_000), project_id: null, created_with: 'bench', workspace_id: client.workspaceId,
+      description: `Write ${index}`, start: isoSeconds(start), stop: isoSeconds(start + 5 * 60_000), project_id: null, created_with: 'bench', workspace_id: client.workspaceId,
     });
     created.push(result.data.id);
     return result;

@@ -1,0 +1,186 @@
+[
+  {
+    "name": "CSV dry run with invalid middle row",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "dry_run": true,
+      "rows": 3,
+      "created": 2,
+      "skipped_duplicates": 0,
+      "created_projects": [
+        "Website (ACME)"
+      ],
+      "created_clients": [
+        "ACME"
+      ],
+      "errors": [
+        {
+          "row": 3,
+          "message": "Invalid start date or time"
+        }
+      ],
+      "users": [
+        {
+          "key": "[\"Me\",\"me@example.com\"]",
+          "user": "Me",
+          "email": "me@example.com",
+          "rows": 3
+        }
+      ],
+      "skipped": []
+    }
+  },
+  {
+    "name": "CSV dry run leaves entries empty",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": []
+  },
+  {
+    "name": "CSV import continues after invalid row",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "dry_run": false,
+      "rows": 3,
+      "created": 2,
+      "skipped_duplicates": 0,
+      "created_projects": [
+        "Website (ACME)"
+      ],
+      "created_clients": [
+        "ACME"
+      ],
+      "errors": [
+        {
+          "row": 3,
+          "message": "Invalid start date or time"
+        }
+      ],
+      "users": [
+        {
+          "key": "[\"Me\",\"me@example.com\"]",
+          "user": "Me",
+          "email": "me@example.com",
+          "rows": 3
+        }
+      ],
+      "skipped": []
+    }
+  },
+  {
+    "name": "CSV reimport skips duplicates",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "dry_run": false,
+      "rows": 3,
+      "created": 0,
+      "skipped_duplicates": 2,
+      "created_projects": [],
+      "created_clients": [],
+      "errors": [
+        {
+          "row": 3,
+          "message": "Invalid start date or time"
+        }
+      ],
+      "users": [
+        {
+          "key": "[\"Me\",\"me@example.com\"]",
+          "user": "Me",
+          "email": "me@example.com",
+          "rows": 3
+        }
+      ],
+      "skipped": []
+    }
+  },
+  {
+    "name": "CSV imported exact times and ordered tags",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": [
+      {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": null,
+        "task_id": null,
+        "billable": false,
+        "start": "2026-10-24T22:00:00+00:00",
+        "stop": "2026-10-24T22:45:00+00:00",
+        "duration": 2700,
+        "description": "No times",
+        "tags": [],
+        "tag_ids": [],
+        "duronly": true,
+        "all_day": true,
+        "at": "2026-10-30T12:00:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": null,
+        "tid": null,
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": null,
+        "project_color": null,
+        "project_active": null,
+        "project_billable": null,
+        "client_id": null,
+        "client_name": null,
+        "task_name": null,
+        "task_active": null,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      },
+      {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "billable": true,
+        "start": "2026-10-05T08:01:20+00:00",
+        "stop": "2026-10-05T09:31:40+00:00",
+        "duration": 5420,
+        "description": "Homepage, hero",
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "duronly": true,
+        "all_day": false,
+        "at": "2026-10-30T12:00:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": "<id>",
+        "tid": "<id>",
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": "Website",
+        "project_color": "#0b83d9",
+        "project_active": true,
+        "project_billable": false,
+        "client_id": "<id>",
+        "client_name": "ACME",
+        "task_name": "Design",
+        "task_active": true,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      }
+    ]
+  }
+]

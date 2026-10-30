@@ -1,0 +1,630 @@
+[
+  {
+    "name": "stopped entry rounds and infers project from task",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "id": "<id>",
+      "workspace_id": "<id>",
+      "project_id": "<id>",
+      "task_id": "<id>",
+      "billable": true,
+      "start": "2026-10-05T09:00:00+00:00",
+      "stop": "2026-10-05T10:30:00+00:00",
+      "duration": 5400,
+      "description": "Literal _% and É",
+      "tags": [
+        "Alpha",
+        "zebra"
+      ],
+      "tag_ids": [
+        "<id>",
+        "<id>"
+      ],
+      "duronly": true,
+      "all_day": false,
+      "at": "2026-10-30T12:00:00+00:00",
+      "server_deleted_at": null,
+      "user_id": "<id>",
+      "uid": "<id>",
+      "wid": "<id>",
+      "pid": "<id>",
+      "tid": "<id>",
+      "permissions": null,
+      "expense_ids": []
+    }
+  },
+  {
+    "name": "entry with metadata and canonical tag order",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "id": "<id>",
+      "workspace_id": "<id>",
+      "project_id": "<id>",
+      "task_id": "<id>",
+      "billable": true,
+      "start": "2026-10-05T09:00:00+00:00",
+      "stop": "2026-10-05T10:30:00+00:00",
+      "duration": 5400,
+      "description": "Literal _% and É",
+      "tags": [
+        "Alpha",
+        "zebra"
+      ],
+      "tag_ids": [
+        "<id>",
+        "<id>"
+      ],
+      "duronly": true,
+      "all_day": false,
+      "at": "2026-10-30T12:00:00+00:00",
+      "server_deleted_at": null,
+      "user_id": "<id>",
+      "uid": "<id>",
+      "wid": "<id>",
+      "pid": "<id>",
+      "tid": "<id>",
+      "permissions": null,
+      "expense_ids": [],
+      "project_name": "Build",
+      "project_color": "#123456",
+      "project_active": true,
+      "project_billable": true,
+      "client_id": null,
+      "client_name": null,
+      "task_name": "Ship",
+      "task_active": true,
+      "user_name": "Test User",
+      "user_avatar_url": ""
+    }
+  },
+  {
+    "name": "task tracked time remains milliseconds",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": [
+      {
+        "id": "<id>",
+        "name": "Ship",
+        "workspace_id": "<id>",
+        "project_id": "<id>",
+        "user_id": null,
+        "active": true,
+        "at": "2026-10-30T12:00:00+00:00",
+        "estimated_seconds": null,
+        "tracked_seconds": 5400000,
+        "server_deleted_at": null,
+        "project_name": "Build",
+        "project_color": "#123456",
+        "project_billable": true,
+        "project_is_private": true,
+        "client_id": null,
+        "client_name": null,
+        "rate": null,
+        "recurring": false,
+        "permissions": null,
+        "integration_provider": null
+      }
+    ]
+  },
+  {
+    "name": "all-day entry on DST fall-back date",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "id": "<id>",
+      "workspace_id": "<id>",
+      "project_id": null,
+      "task_id": null,
+      "billable": false,
+      "start": "2026-10-24T22:00:00+00:00",
+      "stop": "2026-10-24T23:30:00+00:00",
+      "duration": 5400,
+      "description": "No times",
+      "tags": [],
+      "tag_ids": [],
+      "duronly": true,
+      "all_day": true,
+      "at": "2026-10-30T12:00:00+00:00",
+      "server_deleted_at": null,
+      "user_id": "<id>",
+      "uid": "<id>",
+      "wid": "<id>",
+      "pid": null,
+      "tid": null,
+      "permissions": null,
+      "expense_ids": []
+    }
+  },
+  {
+    "name": "invalid timestamp error",
+    "status": 400,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": "Invalid start: expected an RFC 3339 timestamp"
+  },
+  {
+    "name": "missing project error",
+    "status": 404,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": "Project not found"
+  },
+  {
+    "name": "edit stopped entry",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "id": "<id>",
+      "workspace_id": "<id>",
+      "project_id": "<id>",
+      "task_id": "<id>",
+      "billable": true,
+      "start": "2026-10-05T09:00:00+00:00",
+      "stop": "2026-10-05T10:30:00+00:00",
+      "duration": 5400,
+      "description": "Renamed _%",
+      "tags": [
+        "Alpha",
+        "zebra"
+      ],
+      "tag_ids": [
+        "<id>",
+        "<id>"
+      ],
+      "duronly": true,
+      "all_day": false,
+      "at": "2026-10-30T12:00:00+00:00",
+      "server_deleted_at": null,
+      "user_id": "<id>",
+      "uid": "<id>",
+      "wid": "<id>",
+      "pid": "<id>",
+      "tid": "<id>",
+      "permissions": null,
+      "expense_ids": []
+    }
+  },
+  {
+    "name": "ordered entries with metadata",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": [
+      {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": null,
+        "task_id": null,
+        "billable": false,
+        "start": "2026-10-24T22:00:00+00:00",
+        "stop": "2026-10-24T23:30:00+00:00",
+        "duration": 5400,
+        "description": "No times",
+        "tags": [],
+        "tag_ids": [],
+        "duronly": true,
+        "all_day": true,
+        "at": "2026-10-30T12:00:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": null,
+        "tid": null,
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": null,
+        "project_color": null,
+        "project_active": null,
+        "project_billable": null,
+        "client_id": null,
+        "client_name": null,
+        "task_name": null,
+        "task_active": null,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      },
+      {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "billable": true,
+        "start": "2026-10-05T09:00:00+00:00",
+        "stop": "2026-10-05T10:30:00+00:00",
+        "duration": 5400,
+        "description": "Renamed _%",
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "duronly": true,
+        "all_day": false,
+        "at": "2026-10-30T12:00:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": "<id>",
+        "tid": "<id>",
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": "Build",
+        "project_color": "#123456",
+        "project_active": true,
+        "project_billable": true,
+        "client_id": null,
+        "client_name": null,
+        "task_name": "Ship",
+        "task_active": true,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      }
+    ]
+  },
+  {
+    "name": "initial timer state",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "revision": 0,
+      "server_time": "2026-10-30T12:00:00.000Z",
+      "running_entry": null,
+      "pause": null,
+      "pomodoro": null,
+      "discarded_pomodoro": null
+    }
+  },
+  {
+    "name": "running entry",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "id": "<id>",
+      "workspace_id": "<id>",
+      "project_id": "<id>",
+      "task_id": "<id>",
+      "billable": true,
+      "start": "2026-10-30T11:45:00+00:00",
+      "stop": null,
+      "duration": -1793360700,
+      "description": "Running",
+      "tags": [
+        "Alpha",
+        "zebra"
+      ],
+      "tag_ids": [
+        "<id>",
+        "<id>"
+      ],
+      "duronly": true,
+      "all_day": false,
+      "at": "2026-10-30T12:00:00+00:00",
+      "server_deleted_at": null,
+      "user_id": "<id>",
+      "uid": "<id>",
+      "wid": "<id>",
+      "pid": "<id>",
+      "tid": "<id>",
+      "permissions": null,
+      "expense_ids": []
+    }
+  },
+  {
+    "name": "running timer state",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "revision": 1,
+      "server_time": "2026-10-30T12:00:00.000Z",
+      "running_entry": {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "billable": true,
+        "start": "2026-10-30T11:45:00+00:00",
+        "stop": null,
+        "duration": -1793360700,
+        "description": "Running",
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "duronly": true,
+        "all_day": false,
+        "at": "2026-10-30T12:00:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": "<id>",
+        "tid": "<id>",
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": "Build",
+        "project_color": "#123456",
+        "project_active": true,
+        "project_billable": true,
+        "client_id": null,
+        "client_name": null,
+        "task_name": "Ship",
+        "task_active": true,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      },
+      "pause": null,
+      "pomodoro": null,
+      "discarded_pomodoro": null
+    }
+  },
+  {
+    "name": "pause timer",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "revision": 2,
+      "server_time": "2026-10-30T12:05:00.000Z",
+      "running_entry": null,
+      "pause": {
+        "paused": true,
+        "seconds": 1200,
+        "workspace_id": "<id>",
+        "description": "Running",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "billable": true,
+        "clone_entry_id": null
+      },
+      "pomodoro": null,
+      "discarded_pomodoro": null
+    }
+  },
+  {
+    "name": "stale resume carries current state",
+    "status": 409,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "revision": 2,
+      "server_time": "2026-10-30T12:05:00.000Z",
+      "running_entry": null,
+      "pause": {
+        "paused": true,
+        "seconds": 1200,
+        "workspace_id": "<id>",
+        "description": "Running",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "billable": true,
+        "clone_entry_id": null
+      },
+      "pomodoro": null,
+      "discarded_pomodoro": null
+    }
+  },
+  {
+    "name": "resume timer",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "revision": 3,
+      "server_time": "2026-10-30T12:10:00.000Z",
+      "running_entry": {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "billable": true,
+        "start": "2026-10-30T12:10:00+00:00",
+        "stop": null,
+        "duration": -1793362200,
+        "description": "Running",
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "duronly": true,
+        "all_day": false,
+        "at": "2026-10-30T12:10:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": "<id>",
+        "tid": "<id>",
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": "Build",
+        "project_color": "#123456",
+        "project_active": true,
+        "project_billable": true,
+        "client_id": null,
+        "client_name": null,
+        "task_name": "Ship",
+        "task_active": true,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      },
+      "pause": {
+        "paused": false,
+        "seconds": 1200,
+        "workspace_id": "<id>",
+        "description": "Running",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "billable": true,
+        "clone_entry_id": "<id>"
+      },
+      "pomodoro": null,
+      "discarded_pomodoro": null
+    }
+  },
+  {
+    "name": "stop resumed timer",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "id": "<id>",
+      "workspace_id": "<id>",
+      "project_id": "<id>",
+      "task_id": "<id>",
+      "billable": true,
+      "start": "2026-10-30T12:10:00+00:00",
+      "stop": "2026-10-30T12:25:00+00:00",
+      "duration": 900,
+      "description": "Running",
+      "tags": [
+        "Alpha",
+        "zebra"
+      ],
+      "tag_ids": [
+        "<id>",
+        "<id>"
+      ],
+      "duronly": true,
+      "all_day": false,
+      "at": "2026-10-30T12:25:00+00:00",
+      "server_deleted_at": null,
+      "user_id": "<id>",
+      "uid": "<id>",
+      "wid": "<id>",
+      "pid": "<id>",
+      "tid": "<id>",
+      "permissions": null,
+      "expense_ids": []
+    }
+  },
+  {
+    "name": "idle timer after stop",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "revision": 4,
+      "server_time": "2026-10-30T12:25:00.000Z",
+      "running_entry": null,
+      "pause": null,
+      "pomodoro": null,
+      "discarded_pomodoro": null
+    }
+  },
+  {
+    "name": "stop already stopped entry error",
+    "status": 409,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": "Time entry already stopped"
+  },
+  {
+    "name": "delete stopped entry empty response",
+    "status": 200,
+    "contentType": null,
+    "disposition": null,
+    "body": ""
+  },
+  {
+    "name": "deleted entry is unavailable",
+    "status": 404,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": "Time entry not found"
+  },
+  {
+    "name": "trash contains deleted entry",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": [
+      {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "billable": true,
+        "start": "2026-10-05T09:00:00+00:00",
+        "stop": "2026-10-05T10:30:00+00:00",
+        "duration": 5400,
+        "description": "Renamed _%",
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "duronly": true,
+        "all_day": false,
+        "at": "2026-10-30T12:25:00+00:00",
+        "server_deleted_at": "2026-10-30T12:25:00+00:00",
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": "<id>",
+        "tid": "<id>",
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": "Build",
+        "project_color": "#123456",
+        "project_active": true,
+        "project_billable": true,
+        "client_id": null,
+        "client_name": null,
+        "task_name": "Ship",
+        "task_active": true,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      }
+    ]
+  }
+]
