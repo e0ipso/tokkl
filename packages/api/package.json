@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test --test-reporter=spec 'test/**/*.test.ts'",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:storage:migrations": "node --test --test-reporter=spec test/storage/migrations.test.ts test/storage/migrationLifecycle.test.ts test/storage/legacyPreflight.test.ts"
   },
   "dependencies": {
     "@tokkl/common": "0.1.0",
