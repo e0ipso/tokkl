@@ -1,3 +1,13 @@
+## [1.13.0](https://github.com/e0ipso/tokkl/compare/v1.12.0...v1.13.0) (2026-10-30)
+
+### Features
+
+* **web:** add calendar all-day creation ([a860c81](https://github.com/e0ipso/tokkl/commit/a860c81384e18a47d714891e65951ed47c628c09))
+
+### Bug Fixes
+
+* **web:** isolate all-day dialog lifetimes ([66b9258](https://github.com/e0ipso/tokkl/commit/66b925835b17e1734dede6f484b5bc2384938c67))
+
 ## [1.12.0](https://github.com/e0ipso/tokkl/compare/v1.11.1...v1.12.0) (2026-10-30)
 
 ### Features
