@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
-import { INVITE_NOT_FOUND } from '../src/models/accountTokens.ts';
+import { INVITE_NOT_FOUND } from '../src/domain/accounts.ts';
 import { addUser, CSRF, setup, type TestContext } from './helpers.ts';
 
 const DAY_MS = 86_400_000;
@@ -31,8 +31,8 @@ const counts = (ctx: TestContext) => ({
 });
 
 test('an admin creates an invite, sees its URL once, and lists it without the token', async () => {
-  const admin = await setup();
-  const created = await invite(admin, { role: 'admin', note: '  For Ana  ' });
+  const admin = (await setup());
+  const created = (await invite(admin, { role: 'admin', note: '  For Ana  ' }));
   assert.match(created.url, /^\/invite\/[A-Za-z0-9_-]{43}$/, '32 random bytes, base64url');
   assert.equal(new Set([created.token, (await invite(admin)).token]).size, 2);
 
@@ -59,22 +59,22 @@ test('an admin creates an invite, sees its URL once, and lists it without the to
 });
 
 test('a new invite expires after the stored invite_days', async () => {
-  const admin = await setup();
+  const admin = (await setup());
   const lifetime = (created: { created_at: string; expires_at: string }) =>
     Date.parse(created.expires_at) - Date.parse(created.created_at);
   // Toggl timestamps drop milliseconds, so allow one second either way.
-  assert.ok(Math.abs(lifetime(await invite(admin)) - 7 * DAY_MS) <= 1000, 'seven days by default');
+  assert.ok(Math.abs(lifetime((await invite(admin))) - 7 * DAY_MS) <= 1000, 'seven days by default');
   assert.equal((await admin.json('PUT', '/api/app/admin/settings', { invite_days: 3 })).status, 200);
-  const created = await invite(admin);
+  const created = (await invite(admin));
   assert.ok(Math.abs(lifetime(created) - 3 * DAY_MS) <= 1000);
   const row = admin.db.prepare('SELECT created_at, expires_at FROM account_tokens WHERE id = ?').get(created.id) as Record<string, string>;
   assert.equal(Date.parse(row.expires_at!) - Date.parse(row.created_at!), 3 * DAY_MS);
 });
 
 test('a regular user gets 403 from every admin invite route', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const created = await invite(admin);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const created = (await invite(admin));
   for (const [method, path, body] of [
     ['POST', '/api/app/admin/invites', { role: 'admin' }],
     ['GET', '/api/app/admin/invites', undefined],
@@ -86,8 +86,8 @@ test('a regular user gets 403 from every admin invite route', async () => {
 });
 
 test('accepting an invite creates the account, its workspace and membership, and signs it in', async () => {
-  const admin = await setup();
-  const created = await invite(admin, { role: 'admin' });
+  const admin = (await setup());
+  const created = (await invite(admin, { role: 'admin' }));
   const check = await anonymous(admin, 'GET', `/api/app/invites/${created.token}`);
   assert.equal(check.status, 200);
   assert.deepEqual(await check.json(), { role: 'admin' });
@@ -126,7 +126,7 @@ test('accepting an invite creates the account, its workspace and membership, and
   assert.equal((await admin.json('GET', '/api/app/admin/invites')).body.length, 0, 'a used invite is no longer pending');
 
   // With no name, the workspace is "My workspace", as for the first admin.
-  const unnamed = await invite(admin);
+  const unnamed = (await invite(admin));
   assert.equal((await accept(admin, unnamed.token, { email: 'nameless@example.com' })).status, 200);
   const nameless = admin.db.prepare(`
     SELECT users.role, workspaces.name FROM users JOIN workspaces ON workspaces.id = users.default_workspace_id
@@ -136,10 +136,10 @@ test('accepting an invite creates the account, its workspace and membership, and
 });
 
 test('accepting an invite stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
-  const admin = await setup();
+  const admin = (await setup());
   const zoneOf = (email: string) => (admin.db.prepare('SELECT timezone FROM users WHERE email = ?').get(email) as { timezone: string }).timezone;
 
-  const created = await invite(admin);
+  const created = (await invite(admin));
   const before = counts(admin);
   for (const timezone of ['+02:00', '-0500', 'Bogus/Zone']) {
     const refused = await accept(admin, created.token, { email: 'ana@example.com', timezone });
@@ -159,12 +159,12 @@ test('accepting an invite stores the canonical timezone, refuses invalid and off
 });
 
 test('a failure inside the acceptance leaves no account, workspace, membership or used token', async () => {
-  const admin = await setup();
-  const created = await invite(admin);
+  const admin = (await setup());
+  const created = (await invite(admin));
   const before = counts(admin);
   // The membership insert is the last write before the token is marked used.
   admin.db.exec(`
-    CREATE TEMP TRIGGER fail_membership BEFORE INSERT ON workspace_users
+    CREATE TRIGGER fail_membership BEFORE INSERT ON workspace_users
     BEGIN SELECT RAISE(ABORT, 'forced failure'); END
   `);
   const originalError = console.error;
@@ -180,9 +180,9 @@ test('a failure inside the acceptance leaves no account, workspace, membership o
 });
 
 test('accepting an invite without the CSRF header is refused before the token lookup', async () => {
-  const admin = await setup();
-  const first = await invite(admin);
-  const second = await invite(admin);
+  const admin = (await setup());
+  const first = (await invite(admin));
+  const second = (await invite(admin));
   const before = counts(admin);
   // A cross-site form with enctype="text/plain" can post a JSON body, but it cannot set a CSRF header.
   const textPlain = (token: string, email: string, headers: Record<string, string> = {}) => anonymous(
@@ -210,8 +210,8 @@ test('accepting an invite without the CSRF header is refused before the token lo
 });
 
 test('a used token cannot be accepted again', async () => {
-  const admin = await setup();
-  const created = await invite(admin);
+  const admin = (await setup());
+  const created = (await invite(admin));
   assert.equal((await accept(admin, created.token, { email: 'ana@example.com' })).status, 200);
   const before = counts(admin);
   const again = await accept(admin, created.token, { email: 'other@example.com' });
@@ -222,13 +222,13 @@ test('a used token cannot be accepted again', async () => {
 });
 
 test('unknown, expired, used and revoked tokens all fail with the same 404', async () => {
-  const admin = await setup();
-  const expired = await invite(admin);
+  const admin = (await setup());
+  const expired = (await invite(admin));
   admin.db.prepare('UPDATE account_tokens SET expires_at = ? WHERE id = ?').run(new Date(Date.now() - 1000).toISOString(), expired.id);
-  const revoked = await invite(admin);
+  const revoked = (await invite(admin));
   assert.deepEqual((await admin.json('DELETE', `/api/app/admin/invites/${revoked.id}`)).body, { ok: true });
   assert.equal((await admin.json('DELETE', `/api/app/admin/invites/${revoked.id}`)).status, 404, 'already revoked');
-  const used = await invite(admin);
+  const used = (await invite(admin));
   assert.equal((await accept(admin, used.token, { email: 'ana@example.com' })).status, 200);
   assert.equal((await admin.json('DELETE', `/api/app/admin/invites/${used.id}`)).status, 404, 'a used invite cannot be revoked');
 
@@ -247,8 +247,8 @@ test('unknown, expired, used and revoked tokens all fail with the same 404', asy
 });
 
 test('a duplicate email or invalid input returns 400 and the invite stays usable', async () => {
-  const admin = await setup();
-  const created = await invite(admin);
+  const admin = (await setup());
+  const created = (await invite(admin));
   const before = counts(admin);
   for (const account of [
     { email: 'me@example.com' }, { email: 'ME@example.com' }, { email: 'not-an-email' },
@@ -264,8 +264,8 @@ test('a duplicate email or invalid input returns 400 and the invite stays usable
 });
 
 test('repeated bad tokens from one address hit the limiter, which then refuses good tokens too', async () => {
-  const admin = await setup();
-  const created = await invite(admin);
+  const admin = (await setup());
+  const created = (await invite(admin));
   for (let i = 0; i < ADDRESS_LIMIT; i++) {
     const path = `/api/app/invites/bad-${i}`;
     const response = i % 2 === 0 ? await anonymous(admin, 'GET', path) : await accept(admin, `bad-${i}`, { email: 'x@example.com' });

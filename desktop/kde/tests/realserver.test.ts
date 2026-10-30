@@ -24,7 +24,7 @@ import type { AddressInfo } from 'node:net';
 import { Readable } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { addUser, PASSWORD, setup, type TestContext } from '../../../packages/api/test/helpers.ts';
-import { addWorkspaceMember } from '../../../packages/api/src/models/workspaces.ts';
+import { addWorkspaceMember } from '../../../packages/api/test/fixtures/domain.ts';
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -91,7 +91,7 @@ async function running(ctx: TestContext, wid: number, description: string, start
 
 function describeUser(instance: string, ctx: TestContext, wid: number, projects: FixtureUser['projects'], entry: Entry | null): FixtureUser {
   return {
-    instance, id: ctx.user.id, wid, email: ctx.user.email, token: ctx.user.api_token, password: PASSWORD,
+    instance, id: ctx.user.id, wid, email: ctx.user.email, token: ctx.user.apiToken, password: PASSWORD,
     projects: [...projects].sort((a, b) => a.id - b.id), running: entry,
   };
 }
@@ -128,7 +128,7 @@ async function seed(name: string, extra: boolean) {
   if (extra) {
     // Works in the admin's workspace as a member, so it can lose it.
     const m = await addUser(admin, { email: `m@${name}.example.com`, role: 'user' });
-    addWorkspaceMember(m.db, admin.wid, m.user.id, 'member');
+    await addWorkspaceMember(m.db, admin.wid, m.user.id, 'member');
     await ok(m, 'PUT', '/api/v9/me', { default_workspace_id: admin.wid });
     const mEntry = await running(m, admin.wid, `${label} m running`, new Date(now - hour));
     users[`${name}.m`] = describeUser(name, m, admin.wid, [adminProject], mEntry);

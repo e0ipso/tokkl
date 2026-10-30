@@ -97,7 +97,7 @@ const PREFERENCE_RULES: Record<string, PreferenceRule> = {
 const isUsable = (key: string, value: unknown) => PREFERENCE_RULES[key]?.valid(value) ?? true;
 
 /** Throws 400 for a known preference with a value the app cannot use. */
-export function validatePreferenceChanges(changes: Preferences): void {
+export function validatePreferenceChanges(changes: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(changes)) {
     if (!isUsable(key, value)) throw badRequest(`Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`);
   }

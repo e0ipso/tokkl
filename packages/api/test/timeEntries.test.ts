@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addUser, iso, setup, type TestContext } from './helpers.ts';
-import { addWorkspaceMember, createWorkspace } from '../src/models/workspaces.ts';
+import { addWorkspaceMember, createWorkspace } from './fixtures/domain.ts';
 
 test('starting a timer returns a running entry with negative epoch duration', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const start = '2026-10-14T09:00:00Z';
   const created = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
     description: 'Write PRD', start, duration: -1, created_with: 'test', workspace_id: ctx.wid,
@@ -40,7 +40,7 @@ function runningCount(ctx: TestContext): number {
 // Continue and favorites (web `start(from, { replace: true })`) post a plain running entry;
 // the server stops whatever runs at the new entry's start, snapped to the time resolution.
 test('starting a second timer stops the first one at the new start, snapped to the resolution', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const project = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Alpha', billable: true });
 
@@ -80,8 +80,8 @@ test('a switch between timers is stored back to back on either side of a half st
     [5, '09:12:00', '09:10:00'], [5, '09:12:30', '09:15:00'], [5, '09:13:00', '09:15:00'],
     [15, '09:22:00', '09:15:00'], [15, '09:22:30', '09:30:00'], [15, '09:23:00', '09:30:00'],
   ] as const) {
-    const ctx = await setup();
-    await setResolution(ctx, minutes);
+    const ctx = (await setup());
+    (await setResolution(ctx, minutes));
     const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
     const label = `R=${minutes} switch at ${switchAt}`;
     const first = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: -1 });
@@ -95,7 +95,7 @@ test('a switch between timers is stored back to back on either side of a half st
 });
 
 test('a switch within half a step of the old start sends the old entry to the trash at zero length', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const first = await ctx.json('POST', url, { start: '2026-10-14T09:00:40Z', duration: -1 });
   await ctx.json('POST', url, { start: '2026-10-14T09:02:20Z', duration: -1 });
@@ -108,7 +108,7 @@ test('a switch within half a step of the old start sends the old entry to the tr
 });
 
 test('concurrent timer starts leave exactly one running entry', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   await ctx.json('POST', url, { description: 'already running', start: '2026-10-14T07:00:00Z', duration: -1 });
   const starts = await Promise.all([1, 2, 3, 4, 5].map((i) =>
@@ -123,7 +123,7 @@ test('concurrent timer starts leave exactly one running entry', async () => {
 
 // Timestamps must be RFC 3339 strings with a zone and a real calendar date.
 test('zone-free, impossible and non-string timestamps are rejected without side effects', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const running = await ctx.json('POST', url, { description: 'running', start: '2026-10-14T08:00:00Z', duration: -1 });
   const entryUrl = `${url}/${running.body.id}`;
@@ -155,7 +155,7 @@ test('zone-free, impossible and non-string timestamps are rejected without side 
 });
 
 test('offsets, null stop, sub-second values and negative running durations still work', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   // Fractions of a second are dropped, then each end snaps to the nearest whole minute: 09:00:20 to
@@ -189,7 +189,7 @@ test('offsets, null stop, sub-second values and negative running durations still
 });
 
 test('list start_date and end_date accept zoned instants and reject zone-free or impossible ones', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const inside = await ctx.json('POST', url, { start: '2026-10-01T10:00:00Z', duration: 600 });
   await ctx.json('POST', url, { start: '2026-10-01T13:00:00Z', duration: 600 });
@@ -207,15 +207,15 @@ test('list start_date and end_date accept zoned instants and reject zone-free or
 
 // References are validated through the lightweight project/task lookups.
 test('entry project and task references are validated on create and update', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const url = `${base}/time_entries`;
   const billable = await ctx.json('POST', `${base}/projects`, { name: 'Billable', billable: true });
   const plain = await ctx.json('POST', `${base}/projects`, { name: 'Plain' });
   const task = await ctx.json('POST', `${base}/projects/${billable.body.id}/tasks`, { name: 'Design' });
   // The caller must belong to a workspace to write to it.
-  const otherWid = createWorkspace(ctx.db, 'Other').id;
-  addWorkspaceMember(ctx.db, otherWid, ctx.user.id, 'member');
+  const otherWid = (await createWorkspace(ctx.db, 'Other')).id;
+  (await addWorkspaceMember(ctx.db, otherWid, ctx.user.id, 'member'));
   const foreignProject = await ctx.json('POST', `/api/v9/workspaces/${otherWid}/projects`, { name: 'Foreign' });
   const foreignTask = await ctx.json('POST', `/api/v9/workspaces/${otherWid}/projects/${foreignProject.body.id}/tasks`, { name: 'Remote' });
   assert.equal(foreignTask.status, 200);
@@ -266,7 +266,7 @@ test('entry project and task references are validated on create and update', asy
 });
 
 test('manual entries from duration or stop, and validation errors', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const byDuration = await ctx.json('POST', url, { start: '2026-10-01T08:00:00Z', duration: 5400, created_with: 'test' });
   assert.equal(byDuration.body.stop, '2026-10-01T09:30:00+00:00');
@@ -291,7 +291,7 @@ test('manual entries from duration or stop, and validation errors', async () => 
 });
 
 test('tags by name are created, tag_action adds and deletes', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const created = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
     start: '2026-10-01T08:00:00Z', duration: 600, tags: ['client-work', 'deep'], created_with: 'test',
   });
@@ -309,7 +309,7 @@ test('tags by name are created, tag_action adds and deletes', async () => {
 });
 
 test('updating start keeps stop; updating duration moves stop; meta fields', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const project = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Tokkl', billable: true, color: '#0b83d9' });
   const entry = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
     start: '2026-10-01T08:00:00Z', stop: '2026-10-01T10:00:00Z', project_id: project.body.id, created_with: 'test',
@@ -328,7 +328,7 @@ test('updating start keeps stop; updating duration moves stop; meta fields', asy
 });
 
 test('listing filters: default window, date range, since with deleted entries', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const old = await ctx.json('POST', url, { start: '2026-01-10T10:00:00Z', duration: 600 });
   const recent = await ctx.json('POST', url, { start: new Date(Date.now() - 86_400_000).toISOString(), duration: 600 });
@@ -360,7 +360,7 @@ test('listing filters: default window, date range, since with deleted entries', 
 });
 
 test('bulk PATCH applies operations per entry and reports failures', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const a = await ctx.json('POST', url, { start: '2026-10-01T08:00:00Z', duration: 600, tags: ['x'] });
   const b = await ctx.json('POST', url, { start: '2026-10-01T09:00:00Z', duration: 600 });
@@ -386,7 +386,7 @@ test('bulk PATCH applies operations per entry and reports failures', async () =>
 });
 
 test('trash lists deleted entries, restores and purges them', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const a = await ctx.json('POST', url, { start: '2026-10-01T08:00:00Z', duration: 600, description: 'a' });
   const b = await ctx.json('POST', url, { start: '2026-10-01T09:00:00Z', duration: 600, description: 'b' });
@@ -424,8 +424,8 @@ async function setResolution(ctx: TestContext, minutes: number): Promise<void> {
 }
 
 test('create, update and bulk PATCH store the span snapped to the resolution', async () => {
-  const ctx = await setup();
-  await setResolution(ctx, 15);
+  const ctx = (await setup());
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
 
   // 10:07:40 is nearer 10:15 than 10:00, and 10:37:25 is nearer 10:30 than 10:45.
@@ -458,8 +458,8 @@ test('create, update and bulk PATCH store the span snapped to the resolution', a
 });
 
 test('create, update and bulk PATCH refuse a span that rounds to zero', async () => {
-  const ctx = await setup();
-  await setResolution(ctx, 15);
+  const ctx = (await setup());
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const message = 'Time entry is too short: it rounds to zero at the 15-minute time resolution';
   const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 1800 });
@@ -480,8 +480,8 @@ test('create, update and bulk PATCH refuse a span that rounds to zero', async ()
 });
 
 test('the grid follows the clock of the entry owner\'s timezone', async () => {
-  const ctx = await setup({ timezone: 'Asia/Kolkata' });
-  await setResolution(ctx, 60);
+  const ctx = (await setup({ timezone: 'Asia/Kolkata' }));
+  (await setResolution(ctx, 60));
   // Kolkata is UTC+5:30, so its whole hours fall at half past in UTC.
   const entry = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
     start: '2026-10-14T04:40:00Z', stop: '2026-10-14T05:20:00Z',
@@ -491,7 +491,7 @@ test('the grid follows the clock of the entry owner\'s timezone', async () => {
 });
 
 test('a running entry keeps its exact start until the stop endpoint snaps it', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 1_210_000);
   const running = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1 });
@@ -515,7 +515,7 @@ test('a running entry keeps its exact start until the stop endpoint snaps it', a
 });
 
 test('the stop endpoint sends a timer shorter than half a step to the trash at zero length', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 30_000);
   const running = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1, description: 'oops', tags: ['x'] });
@@ -538,7 +538,7 @@ test('the stop endpoint sends a timer shorter than half a step to the trash at z
 });
 
 test('the stop endpoint stops at a supplied timestamp on the grid, whatever its offset', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const running = await ctx.json('POST', url, { start: '2026-10-14T09:02:10Z', duration: -1, description: 'session' });
   const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`, { stop: '2026-10-14T11:28:40.750+02:00' });
@@ -546,8 +546,8 @@ test('the stop endpoint stops at a supplied timestamp on the grid, whatever its 
   assertStored(ctx, stopped.body, '2026-10-14T09:00:00+00:00', '2026-10-14T09:30:00+00:00');
   assert.equal(stopped.body.server_deleted_at, null);
 
-  const zoned = await setup({ timezone: 'Asia/Kathmandu' });
-  await setResolution(zoned, 20);
+  const zoned = (await setup({ timezone: 'Asia/Kathmandu' }));
+  (await setResolution(zoned, 20));
   const zonedUrl = `/api/v9/workspaces/${zoned.wid}/time_entries`;
   const other = await zoned.json('POST', zonedUrl, { start: '2026-10-14T09:02:10Z', duration: -1 });
   const snapped = await zoned.json('PATCH', `${zonedUrl}/${other.body.id}/stop`, { stop: '2026-10-14T15:31:00+05:45' });
@@ -557,7 +557,7 @@ test('the stop endpoint stops at a supplied timestamp on the grid, whatever its 
 });
 
 test('a supplied stop within half a step of the start, or before it, trashes the timer for Undo', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   for (const stop of ['2026-10-14T09:01:00Z', '2026-10-14T08:00:00Z']) {
     const running = await ctx.json('POST', url, { start: '2026-10-14T09:00:30Z', duration: -1, description: 'short' });
@@ -575,7 +575,7 @@ test('a supplied stop within half a step of the start, or before it, trashes the
 });
 
 test('the stop endpoint rejects a stop that is not an RFC 3339 timestamp and leaves the timer running', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const running = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: -1 });
   for (const stop of [
@@ -595,7 +595,7 @@ test('the stop endpoint rejects a stop that is not an RFC 3339 timestamp and lea
 });
 
 test('a stop body without a timestamp stops at the request time, as before', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 1_210_000);
   const running = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1 });
@@ -610,8 +610,8 @@ test('a stop body without a timestamp stops at the request time, as before', asy
 });
 
 test('a supplied stop never reaches another account’s timer or a stopped entry', async () => {
-  const ctx = await setup();
-  const other = await addUser(ctx, { email: 'other@example.com', role: 'user' });
+  const ctx = (await setup());
+  const other = (await addUser(ctx, { email: 'other@example.com', role: 'user' }));
   const theirs = await other.json('POST', `/api/v9/workspaces/${other.wid}/time_entries`, { start: '2026-10-14T09:00:00Z', duration: -1 });
   const stop = { stop: '2026-10-14T09:30:00Z' };
   assert.equal((await ctx.json('PATCH', `/api/v9/workspaces/${ctx.wid}/time_entries/${theirs.body.id}/stop`, stop)).status, 404);
@@ -628,7 +628,7 @@ test('a supplied stop never reaches another account’s timer or a stopped entry
 });
 
 test('a deleted running entry restored while another timer runs is stopped on the grid', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const realStart = new Date(Math.floor(Date.now() / 1000) * 1000 - 1_210_000);
   const deleted = await ctx.json('POST', url, { start: realStart.toISOString(), duration: -1 });
@@ -644,7 +644,7 @@ test('a deleted running entry restored while another timer runs is stopped on th
 });
 
 test('the 999-hour cap applies to the snapped span', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   // 999 hours is a multiple of every resolution, so a duration under the cap never snaps past it.
   const fits = await ctx.json('POST', url, { start: '2026-01-01T00:00:10Z', duration: 999 * 3600 - 10 });
@@ -665,7 +665,7 @@ test('the 999-hour cap applies to the snapped span', async () => {
 });
 
 test('a timer left running past 999 hours stops at the cap, by hand or by a new timer', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const longAgo = new Date(Math.floor(Date.now() / 1000) * 1000 - 1000 * 3600 * 1000).toISOString();
 
@@ -686,7 +686,7 @@ test('a timer left running past 999 hours stops at the cap, by hand or by a new 
 });
 
 test('bulk PATCH that removes every tag snaps the span like any other edit', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   for (const path of ['/tags', '/tag_ids']) {
     const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 600, tags: ['client'] });
@@ -702,7 +702,7 @@ test('bulk PATCH that removes every tag snaps the span like any other edit', asy
 });
 
 test('an entry stored off the grid stays as it is until it is edited', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 600, description: 'old' });
   ctx.db.prepare('UPDATE time_entries SET start = ?, stop = ? WHERE id = ?')
@@ -719,7 +719,7 @@ test('an entry stored off the grid stays as it is until it is edited', async () 
 });
 
 test('an older entry that rounds to zero keeps its times through edits that leave them alone', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 600 });
   ctx.db.prepare('UPDATE time_entries SET start = ?, stop = ? WHERE id = ?')
@@ -737,8 +737,8 @@ function entryCount(ctx: TestContext): number {
 }
 
 test('a no-time entry starts at local midnight and keeps a snapped duration', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
 
   // 5000 seconds is nearer 5400 than 4500 at 15 minutes.
@@ -767,8 +767,8 @@ test('a no-time entry starts at local midnight and keeps a snapped duration', as
 });
 
 test('a no-time entry that is running, rounds to zero, runs over a day or has no duration is refused', async () => {
-  const ctx = await setup({ timezone: 'America/New_York' });
-  await setResolution(ctx, 15);
+  const ctx = (await setup({ timezone: 'America/New_York' }));
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const cases: Array<[Record<string, unknown>, string]> = [
     [{ duration: 0 }, 'Time entry is too short: it rounds to zero at the 15-minute time resolution'],
@@ -791,7 +791,7 @@ test('a no-time entry that is running, rounds to zero, runs over a day or has no
 });
 
 test('entry lists and since sync return all_day', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const before = Math.floor(Date.now() / 1000) - 1;
   const noTime = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
@@ -808,7 +808,7 @@ test('entry lists and since sync return all_day', async () => {
 });
 
 test('changing the account timezone moves no-time entries to midnight of the same day, trashed ones too', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const kept = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 5400 });
   const trashed = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-25', duration: 1800 });
@@ -854,8 +854,8 @@ function allDayColumn(ctx: TestContext, id: number): number {
 }
 
 test('an update turns an entry into a no-time entry and back', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { start: '2026-10-14T09:07:00Z', duration: 5000, description: 'review' });
   assertStored(ctx, entry.body, '2026-10-14T09:00:00+00:00', '2026-10-14T10:30:00+00:00');
@@ -895,8 +895,8 @@ test('an update turns an entry into a no-time entry and back', async () => {
 });
 
 test('a no-time entry changes its date and duration but refuses a time of day', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
   const id = entry.body.id;
@@ -934,8 +934,8 @@ test('a no-time entry changes its date and duration but refuses a time of day', 
 });
 
 test('a no-time entry stored off the grid keeps its span through edits that leave the day and duration alone', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
   ctx.db.prepare('UPDATE time_entries SET stop = ? WHERE id = ?').run('2026-10-13T22:16:40.000Z', entry.body.id);
@@ -956,8 +956,8 @@ test('a no-time entry stored off the grid keeps its span through edits that leav
 });
 
 test('bulk PATCH refuses start and stop on a no-time entry and moves its duration', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
+  (await setResolution(ctx, 15));
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const noTime = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
   const timed = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 900 });

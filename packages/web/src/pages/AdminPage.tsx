@@ -42,7 +42,7 @@ const SECTIONS = [
   ['instance', 'Instance settings'],
 ] as const;
 
-/** Must match MAX_INVITE_NOTE_LENGTH in packages/api/src/models/accountTokens.ts. */
+/** Must match MAX_INVITE_NOTE_LENGTH in packages/api/src/domain/accounts.ts. */
 const MAX_NOTE_LENGTH = 255;
 
 function day(iso: string, settings: Settings): string {

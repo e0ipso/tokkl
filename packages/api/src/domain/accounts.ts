@@ -295,7 +295,7 @@ export function createAccountOperations<R extends AccountRepositories>(runner: A
         return (await ctx.users.get(user.id))!;
       }), 'Email already in use');
     },
-    async savePreferences(userId: Id, changes: JsonObject): Promise<JsonObject> {
+    async savePreferences(userId: Id, changes: Record<string, unknown>): Promise<JsonObject> {
       validatePreferenceChanges(changes);
       return runner.transaction(async ctx => {
         await ctx.lockInstanceAdministration(); const user = await lockExistingUser(ctx, userId);

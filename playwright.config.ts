@@ -47,6 +47,7 @@ function server(serverPort: number, serverDataDir: string) {
       PORT: String(serverPort),
       HOST: '127.0.0.1',
       TOKKL_DATA_DIR: serverDataDir,
+      TOKKL_DATABASE_URL: `sqlite://${join(resolve(import.meta.dirname, serverDataDir), 'tokkl.sqlite')}`,
       TOKKL_SETUP_CODE: 'E2E-SETUP-CODE',
     },
   };

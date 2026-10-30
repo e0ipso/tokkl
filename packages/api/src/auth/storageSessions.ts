@@ -17,7 +17,7 @@ export interface StorageSessionOptions {
   sessionDays: number;
   setup: { code: string | null };
 }
-/** Temporary additive HTTP adapters. Mount these at application cutover and remove legacy entrypoints. */
+/** Session HTTP adapters over the guarded account operations. */
 export function createStorageSessions<R extends AccountRepositories>(
   runner: AccountRunner<R>, operations: ReturnType<typeof createAccountOperations<R>>, options: StorageSessionOptions,
 ) {

@@ -12,8 +12,8 @@ const sessionCount = (ctx: TestContext, userId: number) =>
   (ctx.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?').get(userId) as { n: number }).n;
 
 test('a regular user gets 403 from every admin route', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   for (const [method, path, body] of [
     ['GET', '/api/app/admin/users', undefined],
     ['PATCH', `/api/app/admin/users/${bob.user.id}`, { role: 'admin' }],
@@ -28,8 +28,8 @@ test('a regular user gets 403 from every admin route', async () => {
 // The web app shows the admin area from GET /api/v9/me. role and time_resolution_minutes are
 // Tokkl-only fields; the Toggl fields keep their names, and the other user-shaped responses stay Toggl-only.
 test('GET /api/v9/me carries the instance role and time resolution next to the unchanged Toggl fields', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   const TOGGL_FIELDS = [
     '2fa_enabled', 'api_token', 'at', 'authorization_updated_at', 'beginning_of_week', 'country_id', 'created_at',
     'default_workspace_id', 'email', 'fullname', 'has_password', 'id', 'image_url', 'oauth_providers', 'openid_email',
@@ -60,8 +60,8 @@ test('GET /api/v9/me carries the instance role and time resolution next to the u
 });
 
 test('an admin lists every account with only the account fields, ordered by id', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user', fullname: 'Bob' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user', fullname: 'Bob' }));
   const seeded = await bob.json('POST', `/api/v9/workspaces/${bob.wid}/time_entries`, {
     start: new Date().toISOString(), duration: 600, description: 'Bob private work', created_with: 'test',
   });
@@ -77,17 +77,17 @@ test('an admin lists every account with only the account fields, ordered by id',
   }
   assert.deepEqual(users[1], {
     id: bob.user.id, email: 'bob@example.com', fullname: 'Bob', role: 'user',
-    created_at: `${bob.user.created_at.slice(0, 19)}+00:00`, disabled_at: null,
+    created_at: `${bob.user.createdAt.slice(0, 19)}+00:00`, disabled_at: null,
   });
   assert.ok(!text.includes('Bob private work'), 'no time data');
-  for (const secret of [admin.user.api_token, bob.user.api_token, admin.user.password_hash, bob.user.password_hash]) {
+  for (const secret of [admin.user.apiToken, bob.user.apiToken, admin.user.passwordHash, bob.user.passwordHash]) {
     assert.ok(!text.includes(secret));
   }
 });
 
 test('an admin promotes a user and demotes them back', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
 
   const promoted = await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { role: 'admin' });
   assert.equal(promoted.status, 200);
@@ -103,8 +103,8 @@ test('an admin promotes a user and demotes them back', async () => {
 });
 
 test('PATCH rejects empty bodies and invalid values with 400 and unknown ids with 404', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   const path = `/api/app/admin/users/${bob.user.id}`;
   for (const body of ['', {}, { role: 'owner' }, { role: null }, { disabled: 'yes' }, { role: 'admin', disabled: 1 }]) {
     const response = await admin.json('PATCH', path, body);
@@ -118,7 +118,7 @@ test('PATCH rejects empty bodies and invalid values with 400 and unknown ids wit
 });
 
 test('the last active admin cannot be demoted or disabled, by themselves or anyone', async () => {
-  const admin = await setup();
+  const admin = (await setup());
   const path = `/api/app/admin/users/${admin.user.id}`;
   for (const body of [{ role: 'user' }, { disabled: true }, { role: 'user', disabled: true }]) {
     const response = await admin.json('PATCH', path, body);
@@ -127,7 +127,7 @@ test('the last active admin cannot be demoted or disabled, by themselves or anyo
   }
 
   // A disabled admin does not count, so the remaining active one is still the last.
-  const carol = await addUser(admin, { email: 'carol@example.com', role: 'admin' });
+  const carol = (await addUser(admin, { email: 'carol@example.com', role: 'admin' }));
   assert.equal((await admin.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { disabled: true })).status, 200);
   assert.equal((await admin.json('PATCH', path, { role: 'user' })).status, 400);
   assert.equal((await admin.json('PATCH', path, { disabled: true })).status, 400);
@@ -141,8 +141,8 @@ test('the last active admin cannot be demoted or disabled, by themselves or anyo
 });
 
 test('concurrent demotions of two admins leave one active admin', async () => {
-  const admin = await setup();
-  const carol = await addUser(admin, { email: 'carol@example.com', role: 'admin' });
+  const admin = (await setup());
+  const carol = (await addUser(admin, { email: 'carol@example.com', role: 'admin' }));
   const results = await Promise.all([
     admin.json('PATCH', `/api/app/admin/users/${admin.user.id}`, { role: 'user' }),
     carol.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { role: 'user' }),
@@ -153,11 +153,11 @@ test('concurrent demotions of two admins leave one active admin', async () => {
 });
 
 test('a disabled user loses session, API token, Basic password and form login access until re-enabled', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const cookie = await sessionCookie(bob);
-  const otherCookie = await sessionCookie(bob);
-  const adminCookie = await sessionCookie(admin);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const cookie = (await sessionCookie(bob));
+  const otherCookie = (await sessionCookie(bob));
+  const adminCookie = (await sessionCookie(admin));
   assert.equal(sessionCount(admin, bob.user.id), 2);
 
   const disabled = await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true });
@@ -173,7 +173,7 @@ test('a disabled user loses session, API token, Basic password and form login ac
     assert.equal(response.status, 403);
     assert.equal(await response.json(), 'Incorrect username and/or password');
   }
-  const refused = await login(bob, 'bob@example.com');
+  const refused = (await login(bob, 'bob@example.com'));
   assert.equal(refused.status, 403);
   assert.equal(await refused.json(), 'Incorrect email or password');
   assert.equal(refused.headers.get('set-cookie'), null);
@@ -191,8 +191,8 @@ test('a disabled user loses session, API token, Basic password and form login ac
 });
 
 test('a disabled account with the right password is charged as a failed attempt', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true })).status, 200);
   // Ten failures for one account from one address fill its tightest counter.
   for (let i = 0; i < 10; i++) assert.equal((await login(bob, 'bob@example.com')).status, 403);
@@ -201,12 +201,12 @@ test('a disabled account with the right password is charged as a failed attempt'
 });
 
 test('revoking sessions signs out only that user and keeps their API token', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const carol = await addUser(admin, { email: 'carol@example.com', role: 'user' });
-  const bobCookies = [await sessionCookie(bob), await sessionCookie(bob)];
-  const carolCookie = await sessionCookie(carol);
-  const adminCookie = await sessionCookie(admin);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const carol = (await addUser(admin, { email: 'carol@example.com', role: 'user' }));
+  const bobCookies = [(await sessionCookie(bob)), (await sessionCookie(bob))];
+  const carolCookie = (await sessionCookie(carol));
+  const adminCookie = (await sessionCookie(admin));
 
   const revoked = await admin.json('POST', `/api/app/admin/users/${bob.user.id}/sessions/revoke`);
   assert.equal(revoked.status, 200);
@@ -221,10 +221,10 @@ test('revoking sessions signs out only that user and keeps their API token', asy
 });
 
 test('cookie-authenticated admin writes need the CSRF header; Basic auth does not', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const cookie = await sessionCookie(admin);
-  const bobCookie = await sessionCookie(bob);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const cookie = (await sessionCookie(admin));
+  const bobCookie = (await sessionCookie(bob));
   const patch = `/api/app/admin/users/${bob.user.id}`;
   const revoke = `/api/app/admin/users/${bob.user.id}/sessions/revoke`;
   const asCookie = { authorization: '', cookie };
@@ -244,9 +244,9 @@ test('cookie-authenticated admin writes need the CSRF header; Basic auth does no
 });
 
 test('a disabled admin gets 403 from every admin route', async () => {
-  const admin = await setup();
-  const carol = await addUser(admin, { email: 'carol@example.com', role: 'admin' });
-  const carolCookie = await sessionCookie(carol);
+  const admin = (await setup());
+  const carol = (await addUser(admin, { email: 'carol@example.com', role: 'admin' }));
+  const carolCookie = (await sessionCookie(carol));
   assert.equal((await admin.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { disabled: true })).status, 200);
 
   const credentials: Record<string, string>[] = [
@@ -266,8 +266,8 @@ test('a disabled admin gets 403 from every admin route', async () => {
 });
 
 test('an admin demoted during their Basic password check is refused and stays demoted', async (t) => {
-  const admin = await setup();
-  const carol = await addUser(admin, { email: 'carol@example.com', role: 'admin' });
+  const admin = (await setup());
+  const carol = (await addUser(admin, { email: 'carol@example.com', role: 'admin' }));
   duringPasswordCheck(t, async () => {
     assert.equal((await admin.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { role: 'user' })).status, 200);
   });
@@ -281,8 +281,8 @@ test('an admin demoted during their Basic password check is refused and stays de
 });
 
 test('an account disabled during its Basic password check is refused', async (t) => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   duringPasswordCheck(t, async () => {
     assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true })).status, 200);
   });
@@ -293,13 +293,13 @@ test('an account disabled during its Basic password check is refused', async (t)
 });
 
 test('a form login whose account is disabled during the password check creates no session', async (t) => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   duringPasswordCheck(t, async () => {
     assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true })).status, 200);
   });
 
-  const response = await login(bob, 'bob@example.com');
+  const response = (await login(bob, 'bob@example.com'));
   assert.equal(response.status, 403);
   assert.equal(await response.json(), 'Incorrect email or password');
   assert.equal(response.headers.get('set-cookie'), null);

@@ -1,86 +1,18 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from '../src/config.ts';
-
-function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-config-'));
-  after(() => rmSync(dir, { recursive: true, force: true }));
-  return dir;
-}
-
-test('TOKKL_* variables configure the server without notices', () => {
-  const dir = tempDir();
-  const { config, notices } = loadConfig({
-    TOKKL_DATA_DIR: dir, TOKKL_WEB_ROOT: join(dir, 'web'), TOKKL_TRUST_PROXY: 'true',
-    TOKKL_SESSION_DAYS: '7', TOKKL_SETUP_CODE: 'ABCD-EFGH-JKLM',
-  });
-  assert.equal(config.dataDir, dir);
-  assert.equal(config.databasePath, join(dir, 'tokkl.sqlite'));
-  assert.equal(config.webRoot, join(dir, 'web'));
-  assert.equal(config.trustProxy, true);
-  assert.equal(config.sessionDays, 7);
-  assert.equal(config.setupCode, 'ABCD-EFGH-JKLM');
-  assert.deepEqual(notices, []);
-  assert.equal(loadConfig({ TOKKL_DATABASE: join(dir, 'other.sqlite') }).config.databasePath, join(dir, 'other.sqlite'));
+function tempDir() { const dir=mkdtempSync(join(tmpdir(),'tokkl-config-')); after(()=>rmSync(dir,{recursive:true,force:true})); return dir; }
+test('URL selects storage while unrelated current and legacy settings retain their behavior',()=>{
+ const dir=tempDir(); const {config,notices}=loadConfig({TOKKL_DATA_DIR:dir,TOKKL_DATABASE_URL:'sqlite::memory:',TIMETRACK_WEB_ROOT:join(dir,'web'),TIMETRACK_TRUST_PROXY:'yes',TOKKL_SESSION_DAYS:'7',TOKKL_SETUP_CODE:'CODE'});
+ assert.equal(config.storage.backend,'sqlite'); assert.equal(config.webRoot,join(dir,'web')); assert.equal(config.trustProxy,true); assert.equal(config.sessionDays,7); assert.equal(config.setupCode,'CODE'); assert.equal(notices.length,1);
+ assert.equal(loadConfig({TOKKL_DATA_DIR:dir,TOKKL_SESSION_DAYS:'5',TIMETRACK_SESSION_DAYS:'9'}).config.sessionDays,5);
 });
-
-test('TIMETRACK_* variables still work and log one deprecation line', () => {
-  const dir = tempDir();
-  const { config, notices } = loadConfig({
-    TIMETRACK_DATA_DIR: dir, TIMETRACK_DATABASE: join(dir, 'db.sqlite'), TIMETRACK_WEB_ROOT: join(dir, 'web'),
-    TIMETRACK_TRUST_PROXY: 'yes', TIMETRACK_SESSION_DAYS: '3', TIMETRACK_SETUP_CODE: 'OLD-CODE',
-  });
-  assert.equal(config.dataDir, dir);
-  assert.equal(config.databasePath, join(dir, 'db.sqlite'));
-  assert.equal(config.webRoot, join(dir, 'web'));
-  assert.equal(config.trustProxy, true);
-  assert.equal(config.sessionDays, 3);
-  assert.equal(config.setupCode, 'OLD-CODE');
-  assert.equal(notices.length, 1);
-  for (const name of ['DATA_DIR', 'DATABASE', 'WEB_ROOT', 'TRUST_PROXY', 'SESSION_DAYS', 'SETUP_CODE']) {
-    assert.ok(notices[0]!.includes(`TIMETRACK_${name}`), `names TIMETRACK_${name}`);
-    assert.ok(notices[0]!.includes(`TOKKL_${name}`), `suggests TOKKL_${name}`);
-  }
+test('absent selector defaults without creating files',()=>{const dir=tempDir();assert.deepEqual(loadConfig({TOKKL_DATA_DIR:dir}).config.storage,{backend:'sqlite',filename:join(dir,'tokkl.sqlite'),busyTimeoutMs:5000}); assert.deepEqual(readdirSync(dir),[]);});
+test('old settings or default filename require explicit selection and leave data untouched',()=>{
+ for(const name of ['TOKKL_DATABASE','TIMETRACK_DATABASE','file']) {const dir=tempDir();writeFileSync(join(dir,'timetrack.sqlite'),'keep');const env={TOKKL_DATA_DIR:dir,...(name==='file'?{}:{[name]:join(dir,'old.sqlite')})};assert.throws(()=>loadConfig(env),/explicit TOKKL_DATABASE_URL/);assert.deepEqual(readdirSync(dir),['timetrack.sqlite']);}
+ const dir=tempDir();writeFileSync(join(dir,'timetrack.sqlite'),'keep');assert.equal(loadConfig({TOKKL_DATA_DIR:dir,TOKKL_DATABASE_URL:'sqlite::memory:'}).config.storage.backend,'sqlite');
 });
-
-test('a TOKKL_* variable wins over its TIMETRACK_* name, which then logs nothing', () => {
-  const { config, notices } = loadConfig({ TOKKL_SESSION_DAYS: '5', TIMETRACK_SESSION_DAYS: '9' });
-  assert.equal(config.sessionDays, 5);
-  assert.deepEqual(notices, []);
-});
-
-test('an install with only timetrack.sqlite keeps using it and never moves it', () => {
-  const dir = tempDir();
-  writeFileSync(join(dir, 'timetrack.sqlite'), '');
-  const { config, notices } = loadConfig({ TOKKL_DATA_DIR: dir });
-  assert.equal(config.databasePath, join(dir, 'timetrack.sqlite'));
-  assert.equal(notices.length, 1);
-  assert.match(notices[0]!, /timetrack\.sqlite/);
-  assert.deepEqual(readdirSync(dir), ['timetrack.sqlite']);
-});
-
-test('a fresh install uses tokkl.sqlite, and tokkl.sqlite wins when both files exist', () => {
-  const fresh = tempDir();
-  const loaded = loadConfig({ TOKKL_DATA_DIR: fresh });
-  assert.equal(loaded.config.databasePath, join(fresh, 'tokkl.sqlite'));
-  assert.deepEqual(loaded.notices, []);
-  assert.equal(existsSync(loaded.config.databasePath), false, 'loading the config creates nothing');
-
-  const both = tempDir();
-  writeFileSync(join(both, 'timetrack.sqlite'), '');
-  writeFileSync(join(both, 'tokkl.sqlite'), '');
-  const upgraded = loadConfig({ TOKKL_DATA_DIR: both });
-  assert.equal(upgraded.config.databasePath, join(both, 'tokkl.sqlite'));
-  assert.deepEqual(upgraded.notices, []);
-});
-
-test('an explicit database path is used as given even when timetrack.sqlite exists', () => {
-  const dir = tempDir();
-  writeFileSync(join(dir, 'timetrack.sqlite'), '');
-  const { config, notices } = loadConfig({ TOKKL_DATA_DIR: dir, TOKKL_DATABASE: join(dir, 'tokkl.sqlite') });
-  assert.equal(config.databasePath, join(dir, 'tokkl.sqlite'));
-  assert.deepEqual(notices, []);
-});
+test('invalid explicit selector refuses without exposing credentials or creating a fallback',()=>{const dir=tempDir();assert.throws(()=>loadConfig({TOKKL_DATA_DIR:dir,TOKKL_DATABASE_URL:'bad://secret:credential@host/data'}),{message:'Invalid TOKKL_DATABASE_URL'});assert.deepEqual(readdirSync(dir),[]);});

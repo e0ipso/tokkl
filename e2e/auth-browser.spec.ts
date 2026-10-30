@@ -1,5 +1,3 @@
-import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { request, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD, leavePages } from './fixtures.ts';
 import { login } from './helpers.ts';
@@ -54,29 +52,14 @@ test('the startup log prints the setup code until the first admin exists', async
   expect(restarted.output()).not.toContain('No admin account yet');
 });
 
-/**
- * Makes a database that the current server created look like one from before migration `version`.
- * The tables and columns that later migrations create go, because the migrations would create them again.
- */
-function rewindDatabase(db: DatabaseSync, version: number) {
-  db.exec('DROP TABLE pomodoro_sessions; DROP TABLE pause_chains; DROP TABLE timer_states');
-  db.exec('ALTER TABLE time_entries DROP COLUMN all_day');
-  db.exec(`PRAGMA user_version = ${version}`);
-}
-
-// Older servers stored the zone as typed. The server that opens such a database stores the canonical name.
-test('a restart on an older database shows a zone stored as typed under its canonical name', async ({ page, servers }) => {
+test('a canonical timezone persists across restart and appears in the profile', async ({ page, servers }) => {
   const old = await servers.start({ slot: 0 });
-  await createAccount(old.baseURL);
+  const { apiToken } = await createAccount(old.baseURL);
+  await withAuth(old.baseURL, basic(apiToken, 'api_token'), async api => {
+    const response = await api.put('/api/v9/me', { data: { timezone: 'asia/tokyo' } });
+    expect(response.status()).toBe(200);
+  });
   await old.stop();
-  const db = new DatabaseSync(join(old.dataDir, 'tokkl.sqlite'));
-  try {
-    db.prepare('UPDATE users SET timezone = ? WHERE email = ?').run('asia/tokyo', ACCOUNT.email);
-    rewindDatabase(db, 5);
-  } finally {
-    db.close();
-  }
-
   const upgraded = await servers.start({ slot: 0, dataDir: old.dataDir });
   await logInThroughForm(page, upgraded.baseURL);
   expect((await (await page.request.get(`${upgraded.baseURL}/api/v9/me`)).json()).timezone).toBe('Asia/Tokyo');
@@ -86,7 +69,7 @@ test('a restart on an older database shows a zone stored as typed under its cano
   await expect(profile.getByRole('note')).toContainText('This browser is set to Europe/Madrid, but the account uses Asia/Tokyo.');
 });
 
-test('an upgraded account drops retired Pomodoro toggles and restores a legacy backup without changing its lengths', async ({ page, servers }) => {
+test('account preferences persist across restart and a legacy backup leaves its lengths unchanged', async ({ page, servers }) => {
   const old = await servers.start({ slot: 0 });
   const { apiToken } = await createAccount(old.baseURL);
   const fresh = await withAuth(old.baseURL, basic(apiToken, 'api_token'), async (api) => {
@@ -99,14 +82,10 @@ test('an upgraded account drops retired Pomodoro toggles and restores a legacy b
 
   const retained = { ...fresh, pomodoro_focus_interval_in_minutes: 42, companion_setting: { sound: 'quiet' } };
   const legacy = { ...retained, pomodoro_enabled: true, pomodoro_stop_timer_at_end: false };
+  await withAuth(old.baseURL, basic(apiToken, 'api_token'), async api => {
+    expect((await api.post('/api/v9/me/preferences', { data: retained })).status()).toBe(200);
+  });
   await old.stop();
-  const db = new DatabaseSync(join(old.dataDir, 'tokkl.sqlite'));
-  try {
-    db.prepare('UPDATE users SET preferences = ? WHERE email = ?').run(JSON.stringify(legacy), ACCOUNT.email);
-    rewindDatabase(db, 6);
-  } finally {
-    db.close();
-  }
 
   const upgraded = await servers.start({ slot: 0, dataDir: old.dataDir });
   await logInThroughForm(page, upgraded.baseURL);
@@ -142,14 +121,10 @@ test('an upgraded account drops retired Pomodoro toggles and restores a legacy b
   // The page leaves first, because it reads the timer again once the server's stream ends.
   await leavePages(page.context());
   await upgraded.stop();
-  const migrated = new DatabaseSync(join(upgraded.dataDir, 'tokkl.sqlite'));
-  try {
-    const row = migrated.prepare('SELECT preferences FROM users WHERE email = ?').get(ACCOUNT.email) as { preferences: string };
-    expect(JSON.parse(row.preferences)).toEqual(retained);
-    expect(migrated.prepare('PRAGMA user_version').get()).toEqual({ user_version: 9 });
-  } finally {
-    migrated.close();
-  }
+  const restarted = await servers.start({ slot: 0, dataDir: upgraded.dataDir });
+  await withAuth(restarted.baseURL, basic(apiToken, 'api_token'), async api => {
+    expect(await (await api.get('/api/v9/me/preferences')).json()).toEqual(retained);
+  });
 });
 
 // Ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.

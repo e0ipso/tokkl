@@ -1,7 +1,7 @@
 import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ACCOUNT_ADDRESS_LIMIT, ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
-import { RESET_NOT_FOUND } from '../src/models/accountTokens.ts';
+import { RESET_NOT_FOUND } from '../src/domain/accounts.ts';
 import { addUser, CSRF, duringPasswordCheck, PASSWORD, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const HOUR_MS = 3_600_000;
@@ -33,9 +33,9 @@ const resetRows = (ctx: TestContext) => ctx.db.prepare("SELECT * FROM account_to
   .all() as Array<Record<string, unknown>>;
 
 test('an admin receives a 24-hour reset link once, and only its hash is stored', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const created = await issue(admin, bob.user.id);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const created = (await issue(admin, bob.user.id));
   assert.match(created.url, /^\/reset\/[A-Za-z0-9_-]{43}$/, '32 random bytes, base64url');
   assert.deepEqual(Object.keys(JSON.parse(created.text)).sort(), ['expires_at', 'url']);
 
@@ -62,12 +62,12 @@ test('an admin receives a 24-hour reset link once, and only its hash is stored',
 });
 
 test('using a link sets the password, ends every session of the account and starts none', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const sessions = [await sessionCookie(bob), await sessionCookie(bob)];
-  const adminSession = await sessionCookie(admin);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const sessions = [(await sessionCookie(bob)), (await sessionCookie(bob))];
+  const adminSession = (await sessionCookie(admin));
   for (const cookie of sessions) assert.equal((await meWith(admin, cookie)).status, 200);
-  const created = await issue(admin, bob.user.id);
+  const created = (await issue(admin, bob.user.id));
 
   const response = await use(admin, created.token);
   assert.equal(response.status, 200, await response.clone().text());
@@ -82,11 +82,11 @@ test('using a link sets the password, ends every session of the account and star
 });
 
 test('using a link replaces the API token, and GET /me hands out the new one after logging in', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const saved = bob.user.api_token;
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const saved = bob.user.apiToken;
   assert.equal((await bob.request('GET', '/api/v9/me')).status, 200);
-  const created = await issue(admin, bob.user.id);
+  const created = (await issue(admin, bob.user.id));
 
   const response = await use(admin, created.token);
   assert.equal(response.status, 200);
@@ -96,7 +96,7 @@ test('using a link replaces the API token, and GET /me hands out the new one aft
   assert.equal((await bob.request('GET', '/api/v9/me')).status, 403, 'the saved token stops working');
   assert.equal((await admin.request('GET', '/api/v9/me')).status, 200, "other accounts' tokens stay");
 
-  const loggedIn = await login(admin, 'bob@example.com', NEW_PASSWORD);
+  const loggedIn = (await login(admin, 'bob@example.com', NEW_PASSWORD));
   assert.equal(loggedIn.status, 200);
   const me = await meWith(admin, loggedIn.headers.get('set-cookie')!.split(';')[0]!);
   assert.equal(me.status, 200);
@@ -109,9 +109,9 @@ test('using a link replaces the API token, and GET /me hands out the new one aft
 });
 
 test('a reset without the CSRF header is refused before the lookup and the limiter', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const created = await issue(admin, bob.user.id);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const created = (await issue(admin, bob.user.id));
   // A cross-site form with enctype="text/plain" can post a JSON body, but it cannot set a CSRF header.
   const textPlain = (token: string, headers: Record<string, string> = {}) => anonymous(
     admin, 'POST', `/api/app/password-resets/${token}`, JSON.stringify({ password: NEW_PASSWORD }),
@@ -127,9 +127,9 @@ test('a reset without the CSRF header is refused before the lookup and the limit
 });
 
 test('a password outside the length rules is a 400 and leaves the link usable', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const created = await issue(admin, bob.user.id);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const created = (await issue(admin, bob.user.id));
   for (const [password, message] of [
     ['short', 'Password must be at least 8 characters'],
     [null, 'Password must be at least 8 characters'],
@@ -145,25 +145,25 @@ test('a password outside the length rules is a 400 and leaves the link usable', 
 });
 
 test('used, expired, replaced, unknown and disabled-account links all fail with the same 404', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const cy = await addUser(admin, { email: 'cy@example.com', role: 'user' });
-  const dee = await addUser(admin, { email: 'dee@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const cy = (await addUser(admin, { email: 'cy@example.com', role: 'user' }));
+  const dee = (await addUser(admin, { email: 'dee@example.com', role: 'user' }));
 
-  const used = await issue(admin, bob.user.id);
+  const used = (await issue(admin, bob.user.id));
   assert.equal((await use(admin, used.token)).status, 200);
 
-  const replaced = await issue(admin, cy.user.id);
-  const current = await issue(admin, cy.user.id);
+  const replaced = (await issue(admin, cy.user.id));
+  const current = (await issue(admin, cy.user.id));
   assert.equal(resetRows(admin).filter((row) => row.user_id === cy.user.id).length, 1, 'the earlier unused link is deleted');
 
-  const expired = await issue(admin, dee.user.id);
+  const expired = (await issue(admin, dee.user.id));
   // A link issued 24 hours and a second ago.
   admin.db.prepare('UPDATE account_tokens SET created_at = ?, expires_at = ? WHERE user_id = ?')
     .run(new Date(Date.now() - 24 * HOUR_MS - 1000).toISOString(), new Date(Date.now() - 1000).toISOString(), dee.user.id);
 
-  const eve = await addUser(admin, { email: 'eve@example.com', role: 'user' });
-  const disabled = await issue(admin, eve.user.id);
+  const eve = (await addUser(admin, { email: 'eve@example.com', role: 'user' }));
+  const disabled = (await issue(admin, eve.user.id));
   assert.equal((await check(admin, disabled.token)).status, 200);
   assert.equal((await admin.json('PATCH', `/api/app/admin/users/${eve.user.id}`, { disabled: true })).status, 200);
 
@@ -187,8 +187,8 @@ test('used, expired, replaced, unknown and disabled-account links all fail with 
 });
 
 test('a regular user gets 403 when issuing a link', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   for (const id of [admin.user.id, bob.user.id]) {
     assert.equal((await bob.request('POST', `/api/app/admin/users/${id}/password-reset`)).status, 403);
   }
@@ -196,9 +196,9 @@ test('a regular user gets 403 when issuing a link', async () => {
 });
 
 test('repeated bad tokens from one address hit the limiter, which then refuses good links too', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const created = await issue(admin, bob.user.id);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const created = (await issue(admin, bob.user.id));
   for (let i = 0; i < ADDRESS_LIMIT; i++) {
     const response = i % 2 === 0 ? await check(admin, `bad-${i}`) : await use(admin, `bad-${i}`);
     assert.equal(response.status, 404, `attempt ${i + 1}`);
@@ -213,13 +213,13 @@ test('repeated bad tokens from one address hit the limiter, which then refuses g
 });
 
 test('a reset clears earlier failed logins against the account from that address', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   for (let i = 0; i < ACCOUNT_ADDRESS_LIMIT; i++) {
     assert.equal((await login(admin, 'bob@example.com', `wrong guess ${i}`)).status, 403);
   }
   assert.equal((await login(admin, 'bob@example.com', PASSWORD)).status, 429);
-  const created = await issue(admin, bob.user.id);
+  const created = (await issue(admin, bob.user.id));
   assert.equal((await use(admin, created.token)).status, 200);
   assert.equal((await login(admin, 'bob@example.com', NEW_PASSWORD)).status, 200);
 });
@@ -231,7 +231,7 @@ test('a reset clears earlier failed logins against the account from that address
  */
 const passwordChanges: Array<[string, (admin: TestContext, bob: TestContext) => Promise<void>]> = [
   ['a password reset', async (admin, bob) => {
-    const created = await issue(admin, bob.user.id);
+    const created = (await issue(admin, bob.user.id));
     assert.equal((await use(admin, created.token)).status, 200);
   }],
   ['a PUT /me password change', async (_admin, bob) => {
@@ -241,8 +241,8 @@ const passwordChanges: Array<[string, (admin: TestContext, bob: TestContext) => 
 ];
 
 async function changedDuringCheck(t: NodeTestContext, change: (typeof passwordChanges)[number][1]) {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   duringPasswordCheck(t, () => change(admin, bob));
   return { admin, bob };
 }
@@ -252,8 +252,8 @@ const sessionCount = (ctx: TestContext, userId: number) =>
 
 for (const [name, change] of passwordChanges) {
   test(`a form login checked against the old password while ${name} commits gets 403 and no session`, async (t) => {
-    const { admin, bob } = await changedDuringCheck(t, change);
-    const response = await login(admin, 'bob@example.com', PASSWORD);
+    const { admin, bob } = (await changedDuringCheck(t, change));
+    const response = (await login(admin, 'bob@example.com', PASSWORD));
     assert.equal(response.status, 403);
     assert.equal(await response.json(), 'Incorrect email or password');
     assert.equal(response.headers.get('set-cookie'), null);
@@ -262,7 +262,7 @@ for (const [name, change] of passwordChanges) {
   });
 
   test(`a Basic request checked against the old password while ${name} commits gets 403`, async (t) => {
-    const { admin } = await changedDuringCheck(t, change);
+    const { admin } = (await changedDuringCheck(t, change));
     const basic = (password: string) => anonymous(admin, 'GET', '/api/v9/me', undefined, {
       authorization: `Basic ${Buffer.from(`bob@example.com:${password}`).toString('base64')}`,
     });

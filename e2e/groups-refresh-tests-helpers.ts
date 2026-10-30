@@ -1,7 +1,7 @@
 import { request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
 import { currentAccount } from './fixtures.ts';
 
-// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/storageMiddleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 export interface StoredEntry {

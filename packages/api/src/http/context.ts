@@ -1,14 +1,15 @@
 import type { Request } from 'express';
-import type { Db } from '../db/index.ts';
+import type { Storage } from '../storage/contracts.ts';
+import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
+import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
-import type { UserRow } from '../models/users.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import type { TimerStreams } from '../services/timerStreams.ts';
 import { badRequest } from '../lib/errors.ts';
 
 /** Shared by every router; created once in createApp. */
-export interface Deps {
-  db: Db;
+export interface Deps extends ApplicationServices {
+  storage: Storage;
   config: Config;
   /**
    * Failed password attempts, shared by the login form, Basic auth and password change. Each check
@@ -27,9 +28,8 @@ export interface Deps {
 
 declare module 'express-serve-static-core' {
   interface Locals {
-    /** Set by requireAuth. */
-    user: UserRow;
-    authMethod: 'session' | 'basic';
+    auth: StorageAuthentication;
+    workSignal: AbortSignal;
   }
 }
 

@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { NOW, TIME_ZONE } from './screenshots-data.ts';
 
 // Playwright config for `npm run screenshots`. It lives outside e2e/, so `npm run test:e2e` never
@@ -55,6 +55,7 @@ export default defineConfig({
       PORT: String(port),
       HOST: '127.0.0.1',
       TOKKL_DATA_DIR: dataDir,
+      TOKKL_DATABASE_URL: `sqlite://${join(resolve(dataDir), 'tokkl.sqlite')}`,
       TOKKL_SETUP_CODE: 'SCREENSHOTS-SETUP-CODE',
       // The session cookie expires sessionDays after NOW. With the default 30 days the browser
       // would drop it as already expired once the real date is past NOW + 30 days.

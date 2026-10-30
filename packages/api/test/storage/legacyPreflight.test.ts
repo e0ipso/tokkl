@@ -5,7 +5,8 @@ import { readFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { openDatabase } from '../../src/db/index.ts';
+import { MIGRATIONS } from '../fixtures/legacyMigrations.ts';
+function openDatabase(filename: string) { const db=new DatabaseSync(filename); db.function('canonical_time_zone',{deterministic:true}, x=>x); db.exec('PRAGMA journal_mode=WAL'); for (const migration of MIGRATIONS) db.exec(migration); db.exec(`PRAGMA user_version=${MIGRATIONS.length}`); return db; }
 
 for (const mode of ['delete', 'wal', 'pragma-only', 'application-only', 'view-only', 'unknown']) {
   test(`SQLite ${mode} legacy refusal preserves bytes, data, PRAGMAs and sidecars`, async () => {

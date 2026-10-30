@@ -1,6 +1,6 @@
 import { expect, type APIResponse, type Locator, type Page } from '@playwright/test';
 
-// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/storageMiddleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 export interface Entry {

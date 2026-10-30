@@ -1,18 +1,20 @@
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { storageFor, filenameFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
 import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
-import { createSession } from '../src/auth/sessions.ts';
-import { openDatabase } from '../src/db/index.ts';
-import { MIGRATIONS } from '../src/db/migrations.ts';
-import { createFirstAdmin, getUser } from '../src/models/users.ts';
+import { createSession, listWorkspacesForUser } from './fixtures/domain.ts';
+import { openDatabase } from './fixtures/database.ts';
+import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
+import { createFirstAdmin, getUser } from './fixtures/domain.ts';
 import {
-  addWorkspaceMember, createWorkspace, isWorkspaceMember, listWorkspacesForUser,
-} from '../src/models/workspaces.ts';
+  addWorkspaceMember, createWorkspace, isWorkspaceMember,
+} from './fixtures/domain.ts';
 import { addUser, CSRF, PASSWORD, sessionCookie, setup, testConfig, testServer, type TestContext } from './helpers.ts';
 
 /** The schema version shipped before roles and workspace membership. */
@@ -49,80 +51,26 @@ function insertUser(db: DatabaseSync, user: { id?: number; email: string; passwo
   `).run(user.id ?? null, user.email, user.passwordHash, user.apiToken, user.wid, NOW, NOW).lastInsertRowid);
 }
 
-test('upgrading a single-user database makes the user admin and owner, and keeps sign-ins and entries', async () => {
-  await withPreviousVersion(async (path, old) => {
-    const wid = insertWorkspace(old, 'Mine');
-    const apiToken = generateApiToken();
-    const userId = insertUser(old, { email: 'me@example.com', passwordHash: await hashPassword(PASSWORD), apiToken, wid });
-    const orphanWid = insertWorkspace(old, 'Created without an owner');
-    const entry = old.prepare(`
-      INSERT INTO time_entries (workspace_id, user_id, description, start, stop, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    entry.run(wid, userId, 'Before the upgrade', '2026-10-01T08:00:00.000Z', '2026-10-01T09:00:00.000Z', NOW, NOW);
-    entry.run(orphanWid, userId, 'In the ownerless workspace', '2026-10-01T10:00:00.000Z', '2026-10-01T10:30:00.000Z', NOW, NOW);
-    const { token: session } = createSession(old, userId, 30, 'test');
-    const entriesBefore = old.prepare('SELECT * FROM time_entries ORDER BY id').all();
-    old.close();
-
-    const db = openDatabase(path);
-    try {
-      assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
-      const user = getUser(db, userId)!;
-      assert.equal(user.role, 'admin');
-      assert.equal(user.disabled_at, null);
-      assert.deepEqual(memberships(db), [
-        { workspace_id: wid, user_id: userId, role: 'owner' },
-        { workspace_id: orphanWid, user_id: userId, role: 'owner' },
-      ]);
-      // Entries from before the all_day column read as timed.
-      assert.deepEqual(db.prepare('SELECT * FROM time_entries ORDER BY id').all().map((row) => ({ ...row })),
-        entriesBefore.map((row) => ({ ...row, all_day: 0 })));
-
-      const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
-      const byCookie = await app.request('/api/v9/me', { headers: { cookie: `tokkl_session=${session}` } });
-      assert.equal(byCookie.status, 200);
-      assert.equal(((await byCookie.json()) as { id: number }).id, userId);
-      const byToken = await app.request('/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02', {
-        headers: { authorization: `Basic ${Buffer.from(`${apiToken}:api_token`).toString('base64')}` },
-      });
-      assert.equal(byToken.status, 200);
-      assert.deepEqual(((await byToken.json()) as Array<{ description: string }>).map((e) => e.description).sort(),
-        ['Before the upgrade', 'In the ownerless workspace']);
-    } finally {
-      db.close();
-    }
-  });
+test('legacy schema version 2 is refused without modifying its data', async () => {
+ const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
+ try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,2))old.exec(migration); old.exec('PRAGMA user_version=2'); old.close();
+ const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
+ } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
-test('the upgrade gives every workspace to the lowest-id user', async () => {
-  await withPreviousVersion(async (path, old) => {
-    const first = insertWorkspace(old, 'First');
-    const second = insertWorkspace(old, 'Second');
-    insertUser(old, { id: 7, email: 'later@example.com', passwordHash: 'x', apiToken: generateApiToken(), wid: second });
-    insertUser(old, { id: 3, email: 'earlier@example.com', passwordHash: 'x', apiToken: generateApiToken(), wid: first });
-    old.close();
-
-    const db = openDatabase(path);
-    try {
-      assert.deepEqual(memberships(db), [
-        { workspace_id: first, user_id: 3, role: 'owner' },
-        { workspace_id: second, user_id: 3, role: 'owner' },
-      ]);
-      assert.deepEqual(db.prepare('SELECT id, role FROM users ORDER BY id').all().map((row) => ({ ...row })),
-        [{ id: 3, role: 'admin' }, { id: 7, role: 'admin' }]);
-    } finally {
-      db.close();
-    }
-  });
+test('legacy schema version 2 is refused without modifying its data', async () => {
+ const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
+ try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,2))old.exec(migration); old.exec('PRAGMA user_version=2'); old.close();
+ const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
+ } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
-  const db = openDatabase(':memory:');
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
+  const db = (await openDatabase(':memory:'));
+  assert.equal(db.prepare("SELECT count(*) as n FROM storage_migrations WHERE state='complete'").get()!.n,3);
   assert.deepEqual(memberships(db), []);
 
-  const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const response = await app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json' },
@@ -135,44 +83,44 @@ test('a fresh database has no memberships until setup creates the first admin, w
 });
 
 test('createFirstAdmin makes an admin who owns the new workspace', async () => {
-  const db = openDatabase(':memory:');
-  const user = await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
+  const db = (await openDatabase(':memory:'));
+  const user = (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' }));
   assert.equal(user.role, 'admin');
-  assert.equal(user.disabled_at, null);
-  assert.deepEqual(memberships(db), [{ workspace_id: user.default_workspace_id, user_id: user.id, role: 'owner' }]);
-  assert.deepEqual(listWorkspacesForUser(db, user.id).map((ws) => ws.id), [user.default_workspace_id]);
+  assert.equal(user.disabledAt, null);
+  assert.deepEqual(memberships(db), [{ workspace_id: user.defaultWorkspaceId, user_id: user.id, role: 'owner' }]);
+  assert.deepEqual((await listWorkspacesForUser(db, user.id)).map((ws) => ws.id), [user.defaultWorkspaceId]);
 });
 
 test('isWorkspaceMember and listWorkspacesForUser see only the workspaces a user belongs to', async () => {
-  const db = openDatabase(':memory:');
-  const owner = await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' });
-  const shared = createWorkspace(db, 'Shared').id;
+  const db = (await openDatabase(':memory:'));
+  const owner = (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' }));
+  const shared = (await createWorkspace(db, 'Shared')).id;
   const memberId = Number(db.prepare(`
     INSERT INTO users (email, password_hash, api_token, default_workspace_id, created_at, updated_at)
     VALUES ('member@example.com', 'x', ?, ?, ?, ?)
   `).run(generateApiToken(), shared, NOW, NOW).lastInsertRowid);
-  addWorkspaceMember(db, shared, memberId, 'member');
+  (await addWorkspaceMember(db, shared, memberId, 'member'));
   const outsiderId = Number(db.prepare(`
     INSERT INTO users (email, password_hash, api_token, default_workspace_id, created_at, updated_at)
     VALUES ('outsider@example.com', 'x', ?, ?, ?, ?)
   `).run(generateApiToken(), shared, NOW, NOW).lastInsertRowid);
 
-  assert.equal(isWorkspaceMember(db, owner.id, owner.default_workspace_id), true);
-  assert.equal(isWorkspaceMember(db, owner.id, shared), false);
-  assert.equal(isWorkspaceMember(db, memberId, shared), true);
-  assert.equal(isWorkspaceMember(db, memberId, owner.default_workspace_id), false);
-  assert.equal(isWorkspaceMember(db, outsiderId, shared), false);
+  assert.equal((await isWorkspaceMember(db, owner.id, owner.defaultWorkspaceId)), true);
+  assert.equal((await isWorkspaceMember(db, owner.id, shared)), false);
+  assert.equal((await isWorkspaceMember(db, memberId, shared)), true);
+  assert.equal((await isWorkspaceMember(db, memberId, owner.defaultWorkspaceId)), false);
+  assert.equal((await isWorkspaceMember(db, outsiderId, shared)), false);
 
-  assert.deepEqual(listWorkspacesForUser(db, owner.id).map((ws) => ws.id), [owner.default_workspace_id]);
-  assert.deepEqual(listWorkspacesForUser(db, memberId).map((ws) => ws.name), ['Shared']);
-  assert.deepEqual(listWorkspacesForUser(db, outsiderId), []);
-  assert.equal(getUser(db, memberId)!.role, 'user');
+  assert.deepEqual((await listWorkspacesForUser(db, owner.id)).map((ws) => ws.id), [owner.defaultWorkspaceId]);
+  assert.deepEqual((await listWorkspacesForUser(db, memberId)).map((ws) => ws.name), ['Shared']);
+  assert.deepEqual((await listWorkspacesForUser(db, outsiderId)), []);
+  assert.equal((await getUser(db, memberId))!.role, 'user');
 });
 
 test('addUser signs a second account in on the same app with its own workspace', async () => {
-  const first = await setup();
-  const second = await addUser(first, { email: 'second@example.com', role: 'user' });
-  const admin = await addUser(first, { email: 'admin@example.com', role: 'admin' });
+  const first = (await setup());
+  const second = (await addUser(first, { email: 'second@example.com', role: 'user' }));
+  const admin = (await addUser(first, { email: 'admin@example.com', role: 'admin' }));
 
   assert.equal(second.db, first.db);
   assert.deepEqual([first.user.role, second.user.role, admin.user.role], ['admin', 'user', 'admin']);
@@ -188,7 +136,7 @@ test('addUser signs a second account in on the same app with its own workspace',
     assert.equal(byToken.body.id, ctx.user.id);
     assert.equal(byToken.body.default_workspace_id, ctx.wid);
 
-    const cookie = await sessionCookie(ctx);
+    const cookie = (await sessionCookie(ctx));
     const byCookie = await first.request('GET', '/api/v9/me', undefined, { authorization: '', cookie });
     assert.equal(byCookie.status, 200);
     const me = await byCookie.json() as { email: string; default_workspace_id: number };
@@ -204,11 +152,11 @@ const ORGANIZATION_FIELDS = [
 const MEMBER_FIELDS = ['id', 'email', 'fullname', 'timezone', 'admin', 'inactive'];
 
 test('workspace and organization flags come from the caller\'s membership, not users.role', async () => {
-  const owner = await setup();
+  const owner = (await setup());
   // An instance admin who joins as a member is not a workspace admin; a plain user who owns a workspace is.
-  const member = await addUser(owner, { email: 'member@example.com', role: 'admin', fullname: 'Member' });
-  const outsider = await addUser(owner, { email: 'outsider@example.com', role: 'user' });
-  addWorkspaceMember(owner.db, owner.wid, member.user.id, 'member');
+  const member = (await addUser(owner, { email: 'member@example.com', role: 'admin', fullname: 'Member' }));
+  const outsider = (await addUser(owner, { email: 'outsider@example.com', role: 'user' }));
+  (await addWorkspaceMember(owner.db, owner.wid, member.user.id, 'member'));
 
   const ownerOrgs = await owner.json('GET', '/api/v9/me/organizations');
   assert.equal(ownerOrgs.status, 200);
@@ -237,10 +185,10 @@ test('workspace and organization flags come from the caller\'s membership, not u
 });
 
 test('GET /workspaces/:wid/users lists the workspace members and refuses non-members', async () => {
-  const owner = await setup();
-  const member = await addUser(owner, { email: 'member@example.com', role: 'admin', fullname: 'Member', timezone: 'Europe/Madrid' });
-  const outsider = await addUser(owner, { email: 'outsider@example.com', role: 'user' });
-  addWorkspaceMember(owner.db, owner.wid, member.user.id, 'member');
+  const owner = (await setup());
+  const member = (await addUser(owner, { email: 'member@example.com', role: 'admin', fullname: 'Member', timezone: 'Europe/Madrid' }));
+  const outsider = (await addUser(owner, { email: 'outsider@example.com', role: 'user' }));
+  (await addWorkspaceMember(owner.db, owner.wid, member.user.id, 'member'));
 
   for (const ctx of [owner, member]) {
     const users = await ctx.json('GET', `/api/v9/workspaces/${owner.wid}/users`);
@@ -266,12 +214,12 @@ async function workspaceState(ctx: TestContext) {
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const read = async (path: string) => (await ctx.json('GET', path)).body;
   return {
-    workspace: await read(base),
-    projects: await read(`${base}/projects`),
-    tasks: await read(`${base}/tasks`),
-    clients: await read(`${base}/clients`),
-    tags: await read(`${base}/tags`),
-    entries: await read('/api/v9/me/time_entries?start_date=2026-01-01&end_date=2027-01-01'),
+    workspace: (await read(base)),
+    projects: (await read(`${base}/projects`)),
+    tasks: (await read(`${base}/tasks`)),
+    clients: (await read(`${base}/clients`)),
+    tags: (await read(`${base}/tags`)),
+    entries: (await read('/api/v9/me/time_entries?start_date=2026-01-01&end_date=2027-01-01')),
   };
 }
 
@@ -293,10 +241,10 @@ async function seedWorkspace(ctx: TestContext, prefix = '') {
 }
 
 test('a non-member gets 403 from every route under another account\'s workspace and changes nothing', async () => {
-  const a = await setup();
-  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
-  const { client, project, task, tag, entry } = await seedWorkspace(a);
-  const before = await workspaceState(a);
+  const a = (await setup());
+  const b = (await addUser(a, { email: 'b@example.com', role: 'user' }));
+  const { client, project, task, tag, entry } = (await seedWorkspace(a));
+  const before = (await workspaceState(a));
 
   const ws = `/api/v9/workspaces/${a.wid}`;
   const reports = `/reports/api/v3/workspace/${a.wid}`;
@@ -332,7 +280,7 @@ test('a non-member gets 403 from every route under another account\'s workspace 
   for (const path of ['/api/v9/workspaces/999/projects', '/api/v9/workspaces/999/users']) {
     assert.equal((await b.json('GET', path)).status, 403, `${path}: a missing workspace looks the same as someone else's`);
   }
-  assert.deepEqual(await workspaceState(a), before, 'A\'s workspace, catalog and entries are untouched');
+  assert.deepEqual((await workspaceState(a)), before, 'A\'s workspace, catalog and entries are untouched');
 
   assert.equal((await a.json('GET', `${ws}/projects`)).status, 200, 'the owner still reaches its own workspace');
   assert.equal((await a.json('POST', `${reports}/search/time_entries/totals`, range)).status, 200);
@@ -340,9 +288,9 @@ test('a non-member gets 403 from every route under another account\'s workspace 
 });
 
 test('a member reaches a shared workspace through the same routes', async () => {
-  const a = await setup();
-  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
-  addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
+  const a = (await setup());
+  const b = (await addUser(a, { email: 'b@example.com', role: 'user' }));
+  (await addWorkspaceMember(a.db, a.wid, b.user.id, 'member'));
   const project = await b.json('POST', `/api/v9/workspaces/${a.wid}/projects`, { name: 'Shared' });
   assert.equal(project.status, 200);
   const entry = await b.json('POST', `/api/v9/workspaces/${a.wid}/time_entries`,
@@ -355,25 +303,25 @@ test('a member reaches a shared workspace through the same routes', async () => 
 });
 
 test('PUT /me accepts only a default workspace the caller belongs to, and app reports follow that rule', async () => {
-  const a = await setup();
-  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
-  await seedWorkspace(a);
+  const a = (await setup());
+  const b = (await addUser(a, { email: 'b@example.com', role: 'user' }));
+  (await seedWorkspace(a));
   const range = { start_date: '2026-10-01', end_date: '2026-10-07' };
 
   for (const wid of [a.wid, 999]) {
     const refused = await b.json('PUT', '/api/v9/me', { default_workspace_id: wid, fullname: 'Renamed' });
     assert.equal(refused.status, 400, `default_workspace_id ${wid}`);
     assert.equal(refused.body, 'Invalid default_workspace_id');
-    const stored = getUser(b.db, b.user.id)!;
-    assert.equal(stored.default_workspace_id, b.wid, 'B\'s default workspace is unchanged');
-    assert.equal(stored.fullname, '', 'nothing else is written either');
+    const stored = (await getUser(b.db, b.user.id))!;
+    assert.equal(stored.defaultWorkspaceId, b.wid, 'B\'s default workspace is unchanged');
+    assert.equal(stored.fullName, '', 'nothing else is written either');
   }
   const own = await b.json('POST', '/api/app/report', range);
   assert.equal(own.status, 200);
   assert.equal(own.body.totals.entry_count, 0, 'B\'s report holds none of A\'s entries');
 
   // A member may make the shared workspace its default; once the membership ends, the app reports refuse it.
-  addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
+  (await addWorkspaceMember(a.db, a.wid, b.user.id, 'member'));
   const joined = await b.json('PUT', '/api/v9/me', { default_workspace_id: a.wid });
   assert.equal(joined.status, 200);
   assert.equal(joined.body.default_workspace_id, a.wid);
@@ -388,14 +336,14 @@ test('PUT /me accepts only a default workspace the caller belongs to, and app re
 });
 
 test('trash restore needs membership of the entry\'s workspace', async () => {
-  const a = await setup();
-  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
-  addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
+  const a = (await setup());
+  const b = (await addUser(a, { email: 'b@example.com', role: 'user' }));
+  (await addWorkspaceMember(a.db, a.wid, b.user.id, 'member'));
   const ws = `/api/v9/workspaces/${a.wid}`;
   const created = async () => (await b.json('POST', `${ws}/time_entries`,
     { start: '2026-10-01T08:00:00Z', duration: 600, workspace_id: a.wid })).body.id as number;
-  const kept = await created();
-  const left = await created();
+  const kept = (await created());
+  const left = (await created());
   for (const id of [kept, left]) assert.equal((await b.json('DELETE', `${ws}/time_entries/${id}`)).status, 200);
 
   const restored = await b.json('POST', `/api/app/time_entries/${kept}/restore`);
@@ -411,9 +359,9 @@ test('trash restore needs membership of the entry\'s workspace', async () => {
 });
 
 test('a non-member cannot delete another workspace\'s project or trash its entries', async () => {
-  const a = await setup();
-  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
-  const { project, entry } = await seedWorkspace(a);
+  const a = (await setup());
+  const b = (await addUser(a, { email: 'b@example.com', role: 'user' }));
+  const { project, entry } = (await seedWorkspace(a));
   const refused = await b.json('DELETE', `/api/v9/workspaces/${a.wid}/projects/${project.id}?teDeletionMode=delete`);
   assert.equal(refused.status, 403);
   assert.equal((await a.json('GET', `/api/v9/workspaces/${a.wid}/projects/${project.id}`)).status, 200, 'the project is still there');
@@ -448,24 +396,24 @@ function expectedCollections(wids: number[], prefixes: string[]) {
 }
 
 test('the /me collections hold only the caller\'s workspaces and their catalogs', async () => {
-  const a = await setup();
-  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
-  await seedWorkspace(a, 'A ');
-  await seedWorkspace(b, 'B ');
+  const a = (await setup());
+  const b = (await addUser(a, { email: 'b@example.com', role: 'user' }));
+  (await seedWorkspace(a, 'A '));
+  (await seedWorkspace(b, 'B '));
 
-  assert.deepEqual(await meCollections(a), expectedCollections([a.wid], ['A ']));
-  assert.deepEqual(await meCollections(b), expectedCollections([b.wid], ['B ']));
+  assert.deepEqual((await meCollections(a)), expectedCollections([a.wid], ['A ']));
+  assert.deepEqual((await meCollections(b)), expectedCollections([b.wid], ['B ']));
 
-  addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
-  assert.deepEqual(await meCollections(b), expectedCollections([a.wid, b.wid], ['A ', 'B ']), 'a member also sees the shared workspace');
-  assert.deepEqual(await meCollections(a), expectedCollections([a.wid], ['A ']), 'joining does not show B\'s workspace to A');
+  (await addWorkspaceMember(a.db, a.wid, b.user.id, 'member'));
+  assert.deepEqual((await meCollections(b)), expectedCollections([a.wid, b.wid], ['A ', 'B ']), 'a member also sees the shared workspace');
+  assert.deepEqual((await meCollections(a)), expectedCollections([a.wid], ['A ']), 'joining does not show B\'s workspace to A');
 });
 
 test('the JSON export holds only the caller\'s workspaces and catalog, no secrets, and still restores', async () => {
-  const a = await setup();
-  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
-  await seedWorkspace(a, 'A ');
-  await seedWorkspace(b, 'B ');
+  const a = (await setup());
+  const b = (await addUser(a, { email: 'b@example.com', role: 'user' }));
+  (await seedWorkspace(a, 'A '));
+  (await seedWorkspace(b, 'B '));
 
   for (const [ctx, prefix, other] of [[a, 'A ', b], [b, 'B ', a]] as const) {
     const response = await ctx.request('GET', '/api/app/export.json');
@@ -478,12 +426,12 @@ test('the JSON export holds only the caller\'s workspaces and catalog, no secret
       [[`${prefix}Client`], [`${prefix}Project`], [`${prefix}Task`], [`${prefix}Tag`]], ctx.user.email);
     assert.deepEqual(exported.time_entries.map((te: any) => te.workspace_id), [ctx.wid]);
     for (const user of [ctx.user, other.user]) {
-      assert.ok(!text.includes(user.api_token), 'no API token');
-      assert.ok(!text.includes(user.password_hash), 'no password hash');
+      assert.ok(!text.includes(user.apiToken), 'no API token');
+      assert.ok(!text.includes(user.passwordHash), 'no password hash');
     }
     assert.ok(!text.includes('scrypt$'));
 
-    const target = await setup();
+    const target = (await setup());
     const restored = await (await target.request('POST', '/api/app/import/json', text)).json() as any;
     assert.deepEqual(restored.errors, []);
     assert.deepEqual([restored.clients, restored.projects, restored.tasks, restored.tags, restored.time_entries], [1, 1, 1, 1, 1]);

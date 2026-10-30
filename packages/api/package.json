@@ -5,7 +5,7 @@
   "description": "The Tokkl HTTP server: Toggl Track compatible API, web app API and static web root, shipped as raw TypeScript",
   "type": "module",
   "scripts": {
-    "test": "node --test --test-reporter=spec 'test/**/*.test.ts'",
+    "test": "node --test --test-concurrency=2 --test-reporter=spec 'test/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.json",
     "test:storage:migrations": "node --test --test-reporter=spec test/storage/migrations.test.ts test/storage/migrationLifecycle.test.ts test/storage/legacyPreflight.test.ts",
     "test:storage:transactions": "node --test --test-reporter=spec test/storage/transactions.test.ts test/storage/transactionsConcurrency.test.ts"

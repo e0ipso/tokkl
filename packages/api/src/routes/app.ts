@@ -1,256 +1,70 @@
-import express, { type Request, type Response, type Router } from 'express';
-import { hashPassword, readNewPassword, safeEqual } from '../auth/crypto.ts';
-import { accountCounters, addressCounter, passwordCounters } from '../auth/rateLimit.ts';
-import { currentActiveUser, hasCsrfHeader, requireAuth, sessionTokens, verifyAccountPassword } from '../auth/middleware.ts';
-import { createSession, deleteSession, findSessionUser, LEGACY_SESSION_COOKIE, SESSION_COOKIE } from '../auth/sessions.ts';
+import express, { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
-import { clientAddress, query, readJson, readText } from '../http/context.ts';
-import { badRequest, forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
+import { query, readText } from '../http/context.ts';
+import { badRequest, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
-import { canonicalTimeZone, dateKey } from '@tokkl/common/time';
-import {
-  listDeletedEntries, purgeDeletedEntries, restoreTimeEntry, serializeTimeEntry,
-} from '../models/timeEntries.ts';
-import {
-  acceptInvite, findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND, resetPassword,
-} from '../models/accountTokens.ts';
-import { getInstanceSettings } from '../models/settings.ts';
-import { countUsers, createFirstAdmin, findUserByEmail, type NewAccount } from '../models/users.ts';
-import { buildCsvExport, buildJsonExport } from '../services/export.ts';
-import { importTogglCsv } from '../services/importCsv.ts';
-import { importJsonExport } from '../services/importJson.ts';
-
+import { dateKey } from '@tokkl/common/time';
+import { createStorageSessions } from '../auth/storageSessions.ts';
+import { restoreTimeEntry, purgeDeletedEntries, serializeTimeEntry } from '../domain/timeEntries.ts';
+import { collectAccountExport } from '../services/storageExport.ts';
 export interface SetupState {
-  /** Code that creates the first admin; null once any account exists. */
   code: string | null;
 }
-
-function startSession(deps: Deps, req: Request, res: Response, userId: number): void {
-  const days = getInstanceSettings(deps.db, deps.config).session_days;
-  const { token, expires } = createSession(deps.db, userId, days, req.get('user-agent') ?? '');
-  res.cookie(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    // Behind the reverse proxy this follows X-Forwarded-Proto, so the cookie is Secure under HTTPS.
-    secure: req.secure,
-    path: '/',
-    expires,
-  });
-  res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
-}
-
-/**
- * Bodies are parsed as JSON whatever their Content-Type, so a cross-site form posting text/plain could
- * otherwise sign the browser into an account the attacker controls. Runs before any lookup, hashing
- * or limiter charge.
- */
-function requireCsrfHeader(req: Request): void {
-  if (!hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
-}
-
-/** A missing or empty timezone means UTC; anything else must be a zone name Intl knows. */
-function readNewAccountTimeZone(value: unknown): string {
-  if (value === undefined || value === '') return 'UTC';
-  const timezone = typeof value === 'string' ? canonicalTimeZone(value) : null;
-  if (timezone === null) throw badRequest('Invalid timezone');
-  return timezone;
-}
-
-/** Reads and checks the account fields of the setup and invite forms. Bad input is a 400. */
-function readNewAccount(body: Record<string, unknown>): NewAccount {
-  const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
-  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
-  const timezone = readNewAccountTimeZone(body.timezone);
-  return { email, password: readNewPassword(body.password), fullname, timezone };
-}
-
 export function appRoutes(deps: Deps, setup: SetupState): Router {
-  const { db, loginLimiter, setupLimiter, timerStreams } = deps;
-  const app = express.Router();
-  const auth = requireAuth(deps);
-
-  app.get('/status', (req, res) => res.json({ setup_required: countUsers(db) === 0 }));
-
-  app.post('/setup', async (req, res) => {
-    requireCsrfHeader(req);
-    if (countUsers(db) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
-    const address = clientAddress(req);
-    if (setupLimiter.isBlocked(address)) throw tooManyRequests('Too many failed attempts, try again later', setupLimiter.retryAfterSeconds(address));
-    const body = readJson(req);
-    if (typeof body.setup_code !== 'string' || !safeEqual(body.setup_code.trim(), setup.code)) {
-      setupLimiter.recordFailure(address);
-      throw forbidden('Invalid setup code. It is printed in the server log on startup.');
-    }
-    const user = await createFirstAdmin(db, readNewAccount(body));
-    setup.code = null;
-    startSession(deps, req, res, user.id);
-    return res.json({ ok: true });
+  const { storage, config, accounts, loginLimiter, setupLimiter } = deps;
+  const app = express.Router(), auth = deps.auth.requireAuth;
+  const sessions = createStorageSessions(storage, accounts, { loginLimiter, setupLimiter, sessionDays: config.sessionDays, setup });
+  app.get('/status', sessions.status);
+  app.post('/setup', sessions.firstAdmin);
+  app.get('/invites/:token', sessions.inviteInfo);
+  app.post('/invites/:token', sessions.acceptInvite);
+  app.get('/password-resets/:token', sessions.resetInfo);
+  app.post('/password-resets/:token', sessions.resetPassword);
+  app.post('/login', sessions.login);
+  app.post('/logout', sessions.logout);
+  app.post('/time_entries/:id/restore', auth, async (req, res) => {
+    const entry = await deps.entryWrite(res.locals.auth, ctx => restoreTimeEntry(ctx, res.locals.auth.user, parseId(req.params.id), deps.publish));
+    return res.json(serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }));
   });
-
-  /**
-   * The usable invite behind the URL token, or a 404 that is the same for unknown, expired, used and
-   * revoked tokens. Each miss counts against the address, and a blocked address gets 429 before the
-   * lookup, so tokens cannot be guessed at speed.
-   */
-  const inviteFor = (req: Request) => {
-    const counter = addressCounter(clientAddress(req));
-    if (loginLimiter.isBlocked(counter)) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counter));
-    const token = String(req.params.token);
-    const invite = findUsableInvite(db, token);
-    if (!invite?.role) {
-      loginLimiter.recordFailure(counter);
-      throw notFound(INVITE_NOT_FOUND);
-    }
-    return { token, role: invite.role };
-  };
-
-  app.get('/invites/:token', (req, res) => res.json({ role: inviteFor(req).role }));
-
-  app.post('/invites/:token', async (req, res) => {
-    requireCsrfHeader(req);
-    const { token } = inviteFor(req);
-    const { password, ...account } = readNewAccount(readJson(req));
-    // scrypt runs before the transaction, which checks the invite again.
-    const passwordHash = await hashPassword(password);
-    const user = acceptInvite(db, token, { ...account, passwordHash });
-    startSession(deps, req, res, user.id);
-    return res.json({ ok: true });
+  app.get('/bounds', auth, async (_req, res) => {
+    const user = res.locals.auth.user, row = await storage.entries.bounds(user.id);
+    return res.json({ first_date: row.firstStart ? dateKey(new Date(row.firstStart), user.timezone) : null, last_date: row.lastStart ? dateKey(new Date(row.lastStart), user.timezone) : null });
   });
-
-  /**
-   * The account behind a password reset link, or one 404 for unknown, expired, used and revoked
-   * links and for disabled accounts. Misses count against the address like invite misses.
-   */
-  const resetFor = (req: Request) => {
-    const counter = addressCounter(clientAddress(req));
-    if (loginLimiter.isBlocked(counter)) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counter));
-    const token = String(req.params.token);
-    const user = findResetUser(db, token);
-    if (!user) {
-      loginLimiter.recordFailure(counter);
-      throw notFound(RESET_NOT_FOUND);
-    }
-    return { token, user };
-  };
-
-  // The email tells the holder which account the link is for; holding the link already grants it.
-  app.get('/password-resets/:token', (req, res) => res.json({ email: resetFor(req).user.email }));
-
-  /**
-   * Sets a new password, replaces the API token and signs the account out everywhere. No session
-   * starts; the user logs in next and reads the new token from GET /me.
-   */
-  app.post('/password-resets/:token', async (req, res) => {
-    requireCsrfHeader(req);
-    const { token, user } = resetFor(req);
-    const password = readNewPassword(readJson(req).password);
-    // scrypt runs before the transaction, which checks the link and the account again.
-    const passwordHash = await hashPassword(password);
-    resetPassword(db, token, passwordHash);
-    timerStreams.recheck(user.id);
-    // Failed logins from before the reset no longer stand between the user and the new password.
-    loginLimiter.reset(accountCounters(user.email, clientAddress(req)));
-    return res.json({ ok: true });
-  });
-
-  app.post('/login', async (req, res) => {
-    requireCsrfHeader(req);
-    const address = clientAddress(req);
-    const body = readJson(req);
-    const email = typeof body.email === 'string' ? body.email.trim() : '';
-    const password = typeof body.password === 'string' ? body.password : '';
-    const user = findUserByEmail(db, email);
-    const counters = passwordCounters(email, address);
-    const valid = await loginLimiter.attempt(counters, () => verifyAccountPassword(user, password));
-    if (valid === null) throw tooManyRequests('Too many failed login attempts, try again later', loginLimiter.retryAfterSeconds(counters));
-    const account = user && valid ? currentActiveUser(db, user) : undefined;
-    if (!account) throw forbidden('Incorrect email or password');
-    // The address counter is left alone, so one account's success cannot clear failures against another.
-    loginLimiter.reset(accountCounters(email, address));
-    startSession(deps, req, res, account.id);
-    return res.json({ ok: true });
-  });
-
-  // Ending an active session is a cookie-authenticated write, so it needs the CSRF header.
-  // Without an active session there is nothing to protect and logout stays idempotent.
-  app.post('/logout', (req, res) => {
-    const active = sessionTokens(req).flatMap((token) => {
-      const user = findSessionUser(db, token);
-      return user ? [{ token, userId: user.id }] : [];
-    });
-    if (active.length > 0 && !hasCsrfHeader(req)) throw forbidden('Missing CSRF header');
-    for (const { token } of active) deleteSession(db, token);
-    for (const { userId } of active) timerStreams.recheck(userId);
-    res.clearCookie(SESSION_COOKIE, { path: '/' });
-    res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
-    return res.json({ ok: true });
-  });
-
-  app.post('/time_entries/:id/restore', auth, (req, res) => {
-    const entry = restoreTimeEntry(db, res.locals.user, parseId(req.params.id));
-    return res.json(serializeTimeEntry(entry, { meta: true, user: res.locals.user }));
-  });
-
-  /** First and last day with an entry, in the account timezone. Used by the "All time" report preset. */
-  app.get('/bounds', auth, (req, res) => {
-    const user = res.locals.user;
-    const row = db.prepare(
-      'SELECT MIN(start) AS first, MAX(start) AS last FROM time_entries WHERE user_id = ? AND deleted_at IS NULL',
-    ).get(user.id) as { first: string | null; last: string | null };
-    return res.json({
-      first_date: row.first ? dateKey(new Date(row.first), user.timezone) : null,
-      last_date: row.last ? dateKey(new Date(row.last), user.timezone) : null,
-    });
-  });
-
-  app.get('/trash', auth, (req, res) => {
-    const user = res.locals.user;
-    return res.json(listDeletedEntries(db, user.id).map((entry) => serializeTimeEntry(entry, { meta: true, user })));
-  });
-
-  app.delete('/trash', auth, (req, res) => res.json({ deleted: purgeDeletedEntries(db, res.locals.user.id) }));
-
-  app.delete('/trash/:id', auth, (req, res) => {
-    const deleted = purgeDeletedEntries(db, res.locals.user.id, parseId(req.params.id));
-    if (deleted === 0) throw notFound('Time entry not found in trash');
+  app.get('/trash', auth, async (_req, res) => res.json((await storage.entries.listDeleted(res.locals.auth.user.id)).map(entry => serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }))));
+  app.delete('/trash', auth, async (_req, res) => res.json({ deleted: await deps.entryWrite(res.locals.auth, ctx => purgeDeletedEntries(ctx, res.locals.auth.user.id, deps.publish)) }));
+  app.delete('/trash/:id', auth, async (req, res) => {
+    const deleted = await deps.entryWrite(res.locals.auth, ctx => purgeDeletedEntries(ctx, res.locals.auth.user.id, deps.publish, parseId(req.params.id)));
+    if (!deleted)
+      throw notFound('Time entry not found in trash');
     return res.json({ deleted });
   });
-
-  app.get('/export.json', auth, (req, res) => {
-    res.set('Content-Disposition', `attachment; filename="tokkl-${new Date().toISOString().slice(0, 10)}.json"`);
-    return res.json(buildJsonExport(db, res.locals.user));
+  app.get('/export.json', auth, async (_req, res) => {
+    const instant = new Date().toISOString();
+    const result = await deps.reports.assembleExport(await collectAccountExport(storage, res.locals.auth.user.id), { kind: 'export-json', exportedAt: instant, filename: `tokkl-${instant.slice(0, 10)}.json` }, { signal: res.locals.workSignal });
+    res.set(result.headers).type('json').set('Content-Disposition', `attachment; filename="${result.filename}"`).send(result.body);
   });
-
-  app.get('/export.csv', auth, (req, res) => {
-    const from = query(req, 'start_date');
-    const to = query(req, 'end_date');
-    res.set('Content-Type', 'text/csv; charset=utf-8');
-    res.set('Content-Disposition', `attachment; filename="tokkl-entries-${new Date().toISOString().slice(0, 10)}.csv"`);
-    return res.send(buildCsvExport(db, res.locals.user, { from, to }));
+  app.get('/export.csv', auth, async (req, res) => {
+    const result = await deps.reports.assembleExport(await collectAccountExport(storage, res.locals.auth.user.id), { kind: 'export-csv', range: { from: query(req, 'start_date'), to: query(req, 'end_date') }, filename: `tokkl-entries-${new Date().toISOString().slice(0, 10)}.csv`, durationFormat: 'improved' }, { signal: res.locals.workSignal });
+    res.set(result.headers).set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', `attachment; filename="${result.filename}"`).send(result.body);
   });
-
   app.post('/import/toggl-csv', auth, async (req, res) => {
     const text = readText(req);
-    if (!text.trim()) throw badRequest('The file is empty');
-    const dryRun = query(req, 'dry_run') === 'true';
-    // Repeat `user` once per selected Toggl user; keys can hold commas, so no comma list.
-    const selected = req.query.user;
-    const users = selected === undefined ? undefined : [selected].flat().filter((key) => typeof key === 'string');
-    if (users?.length === 0) throw badRequest('Invalid user selection');
-    return res.json(importTogglCsv(db, res.locals.user, text, { dryRun, users }));
+    if (!text.trim())
+      throw badRequest('The file is empty');
+    const selected = req.query.user, users = selected === undefined ? undefined : [selected].flat().filter(key => typeof key === 'string');
+    if (users?.length === 0)
+      throw badRequest('Invalid user selection');
+    return res.json(await deps.importsFor(res.locals.auth).importTogglCsv(res.locals.auth.user.id, text, { dryRun: query(req, 'dry_run') === 'true', users }));
   });
-
   app.post('/import/json', auth, async (req, res) => {
     let data: unknown;
     try {
       data = JSON.parse(readText(req));
-    } catch {
+    }
+    catch {
       throw badRequest('The file is not valid JSON');
     }
-    const dryRun = query(req, 'dry_run') === 'true';
-    return res.json(importJsonExport(db, res.locals.user, data, { dryRun }));
+    return res.json(await deps.importsFor(res.locals.auth).importJsonExport(res.locals.auth.user.id, data, { dryRun: query(req, 'dry_run') === 'true' }));
   });
-
   return app;
 }

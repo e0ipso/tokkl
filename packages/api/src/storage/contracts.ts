@@ -189,7 +189,7 @@ export interface TransactionScope<R extends object> {
 export type OperationContext<R extends object> = R & TransactionScope<R>;
 export type TransactionContext = OperationContext<Repositories>;
 export interface Storage extends Repositories {
-  transaction<T>(work: (context: TransactionContext) => Promise<T>): Promise<T>;
+  transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
   readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;
   close(): Promise<void>;

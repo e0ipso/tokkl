@@ -9,10 +9,7 @@ import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { collectReport, formatReportEntries, type ReportFilter } from '../../src/services/storageReports.ts';
 import { formatReportJob } from '../../src/services/storageReportJobs.ts';
-import { runJob } from '../../src/services/reportJobs.ts';
-import { openDatabase } from '../../src/db/index.ts';
-import { insertAccount } from '../../src/models/users.ts';
-import { getWorkspace } from '../../src/models/workspaces.ts';
+import expectedReports from './support/report-expected.json' with { type: 'json' };
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import type { Backend } from '../../src/storage/config.ts';
 
@@ -45,19 +42,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         start: '1969-12-31T23:59:59.900Z', stop: '1970-01-01T00:00:01.100Z', billable: true, allDay: false, durationOnly: false, createdWith: 'test', deletedAt: null, tagIds: [tags[0]!.id] });
       return { user, ws, p, task, tags };
     });
-    // Recreate the same physical fixture in the legacy reference engine, including timestamps.
-    const old = openDatabase(':memory:'); t.after(() => old.close());
-    const oldUser = insertAccount(old, { email: seeded.user.email, fullname: seeded.user.fullName, timezone: seeded.user.timezone, passwordHash: 'hash', role: 'user' });
-    old.prepare('update workspaces set default_currency = ?, default_hourly_rate = ? where id = ?').run('EUR', 50, oldUser.default_workspace_id);
-    for (const table of ['clients', 'projects', 'tasks', 'tags', 'time_entries', 'time_entry_tags'] as const) {
-      const rows = await connection.db.selectFrom(table).selectAll().execute();
-      const columns = new Set((old.prepare(`pragma table_info(${table})`).all() as { name: string }[]).map(c => c.name));
-      for (const row of rows) {
-        const fields = Object.keys(row).filter(key => columns.has(key));
-        old.prepare(`insert into ${table} (${fields.join(',')}) values (${fields.map(() => '?').join(',')})`).run(...fields.map(key => (row as Record<string, any>)[key]));
-      }
-    }
-    const oldWs = getWorkspace(old, oldUser.default_workspace_id)!;
+    // The retained legacy envelopes include this controlled fixture audit timestamp.
+    await connection.db.updateTable('time_entries').set({ updated_at: '2026-10-30T12:01:39.000Z' }).execute();
     const filters: ReportFilter[] = [range, { ...range, rounding: 1, roundingMinutes: 15 }, { ...range, rounding: -1, roundingMinutes: 5 },
       { ...range, description: '%_\\' }, { ...range, description: 'é' }, { ...range, description: 'ascii' },
       { ...range, projectIds: [null] }, { ...range, clientIds: [seeded.p.clientId] }, { ...range, taskIds: [null, seeded.task.id] },
@@ -67,9 +53,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       { ...range, minDurationSeconds: 902, maxDurationSeconds: 3000 },
       { startDate: '1969-12-31', endDate: '1970-01-02', minDurationSeconds: 2, maxDurationSeconds: 2 },
     ];
+    let expectedIndex = 0;
     for (const filter of filters) {
       const data = await collectReport(operations, seeded.user.id, seeded.ws.id, filter);
-      for (const job of jobs(filter)) assert.deepEqual(formatReportJob(data, job), runJob(old, oldUser, oldWs, job), `${backend} ${job.kind} ${JSON.stringify(filter)}`);
+      for (const job of jobs(filter)) assert.deepEqual(formatReportJob(data, job), expectedReports[expectedIndex++], `${backend} ${job.kind} ${JSON.stringify(filter)}`);
     }
     await t.test('snapshot keeps joined metadata and ordered tags from the same committed version', async () => {
       const writer = await openConnection<PhysicalDatabase>(fixture.config); t.after(() => writer.close());

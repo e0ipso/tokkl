@@ -1,3 +1,4 @@
+import { storageFor } from '../../../../packages/api/test/fixtures/database.ts';
 /**
  * Runs the GNOME Shell extension against a real tokkl-timerd and a real Tokkl server: this serves
  * an instance built with the API's test fixtures on 127.0.0.1, runs the command that drives the
@@ -69,9 +70,9 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
   await ok(user, 'POST', `/api/v9/workspaces/${user.wid}/projects`, { name: 'Other project', active: true });
   const before = snapshot(admin);
 
-  const server = createServer(createApp({ db: admin.db, config: testConfig(), setup: { code: null } }));
+  const server = createServer(createApp({ storage: storageFor(admin.db), config: testConfig(), setup: { code: null } }));
   const url = await listen(server, Number(process.env.TOKKL_GNOME_TEST_PORT ?? 0));
-  const fixture = { url, token: user.user.api_token, project: { id: project.id, name: project.name, color: project.color } };
+  const fixture = { url, token: user.user.apiToken, project: { id: project.id, name: project.name, color: project.color } };
   try {
     const exitCode = await new Promise<number | null>((resolve, reject) => {
       const child = spawn(argv[0] as string, argv.slice(1) as string[], {

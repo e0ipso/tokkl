@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { setup } from '../helpers.ts';
+import expectedTransfers from './support/transfer-expected.json' with { type: 'json' };
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
@@ -30,7 +30,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const runner = createTransactionRunner(connection, db => ({ ...entryTimerFactory(backend)(db), ...createTransferRepositories(db, backend) }));
     t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-30T12:00:00.000Z') });
     const publish = createTimerPublication(async () => {}), imports = createStorageImports(runner, publish);
-    const legacy = await setup({ timezone: 'Europe/Madrid' });
+    let expectedIndex = 0;
+    const legacy = { request: async (..._args: unknown[]) => { const value=expectedTransfers[expectedIndex++]!.body; return {json:async()=>value,text:async()=>String(value)}; } };
     try {
       const user = await runner.transaction(ctx => ctx.users.createAccount({ ...entryAccount('me', 'admin'), email: 'me@example.com', fullName: 'Test User', timezone: 'Europe/Madrid', preferences: { pg_time_zone_name: 'Europe/Madrid' } }));
       for (const dryRun of [true, false]) {
@@ -67,6 +68,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const removed = projection.entries[0]!;
       await runner.transaction(ctx => deleteTimeEntry(ctx, user.id, user.defaultWorkspaceId, removed.id, publish));
       assert.ok(!(await buildJsonExport(runner, user.id)).time_entries.some(e => e.id === removed.id));
-    } finally { legacy.db.close(); await connection.close(); await fixture.cleanup(); }
+    } finally { await connection.close(); await fixture.cleanup(); }
   });
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Db } from '../src/db/index.ts';
+import type { FixtureDatabase } from './fixtures/database.ts';
 import { addUser, CSRF, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 /** Gives the account a client, a project with a task, a tag and a tagged entry in its own workspace. */
@@ -11,19 +11,19 @@ async function seed(ctx: TestContext): Promise<void> {
     assert.equal(response.status, 200, `${path}: ${JSON.stringify(response.body)}`);
     return response.body.id as number;
   };
-  const client = await created('/clients', { name: `${ctx.user.email} client` });
-  const project = await created('/projects', { name: 'Project', client_id: client });
-  const task = await created(`/projects/${project}/tasks`, { name: 'Task' });
-  await created('/tags', { name: 'tag' });
-  await created('/time_entries', {
+  const client = (await created('/clients', { name: `${ctx.user.email} client` }));
+  const project = (await created('/projects', { name: 'Project', client_id: client }));
+  const task = (await created(`/projects/${project}/tasks`, { name: 'Task' }));
+  (await created('/tags', { name: 'tag' }));
+  (await created('/time_entries', {
     start: '2026-10-01T08:00:00Z', duration: 600, project_id: project, task_id: task, tags: ['tag'], created_with: 'test',
-  });
+  }));
 }
 
 const TABLES = ['workspaces', 'clients', 'projects', 'tasks', 'tags', 'time_entries'] as const;
 
 /** Rows per table that belong to `userId`'s workspaces or to the account itself. */
-function owned(db: Db, userId: number, wid: number): Record<string, number> {
+function owned(db: FixtureDatabase, userId: number, wid: number): Record<string, number> {
   const count = (sql: string, ...params: number[]) => (db.prepare(sql).get(...params) as { n: number }).n;
   const rows: Record<string, number> = {};
   for (const table of TABLES) {
@@ -40,12 +40,12 @@ const remove = (admin: TestContext, target: TestContext, body: unknown = { email
   admin.json('DELETE', `/api/app/admin/users/${target.user.id}`, body);
 
 test('deleting a user removes their workspace, its data, their sessions and memberships, and nobody else\'s', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const carol = await addUser(admin, { email: 'carol@example.com', role: 'user' });
-  for (const ctx of [admin, bob, carol]) await seed(ctx);
-  await sessionCookie(bob);
-  await sessionCookie(carol);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const carol = (await addUser(admin, { email: 'carol@example.com', role: 'user' }));
+  for (const ctx of [admin, bob, carol]) (await seed(ctx));
+  (await sessionCookie(bob));
+  (await sessionCookie(carol));
   const bobBefore = owned(admin.db, bob.user.id, bob.wid);
   assert.ok(Object.values(bobBefore).every((n) => n >= 1), JSON.stringify(bobBefore));
   const others = () => [owned(admin.db, admin.user.id, admin.wid), owned(admin.db, carol.user.id, carol.wid)];
@@ -63,8 +63,8 @@ test('deleting a user removes their workspace, its data, their sessions and memb
 });
 
 test('a workspace shared with another member stays; only the deleted account\'s rows leave it', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
   admin.db.prepare("INSERT INTO workspace_users (workspace_id, user_id, role) VALUES (?, ?, 'member')").run(admin.wid, bob.user.id);
   assert.equal((await remove(admin, bob)).status, 200);
   assert.ok(admin.db.prepare('SELECT 1 FROM workspaces WHERE id = ?').get(admin.wid), 'the shared workspace stays');
@@ -72,9 +72,9 @@ test('a workspace shared with another member stays; only the deleted account\'s 
 });
 
 test('a missing or wrong email returns 400 and deletes nothing', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  await seed(bob);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  (await seed(bob));
   const before = owned(admin.db, bob.user.id, bob.wid);
   for (const body of [{}, { email: 'carol@example.com' }, { email: 5 }, { email: null }, '', 'bob@example.com']) {
     assert.equal((await remove(admin, bob, body)).status, 400, JSON.stringify(body));
@@ -85,12 +85,12 @@ test('a missing or wrong email returns 400 and deletes nothing', async () => {
 });
 
 test('nobody deletes themselves or the last active admin', async () => {
-  const admin = await setup();
+  const admin = (await setup());
   const alone = await remove(admin, admin);
   assert.equal(alone.status, 400);
   assert.equal(alone.body, 'At least one active admin must remain');
 
-  const second = await addUser(admin, { email: 'second@example.com', role: 'admin' });
+  const second = (await addUser(admin, { email: 'second@example.com', role: 'admin' }));
   const self = await remove(second, second);
   assert.equal(self.status, 400);
   assert.equal(self.body, 'You cannot delete your own account');
@@ -101,18 +101,18 @@ test('nobody deletes themselves or the last active admin', async () => {
 });
 
 test('a regular user gets 403', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const carol = await addUser(admin, { email: 'carol@example.com', role: 'user' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const carol = (await addUser(admin, { email: 'carol@example.com', role: 'user' }));
   assert.equal((await remove(bob, carol)).status, 403);
   assert.equal((await remove(bob, admin)).status, 403);
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body.length, 3);
 });
 
 test('the deleted account\'s session cookie and API token stop working', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const cookie = await sessionCookie(bob);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const cookie = (await sessionCookie(bob));
   assert.equal((await bob.request('GET', '/api/v9/me', undefined, { authorization: '', cookie })).status, 200);
   assert.equal((await bob.request('GET', '/api/v9/me')).status, 200);
 
@@ -122,15 +122,15 @@ test('the deleted account\'s session cookie and API token stop working', async (
 });
 
 test('a deleted admin\'s pending invites stop working; their used invites and settings changes stay', async () => {
-  const admin = await setup();
-  const second = await addUser(admin, { email: 'second@example.com', role: 'admin' });
+  const admin = (await setup());
+  const second = (await addUser(admin, { email: 'second@example.com', role: 'admin' }));
   const createInvite = async () => {
     const response = await second.json('POST', '/api/app/admin/invites', { role: 'user' });
     assert.equal(response.status, 200);
     return (response.body.url as string).replace(/^\/invite\//, '');
   };
-  const pending = await createInvite();
-  const used = await createInvite();
+  const pending = (await createInvite());
+  const used = (await createInvite());
   const accepted = await second.request('POST', `/api/app/invites/${used}`, { email: 'dana@example.com', password: 'dana password' }, { authorization: '', ...CSRF });
   assert.equal(accepted.status, 200);
   assert.equal((await second.json('PUT', '/api/app/admin/settings', { invite_days: 4 })).status, 200);
