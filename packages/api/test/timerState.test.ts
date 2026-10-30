@@ -1,3 +1,4 @@
+import { storageFor, currentContext } from './fixtures/database.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { transaction } from './fixtures/database.ts';
@@ -23,29 +24,23 @@ async function startTimer(ctx: TestContext, body: Record<string, unknown> = {}, 
   return response.body.id;
 }
 
-function row(ctx: TestContext, table: string): Record<string, unknown> | undefined {
-  const found = ctx.db.prepare(`SELECT * FROM ${table} WHERE user_id = ?`).get(ctx.user.id);
-  return found && { ...found };
+const session = async (ctx: TestContext) => {
+ const row = await storageFor(ctx.db).timers.getSession(ctx.user.id);
+ return row && {entry_id:row.entryId, ...row};
+};
+const chain = async (ctx: TestContext) => {
+ const row = await storageFor(ctx.db).timers.getPauseChain(ctx.user.id);
+ return row && {...row, task_id:row.taskId, project_id:row.projectId, clone_entry_id:row.cloneEntryId};
+};
+const revision = async (ctx: TestContext) => (await storageFor(ctx.db).timers.getRevision(ctx.user.id))?.revision ?? 0;
+async function discardOf(ctx: TestContext) {
+ const row=(await storageFor(ctx.db).timers.getRevision(ctx.user.id))?.discardedPomodoro;
+ return {discarded_entry_id:row?.entryId ?? null, discarded_start:row?.start ?? null, discarded_stop:row?.stop ?? null};
 }
-
-const session = (ctx: TestContext) => row(ctx, 'pomodoro_sessions');
-const chain = (ctx: TestContext) => row(ctx, 'pause_chains');
-const revision = (ctx: TestContext) => (row(ctx, 'timer_states')?.revision as number | undefined) ?? 0;
-
-function discardOf(ctx: TestContext) {
-  const { discarded_entry_id, discarded_start, discarded_stop } = row(ctx, 'timer_states')!;
-  return { discarded_entry_id, discarded_start, discarded_stop };
-}
-
-/** Puts a work phase on the running entry `entryId` and settles, so the stored state holds the session. */
 async function putSession(ctx: TestContext, entryId: number): Promise<void> {
-  ctx.db.prepare(`
-    INSERT INTO pomodoro_sessions (user_id, entry_id, work_minutes, short_rest_minutes, long_rest_minutes, long_rest_every,
-      phase_kind, phase_start, completed)
-    VALUES (?, ?, 25, 5, 15, 4, 'work', ?, 0)
-  `).run(ctx.user.id, entryId, iso(at('09:00:00')));
-  (await settleTimer(ctx.db, ctx.user.id));
-  assert.ok(session(ctx), 'a session on the running entry stays');
+ await storageFor(ctx.db).timers.saveSession({userId:ctx.user.id,entryId,config:{workMinutes:25,shortRestMinutes:5,longRestMinutes:15,longRestEvery:4},phase:{kind:'work',startedAt:iso(at('09:00:00')),completed:0}});
+ await settleTimer(ctx.db,ctx.user.id);
+ assert.ok(await session(ctx));
 }
 
 interface ChainFields {
@@ -56,14 +51,9 @@ interface ChainFields {
 
 /** Puts a pause chain on the user and settles. `cloneEntryId` is the running clone, or null while paused. */
 async function putChain(ctx: TestContext, cloneEntryId: number | null, fields: ChainFields = {}): Promise<void> {
-  ctx.db.prepare(`
-    INSERT INTO pause_chains (user_id, workspace_id, project_id, task_id, description, tag_ids_json, billable, seconds,
-      clone_entry_id)
-    VALUES (?, ?, ?, ?, 'Paused work', ?, 0, 600, ?)
-  `).run(ctx.user.id, ctx.wid, fields.project_id ?? null, fields.task_id ?? null, JSON.stringify(fields.tag_ids ?? []),
-    cloneEntryId);
+  await storageFor(ctx.db).timers.savePauseChain({userId:ctx.user.id,workspaceId:ctx.wid,projectId:fields.project_id ?? null,taskId:fields.task_id ?? null,description:'Paused work',tagIds:fields.tag_ids ?? [],billable:false,seconds:600,cloneEntryId});
   (await settleTimer(ctx.db, ctx.user.id));
-  assert.ok(chain(ctx), 'a paused chain with nothing running, or one whose clone runs, stays');
+  assert.ok((await chain(ctx)), 'a paused chain with nothing running, or one whose clone runs, stays');
 }
 
 interface Publish {
@@ -74,7 +64,7 @@ interface Publish {
 /** Records every publish for the user: the revision the listener reads, and whether a transaction was still open. */
 function watch(ctx: TestContext): Publish[] {
   const seen: Publish[] = [];
-  subscribeTimer(ctx.db, ctx.user.id, () => seen.push({ revision: revision(ctx), inTransaction: ctx.db.isTransaction }));
+  subscribeTimer(ctx.db, ctx.user.id, async () => { seen.push({revision:await revision(ctx),inTransaction:!!currentContext(ctx.db)}); });
   return seen;
 }
 
@@ -102,12 +92,12 @@ test('each write that stops or removes the pomodoro entry ends the session and p
     const hour = String(9 + index).padStart(2, '0');
     const entryId = (await startTimer(owner, { start: at(`${hour}:00:00`), project_id: project }, ctx.wid));
     (await putSession(owner, entryId));
-    const before = revision(owner);
+    const before = (await revision(owner));
     for (const seen of heard.values()) seen.splice(0);
 
     const response = await end(entryId, hour);
     assert.equal(response.status, 200, label);
-    assert.equal(session(owner), undefined, label);
+    assert.equal((await session(owner)), undefined, label);
     assert.deepEqual(heard.get(owner), [{ revision: before + 1, inTransaction: false }], label);
     const other = owner === ctx ? bob : ctx;
     assert.deepEqual(heard.get(other), [], `${label}: the other account's state did not change`);
@@ -117,11 +107,11 @@ test('each write that stops or removes the pomodoro entry ends the session and p
   // session on an entry already in the trash; the raw UPDATE stands in for that write.
   const stale = (await startTimer(ctx, { start: at('16:00:00') }));
   (await putSession(ctx, stale));
-  ctx.db.prepare('UPDATE time_entries SET deleted_at = ? WHERE id = ?').run(new Date().toISOString(), stale);
-  const before = revision(ctx);
+  await storageFor(ctx.db).entries.softDelete(ctx.user.id,ctx.wid,stale,new Date().toISOString());
+  const before = (await revision(ctx));
   heard.get(ctx)!.splice(0);
   assert.equal((await ctx.json('DELETE', '/api/app/trash')).status, 200);
-  assert.equal(session(ctx), undefined);
+  assert.equal((await session(ctx)), undefined);
   assert.deepEqual(heard.get(ctx), [{ revision: before + 1, inTransaction: false }]);
 });
 
@@ -133,24 +123,24 @@ test('a pomodoro that a stop rounds to zero is the discarded pomodoro until the 
   const entryId = (await startTimer(ctx, { start: at('09:00:10') }));
   (await putSession(ctx, entryId));
   const published = watch(ctx);
-  const before = revision(ctx);
+  const before = (await revision(ctx));
 
   const stopped = await ctx.json('PATCH', `${url}/${entryId}/stop`, { stop: at('09:00:20') });
   assert.equal(stopped.status, 200);
   assert.equal(stopped.body.duration, 0);
   assert.ok(stopped.body.server_deleted_at);
-  assert.equal(session(ctx), undefined);
+  assert.equal((await session(ctx)), undefined);
   const discarded = { discarded_entry_id: entryId, discarded_start: iso(at('09:00:00')), discarded_stop: iso(at('09:00:00')) };
-  assert.deepEqual(discardOf(ctx), discarded);
+  assert.deepEqual((await discardOf(ctx)), discarded);
   assert.deepEqual(published, [{ revision: before + 1, inTransaction: false }]);
 
   // A write that changes nothing in the timer state keeps it.
   assert.equal((await ctx.json('PUT', `${url}/${older}`, { description: 'renamed' })).status, 200);
-  assert.deepEqual(discardOf(ctx), discarded);
+  assert.deepEqual((await discardOf(ctx)), discarded);
 
   // The next change that discards nothing clears it.
   (await startTimer(ctx, { start: at('10:00:00') }));
-  assert.deepEqual(discardOf(ctx), { discarded_entry_id: null, discarded_start: null, discarded_stop: null });
+  assert.deepEqual((await discardOf(ctx)), { discarded_entry_id: null, discarded_start: null, discarded_stop: null });
   assert.equal(published.length, 2);
 
   // A session that moves on to a new pomodoro, as rest to work does, records the one it left in the trash.
@@ -162,8 +152,8 @@ test('a pomodoro that a stop rounds to zero is the discarded pomodoro until the 
     await operation.timers.saveSession({... (await operation.timers.getSession(ctx.user.id))!,entryId:created.id});
     return created.id;
   }));
-  assert.equal(session(ctx)?.entry_id, next);
-  assert.deepEqual(discardOf(ctx), {
+  assert.equal((await session(ctx))?.entry_id, next);
+  assert.deepEqual((await discardOf(ctx)), {
     discarded_entry_id: left, discarded_start: iso(at('11:00:00')), discarded_stop: iso(at('11:00:00')),
   });
 });
@@ -174,21 +164,21 @@ test('writes that leave the pomodoro entry running keep the session', async () =
   const older = (await ctx.json('POST', url, { start: at('08:00:00'), stop: at('08:30:00') })).body.id as number;
   const entryId = (await startTimer(ctx));
   (await putSession(ctx, entryId));
-  const stored = session(ctx);
+  const stored = (await session(ctx));
   const published = watch(ctx);
-  const before = revision(ctx);
+  const before = (await revision(ctx));
 
   // An edit to an older, stopped entry changes nothing the timer state holds.
   assert.equal((await ctx.json('PUT', `${url}/${older}`, { description: 'renamed' })).status, 200);
-  assert.equal(revision(ctx), before);
+  assert.equal((await revision(ctx)), before);
   assert.deepEqual(published, []);
 
   // A start refused with 400 rolls back whole, so the pomodoro entry still runs and nothing is published.
   const refused = await ctx.json('POST', url, { start: at('09:10:00'), duration: -1, created_with: 'x'.repeat(256) });
   assert.equal(refused.status, 400);
   assert.equal((await ctx.json('GET', '/api/v9/me/time_entries/current')).body.id, entryId);
-  assert.deepEqual(session(ctx), stored);
-  assert.equal(revision(ctx), before);
+  assert.deepEqual((await session(ctx)), stored);
+  assert.equal((await revision(ctx)), before);
   assert.deepEqual(published, []);
 
   // Moving the open pomodoro's start keeps the session and its phase start. The running entry
@@ -197,7 +187,7 @@ test('writes that leave the pomodoro entry running keep the session', async () =
   assert.equal(moved.status, 200);
   assert.equal(moved.body.stop, null);
   assert.equal(moved.body.start, '2026-10-14T08:55:00+00:00');
-  assert.deepEqual(session(ctx), stored);
+  assert.deepEqual((await session(ctx)), stored);
   assert.deepEqual(published, [{ revision: before + 1, inTransaction: false }]);
 });
 
@@ -209,10 +199,10 @@ test('a paused chain ends when any other entry starts, and a resumed chain ends 
   const chainUp = async (clone: number | null) => {
     (await putChain(ctx, clone));
     published.splice(0);
-    return revision(ctx);
+    return (await revision(ctx));
   };
-  const assertEnded = (label: string, before: number) => {
-    assert.equal(chain(ctx), undefined, label);
+  const assertEnded = async (label: string, before: number) => {
+    assert.equal((await chain(ctx)), undefined, label);
     assert.deepEqual(published, [{ revision: before + 1, inTransaction: false }], label);
   };
   const stopCurrent = async () => {
@@ -225,7 +215,7 @@ test('a paused chain ends when any other entry starts, and a resumed chain ends 
 
   let before = (await chainUp(null));
   assert.equal((await ctx.json('POST', url, { start: at('10:00:00'), duration: -1 })).status, 200);
-  assertEnded('a v9 start', before);
+  (await assertEnded('a v9 start', before));
 
   (await stopCurrent());
   before = (await chainUp(null));
@@ -238,17 +228,17 @@ test('a paused chain ends when any other entry starts, and a resumed chain ends 
   });
   assert.equal(restore.status, 200);
   assert.equal(restore.body.time_entries, 2);
-  assertEnded('a JSON restore with a running entry', before);
+  (await assertEnded('a JSON restore with a running entry', before));
 
   (await stopCurrent());
   before = (await chainUp(null));
   assert.equal((await ctx.json('POST', `/api/app/time_entries/${deleted}/restore`)).status, 200);
-  assertEnded('undoing the delete of a running entry', before);
+  (await assertEnded('undoing the delete of a running entry', before));
 
   // The restored entry now runs. As the clone of a resumed chain it keeps the chain until it stops.
   before = (await chainUp(deleted));
   assert.equal((await ctx.json('PATCH', `${url}/${deleted}/stop`)).status, 200);
-  assertEnded('a v9 stop of the clone', before);
+  (await assertEnded('a v9 stop of the clone', before));
 });
 
 test('deleting the task, tag or project of running entries publishes to each user whose timer changed', async () => {
@@ -271,7 +261,7 @@ test('deleting the task, tag or project of running entries publishes to each use
 
   assert.equal((await ctx.json('DELETE', `${ws}/projects/${project}/tasks/${task}`)).status, 200);
   for (const who of [ctx, bob]) assert.equal((await running(who)).task_id, null);
-  assert.equal(chain(ctx)?.task_id, null);
+  assert.equal((await chain(ctx))?.task_id, null);
   assertHeardOnce('task delete');
 
   assert.equal((await ctx.json('DELETE', `${ws}/tags/${tag}`)).status, 200);
@@ -280,8 +270,8 @@ test('deleting the task, tag or project of running entries publishes to each use
 
   assert.equal((await ctx.json('DELETE', `${ws}/projects/${project}`)).status, 200);
   for (const who of [ctx, bob]) assert.equal((await running(who)).project_id, null);
-  assert.equal(chain(ctx)?.project_id, null);
-  assert.equal(chain(ctx)?.clone_entry_id, clone);
+  assert.equal((await chain(ctx))?.project_id, null);
+  assert.equal((await chain(ctx))?.clone_entry_id, clone);
   assertHeardOnce('project delete that keeps the entries');
 });
 
@@ -352,12 +342,13 @@ test('deleting an account deletes its session, pause chain and timer state', asy
   // One row in each table; whether the combination makes sense does not matter here.
   (await putSession(bob, entryId));
   (await putChain(bob, entryId));
-  const tables = ['pomodoro_sessions', 'pause_chains', 'timer_states'];
-  const counts = () => tables.map((table) =>
-    (admin.db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = ?`).get(bob.user.id) as { n: number }).n);
-  assert.deepEqual(counts(), [1, 1, 1]);
+  const counts = async () => {
+    const storage=storageFor(admin.db);
+    return [Number(!!await storage.timers.getSession(bob.user.id)),Number(!!await storage.timers.getPauseChain(bob.user.id)),Number(!!await storage.timers.getRevision(bob.user.id))];
+  };
+  assert.deepEqual((await counts()), [1, 1, 1]);
 
   const response = await admin.json('DELETE', `/api/app/admin/users/${bob.user.id}`, { email: bob.user.email });
   assert.equal(response.status, 200);
-  assert.deepEqual(counts(), [0, 0, 0]);
+  assert.deepEqual((await counts()), [0, 0, 0]);
 });

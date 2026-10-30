@@ -1,3 +1,5 @@
+import { entryRecord } from './fixtures/observations.ts';
+import { storageFor } from './fixtures/database.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -106,8 +108,8 @@ for (const [phase, nth] of [['current-password check', CHECK], ['new-password ha
   });
 }
 
-const apiToken = (ctx: TestContext, userId: number) =>
-  (ctx.db.prepare('SELECT api_token FROM users WHERE id = ?').get(userId) as { api_token: string }).api_token;
+const apiToken = async (ctx: TestContext, userId: number) =>
+  (await storageFor(ctx.db).users.get(userId))!.apiToken;
 
 test('an API-token password change is refused when a reset commits while it hashes, and keeps the reset\'s token', async () => {
   const admin = (await setup());
@@ -116,12 +118,12 @@ test('an API-token password change is refused when a reset commits while it hash
   let issued = '';
   const during = duringScrypt(HASH, async () => {
     await useReset();
-    issued = apiToken(admin, bob.user.id);
+    issued = (await apiToken(admin, bob.user.id));
   });
   (await assertRefused(await bob.request('PUT', '/api/v9/me', changeBody)));
   await during;
   assert.notEqual(issued, bob.user.apiToken, 'the reset replaced the token');
-  assert.equal(apiToken(admin, bob.user.id), issued, 'the refused change replaced nothing');
+  assert.equal((await apiToken(admin, bob.user.id)), issued, 'the refused change replaced nothing');
   assert.equal((await bob.request('GET', '/api/v9/me')).status, 403, 'the token from before the reset stops working');
   (await assertOnlyPasswordWorks(admin, NEW_PASSWORD));
 });
@@ -138,7 +140,7 @@ test('a timezone change committed while a password change checks the password st
   const changed = await putWithCookie(admin, cookie, { current_password: PASSWORD, password: NEW_PASSWORD, timezone: 'America/New_York' });
   assert.equal(changed.status, 200);
   await during;
-  const stored = admin.db.prepare('SELECT start FROM time_entries WHERE id = ?').get(created.body.id) as { start: string };
+  const stored = await entryRecord(bob, created.body.id);
   assert.equal(stored.start, '2026-06-15T04:00:00.000Z', 'midnight of the same day in New York');
 });
 

@@ -1,3 +1,4 @@
+import { sqliteIndexes } from './fixtures/physical.ts';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -284,19 +285,22 @@ test('project and task totals use the live-entry indexes and count running, not 
     assert.ok(actual >= (3600 + before - runningSince) * scale && actual <= (3600 + after - runningSince) * scale, String(actual));
   }
 
-  const indexes=ctx.db.prepare("SELECT name FROM sqlite_schema WHERE type='index'").all().map(row=>row.name);
+});
+
+test('SQLite physical live-entry indexes exist', async () => {
+  const indexes=await sqliteIndexes(await openDatabase(':memory:'));
   assert.ok(indexes.includes('time_entries_project_live'));
   assert.ok(indexes.includes('time_entries_task_live'));
 });
 
-test('legacy schema version 1 is refused without modifying its data', async () => {
+test('SQLite legacy schema version 1 is refused without modifying its data', async () => {
  const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
  try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,1))old.exec(migration); old.exec('PRAGMA user_version=1'); old.close();
  const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
-test('legacy schema version 6 is refused without modifying its data', async () => {
+test('SQLite legacy schema version 6 is refused without modifying its data', async () => {
  const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
  try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,6))old.exec(migration); old.exec('PRAGMA user_version=6'); old.close();
  const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);

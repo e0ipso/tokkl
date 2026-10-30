@@ -38,7 +38,10 @@ test('at a 15-minute resolution the timer bar previews and announces snapped dur
   await timer.getByRole('button', { name: 'Timer mode' }).click();
   await timer.getByLabel('Description').fill('Typed duration');
   await timer.getByLabel('Duration').fill('20m');
+  const typedSaved = page.waitForResponse(response => response.request().method() === 'POST'
+    && /\/api\/v9\/workspaces\/\d+\/time_entries$/.test(new URL(response.url()).pathname));
   await timer.getByLabel('Duration').press('Enter');
+  expect((await typedSaved).status()).toBe(200);
   // The manual entry's toast can still be up, so look at the newest one.
   await expect(page.getByText(/^Added 0:(15|30):00$/).last()).toBeVisible();
   const typed = (await api.entries()).find((entry) => entry.description === 'Typed duration')!;

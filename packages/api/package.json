@@ -8,7 +8,8 @@
     "test": "node --test --test-concurrency=2 --test-reporter=spec 'test/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.json",
     "test:storage:migrations": "node --test --test-reporter=spec test/storage/migrations.test.ts test/storage/migrationLifecycle.test.ts test/storage/legacyPreflight.test.ts",
-    "test:storage:transactions": "node --test --test-reporter=spec test/storage/transactions.test.ts test/storage/transactionsConcurrency.test.ts"
+    "test:storage:transactions": "node --test --test-reporter=spec test/storage/transactions.test.ts test/storage/transactionsConcurrency.test.ts",
+    "test:backends": "node test/backends.ts"
   },
   "dependencies": {
     "@tokkl/common": "0.1.0",

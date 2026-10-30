@@ -1,3 +1,4 @@
+import { sessionCount as countSessions, tokenRows, corruptRecord } from './fixtures/physical.ts';
 import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ACCOUNT_ADDRESS_LIMIT, ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
@@ -29,8 +30,7 @@ const login = (ctx: TestContext, email: string, password: string) =>
 
 const meWith = (ctx: TestContext, cookie: string) => anonymous(ctx, 'GET', '/api/v9/me', undefined, { cookie });
 
-const resetRows = (ctx: TestContext) => ctx.db.prepare("SELECT * FROM account_tokens WHERE kind = 'password_reset' ORDER BY id")
-  .all() as Array<Record<string, unknown>>;
+const resetRows = async (ctx: TestContext) => (await tokenRows(ctx.db)).filter(row=>row.kind==='password_reset');
 
 test('an admin receives a 24-hour reset link once, and only its hash is stored', async () => {
   const admin = (await setup());
@@ -39,7 +39,7 @@ test('an admin receives a 24-hour reset link once, and only its hash is stored',
   assert.match(created.url, /^\/reset\/[A-Za-z0-9_-]{43}$/, '32 random bytes, base64url');
   assert.deepEqual(Object.keys(JSON.parse(created.text)).sort(), ['expires_at', 'url']);
 
-  const [row] = resetRows(admin);
+  const [row] = (await resetRows(admin));
   assert.notEqual(row!.token_hash, created.token, 'only the hash is stored');
   assert.equal(row!.user_id, bob.user.id);
   assert.equal(row!.created_by, admin.user.id);
@@ -78,7 +78,7 @@ test('using a link sets the password, ends every session of the account and star
   assert.equal((await meWith(admin, adminSession)).status, 200, "other accounts' sessions stay");
   assert.equal((await login(admin, 'bob@example.com', PASSWORD)).status, 403, 'the old password stops working');
   assert.equal((await login(admin, 'bob@example.com', NEW_PASSWORD)).status, 200);
-  assert.ok(resetRows(admin)[0]!.used_at, 'the link is marked used');
+  assert.ok((await resetRows(admin))[0]!.used_at, 'the link is marked used');
 });
 
 test('using a link replaces the API token, and GET /me hands out the new one after logging in', async () => {
@@ -140,7 +140,7 @@ test('a password outside the length rules is a 400 and leaves the link usable', 
     assert.equal(response.status, 400, String(password).slice(0, 10));
     assert.equal(await response.json(), message);
   }
-  assert.equal(resetRows(admin)[0]!.used_at, null);
+  assert.equal((await resetRows(admin))[0]!.used_at, null);
   assert.equal((await use(admin, created.token)).status, 200);
 });
 
@@ -155,12 +155,11 @@ test('used, expired, replaced, unknown and disabled-account links all fail with 
 
   const replaced = (await issue(admin, cy.user.id));
   const current = (await issue(admin, cy.user.id));
-  assert.equal(resetRows(admin).filter((row) => row.user_id === cy.user.id).length, 1, 'the earlier unused link is deleted');
+  assert.equal((await resetRows(admin)).filter((row) => row.user_id === cy.user.id).length, 1, 'the earlier unused link is deleted');
 
   const expired = (await issue(admin, dee.user.id));
   // A link issued 24 hours and a second ago.
-  admin.db.prepare('UPDATE account_tokens SET created_at = ?, expires_at = ? WHERE user_id = ?')
-    .run(new Date(Date.now() - 24 * HOUR_MS - 1000).toISOString(), new Date(Date.now() - 1000).toISOString(), dee.user.id);
+  await corruptRecord(admin.db, 'account_tokens', {created_at:new Date(Date.now() - 24 * HOUR_MS - 1000).toISOString(), expires_at:new Date(Date.now() - 1000).toISOString()}, {user_id:dee.user.id});
 
   const eve = (await addUser(admin, { email: 'eve@example.com', role: 'user' }));
   const disabled = (await issue(admin, eve.user.id));
@@ -192,7 +191,7 @@ test('a regular user gets 403 when issuing a link', async () => {
   for (const id of [admin.user.id, bob.user.id]) {
     assert.equal((await bob.request('POST', `/api/app/admin/users/${id}/password-reset`)).status, 403);
   }
-  assert.equal(resetRows(admin).length, 0);
+  assert.equal((await resetRows(admin)).length, 0);
 });
 
 test('repeated bad tokens from one address hit the limiter, which then refuses good links too', async () => {
@@ -208,7 +207,7 @@ test('repeated bad tokens from one address hit the limiter, which then refuses g
     const retryAfter = Number(response.headers.get('retry-after'));
     assert.ok(Number.isInteger(retryAfter) && retryAfter >= 1 && retryAfter <= 900, `Retry-After ${retryAfter}`);
   }
-  assert.equal(resetRows(admin)[0]!.used_at, null, 'the blocked request used nothing');
+  assert.equal((await resetRows(admin))[0]!.used_at, null, 'the blocked request used nothing');
   assert.equal((await login(admin, 'bob@example.com', PASSWORD)).status, 429, 'token guesses share the address counter');
 });
 
@@ -248,7 +247,7 @@ async function changedDuringCheck(t: NodeTestContext, change: (typeof passwordCh
 }
 
 const sessionCount = (ctx: TestContext, userId: number) =>
-  (ctx.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?').get(userId) as { n: number }).n;
+  countSessions(ctx.db, userId);
 
 for (const [name, change] of passwordChanges) {
   test(`a form login checked against the old password while ${name} commits gets 403 and no session`, async (t) => {
@@ -257,7 +256,7 @@ for (const [name, change] of passwordChanges) {
     assert.equal(response.status, 403);
     assert.equal(await response.json(), 'Incorrect email or password');
     assert.equal(response.headers.get('set-cookie'), null);
-    assert.equal(sessionCount(admin, bob.user.id), 0);
+    assert.equal((await sessionCount(admin, bob.user.id)), 0);
     assert.equal((await login(admin, 'bob@example.com', NEW_PASSWORD)).status, 200, 'the new password works');
   });
 

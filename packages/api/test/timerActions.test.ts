@@ -205,7 +205,7 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   const ctx = (await sessionSetup());
   const ws = `/api/v9/workspaces/${ctx.wid}`;
   const project = (await ctx.json('POST', `${ws}/projects`, { name: 'Alpha' })).body.id as number;
-  // 'deep' gets the highest tag id, which SQLite hands out again once 'deep' is deleted.
+  // Deleting a tag must remove it from the chain before any new tag is created.
   const calls = (await ctx.json('POST', `${ws}/tags`, { name: 'calls' })).body.id as number;
   const deep = (await ctx.json('POST', `${ws}/tags`, { name: 'deep' })).body.id as number;
   const started = await ctx.json('POST', `${ws}/time_entries`, {
@@ -242,13 +242,15 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   assertOneChange(ctx, before, state, 'pause of the clone');
   assert.deepEqual(state.pause, { paused: true, seconds: 900, ...fields, clone_entry_id: null });
 
-  // A tag deleted while paused leaves the chain, and stays out once a new tag takes its id.
+  // A tag deleted while paused leaves the chain and stays out when another tag is created.
   before = state;
   assert.equal((await ctx.json('DELETE', `${ws}/tags/${deep}`)).status, 200);
   state = (await getTimerState(ctx.db, ctx.user, at('09:21:00')));
   assertOneChange(ctx, before, state, 'tag delete');
   assert.deepEqual([state.pause?.tag_ids, state.pause?.tags], [[calls], ['calls']]);
-  assert.equal((await ctx.json('POST', `${ws}/tags`, { name: 'fresh' })).body.id, deep);
+  const fresh = await ctx.json('POST', `${ws}/tags`, { name: 'fresh' });
+  assert.equal(fresh.status, 200);
+  assert.equal(fresh.body.name, 'fresh');
   state = (await resumeTimer(ctx.db, ctx.user, (await getTimerState(ctx.db, ctx.user, at('09:25:00'))).revision, at('09:25:00')));
   assert.deepEqual(state.running_entry?.tag_ids, [calls]);
   const kept = { ...fields, tag_ids: [calls], tags: ['calls'] };

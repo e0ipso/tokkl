@@ -1,3 +1,4 @@
+import { storageFor } from './fixtures/database.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MAX_FAVORITES } from './fixtures/domain.ts';
@@ -18,8 +19,8 @@ const POMODORO_RANGES: Record<string, [min: number, max: number]> = {
   pomodoro_long_break_every: [1, 12],
 };
 
-const storedPreferences = (ctx: TestContext) =>
-  (ctx.db.prepare('SELECT preferences FROM users WHERE id = ?').get(ctx.user.id) as { preferences: string }).preferences;
+const storedPreferences = async (ctx: TestContext) =>
+  JSON.stringify((await storageFor(ctx.db).users.get(ctx.user.id))!.preferences);
 const pomodoroOf = (prefs: Record<string, unknown>) =>
   Object.fromEntries(Object.keys(POMODORO_DEFAULTS).map((key) => [key, prefs[key]]));
 
@@ -28,7 +29,7 @@ test('invalid known preferences are rejected with 400 and nothing is saved', asy
   const saved = await ctx.json('POST', '/api/v9/me/preferences', { date_format: 'DD/MM/YYYY', favorites: [favorite('Standup')] });
   assert.equal(saved.status, 200);
   const before = (await ctx.json('GET', '/api/v9/me/preferences')).body;
-  const storedBefore = storedPreferences(ctx);
+  const storedBefore = (await storedPreferences(ctx));
 
   const invalid: Array<Record<string, unknown>> = [
     { favorites: {} },
@@ -65,13 +66,13 @@ test('invalid known preferences are rejected with 400 and nothing is saved', asy
   );
   assert.deepEqual((await ctx.json('GET', '/api/v9/me/preferences')).body, before);
   // Reads fall back to defaults, so only the stored record shows that nothing was written.
-  assert.equal(storedPreferences(ctx), storedBefore);
+  assert.equal((await storedPreferences(ctx)), storedBefore);
 });
 
 test('a new account reads the Pomodoro defaults', async () => {
   const ctx = (await setup());
   assert.deepEqual(pomodoroOf((await ctx.json('GET', '/api/v9/me/preferences')).body), POMODORO_DEFAULTS);
-  assert.deepEqual(pomodoroOf(JSON.parse(storedPreferences(ctx))), POMODORO_DEFAULTS);
+  assert.deepEqual(pomodoroOf(JSON.parse((await storedPreferences(ctx)))), POMODORO_DEFAULTS);
 });
 
 test('Pomodoro settings save and read back at the bounds of their ranges', async () => {
@@ -114,12 +115,12 @@ test('unknown keys and custom formats are preserved across saves', async () => {
 
 test('invalid values stored before validation read back as defaults', async () => {
   const ctx = (await setup());
-  ctx.db.prepare('UPDATE users SET preferences = ? WHERE id = ?').run(JSON.stringify({
+  await storageFor(ctx.db).users.setPreferences(ctx.user.id, {
     date_format: 7, timeofday_format: '', theme: 'neon', duration_format: 'hours', manualMode: 'yes',
     favorites: {}, timerView: 'grid', legacy_key: 'kept',
     pomodoro_focus_interval_in_minutes: 0, pomodoro_break_interval_in_minutes: 61,
     pomodoro_long_break_interval_in_minutes: 7.5, pomodoro_long_break_every: '4',
-  }), ctx.user.id);
+  });
 
   const prefs = (await ctx.json('GET', '/api/v9/me/preferences')).body;
   assert.equal(prefs.date_format, 'YYYY-MM-DD');
@@ -147,17 +148,17 @@ test('long timer reminders default to eight hours and validate saved settings', 
     assert.equal(read.long_timer_reminder_hours, hours);
     assert.equal(read.long_timer_reminder_enabled, false);
   }
-  const before = storedPreferences(ctx);
+  const before = (await storedPreferences(ctx));
   for (const hours of [0, -1, 169, 1.5, '8', null, true]) {
     assert.equal((await ctx.json('POST', '/api/v9/me/preferences', { long_timer_reminder_hours: hours })).status, 400);
   }
   for (const enabled of ['true', 1, null]) {
     assert.equal((await ctx.json('POST', '/api/v9/me/preferences', { long_timer_reminder_enabled: enabled })).status, 400);
   }
-  assert.equal(storedPreferences(ctx), before);
-  ctx.db.prepare('UPDATE users SET preferences = ? WHERE id = ?').run(JSON.stringify({
+  assert.equal((await storedPreferences(ctx)), before);
+  await storageFor(ctx.db).users.setPreferences(ctx.user.id, {
     long_timer_reminder_enabled: 'yes', long_timer_reminder_hours: 0,
-  }), ctx.user.id);
+  });
   const legacy = (await ctx.json('GET', '/api/v9/me/preferences')).body;
   assert.equal(legacy.long_timer_reminder_enabled, true);
   assert.equal(legacy.long_timer_reminder_hours, 8);

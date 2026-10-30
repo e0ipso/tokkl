@@ -11,7 +11,7 @@ import { openConnection } from '../../../src/storage/connections.ts';
 import { images } from './images.ts';
 
 const exec = promisify(execFile);
-export interface DisposableBackend { config: StorageConfig; cleanup(): Promise<void> }
+export interface DisposableBackend { config: StorageConfig; cleanup(): Promise<void>; namespace?(): Promise<DisposableBackend> }
 /** Never accepts an external URL. Each invocation owns one empty database/container or temp file. */
 export async function disposableBackend(backend: Backend): Promise<DisposableBackend> {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-db-'));
@@ -23,27 +23,29 @@ export async function disposableBackend(backend: Backend): Promise<DisposableBac
     : { MARIADB_ROOT_PASSWORD: password, MARIADB_USER: 'tokkl', MARIADB_PASSWORD: password, MARIADB_DATABASE: 'tokkl_test' };
   let ownedId: string | undefined;
   const cleanup = async () => {
-    try { if (ownedId) await exec('docker', ['rm', '-f', '-v', ownedId]); }
+    try { if (ownedId) { await exec('docker', ['rm', '-f', '-v', ownedId]); console.log(`Disposable ${backend} removed: ${ownedId}`); } }
     finally { rmSync(dir, { recursive: true, force: true }); }
   };
   try {
     // Values come from the child environment, so credentials never appear in argv or retained logs.
     for (let attempt = 1; ; attempt++) {
-      const created = await exec('docker', ['create', '--name', name, '--label', 'com.tokkl.disposable-test=true', '-p', `127.0.0.1::${backend === 'postgres' ? 5432 : 3306}`, ...Object.keys(environment).flatMap(key => ['-e', key]), images[backend], ...(backend === 'mysql' ? ['--log-bin-trust-function-creators=ON'] : [])], { env: { ...process.env, ...environment } });
+      const created = await exec('docker', ['create', '--name', name, '--label', 'com.tokkl.disposable-test=true', '--label', `com.tokkl.disposable-owner=${process.pid}`, '-p', `127.0.0.1::${backend === 'postgres' ? 5432 : 3306}`, ...Object.keys(environment).flatMap(key => ['-e', key]), images[backend], ...(backend === 'mysql' ? ['--log-bin-trust-function-creators=ON'] : [])], { env: { ...process.env, ...environment } });
       ownedId = created.stdout.trim();
+      console.log(`Disposable ${backend} created: ${ownedId} owner: ${process.pid}`);
       try { await exec('docker', ['start', ownedId]); break; }
       catch (error) {
         // Rootless Docker's allocator can choose a port held by a host process. A fresh
         // container gets a new allocation; always remove the exact failed container first.
         await exec('docker', ['rm', '-f', '-v', ownedId]);
+        console.log(`Disposable ${backend} removed: ${ownedId}`);
         ownedId = undefined;
         if (attempt >= 5 || !/bind: address already in use/.test(String((error as { stderr?: string }).stderr))) throw error;
       }
     }
     const { stdout } = await exec('docker', ['port', ownedId!, backend === 'postgres' ? '5432/tcp' : '3306/tcp']);
     const port = Number(stdout.trim().split(':').at(-1));
-    const config = parseStorageConfig({ TOKKL_DATABASE_URL: `${backend}://tokkl:${password}@127.0.0.1:${port}/tokkl_test?sslmode=disable&connect_timeout_ms=500` }, dir);
-    const deadline = Date.now() + 120000;
+    const config = parseStorageConfig({ TOKKL_DATABASE_URL: `${backend}://tokkl:${password}@127.0.0.1:${port}/tokkl_test?sslmode=disable&connect_timeout_ms=5000` }, dir);
+    const deadline = performance.now() + 120000;
     for (;;) {
       try {
         const c = await openConnection(config);
@@ -51,9 +53,20 @@ export async function disposableBackend(backend: Backend): Promise<DisposableBac
           const result = await sql.raw(backend === 'postgres' ? 'select version() as version' : 'select version() as version').execute(c.db);
           console.log(`${backend} engine: ${String((result.rows[0] as { version: string }).version)}`);
         } finally { await c.close(); }
-        return { config, cleanup };
+        return { config, cleanup, async namespace() {
+          const database = `fixture_${randomBytes(12).toString('hex')}`;
+          const run = async (statement: string) => {
+            try {
+              if (backend === 'postgres') await exec('docker', ['exec', ownedId!, 'psql', '-U', 'tokkl', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-c', statement]);
+              else await exec('docker', ['exec', '-e', 'MYSQL_PWD', ownedId!, backend === 'mysql' ? 'mysql' : 'mariadb', '-uroot', '-e', statement], { env: { ...process.env, MYSQL_PWD: password } });
+            } catch { throw new Error(`Disposable ${backend} namespace operation failed`); }
+          };
+          await run(backend === 'postgres' ? `CREATE DATABASE ${database}` : `CREATE DATABASE ${database}; GRANT ALL ON ${database}.* TO 'tokkl'@'%'`);
+          console.log(`${backend} namespace created: ${database}`);
+          return { config: { ...config, database, connectTimeoutMs: 5000 }, async cleanup() { await run(`DROP DATABASE ${database}`); console.log(`${backend} namespace removed: ${database}`); } };
+        } };
       } catch {
-        if (Date.now() >= deadline) throw new Error(`Disposable ${backend} did not become ready`);
+        if (performance.now() >= deadline) throw new Error(`Disposable ${backend} did not become ready`);
         await setTimeout(250);
       }
     }

@@ -1,6 +1,7 @@
+import { corruptRecord } from './fixtures/physical.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addUser, fileBackedCopy, setup, type TestContext } from './helpers.ts';
+import { addUser, independentReportServer, setup, type TestContext } from './helpers.ts';
 
 // Contract references checked on 2026-10-17:
 // https://engineering.toggl.com/docs/track/api/clients/
@@ -70,10 +71,10 @@ test('catalog since filters apply before task offset pagination', async () => {
     await ctx.json('POST', `${base}/tags`, { name });
     await ctx.json('POST', `${base}/projects/${project.id}/tasks`, { name });
   }
-  for (const table of ['clients', 'tags', 'tasks']) {
-    ctx.db.prepare(`UPDATE ${table} SET updated_at = ? WHERE name = ?`).run('2020-01-01T00:00:00.000Z', 'Old');
+  for (const table of ['clients', 'tags', 'tasks'] as const) {
+    await corruptRecord(ctx.db,table,{updated_at:'2020-01-01T00:00:00.000Z'},{name:'Old'});
   }
-  ctx.db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', project.id);
+  await corruptRecord(ctx.db,'projects',{updated_at:'2020-01-01T00:00:00.000Z'},{id:project.id});
   const since = Date.parse('2026-01-01T00:00:00Z') / 1000;
   for (const area of ['clients', 'tags']) {
     assert.deepEqual((await ctx.json('GET', `/api/v9/me/${area}?since=${since}`)).body.map((r: any) => r.name), ['Recent A', 'Recent B']);
@@ -82,7 +83,7 @@ test('catalog since filters apply before task offset pagination', async () => {
   const tasks = await ctx.json('GET', `/api/v9/me/tasks?since=${since}&offset=1&per_page=1`);
   assert.deepEqual(tasks.body.map((r: any) => r.name), ['Recent B']);
   assert.equal((await ctx.json('GET', `${base}/tasks?since=${since}`)).body.total_count, 2);
-  ctx.db.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run('2020-01-01T00:00:00.000Z', ctx.wid);
+  await corruptRecord(ctx.db,'workspaces',{updated_at:'2020-01-01T00:00:00.000Z'},{id:ctx.wid});
   assert.deepEqual((await ctx.json('GET', `/api/v9/me/workspaces?since=${since}`)).body, []);
   assert.equal((await ctx.json('GET', `${base}/projects?since=99999999999999999`)).status, 400);
   for (const area of ['clients', 'tags', 'projects', 'tasks', 'workspaces']) {
@@ -96,7 +97,7 @@ test('workspace tasks honor requested sorting before pagination', async () => {
   const project = (await ctx.json('POST', `${base}/projects`, { name: 'Project' })).body;
   for (const name of ['Alpha', 'Bravo', 'Charlie']) {
     const task = (await ctx.json('POST', `${base}/projects/${project.id}/tasks`, { name })).body;
-    ctx.db.prepare('UPDATE tasks SET created_at = ? WHERE id = ?').run(`2026-10-0${4 - task.id}T00:00:00.000Z`, task.id);
+    await corruptRecord(ctx.db,'tasks',{created_at:`2026-10-0${4 - task.id}T00:00:00.000Z`},{id:task.id});
   }
   const names = await ctx.json('GET', `${base}/tasks?sort_order=DESC&per_page=1&page=2`);
   assert.equal(names.body.sort_order, 'DESC');
@@ -153,7 +154,7 @@ test('report user_ids filter cannot return the caller data for another user', as
   const ctx = (await setup());
   const range = (await reportFixture(ctx));
   const other = (await addUser(ctx, { email: 'other@example.com', role: 'user' }));
-  for (const server of [ctx, (await fileBackedCopy(ctx))]) {
+  for (const server of [ctx, (await independentReportServer(ctx))]) {
     const base = `/reports/api/v3/workspace/${ctx.wid}`;
     for (const userIds of [[other.user.id], [null]]) {
       const body = { ...range, user_ids: userIds };

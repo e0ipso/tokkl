@@ -65,7 +65,7 @@ test('driver options preserve numeric/date values and explicitly verify TLS iden
   const mysql = mysqlOptions({ ...config, backend: 'mariadb' }, true);
   assert.deepEqual(mysql.ssl, { rejectUnauthorized: true, verifyIdentity: true });
   assert.equal(mysql.connectionLimit, 1);
-  assert.equal(mysql.waitForConnections, false);
+  assert.equal(mysql.waitForConnections, true);
   assert.equal(mysql.supportBigNumbers, true);
   assert.equal(mysql.bigNumberStrings, true);
   assert.equal(mysql.decimalNumbers, false);

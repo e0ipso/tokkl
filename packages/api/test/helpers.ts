@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
-import { storageFor, filenameFor, reportFilenameFor, setServices } from './fixtures/database.ts';
+import { storageFor, filenameFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
+import { copySQLiteFile } from './fixtures/physical.ts';
 import { createApp } from '../src/app.ts';
 import { hashPassword } from '../src/auth/crypto.ts';
 import { FailureLimiter, type Keys } from '../src/auth/rateLimit.ts';
@@ -40,6 +41,8 @@ after(() => {
 /** Serves `app` on a random local port for the rest of the test file. */
 export function testServer(app: Express): TestServer {
   const server = app.listen(0, '127.0.0.1');
+  // Bulk SQLite fixture writes can keep timers from firing before the next pooled request.
+  server.keepAliveTimeout = 60_000;
   servers.add(server);
   const ready = new Promise<number>((resolve) => server.once('listening', () => resolve((server.address() as AddressInfo).port)));
   return {
@@ -47,15 +50,15 @@ export function testServer(app: Express): TestServer {
   };
 }
 
-export function testConfig(): Config {
+export function testConfig(db?: FixtureDatabase): Config {
   return {
-    port: 0, host: '127.0.0.1', dataDir: '/nonexistent', storage: {backend:'sqlite',filename:':memory:',busyTimeoutMs:5000}, webRoot: '/nonexistent',
+    port: 0, host: '127.0.0.1', dataDir: '/nonexistent', storage: db ? storageConfigFor(db) : {backend:'sqlite',filename:':memory:',busyTimeoutMs:5000}, webRoot: '/nonexistent',
     trustProxy: false, sessionDays: 30, setupCode: undefined,
   };
 }
 
-export async function setup(options: { timezone?: string } = {}): Promise<TestContext> {
-  const db = (await openDatabase(':memory:'));
+export async function setup(options: { timezone?: string; sqlite?: boolean } = {}): Promise<TestContext> {
+  const db = (await openDatabase(options.sqlite ? ':memory:' : undefined));
   const user = (await createFirstAdmin(db, {
     email: 'me@example.com', password: PASSWORD, fullname: 'Test User', timezone: options.timezone ?? 'UTC',
   }));
@@ -96,7 +99,7 @@ export async function sessionCookie(ctx: TestContext): Promise<string> {
 /** Serves `db` (reusing its app if it has one) and signs every request in as `user` with its API token. */
 function serve(db: FixtureDatabase, user: User): TestContext {
   let app = apps.get(db);
-  if (!app) { const application=createApp({ storage:storageFor(db),config:{...testConfig(),storage:{backend:'sqlite',filename:reportFilenameFor(db),busyTimeoutMs:5000}},setup:{code:null} }); setServices(db,application.locals.services); app=testServer(application); after(()=>application.locals.close()); }
+  if (!app) { const application=createApp({ storage:storageFor(db),config:testConfig(db),setup:{code:null} }); setServices(db,application.locals.services); app=testServer(application); after(()=>application.locals.close()); }
   apps.set(db, app);
   const auth = `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`;
   const request = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -122,7 +125,7 @@ function serve(db: FixtureDatabase, user: User): TestContext {
 export async function fileBackedCopy(ctx: TestContext): Promise<TestContext & { path: string }> {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-test-'));
   const path = join(dir, 'tokkl.db');
-  ctx.db.exec(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
+  await copySQLiteFile(ctx.db, path);
   const db = (await openDatabase(path));
   after(() => {
     rmSync(dir, { recursive: true, force: true });
@@ -153,4 +156,10 @@ export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<un
   });
 }
 
-export function replaceFixtureApp(ctx:TestContext,options:import('../src/services/timerStreams.ts').TimerStreamOptions) {const app=createApp({storage:storageFor(ctx.db),config:testConfig(),setup:{code:null},timerStreamOptions:options});setServices(ctx.db,app.locals.services);after(()=>app.locals.close());const server=testServer(app);apps.set(ctx.db,server);return {streams:app.locals.services.timerStreams as import('../src/services/timerStreams.ts').TimerStreams,server};}
+export function replaceFixtureApp(ctx:TestContext,options:import('../src/services/timerStreams.ts').TimerStreamOptions) {const app=createApp({storage:storageFor(ctx.db),config:testConfig(ctx.db),setup:{code:null},timerStreamOptions:options});setServices(ctx.db,app.locals.services);after(()=>app.locals.close());const server=testServer(app);apps.set(ctx.db,server);return {streams:app.locals.services.timerStreams as import('../src/services/timerStreams.ts').TimerStreams,server};}
+
+/** A second app/storage instance for report isolation; SQLite additionally exercises file-copy workers. */
+export async function independentReportServer(ctx: TestContext): Promise<TestContext> {
+  if (ctx.db.backend === 'sqlite') return fileBackedCopy(ctx);
+  return serve(await reopenDatabase(ctx.db), ctx.user);
+}

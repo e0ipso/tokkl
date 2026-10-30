@@ -1,4 +1,5 @@
-import { storageFor } from '../../../../packages/api/test/fixtures/database.ts';
+import { snapshot } from '../../../kde/tests/storage-snapshot.ts';
+import { storageFor, storageConfigFor } from '../../../../packages/api/test/fixtures/database.ts';
 /**
  * Runs the GNOME Shell extension against a real tokkl-timerd and a real Tokkl server: this serves
  * an instance built with the API's test fixtures on 127.0.0.1, runs the command that drives the
@@ -25,20 +26,6 @@ import { addUser, setup, testConfig, type TestContext } from '../../../../packag
 const RUN_TIMEOUT_MS = 20 * 60 * 1000;
 /** The instance's default time resolution, five minutes, on the UTC clock of the fixture accounts. */
 const RESOLUTION_MS = 5 * 60_000;
-
-type Row = Record<string, unknown>;
-function rows(ctx: TestContext, table: string): Row[] {
-  return ctx.db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row }));
-}
-function snapshot(ctx: TestContext) {
-  return {
-    users: rows(ctx, 'users'),
-    workspaces: rows(ctx, 'workspaces'),
-    memberships: rows(ctx, 'workspace_users'),
-    projects: rows(ctx, 'projects'),
-    entries: rows(ctx, 'time_entries'),
-  };
-}
 
 async function ok<T>(ctx: TestContext, method: string, path: string, body?: unknown): Promise<T> {
   const response = await ctx.json<T>(method, path, body);
@@ -68,9 +55,10 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
   const project = await ok<{ id: number; name: string; color: string }>(user, 'POST', `/api/v9/workspaces/${user.wid}/projects`,
     { name: 'GNOME panel project', active: true, color: '#2da608', billable: false });
   await ok(user, 'POST', `/api/v9/workspaces/${user.wid}/projects`, { name: 'Other project', active: true });
-  const before = snapshot(admin);
+  const before = await snapshot(admin);
 
-  const server = createServer(createApp({ storage: storageFor(admin.db), config: testConfig(), setup: { code: null } }));
+  const app = createApp({ storage: storageFor(admin.db), config: { ...testConfig(), storage: storageConfigFor(admin.db) }, setup: { code: null } });
+  const server = createServer(app);
   const url = await listen(server, Number(process.env.TOKKL_GNOME_TEST_PORT ?? 0));
   const fixture = { url, token: user.user.apiToken, project: { id: project.id, name: project.name, color: project.color } };
   try {
@@ -92,10 +80,11 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
   } finally {
     server.closeAllConnections();
     server.close();
+    await app.locals.close();
   }
 
-  await t.test('the server changed only by the entries the panel and the other device started, and the sessions ended', () => {
-    const after = snapshot(admin);
+  await t.test('the server changed only by the entries the panel and the other device started, and the sessions ended', async () => {
+    const after = await snapshot(admin);
     assert.deepEqual(after.users, before.users);
     assert.deepEqual(after.workspaces, before.workspaces);
     assert.deepEqual(after.memberships, before.memberships);

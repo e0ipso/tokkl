@@ -28,6 +28,7 @@ test('autocomplete copies project, task, tags and billable into a new running en
 
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Design');
+  await expect(page.locator('.suggestions').getByRole('button', { name: /Design review/ })).toBeVisible();
   // The suggestion the arrows reach is selected and has a 3px bar as well as the tint.
   await timer.getByLabel('Description').press('ArrowDown');
   const highlighted = page.locator('.suggestions').getByRole('option', { selected: true });

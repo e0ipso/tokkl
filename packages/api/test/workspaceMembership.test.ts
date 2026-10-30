@@ -1,3 +1,7 @@
+import { insertAccount } from './fixtures/domain.ts';
+import { removeWorkspaceMember, completedMigrations } from './fixtures/physical.ts';
+import { memberships } from './fixtures/observations.ts';
+import { transaction } from './fixtures/database.ts';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,44 +25,14 @@ import { addUser, CSRF, PASSWORD, sessionCookie, setup, testConfig, testServer, 
 const PREVIOUS_VERSION = 2;
 const NOW = '2026-10-01T08:00:00.000Z';
 
-const memberships = (db: DatabaseSync) =>
-  db.prepare('SELECT workspace_id, user_id, role FROM workspace_users ORDER BY workspace_id, user_id').all()
-    .map((row) => ({ ...row }));
-
-/** Runs `fn` with a database file at PREVIOUS_VERSION, removed afterwards. */
-async function withPreviousVersion(fn: (path: string, old: DatabaseSync) => Promise<void>): Promise<void> {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-membership-'));
-  try {
-    const path = join(dir, 'tokkl.db');
-    const old = new DatabaseSync(path);
-    old.exec('PRAGMA foreign_keys = ON');
-    for (const sql of MIGRATIONS.slice(0, PREVIOUS_VERSION)) old.exec(sql);
-    old.exec(`PRAGMA user_version = ${PREVIOUS_VERSION}`);
-    await fn(path, old);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-function insertWorkspace(db: DatabaseSync, name: string): number {
-  return Number(db.prepare('INSERT INTO workspaces (name, created_at, updated_at) VALUES (?, ?, ?)').run(name, NOW, NOW).lastInsertRowid);
-}
-
-function insertUser(db: DatabaseSync, user: { id?: number; email: string; passwordHash: string; apiToken: string; wid: number }): number {
-  return Number(db.prepare(`
-    INSERT INTO users (id, email, password_hash, api_token, default_workspace_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(user.id ?? null, user.email, user.passwordHash, user.apiToken, user.wid, NOW, NOW).lastInsertRowid);
-}
-
-test('legacy schema version 2 is refused without modifying its data', async () => {
+test('SQLite legacy schema version 2 is refused without modifying its data', async () => {
  const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
  try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,2))old.exec(migration); old.exec('PRAGMA user_version=2'); old.close();
  const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
-test('legacy schema version 2 is refused without modifying its data', async () => {
+test('SQLite legacy schema version 2 is refused without modifying its data', async () => {
  const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
  try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,2))old.exec(migration); old.exec('PRAGMA user_version=2'); old.close();
  const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
@@ -66,44 +40,42 @@ test('legacy schema version 2 is refused without modifying its data', async () =
 });
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
-  const db = (await openDatabase(':memory:'));
-  assert.equal(db.prepare("SELECT count(*) as n FROM storage_migrations WHERE state='complete'").get()!.n,3);
-  assert.deepEqual(memberships(db), []);
+  const db = (await openDatabase());
+  assert.equal(await completedMigrations(db),3);
+  assert.deepEqual((await memberships(db)), []);
 
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const response = await app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json' },
     body: JSON.stringify({ email: 'owner@example.com', password: PASSWORD, fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' }),
   });
   assert.equal(response.status, 200);
-  const user = db.prepare('SELECT id, default_workspace_id, role FROM users').get() as { id: number; default_workspace_id: number; role: string };
+  const user = (await storageFor(db).users.list())[0]!;
   assert.equal(user.role, 'admin');
-  assert.deepEqual(memberships(db), [{ workspace_id: user.default_workspace_id, user_id: user.id, role: 'owner' }]);
+  assert.deepEqual((await memberships(db)), [{ workspace_id: user.defaultWorkspaceId, user_id: user.id, role: 'owner' }]);
 });
 
 test('createFirstAdmin makes an admin who owns the new workspace', async () => {
-  const db = (await openDatabase(':memory:'));
+  const db = (await openDatabase());
   const user = (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' }));
   assert.equal(user.role, 'admin');
   assert.equal(user.disabledAt, null);
-  assert.deepEqual(memberships(db), [{ workspace_id: user.defaultWorkspaceId, user_id: user.id, role: 'owner' }]);
+  assert.deepEqual((await memberships(db)), [{ workspace_id: user.defaultWorkspaceId, user_id: user.id, role: 'owner' }]);
   assert.deepEqual((await listWorkspacesForUser(db, user.id)).map((ws) => ws.id), [user.defaultWorkspaceId]);
 });
 
 test('isWorkspaceMember and listWorkspacesForUser see only the workspaces a user belongs to', async () => {
-  const db = (await openDatabase(':memory:'));
+  const db = (await openDatabase());
   const owner = (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: 'Me', timezone: 'UTC' }));
   const shared = (await createWorkspace(db, 'Shared')).id;
-  const memberId = Number(db.prepare(`
-    INSERT INTO users (email, password_hash, api_token, default_workspace_id, created_at, updated_at)
-    VALUES ('member@example.com', 'x', ?, ?, ?, ?)
-  `).run(generateApiToken(), shared, NOW, NOW).lastInsertRowid);
+  const memberId = (await insertAccount(db,{email:'member@example.com',fullname:'',passwordHash:'x',timezone:'UTC',role:'user'})).id;
+  const memberOwn = (await storageFor(db).users.get(memberId))!.defaultWorkspaceId;
+  await removeWorkspaceMember(db,memberOwn,memberId);
   (await addWorkspaceMember(db, shared, memberId, 'member'));
-  const outsiderId = Number(db.prepare(`
-    INSERT INTO users (email, password_hash, api_token, default_workspace_id, created_at, updated_at)
-    VALUES ('outsider@example.com', 'x', ?, ?, ?, ?)
-  `).run(generateApiToken(), shared, NOW, NOW).lastInsertRowid);
+  const outsiderId = (await insertAccount(db,{email:'outsider@example.com',fullname:'',passwordHash:'x',timezone:'UTC',role:'user'})).id;
+  const outsiderOwn = (await storageFor(db).users.get(outsiderId))!.defaultWorkspaceId;
+  await removeWorkspaceMember(db,outsiderOwn,outsiderId);
 
   assert.equal((await isWorkspaceMember(db, owner.id, owner.defaultWorkspaceId)), true);
   assert.equal((await isWorkspaceMember(db, owner.id, shared)), false);
@@ -125,7 +97,7 @@ test('addUser signs a second account in on the same app with its own workspace',
   assert.equal(second.db, first.db);
   assert.deepEqual([first.user.role, second.user.role, admin.user.role], ['admin', 'user', 'admin']);
   assert.equal(new Set([first.wid, second.wid, admin.wid]).size, 3, 'each account has its own workspace');
-  assert.deepEqual(memberships(first.db).filter((row) => row.user_id !== first.user.id), [
+  assert.deepEqual((await memberships(first.db)).filter((row) => row.user_id !== first.user.id), [
     { workspace_id: second.wid, user_id: second.user.id, role: 'owner' },
     { workspace_id: admin.wid, user_id: admin.user.id, role: 'owner' },
   ]);
@@ -326,7 +298,7 @@ test('PUT /me accepts only a default workspace the caller belongs to, and app re
   assert.equal(joined.status, 200);
   assert.equal(joined.body.default_workspace_id, a.wid);
   assert.equal((await b.json('POST', '/api/app/report', range)).status, 200);
-  a.db.prepare('DELETE FROM workspace_users WHERE workspace_id = ? AND user_id = ?').run(a.wid, b.user.id);
+  await removeWorkspaceMember(a.db, a.wid, b.user.id);
   for (const path of ['/api/app/report', '/api/app/report/weekly', '/api/app/report/entries', '/api/app/report/detailed.csv',
     '/api/app/report/summary.csv']) {
     const refused = await b.json('POST', path, range);
@@ -350,11 +322,11 @@ test('trash restore needs membership of the entry\'s workspace', async () => {
   assert.equal(restored.status, 200, 'a member restores its entry');
   assert.equal(restored.body.id, kept);
 
-  a.db.prepare('DELETE FROM workspace_users WHERE workspace_id = ? AND user_id = ?').run(a.wid, b.user.id);
+  await removeWorkspaceMember(a.db, a.wid, b.user.id);
   const refused = await b.json('POST', `/api/app/time_entries/${left}/restore`);
   assert.equal(refused.status, 403);
   assert.equal(refused.body, 'User does not have access to this resource.');
-  const row = a.db.prepare('SELECT deleted_at FROM time_entries WHERE id = ?').get(left) as { deleted_at: string | null };
+  const row = {deleted_at:(await storageFor(a.db).entries.get(b.user.id,left,true))!.deletedAt};
   assert.notEqual(row.deleted_at, null, 'the entry stays in the trash');
 });
 

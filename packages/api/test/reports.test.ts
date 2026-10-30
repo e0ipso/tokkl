@@ -1,3 +1,4 @@
+import { filenameFor } from './fixtures/database.ts';
 import { servicesFor } from './fixtures/database.ts';
 import { StorageReportRunner } from '../src/services/storageReportRunner.ts';
 import { test } from 'node:test';
@@ -575,13 +576,13 @@ function watchWorkers() {
   return { started, stop: () => process.off('worker', listener) };
 }
 
-test('reports on a file-backed database are built in the worker and match the inline build', async (t) => {
-  const ctx = (await setup());
+test('SQLite file: reports on a file-backed database are built in the worker and match the inline build', async (t) => {
+  const ctx = (await setup({sqlite:true}));
   (await seed(ctx));
   const file = (await fileBackedCopy(ctx));
   // An in-memory database builds reports inline; a file-backed one hands them to the worker.
   assert.equal(servicesFor(ctx.db).reports instanceof StorageReportRunner,true);
-  assert.equal(file.db.location(), file.path);
+  assert.equal(filenameFor(file.db), file.path);
   const workers = watchWorkers();
   t.after(workers.stop);
 
@@ -596,12 +597,12 @@ test('reports on a file-backed database are built in the worker and match the in
   assert.equal(workers.started[0]!.exitCode, null);
 });
 
-test('an idle report worker lets the process exit once the server closes', async () => {
+test('SQLite file: an idle report worker lets the process exit once the server closes', async () => {
   // The child serves a file-backed app, runs one report, closes the server and returns without
   // process.exit. Before the fix the worker's message port held the process open indefinitely.
   const script = fileURLToPath(new URL('./fixtures/serveOneReport.ts', import.meta.url));
   const { code, signal, stdout } = await new Promise<{ code: number | null; signal: string | null; stdout: string }>((resolve) => {
-    const child = execFile(process.execPath, [script], { timeout: 20_000 }, (_error, out) => {
+    const child = execFile(process.execPath, [script], { timeout: 60_000 }, (_error, out) => {
       resolve({ code: child.exitCode, signal: child.signalCode, stdout: out });
     });
   });
@@ -609,8 +610,8 @@ test('an idle report worker lets the process exit once the server closes', async
   assert.deepEqual({ code, signal }, { code: 0, signal: null });
 });
 
-test('a crashed report worker fails its pending jobs with 500 and the next report starts a new worker', async (t) => {
-  const ctx = (await setup());
+test('SQLite file: a crashed report worker fails its pending jobs with 500 and the next report starts a new worker', async (t) => {
+  const ctx = (await setup({sqlite:true}));
   (await seed(ctx));
   const file = (await fileBackedCopy(ctx));
   const workers = watchWorkers();

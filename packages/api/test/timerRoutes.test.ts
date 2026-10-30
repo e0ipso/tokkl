@@ -1,3 +1,4 @@
+import { corruptRecord } from './fixtures/physical.ts';
 import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
@@ -202,7 +203,7 @@ test('keep-alive events go out, and each tick checks the credential again', STRE
   assert.deepEqual(await stream.nextKeepAlive(), { event: 'keep-alive', data: '' });
 
   // Expiry ends a session without any request, so only the tick can notice.
-  ctx.db.prepare('UPDATE sessions SET expires_at = ? WHERE user_id = ?').run('2000-01-01T00:00:00.000Z', ctx.user.id);
+  await corruptRecord(ctx.db,'sessions',{expires_at:'2000-01-01T00:00:00.000Z'},{user_id:ctx.user.id});
   await stream.ended();
 });
 

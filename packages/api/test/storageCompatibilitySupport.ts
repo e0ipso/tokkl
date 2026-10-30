@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import type { TestContext } from './helpers.ts';
 
 interface Observation {
@@ -53,9 +53,6 @@ export function reference(ctx: TestContext) {
     capture,
     compare(name: string) {
       const path = new URL(`./fixtures/storage-${name}.json`, import.meta.url);
-      if (process.env.TOKKL_CAPTURE_STORAGE_REFERENCE === '1') {
-        writeFileSync(path, `${JSON.stringify(observations, null, 2)}\n`);
-      }
       assert.deepEqual(observations, JSON.parse(readFileSync(path, 'utf8')),
         `HTTP behavior changed for ${name}; compare against the reviewed SQLite reference`);
     },

@@ -37,8 +37,8 @@ export function mysqlOptions(config: ServerConfig, readOnly: boolean): PoolOptio
     host: config.host, port: config.port, database: config.database, user: config.user, password: config.password,
     connectionLimit: readOnly ? 1 : config.poolMax, maxIdle: readOnly ? 1 : config.poolMax,
     connectTimeout: config.connectTimeoutMs, idleTimeout: 10000,
-    // Fail on overload instead of leaving an unbounded or indefinitely waiting acquisition queue.
-    waitForConnections: false, queueLimit: config.poolMax,
+    // Ordinary request bursts wait; both queue capacity and acquisition time remain bounded.
+    waitForConnections: true, queueLimit: 20 * (readOnly ? 1 : config.poolMax),
     supportBigNumbers: true, bigNumberStrings: true, decimalNumbers: false,
     dateStrings: true, jsonStrings: true, timezone: 'Z', charset: 'utf8mb4',
     multipleStatements: false, enableKeepAlive: true,
@@ -52,39 +52,51 @@ function mysqlPool(config: ServerConfig, readOnly: boolean): MysqlPool {
   const connections = new WeakMap<object, MysqlPoolConnection>();
   return {
     end: (callback) => pool.end(callback),
-    getConnection: (callback) => pool.getConnection((error, raw) => {
-      if (error) { callback(error, undefined!); return; }
-      const known = connections.get(raw);
-      if (known) { callback(null, known); return; }
-      const connection: MysqlPoolConnection = {
-        config: raw.config,
-        threadId: raw.threadId,
-        connect: (done) => raw.connect(done),
-        destroy: () => raw.destroy(),
-        release: () => raw.release(),
-        query: (query, parameters, done) => raw.query({ sql: query, timeout: config.queryTimeoutMs }, parameters,
-          done ? (failure, result) => {
-            // A timeout makes connection state uncertain. Never return it to the pool.
-            if (failure && (failure.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || /^(COMMIT|ROLLBACK)$/i.test(query.trim()))) raw.destroy();
-            done(failure, result as MysqlQueryResult);
-          } : undefined),
-      };
-      // Initialize before exposing the connection; errors destroy it rather than leaking a checkout.
-      const initialize = async () => {
-        const execute = (query: string) => new Promise<void>((resolve, reject) => {
-          raw.query({ sql: query, timeout: config.queryTimeoutMs }, (failure) => failure ? reject(failure) : resolve());
+    getConnection: (callback) => {
+      let settled = false;
+      const deadline = setTimeout(() => {
+        settled = true;
+        callback(new Error('Storage connection acquisition timed out'), undefined!);
+      }, config.connectTimeoutMs);
+      pool.getConnection((error, raw) => {
+        // A timed-out waiter still belongs to the driver's finite queue until delivery.
+        // Release any late checkout instead of leaking it or running abandoned work.
+        if (settled) { raw?.release(); return; }
+        settled = true;
+        clearTimeout(deadline);
+        if (error) { callback(error, undefined!); return; }
+        const known = connections.get(raw);
+        if (known) { callback(null, known); return; }
+        const connection: MysqlPoolConnection = {
+          config: raw.config,
+          threadId: raw.threadId,
+          connect: (done) => raw.connect(done),
+          destroy: () => raw.destroy(),
+          release: () => raw.release(),
+          query: (query, parameters, done) => raw.query({ sql: query, timeout: config.queryTimeoutMs }, parameters,
+            done ? (failure, result) => {
+              // A timeout makes connection state uncertain. Never return it to the pool.
+              if (failure && (failure.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || /^(COMMIT|ROLLBACK)$/i.test(query.trim()))) raw.destroy();
+              done(failure, result as MysqlQueryResult);
+            } : undefined),
+        };
+        // Initialize before exposing the connection; errors destroy it rather than leaking a checkout.
+        const initialize = async () => {
+          const execute = (query: string) => new Promise<void>((resolve, reject) => {
+            raw.query({ sql: query, timeout: config.queryTimeoutMs }, (failure) => failure ? reject(failure) : resolve());
+          });
+          await execute("SET time_zone = '+00:00'");
+          if (readOnly) await execute('SET SESSION TRANSACTION READ ONLY');
+        };
+        void initialize().then(() => {
+          connections.set(raw, connection);
+          callback(null, connection);
+        }, (failure: unknown) => {
+          raw.destroy();
+          callback(failure, undefined!);
         });
-        await execute("SET time_zone = '+00:00'");
-        if (readOnly) await execute('SET SESSION TRANSACTION READ ONLY');
-      };
-      void initialize().then(() => {
-        connections.set(raw, connection);
-        callback(null, connection);
-      }, (failure: unknown) => {
-        raw.destroy();
-        callback(failure, undefined!);
       });
-    }),
+    },
   };
 }
 

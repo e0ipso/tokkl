@@ -265,6 +265,10 @@ test('an expired session clears the cached theme once, and the login page follow
   const colours = await systemTokenColours(browser, baseURL!);
   await loginWithCachedDark(page);
 
+  // An inert same-origin document preserves the cache while the session ends on the server.
+  await page.goto('/healthz');
+  expect(await cachedTheme(page)).toBe('dark');
+
   // End the session on the server only. The browser keeps sending the dead cookie, as after expiry.
   const session = await sessionCookie(page, baseURL!);
   const other = await request.newContext({ baseURL, extraHTTPHeaders: { ...CSRF, cookie: `tokkl_session=${session}` } });
@@ -279,7 +283,7 @@ test('an expired session clears the cached theme once, and the login page follow
   page.on('request', (sent) => {
     if (new URL(sent.url()).pathname === '/api/v9/me') meRequests.push(sent.url());
   });
-  await page.reload();
+  await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme');
   expect(await cachedTheme(page)).toBeNull();

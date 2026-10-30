@@ -1,3 +1,5 @@
+import { storageFor } from './fixtures/database.ts';
+import { sessionCount as countSessions, tokenRows, corruptRecord } from './fixtures/physical.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CSRF, PASSWORD, addUser, duringPasswordCheck, sessionCookie, setup, type TestContext } from './helpers.ts';
@@ -9,7 +11,7 @@ const login = (ctx: TestContext, email: string) =>
   ctx.request('POST', '/api/app/login', { email, password: PASSWORD }, { authorization: '', ...CSRF });
 
 const sessionCount = (ctx: TestContext, userId: number) =>
-  (ctx.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?').get(userId) as { n: number }).n;
+  countSessions(ctx.db, userId);
 
 test('a regular user gets 403 from every admin route', async () => {
   const admin = (await setup());
@@ -148,7 +150,7 @@ test('concurrent demotions of two admins leave one active admin', async () => {
     carol.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { role: 'user' }),
   ]);
   assert.deepEqual(results.map((result) => result.status).sort(), [200, 400]);
-  const active = admin.db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND disabled_at IS NULL").get() as { n: number };
+  const active = {n:await storageFor(admin.db).users.countActiveAdmins()};
   assert.equal(active.n, 1);
 });
 
@@ -158,12 +160,12 @@ test('a disabled user loses session, API token, Basic password and form login ac
   const cookie = (await sessionCookie(bob));
   const otherCookie = (await sessionCookie(bob));
   const adminCookie = (await sessionCookie(admin));
-  assert.equal(sessionCount(admin, bob.user.id), 2);
+  assert.equal((await sessionCount(admin, bob.user.id)), 2);
 
   const disabled = await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true });
   assert.equal(disabled.status, 200);
   assert.match(disabled.body.disabled_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/);
-  assert.equal(sessionCount(admin, bob.user.id), 0);
+  assert.equal((await sessionCount(admin, bob.user.id)), 0);
 
   const attempts: Record<string, string>[] = [
     { authorization: '', cookie }, { authorization: '', cookie: otherCookie }, {}, { authorization: basicPassword('bob@example.com') },
@@ -210,7 +212,7 @@ test('revoking sessions signs out only that user and keeps their API token', asy
 
   const revoked = await admin.json('POST', `/api/app/admin/users/${bob.user.id}/sessions/revoke`);
   assert.equal(revoked.status, 200);
-  assert.equal(sessionCount(admin, bob.user.id), 0);
+  assert.equal((await sessionCount(admin, bob.user.id)), 0);
   for (const cookie of bobCookies) {
     assert.equal((await bob.request('GET', '/api/v9/me', undefined, { authorization: '', cookie })).status, 403);
   }
@@ -234,7 +236,7 @@ test('cookie-authenticated admin writes need the CSRF header; Basic auth does no
   assert.equal(noCsrfPatch.status, 403);
   assert.equal(await noCsrfPatch.json(), 'Missing CSRF header');
   assert.equal((await admin.request('POST', revoke, undefined, asCookie)).status, 403);
-  assert.equal(sessionCount(admin, bob.user.id), 1);
+  assert.equal((await sessionCount(admin, bob.user.id)), 1);
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[1].role, 'user');
 
   assert.equal((await admin.request('PATCH', patch, { role: 'admin' }, { ...asCookie, 'x-tokkl-csrf': '1' })).status, 200);
@@ -303,5 +305,5 @@ test('a form login whose account is disabled during the password check creates n
   assert.equal(response.status, 403);
   assert.equal(await response.json(), 'Incorrect email or password');
   assert.equal(response.headers.get('set-cookie'), null);
-  assert.equal(sessionCount(admin, bob.user.id), 0);
+  assert.equal((await sessionCount(admin, bob.user.id)), 0);
 });

@@ -1,3 +1,4 @@
+import { sessionCount } from './fixtures/physical.ts';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -86,9 +87,9 @@ test('wrong passwords are rate limited', async () => {
 });
 
 test('first-run setup needs the setup code and only works once', async () => {
-  const db = (await openDatabase(':memory:'));
+  const db = (await openDatabase());
   const setupState = { code: 'ABCD-EFGH-JKLM' };
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: setupState }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: setupState }));
   const post = (body: unknown) => (app.request('/api/app/setup', {
     method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' }, body: JSON.stringify(body),
   }));
@@ -105,14 +106,14 @@ test('first-run setup needs the setup code and only works once', async () => {
 
 test('setup stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
   const attempt = async (timezone: unknown) => {
-    const db = (await openDatabase(':memory:'));
-    const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+    const db = (await openDatabase());
+    const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
     const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' };
     const response = await app.request('/api/app/setup', {
       method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' },
       body: JSON.stringify(timezone === undefined ? account : { ...account, timezone }),
     });
-    const rows = db.prepare('SELECT timezone FROM users').all() as { timezone: string }[];
+    const rows = await storageFor(db).users.list();
     return { status: response.status, body: await response.json() as unknown, zones: rows.map((row) => row.timezone) };
   };
 
@@ -131,12 +132,12 @@ const textPlain = (body: unknown, headers: Record<string, string> = {}): Request
 });
 
 test('form login without the CSRF header is refused before the password check and charges no counter', async () => {
-  const db = (await openDatabase(':memory:'));
+  const db = (await openDatabase());
   (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }));
   const login = (password: string, headers?: Record<string, string>) =>
     app.request('/api/app/login', textPlain({ email: 'me@example.com', password }, headers));
-  const sessions = () => (db.prepare('SELECT COUNT(*) AS n FROM sessions').get() as { n: number }).n;
+  const sessions = () => sessionCount(db);
 
   const refused = (await login(PASSWORD));
   assert.equal(refused.status, 403);
@@ -144,7 +145,7 @@ test('form login without the CSRF header is refused before the password check an
   assert.equal(refused.headers.get('set-cookie'), null);
   // More than the account and address allowance: if any of these were charged, the logins below would get 429.
   for (let i = 0; i <= ACCOUNT_ADDRESS_LIMIT; i++) assert.equal((await login('wrong')).status, 403);
-  assert.equal(sessions(), 0);
+  assert.equal((await sessions()), 0);
 
   const wrong = (await login('wrong', CSRF));
   assert.equal(wrong.status, 403);
@@ -154,12 +155,12 @@ test('form login without the CSRF header is refused before the password check an
     assert.equal(ok.status, 200, header);
     assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/, header);
   }
-  assert.equal(sessions(), 2);
+  assert.equal((await sessions()), 2);
 });
 
 test('setup without the CSRF header is refused before the code check and charges no counter', async () => {
-  const db = (await openDatabase(':memory:'));
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner' };
   const post = (setupCode: string, headers?: Record<string, string>) =>
     app.request('/api/app/setup', textPlain({ ...account, setup_code: setupCode }, headers));
@@ -255,7 +256,7 @@ test('PUT /me refuses offset IDs and unknown timezones and changes nothing', asy
   assert.deepEqual((await getUser(ctx.db, ctx.user.id)), before);
 });
 
-test('legacy schema version 5 is refused without modifying its data', async () => {
+test('SQLite legacy schema version 5 is refused without modifying its data', async () => {
  const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
  try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,5))old.exec(migration); old.exec('PRAGMA user_version=5'); old.close();
  const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
@@ -264,11 +265,7 @@ test('legacy schema version 5 is refused without modifying its data', async () =
 
 /** createFirstAdmin refuses a second account, so tests that need one insert it directly. */
 async function insertSecondUser(db: FixtureDatabase, owner: User, email: string): Promise<User> {
-  const result = db.prepare(`
-    INSERT INTO users (email, fullname, password_hash, api_token, timezone, default_workspace_id, preferences, created_at, updated_at)
-    VALUES (?, '', ?, ?, 'UTC', ?, '{}', ?, ?)
-  `).run(email, owner.passwordHash, generateApiToken(), owner.defaultWorkspaceId, owner.createdAt, owner.createdAt);
-  return (await getUser(db, Number(result.lastInsertRowid)))!;
+  return insertAccount(db, {email, fullname:'', passwordHash:owner.passwordHash, timezone:'UTC', role:'user'});
 }
 
 test('PUT /me refuses an email another user has, in any case, and allows recasing your own', async () => {
@@ -298,9 +295,9 @@ test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop
   const { createApp: create } = await import('../src/app.ts');
   const { openDatabase: open } = await import('./fixtures/database.ts');
   const { createFirstAdmin } = await import('./fixtures/domain.ts');
-  const db = await open(':memory:');
+  const db = await open();
   (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
-  const app = testServer(create({ storage: storageFor(db), config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
+  const app = testServer(create({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }));
   let last = 0;
   for (let i = 0; i < 12; i++) {
     const response = await app.request('/api/app/login', {
@@ -327,8 +324,8 @@ test('bad since and bad report dates are 400, not 500', async () => {
 const basic = (username: string, password: string) => `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
 
 test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => {
-  const db = (await openDatabase(':memory:'));
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (password: string) => app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json' },
@@ -349,10 +346,10 @@ test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => 
 });
 
 test('an owner with a password over the cap can still log in and rotate it', async () => {
-  const db = (await openDatabase(':memory:'));
+  const db = (await openDatabase());
   const legacy = 'L'.repeat(MAX_PASSWORD_LENGTH * 2);
   const user = (await insertAccount(db, { email: 'me@example.com', passwordHash: await hashPassword(legacy), role:'admin', fullname: '', timezone: 'UTC' }));
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }));
   const put = (body: unknown) => app.request('/api/v9/me', {
     method: 'PUT',
     headers: { authorization: basic(user.apiToken, 'api_token'), 'content-type': 'application/json' },
@@ -483,11 +480,11 @@ test('normalizeEmail and passwordCounters key accounts by trimmed, ASCII-lowerca
 
 /** An app behind a trusted proxy, so each request can pick its client address. */
 async function multiUserApp(count: number, names = Array.from({ length: count }, (_, i) => `user${i}@example.com`)) {
-  const db = (await openDatabase(':memory:'));
+  const db = (await openDatabase());
   const owner = (await createFirstAdmin(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' }));
   const users = [owner, ...await Promise.all(names.slice(1).map(name => insertSecondUser(db, owner, name)))];
   const emails = users.map((user) => user.email);
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address },
@@ -572,8 +569,8 @@ test('one address is refused after 100 failures across accounts, and a success d
 });
 
 test('setup codes have their own per-address limit of ten', async () => {
-  const db = (await openDatabase(':memory:'));
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (path: string, body: unknown, address = '10.0.0.1') => app.request(path, {
     method: 'POST', headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address }, body: JSON.stringify(body),
   });
@@ -772,8 +769,8 @@ test('with two full counters, waiting the advertised Retry-After lets the next l
 
 test('setup 429s carry Retry-After, and waiting that long allows another code', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
-  const db = (await openDatabase(':memory:'));
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (setupCode: string) => app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },

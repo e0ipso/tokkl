@@ -22,7 +22,7 @@ test('oversized bodies get a 413 with a Toggl-style string error', async () => {
 });
 
 test('behind a trusted HTTPS proxy the session cookie is Secure and HSTS is sent', async () => {
-  const db = (await openDatabase(':memory:'));
+  const db = (await openDatabase());
   (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
   const login = (app: ReturnType<typeof testServer>) => app.request('/api/app/login', {
     method: 'POST',
@@ -30,13 +30,13 @@ test('behind a trusted HTTPS proxy the session cookie is Secure and HSTS is sent
     body: JSON.stringify({ email: 'me@example.com', password: PASSWORD }),
   });
 
-  const proxied = (await login(testServer(createApp({ storage: storageFor(db), config: { ...testConfig(), trustProxy: true }, setup: { code: null } }))));
+  const proxied = (await login(testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }))));
   assert.equal(proxied.status, 200);
   assert.match(proxied.headers.get('set-cookie') ?? '', /;\s*Secure/i);
   assert.match(proxied.headers.get('strict-transport-security') ?? '', /max-age=/);
 
   // Without TOKKL_TRUST_PROXY the forwarded headers are ignored.
-  const direct = (await login(testServer(createApp({ storage: storageFor(db), config: testConfig(), setup: { code: null } }))));
+  const direct = (await login(testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }))));
   assert.doesNotMatch(direct.headers.get('set-cookie') ?? '', /;\s*Secure/i);
   assert.equal(direct.headers.get('strict-transport-security'), null);
   assert.equal(direct.headers.get('x-powered-by'), null);
