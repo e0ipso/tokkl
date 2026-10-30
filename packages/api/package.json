@@ -11,9 +11,13 @@
   "dependencies": {
     "@tokkl/common": "0.1.0",
     "@tokkl/types": "0.1.0",
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "kysely": "0.29.7",
+    "mysql2": "3.24.6",
+    "pg": "8.23.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6"
+    "@types/express": "^5.0.6",
+    "@types/pg": "8.23.1"
   }
 }
