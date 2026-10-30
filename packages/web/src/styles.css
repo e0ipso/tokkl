@@ -1182,17 +1182,29 @@ table.table { width: 100%; border-collapse: collapse; }
 .calendar-strip-day[aria-pressed='true'] { background: var(--state-selected); border-bottom-color: var(--primary); }
 .calendar-strip-day[aria-pressed='true'] .calendar-strip-date, .calendar-strip-day[aria-pressed='true'] small { color: var(--text); font-weight: 800; }
 .calendar-strip-day.today .calendar-strip-weekday { padding: 0 4px; border-radius: var(--radius-pill); background: var(--primary); color: var(--on-primary); }
-/* The all-day row is a panel between the day heads (or the strip) and the hour grid, in the same
-   columns. It exists only while a shown day has a no-time entry, so a week without one takes no height. A
-   chip is a block's tint and bar on surface, with text and focus ring from the shared tokens; its
+/* The persistent all-day row sits between the day heads (or the strip) and the hour grid, in the
+   same columns. Empty cells keep a compact add target; chips remain separate controls. A chip is a
+   block's tint and bar on surface, with text and focus ring from the shared tokens; its
    pairs are the block rows of the table at .project-dot and the primary ring on surface. */
 .calendar-all-day {
   display: grid; grid-template-columns: 56px repeat(7, minmax(90px, 1fr));
   background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow);
 }
 .calendar-all-day-label { padding: 6px 6px 0 0; text-align: right; font-size: var(--text-xs); font-weight: 600; color: var(--muted); }
-.calendar-all-day-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 3px; border-left: 1px solid var(--border); }
+.calendar-all-day-cell { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; min-height: 32px; padding: 3px; border-left: 1px solid var(--border); }
+/* The add button fills the cell's free area; chips sit above it without nesting controls. */
+.calendar-all-day-add {
+  position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: flex-end;
+  width: 100%; padding: 7px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.calendar-all-day-add:hover, .calendar-all-day-add:focus-visible { background: var(--surface-2); color: var(--text); }
+.calendar-all-day-add:focus-visible { outline-offset: -3px; }
+.calendar-all-day-cell:has(.calendar-chip) { padding-top: 28px; }
+.all-day-entry-details { display: grid; gap: var(--space-2); }
+.all-day-entry-details .timer-controls { justify-content: flex-start; }
 .calendar-chip {
+  position: relative;
   --block-tint: color-mix(in srgb, var(--project-color, var(--primary)) 18%, var(--surface));
   --block-bar: color-mix(in srgb, var(--project-color, var(--primary)) 60%, var(--project-mix));
   display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; min-height: 24px;

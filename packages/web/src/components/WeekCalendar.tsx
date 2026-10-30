@@ -7,6 +7,7 @@ import { assignLanes, heightClearingMarkers } from '../lib/calendarLanes.ts';
 import { DAY_MODE_QUERY, classifySwipe, clampDayMove, dragStep, droppedMinute, fitMoveInDay, splitAllDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
 import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
+import { AllDayEntryDialog } from './AllDayEntryDialog.tsx';
 import { arrowTarget } from './arrowKeys.ts';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
@@ -85,6 +86,7 @@ export function WeekCalendar() {
   const update = useUpdateEntry();
   const toast = useToast();
   const [editing, setEditing] = useState<TimeEntry | null>(null);
+  const [creatingDay, setCreatingDay] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   // Mirrors drag for handlers that run before React re-renders. A touch fires pointer up and then
   // pointer leave in one go, so finishDrag clears the ref first and the gesture saves at most once.
@@ -316,34 +318,44 @@ export function WeekCalendar() {
           ))}
         </div>
       )}
-      {allDay.size > 0 ? (
-        // One cell per shown day, in the columns of the day heads. Chips open the editor and take no part in grid gestures.
-        <div className="calendar-all-day" role="group" aria-label="All-day entries">
-          <div className="calendar-all-day-label">All day</div>
-          {days.map((day) => (
-            <div key={day} className="calendar-all-day-cell">
-              {(allDay.get(day) ?? []).map((entry) => {
-                const elapsed = duration(entrySeconds(entry, now), settings);
-                const label = [entry.description || '(no description)', entry.project_name, elapsed].filter(Boolean).join(', ');
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className="calendar-chip"
-                    style={projectColorStyle(entry.project_color ?? 'var(--muted)')}
-                    aria-label={label}
-                    title={label}
-                    onClick={() => setEditing(entry)}
-                  >
-                    <strong>{entry.description || entry.project_name || '(no description)'}</strong>
-                    <span className="calendar-block-duration">{elapsed}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {/* One cell per shown day, outside the hour scroller. Add controls and chips are siblings. */}
+      <div className="calendar-all-day" role="group" aria-label="All-day entries">
+        <div className="calendar-all-day-label">All day</div>
+        {days.map((day) => (
+          <div key={day} className="calendar-all-day-cell">
+            <button
+              type="button"
+              className="calendar-all-day-add"
+              aria-label={`Add all-day entry for ${day}`}
+              title={`Add all-day entry for ${day}`}
+              onClick={(event) => {
+                event.currentTarget.focus();
+                setCreatingDay(day);
+              }}
+            >
+              <Icon name="plus" size={14} />
+            </button>
+            {(allDay.get(day) ?? []).map((entry) => {
+              const elapsed = duration(entrySeconds(entry, now), settings);
+              const label = [entry.description || '(no description)', entry.project_name, elapsed].filter(Boolean).join(', ');
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className="calendar-chip"
+                  style={projectColorStyle(entry.project_color ?? 'var(--muted)')}
+                  aria-label={label}
+                  title={label}
+                  onClick={() => setEditing(entry)}
+                >
+                  <strong>{entry.description || entry.project_name || '(no description)'}</strong>
+                  <span className="calendar-block-duration">{elapsed}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
       <div className="calendar-frame">
         <div
           className="calendar-body"
@@ -476,6 +488,7 @@ export function WeekCalendar() {
         ) : null}
       </div>
       <p className="hint">Drag on an empty slot to add an entry. Drag a block to move it, or its bottom edge to change the end. Click a block to edit it.</p>
+      {creatingDay ? <AllDayEntryDialog key={creatingDay} date={creatingDay} recentEntries={entries} onClose={() => setCreatingDay(null)} /> : null}
       {editing ? <EntryEditor entry={editing} onClose={() => setEditing(null)} /> : null}
     </div>
   );

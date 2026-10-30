@@ -86,7 +86,9 @@ test('a no-time entry switches to timed and back from the editor, moving between
   await editor.getByRole('button', { name: 'Save' }).click();
   await expect(editor).toBeHidden();
 
-  await expect(allDay).toHaveCount(0);
+  await expect(allDay).toBeVisible();
+  await expect(allDay.locator('.calendar-chip')).toHaveCount(0);
+  await expect(allDay.locator('.calendar-all-day-add')).toHaveCount(7);
   await scrollCalendarTo(page, 8);
   await expect(todayBlock(page, 'Admin chores')).toHaveCSS('top', `${9 * 48}px`);
   await expect(todayBlock(page, 'Admin chores')).toHaveCSS('height', `${1.5 * 48}px`);
