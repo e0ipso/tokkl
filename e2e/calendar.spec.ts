@@ -3,8 +3,9 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { openCalendar } from './history-calendar-tests-helpers.ts';
+import { TimerApi } from './timer-tests-helpers.ts';
 import { calendarBodyBox, dragBy, entryWrites, expectBrowserTimeZone, px, savedTimes, scrollCalendarTo, todayBlock, touchSwipe } from './history-calendar-tests-helpers.ts';
-import { PHONE, expectFits, tap } from './mobile-tests-helpers.ts';
+import { PHONE, expectFits, expectNoPageOverflow, tap } from './mobile-tests-helpers.ts';
 // Its `api` fixture puts the account's first weekday back after each scenario.
 import { test as testWithSettings } from './report-tests-helpers.ts';
 
@@ -467,7 +468,7 @@ test.describe('no-time entries', () => {
     const chip = cells.nth(0).getByRole('button', { name: 'Admin chores, 1:30:00', exact: true });
     await expect(chip).toBeVisible();
     await expect(cells.nth(6).getByRole('button', { name: 'Sunday errands, 0:45:00', exact: true })).toBeVisible();
-    await expect(allDay.getByRole('button')).toHaveCount(2);
+    await expect(allDay.locator('.calendar-chip')).toHaveCount(2);
     // Chips stay out of the hour grid, whose only block is the timed entry.
     await expect(page.locator('.calendar-block:not(.calendar-ghost)')).toHaveCount(1);
     await expect(page.locator('.calendar-day-head').first().locator('small')).toHaveText('2:30:00');
@@ -489,6 +490,250 @@ test.describe('no-time entries', () => {
     const phoneChip = allDay.getByRole('button', { name: 'Admin chores, 1:30:00', exact: true });
     await expect(phoneChip).toBeVisible();
     await expectFits(phoneChip);
-    await expect(allDay.getByRole('button')).toHaveCount(1);
+    await expect(allDay.locator('.calendar-chip')).toHaveCount(1);
+  });
+});
+
+test.describe('all-day creation', () => {
+  test.use({ timezoneId: 'America/New_York', viewport: { width: 1280, height: 800 } });
+
+  test('empty and occupied days create once, validate and retain a failed draft without changing dates or focus', async ({ page, data, runtimeErrors }, testInfo) => {
+    await page.clock.setFixedTime(new Date('2026-06-17T10:00:00Z'));
+    await login(page);
+    await expectBrowserTimeZone(page, 'America/New_York');
+    expect((await (await page.request.get('/api/v9/me')).json()).timezone).toBe('Europe/Madrid');
+    await openCalendar(page);
+    const row = page.getByRole('group', { name: 'All-day entries' });
+    const cells = row.locator('.calendar-all-day-cell');
+    const adds = row.locator('.calendar-all-day-add');
+    const dialog = page.getByRole('dialog', { name: 'Add all-day entry' });
+    const writes = entryWrites(page);
+    await expect(adds).toHaveCount(7);
+    await expect(row.locator('.calendar-chip')).toHaveCount(0);
+    for (let index = 0; index < 7; index++) {
+      const cell = (await cells.nth(index).boundingBox())!;
+      const head = (await page.locator('.calendar-day-head').nth(index).boundingBox())!;
+      // Each day badge has a two-pixel horizontal margin inside its column.
+      expect(cell.x + 2).toBeCloseTo(head.x, 1);
+      expect(cell.width - 4).toBeCloseTo(head.width, 1);
+    }
+    await page.screenshot({ path: testInfo.outputPath('all-day-desktop-empty.png') });
+    const beforeScroll = await row.boundingBox();
+    await scrollCalendarTo(page, 18);
+    expect(await page.locator('.calendar-body').evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    expect(await row.boundingBox()).toEqual(beforeScroll);
+    await page.screenshot({ path: testInfo.outputPath('all-day-desktop-hour-scroll.png') });
+
+    await page.getByRole('button', { name: 'Next week', exact: true }).click();
+    await expect(page.locator('.calendar-range')).toHaveText('22 Jun to 28 Jun');
+    const add = row.getByRole('button', { name: 'Add all-day entry for 2026-06-22', exact: true });
+    // The last toolbar button precedes the first day in the native Tab order.
+    await page.getByRole('button', { name: 'Next week', exact: true }).focus();
+    await page.keyboard.press('Tab');
+    await expect(add).toBeFocused();
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      await expect(add).toBeFocused();
+      expect(await add.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+      expect(await add.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe('none');
+      await page.screenshot({ path: testInfo.outputPath(`all-day-${colorScheme}-focus.png`) });
+      await add.blur();
+      const idle = await add.evaluate((element) => getComputedStyle(element).backgroundColor);
+      await add.hover();
+      await expect.poll(() => add.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(idle);
+      await page.screenshot({ path: testInfo.outputPath(`all-day-${colorScheme}-hover.png`) });
+      await page.mouse.move(0, 0);
+      await page.getByRole('button', { name: 'Next week', exact: true }).focus();
+      await page.keyboard.press('Tab');
+    }
+    await page.keyboard.press('Enter');
+    await expect(dialog).toHaveCount(1);
+    await expect(dialog.getByLabel('Date', { exact: true })).toHaveValue('2026-06-22');
+    await expect(dialog.getByRole('switch', { name: 'No times' })).toBeChecked();
+    await expect(dialog.getByRole('switch', { name: 'No times' })).toBeDisabled();
+    await expect(dialog.getByLabel('Duration', { exact: true })).toHaveValue('');
+    expect(writes).toEqual([]);
+    await dialog.getByLabel('Description', { exact: true }).fill('Monday offline planning');
+    await dialog.getByLabel('Duration', { exact: true }).fill('90m');
+    await dialog.screenshot({ path: testInfo.outputPath('all-day-desktop-dialog.png') });
+    await dialog.getByRole('button', { name: 'Add entry', exact: true }).dblclick();
+    await expect(dialog).toHaveCount(0);
+    await expect(add).toBeFocused();
+    expect(writes).toEqual(['POST']);
+    const entries = await (await page.request.get('/api/v9/me/time_entries?start_date=2026-06-21&end_date=2026-06-29')).json();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      description: 'Monday offline planning', all_day: true, duration: 5400,
+      start: '2026-06-21T22:00:00+00:00', stop: '2026-06-21T23:30:00+00:00',
+    });
+    await expect(cells.first().locator('.calendar-chip')).toHaveAccessibleName('Monday offline planning, 1:30:00');
+    await expect(page.locator('.calendar-day-head').first().locator('small')).toHaveText('1:30:00');
+    await expect(page.locator('.calendar-toolbar strong')).toHaveText('1:30:00');
+    await page.screenshot({ path: testInfo.outputPath('all-day-desktop-occupied.png') });
+
+    // Escape and Cancel both discard a populated draft without writing an entry.
+    await page.keyboard.press('Space');
+    await expect(dialog.getByLabel('Duration', { exact: true })).toHaveValue('');
+    await dialog.getByLabel('Description', { exact: true }).fill('Discard with Escape');
+    await dialog.getByLabel('Duration', { exact: true }).fill('2h');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(add).toBeFocused();
+    await add.click({ position: { x: 10, y: 10 } });
+    await expect(dialog.getByLabel('Description', { exact: true })).toHaveValue('');
+    await expect(dialog.getByLabel('Duration', { exact: true })).toHaveValue('');
+    await dialog.getByLabel('Description', { exact: true }).fill('Discard with Cancel');
+    await dialog.getByLabel('Duration', { exact: true }).fill('3h');
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(add).toBeFocused();
+    expect(writes).toEqual(['POST']);
+    expect(await data.entries()).toHaveLength(1);
+
+    await add.click({ position: { x: 10, y: 10 } });
+    await dialog.getByLabel('Description', { exact: true }).fill('Retained calendar draft');
+    for (const [duration, message] of [
+      ['', 'Enter a duration like 1:30 or 90m'],
+      ['1m', 'The duration rounds to zero at the 5-minute time resolution'],
+      ['25h', 'No-time entries can be at most 24 hours'],
+    ]) {
+      await dialog.getByLabel('Duration', { exact: true }).fill(duration!);
+      await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
+      await expect(dialog.getByRole('alert')).toHaveText(message!);
+      expect(writes).toEqual(['POST']);
+    }
+    const createPath = /^\/api\/v9\/workspaces\/\d+\/time_entries$/;
+    runtimeErrors.allowResponse({ status: 503, method: 'POST', path: createPath, reason: 'the scenario fails one calendar creation to verify retained draft and retry' });
+    await page.route((url) => createPath.test(url.pathname), (route) => route.fulfill({
+      status: 503, contentType: 'application/json', body: '"Calendar save unavailable"',
+    }), { times: 1 });
+    await dialog.getByLabel('Duration', { exact: true }).fill('45m');
+    await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Calendar save unavailable' })).toBeVisible();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel('Description', { exact: true })).toHaveValue('Retained calendar draft');
+    await expect(dialog.getByLabel('Date', { exact: true })).toHaveValue('2026-06-22');
+    await expect(dialog.getByLabel('Duration', { exact: true })).toHaveValue('45m');
+    expect(await data.entries()).toHaveLength(1);
+    await dialog.screenshot({ path: testInfo.outputPath('all-day-failed-save-draft.png') });
+    await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(add).toBeFocused();
+    expect(writes).toEqual(['POST', 'POST', 'POST']);
+    expect(await data.entries()).toHaveLength(2);
+    await expect(cells.first().locator('.calendar-chip')).toHaveCount(2);
+    await expect(page.locator('.calendar-day-head').first().locator('small')).toHaveText('2:15:00');
+    await expect(page.locator('.calendar-toolbar strong')).toHaveText('2:15:00');
+    await cells.first().getByRole('button', { name: 'Retained calendar draft, 0:45:00', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit entry' })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(1);
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test('calendar creation keeps a manual draft and mode, then leaves a running timer identity and start unchanged', async ({ page }) => {
+    await login(page);
+    await openCalendar(page);
+    const api = await TimerApi.open(page);
+    const timer = page.getByRole('region', { name: 'Timer' });
+    await timer.getByRole('button', { name: 'Manual mode' }).click();
+    await timer.getByLabel('Description', { exact: true }).fill('Separate timer draft');
+    await timer.getByRole('switch', { name: 'No times' }).check();
+    await timer.getByLabel('Date', { exact: true }).fill('2026-06-16');
+    await timer.getByLabel('Duration', { exact: true }).fill('2h');
+    await expect.poll(async () => (await api.preferences()).manualMode).toBe(true);
+    const row = page.getByRole('group', { name: 'All-day entries' });
+    const dialog = page.getByRole('dialog', { name: 'Add all-day entry' });
+    await row.locator('.calendar-all-day-add').first().click({ position: { x: 10, y: 10 } });
+    await dialog.getByLabel('Description', { exact: true }).fill('Calendar while drafting');
+    await dialog.getByLabel('Duration', { exact: true }).fill('30m');
+    await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(timer.getByLabel('Description', { exact: true })).toHaveValue('Separate timer draft');
+    await expect(timer.getByRole('switch', { name: 'No times' })).toBeChecked();
+    await expect(timer.getByLabel('Date', { exact: true })).toHaveValue('2026-06-16');
+    await expect(timer.getByLabel('Duration', { exact: true })).toHaveValue('2h');
+    await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
+    expect((await api.preferences()).manualMode).toBe(true);
+
+    await timer.getByRole('button', { name: 'Timer mode' }).click();
+    await timer.getByRole('button', { name: 'Start timer' }).click();
+    await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+    const running = await api.current();
+    expect(running).not.toBeNull();
+    const writes = entryWrites(page);
+    await row.locator('.calendar-all-day-add').first().click({ position: { x: 10, y: 10 } });
+    await dialog.getByLabel('Description', { exact: true }).fill('Calendar beside running timer');
+    await dialog.getByLabel('Duration', { exact: true }).fill('45m');
+    await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
+    expect(await api.current()).toEqual(running);
+    expect(writes).toEqual(['POST']);
+    await expect(timer.getByLabel('Description', { exact: true })).toHaveValue('Separate timer draft');
+    expect((await api.preferences()).manualMode).toBe(false);
+  });
+});
+
+test.describe('all-day creation by touch', () => {
+  test.use({ ...PHONE, timezoneId: 'America/New_York' });
+
+  test('selected days create on the account DST day and keep the row and dialog inside the phone', async ({ page, data }, testInfo) => {
+    await page.clock.setFixedTime(new Date('2026-03-28T11:00:00Z'));
+    await login(page);
+    await expectBrowserTimeZone(page, 'America/New_York');
+    expect((await (await page.request.get('/api/v9/me')).json()).timezone).toBe('Europe/Madrid');
+    await openCalendar(page);
+    const row = page.getByRole('group', { name: 'All-day entries' });
+    await expect(row.locator('.calendar-all-day-add')).toHaveCount(1);
+    await expect(row.locator('.calendar-chip')).toHaveCount(0);
+    await expectFits(row);
+    await expectNoPageOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath('all-day-phone-empty.png') });
+    await tap(page.getByRole('button', { name: 'Next day', exact: true }));
+    await expect(page.locator('.calendar-range')).toHaveText('Sun, 29 Mar');
+    const add = row.getByRole('button', { name: 'Add all-day entry for 2026-03-29', exact: true });
+    const writes = entryWrites(page);
+    await tap(add);
+    const dialog = page.getByRole('dialog', { name: 'Add all-day entry' });
+    await expect(dialog.getByLabel('Date', { exact: true })).toHaveValue('2026-03-29');
+    await expect(dialog.getByRole('switch', { name: 'No times' })).toBeChecked();
+    await expect(dialog.getByLabel('Duration', { exact: true })).toHaveValue('');
+    expect(writes).toEqual([]);
+    await expectFits(dialog);
+    await expectNoPageOverflow(page);
+    await dialog.getByLabel('Description', { exact: true }).fill('Phone spring workshop');
+    await dialog.getByLabel('Duration', { exact: true }).fill('4h');
+    await page.screenshot({ path: testInfo.outputPath('all-day-phone-dialog.png') });
+    await tap(dialog.getByRole('button', { name: 'Add entry', exact: true }));
+    await expect(dialog).toHaveCount(0);
+    expect(writes).toEqual(['POST']);
+    const entries = await (await page.request.get('/api/v9/me/time_entries?start_date=2026-03-27&end_date=2026-03-31')).json();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      description: 'Phone spring workshop', all_day: true, duration: 14400,
+      start: '2026-03-28T23:00:00+00:00', stop: '2026-03-29T03:00:00+00:00',
+    });
+    const chip = row.getByRole('button', { name: 'Phone spring workshop, 4:00:00', exact: true });
+    await expect(chip).toBeVisible();
+    await expectFits(chip);
+    await expect(page.getByRole('group', { name: 'Days of the week' }).getByRole('button', { pressed: true })).toHaveAccessibleName('Sun 29 Mar, 4:00:00');
+    await expect(page.locator('.calendar-toolbar strong')).toHaveText('4:00:00');
+    const beforeScroll = await row.boundingBox();
+    await scrollCalendarTo(page, 18);
+    expect(await row.boundingBox()).toEqual(beforeScroll);
+    await page.screenshot({ path: testInfo.outputPath('all-day-phone-occupied.png') });
+    await tap(page.getByRole('button', { name: 'Next day', exact: true }));
+    await expect(page.locator('.calendar-range')).toHaveText('Mon, 30 Mar');
+    await expect(row.locator('.calendar-chip')).toHaveCount(0);
+    await tap(row.getByRole('button', { name: 'Add all-day entry for 2026-03-30', exact: true }));
+    await expect(dialog.getByLabel('Date', { exact: true })).toHaveValue('2026-03-30');
+    await tap(dialog.getByRole('button', { name: 'Cancel', exact: true }));
+    await tap(page.getByRole('button', { name: 'Previous day', exact: true }));
+    await tap(chip);
+    await expect(page.getByRole('dialog', { name: 'Edit entry' })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(1);
+    await expect(dialog).toHaveCount(0);
+    expect(writes).toEqual(['POST']);
+    await expectNoPageOverflow(page);
   });
 });
