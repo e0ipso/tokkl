@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { formatDuration } from '@tokkl/common/duration';
 import { useCreateEntry } from '../api/hooks.ts';
 import type { TimeEntry } from '../api/types.ts';
@@ -26,6 +26,11 @@ export function AllDayEntryDialog({ date, recentEntries, onClose }: {
   const fields = useFieldErrors<'duration'>();
   // React may not have rendered the pending mutation before another submit arrives.
   const submitting = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const save = async () => {
     if (submitting.current || create.isPending) return;
@@ -35,7 +40,8 @@ export function AllDayEntryDialog({ date, recentEntries, onClose }: {
     try {
       const saved = await create.mutateAsync({ ...draft, all_day: true, start_date: day, duration: seconds });
       toast.show(`Added ${formatDuration(entrySeconds(saved, new Date()))}`);
-      onClose();
+      // A dismissed draft's pending save must not close a newer dialog.
+      if (mounted.current) onClose();
     } catch (error) {
       toast.error(error);
     } finally {

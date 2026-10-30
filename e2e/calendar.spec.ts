@@ -630,6 +630,66 @@ test.describe('all-day creation', () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test('a delayed save cannot discard a later draft opened for the same day', async ({ page }) => {
+    await login(page);
+    await openCalendar(page);
+    const row = page.getByRole('group', { name: 'All-day entries' });
+    const add = row.locator('.calendar-all-day-add').first();
+    const dialog = page.getByRole('dialog', { name: 'Add all-day entry' });
+    let releaseSave!: () => void;
+    let requestReached!: () => void;
+    const heldSave = new Promise<void>((resolve) => { releaseSave = resolve; });
+    const reached = new Promise<void>((resolve) => { requestReached = resolve; });
+    await page.route(/\/api\/v9\/workspaces\/\d+\/time_entries\?meta=true$/, async (route) => {
+      const response = await route.fetch();
+      requestReached();
+      await heldSave;
+      await route.fulfill({ response });
+    }, { times: 1 });
+    try {
+      await add.click();
+      await dialog.getByLabel('Description', { exact: true }).fill('Slow calendar save');
+      await dialog.getByLabel('Duration', { exact: true }).fill('1h');
+      await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
+      await reached;
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await add.click();
+      await dialog.getByLabel('Description', { exact: true }).fill('Fresh unsaved draft');
+      await dialog.getByLabel('Duration', { exact: true }).fill('30m');
+      releaseSave();
+      await expect(page.getByRole('status')).toContainText('Added 1:00:00');
+      await expect(row.locator('.calendar-chip', { hasText: 'Slow calendar save' })).toBeVisible();
+      await expect(dialog.getByLabel('Description', { exact: true })).toHaveValue('Fresh unsaved draft');
+      await expect(dialog.getByLabel('Duration', { exact: true })).toHaveValue('30m');
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    } finally {
+      releaseSave();
+    }
+  });
+
+  test('keyboard activation of another day opens a fresh draft for that date', async ({ page }) => {
+    await login(page);
+    await openCalendar(page);
+    const adds = page.locator('.calendar-all-day-add');
+    const lastAdd = adds.last();
+    const expectedDate = (await lastAdd.getAttribute('aria-label'))!.replace('Add all-day entry for ', '');
+    await adds.first().click();
+    const dialog = page.getByRole('dialog', { name: 'Add all-day entry' });
+    await dialog.getByLabel('Description', { exact: true }).fill('First day draft');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).focus();
+    for (let steps = 0; steps < 40 && !(await lastAdd.evaluate((element) => element === document.activeElement)); steps++) {
+      await page.keyboard.press('Shift+Tab');
+    }
+    await expect(lastAdd).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toHaveCount(1);
+    await expect(dialog.getByLabel('Date', { exact: true })).toHaveValue(expectedDate);
+    await expect(dialog.getByLabel('Description', { exact: true })).toHaveValue('');
+    await page.keyboard.press('Escape');
+    await expect(lastAdd).toBeFocused();
+  });
+
   test('calendar creation keeps a manual draft and mode, then leaves a running timer identity and start unchanged', async ({ page }) => {
     await login(page);
     await openCalendar(page);

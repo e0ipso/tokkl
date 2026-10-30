@@ -488,7 +488,7 @@ export function WeekCalendar() {
         ) : null}
       </div>
       <p className="hint">Drag on an empty slot to add an entry. Drag a block to move it, or its bottom edge to change the end. Click a block to edit it.</p>
-      {creatingDay ? <AllDayEntryDialog date={creatingDay} recentEntries={entries} onClose={() => setCreatingDay(null)} /> : null}
+      {creatingDay ? <AllDayEntryDialog key={creatingDay} date={creatingDay} recentEntries={entries} onClose={() => setCreatingDay(null)} /> : null}
       {editing ? <EntryEditor entry={editing} onClose={() => setEditing(null)} /> : null}
     </div>
   );
