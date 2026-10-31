@@ -31,13 +31,20 @@ async function run(label: string, pattern: string, backend = 'sqlite'): Promise<
   }
 }
 
+const suites = ['sqlite', 'postgres', 'mysql', 'mariadb', 'storage'];
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== '--suite' || !suites.includes(args[1]!))) {
+  throw Error('Expected --suite sqlite|postgres|mysql|mariadb|storage, or no arguments for the full matrix');
+}
+const selected = args.length ? args[1] : undefined;
 const failures: unknown[] = [];
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb']) {
+  if (selected && selected !== backend) continue;
   try { await run(backend, 'test/*.test.ts', backend); }
   catch (error) { failures.push(error); }
   if (interrupted) break;
 }
-if (!interrupted) {
+if (!interrupted && (!selected || selected === 'storage')) {
   try { await run('repository, concurrency, migration and lifecycle matrices', 'test/storage/*.test.ts'); }
   catch (error) { failures.push(error); }
 }

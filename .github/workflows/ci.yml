@@ -46,6 +46,50 @@ jobs:
           sudo apt-get install -y --no-install-recommends fonts-noto-core
       - run: npm run test:e2e
 
+  backends:
+    name: backends (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [sqlite, postgres, mysql, mariadb, storage]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # The runner owns fresh databases and random credentials, using the
+      # digest-pinned images in test/storage/support/images.ts.
+      - run: npm run test:backends -- --suite ${{ matrix.suite }}
+
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Build both runtime architectures without emulation. The native load
+      # reuses those build stages, with the same production dependencies.
+      - run: docker buildx build --platform linux/amd64,linux/arm64 --output type=oci,dest=${{ runner.temp }}/tokkl.oci.tar --metadata-file ${{ runner.temp }}/tokkl-multiarch.json .
+      - run: docker buildx build --platform linux/amd64 --load -t tokkl:ci .
+      - run: npm run test:container -- --image tokkl:ci
+
   # The KDE companion on each supported target, in the pinned images of
   # desktop/kde/ci: CTest (desktop/core's tests included), the DEB or RPM
   # with installation, loading, upgrade and removal checks, then the
@@ -217,7 +261,7 @@ jobs:
   # dry run (desktop/kde/ci/next-release.js), or nothing when they warrant no
   # release, and records the commit it was worked out for.
   release-version:
-    needs: [test, kde, core, gnome, gnome-extension, macos]
+    needs: [test, backends, containers, kde, core, gnome, gnome-extension, macos]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # The dry run still checks that semantic-release could push.
@@ -354,7 +398,7 @@ jobs:
   # their packages in dist/kde, on the same commit (github.sha). The plugin
   # checks each manifest against that commit.
   release:
-    needs: [test, kde, core, gnome, gnome-extension, macos, release-version, kde-release]
+    needs: [test, backends, containers, kde, core, gnome, gnome-extension, macos, release-version, kde-release]
     if: github.event_name == 'push' && needs.release-version.outputs.version != ''
     runs-on: ubuntu-latest
     concurrency: release

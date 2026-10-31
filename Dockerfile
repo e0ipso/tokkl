@@ -4,8 +4,8 @@
 ARG NODE_IMAGE=node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
 
 # The web assets and the production node_modules are the same on every
-# platform: Vite writes static files, and express and its dependencies are
-# plain JavaScript. Both stages run on the build host, so a multi-platform
+# platform: Vite writes static files, and the API drivers and dependencies
+# are JavaScript. SQLite uses the driver built into Node. Both stages run on the build host, so a multi-platform
 # build does not run npm or Vite under QEMU. Only the runtime stage is
 # per-platform, and it only copies files.
 FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS build
