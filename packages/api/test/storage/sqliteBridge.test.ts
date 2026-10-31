@@ -54,3 +54,20 @@ test('write transactions acquire the SQLite reserved lock before their first wri
     other.exec('BEGIN IMMEDIATE; ROLLBACK');
   } finally { other?.close(); await db.destroy(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('repeated bound SQLite queries reuse preparation without sharing bindings or database state', async t => {
+  const prepared: string[] = [], original = DatabaseSync.prototype.prepare;
+  t.mock.method(DatabaseSync.prototype, 'prepare', function(this: DatabaseSync, query: string) {
+    prepared.push(query); return original.call(this, query);
+  });
+  const first = database(), second = database();
+  try {
+    for (let value = 1; value <= 12; value++) {
+      const rows = (await sql<{ value: number }>`select ${value} as value`.execute(first)).rows;
+      assert.deepEqual(rows, [{ value }]);
+    }
+    assert.equal(prepared.filter(query => query === 'select ? as value').length, 1, 'repeated bound reads must not prepare once per imported row');
+    assert.deepEqual((await sql<{ value: number }>`select ${42} as value`.execute(second)).rows, [{ value: 42 }]);
+    assert.equal(prepared.filter(query => query === 'select ? as value').length, 2, 'native statements belong to their own connection');
+  } finally { await first.destroy(); await second.destroy(); }
+});

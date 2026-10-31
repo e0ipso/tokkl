@@ -1,7 +1,7 @@
 import { MAX_ALL_DAY_SECONDS, MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapDuration, snapInstant, snapSpan, type SnappedSpan } from '@tokkl/common/snap';
 import { dateKey, parseDateKey, startOfDay } from '@tokkl/common/time';
-import type { OperationContext, Repositories } from '../storage/contracts.ts';
+import type { EntryInput, OperationContext, Repositories } from '../storage/contracts.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import type { EntryDetails, TimeEntry, User } from '../storage/domain.ts';
 import { badRequest, conflict, forbidden, notFound, type HttpError } from '../lib/errors.ts';
@@ -197,32 +197,42 @@ function readNoTimeUpdate(resolution: number, user: User, current: TimeEntry, bo
   return span;
 }
 
-async function readTagIds(ctx: EntryContext, wid: number, body: Record<string, unknown>): Promise<number[] | undefined> {
+interface EntryReferences {
+  project: EntryRepositories['projects']['getRef'];
+  task: EntryRepositories['tasks']['getRef'];
+  tags: EntryRepositories['tags']['findByIds'];
+  tagNames(wid: number, names: string[]): Promise<number[]>;
+}
+function entryReferences(ctx: EntryContext): EntryReferences {
+  return { project: (wid, id) => ctx.projects.getRef(wid, id), task: (wid, id) => ctx.tasks.getRef(wid, id),
+    tags: (wid, ids) => ctx.tags.findByIds(wid, ids), tagNames: (wid, names) => resolveTagNames(ctx, wid, names) };
+}
+async function readTagIds(ctx: EntryContext, wid: number, body: Record<string, unknown>, refs = entryReferences(ctx)): Promise<number[] | undefined> {
   let ids: number[] | undefined;
   if (body.tag_ids != null) {
     if (!Array.isArray(body.tag_ids)) throw badRequest('Invalid tag_ids: expected an array');
     ids = body.tag_ids.map(value => { const id = optionalId(value, 'tag_ids'); if (!id) throw badRequest('Invalid tag_ids'); return id; });
-    const found = await ctx.tags.findByIds(wid, ids);
+    const found = await refs.tags(wid, ids);
     for (const id of ids) if (!found.some(tag => tag.id === id)) throw notFound('Tag not found');
   }
   if (body.tags != null) {
     if (!Array.isArray(body.tags) || body.tags.some(t => typeof t !== 'string')) throw badRequest('Invalid tags: expected an array of strings');
-    ids = [...(ids ?? []), ...await resolveTagNames(ctx, wid, body.tags as string[])];
+    ids = [...(ids ?? []), ...await refs.tagNames(wid, body.tags as string[])];
   }
   return ids === undefined ? undefined : [...new Set(ids)];
 }
-async function resolveProjectAndTask(ctx: EntryContext, wid: number, body: Record<string, unknown>, current: { projectId: number | null; taskId: number | null }) {
+async function resolveProjectAndTask(ctx: EntryContext, wid: number, body: Record<string, unknown>, current: { projectId: number | null; taskId: number | null }, refs = entryReferences(ctx)) {
   const projectInput = optionalId(body.project_id !== undefined ? body.project_id : body.pid, 'project_id');
   const taskInput = optionalId(body.task_id !== undefined ? body.task_id : body.tid, 'task_id');
   let projectId = projectInput === undefined ? current.projectId : projectInput;
   let taskId = taskInput === undefined ? current.taskId : taskInput;
   if (projectInput !== undefined && taskInput === undefined && projectInput !== current.projectId) taskId = null;
   if (taskId !== null) {
-    const task = await ctx.tasks.getRef(wid, taskId); if (!task) throw notFound('Task not found');
+    const task = await refs.task(wid, taskId); if (!task) throw notFound('Task not found');
     if (projectId === null) projectId = task.projectId;
     else if (task.projectId !== projectId) throw badRequest('Task does not belong to the project');
   }
-  const project = projectId === null ? null : await ctx.projects.getRef(wid, projectId);
+  const project = projectId === null ? null : await refs.project(wid, projectId);
   if (projectId !== null && !project) throw notFound('Project not found');
   return { projectId, taskId, project, projectChanged: projectInput !== undefined && projectInput !== current.projectId };
 }
@@ -254,28 +264,82 @@ async function stopRunning(ctx: EntryContext, user: User, at: Date, exceptId?: n
 }
 export function currentTagIds(row: EntryDetails): number[] { return row.tags.map(tag => tag.id); }
 export interface CreateOptions { exact?: boolean }
+/** Shared creation validation for live writes and exact imports. */
+async function prepareEntry(ctx: EntryContext, user: User, wid: number, body: Record<string, unknown>, exact: boolean,
+  refs = entryReferences(ctx)): Promise<EntryInput> {
+  assertWorkspace(body, wid);
+  // Exact spans never use the grid, including no-time imports.
+  const resolution = exact ? 1 : await entryResolution(ctx);
+  const allDay = optionalBool(body.all_day, 'all_day') === true;
+  let start: Date, stop: Date | null = null;
+  if (allDay) ({ start, stop } = readNoTimeSpan(resolution, user, body, exact));
+  else {
+    start = readStart(body, new Date()); const duration = readDuration(body.duration);
+    if (body.stop != null) stop = parseInstant(body.stop, 'stop');
+    else if (duration !== undefined && duration >= 0) stop = new Date(start.getTime() + duration * 1000);
+    assertConsistentDuration(start, stop, duration, body);
+  }
+  const { projectId, taskId, project } = await resolveProjectAndTask(ctx, wid, body, { projectId: null, taskId: null }, refs);
+  const draft: Draft = { projectId, taskId, description: optionalString(body.description, 'description', MAX_DESCRIPTION_LENGTH) ?? '',
+    start, stop, billable: optionalBool(body.billable, 'billable') ?? project?.billable ?? false, tagIds: await readTagIds(ctx, wid, body, refs) ?? [] };
+  if (!allDay) settleSpan(resolution, user, draft, { exact });
+  return { userId: user.id, workspaceId: wid, projectId, taskId, description: draft.description,
+    start: new Date(isoSeconds(draft.start)).toISOString(), stop: draft.stop ? new Date(isoSeconds(draft.stop)).toISOString() : null,
+    billable: draft.billable, allDay, durationOnly: true, createdWith: optionalString(body.created_with, 'created_with', 255) ?? 'api', deletedAt: null, tagIds: draft.tagIds };
+}
 export async function createTimeEntry(ctx: EntryContext, seen: User, wid: number, body: Record<string, unknown>, publish: TimerPublication, options: CreateOptions = {}): Promise<EntryDetails> {
   return ctx.transaction(async ctx => {
     const user = await protectEntryOperation(ctx, seen.id, [wid]); await memberWorkspace(ctx, user.id, wid);
-    touchTimer(ctx, user.id, publish); assertWorkspace(body, wid);
-    const resolution = await entryResolution(ctx), exact = options.exact === true;
-    const allDay = optionalBool(body.all_day, 'all_day') === true;
-    let start: Date, stop: Date | null = null;
-    if (allDay) ({ start, stop } = readNoTimeSpan(resolution, user, body, exact));
-    else {
-      start = readStart(body, new Date()); const duration = readDuration(body.duration);
-      if (body.stop != null) stop = parseInstant(body.stop, 'stop');
-      else if (duration !== undefined && duration >= 0) stop = new Date(start.getTime() + duration * 1000);
-      assertConsistentDuration(start, stop, duration, body);
+    touchTimer(ctx, user.id, publish);
+    const input = await prepareEntry(ctx, user, wid, body, options.exact === true);
+    if (!input.stop) await stopRunning(ctx, user, new Date(input.start));
+    return ctx.entries.create(input);
+  });
+}
+export interface ExactEntryImport {
+  /** Each record keeps its database writes, hooks and reference cache rollback-owned. */
+  savepoint<T>(work: () => Promise<T>): Promise<T>;
+  create(body: Record<string, unknown>): Promise<void>;
+}
+/** Callback-scoped import capability. All reads and writes use this guarded context. */
+export async function withExactEntryImport<T>(ctx: EntryContext, userId: number, wid: number, publish: TimerPublication,
+  work: (writer: ExactEntryImport) => Promise<T>): Promise<T> {
+  return ctx.transaction(async ctx => {
+    const user = await protectEntryOperation(ctx, userId, [wid]); await memberWorkspace(ctx, user.id, wid);
+    let active = true, rowActive = false;
+    const clear: Array<() => void> = [];
+    function memo<A extends unknown[], V>(read: (...args: A) => Promise<V>): (...args: A) => Promise<V> {
+      const cache = new Map<string, V>(); clear.push(() => cache.clear());
+      return async (...args) => {
+        const key = JSON.stringify(args);
+        if (cache.has(key)) return cache.get(key)!;
+        const value = await read(...args);
+        if (cache.size >= 256) cache.delete(cache.keys().next().value!);
+        cache.set(key, value); return value;
+      };
     }
-    const { projectId, taskId, project } = await resolveProjectAndTask(ctx, wid, body, { projectId: null, taskId: null });
-    const draft: Draft = { projectId, taskId, description: optionalString(body.description, 'description', MAX_DESCRIPTION_LENGTH) ?? '',
-      start, stop, billable: optionalBool(body.billable, 'billable') ?? project?.billable ?? false, tagIds: await readTagIds(ctx, wid, body) ?? [] };
-    if (!allDay) settleSpan(resolution, user, draft, { exact });
-    if (!draft.stop) await stopRunning(ctx, user, draft.start);
-    return ctx.entries.create({ userId: user.id, workspaceId: wid, projectId, taskId, description: draft.description,
-      start: new Date(isoSeconds(draft.start)).toISOString(), stop: draft.stop ? new Date(isoSeconds(draft.stop)).toISOString() : null,
-      billable: draft.billable, allDay, durationOnly: true, createdWith: optionalString(body.created_with, 'created_with', 255) ?? 'api', deletedAt: null, tagIds: draft.tagIds });
+    const original = entryReferences(ctx);
+    const refs: EntryReferences = { project: memo(original.project), task: memo(original.task), tags: memo(original.tags), tagNames: memo(original.tagNames) };
+    function check() { if (!active) throw new Error('Entry import scope is closed'); }
+    const writer: ExactEntryImport = {
+      async savepoint(unit) {
+        check();
+        if (rowActive) throw new Error('Import rows must be sequential');
+        rowActive = true;
+        try { return await ctx.savepoint(() => unit()); }
+        catch (error) { for (const reset of clear) reset(); throw error; }
+        finally { rowActive = false; }
+      },
+      async create(body) {
+        check(); if (!rowActive) throw new Error('Entry import requires a row savepoint');
+        const input = await prepareEntry(ctx, user, wid, body, true, refs);
+        if (!input.stop && await ctx.entries.running(userId)) throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
+        touchTimer(ctx, userId, publish);
+        await ctx.entries.insert(input);
+      },
+    };
+    try { return await work(writer); }
+    finally { active = false; for (const reset of clear) reset(); }
   });
 }
 export async function updateTimeEntry(ctx: EntryContext, seen: User, wid: number, id: number, body: Record<string, unknown>, publish: TimerPublication): Promise<EntryDetails> {

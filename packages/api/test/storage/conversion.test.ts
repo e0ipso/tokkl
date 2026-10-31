@@ -51,3 +51,23 @@ test('UTC SQL timestamp conversion is explicit and never assumes a local timezon
   assert.throws(() => utcSqlInstant('2026-02-30 12:00:00'));
   assert.throws(() => utcSqlInstant('2026-10-30 12:00:01.123456'));
 });
+
+test('canonical UTC storage timestamps validate dates without parsing the same instant again', t => {
+  let parsed = 0;
+  const NativeDate = Date;
+  t.mock.method(globalThis, 'Date', new Proxy(NativeDate, {
+    construct(target, args, newTarget) {
+      if (typeof args[0] === 'string') parsed++;
+      return Reflect.construct(target, args, newTarget);
+    },
+  }));
+  for (let hour = 0; hour < 24; hour++) {
+    const value = `2024-02-29T${String(hour).padStart(2, '0')}:01:02.123Z`;
+    assert.equal(utcInstant(value), value);
+  }
+  assert.equal(parsed, 0, 'canonical row timestamps need calendar validation, not another date parse');
+  for (const value of ['2025-02-29T12:01:02.123Z', '2024-02-30T12:01:02.123Z', '2024-02-29T24:01:02.123Z']) {
+    assert.throws(() => utcInstant(value), /Invalid storage instant/);
+  }
+  assert.equal(utcInstant('2024-02-29T14:01:02.123+02:00'), '2024-02-29T12:01:02.123Z');
+});

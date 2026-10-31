@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { storageFor, filenameFor, setServices } from './fixtures/database.ts';
+import { storageFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { createFirstAdmin } from './fixtures/domain.ts';

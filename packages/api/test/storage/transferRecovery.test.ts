@@ -19,7 +19,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const imports = createStorageImports({
       async transaction(work, options) {
         return runner.transaction(async ctx => {
-          const createClient = ctx.clients.create.bind(ctx.clients), createEntry = ctx.entries.create.bind(ctx.entries), createTask = ctx.tasks.create.bind(ctx.tasks);
+          const createClient = ctx.clients.create.bind(ctx.clients), insertEntry = ctx.entries.insert.bind(ctx.entries), createTask = ctx.tasks.create.bind(ctx.tasks);
           ctx.clients.create = async input => {
             const result = await createClient(input);
             if (input.name === 'bad db') {
@@ -37,12 +37,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             }
             return result;
           };
-          ctx.entries.create = async input => {
-            const result = await createEntry(input);
+          ctx.entries.insert = async input => {
+            const result = await insertEntry(input);
             if (input.description === 'bad db') {
               ctx.beforeCommit('failed-entry', async () => { throw new Error('Failed entry hook leaked'); });
               ctx.afterCommit(async () => { events.push('failed-entry'); });
-              await createEntry({ ...input, projectId: 99999999 }); // Actual engine FK violation after side effects.
+              await insertEntry({ ...input, projectId: 99999999 }); // Actual engine FK violation after side effects.
             }
             return result;
           };

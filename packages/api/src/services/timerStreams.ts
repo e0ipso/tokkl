@@ -17,6 +17,7 @@ interface Group {
   streams: Set<Stream>;
   queue: Promise<void>;
   latest?: TimerState;
+  retired?: boolean;
 }
 /** Process-local delivery of committed states. Credential checks serialize per user. */
 export class TimerStreams {
@@ -48,9 +49,10 @@ export class TimerStreams {
     group.queue = next.catch(() => { });
     return this.#track(next);
   }
-  async #valid(stream: Stream): Promise<boolean> {
+  async #valid(group: Group, stream: Stream): Promise<boolean> {
     try {
-      return !this.#closed && !stream.res.destroyed && await stream.check();
+      return !this.#closed && !group.retired && !stream.res.destroyed && await stream.check()
+        && !this.#closed && !group.retired && group.streams.has(stream) && !stream.res.destroyed;
     }
     catch {
       return false;
@@ -67,6 +69,7 @@ export class TimerStreams {
       this.#users.delete(id);
   }
   #write(id: number, group: Group, stream: Stream, message: string): void {
+    if (group.retired || !group.streams.has(stream)) return;
     try {
       if (!stream.res.write(message))
         this.#end(id, group, stream);
@@ -87,17 +90,21 @@ export class TimerStreams {
     res.on('close', () => this.#end(id, group, stream));
     try {
       await this.#enqueue(group, async () => {
-        if (!await this.#valid(stream)) throw forbidden('Incorrect username and/or password');
+        if (!await this.#valid(group, stream)) throw forbidden('Incorrect username and/or password');
       });
+      if (group.retired) return;
       // Register before the awaited build. A commit may overtake this initial snapshot.
-      const build = (this.#builds.get(id) ?? Promise.resolve()).catch(() => { }).then(() => this.#state(id));
+      const build = (this.#builds.get(id) ?? Promise.resolve()).catch(() => { }).then(() => {
+        if (group.retired) throw forbidden('Incorrect username and/or password');
+        return this.#state(id);
+      });
       this.#builds.set(id, build);
       const state = await build.finally(() => { if (this.#builds.get(id) === build)
         this.#builds.delete(id); });
       await this.#enqueue(group, async () => {
         if (!group.streams.has(stream))
           return;
-        if (!await this.#valid(stream))
+        if (!await this.#valid(group, stream))
           throw forbidden('Incorrect username and/or password');
         if (!res.socket || res.socket.destroyed) {
           this.#end(id, group, stream);
@@ -118,7 +125,7 @@ export class TimerStreams {
           void this.#enqueue(group, async () => {
             if (!group.streams.has(stream))
               return;
-            if (await this.#valid(stream))
+            if (await this.#valid(group, stream))
               this.#write(id, group, stream, 'event: keep-alive\ndata:\n\n');
             else
               this.#end(id, group, stream);
@@ -132,6 +139,7 @@ export class TimerStreams {
       });
     }
     catch (error) {
+      if (group.retired) return;
       if (res.headersSent)
         this.#end(id, group, stream);
       else {
@@ -152,7 +160,7 @@ export class TimerStreams {
       for (const stream of [...group.streams]) {
         if (!stream.ready || stream.revision >= state.revision)
           continue;
-        if (!await this.#valid(stream)) {
+        if (!await this.#valid(group, stream)) {
           this.#end(id, group, stream);
           continue;
         }
@@ -167,9 +175,18 @@ export class TimerStreams {
       return Promise.resolve();
     return this.#enqueue(group, async () => {
       for (const stream of [...group.streams])
-        if (!await this.#valid(stream))
+        if (!await this.#valid(group, stream))
           this.#end(id, group, stream);
     });
+  }
+  forgetUser(id: number): void {
+    const group = this.#users.get(id);
+    this.#builds.delete(id);
+    if (!group) return;
+    group.retired = true;
+    group.latest = undefined;
+    this.#users.delete(id);
+    for (const stream of [...group.streams]) this.#end(id, group, stream);
   }
   async closeAll(): Promise<void> {
     this.#closed = true;

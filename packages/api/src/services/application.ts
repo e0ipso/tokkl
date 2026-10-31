@@ -12,7 +12,10 @@ import { forbidden } from '../lib/errors.ts';
 export function createApplicationServices(storage: Storage, config: StorageConfig, limiter: FailureLimiter, streamOptions?: import('./timerStreams.ts').TimerStreamOptions) {
   const timerStreams = new TimerStreams(id => timers.getTimerState(id), streamOptions);
   const hub = new TimerHub();
-  const publish = createTimerPublication(async (id, state) => { await Promise.allSettled([timerStreams.publish(id, state), hub.publish(id, state)]); });
+  const publish = createTimerPublication(async (id, state) => { await Promise.allSettled([timerStreams.publish(id, state), hub.publish(id, state)]); }, id => {
+    timerStreams.forgetUser(id);
+    hub.forgetUser(id);
+  });
   const timers = createTimerOperations(storage, publish);
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const accounts = createAccountOperations(storage, security);

@@ -59,7 +59,6 @@ export const reopenDatabase = (db: FixtureDatabase): Promise<FixtureDatabase> =>
 export function storageFor(db: FixtureDatabase): Storage { const f = fixtures.get(db); if (!f) throw Error('Unknown fixture'); return f.storage; }
 export function storageConfigFor(db: FixtureDatabase): StorageConfig { const f = fixtures.get(db); if (!f) throw Error('Unknown fixture'); return f.config; }
 export function filenameFor(db: FixtureDatabase): string { const c = storageConfigFor(db); if (c.backend !== 'sqlite') throw Error('SQLite filename required'); return c.filename; }
-export const reportFilenameFor = filenameFor;
 export function setServices(db: FixtureDatabase, services: ApplicationServices): void { fixtures.get(db)!.services = services; }
 export function servicesFor(db: FixtureDatabase): ApplicationServices { return fixtures.get(db)!.services!; }
 export async function transaction<T>(db: FixtureDatabase, work: (ctx: TransactionContext) => Promise<T>): Promise<T> {

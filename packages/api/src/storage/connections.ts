@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { connect, isIP } from 'node:net';
+import { checkServerIdentity, TLSSocket } from 'node:tls';
 import pg, { type PoolConfig } from 'pg';
 import mysql, { type PoolOptions } from 'mysql2';
 import { Kysely, MysqlDialect, PostgresDialect, sql, type Dialect, type MysqlPool, type MysqlPoolConnection, type MysqlQueryResult } from 'kysely';
@@ -48,7 +50,16 @@ export function mysqlOptions(config: ServerConfig, readOnly: boolean): PoolOptio
 
 /** MySQL and MariaDB share the protocol driver, but retain distinct backend configuration identity. */
 function mysqlPool(config: ServerConfig, readOnly: boolean): MysqlPool {
-  const pool = mysql.createPool(mysqlOptions(config, readOnly));
+  const pool = mysql.createPool({ ...mysqlOptions(config, readOnly),
+    ...(config.tls.mode === 'verify-full' && isIP(config.host) ? { stream: () => {
+      const socket = connect({ host: config.host, port: config.port, noDelay: true, keepAlive: true });
+      // Node's TLS upgrade reads the existing socket's _host when SNI is absent.
+      // net.connect leaves it unset for IPs; mysql2 then verifies against localhost.
+      // Keep the requested IP available without sending an IP as an SNI hostname.
+      Object.assign(socket, { _host: config.host });
+      return socket;
+    } } : {}),
+  });
   const connections = new WeakMap<object, MysqlPoolConnection>();
   return {
     end: (callback) => pool.end(callback),
@@ -65,6 +76,15 @@ function mysqlPool(config: ServerConfig, readOnly: boolean): MysqlPool {
         settled = true;
         clearTimeout(deadline);
         if (error) { callback(error, undefined!); return; }
+        if (config.tls.mode === 'verify-full') {
+          // mysql2 omits SNI for IP addresses. Verify the configured identity on
+          // every checkout, including resumed TLS sessions, before exposing it.
+          const stream = (raw as unknown as { stream?: TLSSocket }).stream;
+          const failure = !(stream instanceof TLSSocket) || !stream.authorized
+            ? new Error('Storage TLS verification failed')
+            : checkServerIdentity(config.host, stream.getPeerCertificate(true));
+          if (failure) { raw.destroy(); callback(failure, undefined!); return; }
+        }
         const known = connections.get(raw);
         if (known) { callback(null, known); return; }
         const connection: MysqlPoolConnection = {

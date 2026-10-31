@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { parseStorageConfig } from '../../src/storage/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
+import { entryAccount } from './support/entry-timer.ts';
 
 test('composed storage shares rollback, snapshots, dry runs and awaited closure', async () => {
   const config = parseStorageConfig({ TOKKL_DATABASE_URL: 'sqlite::memory:' }, '.');
@@ -42,4 +43,18 @@ test('storage closure drains active operations before releasing the underlying c
  try {await new Promise(r=>setImmediate(r));assert.equal(closed,false);release();await work;await closing;}
  finally{release();await Promise.allSettled([observed,closing]);}
  await assert.rejects(storage.health());
+});
+
+test('entry inserts retain facade transactions, rollback and read-only snapshot enforcement', async t => {
+ const storage=createStorage(await initializeDatabase(parseStorageConfig({TOKKL_DATABASE_URL:'sqlite::memory:'},'.')));
+ t.after(()=>storage.close());
+ const user=await storage.transaction(ctx=>ctx.users.createAccount(entryAccount('facade-insert')));
+ const input={userId:user.id,workspaceId:user.defaultWorkspaceId,projectId:null,taskId:null,description:'facade',
+   start:'2026-10-30T10:00:00.000Z',stop:'2026-10-30T11:00:00.000Z',billable:false,allDay:false,durationOnly:true,
+   createdWith:'test',deletedAt:null,tagIds:[]};
+ const id=await storage.entries.insert(input);
+ assert.equal((await storage.entries.get(user.id,id))?.description,'facade');
+ await assert.rejects(storage.transaction(async ctx=>{await ctx.entries.insert({...input,description:'rollback'});throw Error('rollback insert');}),/rollback insert/);
+ await assert.rejects(storage.readSnapshot(r=>r.entries.insert({...input,description:'read-only'})),/readonly/);
+ assert.deepEqual((await storage.entries.list(user.id)).map(row=>row.description),['facade']);
 });

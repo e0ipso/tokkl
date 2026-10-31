@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { storageFor, filenameFor, setServices } from './fixtures/database.ts';
+import { storageFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
 import { sha256 } from '../src/auth/crypto.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';

@@ -5,7 +5,7 @@ import { pad2, zonedToUtc } from '@tokkl/common/time';
 import type { ImportResult, ImportUser } from '@tokkl/types';
 import type { OperationContext } from '../storage/contracts.ts';
 import { createClient, createProject, createTask } from '../domain/catalogs.ts';
-import { createTimeEntry, entryResolution, noTimeSpan, type EntryRepositories } from '../domain/timeEntries.ts';
+import { withExactEntryImport, noTimeSpan, type EntryRepositories } from '../domain/timeEntries.ts';
 import type { TimerPublication } from '../domain/timers.ts';
 import { protectImport, importError } from './storageImportContext.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
@@ -143,57 +143,74 @@ export async function importTogglCsv(ctx: OperationContext<EntryRepositories>, u
   const user = await protectImport(ctx, userId), wid = user.defaultWorkspaceId;
   const result: ImportResult = { dry_run: options.dryRun, rows: rows.length, created: 0, skipped_duplicates: 0, created_projects: [], created_clients: [], errors: [],
     users: [...users.values()], skipped: [...users.values()].filter(u => selected && !selected.has(u.key)).map(u => ({ rows: u.rows, reason: skippedReason(u) })) };
-  // Lookups deliberately stay within the row savepoint; rolled-back IDs cannot leak to later rows.
+  // Reuse successful name lookups only while workspace/user guards remain held.
+  const clients = new Map<string, number>(), projects = new Map<string, number>(), tasks = new Map<string, number>();
+  function remember<K, V>(cache: Map<K, V>, key: K, value: V): V {
+    if (cache.size >= 256) cache.delete(cache.keys().next().value!);
+    cache.set(key, value); return value;
+  }
   async function projectId(name: string, client: string): Promise<number | null> {
     if (!name) return null;
+    const key = JSON.stringify([name, client]);
+    if (projects.has(key)) return projects.get(key)!;
     let cid: number | null = null;
     if (client) {
-      let c = await ctx.clients.findByName(wid, client);
-      if (!c) { c = await createClient(ctx, wid, { name: client }); result.created_clients.push(client); }
-      cid = c.id;
+      cid = clients.get(client) ?? null;
+      if (cid === null) {
+        let c = await ctx.clients.findByName(wid, client);
+        if (!c) { c = await createClient(ctx, wid, { name: client }); result.created_clients.push(client); }
+        cid = remember(clients, client, c.id);
+      }
     }
     let p = await ctx.projects.findByName(wid, cid, name);
     if (!p) { p = await createProject(ctx, wid, { name, client_id: cid }); result.created_projects.push(client ? `${name} (${client})` : name); }
-    return p.id;
+    return remember(projects, key, p.id);
   }
-  for (const [index, row] of rows.entries()) {
-    if (selected && !selected.has(rowUsers[index]!)) continue;
-    const projectsBefore = result.created_projects.length, clientsBefore = result.created_clients.length;
-    try {
-      await ctx.savepoint(async () => {
-        const noTime = !cell(row, 'startTime') && !cell(row, 'endTime') && cell(row, 'duration') !== '';
-        let start: Date | null, stop: Date | null = null, noTimeEntry: { day: string; duration: number } | null = null;
-        if (noTime) {
-          const day = dayKey(cell(row, 'startDate')); if (!day) throw new Error('Invalid start date');
-          const duration = csvDuration(cell(row, 'duration')); if (duration === null) throw new Error('Invalid duration');
-          noTimeEntry = { day, duration };
-          ({ start, stop } = noTimeSpan(await entryResolution(ctx), user, day, duration, { exact: true }));
-        } else {
-          start = instant(cell(row, 'startDate'), cell(row, 'startTime'), user.timezone);
-          if (!start) throw new Error('Invalid start date or time');
-          if (cell(row, 'endDate') && cell(row, 'endTime')) stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
-          else if (cell(row, 'duration')) {
-            const seconds = csvDuration(cell(row, 'duration'));
-            if (seconds !== null) stop = new Date(start.getTime() + seconds * 1000);
+  await withExactEntryImport(ctx, userId, wid, publish, async writer => {
+    for (const [index, row] of rows.entries()) {
+      if (selected && !selected.has(rowUsers[index]!)) continue;
+      const projectsBefore = result.created_projects.length, clientsBefore = result.created_clients.length;
+      try {
+        await writer.savepoint(async () => {
+          const noTime = !cell(row, 'startTime') && !cell(row, 'endTime') && cell(row, 'duration') !== '';
+          let start: Date | null, stop: Date | null = null, noTimeEntry: { day: string; duration: number } | null = null;
+          if (noTime) {
+            const day = dayKey(cell(row, 'startDate')); if (!day) throw new Error('Invalid start date');
+            const duration = csvDuration(cell(row, 'duration')); if (duration === null) throw new Error('Invalid duration');
+            noTimeEntry = { day, duration };
+            ({ start, stop } = noTimeSpan(1, user, day, duration, { exact: true }));
+          } else {
+            start = instant(cell(row, 'startDate'), cell(row, 'startTime'), user.timezone);
+            if (!start) throw new Error('Invalid start date or time');
+            if (cell(row, 'endDate') && cell(row, 'endTime')) stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
+            else if (cell(row, 'duration')) {
+              const seconds = csvDuration(cell(row, 'duration'));
+              if (seconds !== null) stop = new Date(start.getTime() + seconds * 1000);
+            }
+            if (!stop) throw new Error('Invalid end time or duration');
           }
-          if (!stop) throw new Error('Invalid end time or duration');
-        }
-        const pid = await projectId(cell(row, 'project'), cell(row, 'client')), description = cell(row, 'description');
-        if (await ctx.entries.findDuplicate({ userId, start: start.toISOString(), stop: stop.toISOString(), description, projectId: pid })) { result.skipped_duplicates++; return; }
-        const taskName = cell(row, 'task');
-        const taskId = taskName && pid !== null ? (await ctx.tasks.findByName(wid, pid, taskName) ?? await createTask(ctx, wid, pid, { name: taskName })).id : null;
-        await createTimeEntry(ctx, user, wid, { description,
-          ...(noTimeEntry ? { all_day: true, start_date: noTimeEntry.day, duration: noTimeEntry.duration } : { start: start.toISOString(), stop: stop.toISOString() }),
-          project_id: pid, task_id: taskId, billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
-          tags: cell(row, 'tags').split(',').map(t => t.trim()).filter(Boolean), created_with: 'tokkl-csv-import',
-        }, publish, { exact: true });
-        result.created++;
-      });
-    } catch (error) {
-      const message = importError(error, 'Invalid row');
-      result.created_projects.length = projectsBefore; result.created_clients.length = clientsBefore;
-      if (result.errors.length < MAX_ERRORS) result.errors.push({ row: index + 2, message });
+          const pid = await projectId(cell(row, 'project'), cell(row, 'client')), description = cell(row, 'description');
+          if (await ctx.entries.findDuplicate({ userId, start: start.toISOString(), stop: stop.toISOString(), description, projectId: pid })) { result.skipped_duplicates++; return; }
+          const taskName = cell(row, 'task');
+          let taskId: number | null = null;
+          if (taskName && pid !== null) {
+            const key = JSON.stringify([pid, taskName]);
+            taskId = tasks.get(key) ?? remember(tasks, key, (await ctx.tasks.findByName(wid, pid, taskName) ?? await createTask(ctx, wid, pid, { name: taskName })).id);
+          }
+          await writer.create({ description,
+            ...(noTimeEntry ? { all_day: true, start_date: noTimeEntry.day, duration: noTimeEntry.duration } : { start: start.toISOString(), stop: stop.toISOString() }),
+            project_id: pid, task_id: taskId, billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
+            tags: cell(row, 'tags').split(',').map(t => t.trim()).filter(Boolean), created_with: 'tokkl-csv-import',
+          });
+          result.created++;
+        });
+      } catch (error) {
+        clients.clear(); projects.clear(); tasks.clear();
+        const message = importError(error, 'Invalid row');
+        result.created_projects.length = projectsBefore; result.created_clients.length = clientsBefore;
+        if (result.errors.length < MAX_ERRORS) result.errors.push({ row: index + 2, message });
+      }
     }
-  }
+  });
   return result;
 }

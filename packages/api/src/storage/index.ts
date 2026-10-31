@@ -131,6 +131,7 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>): 
       running: (...args: Parameters<Repositories['entries']['running']>) => runner.readSnapshot(r => r.entries.running(...args)),
       bounds: (...args: Parameters<Repositories['entries']['bounds']>) => runner.readSnapshot(r => r.entries.bounds(...args)),
       create: (...args: Parameters<Repositories['entries']['create']>) => runner.transaction(r => r.entries.create(...args)),
+      insert: (...args: Parameters<Repositories['entries']['insert']>) => runner.transaction(r => r.entries.insert(...args)),
       update: (...args: Parameters<Repositories['entries']['update']>) => runner.transaction(r => r.entries.update(...args)),
       setTags: (...args: Parameters<Repositories['entries']['setTags']>) => runner.transaction(r => r.entries.setTags(...args)),
       softDelete: (...args: Parameters<Repositories['entries']['softDelete']>) => runner.transaction(r => r.entries.softDelete(...args)),

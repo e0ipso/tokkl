@@ -4,7 +4,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { storageFor, filenameFor, setServices } from './fixtures/database.ts';
+import { storageFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { testConfig, testServer } from './helpers.ts';

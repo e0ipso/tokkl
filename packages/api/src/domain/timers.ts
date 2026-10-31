@@ -14,7 +14,7 @@ export type TimerPublication = (userId: Id, state: TimerState) => Promise<void>;
 export type LocalTimerPublication = TimerPublication & { forgetUser(userId: Id): void };
 /** Serialize deliveries per user after release. Drop overtaken revisions; a failed delivery is
  * reported by the runner and never retried as a write. Later deliveries still run. */
-export function createTimerPublication(deliver: TimerPublication): LocalTimerPublication {
+export function createTimerPublication(deliver: TimerPublication, forgotten: (userId: Id) => void = () => {}): LocalTimerPublication {
   const queues = new Map<Id, Promise<void>>(), delivered = new Map<Id, number>();
   const generations = new Map<Id, object>();
   const publication: LocalTimerPublication = Object.assign(async (id: Id, state: TimerState) => {
@@ -27,7 +27,7 @@ export function createTimerPublication(deliver: TimerPublication): LocalTimerPub
     });
     queues.set(id, next);
     try { await next; } finally { if (queues.get(id) === next) queues.delete(id); }
-  }, { forgetUser(id: Id) { generations.delete(id); delivered.delete(id); } });
+  }, { forgetUser(id: Id) { generations.delete(id); delivered.delete(id); forgotten(id); } });
   return publication;
 }
 // Returned objects are updated by every settlement in their operation, including later hooks.

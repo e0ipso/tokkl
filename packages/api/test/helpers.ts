@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
-import { storageFor, filenameFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
+import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
 import { createApp } from '../src/app.ts';
 import { hashPassword } from '../src/auth/crypto.ts';

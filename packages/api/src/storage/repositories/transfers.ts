@@ -12,8 +12,10 @@ import { client, tag, projectSummary, taskSummary } from './transfer-projections
 export function createTransferRepositories(db: Kysely<PhysicalDatabase>, backend: Backend): Pick<Repositories, 'transfers'> {
   return { transfers: {
     async hasRunningEntry(userId) {
-      return !!await db.selectFrom('time_entries').select('id').where('user_id', '=', userId)
-        .where('stop', 'is', null).where('deleted_at', 'is', null).executeTakeFirst();
+      let query = db.selectFrom('time_entries').select('id').where('user_id', '=', userId)
+        .where('stop', 'is', null).where('deleted_at', 'is', null);
+      if (backend === 'mysql' || backend === 'mariadb') query = query.where('running_user_id', '=', userId);
+      return !!await query.executeTakeFirst();
     },
     async exportAccount(userId): Promise<AccountExportProjection> {
       // Credentials never enter the projection, even transiently.

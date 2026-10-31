@@ -125,6 +125,8 @@ export interface EntriesRepository {
   running(userId: Id): Promise<EntryDetails | undefined>;
   bounds(userId: Id): Promise<EntryBounds>;
   create(input: EntryInput): Promise<EntryDetails>;
+  /** Same integrity checks as create, without reloading labels discarded by import callers. */
+  insert(input: EntryInput): Promise<Id>;
   update(userId: Id, workspaceId: Id, id: Id, changes: Partial<Omit<EntryInput, 'userId' | 'workspaceId'>>): Promise<EntryDetails>;
   setTags(userId: Id, entryId: Id, tagIds: Id[]): Promise<void>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;

@@ -1,0 +1,470 @@
+[
+  {
+    "backend": "sqlite",
+    "fixture": "year",
+    "name": "project totals",
+    "expected_index": "time_entries_project_live",
+    "plan": [
+      {
+        "id": 3,
+        "parent": 0,
+        "notused": 65,
+        "detail": "SCAN p"
+      },
+      {
+        "id": 7,
+        "parent": 0,
+        "notused": 45,
+        "detail": "SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN"
+      },
+      {
+        "id": 36,
+        "parent": 0,
+        "notused": 0,
+        "detail": "CORRELATED SCALAR SUBQUERY 1"
+      },
+      {
+        "id": 41,
+        "parent": 36,
+        "notused": 80,
+        "detail": "SEARCH te USING COVERING INDEX time_entries_project_live (project_id=? AND deleted_at=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "sqlite",
+    "fixture": "year",
+    "name": "task totals",
+    "expected_index": "time_entries_task_live",
+    "plan": [
+      {
+        "id": 4,
+        "parent": 0,
+        "notused": 65,
+        "detail": "SCAN t"
+      },
+      {
+        "id": 8,
+        "parent": 0,
+        "notused": 30,
+        "detail": "SEARCH p USING INTEGER PRIMARY KEY (rowid=?)"
+      },
+      {
+        "id": 11,
+        "parent": 0,
+        "notused": 45,
+        "detail": "SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN"
+      },
+      {
+        "id": 32,
+        "parent": 0,
+        "notused": 0,
+        "detail": "CORRELATED SCALAR SUBQUERY 1"
+      },
+      {
+        "id": 37,
+        "parent": 32,
+        "notused": 70,
+        "detail": "SEARCH te USING COVERING INDEX time_entries_task_live (task_id=? AND deleted_at=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "sqlite",
+    "fixture": "year",
+    "name": "project write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 33,
+        "detail": "SEARCH projects USING INTEGER PRIMARY KEY (rowid=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "sqlite",
+    "fixture": "year",
+    "name": "task write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 33,
+        "detail": "SEARCH tasks USING INTEGER PRIMARY KEY (rowid=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "sqlite",
+    "fixture": "decade",
+    "name": "project totals",
+    "expected_index": "time_entries_project_live",
+    "plan": [
+      {
+        "id": 3,
+        "parent": 0,
+        "notused": 65,
+        "detail": "SCAN p"
+      },
+      {
+        "id": 7,
+        "parent": 0,
+        "notused": 45,
+        "detail": "SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN"
+      },
+      {
+        "id": 36,
+        "parent": 0,
+        "notused": 0,
+        "detail": "CORRELATED SCALAR SUBQUERY 1"
+      },
+      {
+        "id": 41,
+        "parent": 36,
+        "notused": 112,
+        "detail": "SEARCH te USING COVERING INDEX time_entries_project_live (project_id=? AND deleted_at=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "sqlite",
+    "fixture": "decade",
+    "name": "task totals",
+    "expected_index": "time_entries_task_live",
+    "plan": [
+      {
+        "id": 4,
+        "parent": 0,
+        "notused": 65,
+        "detail": "SCAN t"
+      },
+      {
+        "id": 8,
+        "parent": 0,
+        "notused": 30,
+        "detail": "SEARCH p USING INTEGER PRIMARY KEY (rowid=?)"
+      },
+      {
+        "id": 11,
+        "parent": 0,
+        "notused": 45,
+        "detail": "SEARCH c USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN"
+      },
+      {
+        "id": 32,
+        "parent": 0,
+        "notused": 0,
+        "detail": "CORRELATED SCALAR SUBQUERY 1"
+      },
+      {
+        "id": 37,
+        "parent": 32,
+        "notused": 102,
+        "detail": "SEARCH te USING COVERING INDEX time_entries_task_live (task_id=? AND deleted_at=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "sqlite",
+    "fixture": "decade",
+    "name": "project write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 33,
+        "detail": "SEARCH projects USING INTEGER PRIMARY KEY (rowid=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "sqlite",
+    "fixture": "decade",
+    "name": "task write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 33,
+        "detail": "SEARCH tasks USING INTEGER PRIMARY KEY (rowid=?)"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "year",
+    "name": "project totals",
+    "expected_index": "time_entries_project_live",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Nested Loop\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Join Type\": \"Left\",\n      \"Startup Cost\": 0.16,\n      \"Total Cost\": 6245.50,\n      \"Plan Rows\": 30,\n      \"Plan Width\": 328,\n      \"Disabled\": false,\n      \"Inner Unique\": true,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Seq Scan\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Relation Name\": \"projects\",\n          \"Alias\": \"p\",\n          \"Startup Cost\": 0.00,\n          \"Total Cost\": 1.38,\n          \"Plan Rows\": 30,\n          \"Plan Width\": 264,\n          \"Disabled\": false,\n          \"Filter\": \"(workspace_id = '1'::bigint)\"\n        },\n        {\n          \"Node Type\": \"Memoize\",\n          \"Parent Relationship\": \"Inner\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 0.16,\n          \"Total Cost\": 1.77,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 40,\n          \"Disabled\": false,\n          \"Cache Key\": \"p.client_id\",\n          \"Cache Mode\": \"logical\",\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"clients_pkey\",\n              \"Relation Name\": \"clients\",\n              \"Alias\": \"c\",\n              \"Startup Cost\": 0.15,\n              \"Total Cost\": 1.76,\n              \"Plan Rows\": 1,\n              \"Plan Width\": 40,\n              \"Disabled\": false,\n              \"Index Cond\": \"(id = p.client_id)\"\n            }\n          ]\n        },\n        {\n          \"Node Type\": \"Aggregate\",\n          \"Strategy\": \"Plain\",\n          \"Partial Mode\": \"Simple\",\n          \"Parent Relationship\": \"SubPlan\",\n          \"Subplan Name\": \"SubPlan 1\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 207.76,\n          \"Total Cost\": 207.77,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 32,\n          \"Disabled\": false,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Bitmap Heap Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Relation Name\": \"time_entries\",\n              \"Alias\": \"te\",\n              \"Startup Cost\": 13.04,\n              \"Total Cost\": 205.31,\n              \"Plan Rows\": 98,\n              \"Plan Width\": 50,\n              \"Disabled\": false,\n              \"Recheck Cond\": \"((project_id = p.id) AND (deleted_at IS NULL))\",\n              \"Plans\": [\n                {\n                  \"Node Type\": \"Bitmap Index Scan\",\n                  \"Parent Relationship\": \"Outer\",\n                  \"Parallel Aware\": false,\n                  \"Async Capable\": false,\n                  \"Index Name\": \"time_entries_project_live\",\n                  \"Startup Cost\": 0.00,\n                  \"Total Cost\": 13.01,\n                  \"Plan Rows\": 98,\n                  \"Plan Width\": 0,\n                  \"Disabled\": false,\n                  \"Index Cond\": \"(project_id = p.id)\"\n                }\n              ]\n            }\n          ]\n        }\n      ]\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "year",
+    "name": "task totals",
+    "expected_index": "time_entries_task_live",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Nested Loop\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Join Type\": \"Left\",\n      \"Startup Cost\": 1.83,\n      \"Total Cost\": 3798.42,\n      \"Plan Rows\": 30,\n      \"Plan Width\": 213,\n      \"Disabled\": false,\n      \"Inner Unique\": true,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Hash Join\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Join Type\": \"Inner\",\n          \"Startup Cost\": 1.68,\n          \"Total Cost\": 3.14,\n          \"Plan Rows\": 30,\n          \"Plan Width\": 149,\n          \"Disabled\": false,\n          \"Inner Unique\": true,\n          \"Hash Cond\": \"(t.project_id = p.id)\",\n          \"Plans\": [\n            {\n              \"Node Type\": \"Seq Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Relation Name\": \"tasks\",\n              \"Alias\": \"t\",\n              \"Startup Cost\": 0.00,\n              \"Total Cost\": 1.38,\n              \"Plan Rows\": 30,\n              \"Plan Width\": 106,\n              \"Disabled\": false,\n              \"Filter\": \"(workspace_id = '1'::bigint)\"\n            },\n            {\n              \"Node Type\": \"Hash\",\n              \"Parent Relationship\": \"Inner\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Startup Cost\": 1.30,\n              \"Total Cost\": 1.30,\n              \"Plan Rows\": 30,\n              \"Plan Width\": 51,\n              \"Disabled\": false,\n              \"Plans\": [\n                {\n                  \"Node Type\": \"Seq Scan\",\n                  \"Parent Relationship\": \"Outer\",\n                  \"Parallel Aware\": false,\n                  \"Async Capable\": false,\n                  \"Relation Name\": \"projects\",\n                  \"Alias\": \"p\",\n                  \"Startup Cost\": 0.00,\n                  \"Total Cost\": 1.30,\n                  \"Plan Rows\": 30,\n                  \"Plan Width\": 51,\n                  \"Disabled\": false\n                }\n              ]\n            }\n          ]\n        },\n        {\n          \"Node Type\": \"Memoize\",\n          \"Parent Relationship\": \"Inner\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 0.16,\n          \"Total Cost\": 1.77,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 40,\n          \"Disabled\": false,\n          \"Cache Key\": \"p.client_id\",\n          \"Cache Mode\": \"logical\",\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"clients_pkey\",\n              \"Relation Name\": \"clients\",\n              \"Alias\": \"c\",\n              \"Startup Cost\": 0.15,\n              \"Total Cost\": 1.76,\n              \"Plan Rows\": 1,\n              \"Plan Width\": 40,\n              \"Disabled\": false,\n              \"Index Cond\": \"(id = p.client_id)\"\n            }\n          ]\n        },\n        {\n          \"Node Type\": \"Aggregate\",\n          \"Strategy\": \"Plain\",\n          \"Partial Mode\": \"Simple\",\n          \"Parent Relationship\": \"SubPlan\",\n          \"Subplan Name\": \"SubPlan 1\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 126.13,\n          \"Total Cost\": 126.14,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 32,\n          \"Disabled\": false,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Only Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"time_entries_task_live\",\n              \"Relation Name\": \"time_entries\",\n              \"Alias\": \"te\",\n              \"Startup Cost\": 0.28,\n              \"Total Cost\": 124.95,\n              \"Plan Rows\": 47,\n              \"Plan Width\": 50,\n              \"Disabled\": false,\n              \"Index Cond\": \"(task_id = t.id)\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "year",
+    "name": "project write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Seq Scan\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Relation Name\": \"projects\",\n      \"Alias\": \"projects\",\n      \"Startup Cost\": 0.00,\n      \"Total Cost\": 1.45,\n      \"Plan Rows\": 1,\n      \"Plan Width\": 32,\n      \"Disabled\": false,\n      \"Filter\": \"((workspace_id = '1'::bigint) AND (id = '1'::bigint))\"\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "year",
+    "name": "task write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Seq Scan\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Relation Name\": \"tasks\",\n      \"Alias\": \"tasks\",\n      \"Startup Cost\": 0.00,\n      \"Total Cost\": 1.45,\n      \"Plan Rows\": 1,\n      \"Plan Width\": 32,\n      \"Disabled\": false,\n      \"Filter\": \"((workspace_id = '1'::bigint) AND (id = '1'::bigint))\"\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "decade",
+    "name": "project totals",
+    "expected_index": "time_entries_project_live",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Nested Loop\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Join Type\": \"Left\",\n      \"Startup Cost\": 0.16,\n      \"Total Cost\": 19650.28,\n      \"Plan Rows\": 30,\n      \"Plan Width\": 328,\n      \"Disabled\": false,\n      \"Inner Unique\": true,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Seq Scan\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Relation Name\": \"projects\",\n          \"Alias\": \"p\",\n          \"Startup Cost\": 0.00,\n          \"Total Cost\": 1.38,\n          \"Plan Rows\": 30,\n          \"Plan Width\": 264,\n          \"Disabled\": false,\n          \"Filter\": \"(workspace_id = '1'::bigint)\"\n        },\n        {\n          \"Node Type\": \"Memoize\",\n          \"Parent Relationship\": \"Inner\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 0.16,\n          \"Total Cost\": 1.77,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 40,\n          \"Disabled\": false,\n          \"Cache Key\": \"p.client_id\",\n          \"Cache Mode\": \"logical\",\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"clients_pkey\",\n              \"Relation Name\": \"clients\",\n              \"Alias\": \"c\",\n              \"Startup Cost\": 0.15,\n              \"Total Cost\": 1.76,\n              \"Plan Rows\": 1,\n              \"Plan Width\": 40,\n              \"Disabled\": false,\n              \"Index Cond\": \"(id = p.client_id)\"\n            }\n          ]\n        },\n        {\n          \"Node Type\": \"Aggregate\",\n          \"Strategy\": \"Plain\",\n          \"Partial Mode\": \"Simple\",\n          \"Parent Relationship\": \"SubPlan\",\n          \"Subplan Name\": \"SubPlan 1\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 654.59,\n          \"Total Cost\": 654.60,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 32,\n          \"Disabled\": false,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Only Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"time_entries_project_live\",\n              \"Relation Name\": \"time_entries\",\n              \"Alias\": \"te\",\n              \"Startup Cost\": 0.41,\n              \"Total Cost\": 629.63,\n              \"Plan Rows\": 998,\n              \"Plan Width\": 50,\n              \"Disabled\": false,\n              \"Index Cond\": \"(project_id = p.id)\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "decade",
+    "name": "task totals",
+    "expected_index": "time_entries_task_live",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Nested Loop\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Join Type\": \"Left\",\n      \"Startup Cost\": 1.83,\n      \"Total Cost\": 11340.02,\n      \"Plan Rows\": 30,\n      \"Plan Width\": 213,\n      \"Disabled\": false,\n      \"Inner Unique\": true,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Hash Join\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Join Type\": \"Inner\",\n          \"Startup Cost\": 1.68,\n          \"Total Cost\": 3.14,\n          \"Plan Rows\": 30,\n          \"Plan Width\": 149,\n          \"Disabled\": false,\n          \"Inner Unique\": true,\n          \"Hash Cond\": \"(t.project_id = p.id)\",\n          \"Plans\": [\n            {\n              \"Node Type\": \"Seq Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Relation Name\": \"tasks\",\n              \"Alias\": \"t\",\n              \"Startup Cost\": 0.00,\n              \"Total Cost\": 1.38,\n              \"Plan Rows\": 30,\n              \"Plan Width\": 106,\n              \"Disabled\": false,\n              \"Filter\": \"(workspace_id = '1'::bigint)\"\n            },\n            {\n              \"Node Type\": \"Hash\",\n              \"Parent Relationship\": \"Inner\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Startup Cost\": 1.30,\n              \"Total Cost\": 1.30,\n              \"Plan Rows\": 30,\n              \"Plan Width\": 51,\n              \"Disabled\": false,\n              \"Plans\": [\n                {\n                  \"Node Type\": \"Seq Scan\",\n                  \"Parent Relationship\": \"Outer\",\n                  \"Parallel Aware\": false,\n                  \"Async Capable\": false,\n                  \"Relation Name\": \"projects\",\n                  \"Alias\": \"p\",\n                  \"Startup Cost\": 0.00,\n                  \"Total Cost\": 1.30,\n                  \"Plan Rows\": 30,\n                  \"Plan Width\": 51,\n                  \"Disabled\": false\n                }\n              ]\n            }\n          ]\n        },\n        {\n          \"Node Type\": \"Memoize\",\n          \"Parent Relationship\": \"Inner\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 0.16,\n          \"Total Cost\": 1.77,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 40,\n          \"Disabled\": false,\n          \"Cache Key\": \"p.client_id\",\n          \"Cache Mode\": \"logical\",\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"clients_pkey\",\n              \"Relation Name\": \"clients\",\n              \"Alias\": \"c\",\n              \"Startup Cost\": 0.15,\n              \"Total Cost\": 1.76,\n              \"Plan Rows\": 1,\n              \"Plan Width\": 40,\n              \"Disabled\": false,\n              \"Index Cond\": \"(id = p.client_id)\"\n            }\n          ]\n        },\n        {\n          \"Node Type\": \"Aggregate\",\n          \"Strategy\": \"Plain\",\n          \"Partial Mode\": \"Simple\",\n          \"Parent Relationship\": \"SubPlan\",\n          \"Subplan Name\": \"SubPlan 1\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 377.52,\n          \"Total Cost\": 377.53,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 32,\n          \"Disabled\": false,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Only Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"time_entries_task_live\",\n              \"Relation Name\": \"time_entries\",\n              \"Alias\": \"te\",\n              \"Startup Cost\": 0.41,\n              \"Total Cost\": 365.02,\n              \"Plan Rows\": 500,\n              \"Plan Width\": 50,\n              \"Disabled\": false,\n              \"Index Cond\": \"(task_id = t.id)\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "decade",
+    "name": "project write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Seq Scan\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Relation Name\": \"projects\",\n      \"Alias\": \"projects\",\n      \"Startup Cost\": 0.00,\n      \"Total Cost\": 1.45,\n      \"Plan Rows\": 1,\n      \"Plan Width\": 32,\n      \"Disabled\": false,\n      \"Filter\": \"((workspace_id = '1'::bigint) AND (id = '1'::bigint))\"\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "postgres",
+    "fixture": "decade",
+    "name": "task write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Seq Scan\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Relation Name\": \"tasks\",\n      \"Alias\": \"tasks\",\n      \"Startup Cost\": 0.00,\n      \"Total Cost\": 1.45,\n      \"Plan Rows\": 1,\n      \"Plan Width\": 32,\n      \"Disabled\": false,\n      \"Filter\": \"((workspace_id = '1'::bigint) AND (id = '1'::bigint))\"\n    }\n  }\n]"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mysql",
+    "fixture": "year",
+    "name": "project totals",
+    "expected_index": "time_entries_project_live",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost_info\": {\n      \"query_cost\": \"13.75\"\n    },\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"p\",\n          \"access_type\": \"ALL\",\n          \"possible_keys\": [\n            \"projects_name\",\n            \"projects_workspace_id_id\"\n          ],\n          \"rows_examined_per_scan\": 30,\n          \"rows_produced_per_join\": 30,\n          \"filtered\": \"100.00\",\n          \"cost_info\": {\n            \"read_cost\": \"0.25\",\n            \"eval_cost\": \"3.00\",\n            \"prefix_cost\": \"3.25\",\n            \"data_read_per_join\": \"183K\"\n          },\n          \"used_columns\": [\n            \"id\",\n            \"workspace_id\",\n            \"client_id\",\n            \"name\",\n            \"color\",\n            \"active\",\n            \"is_private\",\n            \"billable\",\n            \"estimated_hours\",\n            \"rate\",\n            \"currency\",\n            \"fixed_fee\",\n            \"start_date\",\n            \"end_date\",\n            \"template\",\n            \"created_at\",\n            \"updated_at\",\n            \"name_key\",\n            \"client_scope\"\n          ],\n          \"attached_condition\": \"(`tokkl_test`.`p`.`workspace_id` = 1)\"\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"c\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\n            \"PRIMARY\"\n          ],\n          \"key\": \"PRIMARY\",\n          \"used_key_parts\": [\n            \"id\"\n          ],\n          \"key_length\": \"8\",\n          \"ref\": [\n            \"tokkl_test.p.client_id\"\n          ],\n          \"rows_examined_per_scan\": 1,\n          \"rows_produced_per_join\": 30,\n          \"filtered\": \"100.00\",\n          \"cost_info\": {\n            \"read_cost\": \"7.50\",\n            \"eval_cost\": \"3.00\",\n            \"prefix_cost\": \"13.75\",\n            \"data_read_per_join\": \"62K\"\n          },\n          \"used_columns\": [\n            \"id\",\n            \"name\"\n          ]\n        }\n      }\n    ],\n    \"select_list_subqueries\": [\n      {\n        \"dependent\": true,\n        \"cacheable\": false,\n        \"query_block\": {\n          \"select_id\": 2,\n          \"cost_info\": {\n            \"query_cost\": \"4.20\"\n          },\n          \"table\": {\n            \"table_name\": \"te\",\n            \"access_type\": \"ref\",\n            \"possible_keys\": [\n              \"time_entries_project_live\"\n            ],\n            \"key\": \"time_entries_project_live\",\n            \"used_key_parts\": [\n              \"project_id\",\n              \"deleted_at\"\n            ],\n            \"key_length\": \"36\",\n            \"ref\": [\n              \"tokkl_test.p.id\",\n              \"const\"\n            ],\n            \"rows_examined_per_scan\": 38,\n            \"rows_produced_per_join\": 38,\n            \"filtered\": \"100.00\",\n            \"using_index\": true,\n            \"cost_info\": {\n              \"read_cost\": \"0.36\",\n              \"eval_cost\": \"3.84\",\n              \"prefix_cost\": \"4.20\",\n              \"data_read_per_join\": \"8K\"\n            },\n            \"used_columns\": [\n              \"project_id\",\n              \"start\",\n              \"stop\",\n              \"deleted_at\"\n            ],\n            \"attached_condition\": \"(`tokkl_test`.`te`.`deleted_at` is null)\"\n          }\n        }\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mysql",
+    "fixture": "year",
+    "name": "task totals",
+    "expected_index": "time_entries_task_live",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost_info\": {\n      \"query_cost\": \"24.25\"\n    },\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"t\",\n          \"access_type\": \"ALL\",\n          \"possible_keys\": [\n            \"tasks_name\",\n            \"tasks_workspace_id_id\"\n          ],\n          \"rows_examined_per_scan\": 30,\n          \"rows_produced_per_join\": 30,\n          \"filtered\": \"100.00\",\n          \"cost_info\": {\n            \"read_cost\": \"0.25\",\n            \"eval_cost\": \"3.00\",\n            \"prefix_cost\": \"3.25\",\n            \"data_read_per_join\": \"62K\"\n          },\n          \"used_columns\": [\n            \"id\",\n            \"workspace_id\",\n            \"project_id\",\n            \"name\",\n            \"active\",\n            \"estimated_seconds\",\n            \"created_at\",\n            \"updated_at\"\n          ],\n          \"attached_condition\": \"((`tokkl_test`.`t`.`workspace_id` = 1) and (`tokkl_test`.`t`.`project_id` is not null))\"\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"p\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\n            \"PRIMARY\"\n          ],\n          \"key\": \"PRIMARY\",\n          \"used_key_parts\": [\n            \"id\"\n          ],\n          \"key_length\": \"8\",\n          \"ref\": [\n            \"tokkl_test.t.project_id\"\n          ],\n          \"rows_examined_per_scan\": 1,\n          \"rows_produced_per_join\": 30,\n          \"filtered\": \"100.00\",\n          \"cost_info\": {\n            \"read_cost\": \"7.50\",\n            \"eval_cost\": \"3.00\",\n            \"prefix_cost\": \"13.75\",\n            \"data_read_per_join\": \"183K\"\n          },\n          \"used_columns\": [\n            \"id\",\n            \"client_id\",\n            \"name\",\n            \"color\",\n            \"is_private\",\n            \"billable\"\n          ]\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"c\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\n            \"PRIMARY\"\n          ],\n          \"key\": \"PRIMARY\",\n          \"used_key_parts\": [\n            \"id\"\n          ],\n          \"key_length\": \"8\",\n          \"ref\": [\n            \"tokkl_test.p.client_id\"\n          ],\n          \"rows_examined_per_scan\": 1,\n          \"rows_produced_per_join\": 30,\n          \"filtered\": \"100.00\",\n          \"cost_info\": {\n            \"read_cost\": \"7.50\",\n            \"eval_cost\": \"3.00\",\n            \"prefix_cost\": \"24.25\",\n            \"data_read_per_join\": \"62K\"\n          },\n          \"used_columns\": [\n            \"id\",\n            \"name\"\n          ]\n        }\n      }\n    ],\n    \"select_list_subqueries\": [\n      {\n        \"dependent\": true,\n        \"cacheable\": false,\n        \"query_block\": {\n          \"select_id\": 2,\n          \"cost_info\": {\n            \"query_cost\": \"4.15\"\n          },\n          \"table\": {\n            \"table_name\": \"te\",\n            \"access_type\": \"ref\",\n            \"possible_keys\": [\n              \"time_entries_task_live\"\n            ],\n            \"key\": \"time_entries_task_live\",\n            \"used_key_parts\": [\n              \"task_id\",\n              \"deleted_at\"\n            ],\n            \"key_length\": \"36\",\n            \"ref\": [\n              \"tokkl_test.t.id\",\n              \"const\"\n            ],\n            \"rows_examined_per_scan\": 37,\n            \"rows_produced_per_join\": 37,\n            \"filtered\": \"100.00\",\n            \"using_index\": true,\n            \"cost_info\": {\n              \"read_cost\": \"0.36\",\n              \"eval_cost\": \"3.79\",\n              \"prefix_cost\": \"4.15\",\n              \"data_read_per_join\": \"8K\"\n            },\n            \"used_columns\": [\n              \"task_id\",\n              \"start\",\n              \"stop\",\n              \"deleted_at\"\n            ],\n            \"attached_condition\": \"(`tokkl_test`.`te`.`deleted_at` is null)\"\n          }\n        }\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mysql",
+    "fixture": "year",
+    "name": "project write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost_info\": {\n      \"query_cost\": \"1.00\"\n    },\n    \"table\": {\n      \"table_name\": \"projects\",\n      \"access_type\": \"const\",\n      \"possible_keys\": [\n        \"PRIMARY\",\n        \"projects_name\",\n        \"projects_workspace_id_id\"\n      ],\n      \"key\": \"PRIMARY\",\n      \"used_key_parts\": [\n        \"id\"\n      ],\n      \"key_length\": \"8\",\n      \"ref\": [\n        \"const\"\n      ],\n      \"rows_examined_per_scan\": 1,\n      \"rows_produced_per_join\": 1,\n      \"filtered\": \"100.00\",\n      \"cost_info\": {\n        \"read_cost\": \"0.00\",\n        \"eval_cost\": \"0.10\",\n        \"prefix_cost\": \"0.00\",\n        \"data_read_per_join\": \"6K\"\n      },\n      \"used_columns\": [\n        \"id\",\n        \"workspace_id\",\n        \"active\",\n        \"billable\"\n      ]\n    }\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mysql",
+    "fixture": "year",
+    "name": "task write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost_info\": {\n      \"query_cost\": \"1.00\"\n    },\n    \"table\": {\n      \"table_name\": \"tasks\",\n      \"access_type\": \"const\",\n      \"possible_keys\": [\n        \"PRIMARY\",\n        \"tasks_workspace_id_id\"\n      ],\n      \"key\": \"PRIMARY\",\n      \"used_key_parts\": [\n        \"id\"\n      ],\n      \"key_length\": \"8\",\n      \"ref\": [\n        \"const\"\n      ],\n      \"rows_examined_per_scan\": 1,\n      \"rows_produced_per_join\": 1,\n      \"filtered\": \"100.00\",\n      \"cost_info\": {\n        \"read_cost\": \"0.00\",\n        \"eval_cost\": \"0.10\",\n        \"prefix_cost\": \"0.00\",\n        \"data_read_per_join\": \"2K\"\n      },\n      \"used_columns\": [\n        \"id\",\n        \"workspace_id\",\n        \"project_id\",\n        \"active\"\n      ]\n    }\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mariadb",
+    "fixture": "year",
+    "name": "project totals",
+    "expected_index": "time_entries_project_live",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.0433972,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"p\",\n          \"access_type\": \"ALL\",\n          \"possible_keys\": [\"projects_name\", \"projects_workspace_id_id\"],\n          \"loops\": 1,\n          \"rows\": 30,\n          \"cost\": 0.0157448,\n          \"filtered\": 100,\n          \"attached_condition\": \"p.workspace_id = 1\"\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"c\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\"PRIMARY\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"id\"],\n          \"ref\": [\"tokkl_test.p.client_id\"],\n          \"loops\": 30,\n          \"rows\": 1,\n          \"cost\": 0.0276524,\n          \"filtered\": 100,\n          \"attached_condition\": \"trigcond(trigcond(p.client_id is not null))\"\n        }\n      }\n    ],\n    \"subqueries\": [\n      {\n        \"subquery_cache\": {\n          \"state\": \"uninitialized\",\n          \"query_block\": {\n            \"select_id\": 2,\n            \"cost\": 0.007073265,\n            \"nested_loop\": [\n              {\n                \"table\": {\n                  \"table_name\": \"te\",\n                  \"access_type\": \"ref\",\n                  \"possible_keys\": [\"time_entries_project_live\"],\n                  \"key\": \"time_entries_project_live\",\n                  \"key_length\": \"36\",\n                  \"used_key_parts\": [\"project_id\", \"deleted_at\"],\n                  \"ref\": [\"tokkl_test.p.id\", \"const\"],\n                  \"loops\": 1,\n                  \"rows\": 37,\n                  \"cost\": 0.007073265,\n                  \"filtered\": 100,\n                  \"attached_condition\": \"te.deleted_at is null\",\n                  \"using_index\": true\n                }\n              }\n            ]\n          }\n        }\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mariadb",
+    "fixture": "year",
+    "name": "task totals",
+    "expected_index": "time_entries_task_live",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.0710496,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"t\",\n          \"access_type\": \"ALL\",\n          \"possible_keys\": [\"tasks_name\", \"tasks_workspace_id_id\"],\n          \"loops\": 1,\n          \"rows\": 30,\n          \"cost\": 0.0157448,\n          \"filtered\": 100,\n          \"attached_condition\": \"t.workspace_id = 1\"\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"p\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\"PRIMARY\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"id\"],\n          \"ref\": [\"tokkl_test.t.project_id\"],\n          \"loops\": 30,\n          \"rows\": 1,\n          \"cost\": 0.0276524,\n          \"filtered\": 100\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"c\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\"PRIMARY\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"id\"],\n          \"ref\": [\"tokkl_test.p.client_id\"],\n          \"loops\": 30,\n          \"rows\": 1,\n          \"cost\": 0.0276524,\n          \"filtered\": 100,\n          \"attached_condition\": \"trigcond(trigcond(p.client_id is not null))\"\n        }\n      }\n    ],\n    \"subqueries\": [\n      {\n        \"subquery_cache\": {\n          \"state\": \"uninitialized\",\n          \"query_block\": {\n            \"select_id\": 2,\n            \"cost\": 0.007073265,\n            \"nested_loop\": [\n              {\n                \"table\": {\n                  \"table_name\": \"te\",\n                  \"access_type\": \"ref\",\n                  \"possible_keys\": [\"time_entries_task_live\"],\n                  \"key\": \"time_entries_task_live\",\n                  \"key_length\": \"36\",\n                  \"used_key_parts\": [\"task_id\", \"deleted_at\"],\n                  \"ref\": [\"tokkl_test.t.id\", \"const\"],\n                  \"loops\": 1,\n                  \"rows\": 37,\n                  \"cost\": 0.007073265,\n                  \"filtered\": 100,\n                  \"attached_condition\": \"te.deleted_at is null\",\n                  \"using_index\": true\n                }\n              }\n            ]\n          }\n        }\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mariadb",
+    "fixture": "year",
+    "name": "project write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"projects\",\n          \"access_type\": \"const\",\n          \"possible_keys\": [\"PRIMARY\", \"projects_name\", \"projects_workspace_id_id\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"id\"],\n          \"ref\": [\"const\"],\n          \"rows\": 1,\n          \"filtered\": 100\n        }\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  },
+  {
+    "backend": "mariadb",
+    "fixture": "year",
+    "name": "task write reference",
+    "expected_index": "primary",
+    "plan": [
+      {
+        "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"tasks\",\n          \"access_type\": \"const\",\n          \"possible_keys\": [\"PRIMARY\", \"tasks_workspace_id_id\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"id\"],\n          \"ref\": [\"const\"],\n          \"rows\": 1,\n          \"filtered\": 100\n        }\n      }\n    ]\n  }\n}"
+      }
+    ],
+    "catalog_rows": {
+      "projects": 30,
+      "tasks": 30
+    }
+  }
+]

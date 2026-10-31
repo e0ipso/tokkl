@@ -54,13 +54,23 @@ export function jsonObject(value: unknown): JsonObject {
   if (normalized === null || typeof normalized !== 'object' || Array.isArray(normalized)) throw new Error('Invalid storage JSON object');
   return normalized;
 }
+const instantDates = new Map<string, boolean>();
+function validInstantDate(day: string): boolean {
+  const known = instantDates.get(day);
+  if (known !== undefined) return known;
+  const valid = parseDateKey(day) !== null;
+  instantDates.set(day, valid);
+  if (instantDates.size > 128) instantDates.delete(instantDates.keys().next().value!);
+  return valid;
+}
 /** Native timestamps must be configured in UTC; text timestamps must explicitly carry their zone. */
 export function utcInstant(value: unknown): UtcInstant {
   if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString();
   if (typeof value !== 'string') throw new Error('Invalid storage instant');
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
-  if (!match || !parseDateKey(match[1]!) || Number(match[2]) > 23 || Number(match[3]) > 59 || Number(match[4]) > 59
+  if (!match || !validInstantDate(match[1]!) || Number(match[2]) > 23 || Number(match[3]) > 59 || Number(match[4]) > 59
     || Number(match[6] ?? 0) > 23 || Number(match[7] ?? 0) > 59) throw new Error('Invalid storage instant');
+  if (value.length === 24 && value.endsWith('Z')) return value;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) throw new Error('Invalid storage instant');
   return date.toISOString();

@@ -53,7 +53,6 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
             let bodyStarted = false;
             let active = true;
             let rollbackOnly = false;
-            let savepointNumber = 0;
             let savepointActive = false;
             let before = new Map<string, () => Promise<void>>();
             let held = new Set<string>();
@@ -88,7 +87,8 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
                 // A connection has a stack of savepoints. Concurrent sibling units cannot share it.
                 if (savepointActive) throw new Error('Savepoints must be sequential');
                 savepointActive = true;
-                const name = `storage_sp_${++savepointNumber}`;
+                // The sequential guard permits reuse after release and bounds native statements.
+                const name = 'storage_sp_1';
                 const savedBefore = new Map(before);
                 const savedAfter = after.length;
                 const savedHeld = new Set(held);

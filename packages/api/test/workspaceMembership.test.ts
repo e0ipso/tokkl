@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { storageFor, filenameFor, setServices } from './fixtures/database.ts';
+import { storageFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
 import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
 import { createSession, listWorkspacesForUser } from './fixtures/domain.ts';

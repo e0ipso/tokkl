@@ -63,8 +63,9 @@ export function createTimerRepositories(db: Kysely<PhysicalDatabase>, backend: B
       await (backend === 'mysql' || backend === 'mariadb' ? q.onDuplicateKeyUpdate(row) : q.onConflict(x => x.column('user_id').doUpdateSet(row))).execute();
     },
     async affectedUsers(wid) {
-      const rows = await db.selectFrom('time_entries').select('user_id').where('workspace_id', '=', wid).where('stop', 'is', null).where('deleted_at', 'is', null)
-        .union(db.selectFrom('pause_chains').select('user_id').where('workspace_id', '=', wid)).execute();
+      let running = db.selectFrom('time_entries').select('user_id').where('workspace_id', '=', wid).where('stop', 'is', null).where('deleted_at', 'is', null);
+      if (backend === 'mysql' || backend === 'mariadb') running = running.where('running_user_id', 'is not', null);
+      const rows = await running.union(db.selectFrom('pause_chains').select('user_id').where('workspace_id', '=', wid)).execute();
       return [...new Set(rows.map(r => entityId(r.user_id)))].sort((a,b) => a-b);
     },
   };

@@ -9,11 +9,12 @@ import { sql } from 'kysely';
 import { parseStorageConfig, type Backend, type StorageConfig } from '../../../src/storage/config.ts';
 import { openConnection } from '../../../src/storage/connections.ts';
 import { images } from './images.ts';
+import { tlsCertificates } from './tlsCertificates.ts';
 
 const exec = promisify(execFile);
 export interface DisposableBackend { config: StorageConfig; cleanup(): Promise<void>; namespace?(): Promise<DisposableBackend> }
 /** Never accepts an external URL. Each invocation owns one empty database/container or temp file. */
-export async function disposableBackend(backend: Backend): Promise<DisposableBackend> {
+export async function disposableBackend(backend: Backend, options?: { tls: true; identity?: 'dns' | 'ip' }): Promise<DisposableBackend> {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-db-'));
   if (backend === 'sqlite') return { config: parseStorageConfig({}, dir), async cleanup() { rmSync(dir, { recursive: true, force: true }); } };
   const name = `tokkl-test-${backend}-${randomBytes(8).toString('hex')}`;
@@ -27,12 +28,18 @@ export async function disposableBackend(backend: Backend): Promise<DisposableBac
     finally { rmSync(dir, { recursive: true, force: true }); }
   };
   try {
+    const certificates = options?.tls ? await tlsCertificates(dir, options.identity) : undefined;
     // Values come from the child environment, so credentials never appear in argv or retained logs.
     for (let attempt = 1; ; attempt++) {
-      const created = await exec('docker', ['create', '--name', name, '--label', 'com.tokkl.disposable-test=true', '--label', `com.tokkl.disposable-owner=${process.pid}`, '-p', `127.0.0.1::${backend === 'postgres' ? 5432 : 3306}`, ...Object.keys(environment).flatMap(key => ['-e', key]), images[backend], ...(backend === 'mysql' ? ['--log-bin-trust-function-creators=ON'] : [])], { env: { ...process.env, ...environment } });
+      const created = await exec('docker', ['create', '--name', name, '--label', 'com.tokkl.disposable-test=true', '--label', `com.tokkl.disposable-owner=${process.pid}`, '-p', `127.0.0.1::${backend === 'postgres' ? 5432 : 3306}`, ...Object.keys(environment).flatMap(key => ['-e', key]), ...(certificates ? ['--entrypoint', '/bin/bash'] : []), images[backend], ...(certificates ? ['-c', backend === 'postgres'
+        ? 'chown -R postgres:postgres /tokkl-tls; exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tokkl-tls/server.pem -c ssl_key_file=/tokkl-tls/server.key -c ssl_ca_file=/tokkl-tls/ca.pem'
+        : `chown -R mysql:mysql /tokkl-tls; exec docker-entrypoint.sh ${backend === 'mysql' ? 'mysqld --log-bin-trust-function-creators=ON' : 'mariadbd'} --ssl-ca=/tokkl-tls/ca.pem --ssl-cert=/tokkl-tls/server.pem --ssl-key=/tokkl-tls/server.key --require-secure-transport=ON`] : backend === 'mysql' ? ['--log-bin-trust-function-creators=ON'] : [])], { env: { ...process.env, ...environment } });
       ownedId = created.stdout.trim();
       console.log(`Disposable ${backend} created: ${ownedId} owner: ${process.pid}`);
-      try { await exec('docker', ['start', ownedId]); break; }
+      try {
+        if (certificates) await exec('docker', ['cp', certificates.dir, `${ownedId}:/tokkl-tls`]);
+        await exec('docker', ['start', ownedId]); break;
+      }
       catch (error) {
         // Rootless Docker's allocator can choose a port held by a host process. A fresh
         // container gets a new allocation; always remove the exact failed container first.
@@ -44,7 +51,8 @@ export async function disposableBackend(backend: Backend): Promise<DisposableBac
     }
     const { stdout } = await exec('docker', ['port', ownedId!, backend === 'postgres' ? '5432/tcp' : '3306/tcp']);
     const port = Number(stdout.trim().split(':').at(-1));
-    const config = parseStorageConfig({ TOKKL_DATABASE_URL: `${backend}://tokkl:${password}@127.0.0.1:${port}/tokkl_test?sslmode=disable&connect_timeout_ms=5000` }, dir);
+    const baseConfig = parseStorageConfig({ TOKKL_DATABASE_URL: `${backend}://tokkl:${password}@127.0.0.1:${port}/tokkl_test?sslmode=disable&connect_timeout_ms=5000` }, dir);
+    const config: StorageConfig = certificates && baseConfig.backend !== 'sqlite' ? { ...baseConfig, host: options?.identity === 'ip' ? '127.0.0.1' : 'localhost', tls: { mode: 'verify-full', caFile: certificates.caFile } } : baseConfig;
     const deadline = performance.now() + 120000;
     for (;;) {
       try {

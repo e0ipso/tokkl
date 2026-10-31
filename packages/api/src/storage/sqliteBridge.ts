@@ -15,27 +15,42 @@ function parameters(values: readonly unknown[]): SQLInputValue[] {
   });
 }
 function normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, typeof value === 'bigint' ? safeInteger(value) : value]));
+  const normalized = { ...row };
+  for (const key in row) if (typeof row[key] === 'bigint') normalized[key] = safeInteger(row[key]);
+  return normalized;
 }
 
 /** Parameter-array and statement metadata bridge; no native SQLite addon is needed. */
 function bridge(database: DatabaseSync): SqliteDatabase {
+  const prepared = new Map<string, ReturnType<SqliteDatabase['prepare']>>();
   return {
-    close: () => database.close(),
+    close: () => { prepared.clear(); database.close(); },
     prepare: (query) => {
+      const cached = prepared.get(query);
+      if (cached) {
+        prepared.delete(query); prepared.set(query, cached);
+        return cached;
+      }
       const statement = database.prepare(query);
       statement.setReadBigInts(true);
-      return {
+      const result = {
         reader: statement.columns().length > 0,
-        all: (values) => statement.all(...parameters(values)).map(normalizeRow),
-        run: (values) => {
+        all: (values: readonly unknown[]) => statement.all(...parameters(values)).map(normalizeRow),
+        run: (values: readonly unknown[]) => {
           const result = statement.run(...parameters(values));
           return { changes: safeInteger(result.changes), lastInsertRowid: safeInteger(result.lastInsertRowid) };
         },
-        *iterate(values) {
-          for (const row of statement.iterate(...parameters(values))) yield normalizeRow(row);
+        *iterate(values: readonly unknown[]) {
+          // A suspended iterator owns its cursor independently of materialized reads.
+          const cursor = database.prepare(query);
+          cursor.setReadBigInts(true);
+          for (const row of cursor.iterate(...parameters(values))) yield normalizeRow(row);
         },
       };
+      prepared.set(query, result);
+      // Savepoint names and variable IN lists must not create an unbounded native cache.
+      if (prepared.size > 256) prepared.delete(prepared.keys().next().value!);
+      return result;
     },
   };
 }

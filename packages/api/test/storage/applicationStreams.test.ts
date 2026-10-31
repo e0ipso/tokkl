@@ -38,3 +38,17 @@ test('a broken initial subscriber leaves no keep-alive and cannot suppress anoth
  const good=await fetch(base+'/good');const reader=good.body!.getReader();await reader.read();
  await streams.publish(1,state(2));const chunk=await reader.read();assert.match(new TextDecoder().decode(chunk.value),/"revision":2/);await reader.cancel();
 });
+test('retiring an account detaches its pending initial build from a reused identity', {timeout:10000}, async t=>{
+ const entered=gate(),release=gate();let builds=0;
+ const streams=new TimerStreams(async()=>{if(++builds===1){entered.resolve();await release.promise;return state(9);}return state(0);});
+ const app=express();app.get('/',async(_req,res)=>streams.open(1,res,async()=>true));
+ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+ const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
+ t.after(async()=>{release.resolve();await streams.closeAll();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));});
+ const old=fetch(url);await entered.promise;streams.forgetUser(1);await(await old).text();
+ const fresh=await fetch(url);const reader=fresh.body!.getReader();
+ assert.match(new TextDecoder().decode((await reader.read()).value),/"revision":0/);
+ release.resolve();await streams.publish(1,state(1));
+ assert.match(new TextDecoder().decode((await reader.read()).value),/"revision":1/);
+ await reader.cancel();assert.equal(builds,2);
+});

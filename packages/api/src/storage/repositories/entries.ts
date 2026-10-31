@@ -67,21 +67,35 @@ export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: B
       if (!includeDeleted) q = q.where('e.deleted_at', 'is', null);
       return (await details(db, await q.execute()))[0];
     },
-    async running(userId) { return (await details(db, await entryDetailsQuery(db).where('e.user_id', '=', userId).where('e.stop', 'is', null).where('e.deleted_at', 'is', null).execute()))[0]; },
+    async running(userId) {
+      let query = entryDetailsQuery(db).where('e.user_id', '=', userId).where('e.stop', 'is', null).where('e.deleted_at', 'is', null);
+      // InnoDB does not infer the indexed generated key from its source predicates.
+      if (backend === 'mysql' || backend === 'mariadb') query = query.where('e.running_user_id', '=', userId);
+      return (await details(db, await query.execute()))[0];
+    },
     async bounds(userId) {
       const r = await db.selectFrom('time_entries').select(eb => [eb.fn.min('start').as('first'), eb.fn.max('start').as('last')]).where('user_id', '=', userId).where('deleted_at', 'is', null).executeTakeFirstOrThrow();
       return { firstStart: r.first == null ? null : utcInstant(r.first), lastStart: r.last == null ? null : utcInstant(r.last) };
     },
-    async create(input) { return write(async () => {
+    async insert(input) { return write(async () => {
       const at = new Date().toISOString();
       const q = db.insertInto('time_entries').values({ workspace_id: input.workspaceId, user_id: input.userId,
         project_id: input.projectId, task_id: input.taskId, description: input.description, start: input.start, stop: input.stop,
         billable: Number(input.billable), duronly: Number(input.durationOnly), all_day: Number(input.allDay),
         created_with: input.createdWith, deleted_at: input.deletedAt, created_at: at, updated_at: at });
       const id = backend === 'sqlite' || backend === 'postgres' ? entityId((await q.returning('id').executeTakeFirstOrThrow()).id) : entityId((await q.executeTakeFirstOrThrow()).insertId);
-      await entries.setTags(input.userId, id, input.tagIds);
-      return (await entries.get(input.userId, id, true))!;
+      const ids = [...new Set(input.tagIds)];
+      if (ids.length) {
+        const tags = await db.selectFrom('tags').select('id').where('workspace_id', '=', input.workspaceId).where('id', 'in', ids).execute();
+        if (tags.length !== ids.length) throw new Error('Entry tag not found');
+        for (let i = 0; i < ids.length; i += 400) await db.insertInto('time_entry_tags').values(ids.slice(i, i + 400).map(tag_id => ({ time_entry_id: id, tag_id }))).execute();
+      }
+      return id;
     }); },
+    async create(input) {
+      const id = await entries.insert(input);
+      return (await entries.get(input.userId, id, true))!;
+    },
     async update(userId, wid, id, changes) { return write(async () => {
       await db.updateTable('time_entries').set({ ...values(changes), updated_at: new Date().toISOString() }).where('user_id', '=', userId).where('workspace_id', '=', wid).where('id', '=', id).execute();
       if (changes.tagIds !== undefined) await entries.setTags(userId, id, changes.tagIds);

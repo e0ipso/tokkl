@@ -2,7 +2,7 @@ import { canonicalTimeZone, dateKey } from '@tokkl/common/time';
 import { badRequest } from '../lib/errors.ts';
 import { parseInstant } from '../lib/values.ts';
 import { createClient, setClientArchived, createProject, updateProject, createTask, resolveTagNames } from '../domain/catalogs.ts';
-import { createTimeEntry, entryResolution, noTimeSpan, type EntryRepositories } from '../domain/timeEntries.ts';
+import { withExactEntryImport, noTimeSpan, type EntryRepositories } from '../domain/timeEntries.ts';
 import { createCatalogTimerEffects, type TimerPublication } from '../domain/timers.ts';
 import type { OperationContext } from '../storage/contracts.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './storageExport.ts';
@@ -32,9 +32,9 @@ export async function importJsonExport(ctx: OperationContext<EntryRepositories>,
     if (id === undefined) throw new Error(`Its ${entity} ${String(value)} was not imported`);
     return id;
   }
-  async function unit(entity: string, item: Item, work: () => Promise<void>) {
+  async function unit(entity: string, item: Item, work: () => Promise<void>, savepoint = (work: () => Promise<void>) => ctx.savepoint(work)) {
     const counts = { ...result };
-    try { await ctx.savepoint(work); }
+    try { await savepoint(work); }
     catch (error) {
       const message = importError(error, 'Invalid record');
       Object.assign(result, counts);
@@ -84,27 +84,29 @@ export async function importJsonExport(ctx: OperationContext<EntryRepositories>,
   });
   const exporter = typeof file.user === 'object' && file.user !== null ? (file.user as Item).timezone : undefined;
   const zone = (typeof exporter === 'string' ? canonicalTimeZone(exporter) : null) ?? user.timezone;
-  for (const item of list(file.time_entries, 'time_entries')) await unit('time_entry', item, async () => {
-    if (item.server_deleted_at) return;
-    let start = parseInstant(item.start, 'start'), stop = item.stop == null ? null : parseInstant(item.stop, 'stop');
-    let noTime: { day: string; duration: number } | null = null;
-    if (item.all_day === true && stop) {
-      noTime = { day: dateKey(start, zone), duration: Math.floor(stop.getTime() / 1000) - Math.floor(start.getTime() / 1000) };
-      ({ start, stop } = noTimeSpan(await entryResolution(ctx), user, noTime.day, noTime.duration, { exact: true }));
-    }
-    const projectId = mapped(projects, item.project_id, 'project'), taskId = mapped(tasks, item.task_id, 'task');
-    const tagIds = Array.isArray(item.tag_ids) ? item.tag_ids.map(id => mapped(tags, id, 'tag')).filter((id): id is number => id !== null) : [];
-    const description = typeof item.description === 'string' ? item.description : '';
-    if (await ctx.entries.findDuplicate({ userId, start: start.toISOString(), stop: stop?.toISOString() ?? null, description, projectId })) {
-      result.skipped_duplicates++; return;
-    }
-    if (!stop && await ctx.entries.running(userId)) throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
-    await createTimeEntry(ctx, user, wid, { description,
-      ...(noTime ? { all_day: true, start_date: noTime.day, duration: noTime.duration } : { start: start.toISOString(), ...(stop ? { stop: stop.toISOString() } : { duration: -1 }) }),
-      project_id: projectId, task_id: taskId, billable: item.billable === true, tag_ids: tagIds,
-      created_with: typeof item.created_with === 'string' ? item.created_with : 'tokkl-json-import',
-    }, publish, { exact: true });
-    result.time_entries++;
+  await withExactEntryImport(ctx, userId, wid, publish, async writer => {
+    for (const item of list(file.time_entries, 'time_entries')) await unit('time_entry', item, async () => {
+      if (item.server_deleted_at) return;
+      let start = parseInstant(item.start, 'start'), stop = item.stop == null ? null : parseInstant(item.stop, 'stop');
+      let noTime: { day: string; duration: number } | null = null;
+      if (item.all_day === true && stop) {
+        noTime = { day: dateKey(start, zone), duration: Math.floor(stop.getTime() / 1000) - Math.floor(start.getTime() / 1000) };
+        ({ start, stop } = noTimeSpan(1, user, noTime.day, noTime.duration, { exact: true }));
+      }
+      const projectId = mapped(projects, item.project_id, 'project'), taskId = mapped(tasks, item.task_id, 'task');
+      const tagIds = Array.isArray(item.tag_ids) ? item.tag_ids.map(id => mapped(tags, id, 'tag')).filter((id): id is number => id !== null) : [];
+      const description = typeof item.description === 'string' ? item.description : '';
+      if (await ctx.entries.findDuplicate({ userId, start: start.toISOString(), stop: stop?.toISOString() ?? null, description, projectId })) {
+        result.skipped_duplicates++; return;
+      }
+      if (!stop && await ctx.entries.running(userId)) throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
+      await writer.create({ description,
+        ...(noTime ? { all_day: true, start_date: noTime.day, duration: noTime.duration } : { start: start.toISOString(), ...(stop ? { stop: stop.toISOString() } : { duration: -1 }) }),
+        project_id: projectId, task_id: taskId, billable: item.billable === true, tag_ids: tagIds,
+        created_with: typeof item.created_with === 'string' ? item.created_with : 'tokkl-json-import',
+      });
+      result.time_entries++;
+    }, writer.savepoint);
   });
   return result;
 }
