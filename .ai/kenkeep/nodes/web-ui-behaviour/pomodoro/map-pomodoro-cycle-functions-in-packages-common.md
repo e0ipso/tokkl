@@ -14,6 +14,7 @@ kk_id: map-pomodoro-cycle-functions-in-packages-common
 kk_derived_from:
   - '59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4'
   - 'bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:0'
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:map:0'
 kk_relates_to:
   - practice-preferences-validated-by-known-key
   - map-pomodoro-session-model-in-packages-common-pomodorosession
@@ -25,7 +26,7 @@ kk_confidence: high
 
 Settings under Preferences (`packages/web/src/pages/manage/settings/PreferencesSection.tsx`) edits four lengths: `pomodoro_focus_interval_in_minutes`, `pomodoro_break_interval_in_minutes`, `pomodoro_long_break_interval_in_minutes` and `pomodoro_long_break_every`, each falling back to `DEFAULT_POMODORO_SESSION_CONFIG` when unset. They are defaults for new sessions only: the `/pomodoro` start form in `PomodoroPage.tsx` prefills from them, and starting a session never writes them back. Preferences has no Pomodoro on/off or stop-at-end control.
 
-The API defaults/rules and `Preferences` in `packages/types/index.ts` expose only these four Pomodoro length keys. Startup migration 7 in `packages/api/src/db/migrations.ts` removes `pomodoro_enabled` and `pomodoro_stop_timer_at_end` from existing stored preferences while preserving other values. They have no web or common reader and are no longer supported Pomodoro preferences, but generic unknown-key pass-through still permits future writes of those names (see `practice-preferences-validated-by-known-key`). `localStorage` entries under `tokkl.pomodoro.<accountId>` are inert: nothing reads them and sign-out does not clear them.
+The API defaults/rules and `Preferences` in `packages/types/index.ts` expose only these four Pomodoro length keys. They have no web or common reader and are no longer supported Pomodoro preferences, but generic unknown-key pass-through still permits future writes of those names (see `practice-preferences-validated-by-known-key`). `localStorage` entries under `tokkl.pomodoro.<accountId>` are inert: nothing reads them and sign-out does not clear them.
 
 <!-- kk:related:start -->
 # Related
@@ -40,4 +41,5 @@ The API defaults/rules and `Preferences` in `packages/types/index.ts` expose onl
 
 [1] 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4
 [2] bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:0
+[3] d103ede7-f126-4851-968a-8b39f6b3f9b1:map:0
 <!-- kk:citations:end -->

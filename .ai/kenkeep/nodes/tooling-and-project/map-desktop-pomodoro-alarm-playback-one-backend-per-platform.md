@@ -35,7 +35,8 @@ When changing this, verify the KDE `alarmplayertest` cases that check a stopped 
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-gnome-timerd-d-bus-timer-service](map-gnome-timerd-d-bus-timer-service.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-activation-and-packaging](gnome-timer-service/map-gnome-timer-service-activation-and-packaging.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-and-d-bus-contract](gnome-timer-service/map-gnome-timer-service-and-d-bus-contract.md)
 - Related: [map-macos-menu-bar-app → map-macos-app-layout-portable-qt-library-and-native-shims](macos-menu-bar-app/map-macos-app-layout-portable-qt-library-and-native-shims.md)
 - Related: [map-macos-menu-bar-app → map-macos-bundle-icon-and-nsstatusitem-status-image](macos-menu-bar-app/map-macos-bundle-icon-and-nsstatusitem-status-image.md)
 - Related: [map-macos-menu-bar-app → map-macos-ci-job-and-dmg-release-publishing](macos-menu-bar-app/map-macos-ci-job-and-dmg-release-publishing.md)

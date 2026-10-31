@@ -10,14 +10,15 @@ tags:
   - validation
 kk_schema_version: 3
 kk_id: practice-parse-duration-returns-null-over-999-hours
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:2'
 kk_relates_to:
   - practice-twelve-hour-time-entry-parsing-rules
   - practice-web-previews-and-editor-show-snapped-durations
 kk_depends_on: []
 kk_confidence: high
 ---
-`MAX_DURATION_SECONDS` (`999 * 3600`) is defined once in `packages/common/duration.ts`. The API imports it in `packages/api/src/models/timeEntries.ts` and does not keep its own copy; change the cap there only.
+`MAX_DURATION_SECONDS` (`999 * 3600`) is defined once in `packages/common/duration.ts`. The API imports it in `packages/api/src/domain/timeEntries.ts` and does not keep its own copy; change the cap there only.
 
 `parseDuration` returns `null` for any result over the cap on every branch: colon form, bare integer, bare decimal and unit list. Units are looked up in a `Map`, so prototype keys such as `constructor` are not units. A caller must treat `null` as unreadable input, never as empty or zero: the entry editor and the timer bar show "Check the duration" and the CSV import fails the row with "Invalid end time or duration".
 
@@ -29,3 +30,9 @@ The timer bar (`TimerBar.tsx`) treats only a Duration that is empty after trimmi
 - Related: [practice-twelve-hour-time-entry-parsing-rules](practice-twelve-hour-time-entry-parsing-rules.md)
 - Related: [practice-web-previews-and-editor-show-snapped-durations](practice-web-previews-and-editor-show-snapped-durations.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:2
+<!-- kk:citations:end -->

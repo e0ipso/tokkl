@@ -11,13 +11,20 @@ tags:
   - performance
 kk_schema_version: 3
 kk_id: practice-live-entry-indexes-back-project-and-task-totals
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:6'
 kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
 ---
-Project and task tracked-time totals sum live (not deleted) entries per project or task. The second entry of `MIGRATIONS` in `packages/api/src/db/migrations.ts` adds the partial covering indexes `time_entries_project_live` and `time_entries_task_live` (`project_id`/`task_id`, `start`, `stop`, `deleted_at`, `WHERE deleted_at IS NULL AND project_id IS NOT NULL`, or `task_id IS NOT NULL`), so SQLite answers those sums from the index instead of scanning the whole history.
+Project and task totals sum live entries per project or task. Migration2 in `packages/api/src/storage/migrations.ts` adds `time_entries_project_live` and `time_entries_task_live` using the definitions in `storage/schema.ts`. SQLite/PostgreSQL use partial indexes; MySQL/MariaDB use dialect-compatible covering indexes. The production query builders live in `storage/queries/catalogs.ts` and repositories in `storage/repositories/catalogs.ts`.
 
-`packages/api/test/entities.test.ts` runs `EXPLAIN QUERY PLAN` on the totals queries and asserts they use these indexes. If you change the shape of the totals SQL, keep the `deleted_at IS NULL` and `project_id`/`task_id` predicates the partial indexes match, or the test fails.
+Keep the live-entry and project/task scope predicates compatible with the indexes. Real-engine integration and history-benchmark EXPLAIN checks require actual chosen indexed totals access, not a candidate index or forced planner setting. Small bounded catalog reference scans are distinct from entry-history scans.
 
-Migrations are an append-only array; `openDatabase` in `packages/api/src/db/index.ts` applies entries past `PRAGMA user_version` and bumps it. Add schema changes as a new array entry, never by editing an applied one. The test that opens a version 1 database checks `user_version` against both `MIGRATIONS.length` and the literal count (6), so a new migration also updates that number.
+Migrations are append-only definitions. `initializeDatabase` applies them under migration ownership and validates the `storage_migrations` checksum/state/schema ledger. Never edit an applied definition. Add a new migration and verify earlier recognized ledgers upgrade on every engine.
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:6
+<!-- kk:citations:end -->

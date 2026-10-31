@@ -13,7 +13,8 @@ tags:
   - tokens
 kk_schema_version: 3
 kk_id: practice-contrast-tables-and-project-colours
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:1'
 kk_relates_to:
   - practice-theme-tokens-data-theme-and-cached-theme
   - practice-section-hues-data-section-maps-each-nav-section-to-a-hue
@@ -24,7 +25,7 @@ The comment at the top of `packages/web/src/styles.css` lists every token text/b
 
 A second table, next to `.project-dot`, gives the contrast of the 14 palette colours and of `--muted` (no project) against surface, surface-2, state-selected and the calendar tint. Components set only `--project-color`, through `projectColorStyle()` in `packages/web/src/components/Pickers.tsx`. The CSS derives the dot and border (the hex mixed 60% with `--project-mix`, the ink `#08061f` in light and white in dark) and the 18% calendar tint with `color-mix()`. Text never takes the project colour; it stays `--text`.
 
-Projects can store any `#rrggbb` (`packages/api/src/models/projects.ts`), and `PROJECT_COLORS` in `packages/common/colors.ts` is Toggl Track's default palette. Stored colours are user data, so contrast is fixed in the CSS mix, not by editing the palette.
+Projects can store any `#rrggbb` (`packages/api/src/domain/catalogs.ts`), and `PROJECT_COLORS` in `packages/common/colors.ts` is Toggl Track's default palette. Stored colours are user data, so contrast is fixed in the CSS mix, not by editing the palette.
 
 A custom property derived from `var(--project-color)` must be declared on the rule that uses it. Declared on `:root`, its `var()` resolves once at the root, where `--project-color` is unset, and every element inherits that result.
 
@@ -39,11 +40,15 @@ The palette is the owner's Spectrum table, taken from the wordmark's hues. A tok
 
 The dark chart pair (`--chart-billable` `#00b9fa`, `--chart-other` `#ff9500`) passes WCAG but sits above the dataviz palette check's lightness band (OKLCH L 0.74 and 0.77). The owner agreed to it, and the comment in the contrast table says so, so a failing lightness check on the dark pair is expected.
 
-<!-- Verified against the current code on 2026-10-19. -->
-
 <!-- kk:related:start -->
 # Related
 
 - Related: [practice-theme-tokens-data-theme-and-cached-theme](practice-theme-tokens-data-theme-and-cached-theme.md)
 - Related: [practice-section-hues-data-section-maps-each-nav-section-to-a-hue](practice-section-hues-data-section-maps-each-nav-section-to-a-hue.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:1
+<!-- kk:citations:end -->

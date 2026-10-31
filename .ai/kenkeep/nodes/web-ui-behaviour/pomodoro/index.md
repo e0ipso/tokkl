@@ -50,7 +50,7 @@ _None._
 ### #notifications
 - Open [**Web notifications: phaseNotification.ts and the Allow notifications button**](map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md) — notificationAccess and AllowNotifications; notifyInBackground for long-timer reminders, notifySessionPhaseEnd for Pomodoro sessions.
 ### #preferences
-- Open [**Preferences: known keys validated, unknown keys stored verbatim**](../../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md) — PREFERENCE_RULES in users.ts validates the keys Tokkl clients read, Pomodoro included; other keys pass through; bad stored values read back as defaults.
+- Open [**Preferences: known keys validated, unknown keys stored verbatim**](../../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md) — PREFERENCE_RULES in accountValues.ts validates the keys Tokkl clients read, Pomodoro included; other keys pass through; bad stored values read back as defaults.
 - Open [**Pomodoro length preferences: shared defaults for new sessions**](map-pomodoro-cycle-functions-in-packages-common.md) — Four Pomodoro length preferences seed new sessions; API and web share common defaults, and API validation uses common ranges.
 ### #sse
 - Open [**Timer event stream: keep-alive, credential rechecks and the stream cap**](../../api-and-data/timer-state/map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap.md) — GET /api/app/timer/events sends the full state on connect and each change, a keep-alive every 25 s, and ends when the credential stops passing.

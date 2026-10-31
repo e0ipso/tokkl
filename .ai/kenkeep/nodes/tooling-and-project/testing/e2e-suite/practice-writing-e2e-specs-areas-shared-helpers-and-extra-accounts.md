@@ -9,7 +9,8 @@ tags:
   - e2e
 kk_schema_version: 3
 kk_id: practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:0'
 kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
@@ -21,6 +22,10 @@ kk_confidence: high
 - `auth-tests-helpers.ts` starts disposable servers on `E2E_PORT + 50` to `+ 59`. It can shift only that server's clock by passing `--import` with a `data:` URL module. Cookies are scoped by host, not port, so a disposable server on 127.0.0.1 shares `tokkl_session` with the main test server inside one browser context. Start them through the `servers` fixture (`ServerPool`), which stops them and deletes their data directories after the test. Each `DisposableServer` has `output()`, the process's stdout and stderr so far; poll it to assert on log lines such as the startup setup code, as the lifecycle scenario in `e2e/auth-browser.spec.ts` does.
 - The e2e servers, and each disposable server, start with exactly one account, the setup admin, because setup creates only the first admin. In the `desktop` project the signed-in user is the worker's invited admin, so admin-only UI such as Admin in More still shows. The `users` fixture (`ExtraUsers` in `e2e/fixtures.ts`) is the usual way to get another account: `users.create({ ... })` invites one through the admin and returns a `TestData` with its own session and workspace, and `loginAs(page, user.account)` in `e2e/helpers.ts` signs it in through the form. Its teardown closes their sessions and deletes the accounts it created, so parallel workers never touch each other's accounts. For a password reset link use `createPasswordReset(baseURL, apiToken, email)` and `resetApiPath(link)` in `auth-tests-helpers.ts`. A scenario that needs a second account outside the fixture creates an invite as the admin with `createInvite(baseURL, apiToken, role)` and accepts it with `acceptInvite(baseURL, invite, email)`, both in `auth-tests-helpers.ts`; `acceptInvite` returns the new account's API token, workspace id and session cookie. `withAuth(baseURL, authorization, use)` runs calls under a given Authorization header, and `inviteApiPath` turns an `/invite/<token>` link into its API path. Anonymous writes (login, setup, invite acceptance) must send the CSRF header, `CSRF` in the same file. Test multi-user rules (non-members, other admins, disabled accounts, deletion) in the API tests with `addUser` from `packages/api/test/helpers.ts`; `e2e/auth-access.spec.ts` covers only what one account can see. For a limiter 429, `retryAfter(response)` in `auth-tests-helpers.ts` checks that `Retry-After` is an integer from 1 to `LIMIT_WINDOW_SECONDS` (900) and returns it.
 - `e2e/helpers.ts` holds `login` and `contrast(a, b)`, the WCAG 2 ratio between two computed `rgb()`/`rgba()` colours; accessibility specs import it instead of keeping their own copy. It also holds `expectSectionHue`, the check for a nav item's section hue (see `practice-section-hues-data-section-maps-each-nav-section-to-a-hue`). `login` finds the setup form by the heading "Create the first admin" and the button "Create admin account" in `packages/web/src/pages/AuthPage.tsx`. Rename them in both places, or `login` fails on a server with no account yet.
-- To test what a server does at startup on older data, use the `servers` fixture lifecycle: `servers.start({ slot })`, `stop()`, edit `join(server.dataDir, 'tokkl.sqlite')` with `node:sqlite` (rows and `PRAGMA user_version`), then `servers.start({ slot, dataDir })` on the same directory. The second start runs the real migration path. `a restart on an older database ...` in `e2e/auth-browser.spec.ts` is the example.
+- Restart behavior uses the `servers` fixture and the same owned storage identity. `auth-browser.spec.ts` checks canonical timezone and supported preferences across restart. Ledger upgrade and legacy corruption/refusal cases belong in explicit backend physical fixtures, not arbitrary user_version edits to a current database.
 
-<!-- Verified against the current code on 2026-10-16. -->
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:0
+<!-- kk:citations:end -->
