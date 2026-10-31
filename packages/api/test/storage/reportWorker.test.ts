@@ -57,10 +57,15 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
     const worker = (runner as unknown as { worker: Worker }).worker;
     assert.ok(worker instanceof Worker);
     assert.equal(Number((await sql<{ n: number | string }>`select count(*) as n from storage_migrations`.execute(c.db)).rows[0]!.n), 3);
-    await t.test('crash rejects current work and starts a fresh worker', async () => {
+    await t.test('crash rejects current work and starts a fresh worker', async crash => {
+      // Hold delivery so the one-row report cannot finish before termination.
+      // The runner still assigns the job to this real worker and handles its exit.
+      const delivery = crash.mock.method(worker, 'postMessage', () => {});
       const failed = assert.rejects(runner.run(user.id, wid, job), /Report worker stopped/);
+      assert.equal(delivery.mock.callCount(), 1);
       await worker.terminate(); await failed;
       assert.deepEqual(await runner.run(user.id, wid, job), expected);
+      assert.notEqual((runner as unknown as { worker: Worker }).worker, worker);
     });
     await t.test('queued cancellation, running cancellation, overload and restart', async () => {
       const abort = new AbortController();
