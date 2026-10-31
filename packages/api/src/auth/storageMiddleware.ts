@@ -2,6 +2,7 @@ import type { Request, RequestHandler } from 'express';
 import type { AccountCredential, AccountPasswordAttempt, AccountRepositories, AccountRunner } from '../domain/accounts.ts';
 import { isActiveAdmin, isActiveUser } from '../domain/accounts.ts';
 import type { User } from '../storage/domain.ts';
+import type { Repositories } from '../storage/contracts.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
 import { forbidden, tooManyRequests } from '../lib/errors.ts';
 import { safeEqual, sha256, verifyAgainstDummy, verifyPassword } from './crypto.ts';
@@ -12,7 +13,7 @@ export const LEGACY_SESSION_COOKIE = 'tt_session';
 export const CSRF_HEADER = 'x-tokkl-csrf';
 export const LEGACY_CSRF_HEADER = 'x-timetrack-csrf';
 
-/** Nested locals avoid mixing normalized users with the temporary legacy UserRow declaration. */
+/** Keep the normalized user and the credential observed by this request together. */
 export interface StorageAuthentication {
   user: User;
   credential: AccountCredential;
@@ -59,12 +60,12 @@ export async function authenticatePassword<R extends AccountRepositories>(
   if (!seen || !valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }
-export async function currentActiveUser(ctx: AccountRepositories, seen: User): Promise<User | undefined> {
+export async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: User): Promise<User | undefined> {
   const current = await ctx.users.get(seen.id);
   return isActiveUser(current) && current.passwordHash === seen.passwordHash ? current : undefined;
 }
-/** Use inside the caller's protected operation for writes; a snapshot alone cannot protect a later write. */
-export async function currentCredentialUser(ctx: AccountRepositories, auth: StorageAuthentication): Promise<User | undefined> {
+/** Check credentials in the data snapshot for reads, or under the operation's guards for writes. */
+export async function currentCredentialUser(ctx: Pick<Repositories, 'users' | 'sessions'>, auth: StorageAuthentication): Promise<User | undefined> {
   const current = await currentActiveUser(ctx, auth.user);
   if (!current) return;
   if (auth.credential.kind === 'session') {

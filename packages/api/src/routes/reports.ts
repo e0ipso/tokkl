@@ -1,5 +1,5 @@
 import express, { type Request, type Response, type Router } from 'express';
-import type { Storage } from '../storage/contracts.ts';
+import type { Repositories } from '../storage/contracts.ts';
 import type { Deps } from '../http/context.ts';
 import { readJson } from '../http/context.ts';
 import { badRequest } from '../lib/errors.ts';
@@ -14,7 +14,7 @@ import { checkOrderBy, v3WeeklyFilter, type JobResult, type ReportJob } from '..
 const TOGGL_MAX_DAYS = 366;
 
 /** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
-async function workspaceFor(db: Storage, req: Request, res: Response): Promise<Workspace> {
+async function workspaceFor(db: Repositories, req: Request, res: Response): Promise<Workspace> {
   return memberWorkspace(db, res.locals.auth.user.id, parseId(req.params.wid));
 }
 
@@ -31,7 +31,7 @@ function dimension(value: unknown, fallback: string, field: string): [string, Di
 
 /** Builds the response in the report runner and sends it. */
 async function send(deps: Deps, res: Response, ws: Workspace, job: ReportJob): Promise<void> {
-  const result: JobResult = await deps.reports.run(res.locals.auth.user.id, ws.id, job, { signal: res.locals.workSignal });
+  const result: JobResult = await deps.reports.run(res.locals.auth.user.id, ws.id, job, { signal: res.locals.workSignal, authentication: res.locals.auth });
   res.set(result.headers);
   if (result.type === 'csv') {
     res.set('Content-Type', 'text/csv; charset=utf-8');
@@ -47,12 +47,11 @@ async function send(deps: Deps, res: Response, ws: Workspace, job: ReportJob): P
  * totals, summary, weekly, and CSV exports.
  */
 export function reportsV3Routes(deps: Deps): Router {
-  const { storage: db } = deps;
   const api = express.Router();
   api.use(deps.auth.requireAuth);
 
   const v3Filter = async (req: Request, res: Response) => {
-    const ws = await workspaceFor(db, req, res);
+    const ws = await deps.readFor(res.locals.auth, db => workspaceFor(db, req, res));
     const body = readJson(req);
     return { ws, body, filter: filterFromBody(body, ws, TOGGL_MAX_DAYS) };
   };
@@ -104,7 +103,7 @@ export function reportsV3Routes(deps: Deps): Router {
   });
 
   api.post('/workspace/:wid/weekly/time_entries', async (req, res) => {
-    const ws = await workspaceFor(db, req, res);
+    const ws = await deps.readFor(res.locals.auth, db => workspaceFor(db, req, res));
     const body = readJson(req);
     const start = typeof body.start_date === 'string' ? body.start_date : '';
     const range = filterFromBody({ ...body, end_date: body.end_date ?? (start ? addDays(start, 6) : undefined) }, ws, TOGGL_MAX_DAYS);
@@ -126,14 +125,13 @@ function positiveInt(value: unknown, fallback: number, field: string): number {
 
 /** Report endpoint for the web app: totals, a time series and groupings in one response. */
 export function appReportRoutes(deps: Deps): Router {
-  const { storage: db } = deps;
   const api = express.Router();
 
   /** The account's workspace, the request body and its filter, with the app's range allowance. */
   const appFilter = async (req: Request, res: Response) => {
     const user = res.locals.auth.user;
     // PUT /me accepts only a workspace the user belongs to, but a membership can end after that.
-    const ws = await memberWorkspace(db, user.id, user.defaultWorkspaceId);
+    const ws = await deps.readFor(res.locals.auth, db => memberWorkspace(db, user.id, user.defaultWorkspaceId));
     const body = readJson(req);
     // The web app always applies the workspace rounding setting; the request can still override it.
     const filter = filterFromBody({ rounding: ws.rounding, rounding_minutes: ws.roundingMinutes, ...body }, ws);

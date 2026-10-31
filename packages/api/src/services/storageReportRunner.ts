@@ -4,6 +4,7 @@ import { reportRunsInline } from '../storage/repositories/report-reader.ts';
 import { HttpError } from '../lib/errors.ts';
 import { collectReport, type ReportSource } from './storageReports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
+import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
 import { formatExportJob, formatReportJob, type ExportAssemblyJob, type JobResult, type ReportJob } from './storageReportJobs.ts';
 
 export interface ReportRunnerOptions {
@@ -15,7 +16,7 @@ interface Pending {
   id: number; work: ReportWork;
   resolve(result: JobResult): void; reject(error: Error): void; dispose(): void;
 }
-export type ReportWork = { userId: number; workspaceId: number; job: ReportJob }
+export type ReportWork = { userId: number; workspaceId: number; job: ReportJob; authentication?: StorageAuthentication }
   | { data: AccountExportProjection; assembly: ExportAssemblyJob };
 interface Reply { id?: number; ready?: boolean; phase?: 'reading' | 'formatting'; result?: JobResult; error?: { status?: number; message: string } }
 
@@ -41,8 +42,8 @@ export class StorageReportRunner {
     this.maxQueue = options.maxQueue ?? 16;
     if (!Number.isSafeInteger(this.maxQueue) || this.maxQueue < 1 || this.maxQueue > 100) throw new Error('Invalid report queue limit');
   }
-  run(userId: number, workspaceId: number, job: ReportJob, options: { signal?: AbortSignal } = {}): Promise<JobResult> {
-    return this.enqueue({ userId, workspaceId, job }, options);
+  run(userId: number, workspaceId: number, job: ReportJob, options: { signal?: AbortSignal; authentication?: StorageAuthentication } = {}): Promise<JobResult> {
+    return this.enqueue({ userId, workspaceId, job, authentication: options.authentication }, options);
   }
   assembleExport(data: AccountExportProjection, assembly: ExportAssemblyJob, options: { signal?: AbortSignal } = {}): Promise<JobResult> {
     // Structural typing permits a full User where the credential-free view was expected.
@@ -77,7 +78,7 @@ export class StorageReportRunner {
       const p = this.queue.shift()!; this.active = p;
       const work = p.work;
       const build = 'assembly' in work ? Promise.resolve().then(() => formatExportJob(work.data, work.assembly))
-        : collectReport(this.inline, work.userId, work.workspaceId, work.job.filter).then(data => formatReportJob(data, work.job));
+        : collectReport(this.inline, work.userId, work.workspaceId, work.job.filter, work.authentication).then(data => formatReportJob(data, work.job));
       this.inlineWork = build.then(result => { if (this.active === p) this.finish(p, result); })
         .catch(error => { if (this.active === p) this.finish(p, undefined, this.safeError(error)); })
         .finally(() => { this.inlineWork = undefined; this.pump(); });

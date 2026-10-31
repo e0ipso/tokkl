@@ -3,6 +3,7 @@ import { badRequest, forbidden } from '../lib/errors.ts';
 import { addDays, dateKey, daysBetween, parseDateKey, startOfDay, startOfWeek } from '@tokkl/common/time';
 import type { User, Workspace, ReportEntryProjection } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
+import { currentCredentialUser, type StorageAuthentication } from '../auth/storageMiddleware.ts';
 
 export type IdFilter = Array<number | null>;
 
@@ -75,7 +76,7 @@ function roundSeconds(seconds: number, mode: number, minutes: number): number {
   return Math.round(seconds / step) * step;
 }
 
-export type ReportRepositories = Pick<Repositories, 'users' | 'workspaces' | 'reports'>;
+export type ReportRepositories = Pick<Repositories, 'users' | 'workspaces' | 'sessions' | 'reports'>;
 export interface ReportSource {
   readSnapshot<T>(work: (repositories: ReportRepositories) => Promise<T>): Promise<T>;
 }
@@ -84,11 +85,13 @@ export type ReportWorkspace = Pick<Workspace, 'id' | 'defaultCurrency' | 'defaul
 export interface ReportData { user: ReportUser; workspace: ReportWorkspace; entries: ReportEntryProjection[] }
 
 /** Read all related values on one checkout; release it before grouping or constructing CSV. */
-export function collectReport(source: ReportSource, userId: number, workspaceId: number, filter: ReportFilter): Promise<ReportData> {
+export function collectReport(source: ReportSource, userId: number, workspaceId: number, filter: ReportFilter, authentication?: StorageAuthentication): Promise<ReportData> {
   return source.readSnapshot(async repositories => {
-    const user = await repositories.users.get(userId);
-    const workspace = await repositories.workspaces.forMember(userId, workspaceId);
+    const user = authentication
+      ? authentication.user.id === userId ? await currentCredentialUser(repositories, authentication) : undefined
+      : await repositories.users.get(userId);
     if (!user) throw forbidden();
+    const workspace = await repositories.workspaces.forMember(userId, workspaceId);
     if (!workspace) throw forbidden(NO_WORKSPACE_ACCESS);
     const from = startOfDay(filter.startDate, user.timezone).toISOString();
     const to = startOfDay(addDays(filter.endDate, 1), user.timezone).toISOString();

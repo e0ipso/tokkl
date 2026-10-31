@@ -21,9 +21,9 @@ try {
           port.postMessage({ id, result: formatExportJob(work.data, work.assembly) });
           return;
         }
-        const { userId, workspaceId, job } = work;
+        const { userId, workspaceId, job, authentication } = work;
         port.postMessage({ id, phase: 'reading' });
-        const data = await collectReport(reader, userId, workspaceId, job.filter);
+        const data = await collectReport(reader, userId, workspaceId, job.filter, authentication);
         port.postMessage({ id, phase: 'formatting' });
         port.postMessage({ id, result: formatReportJob(data, job) });
       } catch (error) {

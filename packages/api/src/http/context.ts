@@ -1,5 +1,5 @@
-import type { Request } from 'express';
-import type { Storage } from '../storage/contracts.ts';
+import type { Request, Response, RequestHandler } from 'express';
+import type { Repositories, Storage } from '../storage/contracts.ts';
 import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
@@ -31,6 +31,14 @@ declare module 'express-serve-static-core' {
     auth: StorageAuthentication;
     workSignal: AbortSignal;
   }
+}
+
+/** Authenticate and collect a JSON response in one snapshot; send only after releasing it. */
+export function jsonRead(deps: Deps, work: (req: Request, res: Response, repositories: Repositories) => unknown | Promise<unknown>, administrative = false): RequestHandler {
+  return async (req, res) => {
+    const body = await deps.readFor(res.locals.auth, repositories => Promise.resolve(work(req, res, repositories)), administrative);
+    res.json(body);
+  };
 }
 
 /** Bodies arrive as raw text (see createApp), so a missing or wrong Content-Type is not an error. */

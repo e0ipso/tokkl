@@ -2,7 +2,7 @@ import type { Repositories, Storage, TransactionContext } from '../storage/contr
 import type { StorageConfig } from '../storage/config.ts';
 import { createStorageAuth, currentCredentialUser, type StorageAuthentication } from '../auth/storageMiddleware.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
-import { createAccountOperations } from '../domain/accounts.ts';
+import { createAccountOperations, isActiveAdmin } from '../domain/accounts.ts';
 import { createAccountEntryEffects, createCatalogTimerEffects, createTimerOperations, createTimerPublication } from '../domain/timers.ts';
 import { createStorageImports } from './storageImportJson.ts';
 import { StorageReportRunner } from './storageReportRunner.ts';
@@ -38,6 +38,14 @@ export function createApplicationServices(storage: Storage, config: StorageConfi
   }
   return {
     hub, auth, accounts, entryEffects, timerStreams, publish, reports,
+    readFor<T>(authentication: StorageAuthentication, work: (repositories: Repositories) => Promise<T>, administrative = false): Promise<T> {
+      return storage.readSnapshot(async repositories => {
+        const user = await currentCredentialUser(repositories, authentication);
+        if (!user) throw forbidden('Incorrect username and/or password');
+        if (administrative && !isActiveAdmin(user)) throw forbidden('Admin access required');
+        return work(repositories);
+      });
+    },
     accountsFor: (authentication: StorageAuthentication) => createAccountOperations(protectedStorage(authentication, true), security),
     timersFor: (authentication: StorageAuthentication) => createTimerOperations(protectedStorage(authentication), publish),
     importsFor: (authentication: StorageAuthentication) => createStorageImports(protectedStorage(authentication), publish),
