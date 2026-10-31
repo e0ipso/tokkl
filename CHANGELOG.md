@@ -1,3 +1,33 @@
+## [2.0.0](https://github.com/e0ipso/tokkl/compare/v1.13.0...v2.0.0) (2026-10-31)
+
+### ⚠ BREAKING CHANGES
+
+* **api:** Existing SQLite files are refused. Export accounts with
+the previous release and restore into a fresh supported database.
+Account JSON restore does not transfer credentials or instance settings.
+
+Closes #58.
+* **api:** The portable storage implementation requires a fresh
+supported schema. Export accounts using the previous release and restore
+into a new database before upgrading. Legacy SQLite files are refused.
+
+### Features
+
+* **api:** add account and catalog repositories ([5d3c0e3](https://github.com/e0ipso/tokkl/commit/5d3c0e34831cab39fd1127efce075cd98275a752))
+* **api:** add async timers and authentication ([73cb0ee](https://github.com/e0ipso/tokkl/commit/73cb0eea81b1d7f3055c736372702954025981e8))
+* **api:** add isolated async transactions ([c6feca3](https://github.com/e0ipso/tokkl/commit/c6feca31e4ba51dfbf2d7ac030994bb9898fd6f9))
+* **api:** add portable imports and reports ([967e1f7](https://github.com/e0ipso/tokkl/commit/967e1f7792521c43f6ad8bedb49d1f86f3cb8973))
+* **api:** add portable schemas and migrations ([402477c](https://github.com/e0ipso/tokkl/commit/402477c9e2c7d831143785e3f9c99b787d810115))
+* **api:** add typed storage connection contracts ([4afcb0a](https://github.com/e0ipso/tokkl/commit/4afcb0a3f55129d63da349ee3f47b4f701d67da5))
+* **api:** route application through async storage ([a0784c5](https://github.com/e0ipso/tokkl/commit/a0784c5435919b4ad0552015dd28327e5c0a6a3a))
+* **api:** support interchangeable SQL backends ([1fc7dc9](https://github.com/e0ipso/tokkl/commit/1fc7dc90d83e89d4b8c6a7ce2b59c777ae507596))
+
+### Bug Fixes
+
+* **api:** bind reads to credential snapshots ([66b0a0d](https://github.com/e0ipso/tokkl/commit/66b0a0db9414ae2d1a89b030478c3c460f5e5ca4))
+* **api:** bound backend work and isolate streams ([c40897e](https://github.com/e0ipso/tokkl/commit/c40897e81170eb42aab6359699c660132b154885))
+* **api:** queue concurrent storage requests across backends ([83fc8e7](https://github.com/e0ipso/tokkl/commit/83fc8e7df6ed3857e95d402195b126c8c059221e))
+
 ## [1.13.0](https://github.com/e0ipso/tokkl/compare/v1.12.0...v1.13.0) (2026-10-30)
 
 ### Features
