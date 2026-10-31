@@ -1,0 +1,146 @@
+[
+  {
+    "name": "JSON dry run",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "dry_run": true,
+      "clients": 1,
+      "projects": 1,
+      "tasks": 1,
+      "tags": 2,
+      "time_entries": 2,
+      "skipped_duplicates": 0,
+      "errors": []
+    }
+  },
+  {
+    "name": "JSON dry run leaves entries empty",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": []
+  },
+  {
+    "name": "JSON restore",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "dry_run": false,
+      "clients": 1,
+      "projects": 1,
+      "tasks": 1,
+      "tags": 2,
+      "time_entries": 2,
+      "skipped_duplicates": 0,
+      "errors": []
+    }
+  },
+  {
+    "name": "JSON restore again skips duplicates",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "dry_run": false,
+      "clients": 0,
+      "projects": 0,
+      "tasks": 0,
+      "tags": 0,
+      "time_entries": 0,
+      "skipped_duplicates": 2,
+      "errors": []
+    }
+  },
+  {
+    "name": "JSON restored entries in new timezone",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": [
+      {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": null,
+        "task_id": null,
+        "billable": false,
+        "start": "2026-10-25T04:00:00+00:00",
+        "stop": "2026-10-25T04:45:00+00:00",
+        "duration": 2700,
+        "description": "Planning",
+        "tags": [],
+        "tag_ids": [],
+        "duronly": true,
+        "all_day": true,
+        "at": "2026-10-30T12:00:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": null,
+        "tid": null,
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": null,
+        "project_color": null,
+        "project_active": null,
+        "project_billable": null,
+        "client_id": null,
+        "client_name": null,
+        "task_name": null,
+        "task_active": null,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      },
+      {
+        "id": "<id>",
+        "workspace_id": "<id>",
+        "project_id": "<id>",
+        "task_id": "<id>",
+        "billable": true,
+        "start": "2026-10-05T08:00:00+00:00",
+        "stop": "2026-10-05T09:30:00+00:00",
+        "duration": 5400,
+        "description": "Homepage, hero",
+        "tags": [
+          "Alpha",
+          "zebra"
+        ],
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "duronly": true,
+        "all_day": false,
+        "at": "2026-10-30T12:00:00+00:00",
+        "server_deleted_at": null,
+        "user_id": "<id>",
+        "uid": "<id>",
+        "wid": "<id>",
+        "pid": "<id>",
+        "tid": "<id>",
+        "permissions": null,
+        "expense_ids": [],
+        "project_name": "Website",
+        "project_color": "#123456",
+        "project_active": true,
+        "project_billable": true,
+        "client_id": "<id>",
+        "client_name": "ACME",
+        "task_name": "Design",
+        "task_active": true,
+        "user_name": "Test User",
+        "user_avatar_url": ""
+      }
+    ]
+  },
+  {
+    "name": "invalid JSON upload",
+    "status": 400,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": "The file is not valid JSON"
+  }
+]

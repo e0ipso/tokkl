@@ -15,6 +15,9 @@ summaries:
     timestamp parsing, canonical time zone names and time-resolution snapping of
     stopped entries; read before changing how the API reads, stores or rounds
     times
+  api-and-data/time-handling/stopped-entry-resolution: >-
+    stopped-entry grid validation, timer stop limits, DST and exact import
+    behavior; read before changing entry rounding or fixture times
   api-and-data/timer-state: >-
     the server-owned timer state (running entry, pause chain, Pomodoro session),
     its revisions and actions, and the SSE event stream; read before changing
@@ -36,6 +39,9 @@ summaries:
     menu across Shell 46 to 51, project indicator, packaging, preferences and
     the two headless Shell CI harnesses; read before changing the extension, its
     supported Shell versions or its CI checks
+  tooling-and-project/gnome-timer-service: >-
+    tokkl-timerd D-Bus contracts, headless dependencies, activation and
+    packages; read before changing GNOME service behavior or delivery
   tooling-and-project/kde-companion: >-
     the KDE Plasma companion and desktop/core: layout, timer and connection
     rules, native packages, CI and release; read before changing anything under
@@ -104,11 +110,13 @@ summaries:
 - `api-and-data/password-and-csrf-rules`: password rate limits, Retry-After and the CSRF header rule; read before adding a route that checks or sets a password, starts a session or writes
 - `api-and-data/reports-and-totals`: report endpoints, project and task totals, hourly rates, write-path reference checks and client deletion; read before changing reports, totals, rates or project and client writes
 - `api-and-data/time-handling`: timestamp parsing, canonical time zone names and time-resolution snapping of stopped entries; read before changing how the API reads, stores or rounds times
+- `api-and-data/time-handling/stopped-entry-resolution`: stopped-entry grid validation, timer stop limits, DST and exact import behavior; read before changing entry rounding or fixture times
 - `api-and-data/timer-state`: the server-owned timer state (running entry, pause chain, Pomodoro session), its revisions and actions, and the SSE event stream; read before changing timer routes, writes to the running entry, or stream auth
 - `api-and-data/toggl-compat-and-import`: Toggl v9 DELETE responses, Toggl CSV import and JSON restore; read before changing a v9 route or an import or restore path
 - `api-and-data/users-and-admin`: accounts, roles, workspace membership, preferences, the admin API, invites, password resets and instance settings; read before changing users, admin routes, sign-in refusal or instance settings
 - `tooling-and-project`: workspace layout, commit and tracker-reference rules, the Tokkl rename fallbacks, tests, e2e, bench, generated assets, the KDE desktop companion and the macOS and GNOME desktop apps; read before adding a package, script or test, committing, running a check or changing desktop/
 - `tooling-and-project/gnome-shell-extension`: the GNOME Shell extension in desktop/gnome/extension: its panel button and menu across Shell 46 to 51, project indicator, packaging, preferences and the two headless Shell CI harnesses; read before changing the extension, its supported Shell versions or its CI checks
+- `tooling-and-project/gnome-timer-service`: tokkl-timerd D-Bus contracts, headless dependencies, activation and packages; read before changing GNOME service behavior or delivery
 - `tooling-and-project/kde-companion`: the KDE Plasma companion and desktop/core: layout, timer and connection rules, native packages, CI and release; read before changing anything under desktop/ or the kde release job
 - `tooling-and-project/kde-companion/connection-and-credentials`: the KDE companion's HTTP client, access kinds, settings generations, credential stores and Configure page; read before changing desktop connection, auth, KWallet or configGeneral.qml code
 - `tooling-and-project/kde-companion/kde-ci-and-release-pipeline`: the kde and core CI jobs, the KDE real-server test, the three-stage release with its semantic-release plugin and GNOME assets, and the tests for release-only steps; read before changing ci.yml, desktop/kde/ci or .releaserc.json

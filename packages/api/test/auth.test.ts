@@ -1,25 +1,28 @@
+import { sessionCount } from './fixtures/physical.ts';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { storageFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
-import { generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
+import { hashPassword, generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
 import {
   ACCOUNT_ADDRESS_LIMIT, accountCounters, FailureLimiter, normalizeEmail, passwordCounters, SETUP_CODE_LIMIT,
 } from '../src/auth/rateLimit.ts';
-import { openDatabase, type Db } from '../src/db/index.ts';
-import { MIGRATIONS } from '../src/db/migrations.ts';
-import { createFirstAdmin, getUser, type UserRow } from '../src/models/users.ts';
+import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
+import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
+import { insertAccount, createFirstAdmin, getUser, type User } from './fixtures/domain.ts';
 import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
 test('API token Basic auth works and wrong credentials get 403', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const me = await ctx.json('GET', '/api/v9/me');
   assert.equal(me.status, 200);
   assert.equal(me.body.email, 'me@example.com');
-  assert.equal(me.body.api_token, ctx.user.api_token);
+  assert.equal(me.body.api_token, ctx.user.apiToken);
   assert.equal(me.body.default_workspace_id, ctx.wid);
 
   const bad = await ctx.request('GET', '/api/v9/me', undefined, {
@@ -32,7 +35,7 @@ test('API token Basic auth works and wrong credentials get 403', async () => {
 });
 
 test('email and password Basic auth works', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const ok = await ctx.request('GET', '/api/v9/me', undefined, {
     authorization: `Basic ${Buffer.from(`me@example.com:${PASSWORD}`).toString('base64')}`,
   });
@@ -44,7 +47,7 @@ test('email and password Basic auth works', async () => {
 });
 
 test('session cookie login requires the CSRF header for writes', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie')!;
@@ -74,7 +77,7 @@ test('session cookie login requires the CSRF header for writes', async () => {
 });
 
 test('wrong passwords are rate limited', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   let last = 0;
   for (let i = 0; i < 12; i++) {
     const response = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: 'wrong' }, { authorization: '', ...CSRF });
@@ -84,9 +87,9 @@ test('wrong passwords are rate limited', async () => {
 });
 
 test('first-run setup needs the setup code and only works once', async () => {
-  const db = openDatabase(':memory:');
+  const db = (await openDatabase());
   const setupState = { code: 'ABCD-EFGH-JKLM' };
-  const app = testServer(createApp({ db, config: testConfig(), setup: setupState }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: setupState }));
   const post = (body: unknown) => (app.request('/api/app/setup', {
     method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' }, body: JSON.stringify(body),
   }));
@@ -103,23 +106,23 @@ test('first-run setup needs the setup code and only works once', async () => {
 
 test('setup stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
   const attempt = async (timezone: unknown) => {
-    const db = openDatabase(':memory:');
-    const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+    const db = (await openDatabase());
+    const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
     const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' };
     const response = await app.request('/api/app/setup', {
       method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' },
       body: JSON.stringify(timezone === undefined ? account : { ...account, timezone }),
     });
-    const rows = db.prepare('SELECT timezone FROM users').all() as { timezone: string }[];
+    const rows = await storageFor(db).users.list();
     return { status: response.status, body: await response.json() as unknown, zones: rows.map((row) => row.timezone) };
   };
 
-  assert.deepEqual(await attempt('europe/madrid'), { status: 200, body: { ok: true }, zones: ['Europe/Madrid'] });
-  assert.deepEqual(await attempt('utc'), { status: 200, body: { ok: true }, zones: ['UTC'] });
-  assert.deepEqual(await attempt(undefined), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'no timezone');
-  assert.deepEqual(await attempt(''), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'an empty timezone');
+  assert.deepEqual((await attempt('europe/madrid')), { status: 200, body: { ok: true }, zones: ['Europe/Madrid'] });
+  assert.deepEqual((await attempt('utc')), { status: 200, body: { ok: true }, zones: ['UTC'] });
+  assert.deepEqual((await attempt(undefined)), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'no timezone');
+  assert.deepEqual((await attempt('')), { status: 200, body: { ok: true }, zones: ['UTC'] }, 'an empty timezone');
   for (const timezone of ['+02:00', '-0500', 'Bogus/Zone', 42]) {
-    assert.deepEqual(await attempt(timezone), { status: 400, body: 'Invalid timezone', zones: [] }, String(timezone));
+    assert.deepEqual((await attempt(timezone)), { status: 400, body: 'Invalid timezone', zones: [] }, String(timezone));
   }
 });
 
@@ -129,35 +132,35 @@ const textPlain = (body: unknown, headers: Record<string, string> = {}): Request
 });
 
 test('form login without the CSRF header is refused before the password check and charges no counter', async () => {
-  const db = openDatabase(':memory:');
-  await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
-  const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
+  const db = (await openDatabase());
+  (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }));
   const login = (password: string, headers?: Record<string, string>) =>
     app.request('/api/app/login', textPlain({ email: 'me@example.com', password }, headers));
-  const sessions = () => (db.prepare('SELECT COUNT(*) AS n FROM sessions').get() as { n: number }).n;
+  const sessions = () => sessionCount(db);
 
-  const refused = await login(PASSWORD);
+  const refused = (await login(PASSWORD));
   assert.equal(refused.status, 403);
   assert.equal(await refused.json(), 'Missing CSRF header');
   assert.equal(refused.headers.get('set-cookie'), null);
   // More than the account and address allowance: if any of these were charged, the logins below would get 429.
   for (let i = 0; i <= ACCOUNT_ADDRESS_LIMIT; i++) assert.equal((await login('wrong')).status, 403);
-  assert.equal(sessions(), 0);
+  assert.equal((await sessions()), 0);
 
-  const wrong = await login('wrong', CSRF);
+  const wrong = (await login('wrong', CSRF));
   assert.equal(wrong.status, 403);
   assert.equal(await wrong.json(), 'Incorrect email or password');
   for (const header of ['x-tokkl-csrf', 'x-timetrack-csrf']) {
-    const ok = await login(PASSWORD, { [header]: '1' });
+    const ok = (await login(PASSWORD, { [header]: '1' }));
     assert.equal(ok.status, 200, header);
     assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/, header);
   }
-  assert.equal(sessions(), 2);
+  assert.equal((await sessions()), 2);
 });
 
 test('setup without the CSRF header is refused before the code check and charges no counter', async () => {
-  const db = openDatabase(':memory:');
-  const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner' };
   const post = (setupCode: string, headers?: Record<string, string>) =>
     app.request('/api/app/setup', textPlain({ ...account, setup_code: setupCode }, headers));
@@ -180,7 +183,7 @@ test('setup without the CSRF header is refused before the code check and charges
 });
 
 test('reset_token issues a new token and invalidates the old one', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const reset = await ctx.json('POST', '/api/v9/me/reset_token');
   assert.equal(reset.status, 200);
   assert.match(reset.body, /^[0-9a-f]{32}$/);
@@ -188,7 +191,7 @@ test('reset_token issues a new token and invalidates the old one', async () => {
 });
 
 test('PUT /me changes the password only with the current one', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const wrong = await ctx.json('PUT', '/api/v9/me', { current_password: 'nope', password: 'new password 1' });
   assert.equal(wrong.status, 400);
   const ok = await ctx.json('PUT', '/api/v9/me', { current_password: PASSWORD, password: 'new password 1', timezone: 'Europe/Madrid' });
@@ -201,14 +204,14 @@ test('PUT /me changes the password only with the current one', async () => {
 });
 
 test('a password change through PUT /me replaces the API token and returns the new one', async () => {
-  const ctx = await setup();
-  const old = ctx.user.api_token;
+  const ctx = (await setup());
+  const old = ctx.user.apiToken;
   const changed = await ctx.json('PUT', '/api/v9/me', { current_password: PASSWORD, password: 'new password 1' });
   assert.equal(changed.status, 200, 'the old token can still make the change');
   const replacement = changed.body.api_token as string;
   assert.match(replacement, /^[0-9a-f]{32}$/);
   assert.notEqual(replacement, old);
-  assert.equal(getUser(ctx.db, ctx.user.id)!.api_token, replacement, 'the response carries the stored token');
+  assert.equal((await getUser(ctx.db, ctx.user.id))!.apiToken, replacement, 'the response carries the stored token');
 
   const me = (token: string) => ctx.request('GET', '/api/v9/me', undefined, { authorization: basic(token, 'api_token') });
   assert.equal((await me(old)).status, 403, 'the old token stops working');
@@ -218,116 +221,83 @@ test('a password change through PUT /me replaces the API token and returns the n
 });
 
 test('PUT /me without a password change keeps the exact API token', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const updated = await ctx.json('PUT', '/api/v9/me', { timezone: 'Europe/Madrid' });
   assert.equal(updated.status, 200);
   assert.equal(updated.body.timezone, 'Europe/Madrid');
-  assert.equal(updated.body.api_token, ctx.user.api_token);
+  assert.equal(updated.body.api_token, ctx.user.apiToken);
 
   const refused = await ctx.json('PUT', '/api/v9/me', { current_password: 'nope', password: 'new password 1' });
   assert.equal(refused.status, 400, 'a refused password change writes nothing either');
 
-  assert.equal(getUser(ctx.db, ctx.user.id)!.api_token, ctx.user.api_token);
+  assert.equal((await getUser(ctx.db, ctx.user.id))!.apiToken, ctx.user.apiToken);
   assert.equal((await ctx.request('GET', '/api/v9/me')).status, 200, 'the token still signs in');
 });
 
 test('PUT /me stores and returns the canonical timezone name', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   for (const [sent, stored] of [['europe/madrid', 'Europe/Madrid'], ['utc', 'UTC'], ['Etc/UTC', 'UTC']] as const) {
     const updated = await ctx.json('PUT', '/api/v9/me', { timezone: sent });
     assert.equal(updated.status, 200, sent);
     assert.equal(updated.body.timezone, stored, sent);
-    assert.equal(getUser(ctx.db, ctx.user.id)!.timezone, stored, sent);
+    assert.equal((await getUser(ctx.db, ctx.user.id))!.timezone, stored, sent);
     assert.equal((await ctx.json('GET', '/api/v9/me')).body.timezone, stored, sent);
   }
 });
 
 test('PUT /me refuses offset IDs and unknown timezones and changes nothing', async () => {
-  const ctx = await setup({ timezone: 'Europe/Madrid' });
-  const before = getUser(ctx.db, ctx.user.id)!;
+  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
+  const before = (await getUser(ctx.db, ctx.user.id))!;
   for (const timezone of ['+02:00', '-0500', '\u221205:00', 'Bogus/Zone']) {
     const refused = await ctx.json('PUT', '/api/v9/me', { timezone, fullname: 'Changed' });
     assert.equal(refused.status, 400, timezone);
     assert.equal(refused.body, 'Invalid timezone', timezone);
   }
-  assert.deepEqual(getUser(ctx.db, ctx.user.id), before);
+  assert.deepEqual((await getUser(ctx.db, ctx.user.id)), before);
 });
 
-test('opening a version 5 database rewrites stored timezones to their canonical names once', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-v5-zones-'));
-  try {
-    const path = join(dir, 'v5.sqlite');
-    const old = new DatabaseSync(path);
-    for (const sql of MIGRATIONS.slice(0, 5)) old.exec(sql);
-    old.exec('PRAGMA user_version = 5');
-    const insert = old.prepare(`
-      INSERT INTO users (email, password_hash, api_token, timezone, created_at, updated_at)
-      VALUES (?, 'hash', ?, ?, '2026-10-01T08:00:00.000Z', '2026-10-01T08:00:00.000Z')
-    `);
-    const zones = ['europe/madrid', 'utc', 'Etc/UTC', 'Europe/Madrid', '+02:00', 'Bogus/Zone'];
-    zones.forEach((zone, i) => insert.run(`user${i}@example.com`, generateApiToken(), zone));
-    old.close();
-
-    const stored = (db: Db) => db.prepare('SELECT timezone, updated_at FROM users ORDER BY id').all()
-      .map((row) => ({ ...row }));
-    const version = (db: Db) => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-
-    const db = openDatabase(path);
-    assert.equal(version(db), MIGRATIONS.length);
-    assert.deepEqual(stored(db), ['Europe/Madrid', 'UTC', 'UTC', 'Europe/Madrid', '+02:00', 'Bogus/Zone']
-      .map((timezone) => ({ timezone, updated_at: '2026-10-01T08:00:00.000Z' })));
-    // A loose name written after the upgrade shows whether a later start migrates again.
-    db.prepare("UPDATE users SET timezone = 'utc' WHERE email = 'user1@example.com'").run();
-    db.close();
-
-    const reopened = openDatabase(path);
-    assert.equal(version(reopened), MIGRATIONS.length);
-    assert.equal(stored(reopened)[1]!.timezone, 'utc', 'a second start runs no migration');
-    reopened.close();
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+test('SQLite legacy schema version 5 is refused without modifying its data', async () => {
+ const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
+ try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,5))old.exec(migration); old.exec('PRAGMA user_version=5'); old.close();
+ const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
+ } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
 /** createFirstAdmin refuses a second account, so tests that need one insert it directly. */
-function insertSecondUser(db: Db, owner: UserRow, email: string): UserRow {
-  const result = db.prepare(`
-    INSERT INTO users (email, fullname, password_hash, api_token, timezone, default_workspace_id, preferences, created_at, updated_at)
-    VALUES (?, '', ?, ?, 'UTC', ?, '{}', ?, ?)
-  `).run(email, owner.password_hash, generateApiToken(), owner.default_workspace_id, owner.created_at, owner.created_at);
-  return getUser(db, Number(result.lastInsertRowid))!;
+async function insertSecondUser(db: FixtureDatabase, owner: User, email: string): Promise<User> {
+  return insertAccount(db, {email, fullname:'', passwordHash:owner.passwordHash, timezone:'UTC', role:'user'});
 }
 
 test('PUT /me refuses an email another user has, in any case, and allows recasing your own', async () => {
-  const ctx = await setup();
-  const other = insertSecondUser(ctx.db, ctx.user, 'b@example.com');
-  const putAs = async (user: UserRow, body: unknown) => {
-    const response = await ctx.request('PUT', '/api/v9/me', body, { authorization: basic(user.api_token, 'api_token') });
+  const ctx = (await setup());
+  const other = (await insertSecondUser(ctx.db, ctx.user, 'b@example.com'));
+  const putAs = async (user: User, body: unknown) => {
+    const response = await ctx.request('PUT', '/api/v9/me', body, { authorization: basic(user.apiToken, 'api_token') });
     return { status: response.status, body: await response.json() as any };
   };
 
   for (const email of ['me@example.com', 'ME@EXAMPLE.COM', '  Me@Example.com  ']) {
-    const taken = await putAs(other, { email, fullname: 'Renamed' });
+    const taken = (await putAs(other, { email, fullname: 'Renamed' }));
     assert.equal(taken.status, 400, email);
     assert.equal(taken.body, 'Email already in use');
-    assert.equal(getUser(ctx.db, other.id)!.email, 'b@example.com', 'the email is unchanged');
-    assert.equal(getUser(ctx.db, other.id)!.fullname, '', 'nothing else is written either');
+    assert.equal((await getUser(ctx.db, other.id))!.email, 'b@example.com', 'the email is unchanged');
+    assert.equal((await getUser(ctx.db, other.id))!.fullName, '', 'nothing else is written either');
   }
 
-  const recased = await putAs(ctx.user, { email: 'Me@Example.COM' });
+  const recased = (await putAs(ctx.user, { email: 'Me@Example.COM' }));
   assert.equal(recased.status, 200);
   assert.equal(recased.body.email, 'Me@Example.COM');
-  assert.equal(getUser(ctx.db, ctx.user.id)!.email, 'Me@Example.COM');
+  assert.equal((await getUser(ctx.db, ctx.user.id))!.email, 'Me@Example.COM');
   assert.equal((await putAs(other, { email: 'b@example.com' })).status, 200, 'resending your own email is fine');
 });
 
 test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop', async () => {
   const { createApp: create } = await import('../src/app.ts');
-  const { openDatabase: open } = await import('../src/db/index.ts');
-  const { createFirstAdmin } = await import('../src/models/users.ts');
-  const db = open(':memory:');
-  await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });
-  const app = testServer(create({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
+  const { openDatabase: open } = await import('./fixtures/database.ts');
+  const { createFirstAdmin } = await import('./fixtures/domain.ts');
+  const db = await open();
+  (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
+  const app = testServer(create({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }));
   let last = 0;
   for (let i = 0; i < 12; i++) {
     const response = await app.request('/api/app/login', {
@@ -341,7 +311,7 @@ test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop
 });
 
 test('bad since and bad report dates are 400, not 500', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   assert.equal((await ctx.json('GET', '/api/v9/me/time_entries?since=99999999999999999')).status, 400);
   const weekly = await ctx.json('POST', `/reports/api/v3/workspace/${ctx.wid}/weekly/time_entries`, { start_date: 'garbage' });
   assert.equal(weekly.status, 400);
@@ -354,8 +324,8 @@ test('bad since and bad report dates are 400, not 500', async () => {
 const basic = (username: string, password: string) => `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
 
 test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => {
-  const db = openDatabase(':memory:');
-  const app = testServer(createApp({ db, config: testConfig(), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (password: string) => app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json' },
@@ -376,13 +346,13 @@ test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => 
 });
 
 test('an owner with a password over the cap can still log in and rotate it', async () => {
-  const db = openDatabase(':memory:');
+  const db = (await openDatabase());
   const legacy = 'L'.repeat(MAX_PASSWORD_LENGTH * 2);
-  const user = await createFirstAdmin(db, { email: 'me@example.com', password: legacy, fullname: '', timezone: 'UTC' });
-  const app = testServer(createApp({ db, config: testConfig(), setup: { code: null } }));
+  const user = (await insertAccount(db, { email: 'me@example.com', passwordHash: await hashPassword(legacy), role:'admin', fullname: '', timezone: 'UTC' }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }));
   const put = (body: unknown) => app.request('/api/v9/me', {
     method: 'PUT',
-    headers: { authorization: basic(user.api_token, 'api_token'), 'content-type': 'application/json' },
+    headers: { authorization: basic(user.apiToken, 'api_token'), 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 
@@ -402,7 +372,7 @@ test('an owner with a password over the cap can still log in and rotate it', asy
 });
 
 test('twelve parallel wrong passwords across login, Basic auth and password change run at most ten checks', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const kinds = ['login', 'basic', 'change'] as const;
   const wrong = (kind: (typeof kinds)[number]) => {
     if (kind === 'login') {
@@ -427,18 +397,18 @@ test('twelve parallel wrong passwords across login, Basic auth and password chan
 });
 
 test('a successful login resets the failure count', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const login = (password: string) => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password }, { authorization: '', ...CSRF });
   for (let i = 0; i < 9; i++) assert.equal((await login('wrong')).status, 403);
   assert.equal((await login(PASSWORD)).status, 200);
 
-  const afterReset = await Promise.all(Array.from({ length: 10 }, () => login('wrong')));
+  const afterReset = await Promise.all(Array.from({ length: 10 }, async () => (await login('wrong'))));
   assert.deepEqual(afterReset.map((response) => response.status), Array(10).fill(403));
   assert.equal((await login('wrong')).status, 429);
 });
 
 test('wrong API tokens are not counted as password failures', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   for (let i = 0; i < 12; i++) {
     const response = await ctx.request('GET', '/api/v9/me', undefined, { authorization: basic('deadbeef', 'api_token') });
     assert.equal(response.status, 403);
@@ -510,97 +480,97 @@ test('normalizeEmail and passwordCounters key accounts by trimmed, ASCII-lowerca
 
 /** An app behind a trusted proxy, so each request can pick its client address. */
 async function multiUserApp(count: number, names = Array.from({ length: count }, (_, i) => `user${i}@example.com`)) {
-  const db = openDatabase(':memory:');
-  const owner = await createFirstAdmin(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' });
-  const users = [owner, ...names.slice(1).map((name) => insertSecondUser(db, owner, name))];
+  const db = (await openDatabase());
+  const owner = (await createFirstAdmin(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' }));
+  const users = [owner, ...await Promise.all(names.slice(1).map(name => insertSecondUser(db, owner, name)))];
   const emails = users.map((user) => user.email);
-  const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address },
     body: JSON.stringify({ email, password }),
   })).status;
   /** A password change signed in with `user`'s API token, so only current_password is checked. */
-  const changePassword = async (user: UserRow, current: string, address = '10.0.0.1') => (await app.request('/api/v9/me', {
+  const changePassword = async (user: User, current: string, address = '10.0.0.1') => (await app.request('/api/v9/me', {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': address, authorization: basic(user.api_token, 'api_token') },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': address, authorization: basic(user.apiToken, 'api_token') },
     body: JSON.stringify({ current_password: current, password: 'new password 1' }),
   })).status;
   return { app, db, users, emails, login, changePassword };
 }
 
 test('one account signing in from an address does not reset failures against another', async () => {
-  const { login } = await multiUserApp(2);
-  for (let i = 0; i < 9; i++) assert.equal(await login('user1@example.com', 'wrong'), 403);
-  assert.equal(await login('user0@example.com', PASSWORD), 200);
-  assert.equal(await login('user1@example.com', 'wrong'), 403, 'the tenth failure');
-  assert.equal(await login('user1@example.com', PASSWORD), 429, 'still counted from the earlier nine');
+  const { login } = (await multiUserApp(2));
+  for (let i = 0; i < 9; i++) assert.equal((await login('user1@example.com', 'wrong')), 403);
+  assert.equal((await login('user0@example.com', PASSWORD)), 200);
+  assert.equal((await login('user1@example.com', 'wrong')), 403, 'the tenth failure');
+  assert.equal((await login('user1@example.com', PASSWORD)), 429, 'still counted from the earlier nine');
 });
 
 test('accounts share failure counters only when the database matches their emails', async () => {
   // users.email is COLLATE NOCASE, which folds ASCII only, so these are two accounts.
-  const { login } = await multiUserApp(2, ['Ä@example.com', 'ä@example.com']);
-  for (let i = 0; i < 10; i++) assert.equal(await login('ä@example.com', 'wrong'), 403);
-  assert.equal(await login('ä@example.com', PASSWORD), 429);
-  assert.equal(await login('Ä@example.com', PASSWORD), 200, 'failures against the other account are not counted');
+  const { login } = (await multiUserApp(2, ['Ä@example.com', 'ä@example.com']));
+  for (let i = 0; i < 10; i++) assert.equal((await login('ä@example.com', 'wrong')), 403);
+  assert.equal((await login('ä@example.com', PASSWORD)), 429);
+  assert.equal((await login('Ä@example.com', PASSWORD)), 200, 'failures against the other account are not counted');
 
   // ASCII case is folded by both, so these are one account.
-  const ascii = await multiUserApp(1, ['a@example.com']);
+  const ascii = (await multiUserApp(1, ['a@example.com']));
   for (let i = 0; i < 10; i++) assert.equal(await ascii.login(' A@EXAMPLE.COM', 'wrong'), 403);
   assert.equal(await ascii.login('a@example.com', PASSWORD), 429);
 });
 
 test('failures against one account from many addresses are refused after 50', async () => {
-  const { login } = await multiUserApp(1);
+  const { login } = (await multiUserApp(1));
   // Five per address, so no address comes near its own limits. All 50 fit under every limit, so
   // they run in parallel.
   const spread = (email: string, subnet: number) => Promise.all(
-    Array.from({ length: 50 }, (_, i) => login(email, 'wrong', `10.${subnet}.${Math.floor(i / 5)}.1`)),
+    Array.from({ length: 50 }, async (_, i) => (await login(email, 'wrong', `10.${subnet}.${Math.floor(i / 5)}.1`))),
   );
   assert.deepEqual(await spread('user0@example.com', 1), Array(50).fill(403));
-  assert.equal(await login('user0@example.com', PASSWORD, '10.9.9.9'), 429);
+  assert.equal((await login('user0@example.com', PASSWORD, '10.9.9.9')), 429);
   // Unknown emails are counted the same way.
   assert.deepEqual(await spread(' Ghost@Example.com', 2), Array(50).fill(403));
-  assert.equal(await login('ghost@example.com', 'wrong', '10.9.9.9'), 429);
+  assert.equal((await login('ghost@example.com', 'wrong', '10.9.9.9')), 429);
 });
 
 test('ten users behind one address each failing five times can all still sign in', async () => {
-  const { emails, login } = await multiUserApp(10);
-  const failures = await Promise.all(emails.flatMap((email) => Array.from({ length: 5 }, () => login(email, 'wrong'))));
+  const { emails, login } = (await multiUserApp(10));
+  const failures = await Promise.all(emails.flatMap((email) => Array.from({ length: 5 }, async () => (await login(email, 'wrong')))));
   assert.deepEqual(failures, Array(50).fill(403));
-  for (const email of emails) assert.equal(await login(email, PASSWORD), 200, email);
+  for (const email of emails) assert.equal((await login(email, PASSWORD)), 200, email);
 });
 
 test("wrong current passwords in a password change count against the caller's account", async () => {
-  const { db, users, login, changePassword } = await multiUserApp(2);
-  const [caller, other] = users as [UserRow, UserRow];
+  const { db, users, login, changePassword } = (await multiUserApp(2));
+  const [caller, other] = users as [User, User];
 
-  for (let i = 0; i < 10; i++) assert.equal(await changePassword(caller, 'wrong'), 400);
-  assert.equal(await changePassword(caller, PASSWORD), 429, 'the account is blocked from this address');
-  assert.equal(await login(caller.email, PASSWORD), 429);
-  assert.equal(await login(other.email, PASSWORD), 200, 'another account at the same address is not');
+  for (let i = 0; i < 10; i++) assert.equal((await changePassword(caller, 'wrong')), 400);
+  assert.equal((await changePassword(caller, PASSWORD)), 429, 'the account is blocked from this address');
+  assert.equal((await login(caller.email, PASSWORD)), 429);
+  assert.equal((await login(other.email, PASSWORD)), 200, 'another account at the same address is not');
 
   // Forty more from other addresses, five each, reach the account's limit of 50.
-  const spread = await Promise.all(Array.from({ length: 40 }, (_, i) => changePassword(caller, 'wrong', `10.1.${Math.floor(i / 5)}.1`)));
+  const spread = await Promise.all(Array.from({ length: 40 }, async (_, i) => (await changePassword(caller, 'wrong', `10.1.${Math.floor(i / 5)}.1`))));
   assert.deepEqual(spread, Array(40).fill(400));
-  assert.equal(await login(caller.email, PASSWORD, '10.9.9.9'), 429, 'refused from an address it never failed from');
-  assert.equal(await login(other.email, PASSWORD, '10.9.9.9'), 200);
-  assert.equal(getUser(db, caller.id)!.password_hash, caller.password_hash, 'no change went through');
+  assert.equal((await login(caller.email, PASSWORD, '10.9.9.9')), 429, 'refused from an address it never failed from');
+  assert.equal((await login(other.email, PASSWORD, '10.9.9.9')), 200);
+  assert.equal((await getUser(db, caller.id))!.passwordHash, caller.passwordHash, 'no change went through');
 });
 
 test('one address is refused after 100 failures across accounts, and a success does not clear it', async () => {
-  const { login } = await multiUserApp(1);
-  const failures = await Promise.all(Array.from({ length: 99 }, (_, i) => login(`nobody${Math.floor(i / 5)}@example.com`, 'wrong')));
+  const { login } = (await multiUserApp(1));
+  const failures = await Promise.all(Array.from({ length: 99 }, async (_, i) => (await login(`nobody${Math.floor(i / 5)}@example.com`, 'wrong'))));
   assert.deepEqual(failures, Array(99).fill(403));
-  assert.equal(await login('user0@example.com', PASSWORD), 200);
-  assert.equal(await login('nobody-else@example.com', 'wrong'), 403, 'the hundredth failure');
-  assert.equal(await login('user0@example.com', PASSWORD), 429);
-  assert.equal(await login('user0@example.com', PASSWORD, '10.0.0.2'), 200, 'other addresses are unaffected');
+  assert.equal((await login('user0@example.com', PASSWORD)), 200);
+  assert.equal((await login('nobody-else@example.com', 'wrong')), 403, 'the hundredth failure');
+  assert.equal((await login('user0@example.com', PASSWORD)), 429);
+  assert.equal((await login('user0@example.com', PASSWORD, '10.0.0.2')), 200, 'other addresses are unaffected');
 });
 
 test('setup codes have their own per-address limit of ten', async () => {
-  const db = openDatabase(':memory:');
-  const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (path: string, body: unknown, address = '10.0.0.1') => app.request(path, {
     method: 'POST', headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address }, body: JSON.stringify(body),
   });
@@ -615,7 +585,7 @@ test('setup codes have their own per-address limit of ten', async () => {
 });
 
 test('logout with a wrong CSRF value keeps the session; no or stale session logout is 200', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const login = await ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   const session = login.headers.get('set-cookie')!.split(';')[0]!;
   const logout = (headers: Record<string, string>) => ctx.request('POST', '/api/app/logout', undefined, { authorization: '', ...headers });
@@ -639,7 +609,7 @@ test('logout with a wrong CSRF value keeps the session; no or stale session logo
 });
 
 test('the tt_session cookie and X-Timetrack-CSRF header from before the rename still work', async () => {
-  const ctx = await setup();
+  const ctx = (await setup());
   const signIn = () => ctx.request('POST', '/api/app/login', { email: 'me@example.com', password: PASSWORD }, { authorization: '', ...CSRF });
   const login = await signIn();
   const issued = login.headers.getSetCookie();
@@ -664,13 +634,13 @@ test('the tt_session cookie and X-Timetrack-CSRF header from before the rename s
 
   // Changing the password through the old cookie keeps that session and ends the others.
   const other = (await signIn()).headers.getSetCookie().find((cookie) => cookie.startsWith('tokkl_session='))!.split(';')[0]!;
-  const change = await call('PUT', '/api/v9/me', { cookie: legacy, 'x-timetrack-csrf': '1' }, { current_password: PASSWORD, password: 'new password 1' });
+  const change = (await call('PUT', '/api/v9/me', { cookie: legacy, 'x-timetrack-csrf': '1' }, { current_password: PASSWORD, password: 'new password 1' }));
   assert.equal(change.status, 200);
   assert.equal((await call('GET', '/api/v9/me', { cookie: legacy })).status, 200, 'the changing session stays');
   assert.equal((await call('GET', '/api/v9/me', { cookie: other })).status, 403, 'other sessions end');
 
   assert.equal((await call('POST', '/api/app/logout', { cookie: legacy })).status, 403, 'logout of an old-cookie session needs the header');
-  const logout = await call('POST', '/api/app/logout', { cookie: legacy, 'x-timetrack-csrf': '1' });
+  const logout = (await call('POST', '/api/app/logout', { cookie: legacy, 'x-timetrack-csrf': '1' }));
   assert.equal(logout.status, 200);
   const cleared = logout.headers.getSetCookie();
   assert.ok(cleared.some((cookie) => cookie.startsWith('tokkl_session=;')));
@@ -725,8 +695,8 @@ test('FailureLimiter gives one second to an attempt refused only because the wai
 
 test('login, Basic auth and password-change 429s carry Retry-After, and waiting that long frees the counter', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
-  const { app, users, login } = await multiUserApp(1);
-  const [owner] = users as [UserRow];
+  const { app, users, login } = (await multiUserApp(1));
+  const [owner] = users as [User];
   const loginResponse = () => app.request('/api/app/login', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
@@ -737,15 +707,15 @@ test('login, Basic auth and password-change 429s carry Retry-After, and waiting 
   });
   const changeResponse = () => app.request('/api/v9/me', {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1', authorization: basic(owner.api_token, 'api_token') },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1', authorization: basic(owner.apiToken, 'api_token') },
     body: JSON.stringify({ current_password: PASSWORD, password: 'new password 1' }),
   });
 
-  for (let i = 0; i < 10; i++) assert.equal(await login(owner.email, 'wrong'), 403);
+  for (let i = 0; i < 10; i++) assert.equal((await login(owner.email, 'wrong')), 403);
   t.mock.timers.tick(1_500);
 
   for (const [name, send] of [['login', loginResponse], ['basic', basicResponse], ['change', changeResponse]] as const) {
-    const response = await send();
+    const response = (await send());
     assert.equal(response.status, 429, name);
     assert.equal(retryAfter(response), String(WINDOW_SECONDS - 1), `${name}: 898.5 seconds left, rounded up`);
     assert.match(await response.text(), /Too many failed/, `${name}: the body is unchanged`);
@@ -758,9 +728,9 @@ test('login, Basic auth and password-change 429s carry Retry-After, and waiting 
 
 test('a 429 from the address counter alone carries Retry-After for that counter', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
-  const { app, login } = await multiUserApp(1);
+  const { app, login } = (await multiUserApp(1));
   // One hundred failures across accounts fill only the address counter.
-  await Promise.all(Array.from({ length: 100 }, (_, i) => login(`nobody${Math.floor(i / 5)}@example.com`, 'wrong')));
+  await Promise.all(Array.from({ length: 100 }, async (_, i) => (await login(`nobody${Math.floor(i / 5)}@example.com`, 'wrong'))));
   t.mock.timers.tick(30_000);
   const response = await app.request('/api/app/login', {
     method: 'POST',
@@ -773,13 +743,13 @@ test('a 429 from the address counter alone carries Retry-After for that counter'
 
 test('with two full counters, waiting the advertised Retry-After lets the next login through', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
-  const { app, login } = await multiUserApp(1);
+  const { app, login } = (await multiUserApp(1));
   // Nine failures each for ten unknown accounts start the address counter without filling any account counter.
-  const early = await Promise.all(Array.from({ length: 90 }, (_, i) => login(`nobody${i % 10}@example.com`, 'wrong')));
+  const early = await Promise.all(Array.from({ length: 90 }, async (_, i) => (await login(`nobody${i % 10}@example.com`, 'wrong'))));
   assert.deepEqual(new Set(early), new Set([403]));
   t.mock.timers.tick(60_000);
   // A minute later, ten failures for user0 fill its account+address counter and the address counter.
-  const late = await Promise.all(Array.from({ length: 10 }, () => login('user0@example.com', 'wrong')));
+  const late = await Promise.all(Array.from({ length: 10 }, async () => (await login('user0@example.com', 'wrong'))));
   assert.deepEqual(new Set(late), new Set([403]));
   const send = () => app.request('/api/app/login', {
     method: 'POST',
@@ -787,7 +757,7 @@ test('with two full counters, waiting the advertised Retry-After lets the next l
     body: JSON.stringify({ email: 'user0@example.com', password: PASSWORD }),
   });
 
-  const refused = await send();
+  const refused = (await send());
   assert.equal(refused.status, 429);
   const wait = Number(retryAfter(refused));
   assert.equal(wait, WINDOW_SECONDS, 'until the account+address counter, which resets a minute after the address counter');
@@ -799,8 +769,8 @@ test('with two full counters, waiting the advertised Retry-After lets the next l
 
 test('setup 429s carry Retry-After, and waiting that long allows another code', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
-  const db = openDatabase(':memory:');
-  const app = testServer(createApp({ db, config: { ...testConfig(), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const db = (await openDatabase());
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (setupCode: string) => app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },

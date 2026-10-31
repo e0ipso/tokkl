@@ -11,7 +11,8 @@ tags:
   - playwright
 kk_schema_version: 3
 kk_id: map-readme-screenshots-script
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:map:1'
 kk_relates_to:
   - practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
   - map-test-and-static-analysis-layout
@@ -22,7 +23,7 @@ kk_confidence: high
 
 The data is `e2e/fixtures-data/transfer/restore-full.json` plus the extra records in `scripts/screenshots-data.ts`, which also exports `NOW` (`2026-07-16T13:20:00.000Z`, 15:20 in Europe/Madrid) and `TIME_ZONE`. The browser clock is fixed with `page.clock.setFixedTime(NOW)`, and the server starts with a `data:` URL `--import` that replaces `Date` with one that always reads `NOW`.
 
-- That frozen `Date` does not reach SQLite. Project and task totals for a running entry use `unixepoch('now')` (`packages/api/src/models/projects.ts`), while `entryDurationSeconds` (`packages/api/src/models/timeEntries.ts`) uses JS time. The script therefore stops the running timer and takes the Projects capture last.
+- That frozen `Date` does not reach SQLite. Project and task totals for a running entry use `unixepoch('now')` (`packages/api/src/domain/catalogs.ts`), while `entryDurationSeconds` (`packages/api/src/domain/timeEntries.ts`) uses JS time. The script therefore stops the running timer and takes the Projects capture last.
 - The session cookie expires `TOKKL_SESSION_DAYS` after the frozen `NOW`, because the throwaway instance has no stored `session_days` setting. The config sets 36500, or the browser would drop the cookie as already expired once the real date passes `NOW` plus 30 days.
 
 - The config's `globalSetup` is only `e2e/chromium-check.ts`. The script creates its own demo admin through setup, so it must not go through `e2e/global-setup.ts`, which also creates the e2e setup admin and deletes leftover e2e worker accounts.
@@ -34,3 +35,9 @@ The data is `e2e/fixtures-data/transfer/restore-full.json` plus the extra record
 - Related: [practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory](../testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md)
 - Related: [map-test-and-static-analysis-layout](../testing/map-test-and-static-analysis-layout.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:map:1
+<!-- kk:citations:end -->

@@ -2,7 +2,8 @@ import express, { type ErrorRequestHandler, type Express, type RequestHandler } 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
-import type { Db } from './db/index.ts';
+import type { Storage } from './storage/contracts.ts';
+import { createApplicationServices } from './services/application.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { ConflictWithBody, HttpError } from './lib/errors.ts';
@@ -11,14 +12,13 @@ import { appRoutes, type SetupState } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/togglV9.ts';
-import { TimerStreams } from './services/timerStreams.ts';
 
 export interface AppOptions {
-  db: Db;
+  storage: Storage;
   config: Config;
   setup: SetupState;
-  /** The timer event streams. Pass them to close them on shutdown; each app gets its own otherwise. */
-  timerStreams?: TimerStreams;
+  timerStreamOptions?: import('./services/timerStreams.ts').TimerStreamOptions;
+
 }
 
 const CONTENT_SECURITY_POLICY = [
@@ -66,18 +66,19 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   // http-errors from Express itself, e.g. a missing file under /assets.
   const status = (error as { status?: number }).status;
   if (typeof status === 'number' && status >= 400 && status < 500) return res.status(status).json(error.message);
-  console.error(error);
+  console.error('Request failed');
   return res.status(500).json('Internal Server Error');
 };
 
-export function createApp({ db, config, setup, timerStreams = new TimerStreams(db) }: AppOptions): Express {
+export function createApp({ storage, config, setup, timerStreamOptions }: AppOptions): Express {
   const app = express();
+  const loginLimiter = new FailureLimiter(ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   const deps: Deps = {
-    db,
+    storage,
     config,
-    loginLimiter: new FailureLimiter(ADDRESS_LIMIT, PASSWORD_WINDOW_MS),
+    loginLimiter,
     setupLimiter: new FailureLimiter(SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
-    timerStreams,
+    ...createApplicationServices(storage, config.storage, loginLimiter, timerStreamOptions),
   };
 
   app.disable('x-powered-by');
@@ -86,9 +87,22 @@ export function createApp({ db, config, setup, timerStreams = new TimerStreams(d
   // req.secure follows its X-Forwarded-Proto.
   app.set('trust proxy', config.trustProxy ? 1 : false);
   app.use(securityHeaders);
+  const active = new Set<AbortController>();
+  let closing = false;
+  app.use((req, res, next) => {
+    if (closing) { res.status(503).json('Server shutting down'); return; }
+    const controller = new AbortController(); active.add(controller); res.locals.workSignal = controller.signal;
+    res.once('close', () => { controller.abort(); active.delete(controller); }); next();
+  });
+  app.locals.services = deps;
+  app.locals.close = async () => {
+    closing = true;
+    for (const controller of active) controller.abort();
+    await deps.close();
+  };
 
-  app.get('/healthz', (req, res) => {
-    db.prepare('SELECT 1').get();
+  app.get('/healthz', async (req, res) => {
+    await storage.health();
     res.json({ ok: true });
   });
 

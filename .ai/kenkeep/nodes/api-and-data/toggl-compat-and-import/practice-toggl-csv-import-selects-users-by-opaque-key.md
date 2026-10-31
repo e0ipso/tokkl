@@ -11,14 +11,15 @@ tags:
   - validation
 kk_schema_version: 3
 kk_id: practice-toggl-csv-import-selects-users-by-opaque-key
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:10'
 kk_relates_to:
   - practice-json-restore-rules
   - practice-stopped-entries-snap-to-the-time-resolution-on-write
 kk_depends_on: []
 kk_confidence: high
 ---
-`importTogglCsv` in `packages/api/src/services/importCsv.ts` maps the Toggl `User` and `Email` columns. When either column is present, every row belongs to an `ImportUser` (`packages/types/index.ts`): `key`, `user`, `email` and `rows`. `ImportResult` returns those in `users`, and the rows it did not import in `skipped` as `{ rows, reason }`.
+`importTogglCsv` in `packages/api/src/services/storageImportCsv.ts` maps the Toggl `User` and `Email` columns. When either column is present, every row belongs to an `ImportUser` (`packages/types/index.ts`): `key`, `user`, `email` and `rows`. `ImportResult` returns those in `users`, and the rows it did not import in `skipped` as `{ rows, reason }`.
 
 `key` is `JSON.stringify([name, email])`, so User "Alice" with Email "a@x" and User "Alice <a@x>" with no Email stay two users. Treat it as opaque. Pass it back unchanged, and show people `user` and `email` instead.
 
@@ -32,5 +33,13 @@ Imported entries keep their exact times; they are not snapped to the time resolu
 # Related
 
 - Related: [practice-json-restore-rules](practice-json-restore-rules.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-entry-resolution-at-dst-imports-and-reports](../time-handling/stopped-entry-resolution/practice-entry-resolution-at-dst-imports-and-reports.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-stopped-entry-grid-validation](../time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-timer-stop-snapping-and-duration-limits](../time-handling/stopped-entry-resolution/practice-timer-stop-snapping-and-duration-limits.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:10
+<!-- kk:citations:end -->

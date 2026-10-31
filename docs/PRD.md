@@ -54,7 +54,7 @@ Where Toggl's own sources disagree, this document says so and picks a behavior. 
 2. **Toggl behavior by default, Toggl limits never.** Copy Toggl's semantics where users have muscle memory (one running timer, continue, grouping similar entries, `N`/`S` shortcuts). Drop the paywall and SaaS limits: no 90-day window on the timer page, no plan-gated CSV export, no capped date ranges in reports.
 3. **Undo over confirm.** Deleting an entry is instant and reversible. Deleted entries go to a trash, not into the void.
 4. **One timezone.** Toggl uses the browser clock on the timer page and the profile timezone in reports, so entries can jump days between the two. This app uses the account timezone everywhere.
-5. **Boring infrastructure.** One process, one SQLite file. A backup is a file copy.
+5. **Boring infrastructure.** One application process and one selected database. SQLite is the default; PostgreSQL, MySQL and MariaDB are supported. Full backups use a consistent backend backup.
 6. **Loud look, plain function.** The app looks like surf-shop graffiti: saturated colour, one display face, hand-made texture. Any style that costs a readable number, a reachable control or a passing test gets dropped.
 
 ### Visual direction
@@ -79,7 +79,7 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | T1 | Start a timer from an empty bar; fill description, project, tags and billable before or after starting. | MUST | Done |
-| T2 | Exactly one running entry. Starting a new one stops the old one at the new start time, snapped to the time resolution (section 6.3). Enforced by a partial unique index in SQLite, not only in code. | MUST | Done |
+| T2 | Exactly one running entry. Starting a new one stops the old one at the new start time, snapped to the time resolution (section 6.3). Enforced by a unique live-running key in every backend, not only in code. | MUST | Done |
 | T3 | Stop from the bar, with `S`, or through the API. Stopping a stopped entry returns 409 like Toggl. | MUST | Done |
 | T4 | Continue: a play button on any past entry, and `C` for the latest one, creates a new entry with the same description, project, task, tags and billable flag. | MUST | Done |
 | T5 | Description autocomplete from recent entries; picking one copies project, task, tags and billable. | MUST | Done |
@@ -312,7 +312,7 @@ This verifies Tokkl against the documented subset. It does not compare responses
  |   /api/app/admin/*     accounts, invites, instance settings (admins)  |
  |   /*                   built React app (static files)                 |
  |  services: time entries, reports engine, CSV import/export            |
- |  node:sqlite  -->  <data dir>/tokkl.sqlite (WAL)                      |
+ |  storage contracts --> SQLite / PostgreSQL / MySQL / MariaDB          |
  +-----------------------------------------------------------------------+
 ```
 
@@ -324,7 +324,7 @@ The web UI is a client of the same Toggl-compatible API it exposes. Every timer 
 |---|---|---|
 | Runtime | Node.js 24, TypeScript run directly via type stripping | No build step for the server; one language across server, UI and shared code. |
 | HTTP | Express 5 | The most widely known Node server framework. Version 5 sends rejected promises from async handlers to the error handler, so routes need no wrappers. `trust proxy` handles a reverse proxy's forwarded headers. |
-| Database | SQLite through the built-in `node:sqlite` | No native module to compile, on amd64 or arm64; a single file to back up. WAL mode, foreign keys on. |
+| Database | Kysely repositories over built-in `node:sqlite`, `pg` or `mysql2` | One selected backend; no native npm addon. SQLite uses WAL; all engines enforce foreign keys, uniqueness and transaction guards. |
 | UI | React 19, Vite, TanStack Query, wouter | Query caching and refetch-on-focus give cross-device freshness for free. |
 | Shared | `packages/common` (`@tokkl/common`) modules for duration parsing, time-of-day parsing, timezone math, snapping entries to the time resolution, with their types in `packages/types` (`@tokkl/types`) | Server and UI parse `1h 30m` and midnight the same way. |
 
@@ -342,7 +342,7 @@ All instants are UTC ISO 8601 strings; calendar days are computed in the user's 
 - `time_entries`: project, task, description, start, stop (null while running), billable, `all_day` (a no-time entry, anchored at local midnight of its day), `created_with`, `deleted_at` for the trash and for `since` sync.
 - `time_entry_tags`: join table.
 
-Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at startup.
+Migrations are append-only backend-aware definitions applied at startup under exclusive migration ownership. The `storage_migrations` ledger records checksums, completion state and schema fingerprints. Unrecognized or inconsistent databases are refused; legacy SQLite is inspected before a writer opens.
 
 ### 8.4 Security
 
@@ -384,6 +384,6 @@ Migrations are append-only SQL, versioned with `PRAGMA user_version`, applied at
 1. **Third-party app support is thin.** Most Toggl apps cannot change their base URL (section 6.4). If phone-widget convenience matters, the PWA and iOS Shortcuts against the API are the path, not Timery.
 2. **Toggl's CSV header may drift.** Toggl does not document its export columns, and the 2025 reports redesign lets users pick visible columns. The importer matches by name and reports per-row errors, but an export with missing start or end columns will be rejected with a message saying which columns it needs.
 3. **Phone off the home network.** Without the offline outbox (C4), starting a timer from a phone that cannot reach the server fails.
-4. **Single process, single file.** Fine for a handful of accounts, but a bad disk loses every account's data unless the data folder is backed up. One copy of the data folder covers the whole instance.
+4. **Database recovery.** A database failure can affect every account. Use consistent full-instance backend backups and test recovery. Account JSON restore omits credentials and instance settings; see the README.
 5. **Mixed currencies in one group.** Amounts are summed per group without converting currencies. The web UI hides per-row amounts when a report spans several currencies; the API still returns the raw sum.
-6. **`node:sqlite` stability.** It ships in Node 24 without a flag. If its API changes in a later Node major, the database layer is about 40 lines to port to `better-sqlite3`.
+6. **`node:sqlite` stability.** It ships in Node 24 without a flag. The storage bridge depends on its statement and transaction behavior. Node upgrades require the SQLite integration and lifecycle checks; server engines require their own independent checks.

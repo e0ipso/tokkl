@@ -11,7 +11,8 @@ tags:
   - backup
 kk_schema_version: 3
 kk_id: practice-json-restore-rules
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:11'
 kk_relates_to:
   - practice-write-paths-validate-refs-not-totals
   - practice-parse-api-timestamps-with-parseinstant
@@ -19,7 +20,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`importJsonExport` in `packages/api/src/services/importJson.ts` restores a JSON export whose `format` is `tokkl-export` or the pre-rename `timetrack-export` (`EXPORT_FORMAT` and `LEGACY_EXPORT_FORMAT` in `packages/api/src/services/export.ts`). Restoring the same file twice changes nothing: clients, projects, tasks and tags are matched by name, and entries with the same start, stop, description and project are skipped.
+`importJsonExport` in `packages/api/src/services/storageImportJson.ts` restores a JSON export whose `format` is `tokkl-export` or the pre-rename `timetrack-export` (`EXPORT_FORMAT` and `LEGACY_EXPORT_FORMAT` in `packages/api/src/services/storageExport.ts`). Restoring the same file twice changes nothing: clients, projects, tasks and tags are matched by name, and entries with the same start, stop, description and project are skipped.
 
 - Records go into the user's `default_workspace_id`, resolved through `memberWorkspace`, so a user who is no longer a member of that workspace gets a 403 and nothing is written. `buildJsonExport` likewise exports only the workspaces the user belongs to (`listWorkspacesForUser`).
 - Projects are created through `createProject` with their stored fields, including `start_date` and `is_private`.
@@ -33,5 +34,13 @@ kk_confidence: high
 
 - Related: [practice-write-paths-validate-refs-not-totals](../reports-and-totals/practice-write-paths-validate-refs-not-totals.md)
 - Related: [practice-parse-api-timestamps-with-parseinstant](../time-handling/practice-parse-api-timestamps-with-parseinstant.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-entry-resolution-at-dst-imports-and-reports](../time-handling/stopped-entry-resolution/practice-entry-resolution-at-dst-imports-and-reports.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-stopped-entry-grid-validation](../time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-timer-stop-snapping-and-duration-limits](../time-handling/stopped-entry-resolution/practice-timer-stop-snapping-and-duration-limits.md)
 <!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:11
+<!-- kk:citations:end -->

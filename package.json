@@ -24,7 +24,9 @@
     "bench:history": "npm run build && node bench/history.ts",
     "screenshots": "npm run build && playwright test --config scripts/screenshots.config.ts",
     "icons": "node scripts/icons.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:backends": "npm run test:backends --workspace @tokkl/api --",
+    "test:container": "node scripts/production-image-smoke.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",

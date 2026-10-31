@@ -37,7 +37,9 @@ kk_confidence: high
 <!-- kk:related:start -->
 # Related
 
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-entry-resolution-at-dst-imports-and-reports](../../../api-and-data/time-handling/stopped-entry-resolution/practice-entry-resolution-at-dst-imports-and-reports.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-stopped-entry-grid-validation](../../../api-and-data/time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-timer-stop-snapping-and-duration-limits](../../../api-and-data/time-handling/stopped-entry-resolution/practice-timer-stop-snapping-and-duration-limits.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

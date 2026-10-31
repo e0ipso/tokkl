@@ -1,3 +1,5 @@
+import { entryRecord } from './fixtures/observations.ts';
+import { storageFor } from './fixtures/database.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -78,90 +80,90 @@ async function assertOnlyPasswordWorks(ctx: TestContext, password: string) {
 
 for (const [phase, nth] of [['current-password check', CHECK], ['new-password hashing', HASH]] as const) {
   test(`a session's password change is refused when a reset commits during its ${phase}`, async () => {
-    const admin = await setup();
-    const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-    const cookie = await sessionCookie(bob);
-    const useReset = await resetLink(admin, bob.user.id);
+    const admin = (await setup());
+    const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+    const cookie = (await sessionCookie(bob));
+    const useReset = (await resetLink(admin, bob.user.id));
 
     const during = duringScrypt(nth, useReset);
-    await assertRefused(await putWithCookie(admin, cookie));
+    (await assertRefused(await putWithCookie(admin, cookie)));
     await during;
-    await assertOnlyPasswordWorks(admin, NEW_PASSWORD);
+    (await assertOnlyPasswordWorks(admin, NEW_PASSWORD));
   });
 
   test(`the later of two password changes from different sessions is refused when the first commits during its ${phase}`, async () => {
-    const admin = await setup();
-    const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-    const attacker = await sessionCookie(bob);
-    const owner = await sessionCookie(bob);
+    const admin = (await setup());
+    const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+    const attacker = (await sessionCookie(bob));
+    const owner = (await sessionCookie(bob));
 
     const during = duringScrypt(nth, async () => {
       const changed = await putWithCookie(admin, owner, { current_password: PASSWORD, password: NEW_PASSWORD });
       assert.equal(changed.status, 200);
     });
-    await assertRefused(await putWithCookie(admin, attacker));
+    (await assertRefused(await putWithCookie(admin, attacker)));
     await during;
-    await assertOnlyPasswordWorks(admin, NEW_PASSWORD);
+    (await assertOnlyPasswordWorks(admin, NEW_PASSWORD));
     assert.equal((await anonymous(admin, 'GET', '/api/v9/me', undefined, { cookie: owner })).status, 200, 'the owner stays signed in');
   });
 }
 
-const apiToken = (ctx: TestContext, userId: number) =>
-  (ctx.db.prepare('SELECT api_token FROM users WHERE id = ?').get(userId) as { api_token: string }).api_token;
+const apiToken = async (ctx: TestContext, userId: number) =>
+  (await storageFor(ctx.db).users.get(userId))!.apiToken;
 
 test('an API-token password change is refused when a reset commits while it hashes, and keeps the reset\'s token', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const useReset = await resetLink(admin, bob.user.id);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const useReset = (await resetLink(admin, bob.user.id));
   let issued = '';
   const during = duringScrypt(HASH, async () => {
     await useReset();
-    issued = apiToken(admin, bob.user.id);
+    issued = (await apiToken(admin, bob.user.id));
   });
-  await assertRefused(await bob.request('PUT', '/api/v9/me', changeBody));
+  (await assertRefused(await bob.request('PUT', '/api/v9/me', changeBody)));
   await during;
-  assert.notEqual(issued, bob.user.api_token, 'the reset replaced the token');
-  assert.equal(apiToken(admin, bob.user.id), issued, 'the refused change replaced nothing');
+  assert.notEqual(issued, bob.user.apiToken, 'the reset replaced the token');
+  assert.equal((await apiToken(admin, bob.user.id)), issued, 'the refused change replaced nothing');
   assert.equal((await bob.request('GET', '/api/v9/me')).status, 403, 'the token from before the reset stops working');
-  await assertOnlyPasswordWorks(admin, NEW_PASSWORD);
+  (await assertOnlyPasswordWorks(admin, NEW_PASSWORD));
 });
 
 test('a timezone change committed while a password change checks the password still keeps no-time entries on their day', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user', timezone: 'Europe/Madrid' });
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user', timezone: 'Europe/Madrid' }));
   const created = await bob.json('POST', `/api/v9/workspaces/${bob.wid}/time_entries`, { all_day: true, start_date: '2026-06-15', duration: 3600 });
   assert.equal(created.status, 200);
-  const cookie = await sessionCookie(bob);
+  const cookie = (await sessionCookie(bob));
   const during = duringScrypt(CHECK, async () => {
     assert.equal((await bob.request('PUT', '/api/v9/me', { timezone: 'Asia/Tokyo' })).status, 200);
   });
   const changed = await putWithCookie(admin, cookie, { current_password: PASSWORD, password: NEW_PASSWORD, timezone: 'America/New_York' });
   assert.equal(changed.status, 200);
   await during;
-  const stored = admin.db.prepare('SELECT start FROM time_entries WHERE id = ?').get(created.body.id) as { start: string };
+  const stored = await entryRecord(bob, created.body.id);
   assert.equal(stored.start, '2026-06-15T04:00:00.000Z', 'midnight of the same day in New York');
 });
 
 test('a session password change is refused when an admin ends its sessions while it hashes', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const cookie = await sessionCookie(bob);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const cookie = (await sessionCookie(bob));
   const during = duringScrypt(HASH, async () => {
     assert.equal((await admin.request('POST', `/api/app/admin/users/${bob.user.id}/sessions/revoke`)).status, 200);
   });
-  await assertRefused(await putWithCookie(admin, cookie));
+  (await assertRefused(await putWithCookie(admin, cookie)));
   await during;
   assert.equal((await login(admin, 'bob@example.com', PASSWORD)).status, 200, 'the password is unchanged');
 });
 
 test('an API-token password change is refused when the token is rotated while it hashes', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  const cookie = await sessionCookie(bob);
+  const admin = (await setup());
+  const bob = (await addUser(admin, { email: 'bob@example.com', role: 'user' }));
+  const cookie = (await sessionCookie(bob));
   const during = duringScrypt(HASH, async () => {
     assert.equal((await anonymous(admin, 'POST', '/api/v9/me/reset_token', undefined, { cookie, ...CSRF })).status, 200);
   });
-  await assertRefused(await bob.request('PUT', '/api/v9/me', changeBody));
+  (await assertRefused(await bob.request('PUT', '/api/v9/me', changeBody)));
   await during;
   assert.equal((await login(admin, 'bob@example.com', PASSWORD)).status, 200, 'the password is unchanged');
 });

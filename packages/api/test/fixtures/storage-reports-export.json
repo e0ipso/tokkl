@@ -1,0 +1,671 @@
+[
+  {
+    "name": "app report summary",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-31",
+      "resolution": "day",
+      "week_start": "2026-09-28",
+      "totals": {
+        "seconds": 8100,
+        "billable_seconds": 5400,
+        "entry_count": 2,
+        "amounts": [
+          {
+            "currency": "EUR",
+            "cents": 12000
+          }
+        ]
+      },
+      "series": [
+        {
+          "start": "2026-10-01",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-02",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-03",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-04",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-05",
+          "seconds": 5400,
+          "billable_seconds": 5400
+        },
+        {
+          "start": "2026-10-06",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-07",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-08",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-09",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-10",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-11",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-12",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-13",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-14",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-15",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-16",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-17",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-18",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-19",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-20",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-21",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-22",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-23",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-24",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-25",
+          "seconds": 2700,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-26",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-27",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-28",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-29",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-30",
+          "seconds": 0,
+          "billable_seconds": 0
+        },
+        {
+          "start": "2026-10-31",
+          "seconds": 0,
+          "billable_seconds": 0
+        }
+      ],
+      "groups": [
+        {
+          "id": "<id>",
+          "title": "ACME",
+          "color": null,
+          "seconds": 5400,
+          "billable_seconds": 5400,
+          "amount_cents": 12000,
+          "sub_groups": [
+            {
+              "id": "<id>",
+              "title": "Website",
+              "color": "#123456",
+              "seconds": 5400,
+              "billable_seconds": 5400,
+              "amount_cents": 12000,
+              "sub_groups": []
+            }
+          ]
+        },
+        {
+          "id": null,
+          "title": "",
+          "color": null,
+          "seconds": 2700,
+          "billable_seconds": 0,
+          "amount_cents": 0,
+          "sub_groups": [
+            {
+              "id": null,
+              "title": "",
+              "color": null,
+              "seconds": 2700,
+              "billable_seconds": 0,
+              "amount_cents": 0,
+              "sub_groups": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "app report details",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "total": 2,
+      "page": 1,
+      "page_size": 1,
+      "pages": 2,
+      "has_amounts": true,
+      "entries": [
+        {
+          "id": "<id>",
+          "description": "Planning",
+          "start": "2026-10-24T22:00:00.000Z",
+          "stop": "2026-10-24T22:45:00.000Z",
+          "seconds": 2700,
+          "billable": false,
+          "project_id": null,
+          "project_name": null,
+          "project_color": null,
+          "client_name": null,
+          "task_name": null,
+          "tags": [],
+          "amount_cents": null,
+          "currency": "EUR",
+          "all_day": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "app report weekly",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "start_date": "2026-10-05",
+      "end_date": "2026-10-05",
+      "mode": "days",
+      "columns": [
+        {
+          "start": "2026-10-05",
+          "end": "2026-10-05"
+        }
+      ],
+      "rows": [
+        {
+          "id": "<id>",
+          "title": "Website",
+          "color": "#123456",
+          "cells": [
+            5400
+          ],
+          "total": 5400
+        }
+      ],
+      "column_totals": [
+        5400
+      ],
+      "total": 5400
+    }
+  },
+  {
+    "name": "v3 report units and nulls",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": [
+      {
+        "user_id": "<id>",
+        "username": "Test User",
+        "email": "me@example.com",
+        "project_id": "<id>",
+        "project_name": "Website",
+        "project_color": "#123456",
+        "project_hex": "#123456",
+        "client_name": "ACME",
+        "task_id": "<id>",
+        "task_name": "Design",
+        "description": "Homepage, hero",
+        "billable": true,
+        "tag_ids": [
+          "<id>",
+          "<id>"
+        ],
+        "tag_names": [
+          "Alpha",
+          "zebra"
+        ],
+        "hourly_rate_in_cents": 8000,
+        "billable_amount_in_cents": 12000,
+        "currency": "EUR",
+        "row_number": 1,
+        "time_entries": [
+          {
+            "id": "<id>",
+            "seconds": 5400,
+            "start": "2026-10-05T08:00:00+00:00",
+            "stop": "2026-10-05T09:30:00+00:00",
+            "at": "2026-10-30T12:00:00+00:00",
+            "all_day": false
+          }
+        ]
+      },
+      {
+        "user_id": "<id>",
+        "username": "Test User",
+        "email": "me@example.com",
+        "project_id": null,
+        "project_name": null,
+        "project_color": null,
+        "project_hex": null,
+        "client_name": null,
+        "task_id": null,
+        "task_name": null,
+        "description": "Planning",
+        "billable": false,
+        "tag_ids": [],
+        "tag_names": [],
+        "hourly_rate_in_cents": null,
+        "billable_amount_in_cents": null,
+        "currency": "EUR",
+        "row_number": 2,
+        "time_entries": [
+          {
+            "id": "<id>",
+            "seconds": 2700,
+            "start": "2026-10-24T22:00:00+00:00",
+            "stop": "2026-10-24T22:45:00+00:00",
+            "at": "2026-10-30T12:00:00+00:00",
+            "all_day": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "literal description filter",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": {
+      "total": 0,
+      "page": 1,
+      "page_size": 100,
+      "pages": 1,
+      "has_amounts": false,
+      "entries": []
+    }
+  },
+  {
+    "name": "detailed CSV report",
+    "status": 200,
+    "contentType": "text/csv; charset=utf-8",
+    "disposition": "attachment; filename=\"tokkl_detailed.csv\"",
+    "body": "User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags\r\nTest User,me@example.com,,,,Planning,No,2026-10-25,,2026-10-25,,0:45:00,\r\nTest User,me@example.com,ACME,Website,Design,\"Homepage, hero\",Yes,2026-10-05,10:00:00,2026-10-05,11:30:00,1:30:00,\"Alpha, zebra\"\r\n"
+  },
+  {
+    "name": "summary CSV report",
+    "status": 200,
+    "contentType": "text/csv; charset=utf-8",
+    "disposition": "attachment; filename=\"tokkl_summary.csv\"",
+    "body": "Group,Sub group,Duration\r\nWebsite,\"Homepage, hero\",1:30:00\r\n(none),Planning,0:45:00\r\n"
+  },
+  {
+    "name": "CSV export",
+    "status": 200,
+    "contentType": "text/csv; charset=utf-8",
+    "disposition": "attachment; filename=\"tokkl-entries-2026-10-30.csv\"",
+    "body": "User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags\r\nTest User,me@example.com,ACME,Website,Design,\"Homepage, hero\",Yes,2026-10-05,10:00:00,2026-10-05,11:30:00,1:30:00,\"Alpha, zebra\"\r\nTest User,me@example.com,,,,Planning,No,2026-10-25,,2026-10-25,,0:45:00,\r\n"
+  },
+  {
+    "name": "JSON export",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": "attachment; filename=\"tokkl-2026-10-30.json\"",
+    "body": {
+      "format": "tokkl-export",
+      "version": 1,
+      "exported_at": "2026-10-30T12:00:00.000Z",
+      "user": {
+        "id": "<id>",
+        "email": "me@example.com",
+        "fullname": "Test User",
+        "timezone": "Europe/Madrid",
+        "toggl_accounts_id": "<string-id>",
+        "default_workspace_id": "<id>",
+        "beginning_of_week": 1,
+        "image_url": "",
+        "created_at": "2026-10-30T12:00:00+00:00",
+        "updated_at": "2026-10-30T12:00:00+00:00",
+        "openid_email": null,
+        "openid_enabled": false,
+        "country_id": null,
+        "has_password": true,
+        "at": "2026-10-30T12:00:00+00:00",
+        "oauth_providers": [],
+        "2fa_enabled": false,
+        "authorization_updated_at": "2026-10-30T12:00:00+00:00"
+      },
+      "preferences": {
+        "date_format": "YYYY-MM-DD",
+        "timeofday_format": "H:mm",
+        "duration_format": "improved",
+        "collapseTimeEntries": true,
+        "manualMode": false,
+        "pg_time_zone_name": "Europe/Madrid",
+        "record_timeline": false,
+        "send_product_emails": false,
+        "send_timer_notifications": false,
+        "send_weekly_report": false,
+        "idle_detection_enabled": false,
+        "pomodoro_focus_interval_in_minutes": 25,
+        "pomodoro_break_interval_in_minutes": 5,
+        "pomodoro_long_break_interval_in_minutes": 15,
+        "pomodoro_long_break_every": 4,
+        "reminder_enabled": false,
+        "long_timer_reminder_enabled": true,
+        "long_timer_reminder_hours": 8,
+        "keyboard_shortcuts_enabled": true,
+        "theme": "system"
+      },
+      "workspaces": [
+        {
+          "id": "<id>",
+          "organization_id": "<id>",
+          "name": "Test User workspace",
+          "premium": true,
+          "business_ws": true,
+          "admin": true,
+          "role": "admin",
+          "suspended_at": null,
+          "server_deleted_at": null,
+          "default_hourly_rate": 50,
+          "rate_last_updated": null,
+          "default_currency": "EUR",
+          "only_admins_may_create_projects": false,
+          "only_admins_may_create_tags": false,
+          "only_admins_see_team_dashboard": false,
+          "projects_billable_by_default": false,
+          "projects_private_by_default": true,
+          "projects_enforce_billable": false,
+          "limit_public_project_data": false,
+          "last_modified": "2026-10-30T12:00:00+00:00",
+          "reports_collapse": true,
+          "rounding": 0,
+          "rounding_minutes": 0,
+          "at": "2026-10-30T12:00:00+00:00",
+          "logo_url": "",
+          "ical_url": "",
+          "ical_enabled": false,
+          "csv_upload": null,
+          "subscription": null,
+          "hide_start_end_times": false,
+          "disable_timesheet_view": false,
+          "disable_approvals": true,
+          "disable_expenses": true,
+          "working_hours_in_minutes": null,
+          "permissions": null,
+          "max_data_retention_days": null,
+          "te_constraints": null
+        }
+      ],
+      "clients": [
+        {
+          "id": "<id>",
+          "wid": "<id>",
+          "archived": false,
+          "name": "ACME",
+          "at": "2026-10-30T12:00:00+00:00",
+          "notes": null,
+          "creator_id": null,
+          "integration_provider": null,
+          "permissions": null
+        }
+      ],
+      "projects": [
+        {
+          "id": "<id>",
+          "workspace_id": "<id>",
+          "client_id": "<id>",
+          "name": "Website",
+          "is_private": true,
+          "active": true,
+          "at": "2026-10-30T12:00:00+00:00",
+          "created_at": "2026-10-30T12:00:00+00:00",
+          "server_deleted_at": null,
+          "color": "#123456",
+          "billable": true,
+          "template": false,
+          "auto_estimates": false,
+          "estimated_hours": null,
+          "estimated_seconds": null,
+          "rate": 80,
+          "rate_last_updated": null,
+          "currency": null,
+          "recurring": false,
+          "template_id": null,
+          "recurring_parameters": null,
+          "fixed_fee": null,
+          "actual_hours": 1,
+          "actual_seconds": 5400,
+          "start_date": "2026-10-30",
+          "end_date": null,
+          "status": "active",
+          "wid": "<id>",
+          "cid": "<id>",
+          "client_name": "ACME",
+          "can_track_time": true,
+          "pinned": false,
+          "permissions": null,
+          "workspace_default_currency": "EUR",
+          "integration_provider": null,
+          "external_reference": null
+        }
+      ],
+      "tasks": [
+        {
+          "id": "<id>",
+          "name": "Design",
+          "workspace_id": "<id>",
+          "project_id": "<id>",
+          "user_id": null,
+          "active": true,
+          "at": "2026-10-30T12:00:00+00:00",
+          "estimated_seconds": null,
+          "tracked_seconds": 5400000,
+          "server_deleted_at": null,
+          "project_name": "Website",
+          "project_color": "#123456",
+          "project_billable": true,
+          "project_is_private": true,
+          "client_id": "<id>",
+          "client_name": "ACME",
+          "rate": null,
+          "recurring": false,
+          "permissions": null,
+          "integration_provider": null
+        }
+      ],
+      "tags": [
+        {
+          "id": "<id>",
+          "workspace_id": "<id>",
+          "name": "Alpha",
+          "at": "2026-10-30T12:00:00+00:00",
+          "deleted_at": null,
+          "creator_id": null,
+          "integration_provider": null,
+          "permissions": null
+        },
+        {
+          "id": "<id>",
+          "workspace_id": "<id>",
+          "name": "zebra",
+          "at": "2026-10-30T12:00:00+00:00",
+          "deleted_at": null,
+          "creator_id": null,
+          "integration_provider": null,
+          "permissions": null
+        }
+      ],
+      "time_entries": [
+        {
+          "id": "<id>",
+          "workspace_id": "<id>",
+          "project_id": null,
+          "task_id": null,
+          "billable": false,
+          "start": "2026-10-24T22:00:00+00:00",
+          "stop": "2026-10-24T22:45:00+00:00",
+          "duration": 2700,
+          "description": "Planning",
+          "tags": [],
+          "tag_ids": [],
+          "duronly": true,
+          "all_day": true,
+          "at": "2026-10-30T12:00:00+00:00",
+          "server_deleted_at": null,
+          "user_id": "<id>",
+          "uid": "<id>",
+          "wid": "<id>",
+          "pid": null,
+          "tid": null,
+          "permissions": null,
+          "expense_ids": [],
+          "project_name": null,
+          "project_color": null,
+          "project_active": null,
+          "project_billable": null,
+          "client_id": null,
+          "client_name": null,
+          "task_name": null,
+          "task_active": null,
+          "user_name": "Test User",
+          "user_avatar_url": ""
+        },
+        {
+          "id": "<id>",
+          "workspace_id": "<id>",
+          "project_id": "<id>",
+          "task_id": "<id>",
+          "billable": true,
+          "start": "2026-10-05T08:00:00+00:00",
+          "stop": "2026-10-05T09:30:00+00:00",
+          "duration": 5400,
+          "description": "Homepage, hero",
+          "tags": [
+            "Alpha",
+            "zebra"
+          ],
+          "tag_ids": [
+            "<id>",
+            "<id>"
+          ],
+          "duronly": true,
+          "all_day": false,
+          "at": "2026-10-30T12:00:00+00:00",
+          "server_deleted_at": null,
+          "user_id": "<id>",
+          "uid": "<id>",
+          "wid": "<id>",
+          "pid": "<id>",
+          "tid": "<id>",
+          "permissions": null,
+          "expense_ids": [],
+          "project_name": "Website",
+          "project_color": "#123456",
+          "project_active": true,
+          "project_billable": true,
+          "client_id": "<id>",
+          "client_name": "ACME",
+          "task_name": "Design",
+          "task_active": true,
+          "user_name": "Test User",
+          "user_avatar_url": ""
+        }
+      ]
+    }
+  },
+  {
+    "name": "invalid report page size",
+    "status": 400,
+    "contentType": "application/json; charset=utf-8",
+    "disposition": null,
+    "body": "'page_size' must be at most 500"
+  }
+]

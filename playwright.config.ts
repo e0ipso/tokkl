@@ -2,9 +2,12 @@ import { defineConfig, devices } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
+import { browserBackend } from './e2e/backend-options.ts';
 import { claimDataDir } from './e2e/data-dir-lock.ts';
 
+// Server engines are opt-in and always provisioned by the disposable backend helper.
+const backend = browserBackend(process.env);
 const port = Number(process.env.E2E_PORT ?? 8095);
 // The instance project's own server. Its specs need the whole server to themselves.
 const instancePort = Number(process.env.E2E_INSTANCE_PORT ?? port + 1);
@@ -40,13 +43,17 @@ const INSTANCE_SPECS = /\/(admin-page|history-calendar-resolution|timer-resoluti
 
 function server(serverPort: number, serverDataDir: string) {
   return {
-    command: 'node packages/api/src/index.ts',
+    command: backend === 'sqlite' ? 'node packages/api/src/index.ts' : 'node e2e/backend-server.ts',
+    timeout: 180_000,
+    gracefulShutdown: { signal: 'SIGTERM' as const, timeout: 150_000 },
     url: `http://127.0.0.1:${serverPort}/healthz`,
     reuseExistingServer: false,
+    stdout: 'pipe' as const,
     env: {
       PORT: String(serverPort),
       HOST: '127.0.0.1',
       TOKKL_DATA_DIR: serverDataDir,
+      ...(backend === 'sqlite' ? { TOKKL_DATABASE_URL: `sqlite://${join(resolve(import.meta.dirname, serverDataDir), 'tokkl.sqlite')}` } : {}),
       TOKKL_SETUP_CODE: 'E2E-SETUP-CODE',
     },
   };
@@ -54,6 +61,7 @@ function server(serverPort: number, serverDataDir: string) {
 
 export default defineConfig<object, { instanceWide: boolean }>({
   testDir: 'e2e',
+  outputDir: process.env.TOKKL_E2E_OUTPUT_DIR ?? (backend === 'sqlite' ? 'test-results' : `e2e/test-results/${backend}-${basename(dataDir)}`),
   // Only specs. e2e/*.test.ts files are node --test unit tests for the e2e tooling (npm test).
   testMatch: /\.spec\.ts$/,
   globalSetup: './e2e/global-setup.ts',

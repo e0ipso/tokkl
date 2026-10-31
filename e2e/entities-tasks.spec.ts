@@ -11,16 +11,15 @@ async function openTasks(page: Page, project: string) {
   return { editor, tasks: editor.getByRole('region', { name: 'Tasks' }) };
 }
 
-/** Task names the timer's project picker offers, then closes it. */
-async function pickerTasks(page: Page): Promise<string[]> {
+/** Waits for the picker task query to render the expected names, then closes it. */
+async function expectPickerTasks(page: Page, names: string[]): Promise<void> {
   await page.getByRole('link', { name: 'Timer' }).click();
   await page.getByRole('region', { name: 'Timer' }).getByRole('button', { name: 'Project' }).click();
   const picker = page.getByRole('dialog').filter({ has: page.getByPlaceholder('Find or create project…') });
   await expect(picker.getByRole('option', { name: 'No project' })).toBeVisible();
-  const names = await picker.locator('.picker-subitem').allTextContents();
+  await expect(picker.locator('.picker-subitem')).toHaveText(names);
   await page.keyboard.press('Escape');
   await expect(picker).toBeHidden();
-  return names.map((name) => name.trim());
 }
 
 test('a project task is created, renamed, assigned, completed and deleted without losing its entry', async ({ page }) => {
@@ -55,7 +54,7 @@ test('a project task is created, renamed, assigned, completed and deleted withou
   await expect(row.locator('.project-label')).toContainText('Platform: Design review');
   const assigned = await api.entry(entry.id);
   expect(assigned).toMatchObject({ project_id: project.id, task_id: task!.id, duration: 5400 });
-  expect(await pickerTasks(page)).toEqual(['Design review']);
+  await expectPickerTasks(page, ['Design review']);
 
   // The task counts the entry's hour and a half.
   ({ editor, tasks } = await openTasks(page, 'Platform'));
@@ -66,7 +65,7 @@ test('a project task is created, renamed, assigned, completed and deleted withou
   await expect.poll(async () => (await api.tasks(project.id))[0]?.active).toBe(false);
   await editor.getByRole('button', { name: 'Cancel' }).click();
   // A done task leaves the picker, but the entry keeps it.
-  expect(await pickerTasks(page)).toEqual([]);
+  await expectPickerTasks(page, []);
   expect(await api.entry(entry.id)).toMatchObject({ project_id: project.id, task_id: task!.id });
   await expect(row.locator('.project-label')).toContainText('Platform: Design review');
 
@@ -74,7 +73,7 @@ test('a project task is created, renamed, assigned, completed and deleted withou
   await tasks.getByRole('checkbox', { name: 'Design review is done' }).uncheck();
   await expect.poll(async () => (await api.tasks(project.id))[0]?.active).toBe(true);
   await editor.getByRole('button', { name: 'Cancel' }).click();
-  expect(await pickerTasks(page)).toEqual(['Design review']);
+  await expectPickerTasks(page, ['Design review']);
 
   ({ editor, tasks } = await openTasks(page, 'Platform'));
   await tasks.getByRole('button', { name: 'Delete task Design review' }).click();
@@ -90,7 +89,7 @@ test('a project task is created, renamed, assigned, completed and deleted withou
   });
   await page.getByRole('link', { name: 'Timer' }).click();
   await expect(row.locator('.project-label')).toHaveText('Platform');
-  expect(await pickerTasks(page)).toEqual([]);
+  await expectPickerTasks(page, []);
 });
 
 // The inline confirm replaces the focused "Delete task" button, and a delete takes the whole

@@ -28,7 +28,8 @@ The code is split so most of it builds and runs on Linux. The platform-neutral l
 # Related
 
 - Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](../kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
-- Related: [map-gnome-timerd-d-bus-timer-service](../map-gnome-timerd-d-bus-timer-service.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-activation-and-packaging](../gnome-timer-service/map-gnome-timer-service-activation-and-packaging.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-and-d-bus-contract](../gnome-timer-service/map-gnome-timer-service-and-d-bus-contract.md)
 - Related: [map-macos-menu-bar-timer-actions-and-settings-window-save](map-macos-menu-bar-timer-actions-and-settings-window-save.md)
 - Related: [map-macos-bundle-icon-and-nsstatusitem-status-image](map-macos-bundle-icon-and-nsstatusitem-status-image.md)
 - Related: [map-macos-ci-job-and-dmg-release-publishing](map-macos-ci-job-and-dmg-release-publishing.md)

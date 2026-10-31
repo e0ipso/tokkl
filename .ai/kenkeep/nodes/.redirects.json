@@ -16,6 +16,10 @@
     "map-gnome-shell-extension-packaging-and-preferences",
     "map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix"
   ],
+  "map-gnome-timerd-d-bus-timer-service": [
+    "map-gnome-timer-service-and-d-bus-contract",
+    "map-gnome-timer-service-activation-and-packaging"
+  ],
   "map-kde-ci-and-release-pipeline": [
     "map-kde-and-core-ci-jobs",
     "map-kde-real-server-test",
@@ -47,5 +51,10 @@
   "practice-password-checks-and-csrf-rules": [
     "practice-password-checks-go-through-failurelimiter-attempt",
     "practice-cookie-writes-and-session-starting-routes-need-the-csrf-header"
+  ],
+  "practice-stopped-entries-snap-to-the-time-resolution-on-write": [
+    "practice-stopped-entry-grid-validation",
+    "practice-timer-stop-snapping-and-duration-limits",
+    "practice-entry-resolution-at-dst-imports-and-reports"
   ]
 }

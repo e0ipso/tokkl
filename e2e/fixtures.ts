@@ -58,7 +58,7 @@ export interface NewUser {
   timezone?: string;
 }
 
-// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/storageMiddleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 // Preferences that scenarios change, set back to the defaults a new account gets.

@@ -3,7 +3,7 @@ import { request, type APIRequestContext, type APIResponse, type Page } from '@p
 import { screenshotExport } from '../scripts/screenshots-data.ts';
 import { currentAccount, expect, test as base } from './fixtures.ts';
 
-// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/storageMiddleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 /** Account and workspace settings the report specs change. The shared reset fixture leaves them alone. */

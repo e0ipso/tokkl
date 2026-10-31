@@ -32,5 +32,7 @@ kk_confidence: high
 - Related: [map-web-calendar-day-view-and-touch-gestures-in-weekcalendar](map-web-calendar-day-view-and-touch-gestures-in-weekcalendar.md)
 - Related: [practice-ui-time-math-uses-wall-clock-helpers](../../web-ui-behaviour/time-and-timers/practice-ui-time-math-uses-wall-clock-helpers.md)
 - Related: [practice-week-calendar-hour-height-agrees-in-three-places](practice-week-calendar-hour-height-agrees-in-three-places.md)
-- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write](../../api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-entry-resolution-at-dst-imports-and-reports](../../api-and-data/time-handling/stopped-entry-resolution/practice-entry-resolution-at-dst-imports-and-reports.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-stopped-entry-grid-validation](../../api-and-data/time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md)
+- Related: [practice-stopped-entries-snap-to-the-time-resolution-on-write → practice-timer-stop-snapping-and-duration-limits](../../api-and-data/time-handling/stopped-entry-resolution/practice-timer-stop-snapping-and-duration-limits.md)
 <!-- kk:related:end -->

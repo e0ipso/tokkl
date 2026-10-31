@@ -1,9 +1,9 @@
 ---
 type: map
-title: 'rewindDatabase: the migration-upgrade e2e scenarios in auth-browser.spec.ts'
+title: Browser storage restart and migration isolation
 description: >-
-  rewindDatabase makes a current DB look pre-migration N; upgrade scenarios
-  restart on it and assert the latest user_version.
+  Browser restart tests preserve real accounts/preferences; explicit storage
+  fixtures own migration and legacy refusal checks.
 tags:
   - testing
   - e2e
@@ -12,15 +12,16 @@ kk_schema_version: 3
 kk_id: map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts
 kk_derived_from:
   - '7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:1'
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:map:4'
 kk_relates_to:
   - practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts
   - practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 kk_depends_on: []
 kk_confidence: medium
 ---
-`e2e/auth-browser.spec.ts` tests the server's startup migration path on older data. `rewindDatabase(db, version)` takes a database the current server created and makes it look like one from before migration `version`: it drops every table and column that later migrations create (currently `pomodoro_sessions`, `pause_chains`, `timer_states` and `time_entries.all_day`) and sets `PRAGMA user_version`. The scenarios then restart a disposable server on that data directory, so the real migrations run again, and one asserts the final `user_version` against a hard-coded latest schema version.
+`e2e/auth-browser.spec.ts` verifies canonical timezone, account preferences and setup state across a real server restart. It uses `servers.start({ slot, dataDir })` on the same owned storage identity. Ordinary browser scenarios run on every selected backend without driver methods on the fixture handle.
 
-When changing this, verify: a new migration that adds a table or column must also be dropped in `rewindDatabase`, and the asserted `user_version` must be bumped. Otherwise the restarted server fails with `duplicate column name` (or an existing table) and never starts, and these e2e scenarios fail in CI.
+Migration upgrade, interruption, ledger checks and legacy refusal use explicit physical fixtures in `packages/api/test/storage`. Do not fabricate a current database by changing `PRAGMA user_version`: startup validates the recognized storage ledger and schema fingerprint. A legacy SQLite fixture belongs in an explicitly SQLite-specific case.
 
 <!-- kk:related:start -->
 # Related
@@ -33,4 +34,5 @@ When changing this, verify: a new migration that adds a table or column must als
 # Citations
 
 [1] 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:1
+[2] d103ede7-f126-4851-968a-8b39f6b3f9b1:map:4
 <!-- kk:citations:end -->

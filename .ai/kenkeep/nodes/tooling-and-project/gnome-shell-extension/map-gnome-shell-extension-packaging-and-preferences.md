@@ -24,6 +24,7 @@ kk_confidence: high
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-gnome-timerd-d-bus-timer-service](../map-gnome-timerd-d-bus-timer-service.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-activation-and-packaging](../gnome-timer-service/map-gnome-timer-service-activation-and-packaging.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-and-d-bus-contract](../gnome-timer-service/map-gnome-timer-service-and-d-bus-contract.md)
 - Related: [map-gnome-shell-extension-panel-button-and-menu](map-gnome-shell-extension-panel-button-and-menu.md)
 <!-- kk:related:end -->

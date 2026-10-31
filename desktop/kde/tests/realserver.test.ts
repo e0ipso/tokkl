@@ -24,7 +24,9 @@ import type { AddressInfo } from 'node:net';
 import { Readable } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import { addUser, PASSWORD, setup, type TestContext } from '../../../packages/api/test/helpers.ts';
-import { addWorkspaceMember } from '../../../packages/api/src/models/workspaces.ts';
+import { removeWorkspaceMember } from '../../../packages/api/test/fixtures/physical.ts';
+import { snapshot, type Row } from './storage-snapshot.ts';
+import { addWorkspaceMember } from '../../../packages/api/test/fixtures/domain.ts';
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -91,7 +93,7 @@ async function running(ctx: TestContext, wid: number, description: string, start
 
 function describeUser(instance: string, ctx: TestContext, wid: number, projects: FixtureUser['projects'], entry: Entry | null): FixtureUser {
   return {
-    instance, id: ctx.user.id, wid, email: ctx.user.email, token: ctx.user.api_token, password: PASSWORD,
+    instance, id: ctx.user.id, wid, email: ctx.user.email, token: ctx.user.apiToken, password: PASSWORD,
     projects: [...projects].sort((a, b) => a.id - b.id), running: entry,
   };
 }
@@ -128,7 +130,7 @@ async function seed(name: string, extra: boolean) {
   if (extra) {
     // Works in the admin's workspace as a member, so it can lose it.
     const m = await addUser(admin, { email: `m@${name}.example.com`, role: 'user' });
-    addWorkspaceMember(m.db, admin.wid, m.user.id, 'member');
+    await addWorkspaceMember(m.db, admin.wid, m.user.id, 'member');
     await ok(m, 'PUT', '/api/v9/me', { default_workspace_id: admin.wid });
     const mEntry = await running(m, admin.wid, `${label} m running`, new Date(now - hour));
     users[`${name}.m`] = describeUser(name, m, admin.wid, [adminProject], mEntry);
@@ -187,24 +189,6 @@ async function seed(name: string, extra: boolean) {
   return { admin, users, contexts };
 }
 
-type Row = Record<string, unknown>;
-function rows(ctx: TestContext, table: string): Row[] {
-  return ctx.db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row }));
-}
-function snapshot(ctx: TestContext) {
-  return {
-    users: rows(ctx, 'users'),
-    workspaces: rows(ctx, 'workspaces'),
-    memberships: rows(ctx, 'workspace_users'),
-    projects: rows(ctx, 'projects'),
-    tasks: rows(ctx, 'tasks'),
-    entries: rows(ctx, 'time_entries'),
-  };
-}
-function tagNames(ctx: TestContext, entryId: unknown): string[] {
-  return ctx.db.prepare('SELECT tags.name FROM time_entry_tags JOIN tags ON tags.id = time_entry_tags.tag_id WHERE time_entry_id = ? ORDER BY tags.name')
-    .all(entryId as number).map((row) => String(row.name));
-}
 /**
  * A stopped entry that is snapped. One that lasted under half a step sits in the trash at zero
  * length; any other is kept.
@@ -349,7 +333,7 @@ test('the KDE companion against real Tokkl servers', async (t) => {
   };
   const users = { ...a.users, ...b.users };
   const contexts = { ...a.contexts, ...b.contexts };
-  const before = { a: snapshot(a.admin), b: snapshot(b.admin) };
+  const before = { a: await snapshot(a.admin), b: await snapshot(b.admin) };
 
   // The ids collide across instances by construction; the binary checks them too.
   assert.equal(users['a.s']!.id, users['b.s']!.id);
@@ -402,10 +386,9 @@ test('the KDE companion against real Tokkl servers', async (t) => {
           break;
         }
         case '/remove-membership': {
-          // No API removes a member yet, so this edits the database the way a removal would.
+          // Membership removal is an isolated fixture control because the public API has no such operation.
           const target = contexts[String(body.user)]!;
-          const removed = target.db.prepare('DELETE FROM workspace_users WHERE workspace_id = ? AND user_id = ?')
-            .run(Number(body.wid), target.user.id).changes;
+          const removed = await removeWorkspaceMember(target.db, Number(body.wid), target.user.id);
           assert.equal(removed, 1);
           answer = { removed };
           break;
@@ -454,8 +437,8 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     }
   }
 
-  await t.test('instance a changed only where the companion was allowed to', () => {
-    const after = snapshot(a.admin);
+  await t.test('instance a changed only where the companion was allowed to', async () => {
+    const after = await snapshot(a.admin);
     const u = users['a.u']!;
     const p = users['a.p']!;
     const q = users['a.q']!;
@@ -523,10 +506,10 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     for (const row of chain) {
       assert.equal(row.workspace_id, p.wid);
       assert.equal(row.description, p.running!.description);
-      assert.equal(row.billable, 1);
+      assert.equal(row.billable, true);
       assert.equal(row.project_id, null);
       assert.equal(row.task_id, null);
-      assert.deepEqual(tagNames(a.admin, row.id), p.running!.tags);
+      assert.deepEqual(row.tags, p.running!.tags);
     }
 
     // q paused its seeded entry. Another device resumed it, and the companion's resume on a stale
@@ -555,7 +538,7 @@ test('the KDE companion against real Tokkl servers', async (t) => {
       assertStopped(row);
       assert.equal(row.workspace_id, sn.wid);
       assert.equal(row.project_id, sn.projects[0]!.id);
-      assert.equal(row.billable, 1);
+      assert.equal(row.billable, true);
       assert.equal(row.created_with, 'tokkl-kde');
     }
     assert.notEqual(session[0]!.id, session[1]!.id);
@@ -574,7 +557,7 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     assert.equal(pcChain[1]!.stop, pcChain[1]!.start);
     assert.equal(pcChain[1]!.description, pc.running!.description);
     assert.equal(pcChain[1]!.project_id, pc.running!.project_id);
-    assert.equal(pcChain[1]!.billable, 1);
+    assert.equal(pcChain[1]!.billable, true);
 
     // pu's session was started, advanced and ended through the API: one pomodoro, none of the
     // companion's own writes.
@@ -596,8 +579,8 @@ test('the KDE companion against real Tokkl servers', async (t) => {
     assert.ok(Date.parse(String(hdChain[0]!.stop)) > Date.parse(String(hdChain[0]!.start)), 'the seeded entry kept its hour');
   });
 
-  await t.test('instance b changed only by the stop sent after the switch', () => {
-    const after = snapshot(b.admin);
+  await t.test('instance b changed only by the stop sent after the switch', async () => {
+    const after = await snapshot(b.admin);
     const stopped = users['b.s']!.running!.id;
     assert.deepEqual(after.users, before.b.users);
     assert.deepEqual(after.projects, before.b.projects);

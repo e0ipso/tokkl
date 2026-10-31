@@ -66,7 +66,7 @@ async function startServer(options: ServerOptions): Promise<DisposableServer> {
   const args = options.clockShiftMs ? ['--import', clockShiftImport(options.clockShiftMs)] : [];
   const child = spawn(process.execPath, [...args, 'packages/api/src/index.ts'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: dataDir, TOKKL_SETUP_CODE: SETUP_CODE },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: dataDir, TOKKL_DATABASE_URL: `sqlite://${join(dataDir,'tokkl.sqlite')}`, TOKKL_SETUP_CODE: SETUP_CODE },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';

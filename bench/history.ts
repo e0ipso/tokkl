@@ -1,20 +1,25 @@
 // History-scale measurements for Tokkl: npm run bench:history -- --help
 //
-// Starts the real server on a throwaway SQLite database for each fixture, loads a generated
+// Starts the real server on a throwaway database for each fixture, loads a generated
 // history through the JSON import, then times imports, lists, reports, CSV exports, writes and
 // timer requests (alone and while a heavy report runs). Every measured response is also checked
 // for correctness (totals, paging, counts, payload growth); a wrong answer exits 1. Timings are
 // recorded, never asserted: they describe this host, not the low-power targets in docs/PRD.md.
 
-import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { cpus, freemem, hostname, loadavg, platform, release, arch, tmpdir, totalmem } from 'node:os';
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { cpus, freemem, hostname, loadavg, platform, release, arch, totalmem } from 'node:os';
 import { parseArgs } from 'node:util';
 import { formatDuration } from '@tokkl/common/duration';
+import { historyBackend } from './history-options.ts';
+import { Server } from './history-server.ts';
+import { inspectHistory } from './history-inspection.ts';
+import { HistoryFailure, historyFailure, safeHistoryError, withHistoryCleanup } from './history-errors.ts';
 
 const HELP = `Usage: npm run bench:history -- [options]
 
+  --backend <engine>   Disposable sqlite, postgres, mysql or mariadb (default: sqlite)
   --fixtures <list>    Comma-separated fixtures to run: year, decade (default: year,decade)
   --iterations <n>     Timed repetitions per heavy request (default: 7; light requests use 3x)
   --end-date <date>    Last day of the generated history, YYYY-MM-DD (default: yesterday, UTC)
@@ -23,6 +28,7 @@ const HELP = `Usage: npm run bench:history -- [options]
   --out <file>         Also write the full results as JSON to this file
   --help               Show this help
 
+Operator database URL settings are refused. Each fixture owns a fresh database.
 Set CHROMIUM_PATH to use a Chromium other than the one Playwright installed.
 `;
 
@@ -30,6 +36,7 @@ Set CHROMIUM_PATH to use a Chromium other than the one Playwright installed.
 
 const { values: args } = parseArgs({
   options: {
+    backend: { type: 'string' },
     fixtures: { type: 'string', default: 'year,decade' },
     iterations: { type: 'string', default: '7' },
     'end-date': { type: 'string' },
@@ -43,6 +50,8 @@ if (args.help) {
   process.stdout.write(HELP);
   process.exit(0);
 }
+
+const backend = historyBackend(args.backend, process.env);
 
 interface FixtureSpec {
   name: string;
@@ -163,58 +172,22 @@ function generate(spec: FixtureSpec): { file: unknown; expected: Expected } {
 
 // ----- server and HTTP -------------------------------------------------------------------------
 
-class Server {
-  readonly base: string;
-  private readonly child: ChildProcess;
-  private readonly dataDir: string;
-
-  private constructor(base: string, child: ChildProcess, dataDir: string) {
-    this.base = base;
-    this.child = child;
-    this.dataDir = dataDir;
-  }
-
-  /** Starts node packages/api/src/index.ts on a fresh temp directory. Inherited TOKKL_* settings, and the TIMETRACK_* names the server still reads, are dropped. */
-  static async start(): Promise<Server> {
-    const dataDir = mkdtempSync(join(tmpdir(), 'tokkl-bench-'));
-    const env: NodeJS.ProcessEnv = {};
-    for (const [key, value] of Object.entries(process.env)) if (!/^(TOKKL|TIMETRACK)_/.test(key)) env[key] = value;
-    Object.assign(env, { PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: dataDir, TOKKL_SETUP_CODE: SETUP_CODE });
-    const child = spawn(process.execPath, ['packages/api/src/index.ts'], { env, stdio: ['ignore', 'ignore', 'pipe'] });
-    let stderr = '';
-    child.stderr!.on('data', (chunk) => { stderr += chunk; });
-    const server = new Server(`http://127.0.0.1:${port}`, child, dataDir);
-    cleanups.push(() => server.stop());
-    for (let attempt = 0; attempt < 100; attempt++) {
-      if (child.exitCode !== null) throw new Error(`The server exited: ${stderr.trim()}`);
-      try {
-        if ((await fetch(`${server.base}/healthz`)).ok) return server;
-      } catch { /* not listening yet */ }
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    throw new Error(`The server did not answer on port ${port}: ${stderr.trim()}`);
-  }
-
-  stop(): void {
-    if (this.child.exitCode === null) this.child.kill('SIGTERM');
-    rmSync(this.dataDir, { recursive: true, force: true });
-  }
-}
-
-const cleanups: Array<() => void> = [];
-process.on('exit', () => { for (const cleanup of cleanups.splice(0)) cleanup(); });
-process.on('SIGINT', () => process.exit(130));
-process.on('SIGTERM', () => process.exit(143));
+let interrupted = false;
+const interrupt = () => { interrupted = true; };
+process.on('SIGINT', interrupt);
+process.on('SIGTERM', interrupt);
 
 class Client {
   readonly base: string;
   readonly workspaceId: number;
+  readonly userId: number;
   private readonly auth: string;
 
-  constructor(base: string, auth: string, workspaceId: number) {
+  constructor(base: string, auth: string, workspaceId: number, userId: number) {
     this.base = base;
     this.auth = auth;
     this.workspaceId = workspaceId;
+    this.userId = userId;
   }
 
   static async create(server: Server): Promise<Client> {
@@ -225,28 +198,36 @@ class Client {
     });
     check(setup.ok, `account setup answered ${setup.status}`);
     const cookie = setup.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const me = await (await fetch(`${server.base}/api/v9/me`, { headers: { cookie } })).json() as { api_token: string; default_workspace_id: number };
-    return new Client(server.base, `Basic ${Buffer.from(`${me.api_token}:api_token`).toString('base64')}`, me.default_workspace_id);
+    const me = await (await fetch(`${server.base}/api/v9/me`, { headers: { cookie } })).json() as { id: number; api_token: string; default_workspace_id: number; time_resolution_minutes: number };
+    equal(me.time_resolution_minutes, 5, 'unchanged default five-minute time resolution');
+    return new Client(server.base, `Basic ${Buffer.from(`${me.api_token}:api_token`).toString('base64')}`, me.default_workspace_id, me.id);
   }
 
   async request(method: string, path: string, body?: unknown, raw = false): Promise<{ status: number; bytes: number; ms: number; data: any }> {
+    if (interrupted) throw new Error('Benchmark interrupted');
     const started = performance.now();
     const response = await fetch(`${this.base}${path}`, {
       method,
+      signal: AbortSignal.timeout(300000),
       headers: { authorization: this.auth, ...(body === undefined ? {} : { 'Content-Type': raw ? 'text/plain' : 'application/json' }) },
       body: body === undefined ? undefined : raw ? String(body) : JSON.stringify(body),
     });
     const text = await response.text();
     const ms = performance.now() - started;
     let data: unknown = text;
-    if ((response.headers.get('content-type') ?? '').includes('json') && text) data = JSON.parse(text);
+    if ((response.headers.get('content-type') ?? '').includes('json') && text) {
+      try { data = JSON.parse(text); }
+      catch { throw Object.assign(new Error(`${method} ${path} returned invalid JSON`), { name: 'HTTPResponseError', status: response.status }); }
+    }
     return { status: response.status, bytes: Buffer.byteLength(text), ms, data };
   }
 
   /** Like request(), but a non-2xx answer is a failed check. */
   async ok(method: string, path: string, body?: unknown, raw = false) {
     const result = await this.request(method, path, body, raw);
-    check(result.status >= 200 && result.status < 300, `${method} ${path} answered ${result.status}: ${String(typeof result.data === 'string' ? result.data : JSON.stringify(result.data)).slice(0, 200)}`);
+    const successful = result.status >= 200 && result.status < 300;
+    check(successful, `${method} ${path} answered ${result.status}`);
+    if (!successful) throw Object.assign(new Error(`${method} ${path} answered ${result.status}`), { name: 'HTTPError', status: result.status });
     return result;
   }
 }
@@ -274,7 +255,7 @@ function stats(samples: number[]): Stats {
   return { n: sorted.length, median: round(at(0.5)), p95: round(at(0.95)), min: round(sorted[0]!), max: round(sorted.at(-1)!) };
 }
 
-interface Measurement { name: string; ms: Stats; bytes?: number; note?: string }
+interface Measurement { name: string; ms: Stats; samples_ms?: number[]; bytes?: number; note?: string }
 
 async function measure(
   list: Measurement[], name: string, times: number,
@@ -287,7 +268,7 @@ async function measure(
     samples.push(result.ms);
     bytes = result.bytes;
   }
-  list.push({ name, ms: stats(samples), ...(bytes === undefined ? {} : { bytes }), ...(note ? { note } : {}) });
+  list.push({ name, ms: stats(samples), samples_ms: samples, ...(bytes === undefined ? {} : { bytes }), ...(note ? { note } : {}) });
 }
 
 // ----- one fixture -----------------------------------------------------------------------------
@@ -301,187 +282,223 @@ interface ReportJson {
 
 async function runFixture(spec: FixtureSpec) {
   const loadBefore = loadavg();
+  const resourcesBefore = resourceSample();
   const { file, expected } = generate(spec);
-  const server = await Server.start();
-  const client = await Client.create(server);
-  const ws = `/api/v9/workspaces/${client.workspaceId}`;
-  const range = { start_date: expected.startDate, end_date: expected.endDate, rounding: 0 };
   const results: Measurement[] = [];
-  const light = iterations * 3;
+  let cleanup: unknown;
+  try {
+    const server = await Server.start(backend, port, SETUP_CODE);
+    cleanup = server.cleanupEvidence;
+    return await withHistoryCleanup(async () => {
+    const client = await Client.create(server);
+    const ws = `/api/v9/workspaces/${client.workspaceId}`;
+    const range = { start_date: expected.startDate, end_date: expected.endDate, rounding: 0 };
+    const light = iterations * 3;
 
-  // Import: the generated history goes in through the JSON restore, once.
-  const imported = await client.ok('POST', '/api/app/import/json', JSON.stringify(file), true);
-  results.push({ name: 'import JSON restore (whole history, once)', ms: stats([imported.ms]), bytes: Buffer.byteLength(JSON.stringify(file)), note: 'bytes = request size' });
-  equal(imported.data.time_entries, expected.entries, `${spec.name}: imported entries`);
-  equal(imported.data.projects, spec.projects, `${spec.name}: imported projects`);
-  equal(imported.data.errors.length, 0, `${spec.name}: import errors`);
+    // Import: the generated history goes in through the JSON restore, once.
+    const imported = await client.ok('POST', '/api/app/import/json', JSON.stringify(file), true);
+    results.push({ name: 'import JSON restore (whole history, once)', ms: stats([imported.ms]), samples_ms: [imported.ms], bytes: Buffer.byteLength(JSON.stringify(file)), note: 'bytes = request size' });
+    equal(imported.data.time_entries, expected.entries, `${spec.name}: imported entries`);
+    equal(imported.data.projects, spec.projects, `${spec.name}: imported projects`);
+    equal(imported.data.errors.length, 0, `${spec.name}: import errors`);
 
-  // Lists the app and Toggl clients use.
-  await measure(results, 'list entries, last 9 days (timer page)', light, async () => {
-    const result = await client.ok('GET', `/api/v9/me/time_entries?start_date=${expected.recentStart}&end_date=${addDays(expected.endDate, 1)}&meta=true`);
-    equal(result.data.length, expected.recentEntries, `${spec.name}: entries in the last 9 days`);
-    return result;
-  });
-  await measure(results, 'list projects with tracked totals', light, async () => {
-    const result = await client.ok('GET', `${ws}/projects?active=both`);
-    equal(result.data.length, spec.projects, `${spec.name}: project count`);
-    for (const project of result.data as Array<{ name: string; actual_seconds: number }>) {
-      equal(project.actual_seconds, expected.projectSeconds.get(project.name) ?? 0, `${spec.name}: tracked seconds of ${project.name}`);
-    }
-    return result;
-  });
-
-  // Reports over the whole history.
-  const checkTotals = (report: ReportJson, label: string) => {
-    equal(report.totals.seconds, expected.seconds, `${spec.name}: ${label} total seconds`);
-    equal(report.totals.billable_seconds, expected.billableSeconds, `${spec.name}: ${label} billable seconds`);
-    equal(report.totals.entry_count, expected.entries, `${spec.name}: ${label} entry count`);
-    equal(report.groups.reduce((sum, group) => sum + group.seconds, 0), expected.seconds, `${spec.name}: ${label} group seconds add up`);
-  };
-  // Payload growth: a report is sized by its groups and buckets, never by the number of entries.
-  const checkGrowth = (bytes: number, items: number, label: string) => {
-    check(bytes <= 2_000 + items * 400, `${spec.name}: ${label} is ${bytes} bytes for ${items} groups and buckets; it should not grow with entries`);
-  };
-  await measure(results, 'report summary, projects by description', iterations, async () => {
-    const result = await client.ok('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'time_entries' });
-    const report = result.data as ReportJson;
-    checkTotals(report, 'summary');
-    equal(report.groups.length, spec.projects, `${spec.name}: summary groups`);
-    const subGroups = report.groups.reduce((sum, group) => sum + group.sub_groups.length, 0);
-    check(subGroups <= spec.projects * DESCRIPTIONS.length, `${spec.name}: summary sub-groups (${subGroups}) are per description, not per entry`);
-    checkGrowth(result.bytes, report.groups.length + subGroups + report.series.length, 'summary report');
-    return result;
-  });
-  await measure(results, 'report totals only (detailed and weekly tabs)', iterations, async () => {
-    const result = await client.ok('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'projects' });
-    const report = result.data as ReportJson;
-    checkTotals(report, 'totals-only');
-    check(report.groups.every((group) => group.sub_groups.length === 0), `${spec.name}: totals-only report has no sub-groups`);
-    checkGrowth(result.bytes, report.groups.length + report.series.length, 'totals-only report');
-    return result;
-  });
-  await measure(results, 'report weekly grid, rows by project', iterations, async () => {
-    const result = await client.ok('POST', '/api/app/report/weekly', { ...range, rows: 'projects' });
-    equal(result.data.total, expected.seconds, `${spec.name}: weekly total`);
-    equal(result.data.rows.length, spec.projects, `${spec.name}: weekly rows`);
-    checkGrowth(result.bytes, result.data.columns.length * (result.data.rows.length + 2), 'weekly grid');
-    return result;
-  });
-  const pages = Math.ceil(expected.entries / 100);
-  await measure(results, 'detailed report, first page of 100', iterations, async () => {
-    const result = await client.ok('POST', '/api/app/report/entries', { ...range, page: 1 });
-    equal(result.data.total, expected.entries, `${spec.name}: detailed total`);
-    equal(result.data.pages, pages, `${spec.name}: detailed pages`);
-    equal(result.data.entries.length, 100, `${spec.name}: first page size`);
-    check(result.bytes <= 100 * 1_000, `${spec.name}: a page of 100 entries is ${result.bytes} bytes`);
-    return result;
-  });
-  {
-    const last = await client.ok('POST', '/api/app/report/entries', { ...range, page: pages + 5 });
-    equal(last.data.page, pages, `${spec.name}: a page past the end returns the last page`);
-    equal(last.data.entries.length, expected.entries - (pages - 1) * 100, `${spec.name}: last page size`);
-    const tooBig = await client.request('POST', '/api/app/report/entries', { ...range, page_size: 501 });
-    equal(tooBig.status, 400, `${spec.name}: page_size above 500 is refused`);
-  }
-  await measure(results, 'detailed CSV export, whole history', iterations, async () => {
-    const result = await client.ok('POST', '/api/app/report/detailed.csv', range);
-    const lines = (result.data as string).trimEnd().split('\n').length;
-    equal(lines, expected.entries + 1, `${spec.name}: detailed CSV rows plus header`);
-    return result;
-  });
-  await measure(results, 'summary CSV export, whole history', iterations, async () => {
-    const result = await client.ok('POST', '/api/app/report/summary.csv', { ...range, grouping: 'projects', sub_grouping: 'time_entries' });
-    check((result.data as string).length > 0, `${spec.name}: summary CSV is not empty`);
-    return result;
-  });
-
-  // Toggl CSV import preview of 1000 rows: a dry run must not store anything.
-  const csv = ['Description,Project,Client,Task,Tags,Start date,Start time,End date,End time'];
-  for (let i = 0; i < 1000; i++) {
-    const date = addDays(expected.startDate, -1 - Math.floor(i / 9));
-    const hour = 7 + (i % 9);
-    csv.push(`CSV row ${i},Project ${String((i % spec.projects) + 1).padStart(2, '0')},Client ${(i % 5) + 1},,,${date},${String(hour).padStart(2, '0')}:00:00,${date},${String(hour).padStart(2, '0')}:45:00`);
-  }
-  await measure(results, 'Toggl CSV import preview, 1000 rows', iterations, async () => {
-    const result = await client.ok('POST', '/api/app/import/toggl-csv?dry_run=true', csv.join('\n'), true);
-    equal(result.data.rows, 1000, `${spec.name}: CSV preview rows`);
-    equal(result.data.errors.length, 0, `${spec.name}: CSV preview errors`);
-    return result;
-  });
-  {
-    const before = await client.ok('GET', `/api/v9/me/time_entries?start_date=${addDays(expected.startDate, -120)}&end_date=${expected.startDate}`);
-    equal(before.data.length, 0, `${spec.name}: the CSV preview stored nothing`);
-  }
-
-  // Timer responsiveness, alone and while a whole-history CSV export is being built.
-  const timerOnce = async () => {
-    const start = await client.ok('POST', `${ws}/time_entries`, { description: 'Bench timer', start: isoSeconds(Date.now()), duration: -1, created_with: 'bench', workspace_id: client.workspaceId });
-    check(start.data.stop === null && start.data.duration < 0, `${spec.name}: timer start returns a running entry`);
-    const stop = await client.ok('PATCH', `${ws}/time_entries/${start.data.id}/stop`);
-    check(stop.data.stop !== null, `${spec.name}: timer stop sets stop`);
-    await client.ok('DELETE', `${ws}/time_entries/${start.data.id}`);
-    return { start: start.ms, stop: stop.ms };
-  };
-  const idleStart: number[] = [];
-  const idleStop: number[] = [];
-  for (let i = 0; i < light; i++) {
-    const { start, stop } = await timerOnce();
-    idleStart.push(start);
-    idleStop.push(stop);
-  }
-  results.push({ name: 'timer start, idle server', ms: stats(idleStart) }, { name: 'timer stop, idle server', ms: stats(idleStop) });
-  const loadedStart: number[] = [];
-  const loadedStop: number[] = [];
-  for (let i = 0; i < iterations; i++) {
-    const heavy = client.ok('POST', '/api/app/report/detailed.csv', range);
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    const { start, stop } = await timerOnce();
-    loadedStart.push(start);
-    loadedStop.push(stop);
-    await heavy;
-  }
-  results.push({ name: 'timer start during a whole-history CSV export', ms: stats(loadedStart), note: 'request sent 5 ms after the export' });
-  results.push({ name: 'timer stop right after that', ms: stats(loadedStop) });
-  equal((await client.ok('GET', '/api/v9/me/time_entries/current')).data, null, `${spec.name}: no timer left running`);
-
-  // Writes on a day before the history, then cleaned up.
-  const writeDay = addDays(expected.startDate, -400);
-  const created: number[] = [];
-  await measure(results, 'create entry', light, async () => {
-    const index = created.length;
-    const start = Date.parse(`${writeDay}T06:00:00Z`) + index * 60_000;
-    const result = await client.ok('POST', `${ws}/time_entries`, {
-      description: `Write ${index}`, start: isoSeconds(start), stop: isoSeconds(start + 30_000), project_id: null, created_with: 'bench', workspace_id: client.workspaceId,
+    // Lists the app and Toggl clients use.
+    await measure(results, 'list entries, last 9 days (timer page)', light, async () => {
+      const result = await client.ok('GET', `/api/v9/me/time_entries?start_date=${expected.recentStart}&end_date=${addDays(expected.endDate, 1)}&meta=true`);
+      equal(result.data.length, expected.recentEntries, `${spec.name}: entries in the last 9 days`);
+      return result;
     });
-    created.push(result.data.id);
-    return result;
-  });
-  let updates = 0;
-  await measure(results, 'update entry description', light, async () => {
-    const id = created[updates++ % created.length]!;
-    const result = await client.ok('PUT', `${ws}/time_entries/${id}`, { description: `Updated ${id}` });
-    equal(result.data.description, `Updated ${id}`, `${spec.name}: update stored the description`);
-    return result;
-  });
-  {
-    const listed = await client.ok('GET', `/api/v9/me/time_entries?start_date=${writeDay}&end_date=${addDays(writeDay, 1)}`);
-    equal(listed.data.length, created.length, `${spec.name}: created entries are listed`);
-  }
-  let deletes = 0;
-  await measure(results, 'delete entry', light, async () => client.ok('DELETE', `${ws}/time_entries/${created[deletes++]!}`));
-  {
-    const listed = await client.ok('GET', `/api/v9/me/time_entries?start_date=${writeDay}&end_date=${addDays(writeDay, 1)}`);
-    equal(listed.data.length, 0, `${spec.name}: deleted entries are gone`);
-  }
+    await measure(results, 'list projects with tracked totals', light, async () => {
+      const result = await client.ok('GET', `${ws}/projects?active=both`);
+      equal(result.data.length, spec.projects, `${spec.name}: project count`);
+      for (const project of result.data as Array<{ name: string; actual_seconds: number }>) {
+        equal(project.actual_seconds, expected.projectSeconds.get(project.name) ?? 0, `${spec.name}: tracked seconds of ${project.name}`);
+      }
+      return result;
+    });
 
-  const browser = args['no-browser'] ? { skipped: '--no-browser' } : await browserTimings(server, expected, spec);
-  server.stop();
-  return {
-    fixture: { ...spec, start_date: expected.startDate, end_date: expected.endDate, total_hours: Math.round(expected.seconds / 36) / 100, clients: 5, tasks: spec.projects, tags: TAGS.length, descriptions: DESCRIPTIONS.length },
-    load_average: { before: loadBefore.map((v) => Math.round(v * 100) / 100), after: loadavg().map((v) => Math.round(v * 100) / 100) },
-    measurements: results,
-    browser,
-  };
+    // Reports over the whole history.
+    const checkTotals = (report: ReportJson, label: string) => {
+      equal(report.totals.seconds, expected.seconds, `${spec.name}: ${label} total seconds`);
+      equal(report.totals.billable_seconds, expected.billableSeconds, `${spec.name}: ${label} billable seconds`);
+      equal(report.totals.entry_count, expected.entries, `${spec.name}: ${label} entry count`);
+      equal(report.groups.reduce((sum, group) => sum + group.seconds, 0), expected.seconds, `${spec.name}: ${label} group seconds add up`);
+    };
+    // Payload growth: a report is sized by its groups and buckets, never by the number of entries.
+    const checkGrowth = (bytes: number, items: number, label: string) => {
+      check(bytes <= 2_000 + items * 400, `${spec.name}: ${label} is ${bytes} bytes for ${items} groups and buckets; it should not grow with entries`);
+    };
+    await measure(results, 'report summary, projects by description', iterations, async () => {
+      const result = await client.ok('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'time_entries' });
+      const report = result.data as ReportJson;
+      checkTotals(report, 'summary');
+      equal(report.groups.length, spec.projects, `${spec.name}: summary groups`);
+      const subGroups = report.groups.reduce((sum, group) => sum + group.sub_groups.length, 0);
+      check(subGroups <= spec.projects * DESCRIPTIONS.length, `${spec.name}: summary sub-groups (${subGroups}) are per description, not per entry`);
+      checkGrowth(result.bytes, report.groups.length + subGroups + report.series.length, 'summary report');
+      return result;
+    });
+    await measure(results, 'report totals only (detailed and weekly tabs)', iterations, async () => {
+      const result = await client.ok('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'projects' });
+      const report = result.data as ReportJson;
+      checkTotals(report, 'totals-only');
+      check(report.groups.every((group) => group.sub_groups.length === 0), `${spec.name}: totals-only report has no sub-groups`);
+      checkGrowth(result.bytes, report.groups.length + report.series.length, 'totals-only report');
+      return result;
+    });
+    await measure(results, 'report weekly grid, rows by project', iterations, async () => {
+      const result = await client.ok('POST', '/api/app/report/weekly', { ...range, rows: 'projects' });
+      equal(result.data.total, expected.seconds, `${spec.name}: weekly total`);
+      equal(result.data.rows.length, spec.projects, `${spec.name}: weekly rows`);
+      checkGrowth(result.bytes, result.data.columns.length * (result.data.rows.length + 2), 'weekly grid');
+      return result;
+    });
+    const pages = Math.ceil(expected.entries / 100);
+    await measure(results, 'detailed report, first page of 100', iterations, async () => {
+      const result = await client.ok('POST', '/api/app/report/entries', { ...range, page: 1 });
+      equal(result.data.total, expected.entries, `${spec.name}: detailed total`);
+      equal(result.data.pages, pages, `${spec.name}: detailed pages`);
+      equal(result.data.entries.length, 100, `${spec.name}: first page size`);
+      check(result.bytes <= 100 * 1_000, `${spec.name}: a page of 100 entries is ${result.bytes} bytes`);
+      return result;
+    });
+    {
+      const last = await client.ok('POST', '/api/app/report/entries', { ...range, page: pages + 5 });
+      equal(last.data.page, pages, `${spec.name}: a page past the end returns the last page`);
+      equal(last.data.entries.length, expected.entries - (pages - 1) * 100, `${spec.name}: last page size`);
+      const tooBig = await client.request('POST', '/api/app/report/entries', { ...range, page_size: 501 });
+      equal(tooBig.status, 400, `${spec.name}: page_size above 500 is refused`);
+    }
+    await measure(results, 'detailed CSV export, whole history', iterations, async () => {
+      const result = await client.ok('POST', '/api/app/report/detailed.csv', range);
+      const lines = (result.data as string).trimEnd().split('\n').length;
+      equal(lines, expected.entries + 1, `${spec.name}: detailed CSV rows plus header`);
+      return result;
+    });
+    await measure(results, 'summary CSV export, whole history', iterations, async () => {
+      const result = await client.ok('POST', '/api/app/report/summary.csv', { ...range, grouping: 'projects', sub_grouping: 'time_entries' });
+      check((result.data as string).length > 0, `${spec.name}: summary CSV is not empty`);
+      return result;
+    });
+
+    // Toggl CSV import preview of 1000 rows: a dry run must not store anything.
+    const csv = ['Description,Project,Client,Task,Tags,Start date,Start time,End date,End time'];
+    for (let i = 0; i < 1000; i++) {
+      const date = addDays(expected.startDate, -1 - Math.floor(i / 9));
+      const hour = 7 + (i % 9);
+      csv.push(`CSV row ${i},Project ${String((i % spec.projects) + 1).padStart(2, '0')},Client ${(i % 5) + 1},,,${date},${String(hour).padStart(2, '0')}:00:00,${date},${String(hour).padStart(2, '0')}:45:00`);
+    }
+    await measure(results, 'Toggl CSV import preview, 1000 rows', iterations, async () => {
+      const result = await client.ok('POST', '/api/app/import/toggl-csv?dry_run=true', csv.join('\n'), true);
+      equal(result.data.rows, 1000, `${spec.name}: CSV preview rows`);
+      equal(result.data.errors.length, 0, `${spec.name}: CSV preview errors`);
+      return result;
+    });
+    {
+      const before = await client.ok('GET', `/api/v9/me/time_entries?start_date=${addDays(expected.startDate, -120)}&end_date=${expected.startDate}`);
+      equal(before.data.length, 0, `${spec.name}: the CSV preview stored nothing`);
+    }
+
+    // Timer responsiveness, alone and while a whole-history CSV export is being built.
+    const timerOnce = async () => {
+      const start = await client.ok('POST', `${ws}/time_entries`, { description: 'Bench timer', start: isoSeconds(Date.now()), duration: -1, created_with: 'bench', workspace_id: client.workspaceId });
+      check(start.data.stop === null && start.data.duration < 0, `${spec.name}: timer start returns a running entry`);
+      const stop = await client.ok('PATCH', `${ws}/time_entries/${start.data.id}/stop`);
+      check(stop.data.stop !== null, `${spec.name}: timer stop sets stop`);
+      if (stop.data.server_deleted_at === null) {
+        await client.ok('DELETE', `${ws}/time_entries/${start.data.id}`);
+      } else {
+        check(typeof stop.data.server_deleted_at === 'string', `${spec.name}: rounded-zero timer is marked deleted`);
+        equal(stop.data.start, stop.data.stop, `${spec.name}: rounded-zero timer has no retained span`);
+        equal(stop.data.duration, 0, `${spec.name}: rounded-zero timer has zero duration`);
+      }
+      return { start: start.ms, stop: stop.ms };
+    };
+    const idleStart: number[] = [];
+    const idleStop: number[] = [];
+    for (let i = 0; i < light; i++) {
+      const { start, stop } = await timerOnce();
+      idleStart.push(start);
+      idleStop.push(stop);
+    }
+    results.push({ name: 'timer start, idle server', ms: stats(idleStart), samples_ms: idleStart }, { name: 'timer stop, idle server', ms: stats(idleStop), samples_ms: idleStop });
+    const loadedOverlap: Array<{ pending_at_timer_start: boolean; pending_after_timer_stop: boolean; export_ms: number }> = [];
+    const loadedStart: number[] = [];
+    const loadedStop: number[] = [];
+    for (let i = 0; i < iterations; i++) {
+      let pending = true;
+      const heavy = client.ok('POST', '/api/app/report/detailed.csv', range).finally(() => { pending = false; });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const duringStart = pending;
+      const { start, stop } = await timerOnce();
+      const duringStop = pending;
+      loadedStart.push(start);
+      loadedStop.push(stop);
+      const exported = await heavy;
+      loadedOverlap.push({ pending_at_timer_start: duringStart, pending_after_timer_stop: duringStop, export_ms: exported.ms });
+      equal((exported.data as string).trimEnd().split('\n').length, expected.entries + 1, `${spec.name}: loaded CSV rows plus header`);
+    }
+    results.push({ name: 'timer start during a whole-history CSV export', ms: stats(loadedStart), samples_ms: loadedStart, note: 'request sent 5 ms after the export' });
+    results.push({ name: 'timer stop right after that', ms: stats(loadedStop), samples_ms: loadedStop });
+    equal((await client.ok('GET', '/api/v9/me/time_entries/current')).data, null, `${spec.name}: no timer left running`);
+
+    // Writes on a day before the history, then cleaned up.
+    const writeDay = addDays(expected.startDate, -400);
+    const created: number[] = [];
+    await measure(results, 'create entry', light, async () => {
+      const index = created.length;
+      const start = Date.parse(`${writeDay}T06:00:00Z`) + index * 60_000;
+      const result = await client.ok('POST', `${ws}/time_entries`, {
+        description: `Write ${index}`, start: isoSeconds(start), stop: isoSeconds(start + 5 * 60_000), project_id: null, created_with: 'bench', workspace_id: client.workspaceId,
+      });
+      created.push(result.data.id);
+      return result;
+    });
+    let updates = 0;
+    await measure(results, 'update entry description', light, async () => {
+      const id = created[updates++ % created.length]!;
+      const result = await client.ok('PUT', `${ws}/time_entries/${id}`, { description: `Updated ${id}` });
+      equal(result.data.description, `Updated ${id}`, `${spec.name}: update stored the description`);
+      return result;
+    });
+    {
+      const listed = await client.ok('GET', `/api/v9/me/time_entries?start_date=${writeDay}&end_date=${addDays(writeDay, 1)}`);
+      equal(listed.data.length, created.length, `${spec.name}: created entries are listed`);
+    }
+    let deletes = 0;
+    await measure(results, 'delete entry', light, async () => client.ok('DELETE', `${ws}/time_entries/${created[deletes++]!}`));
+    {
+      const listed = await client.ok('GET', `/api/v9/me/time_entries?start_date=${writeDay}&end_date=${addDays(writeDay, 1)}`);
+      equal(listed.data.length, 0, `${spec.name}: deleted entries are gone`);
+    }
+
+    const browser = args['no-browser'] ? { skipped: '--no-browser' } : await browserTimings(server, expected, spec);
+    const inspection = await inspectHistory(server.config, client.userId, client.workspaceId, expected.startDate, addDays(expected.endDate, 1));
+    equal(inspection.report.rows, expected.entries, `${spec.name}: inspected report rows`);
+    equal(inspection.entry_list.rows, expected.entries, `${spec.name}: inspected entry-list rows`);
+    equal(inspection.entry_list.selects, 1 + Math.ceil(expected.entries / 400), `${spec.name}: joined metadata and batched tags avoid per-entry queries`);
+    equal(inspection.report.selects, 2, `${spec.name}: report metadata uses two executed queries`);
+    for (const plan of inspection.explain) {
+      check(plan.accepted, `${spec.name}: ${plan.name}: chosen live-entry index or bounded catalog reference, no full-history scan`);
+    }
+    return {
+      fixture: { ...spec, start_date: expected.startDate, end_date: expected.endDate, total_hours: Math.round(expected.seconds / 36) / 100, clients: 5, tasks: spec.projects, tags: TAGS.length, descriptions: DESCRIPTIONS.length },
+      load_average: { before: loadBefore.map((v) => Math.round(v * 100) / 100), after: loadavg().map((v) => Math.round(v * 100) / 100) },
+      measurements: results,
+      loaded_report_overlap: loadedOverlap,
+      inspection,
+      cleanup: server.cleanupEvidence,
+      fixture_sha256: createHash('sha256').update(JSON.stringify(file)).digest('hex'),
+      resources: { before: resourcesBefore, after: resourceSample() },
+      browser,
+    };
+    }, () => server.stop());
+  } catch (error) {
+    if (error instanceof HistoryFailure && cleanup) error.api_cleanup = cleanup;
+    const failure = historyFailure(error);
+    failedFixture = { fixture: spec, measurements: results, error: failure, cleanup: cleanup ?? failure.api_cleanup, resources: { before: resourcesBefore, after: resourceSample() } };
+    throw error;
+  }
 }
 
 // ----- browser ---------------------------------------------------------------------------------
@@ -544,12 +561,27 @@ function commit(): string {
   }
 }
 
+function resourceSample() {
+  const read = (file: string) => { try { return readFileSync(file, 'utf8').trim(); } catch { return 'unavailable'; } };
+  return { at: new Date().toISOString(), load: loadavg(), free_memory_bytes: freemem(), memory: read('/proc/meminfo'), cpu: read('/proc/stat'), pressure_cpu: read('/proc/pressure/cpu'), pressure_memory: read('/proc/pressure/memory') };
+}
+
+let failedFixture: unknown;
+let failure: ReturnType<typeof historyFailure> | undefined;
+const resourceSamples = [resourceSample()];
+const sampling = setInterval(() => resourceSamples.push(resourceSample()), 10000);
+sampling.unref();
 const startedAt = new Date().toISOString();
 const run = {
   kind: 'local measurement on the host below; not a check of the low-power targets',
   targets_from_prd: 'Timer start/stop under 100 ms server time and reports over a year under 500 ms, on a low-power CPU (docs/PRD.md section 9)',
   started_at: startedAt,
-  runtime: { node: process.version, platform: platform(), release: release(), arch: arch() },
+  backend,
+  argv: process.argv,
+  cwd: process.cwd(),
+  settings: { host: '127.0.0.1', port, end_date: endDate, time_resolution_minutes: 5 },
+  resources_before: resourceSample(),
+  runtime: { node: process.version, sqlite: process.versions.sqlite, npm_agent: process.env.npm_config_user_agent ?? 'not run through npm', platform: platform(), release: release(), arch: arch() },
   host: {
     hostname: hostname(),
     cpu: cpus()[0]?.model ?? 'unknown',
@@ -564,9 +596,18 @@ const run = {
   fixtures: [] as unknown[],
 };
 
-for (const name of fixtureNames) {
-  process.stderr.write(`bench: running the ${name} fixture...\n`);
-  run.fixtures.push(await runFixture(FIXTURES[name]!));
+try {
+  for (const name of fixtureNames) {
+    process.stderr.write(`bench: running the ${name} fixture...\n`);
+    run.fixtures.push(await runFixture(FIXTURES[name]!));
+  }
+} catch (error) {
+  failure = historyFailure(error);
+  failures.push(safeHistoryError(error).message);
+} finally {
+  clearInterval(sampling);
+  process.off('SIGINT', interrupt);
+  process.off('SIGTERM', interrupt);
 }
 
 const pad = (text: string, width: number) => text.padEnd(width);
@@ -587,7 +628,7 @@ for (const result of run.fixtures as Array<Awaited<ReturnType<typeof runFixture>
 }
 lines.push('', `${checks} checks, ${failures.length} failed`);
 process.stdout.write(`${lines.join('\n')}\n`);
-if (args.out) writeFileSync(args.out, `${JSON.stringify({ ...run, checks, failures }, null, 2)}\n`);
+if (args.out) writeFileSync(args.out, `${JSON.stringify({ ...run, resource_samples: resourceSamples, failed_fixture: failedFixture, failure, resources_after: resourceSample(), checks, failures }, null, 2)}\n`);
 if (failures.length) {
   process.stderr.write(`bench: wrong results:\n${failures.slice(0, 50).map((f) => `- ${f}`).join('\n')}\n`);
   process.exit(1);

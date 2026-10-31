@@ -28,7 +28,8 @@ When Debian's Qt, KDE Frameworks or Plasma versions are older than a build asks 
 # Related
 
 - Related: [map-kde-native-packaging](kde-companion/map-kde-native-packaging.md)
-- Related: [map-gnome-timerd-d-bus-timer-service](map-gnome-timerd-d-bus-timer-service.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-activation-and-packaging](gnome-timer-service/map-gnome-timer-service-activation-and-packaging.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-and-d-bus-contract](gnome-timer-service/map-gnome-timer-service-and-d-bus-contract.md)
 - Related: [map-kde-ci-and-release-pipeline → map-kde-and-core-ci-jobs](kde-companion/kde-ci-and-release-pipeline/map-kde-and-core-ci-jobs.md)
 - Related: [map-kde-ci-and-release-pipeline → map-kde-real-server-test](kde-companion/kde-ci-and-release-pipeline/map-kde-real-server-test.md)
 - Related: [map-kde-ci-and-release-pipeline → map-release-stages-kde-semantic-release-plugin-and-gnome-assets](kde-companion/kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md)

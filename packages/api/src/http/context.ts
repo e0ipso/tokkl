@@ -1,14 +1,15 @@
-import type { Request } from 'express';
-import type { Db } from '../db/index.ts';
+import type { Request, Response, RequestHandler } from 'express';
+import type { Repositories, Storage } from '../storage/contracts.ts';
+import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
+import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
-import type { UserRow } from '../models/users.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import type { TimerStreams } from '../services/timerStreams.ts';
 import { badRequest } from '../lib/errors.ts';
 
 /** Shared by every router; created once in createApp. */
-export interface Deps {
-  db: Db;
+export interface Deps extends ApplicationServices {
+  storage: Storage;
   config: Config;
   /**
    * Failed password attempts, shared by the login form, Basic auth and password change. Each check
@@ -27,10 +28,17 @@ export interface Deps {
 
 declare module 'express-serve-static-core' {
   interface Locals {
-    /** Set by requireAuth. */
-    user: UserRow;
-    authMethod: 'session' | 'basic';
+    auth: StorageAuthentication;
+    workSignal: AbortSignal;
   }
+}
+
+/** Authenticate and collect a JSON response in one snapshot; send only after releasing it. */
+export function jsonRead(deps: Deps, work: (req: Request, res: Response, repositories: Repositories) => unknown | Promise<unknown>, administrative = false): RequestHandler {
+  return async (req, res) => {
+    const body = await deps.readFor(res.locals.auth, repositories => Promise.resolve(work(req, res, repositories)), administrative);
+    res.json(body);
+  };
 }
 
 /** Bodies arrive as raw text (see createApp), so a missing or wrong Content-Type is not an error. */

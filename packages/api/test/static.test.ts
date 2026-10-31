@@ -4,8 +4,9 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { storageFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
-import { openDatabase } from '../src/db/index.ts';
+import { openDatabase } from './fixtures/database.ts';
 import { testConfig, testServer } from './helpers.ts';
 
 const webRoots: string[] = [];
@@ -21,9 +22,10 @@ function makeWebRoot(): string {
 }
 
 test('page routes serve the app shell while API paths keep JSON 404s', async () => {
+  const db = await openDatabase();
   const webRoot = makeWebRoot();
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>app</title>');
-  const app = testServer(createApp({ db: openDatabase(':memory:'), config: { ...testConfig(), webRoot }, setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), webRoot }, setup: { code: null } }));
 
   for (const path of ['/', '/reports', '/reports?range=last_week', '/projects', '/settings']) {
     const response = await app.request(path);
@@ -39,15 +41,16 @@ test('page routes serve the app shell while API paths keep JSON 404s', async () 
 });
 
 test('assets are cached immutably, and a missing asset is a 404', async () => {
+  const db = await openDatabase();
   const webRoot = makeWebRoot();
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html>');
   mkdirSync(join(webRoot, 'assets'));
   writeFileSync(join(webRoot, 'assets', 'app-abc.js'), 'console.log(1)');
-  const config = { ...testConfig(), webRoot };
+  const config = { ...testConfig(db), webRoot };
   const previous = process.cwd();
   process.chdir(webRoot);
   try {
-    const app = testServer(createApp({ db: openDatabase(':memory:'), config, setup: { code: null } }));
+    const app = testServer(createApp({ storage: storageFor(db), config, setup: { code: null } }));
     const hit = await app.request('/assets/app-abc.js');
     assert.equal(hit.status, 200);
     assert.match(hit.headers.get('cache-control') ?? '', /immutable/);
@@ -62,10 +65,11 @@ test('assets are cached immutably, and a missing asset is a 404', async () => {
 test('the Pomodoro transition sounds are served from the app origin as WAV audio', async () => {
   // The web build copies packages/web/public into the web root, so serve the committed files as the build would.
   const sounds = fileURLToPath(new URL('../../web/public/sounds', import.meta.url));
+  const db = await openDatabase();
   const webRoot = makeWebRoot();
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html>');
   cpSync(sounds, join(webRoot, 'sounds'), { recursive: true });
-  const app = testServer(createApp({ db: openDatabase(':memory:'), config: { ...testConfig(), webRoot }, setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), webRoot }, setup: { code: null } }));
 
   for (const name of ['work-to-short-rest', 'short-rest-to-work', 'work-to-long-rest', 'long-rest-to-work']) {
     const file = `pomodoro-${name}.wav`;

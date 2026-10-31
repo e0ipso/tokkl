@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:294bb57ce5224241421c90f654f6ac4a7a796a6d8d76712525724cefdf383404'
-node_count: 106
+nodes_hash: 'sha256:def423e8b4121bddcbd9a316bc3c387d3c3a84ad01245438018c541d46c6878e'
+node_count: 109
 ---
 # kenkeep Graph
 
-Total nodes: 106
+Total nodes: 109
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -14,6 +14,7 @@ Total nodes: 106
 - **path:** api-and-data/users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md
 - **tags:** server, auth, admin
 - **relates_to:** map-users-roles-and-workspace-membership
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:7
 
 ## map-app-report-endpoints
 
@@ -21,6 +22,7 @@ Total nodes: 106
 - **title:** Web app report endpoints under /api/app/report
 - **path:** api-and-data/reports-and-totals/map-app-report-endpoints.md
 - **tags:** server, reports, api, web
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
 
 ## map-app-shell-brand-and-navigation
 
@@ -107,13 +109,21 @@ Total nodes: 106
 - **tags:** gnome, desktop, tooling
 - **relates_to:** map-gnome-timerd-d-bus-timer-service, map-gnome-shell-extension-panel-button-and-menu, map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix
 
-## map-gnome-timerd-d-bus-timer-service
+## map-gnome-timer-service-activation-and-packaging
 
 - **kind:** map
-- **title:** GNOME timer service: tokkl-timerd and org.tokkl.Timer1
-- **path:** tooling-and-project/map-gnome-timerd-d-bus-timer-service.md
-- **tags:** tooling, desktop, gnome, ci
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-ci-and-release-pipeline, map-gnome-shell-extension-for-tokkl-timerd, map-desktop-timer-state-client-stream-poll-settling-and-revisions
+- **title:** GNOME timer service activation and packaging
+- **path:** tooling-and-project/gnome-timer-service/map-gnome-timer-service-activation-and-packaging.md
+- **tags:** desktop, gnome, ci, packaging
+- **relates_to:** map-kde-ci-and-release-pipeline, map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+
+## map-gnome-timer-service-and-d-bus-contract
+
+- **kind:** map
+- **title:** GNOME timer service and D-Bus contract
+- **path:** tooling-and-project/gnome-timer-service/map-gnome-timer-service-and-d-bus-contract.md
+- **tags:** desktop, gnome, dbus
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-gnome-shell-extension-for-tokkl-timerd, map-desktop-timer-state-client-stream-poll-settling-and-revisions
 
 ## map-history-scale-bench
 
@@ -122,6 +132,7 @@ Total nodes: 106
 - **path:** tooling-and-project/testing/map-history-scale-bench.md
 - **tags:** performance, bench, tooling, reports
 - **relates_to:** map-app-report-endpoints, practice-live-entry-indexes-back-project-and-task-totals
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:0
 
 ## map-icons-test-ts-checks-and-rerunning-the-script
 
@@ -171,6 +182,7 @@ Total nodes: 106
 - **path:** tooling-and-project/kde-companion/plasma-companion/map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes.md
 - **tags:** kde, testing
 - **relates_to:** map-test-and-static-analysis-layout, map-kde-ci-and-release-pipeline, map-kde-native-packaging
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:3
 
 ## map-kde-native-packaging
 
@@ -244,7 +256,7 @@ Total nodes: 106
 - **path:** api-and-data/time-handling/map-no-time-manual-entries-all-day.md
 - **tags:** time-entries, api, web, timezones
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-time-zone-names-are-stored-in-canonical-form, practice-json-restore-rules, practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top
-- **derived_from:** 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:0
+- **derived_from:** 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:0, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:10
 
 ## map-npm-run-icons-inputs-and-web-icons
 
@@ -270,7 +282,7 @@ Total nodes: 106
 - **path:** web-ui-behaviour/pomodoro/map-pomodoro-cycle-functions-in-packages-common.md
 - **tags:** pomodoro, preferences, web, common
 - **relates_to:** practice-preferences-validated-by-known-key, map-pomodoro-session-model-in-packages-common-pomodorosession, map-web-timer-state-stream-and-pomodoro-session-views
-- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:0
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:4, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:0, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:0
 
 ## map-pomodoro-session-model-in-packages-common-pomodorosession
 
@@ -279,7 +291,7 @@ Total nodes: 106
 - **path:** web-ui-behaviour/pomodoro/map-pomodoro-session-model-in-packages-common-pomodorosession.md
 - **tags:** common, pomodoro, timer, fixtures
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write, map-timer-state-service-settlement-revision-and-discarded-pomodoro
-- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1
+- **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:5
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -296,6 +308,7 @@ Total nodes: 106
 - **path:** tooling-and-project/repo-and-scripts/map-readme-screenshots-script.md
 - **tags:** tooling, docs, screenshots, playwright
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-test-and-static-analysis-layout
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:1
 
 ## map-release-stages-kde-semantic-release-plugin-and-gnome-assets
 
@@ -308,11 +321,11 @@ Total nodes: 106
 ## map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts
 
 - **kind:** map
-- **title:** rewindDatabase: the migration-upgrade e2e scenarios in auth-browser.spec.ts
+- **title:** Browser storage restart and migration isolation
 - **path:** tooling-and-project/testing/e2e-suite/map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts.md
 - **tags:** testing, e2e, migrations
 - **relates_to:** practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
-- **derived_from:** 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:1
+- **derived_from:** 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:1, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:4
 
 ## map-shared-list-controls-in-manage-ui
 
@@ -354,6 +367,7 @@ Total nodes: 106
 - **path:** api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md
 - **tags:** api, timer, pomodoro, pause
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
 
 ## map-tokkl-kde-live-widgets-reload-with-plasmashell
 
@@ -371,6 +385,7 @@ Total nodes: 106
 - **path:** tooling-and-project/repo-and-scripts/map-tokkl-rename-legacy-name-fallbacks.md
 - **tags:** server, web, config, rename
 - **relates_to:** practice-cookie-writes-and-session-starting-routes-need-the-csrf-header, practice-theme-tokens-data-theme-and-cached-theme, practice-json-restore-rules, map-npm-workspaces-package-layout
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:2
 
 ## map-users-roles-and-workspace-membership
 
@@ -379,7 +394,7 @@ Total nodes: 106
 - **path:** api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md
 - **tags:** server, database, migrations, auth, workspaces
 - **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-go-through-failurelimiter-attempt, map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules
-- **derived_from:** .ai/kenkeep/nodes/.redirects.json
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:8
 
 ## map-web-calendar-day-view-and-touch-gestures-in-weekcalendar
 
@@ -454,6 +469,7 @@ Total nodes: 106
 - **title:** Deleting a client detaches its projects and never merges them
 - **path:** api-and-data/reports-and-totals/practice-client-deletion-keeps-projects.md
 - **tags:** server, clients, projects
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:4
 
 ## practice-clipboard-copy-needs-http-fallback
 
@@ -479,6 +495,7 @@ Total nodes: 106
 - **path:** web-ui-styling-and-layout/theme-and-tokens/practice-contrast-tables-and-project-colours.md
 - **tags:** web, css, accessibility, contrast, projects, tokens
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:1
 
 ## practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 
@@ -486,6 +503,7 @@ Total nodes: 106
 - **title:** Cookie writes and session-starting routes need the CSRF header
 - **path:** api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md
 - **tags:** server, auth, csrf
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:9
 
 ## practice-desktop-app-identifiers-use-the-canpicasoft-com-domain
 
@@ -530,6 +548,15 @@ Total nodes: 106
 - **relates_to:** practice-theme-tokens-data-theme-and-cached-theme, practice-web-ui-survives-background-refetches, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:practice:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:2
 
+## practice-entry-resolution-at-dst-imports-and-reports
+
+- **kind:** practice
+- **title:** Entry resolution at DST imports and reports
+- **path:** api-and-data/time-handling/stopped-entry-resolution/practice-entry-resolution-at-dst-imports-and-reports.md
+- **tags:** server, time, import
+- **relates_to:** practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-web-previews-and-editor-show-snapped-durations
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:3, d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:12
+
 ## practice-hourly-rates-go-through-optionalrate
 
 - **kind:** practice
@@ -537,7 +564,7 @@ Total nodes: 106
 - **path:** api-and-data/reports-and-totals/practice-hourly-rates-go-through-optionalrate.md
 - **tags:** server, validation, reports, money
 - **relates_to:** map-app-report-endpoints
-- **derived_from:** packages/api/src/lib/values.ts
+- **derived_from:** packages/api/src/lib/values.ts, d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:3
 
 ## practice-isolate-home-and-xdg-dirs-before-running-plasmawindowed-checks
 
@@ -555,6 +582,7 @@ Total nodes: 106
 - **path:** api-and-data/toggl-compat-and-import/practice-json-restore-rules.md
 - **tags:** server, import, restore, backup
 - **relates_to:** practice-write-paths-validate-refs-not-totals, practice-parse-api-timestamps-with-parseinstant, practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:11
 
 ## practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite
 
@@ -620,6 +648,7 @@ Total nodes: 106
 - **title:** Project and task totals rely on the live-entry partial indexes
 - **path:** api-and-data/reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md
 - **tags:** server, database, migrations, performance
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:6
 
 ## practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs
 
@@ -644,6 +673,7 @@ Total nodes: 106
 - **path:** web-ui-behaviour/time-and-timers/practice-parse-duration-returns-null-over-999-hours.md
 - **tags:** time, parsing, validation
 - **relates_to:** practice-twelve-hour-time-entry-parsing-rules, practice-web-previews-and-editor-show-snapped-durations
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:2
 
 ## practice-parser-cases-live-in-shared-json-fixtures
 
@@ -660,6 +690,7 @@ Total nodes: 106
 - **title:** Password checks go through FailureLimiter.attempt
 - **path:** api-and-data/password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md
 - **tags:** server, auth, rate-limit
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
 
 ## practice-phone-layout-css-gotchas
 
@@ -694,7 +725,7 @@ Total nodes: 106
 - **path:** api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md
 - **tags:** server, preferences, validation
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common
-- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:5, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:practice:0
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:5, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:practice:0, d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:7
 
 ## practice-readme-describes-the-current-project-never-its-history
 
@@ -739,14 +770,14 @@ Total nodes: 106
 - **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:0
 
-## practice-stopped-entries-snap-to-the-time-resolution-on-write
+## practice-stopped-entry-grid-validation
 
 - **kind:** practice
-- **title:** Stopped entries snap to the instance time resolution on write
-- **path:** api-and-data/time-handling/practice-stopped-entries-snap-to-the-time-resolution-on-write.md
-- **tags:** server, time, entries, import
-- **relates_to:** map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules, practice-json-restore-rules, practice-toggl-csv-import-selects-users-by-opaque-key, practice-parse-api-timestamps-with-parseinstant, practice-web-previews-and-editor-show-snapped-durations
-- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:3
+- **title:** Stopped entry grid validation
+- **path:** api-and-data/time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md
+- **tags:** server, time, entries
+- **relates_to:** map-instance-settings-api-app-admin-settings-and-setting-rules, practice-parse-api-timestamps-with-parseinstant, practice-web-previews-and-editor-show-snapped-durations
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:3, d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:12
 
 ## practice-styles-css-loads-last-and-owns-colour-tokens
 
@@ -780,6 +811,7 @@ Total nodes: 106
 - **path:** api-and-data/time-handling/practice-time-zone-names-are-stored-in-canonical-form.md
 - **tags:** api, time, validation
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-preferences-validated-by-known-key
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:13
 
 ## practice-timer-bar-height-drives-sticky-bulk-bar
 
@@ -797,6 +829,15 @@ Total nodes: 106
 - **tags:** web, timer, focus, a11y
 - **relates_to:** practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows, practice-web-ui-survives-background-refetches, map-web-entry-fields-entryfields-tsx-and-useentryfields-ts
 
+## practice-timer-stop-snapping-and-duration-limits
+
+- **kind:** practice
+- **title:** Timer stop snapping and duration limits
+- **path:** api-and-data/time-handling/stopped-entry-resolution/practice-timer-stop-snapping-and-duration-limits.md
+- **tags:** server, timer, time
+- **relates_to:** map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules, practice-parse-api-timestamps-with-parseinstant
+- **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:3, d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:12
+
 ## practice-toggl-csv-import-selects-users-by-opaque-key
 
 - **kind:** practice
@@ -804,6 +845,7 @@ Total nodes: 106
 - **path:** api-and-data/toggl-compat-and-import/practice-toggl-csv-import-selects-users-by-opaque-key.md
 - **tags:** server, api, import, validation
 - **relates_to:** practice-json-restore-rules, practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:10
 
 ## practice-twelve-hour-time-entry-parsing-rules
 
@@ -862,6 +904,7 @@ Total nodes: 106
 - **title:** Web UI state must survive background refetches
 - **path:** web-ui-behaviour/interaction-and-state/practice-web-ui-survives-background-refetches.md
 - **tags:** web, react-query, timer, entry-list
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:0
 
 ## practice-week-calendar-hour-height-agrees-in-three-places
 
@@ -874,9 +917,10 @@ Total nodes: 106
 ## practice-write-paths-validate-refs-not-totals
 
 - **kind:** practice
-- **title:** Validate write-path references with getProjectRef and getTaskRef
+- **title:** Validate write references with transaction-bound reference getters
 - **path:** api-and-data/reports-and-totals/practice-write-paths-validate-refs-not-totals.md
 - **tags:** server, models, performance, validation
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:5
 
 ## practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts
 
@@ -884,3 +928,4 @@ Total nodes: 106
 - **title:** Writing e2e specs: areas, shared helpers and extra accounts
 - **path:** tooling-and-project/testing/e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md
 - **tags:** testing, e2e
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:0

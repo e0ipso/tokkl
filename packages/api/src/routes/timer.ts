@@ -1,41 +1,17 @@
 import express, { type Router } from 'express';
-import { requireAuth, stillSignedIn } from '../auth/middleware.ts';
 import type { Deps } from '../http/context.ts';
 import { readJson } from '../http/context.ts';
-import {
-  discardPause, endPomodoro, getTimerState, nextPomodoroPhase, pauseTimer, resumeTimer, startPomodoro,
-} from '../services/timerState.ts';
-
-/**
- * The server-owned timer state, its actions and its event stream, under /api/app. Each action
- * returns the new state. A refused action is a 409 whose body is the current state.
- */
 export function timerRoutes(deps: Deps): Router {
-  const { db, timerStreams } = deps;
-  const api = express.Router();
-  const auth = requireAuth(deps);
-
-  api.get('/timer', auth, (req, res) => res.json(getTimerState(db, res.locals.user)));
-
-  /**
-   * Server-Sent Events: one `timer` event with the full state on connect and after every change,
-   * and a `keep-alive` event between them. The stream ends once the credential that opened it
-   * stops signing the request in.
-   */
-  api.get('/timer/events', auth, (req, res) => {
-    const { locals } = res;
-    const { user } = locals;
-    timerStreams.open(user.id, res, () => stillSignedIn(db, locals, user));
+  const api = express.Router(), auth = deps.auth.requireAuth;
+  api.get('/timer', auth, async (_req, res) => res.json(await deps.timersFor(res.locals.auth).getTimerState(res.locals.auth.user.id)));
+  api.get('/timer/events', auth, async (_req, res) => {
+    await deps.timerStreams.open(res.locals.auth.user.id, res, deps.auth.credentialCheck(res.locals.auth));
   });
-
-  // Pause takes no fields, so any body or none is accepted.
-  api.post('/timer/pause', auth, (req, res) => res.json(pauseTimer(db, res.locals.user)));
-  api.post('/timer/resume', auth, (req, res) => res.json(resumeTimer(db, res.locals.user, readJson(req).revision)));
-  api.post('/timer/discard', auth, (req, res) => res.json(discardPause(db, res.locals.user, readJson(req).revision)));
-
-  api.post('/pomodoro', auth, (req, res) => res.json(startPomodoro(db, res.locals.user, readJson(req))));
-  api.post('/pomodoro/next', auth, (req, res) => res.json(nextPomodoroPhase(db, res.locals.user, readJson(req).revision)));
-  api.post('/pomodoro/end', auth, (req, res) => res.json(endPomodoro(db, res.locals.user, readJson(req).revision)));
-
+  api.post('/timer/pause', auth, async (_req, res) => res.json(await deps.timersFor(res.locals.auth).pauseTimer(res.locals.auth.user.id)));
+  api.post('/timer/resume', auth, async (req, res) => res.json(await deps.timersFor(res.locals.auth).resumeTimer(res.locals.auth.user.id, readJson(req).revision)));
+  api.post('/timer/discard', auth, async (req, res) => res.json(await deps.timersFor(res.locals.auth).discardPause(res.locals.auth.user.id, readJson(req).revision)));
+  api.post('/pomodoro', auth, async (req, res) => res.json(await deps.timersFor(res.locals.auth).startPomodoro(res.locals.auth.user.id, readJson(req))));
+  api.post('/pomodoro/next', auth, async (req, res) => res.json(await deps.timersFor(res.locals.auth).nextPomodoroPhase(res.locals.auth.user.id, readJson(req).revision)));
+  api.post('/pomodoro/end', auth, async (req, res) => res.json(await deps.timersFor(res.locals.auth).endPomodoro(res.locals.auth.user.id, readJson(req).revision)));
   return api;
 }

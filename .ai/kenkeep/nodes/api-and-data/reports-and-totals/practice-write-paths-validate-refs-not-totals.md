@@ -1,9 +1,9 @@
 ---
 type: practice
-title: Validate write-path references with getProjectRef and getTaskRef
+title: Validate write references with transaction-bound reference getters
 description: >-
-  Entry and task writes check project/task references with the ref getters;
-  getProject/getTask compute tracked totals.
+  Entry and catalog writes use scoped getRef contracts; full projections compute
+  totals and stay off validation paths.
 tags:
   - server
   - models
@@ -11,13 +11,20 @@ tags:
   - validation
 kk_schema_version: 3
 kk_id: practice-write-paths-validate-refs-not-totals
-kk_derived_from: []
+kk_derived_from:
+  - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:5'
 kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
 ---
-When a write needs to check that a project or task exists, belongs to the workspace, links to the right project, is active or is billable, use `getProjectRef` (`packages/api/src/models/projects.ts`) and `getTaskRef` (`packages/api/src/models/tasks.ts`). They select only `id`, `workspace_id`, `active`, `billable` (and `project_id` for tasks).
+Entry and catalog writes validate references with the transaction-bound `ctx.projects.getRef(workspaceId, id)` and `ctx.tasks.getRef(workspaceId, id)` contracts. The implementation in `packages/api/src/storage/repositories/catalogs.ts` selects lightweight reference fields and does not compute history totals. Domain checks live in `domain/timeEntries.ts` and `domain/catalogs.ts`.
 
-`getProject` and `getTask` run the tracked-time aggregate over the whole entry history. Calling them on write paths made every create and update slower as history grew; on a 30k-entry fixture the median entry create dropped from 5.37 ms to 0.19 ms after switching. Keep the totals getters for responses that need the totals.
+Full project/task projections compute tracked totals and belong in responses that need them. Import exact-entry writers preserve shared validation while using bounded callback-local reference caches; failed savepoints clear those caches. Do not substitute full totals projections on write validation paths.
 
-Current behaviour worth knowing: time entries may point at an archived project (entry writes do not check `active`), while `createTask` rejects archived projects. Whether entries on archived projects should be refused is an open product question, not a bug.
+Time entries may point at archived projects; entry writes do not require active projects. Task creation rejects archived projects.
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:5
+<!-- kk:citations:end -->
