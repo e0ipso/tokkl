@@ -1,5 +1,6 @@
 import type { TimerState } from '@tokkl/types';
 import type { Response } from 'express';
+import type { StreamCredentialResult } from '../auth/storageMiddleware.ts';
 import { forbidden } from '../lib/errors.ts';
 export interface TimerStreamOptions {
   keepAliveMs?: number;
@@ -7,7 +8,7 @@ export interface TimerStreamOptions {
 }
 interface Stream {
   res: Response;
-  check: () => Promise<boolean>;
+  check: () => Promise<StreamCredentialResult>;
   ready: boolean;
   revision: number;
   timer?: NodeJS.Timeout;
@@ -51,7 +52,7 @@ export class TimerStreams {
   }
   async #valid(group: Group, stream: Stream): Promise<boolean> {
     try {
-      return !this.#closed && !group.retired && !stream.res.destroyed && await stream.check()
+      return !this.#closed && !group.retired && !stream.res.destroyed && (await stream.check()).valid
         && !this.#closed && !group.retired && group.streams.has(stream) && !stream.res.destroyed;
     }
     catch {
@@ -78,10 +79,10 @@ export class TimerStreams {
       this.#end(id, group, stream);
     }
   }
-  open(id: number, res: Response, check: () => Promise<boolean>): Promise<void> {
+  open(id: number, res: Response, check: () => Promise<StreamCredentialResult>): Promise<void> {
     return this.#track(this.#open(id, res, check));
   }
-  async #open(id: number, res: Response, check: () => Promise<boolean>): Promise<void> {
+  async #open(id: number, res: Response, check: () => Promise<StreamCredentialResult>): Promise<void> {
     if (this.#closed)
       throw forbidden('Incorrect username and/or password');
     const group = this.#group(id);
@@ -168,6 +169,10 @@ export class TimerStreams {
         this.#write(id, group, stream, timerEvent(state));
       }
     });
+  }
+  /** True while this process holds at least one open or opening stream for the user. */
+  hasStreams(id: number): boolean {
+    return !this.#closed && !!this.#users.get(id)?.streams.size;
   }
   recheck(id: number): Promise<void> {
     const group = this.#users.get(id);

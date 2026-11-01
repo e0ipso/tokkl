@@ -12,23 +12,47 @@ import { createTimeEntry, entryDurationSeconds, getTimeEntry, memberWorkspace, p
 /** One local application instance owns this callback. No connection or database identity is exposed. */
 export type TimerPublication = (userId: Id, state: TimerState) => Promise<void>;
 export type LocalTimerPublication = TimerPublication & { forgetUser(userId: Id): void };
+/** Reads committed state for a signalled user. `rebuild` must only read: no settling, no commit. */
+export interface RemoteTimerSource {
+  hasStreams(userId: Id): boolean;
+  rebuild(userId: Id): Promise<TimerState | undefined>;
+}
+export type OrderedTimerPublication = LocalTimerPublication & {
+  /** Delivers the database's state when it is newer than what this process delivered. Never signals. */
+  refresh(userId: Id, hintedRevision: number): Promise<void>;
+};
 /** Serialize deliveries per user after release. Drop overtaken revisions; a failed delivery is
  * reported by the runner and never retried as a write. Later deliveries still run. */
-export function createTimerPublication(deliver: TimerPublication, forgotten: (userId: Id) => void = () => {}): LocalTimerPublication {
+export function createTimerPublication(deliver: TimerPublication, forgotten: (userId: Id) => void = () => {}, remote?: RemoteTimerSource): OrderedTimerPublication {
   const queues = new Map<Id, Promise<void>>(), delivered = new Map<Id, number>();
   const generations = new Map<Id, object>();
-  const publication: LocalTimerPublication = Object.assign(async (id: Id, state: TimerState) => {
+  const behind = (id: Id, revision: number) => revision > (delivered.get(id) ?? -1);
+  async function enqueue(id: Id, work: (current: () => boolean) => Promise<void>): Promise<void> {
+    // Captured before any await, so a deletion while this waits or builds discards the result.
     let generation = generations.get(id);
     if (!generation) { generation = {}; generations.set(id, generation); }
-    const next = (queues.get(id) ?? Promise.resolve()).catch(() => {}).then(async () => {
-      if (generations.get(id) !== generation || state.revision <= (delivered.get(id) ?? -1)) return;
-      delivered.set(id, state.revision);
-      await deliver(id, structuredClone(state));
-    });
+    const current = () => generations.get(id) === generation;
+    const next = (queues.get(id) ?? Promise.resolve()).catch(() => {}).then(() => work(current));
     queues.set(id, next);
     try { await next; } finally { if (queues.get(id) === next) queues.delete(id); }
-  }, { forgetUser(id: Id) { generations.delete(id); delivered.delete(id); forgotten(id); } });
-  return publication;
+  }
+  async function send(id: Id, state: TimerState) {
+    delivered.set(id, state.revision);
+    await deliver(id, structuredClone(state));
+  }
+  return Object.assign((id: Id, state: TimerState) => enqueue(id, async current => {
+    if (current() && behind(id, state.revision)) await send(id, state);
+  }), {
+    forgetUser(id: Id) { generations.delete(id); delivered.delete(id); forgotten(id); },
+    refresh(id: Id, hint: number): Promise<void> {
+      if (!remote?.hasStreams(id) || !behind(id, hint)) return Promise.resolve();
+      return enqueue(id, async current => {
+        if (!current() || !behind(id, hint) || !remote.hasStreams(id)) return;
+        const state = await remote.rebuild(id);
+        if (state && current() && behind(id, state.revision)) await send(id, state);
+      });
+    },
+  });
 }
 // Returned objects are updated by every settlement in their operation, including later hooks.
 // Only response holders live here. Hooks and publication decisions remain rollback-owned by ctx.

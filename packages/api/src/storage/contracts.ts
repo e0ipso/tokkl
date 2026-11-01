@@ -13,10 +13,14 @@ export interface NewAccount {
 export interface AccountChanges {
   email?: string; fullName?: string; timezone?: string; beginningOfWeek?: number; defaultWorkspaceId?: Id;
 }
+/** Revision 0 stands for a user without stored timer state. */
+export interface UserTimerRevision { user: User; timerRevision: number }
 export interface UsersRepository {
   count(): Promise<number>;
   countActiveAdmins(): Promise<number>;
   get(id: Id): Promise<User | undefined>;
+  /** One statement: the same user as get, with the user's current timer revision. */
+  getWithTimerRevision(id: Id): Promise<UserTimerRevision | undefined>;
   findByEmail(email: string): Promise<User | undefined>;
   findByApiToken(token: string): Promise<User | undefined>;
   list(): Promise<User[]>;

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { Config } from './config.ts';
 import type { Storage } from './storage/contracts.ts';
 import { createApplicationServices } from './services/application.ts';
+import { createLocalTimerBus, type TimerBus } from './domain/timerBus.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { ConflictWithBody, HttpError } from './lib/errors.ts';
@@ -18,7 +19,9 @@ export interface AppOptions {
   config: Config;
   setup: SetupState;
   timerStreamOptions?: import('./services/timerStreams.ts').TimerStreamOptions;
-
+  /** Signals timer revisions to other API processes. Defaults to the single-process bus. The
+   * caller owns its lifetime; the app never closes it. */
+  timerBus?: TimerBus;
 }
 
 const CONTENT_SECURITY_POLICY = [
@@ -70,7 +73,7 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   return res.status(500).json('Internal Server Error');
 };
 
-export function createApp({ storage, config, setup, timerStreamOptions }: AppOptions): Express {
+export function createApp({ storage, config, setup, timerStreamOptions, timerBus = createLocalTimerBus() }: AppOptions): Express {
   const app = express();
   const loginLimiter = new FailureLimiter(ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   const deps: Deps = {
@@ -78,8 +81,11 @@ export function createApp({ storage, config, setup, timerStreamOptions }: AppOpt
     config,
     loginLimiter,
     setupLimiter: new FailureLimiter(SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
-    ...createApplicationServices(storage, config.storage, loginLimiter, timerStreamOptions),
+    ...createApplicationServices(storage, config.storage, loginLimiter, timerStreamOptions, timerBus),
   };
+  timerBus.receive(signal => {
+    deps.publish.refresh(signal.userId, signal.revision).catch(() => console.error('Timer refresh failed'));
+  });
 
   app.disable('x-powered-by');
   app.set('etag', false);

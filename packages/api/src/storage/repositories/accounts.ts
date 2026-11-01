@@ -111,6 +111,11 @@ export function createAccountRepositories(db: Kysely<PhysicalDatabase>, backend:
     async count() { return safeInteger((await db.selectFrom('users').select(db.fn.countAll().as('n')).executeTakeFirstOrThrow()).n); },
     async countActiveAdmins() { return safeInteger((await db.selectFrom('users').select(db.fn.countAll().as('n')).where('role', '=', 'admin').where('disabled_at', 'is', null).executeTakeFirstOrThrow()).n); },
     get: getUser,
+    async getWithTimerRevision(id) {
+      const row = await db.selectFrom('users').leftJoin('timer_states', 'timer_states.user_id', 'users.id')
+        .selectAll('users').select('timer_states.revision as timer_revision').where('users.id', '=', entityId(id)).executeTakeFirst();
+      return row && { user: user(row), timerRevision: row.timer_revision === null ? 0 : safeInteger(row.timer_revision) };
+    },
     async findByEmail(email) {
       const folded = email.replace(/[A-Z]/g, c => c.toLowerCase());
       const key = backend === 'mysql' || backend === 'mariadb' ? Buffer.from(folded) : folded;

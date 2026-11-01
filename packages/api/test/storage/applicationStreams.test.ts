@@ -9,7 +9,7 @@ function gate() { let resolve!:()=>void;const promise=new Promise<void>(r=>{reso
 test('initial builds serialize and an overtaken snapshot never follows a committed state', {timeout:10000}, async t=>{
  const entered=gate(), release=gate();let active=0,max=0,builds=0;
  const streams=new TimerStreams(async()=>{active++;max=Math.max(max,active);if(++builds===1){entered.resolve();await release.promise;}active--;return state(1);});
- const app=express();app.get('/',async(_req,res)=>streams.open(1,res,async()=>true));
+ const app=express();app.get('/',async(_req,res)=>streams.open(1,res,async()=>({valid:true,revision:0})));
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
  t.after(async()=>{release.resolve();await streams.closeAll();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));});
@@ -19,7 +19,7 @@ test('initial builds serialize and an overtaken snapshot never follows a committ
  assert.equal(max,1);
 });
 test('an initial async failure reaches Express before headers are sent', {timeout:10000},async t=>{
- const streams=new TimerStreams(async()=>{throw Error('read failed');});const app=express();app.get('/',async(_req,res)=>streams.open(1,res,async()=>true));
+ const streams=new TimerStreams(async()=>{throw Error('read failed');});const app=express();app.get('/',async(_req,res)=>streams.open(1,res,async()=>({valid:true,revision:0})));
  app.use((_error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>res.status(500).json('safe error'));
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  t.after(async()=>{await streams.closeAll();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));});
@@ -29,8 +29,8 @@ test('a broken initial subscriber leaves no keep-alive and cannot suppress anoth
  let intervals=0;const original=setInterval;
  t.mock.method(globalThis,'setInterval',(...args:Parameters<typeof setInterval>)=>{intervals++;return original(...args);});
  const streams=new TimerStreams(async()=>state(0));const app=express();
- app.get('/broken',async(_req,res)=>{res.write=()=>{throw Error('broken subscriber');};await streams.open(1,res,async()=>true);});
- app.get('/good',async(_req,res)=>streams.open(1,res,async()=>true));
+ app.get('/broken',async(_req,res)=>{res.write=()=>{throw Error('broken subscriber');};await streams.open(1,res,async()=>({valid:true,revision:0}));});
+ app.get('/good',async(_req,res)=>streams.open(1,res,async()=>({valid:true,revision:0})));
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  const base=`http://127.0.0.1:${(server.address() as AddressInfo).port}`;
  t.after(async()=>{await streams.closeAll();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));});
@@ -41,7 +41,7 @@ test('a broken initial subscriber leaves no keep-alive and cannot suppress anoth
 test('retiring an account detaches its pending initial build from a reused identity', {timeout:10000}, async t=>{
  const entered=gate(),release=gate();let builds=0;
  const streams=new TimerStreams(async()=>{if(++builds===1){entered.resolve();await release.promise;return state(9);}return state(0);});
- const app=express();app.get('/',async(_req,res)=>streams.open(1,res,async()=>true));
+ const app=express();app.get('/',async(_req,res)=>streams.open(1,res,async()=>({valid:true,revision:0})));
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
  t.after(async()=>{release.resolve();await streams.closeAll();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));});
