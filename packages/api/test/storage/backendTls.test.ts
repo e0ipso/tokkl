@@ -90,6 +90,6 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
         console.log(`${backend}: ${label} refused by writer, reader, worker and actual startup`);
       });
     }
-    assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length, 4);
+    assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length, 5);
   });
 }

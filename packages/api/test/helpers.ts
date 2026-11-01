@@ -9,7 +9,7 @@ import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fix
 import { copySQLiteFile } from './fixtures/physical.ts';
 import { createApp } from '../src/app.ts';
 import { hashPassword } from '../src/auth/crypto.ts';
-import { FailureLimiter, type Keys } from '../src/auth/rateLimit.ts';
+import { FailureLimiter, type AttemptResult, type Keys } from '../src/auth/rateLimit.ts';
 import type { Config } from '../src/config.ts';
 import { openDatabase, transaction, type FixtureDatabase } from './fixtures/database.ts';
 import { createFirstAdmin, insertAccount, type UserRole, type User } from './fixtures/domain.ts';
@@ -144,7 +144,7 @@ export function iso(value: string): string {
 export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<unknown>): void {
   const attempt = FailureLimiter.prototype.attempt;
   let pending = true;
-  t.mock.method(FailureLimiter.prototype, 'attempt', function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>) {
+  t.mock.method(FailureLimiter.prototype, 'attempt', function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>): Promise<AttemptResult> {
     return attempt.call(this, keys, async () => {
       const valid = await check();
       if (pending) {

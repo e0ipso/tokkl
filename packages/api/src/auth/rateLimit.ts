@@ -1,11 +1,5 @@
-interface Entry {
-  failures: number;
-  resetAt: number;
-  /** Attempts holding a slot while their password check runs. */
-  inFlight: number;
-  /** Attempts waiting for an in-flight check to settle. */
-  waiters: Array<() => void>;
-}
+import type { RateLimitCounter, RateLimitsRepository } from '../storage/contracts.ts';
+import { sha256 } from './crypto.ts';
 
 /** One failure count an attempt is charged to, with its own limit. */
 export interface Counter {
@@ -32,8 +26,8 @@ export const SETUP_CODE_LIMIT = 10;
 
 /**
  * Accounts are counted by trimmed email with only ASCII A-Z lowercased at every password check.
- * That matches users.email COLLATE NOCASE, so two emails share counters exactly when they are the
- * same account; toLowerCase would also fold letters such as Ä that SQLite keeps apart.
+ * users.email_key folds the same letters on every engine, so two emails share counters exactly when
+ * they are the same account. toLowerCase would also fold letters such as Ä that the key keeps apart.
  */
 export function normalizeEmail(email: string): string {
   return email.trim().replace(/[A-Z]/g, (letter) => String.fromCharCode(letter.charCodeAt(0) + 32));
@@ -62,149 +56,83 @@ export function passwordCounters(email: string, address: string): Counter[] {
   return [...accountCounters(email, address), ...addressCounter(address)];
 }
 
+/** Which limiter a counter belongs to. It is part of the stored key, so equal keys never collide. */
+export type LimiterNamespace = 'password' | 'setup-code';
+
+/** An attempt either ran its check, or was refused unchecked with the seconds to wait. */
+export type AttemptResult = { refused: false; valid: boolean } | { refused: true; retryAfter: number };
+
 /**
- * Fixed-window failure counter. Only failed attempts count, so a correct password always works
- * once the window has passed.
+ * How long a reservation holds its slot. Far longer than any password check, so it only expires
+ * when the instance holding it died. A check that outlives it frees its slot early, and its failure
+ * still counts.
+ */
+const RESERVATION_LEASE_MS = 60 * 1000;
+
+/**
+ * Fixed-window failure counter, stored in the database and shared by every instance on it. Only
+ * failed attempts count, so a correct password always works once the window has passed.
  *
- * Password checks run through `attempt`, which counts checks still in progress against the
- * remaining allowance of every counter they are charged to. Parallel requests therefore cannot all
- * start a check before the first failure is recorded. Extra attempts wait for a running check to
- * settle, up to a counter's limit in waiters; beyond that, or once any counter reaches its limit,
- * they are refused unchecked.
+ * Password checks run through `attempt`, which reserves a slot in every counter they are charged to
+ * before the check runs. A counter refuses once its failures plus its live reservations reach its
+ * limit, so parallel requests cannot all start a check before the first failure is recorded. An
+ * attempt that finds every slot taken is refused at once, with nothing to wait for.
  */
 export class FailureLimiter {
-  private readonly entries = new Map<string, Entry>();
-
+  private readonly limits: RateLimitsRepository;
+  private readonly namespace: LimiterNamespace;
   private readonly maxFailures: number;
   private readonly windowMs: number;
 
   /** `maxFailures` is the limit for plain string keys; counters carry their own. */
-  constructor(maxFailures: number, windowMs: number) {
+  constructor(limits: RateLimitsRepository, namespace: LimiterNamespace, maxFailures: number, windowMs: number) {
+    this.limits = limits;
+    this.namespace = namespace;
     this.maxFailures = maxFailures;
     this.windowMs = windowMs;
   }
 
-  isBlocked(keys: Keys, now = Date.now()): boolean {
-    return this.counters(keys).some(({ key, limit }) => (this.current(key, now)?.failures ?? 0) >= limit);
-  }
-
-  recordFailure(keys: Keys, now = Date.now()): void {
-    for (const { key } of this.counters(keys)) this.addFailure(this.entries.get(key) ?? this.create(key, now), now);
-  }
-
   /** Clears the failure counts. Checks still running for a key keep their slots. */
-  reset(keys: Keys): void {
-    for (const { key } of this.counters(keys)) {
-      const entry = this.entries.get(key);
-      if (!entry) continue;
-      entry.failures = 0;
-      this.settle(key, entry);
-    }
+  async reset(keys: Keys): Promise<void> {
+    await this.limits.reset(this.stored(keys).map(({ keyHash }) => keyHash), new Date().toISOString());
   }
 
   /**
    * Runs `check` under the limits and records a failure against every counter when it returns
-   * false. Returns null, without calling `check`, when any counter is blocked. A thrown error
-   * records nothing.
+   * false. Without calling `check`, it refuses when any counter is blocked or has no free slot. A
+   * thrown error releases the slots and records nothing. No transaction stays open while `check` runs.
    */
-  async attempt(keys: Keys, check: () => Promise<boolean>): Promise<boolean | null> {
-    const counters = this.counters(keys);
-    if (!(await this.acquire(counters))) return null;
+  async attempt(keys: Keys, check: () => Promise<boolean>): Promise<AttemptResult> {
+    const counters = this.stored(keys);
+    const now = Date.now();
+    const reservation = await this.limits.reserve(counters, new Date(now).toISOString(), this.windowMs, RESERVATION_LEASE_MS);
+    if (!reservation.ok) {
+      return { refused: true, retryAfter: reservation.reason === 'slots' ? 1 : this.secondsUntil(reservation.resetAts, now) };
+    }
     let failed = false;
     try {
       const valid = await check();
       failed = !valid;
-      return valid;
+      return { refused: false, valid };
     } finally {
-      this.release(counters, failed);
+      await this.limits.release(reservation.reservations, counters, failed, new Date().toISOString(), this.windowMs);
     }
   }
 
   /**
    * Whole seconds, rounded up, until every counter now at its limit has reset. An attempt is refused
-   * while any counter is full, so waiting for only the first to reset could still get a refusal. Call
-   * it after `attempt` returned null or `isBlocked` returned true. It is never below 1 or above the window.
-   * An attempt refused only because the queue behind a running check was full has no counter at its
-   * limit, and gets 1 second. The result does not say which counter is full.
+   * while any counter is full, so waiting for only the first to reset could still get a refusal. It is
+   * never below 1 or above the window.
    */
-  retryAfterSeconds(keys: Keys, now = Date.now()): number {
-    const resets = this.counters(keys).flatMap(({ key, limit }) => {
-      const entry = this.current(key, now);
-      return entry && entry.failures >= limit ? [entry.resetAt] : [];
-    });
-    if (resets.length === 0) return 1;
-    const seconds = Math.ceil((Math.max(...resets) - now) / 1000);
+  private secondsUntil(resetAts: readonly string[], now: number): number {
+    if (resetAts.length === 0) return 1;
+    const seconds = Math.ceil((Math.max(...resetAts.map(at => Date.parse(at))) - now) / 1000);
     return Math.min(Math.max(seconds, 1), Math.ceil(this.windowMs / 1000));
   }
 
-  private counters(keys: Keys): readonly Counter[] {
-    return typeof keys === 'string' ? [{ key: keys, limit: this.maxFailures }] : keys;
-  }
-
-  private async acquire(counters: readonly Counter[]): Promise<boolean> {
-    for (;;) {
-      const now = Date.now();
-      const entries = counters.map(({ key }) => this.current(key, now));
-      if (counters.some(({ limit }, i) => (entries[i]?.failures ?? 0) >= limit)) return false;
-      const full = counters.findIndex(({ limit }, i) => {
-        const entry = entries[i];
-        return entry !== undefined && entry.failures + entry.inFlight >= limit;
-      });
-      if (full < 0) {
-        for (const { key } of counters) (this.entries.get(key) ?? this.create(key, now)).inFlight++;
-        return true;
-      }
-      const entry = entries[full]!;
-      if (entry.waiters.length >= counters[full]!.limit) return false;
-      await new Promise<void>((resolve) => entry.waiters.push(resolve));
-    }
-  }
-
-  private release(counters: readonly Counter[], failed: boolean): void {
-    const now = Date.now();
-    for (const { key } of counters) {
-      const entry = this.entries.get(key);
-      if (!entry) continue;
-      entry.inFlight--;
-      if (failed) this.addFailure(entry, now);
-      // Woken attempts re-check the limits; those still without a slot queue again.
-      for (const wake of entry.waiters.splice(0)) wake();
-      this.settle(key, entry);
-    }
-  }
-
-  /** The key's entry, with failures from an expired window cleared. */
-  private current(key: string, now: number): Entry | undefined {
-    const entry = this.entries.get(key);
-    if (entry && entry.failures > 0 && entry.resetAt <= now) {
-      entry.failures = 0;
-      this.settle(key, entry);
-    }
-    return this.entries.get(key);
-  }
-
-  private addFailure(entry: Entry, now: number): void {
-    if (entry.resetAt <= now) entry.failures = 0;
-    if (entry.failures === 0) entry.resetAt = now + this.windowMs;
-    entry.failures++;
-  }
-
-  private create(key: string, now: number): Entry {
-    if (this.entries.size >= 10_000) this.prune(now);
-    const entry: Entry = { failures: 0, resetAt: now + this.windowMs, inFlight: 0, waiters: [] };
-    this.entries.set(key, entry);
-    return entry;
-  }
-
-  /** Drops an entry that no longer holds failures, running checks or waiters. */
-  private settle(key: string, entry: Entry): void {
-    if (entry.failures === 0 && entry.inFlight === 0 && entry.waiters.length === 0) this.entries.delete(key);
-  }
-
-  private prune(now: number): void {
-    for (const [key, entry] of this.entries) {
-      if (entry.failures > 0 && entry.resetAt <= now) entry.failures = 0;
-      this.settle(key, entry);
-    }
+  /** The counters as stored: hashed, so the table holds no email or address. */
+  private stored(keys: Keys): RateLimitCounter[] {
+    const counters = typeof keys === 'string' ? [{ key: keys, limit: this.maxFailures }] : keys;
+    return counters.map(({ key, limit }) => ({ keyHash: sha256(`${this.namespace}:${key}`), limit }));
   }
 }

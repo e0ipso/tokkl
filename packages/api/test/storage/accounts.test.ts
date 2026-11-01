@@ -52,7 +52,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         async affectedDeletionUsers() { return [admin.id]; },
         async beforeDelete(ctx: unknown) { assert.ok(ctx); calls.push('delete'); },
       };
-      const attempt = { async attempt(check: () => Promise<boolean>) { return check(); }, retryAfterSeconds() { return 17; } };
+      const attempt = { async attempt(check: () => Promise<boolean>) { return { refused: false as const, valid: await check() }; } };
       await t.test('membership uses workspace roles, hides missing workspaces and validates defaults atomically', async () => {
         await operations.addWorkspaceMember(admin.id, admin.defaultWorkspaceId, bob.id, 'member');
         await assert.rejects(operations.addWorkspaceMember(bob.id, admin.defaultWorkspaceId, carol.id, 'member'), error(403, 'User does not have access to this resource.'));
@@ -164,7 +164,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.equal(await operations.findSessionUser(lost.token), undefined);
         await assert.rejects(operations.updateProfile(seen, { kind: 'session', token: lost.token }, { password: 'password four', current_password: 'password one' }, effects, attempt), error(403, 'Incorrect username and/or password'));
         await assert.rejects(operations.updateProfile(changed, { kind: 'session', token: owner.token }, { password: 'password four', current_password: 'wrong password' }, effects, attempt), error(400, 'Current password is not valid'));
-        await assert.rejects(operations.updateProfile(changed, { kind: 'session', token: owner.token }, { password: 'password four' }, effects, { async attempt() { return null; }, retryAfterSeconds() { return 17; } }), e => error(429, 'Too many failed attempts, try again later')(e) && (e as HttpError).headers['Retry-After'] === '17');
+        await assert.rejects(operations.updateProfile(changed, { kind: 'session', token: owner.token }, { password: 'password four' }, effects, { async attempt() { return { refused: true as const, retryAfter: 17 }; } }), e => error(429, 'Too many failed attempts, try again later')(e) && (e as HttpError).headers['Retry-After'] === '17');
       });
       await t.test('reset, revocation, rotation and deletion during password verification prevent writes', async () => {
         for (const kind of ['reset', 'session-revoke', 'token-rotate', 'delete', 'suspend'] as const) {
@@ -179,8 +179,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             if (kind === 'token-rotate') await competitor.rotateApiToken(user, { kind: 'session', token: session.token });
             if (kind === 'delete') await competitor.deleteAccount(admin.id, user.id, user.email, effects);
             if (kind === 'suspend') await competitor.setAccess(admin.id, user.id, { disabled: true });
-            return valid;
-          }, retryAfterSeconds() { return 17; } };
+            return { refused: false as const, valid };
+          } };
           await assert.rejects(operations.updateProfile(user, credential, { password: 'attacker password', current_password: 'password one', fullname: 'Must not write' }, effects, during), error(403, 'Incorrect username and/or password'));
           const stored = await readUser(user.id);
           if (stored) { assert.equal(stored.fullName, ''); assert.equal(await verifyPassword('attacker password', stored.passwordHash), false); }
@@ -191,8 +191,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const during = { async attempt(check: () => Promise<boolean>) {
           const valid = await check();
           await competitor.updateProfile(user, { kind: 'session', token: session.token }, { timezone: 'Asia/Tokyo' }, effects);
-          return valid;
-        }, retryAfterSeconds() { return 17; } };
+          return { refused: false as const, valid };
+        } };
         await operations.updateProfile(user, { kind: 'session', token: session.token }, { password: 'password five', current_password: 'password three', timezone: 'America/New_York' }, effects, during);
         assert.equal(calls.at(-1), 'Asia/Tokyo->America/New_York');
         const current = (await readUser(user.id))!;

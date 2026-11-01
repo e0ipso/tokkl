@@ -82,7 +82,7 @@ export function queryFlag(req: Request, name: string): boolean {
 
 /**
  * The client address used for rate limiting. With TOKKL_TRUST_PROXY, Express takes it from the
- * last X-Forwarded-For hop, which the reverse proxy appends and the client cannot forge.
+ * X-Forwarded-For entry the outermost trusted proxy appended, which the client cannot forge.
  */
 export function clientAddress(req: Request): string {
   return req.ip ?? req.socket.remoteAddress ?? 'unknown';

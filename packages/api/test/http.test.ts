@@ -30,7 +30,7 @@ test('behind a trusted HTTPS proxy the session cookie is Secure and HSTS is sent
     body: JSON.stringify({ email: 'me@example.com', password: PASSWORD }),
   });
 
-  const proxied = (await login(testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }))));
+  const proxied = (await login(testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: null } }))));
   assert.equal(proxied.status, 200);
   assert.match(proxied.headers.get('set-cookie') ?? '', /;\s*Secure/i);
   assert.match(proxied.headers.get('strict-transport-security') ?? '', /max-age=/);

@@ -5,6 +5,8 @@ import { syncBuiltinESMExports } from 'node:module';
 import express, { type ErrorRequestHandler } from 'express';
 import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
 import type { StorageAuthentication } from '../../src/auth/storageMiddleware.ts';
+import type { RateLimitsRepository } from '../../src/storage/contracts.ts';
+import type { FailureLimiter as Limiter, Keys } from '../../src/auth/rateLimit.ts';
 
 // Hold a real scrypt result while a second real connection commits a credential change.
 const realScrypt = crypto.scrypt as unknown as (...args: unknown[]) => void;
@@ -52,7 +54,16 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const notified: number[] = [];
       const security = { async recheckUser(id: number) { notified.push(id); } };
       const operations = createAccountOperations(runner, security), competing = createAccountOperations(second, security);
-      const loginLimiter = new FailureLimiter(10, PASSWORD_WINDOW_MS), setupLimiter = new FailureLimiter(10, PASSWORD_WINDOW_MS);
+      // Each limiter call runs in its own transaction, as the storage facade's rateLimits does.
+      const limits: RateLimitsRepository = {
+        reserve: (...args) => runner.transaction(r => r.rateLimits.reserve(...args)),
+        release: (...args) => runner.transaction(r => r.rateLimits.release(...args)),
+        reset: (...args) => runner.transaction(r => r.rateLimits.reset(...args)),
+      };
+      const loginLimiter = new FailureLimiter(limits, 'password', 10, PASSWORD_WINDOW_MS), setupLimiter = new FailureLimiter(limits, 'setup-code', 10, PASSWORD_WINDOW_MS);
+      /** Whether an attempt is refused now. When it is not, the check passes and records nothing. */
+      const blocked = async (limiter: Limiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
+      const fail = (keys: Keys) => loginLimiter.attempt(keys, async () => false);
       const setup = { code: 'setup-code' as string | null };
       const sessions = createStorageSessions(runner, operations, { loginLimiter, setupLimiter, sessionDays: 30, setup });
       const auth = createStorageAuth(runner, loginLimiter);
@@ -113,12 +124,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         for (const path of ['/setup', '/login', '/invites/missing', '/resets/missing']) {
           await expectError(path, 403, 'Missing CSRF header', { method: 'POST', body: 'invalid JSON' });
         }
-        assert.equal(setupLimiter.isBlocked('192.0.2.1'), false);
+        assert.equal(await blocked(setupLimiter, '192.0.2.1'), false);
         assert.deepEqual((await request('/status')).body, { setup_required: true });
         for (let n = 0; n < 10; n++) await expectError('/setup', 403, 'Invalid setup code. It is printed in the server log on startup.', { method: 'POST', headers: csrf, body: { setup_code: 'wrong' } });
         const refused = await expectError('/setup', 429, 'Too many failed attempts, try again later', { method: 'POST', headers: csrf, body: { setup_code: 'setup-code' } });
         assert.ok(Number(refused.headers.get('retry-after')) >= 1);
-        setupLimiter.reset('192.0.2.1');
+        await setupLimiter.reset('192.0.2.1');
         await expectError('/setup', 400, 'Invalid JSON input', { method: 'POST', headers: csrf, body: 'wrong' });
         const response = await request('/setup', { method: 'POST', headers: { ...legacyCsrf, 'x-forwarded-proto': 'https' }, body: { setup_code: ' setup-code ', email: 'admin@example.test', password: 'password one' } });
         assert.equal(response.status, 200);
@@ -175,7 +186,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.deepEqual(await Promise.all(checks.map(async check => (await check()).valid)), [true, true, true]);
           if (change === 'reset') { const reset = await operations.createPasswordReset(admin.id, member.id); await competing.resetPassword(reset.token, 'owner password'); }
           if (change === 'password-change') await competing.updateProfile(member, { kind: 'session', token: session.token }, { password: 'owner password', current_password: 'password one' }, effects, {
-            attempt: check => loginLimiter.attempt(passwordCounters(member.email, '192.0.2.2'), check), retryAfterSeconds: () => 1,
+            attempt: check => loginLimiter.attempt(passwordCounters(member.email, '192.0.2.2'), check),
           });
           if (change === 'suspend') await competing.setAccess(admin.id, member.id, { disabled: true });
           if (change === 'delete') await competing.deleteAccount(admin.id, member.id, member.email, effects);
@@ -191,23 +202,25 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const counters = passwordCounters(member.email, '192.0.2.1');
         for (let n = 0; n < 9; n++) await expectError('/login', 403, 'Incorrect email or password', { method: 'POST', headers: csrf, body: { email: member.email, password: 'wrong' } });
         await expectError('/me', 403, 'Incorrect username and/or password', { headers: basic(member.email.toUpperCase(), 'wrong') });
-        assert.equal(loginLimiter.isBlocked(counters), true);
+        assert.equal(await blocked(loginLimiter, counters), true);
         const refused = await expectError('/me', 429, 'Too many failed login attempts, try again later', { headers: basic(member.email, 'password one') });
         assert.ok(Number(refused.headers.get('retry-after')) <= 900);
         assert.ok(Number(refused.headers.get('retry-after')) >= 1);
         assert.equal((await request('/me', { headers: basic(member.apiToken, 'api_token') })).status, 200);
-        loginLimiter.reset(accountCounters(member.email, '192.0.2.1'));
-        for (let n = 0; n < 49; n++) loginLimiter.recordFailure(accountCounters(member.email, 'elsewhere')[1]!.key);
+        await loginLimiter.reset(accountCounters(member.email, '192.0.2.1'));
+        const account = accountCounters(member.email, 'elsewhere')[1]!;
+        for (let n = 0; n < 49; n++) await fail([account]);
         await login(member.email);
-        assert.equal(loginLimiter.isBlocked(accountCounters(member.email, 'elsewhere')[1]!.key), false);
+        // A limit of one is reached by any failure left on the account counter.
+        assert.equal(await blocked(loginLimiter, [{ key: account.key, limit: 1 }]), false);
         // A successful form login cleared account counters while ten failures still charge the address.
-        for (let n = 0; n < 90; n++) loginLimiter.recordFailure(addressCounter('192.0.2.1'));
-        assert.equal(loginLimiter.isBlocked(addressCounter('192.0.2.1')), true);
-        loginLimiter.reset(addressCounter('192.0.2.1'));
+        for (let n = 0; n < 90; n++) await fail(addressCounter('192.0.2.1'));
+        assert.equal(await blocked(loginLimiter, addressCounter('192.0.2.1')), true);
+        await loginLimiter.reset(addressCounter('192.0.2.1'));
         for (const email of ['unknown@example.test', member.email]) {
           if (email === member.email) await competing.setAccess(admin.id, member.id, { disabled: true });
           for (let n = 0; n < 10; n++) await expectError('/me', 403, 'Incorrect username and/or password', { headers: basic(email, 'password one') });
-          assert.equal(loginLimiter.isBlocked(passwordCounters(email, '192.0.2.1')), true);
+          assert.equal(await blocked(loginLimiter, passwordCounters(email, '192.0.2.1')), true);
         }
         await expectError('/me', 403, 'Incorrect username and/or password', { headers: basic(member.apiToken, 'api_token') });
       });
@@ -218,9 +231,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const reset = await operations.createPasswordReset(admin.id, member.id);
         assert.deepEqual((await request(`/resets/${reset.token}`)).body, { email: member.email });
         await expectError(`/resets/${reset.token}`, 403, 'Missing CSRF header', { method: 'POST', body: { password: 'password two' } });
-        for (let n = 0; n < 10; n++) loginLimiter.recordFailure(accountCounters(member.email, '192.0.2.1'));
+        for (let n = 0; n < 10; n++) await fail(accountCounters(member.email, '192.0.2.1'));
         assert.equal((await request(`/resets/${reset.token}`, { method: 'POST', headers: legacyCsrf, body: { password: 'password two' } })).status, 200);
-        assert.equal(loginLimiter.isBlocked(accountCounters(member.email, '192.0.2.1')), false);
+        assert.equal(await blocked(loginLimiter, accountCounters(member.email, '192.0.2.1')), false);
         assert.notEqual((await getUser(member.id))!.apiToken, tokenBefore);
         for (const headers of [{ cookie: firstCookie }, { cookie: secondCookie }, basic(tokenBefore, 'api_token')]) await expectError('/me', 403, 'Incorrect username and/or password', { headers });
         await expectError(`/resets/${reset.token}`, 404, 'This password reset link is not valid. Ask your admin for a new one.');
@@ -236,18 +249,18 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.deepEqual((await request(`/invites/${invite.token}`)).body, { role: 'user' });
         assert.equal((await request(`/invites/${invite.token}`, { method: 'POST', headers: csrf, body: { email: 'invited@example.test', password: 'password one' } })).status, 200);
         await expectError(`/invites/${invite.token}`, 404, 'This invite link is not valid. Ask your admin for a new one.');
-        loginLimiter.reset(addressCounter('192.0.2.1'));
+        await loginLimiter.reset(addressCounter('192.0.2.1'));
         for (let n = 0; n < 100; n++) await expectError('/invites/missing', 404, 'This invite link is not valid. Ask your admin for a new one.');
         const refused = await expectError('/resets/missing', 429, 'Too many failed attempts, try again later');
         assert.ok(Number(refused.headers.get('retry-after')) >= 1);
-        loginLimiter.reset(addressCounter('192.0.2.1'));
+        await loginLimiter.reset(addressCounter('192.0.2.1'));
       });
       await t.test('profile password policy charges the shared limiter and preserves requesting session', async () => {
         const member = await add('profile'), activeCookie = await login(member.email), otherCookie = await login(member.email);
         for (let n = 0; n < 10; n++) await expectError('/profile', 400, 'Current password is not valid', { method: 'PUT', headers: { ...csrf, cookie: activeCookie }, body: { password: 'password two', current_password: 'wrong' } });
         const refused = await expectError('/profile', 429, 'Too many failed attempts, try again later', { method: 'PUT', headers: { ...csrf, cookie: activeCookie }, body: { password: 'password two', current_password: 'password one' } });
         assert.ok(Number(refused.headers.get('retry-after')) >= 1);
-        loginLimiter.reset(accountCounters(member.email, '192.0.2.1'));
+        await loginLimiter.reset(accountCounters(member.email, '192.0.2.1'));
         const changed = await request('/profile', { method: 'PUT', headers: { ...csrf, cookie: activeCookie }, body: { password: 'password two', current_password: 'password one', fullname: 'New name' } });
         assert.equal(changed.status, 200);
         assert.notEqual((changed.body as { api_token: string }).api_token, member.apiToken);
@@ -265,7 +278,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             hold = { remaining: nth, async during() {
               if (change === 'reset') await competing.resetPassword(reset!.token, 'owner password');
               if (change === 'password-change') await competing.updateProfile(member, { kind: 'session', token: owner.token }, { password: 'owner password', current_password: 'password one' }, effects, {
-                attempt: check => loginLimiter.attempt(passwordCounters(member.email, '192.0.2.2'), check), retryAfterSeconds: () => 1,
+                attempt: check => loginLimiter.attempt(passwordCounters(member.email, '192.0.2.2'), check),
               });
               if (change === 'session-revoke') await competing.revokeSessions(admin.id, member.id);
               if (change === 'token-rotate') await competing.rotateApiToken(member, { kind: 'session', token: owner.token });

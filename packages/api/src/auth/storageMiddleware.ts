@@ -41,23 +41,19 @@ function decodeBasic(header: string) {
 }
 export function passwordAttempt(limiter: FailureLimiter, email: string, address: string): AccountPasswordAttempt {
   const counters = passwordCounters(email, address);
-  return {
-    attempt: check => limiter.attempt(counters, check),
-    retryAfterSeconds: () => limiter.retryAfterSeconds(counters),
-  };
+  return { attempt: check => limiter.attempt(counters, check) };
 }
 /** Only callable through the shared password attempt policy, including unknown/disabled accounts. */
 export async function authenticatePassword<R extends AccountRepositories>(
   runner: AccountRunner<R>, limiter: FailureLimiter, email: string, password: string, address: string,
 ): Promise<User | undefined> {
   const seen = await runner.readSnapshot(ctx => ctx.users.findByEmail(email));
-  const policy = passwordAttempt(limiter, email, address);
-  const valid = await policy.attempt(async () => {
+  const result = await passwordAttempt(limiter, email, address).attempt(async () => {
     if (!seen) return verifyAgainstDummy(password);
     return (await verifyPassword(password, seen.passwordHash)) && isActiveUser(seen);
   });
-  if (valid === null) throw tooManyRequests('Too many failed login attempts, try again later', policy.retryAfterSeconds());
-  if (!seen || !valid) return;
+  if (result.refused) throw tooManyRequests('Too many failed login attempts, try again later', result.retryAfter);
+  if (!seen || !result.valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }
 const unchangedActive = (current: User | undefined, seen: User): current is User =>

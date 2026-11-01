@@ -48,6 +48,8 @@ for (const backend of ['mysql', 'mariadb'] as const) {
         await sql`update time_entries set stop = '2026-10-01T02:00:00.000Z' where id = 1`.execute(connection.db);
         await sql`update time_entries set stop = null where id = 2`.execute(connection.db);
         assert.deepEqual(await slots(), [[1, 2], [2, 3]]);
+        // The upgrade ends with the full current schema, rate-limit tables included.
+        await assertSchema(connection.db, backend);
       } finally { await connection.close(); }
     } finally { await fixture.cleanup(); }
   });

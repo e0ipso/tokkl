@@ -84,6 +84,11 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>): 
       deleteForUser: (...args: Parameters<Repositories['sessions']['deleteForUser']>) => runner.transaction(r => r.sessions.deleteForUser(...args)),
       deleteExpired: (...args: Parameters<Repositories['sessions']['deleteExpired']>) => runner.transaction(r => r.sessions.deleteExpired(...args)),
     },
+    rateLimits: {
+      reserve: (...args: Parameters<Repositories['rateLimits']['reserve']>) => runner.transaction(r => r.rateLimits.reserve(...args)),
+      release: (...args: Parameters<Repositories['rateLimits']['release']>) => runner.transaction(r => r.rateLimits.release(...args)),
+      reset: (...args: Parameters<Repositories['rateLimits']['reset']>) => runner.transaction(r => r.rateLimits.reset(...args)),
+    },
     clients: {
       list: (...args: Parameters<Repositories['clients']['list']>) => runner.readSnapshot(r => r.clients.list(...args)),
       get: (...args: Parameters<Repositories['clients']['get']>) => runner.readSnapshot(r => r.clients.get(...args)),

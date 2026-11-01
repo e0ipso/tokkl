@@ -75,12 +75,12 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
 
 export function createApp({ storage, config, setup, timerStreamOptions, timerBus = createLocalTimerBus() }: AppOptions): Express {
   const app = express();
-  const loginLimiter = new FailureLimiter(ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
+  const loginLimiter = new FailureLimiter(storage.rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   const deps: Deps = {
     storage,
     config,
     loginLimiter,
-    setupLimiter: new FailureLimiter(SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
+    setupLimiter: new FailureLimiter(storage.rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
     ...createApplicationServices(storage, config.storage, loginLimiter, timerStreamOptions, timerBus),
   };
   timerBus.receive(signal => {
@@ -89,9 +89,9 @@ export function createApp({ storage, config, setup, timerStreamOptions, timerBus
 
   app.disable('x-powered-by');
   app.set('etag', false);
-  // One hop: the reverse proxy. req.ip becomes the address it appended to X-Forwarded-For, and
-  // req.secure follows its X-Forwarded-Proto.
-  app.set('trust proxy', config.trustProxy ? 1 : false);
+  // A hop count or the proxies' addresses. req.ip becomes the address the outermost trusted proxy
+  // appended to X-Forwarded-For, and req.secure follows X-Forwarded-Proto.
+  app.set('trust proxy', config.trustProxy);
   app.use(securityHeaders);
   const active = new Set<AbortController>();
   let closing = false;

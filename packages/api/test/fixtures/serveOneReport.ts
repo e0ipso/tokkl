@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../../src/app.ts';
+import type { Config } from '../../src/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
@@ -17,7 +18,7 @@ const storageConfig={backend:'sqlite' as const,filename:databasePath,busyTimeout
 const storage=createStorage(await initializeDatabase(storageConfig));
 const createFirstAdmin=(_storage:typeof storage,body:Record<string,unknown>)=>createAccountOperations(storage,{recheckUser:async()=>{}}).createFirstAdmin(body);
 const user = await createFirstAdmin(storage, { email: 'me@example.com', password: 'correct horse battery', fullname: 'Test User', timezone: 'UTC' });
-const config = {
+const config: Config = {
   port: 0, host: '127.0.0.1', dataDir: dir, storage:storageConfig, webRoot: '/nonexistent', trustProxy: false, sessionDays: 30, setupCode: undefined,
 };
 const app=createApp({ storage, config, setup: { code: null } });

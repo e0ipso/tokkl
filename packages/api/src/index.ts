@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { createApp } from './app.ts';
-import { loadConfig } from './config.ts';
+import { ConfigurationError, loadConfig } from './config.ts';
 import { initializeDatabase } from './storage/migrations.ts';
 import { createStorage } from './storage/index.ts';
 import { startTimerBus } from './storage/timerBus.ts';
@@ -60,4 +60,8 @@ async function main(): Promise<void> {
     throw error;
   }
 }
-await main().catch(() => { console.error('Startup failed. Check database configuration, supported schema and connectivity.'); process.exitCode = 1; });
+// Other errors can carry connection details, so only configuration errors print their message.
+await main().catch((error: unknown) => {
+  console.error(error instanceof ConfigurationError ? `Startup failed. ${error.message}` : 'Startup failed. Check database configuration, supported schema and connectivity.');
+  process.exitCode = 1;
+});

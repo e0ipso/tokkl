@@ -26,9 +26,15 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const before = await schemaFingerprint(connection.db, backend);
       const oldLedger = await connection.db.selectFrom('storage_migrations').selectAll().orderBy('version').execute();
       await connection.close();
+      if (backend === 'sqlite') {
+        // Fractional estimates only change server column types. SQLite keeps its schema.
+        connection = await openConnection<PhysicalDatabase>(fixture.config);
+        await migrate(connection, available.slice(0, 3));
+        assert.equal(await schemaFingerprint(connection.db, backend), before);
+        await connection.close();
+      }
       connection = await initializeDatabase(fixture.config);
       assert.deepEqual((await connection.db.selectFrom('storage_migrations').selectAll().orderBy('version').execute()).slice(0, 2), oldLedger);
-      if (backend === 'sqlite') assert.equal(await schemaFingerprint(connection.db, backend), before);
       const runner = createTransactionRunner(connection, db => createCatalogRepositories(db, backend));
       assert.equal((await runner.readSnapshot(r => r.tasks.getMetadata(1, 1)))?.estimatedSeconds, 42);
       const effects: catalog.CatalogTimerEffects = { async prepare() { return { async settle() {}, async publish() {} }; }, async removeTagFromPauseChains() {} };

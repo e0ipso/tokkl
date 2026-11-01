@@ -25,7 +25,7 @@ const { createAccountOperations } = await import('../../src/domain/accounts.ts')
 const { verifyPassword } = await import('../../src/auth/crypto.ts');
 const { HttpError } = await import('../../src/lib/errors.ts');
 const { disposableBackend } = await import('./support/disposableBackend.ts');
-const attempt = { async attempt(check: () => Promise<boolean>) { return check(); }, retryAfterSeconds() { return 1; } };
+const attempt = { async attempt(check: () => Promise<boolean>) { return { refused: false as const, valid: await check() }; } };
 const effects: AccountEntryEffects = {
   async reanchorTimezone() { throw new Error('Unexpected timezone effect'); },
   async affectedDeletionUsers() { return []; },

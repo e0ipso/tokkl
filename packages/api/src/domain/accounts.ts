@@ -4,7 +4,7 @@ import { StorageConflict } from '../storage/errors.ts';
 import { badRequest, forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
 import { optionalBool, optionalRate, optionalString } from '../lib/values.ts';
 import { generateApiToken, generateSessionToken, hashPassword, readNewPassword, sha256, verifyPassword } from '../auth/crypto.ts';
-import { normalizeEmail } from '../auth/rateLimit.ts';
+import { normalizeEmail, type AttemptResult } from '../auth/rateLimit.ts';
 import { DEFAULT_PREFERENCES, getPreferences, readNewAccount, readProfileChanges, validatePreferenceChanges } from './accountValues.ts';
 
 export type AccountRepositories = Pick<Repositories, 'users' | 'workspaces' | 'settings' | 'tokens' | 'sessions'>;
@@ -16,8 +16,7 @@ export interface AccountRunner<R extends AccountRepositories = AccountRepositori
 export type AccountCredential = { kind: 'session'; token: string } | { kind: 'api-token'; token: string } | { kind: 'password' };
 /** The HTTP/auth adapter supplies FailureLimiter.attempt with passwordCounters and its address. */
 export interface AccountPasswordAttempt {
-  attempt(check: () => Promise<boolean>): Promise<boolean | null>;
-  retryAfterSeconds(): number;
+  attempt(check: () => Promise<boolean>): Promise<AttemptResult>;
 }
 /** Required at operations that need entry/timer work. Implement with the same operation context. */
 export interface AccountEntryEffects<R extends AccountRepositories = AccountRepositories> {
@@ -265,9 +264,9 @@ export function createAccountOperations<R extends AccountRepositories>(runner: A
         const password = readNewPassword(body.password);
         const current = optionalString(body.current_password, 'current_password', Number.POSITIVE_INFINITY) ?? '';
         if (!attempt) throw new Error('Password attempt policy required');
-        const valid = await attempt.attempt(() => verifyPassword(current, seen.passwordHash));
-        if (valid === null) throw tooManyRequests('Too many failed attempts, try again later', attempt.retryAfterSeconds());
-        if (!valid) throw badRequest('Current password is not valid');
+        const result = await attempt.attempt(() => verifyPassword(current, seen.passwordHash));
+        if (result.refused) throw tooManyRequests('Too many failed attempts, try again later', result.retryAfter);
+        if (!result.valid) throw badRequest('Current password is not valid');
         passwordHash = await hashPassword(password);
       }
       return emailConflict(() => runner.transaction(async ctx => {
