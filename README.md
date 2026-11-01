@@ -99,6 +99,14 @@ Settings → Data exports the signed-in account's accessible workspace data. JSO
 
 For a full instance backup, stop the application and use your database's consistent backup procedure. With SQLite, retain the database and any `-wal`/`-shm` files as one consistent set; copying only a live main file can omit committed data. With server engines, preserve the database using the engine's backup/restore tooling and retain deployment configuration and secrets separately. Restore a full backup into the same backend and a compatible schema before starting the application. Test recovery on a disposable deployment.
 
+## Upgrading
+
+Upgrades need a short outage, so stop every instance before starting the new release. Once a release adds a migration, an old instance that restarts refuses the newer migration ledger, and old instances still running query a schema they were not written for.
+
+Start one instance of the new release first. It applies new migrations before it opens the HTTP port, so `tokkl listening` in its log means the schema is current. Then start the rest; they find nothing to apply and only validate the schema. An instance that starts while another is still migrating waits for it, and on SQLite, MySQL and MariaDB it fails startup after 30 seconds of waiting.
+
+An older release refuses a database that a newer release has migrated. To keep the option of rolling back, take a full backup as described in [Backups and restore](#backups-and-restore) before upgrading.
+
 ## Behind a reverse proxy
 
 The apps follow the timer through a Server-Sent Events stream at `GET /api/app/timer/events`. The server sends a `keep-alive` event every 25 seconds and sets `X-Accel-Buffering: no`. A proxy must not buffer that response, and its read timeout must be well above 25 seconds. Otherwise the stream drops, or goes a minute without a keep-alive, and the clients fall back to polling every 30 seconds. nginx honours the header, and this location block sets both explicitly:
