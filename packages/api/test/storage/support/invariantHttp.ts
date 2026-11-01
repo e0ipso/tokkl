@@ -58,6 +58,8 @@ export async function serveInvariant(app: Express) {
 export async function readTimerStream(response: Response) {
   assert.equal(response.status, 200);
   const reader = response.body!.getReader(), states: TimerState[] = [];
+  // Arrival order of timer revisions and keep-alives.
+  const events: Array<number | 'keep-alive'> = [];
   let ended = false, failure: unknown;
   const pump = (async () => {
     let buffer = '';
@@ -69,14 +71,18 @@ export async function readTimerStream(response: Response) {
         let boundary: number;
         while ((boundary = buffer.indexOf('\n\n')) >= 0) {
           const event = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2);
-          if (event.startsWith('event: timer')) states.push(JSON.parse(event.split('data: ')[1]!) as TimerState);
+          if (event.startsWith('event: timer')) {
+            const state = JSON.parse(event.split('data: ')[1]!) as TimerState;
+            states.push(state); events.push(state.revision);
+          }
+          else if (event.startsWith('event: keep-alive')) events.push('keep-alive');
         }
       }
     } catch (error) { failure = error; }
     finally { ended = true; }
   })();
   return {
-    states, ended: () => ended,
+    states, events, ended: () => ended,
     /** `describe` adds what the caller saw to the deadline failure. */
     async until(predicate: () => boolean, { timeoutMs = 5000, describe }: { timeoutMs?: number; describe?: () => string } = {}) {
       const deadline = performance.now() + timeoutMs;

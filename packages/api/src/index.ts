@@ -3,6 +3,8 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { initializeDatabase } from './storage/migrations.ts';
 import { createStorage } from './storage/index.ts';
+import { startTimerBus } from './storage/timerBus.ts';
+import type { TimerBus } from './domain/timerBus.ts';
 import { safeDestination } from './storage/config.ts';
 function setupCode(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -16,9 +18,12 @@ async function main(): Promise<void> {
   for (const notice of notices)
     console.warn(notice);
   const storage = createStorage(await initializeDatabase(config.storage));
+  let bus: TimerBus | undefined;
   try {
     const setup = { code: await storage.users.count() === 0 ? config.setupCode ?? setupCode() : null };
-    const app = createApp({ storage, config, setup });
+    // A process must hear other instances' timer signals before it reports that it is listening.
+    const timerBus = bus = await startTimerBus(config.storage);
+    const app = createApp({ storage, config, setup, timerBus });
     const server = app.listen(config.port, config.host);
     let stopping: Promise<void> | undefined;
     const shutdown = () => stopping ??= (async () => {
@@ -32,6 +37,8 @@ async function main(): Promise<void> {
       }
       finally {
         clearTimeout(deadline);
+        // Streams are closed by now. Storage still closes if the bus cannot.
+        await timerBus.close().catch(() => { console.error('Timer bus close failed'); });
         await storage.close();
       }
     })();
@@ -48,6 +55,7 @@ async function main(): Promise<void> {
     });
   }
   catch (error) {
+    await bus?.close().catch(() => {});
     await storage.close();
     throw error;
   }

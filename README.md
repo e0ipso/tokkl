@@ -113,7 +113,7 @@ location /api/app/timer/events {
 }
 ```
 
-Each user may hold 10 streams. Opening an 11th closes the oldest.
+Each user may hold 10 streams on each instance. Opening an 11th on the same instance closes the oldest there, so a user whose streams spread across several instances may hold more in total.
 
 ## Moving from Toggl Track
 

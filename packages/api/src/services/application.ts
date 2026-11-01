@@ -13,7 +13,9 @@ import { TimerHub } from './timerHub.ts';
 import { TimerStreams } from './timerStreams.ts';
 import { forbidden } from '../lib/errors.ts';
 export function createApplicationServices(storage: Storage, config: StorageConfig, limiter: FailureLimiter, streamOptions?: import('./timerStreams.ts').TimerStreamOptions, bus: TimerBus = createLocalTimerBus()) {
-  const timerStreams = new TimerStreams(id => timers.getTimerState(id), streamOptions);
+  const timerStreams = new TimerStreams(id => timers.getTimerState(id), { ...streamOptions,
+    // `publish` is defined below; the tick calls this only after construction.
+    onBehind: (id, revision) => { publish.refresh(id, revision).catch(() => console.error('Timer refresh failed')); } });
   const hub = new TimerHub();
   const ordered = createTimerPublication(async (id, state) => { await Promise.allSettled([timerStreams.publish(id, state), hub.publish(id, state)]); }, id => {
     timerStreams.forgetUser(id);
