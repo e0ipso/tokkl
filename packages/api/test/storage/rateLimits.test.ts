@@ -24,8 +24,14 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const runner = createTransactionRunner(connection, db => createAccountRepositories(db, backend));
       const limits = <T>(work: (repository: RateLimitsRepository) => Promise<T>) => runner.transaction(r => work(r.rateLimits));
       const reserve = (counters: RateLimitCounter[], now: string, leaseMs = LEASE, windowMs = WINDOW) => limits(r => r.reserve(counters, now, windowMs, leaseMs));
-      const fail = (counters: RateLimitCounter[], now: string, times = 1) => limits(async r => { for (let i = 0; i < times; i++) await r.recordFailure(counters, now, WINDOW); });
-      const state = (counters: RateLimitCounter[], now: string) => runner.readSnapshot(r => r.rateLimits.state(counters, now));
+      /** Failed checks: each reserves, then releases with a failure. */
+      const fail = async (counters: RateLimitCounter[], now: string, times = 1) => {
+        for (let i = 0; i < times; i++) {
+          const held = await reserve(counters, now);
+          assert.ok(held.ok, 'a failing check gets its slots');
+          await limits(r => r.release(held.reservations, counters, true, now, WINDOW));
+        }
+      };
       const live = async (c: RateLimitCounter) => (await connection.db.selectFrom('rate_limit_reservations').select('id').where('key_hash', '=', c.keyHash).execute()).length;
       const counterRow = (c: RateLimitCounter) => connection.db.selectFrom('rate_limit_counters').selectAll().where('key_hash', '=', c.keyHash).executeTakeFirst();
       try {
@@ -63,7 +69,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await fail([full], at(20_000));
           assert.deepEqual(await reserve([other, full], at(30_000)), { ok: false, reason: 'blocked', resetAts: [at(10_000 + WINDOW)] });
           assert.equal(await live(other), 0, 'a refused reservation reserves nothing');
-          assert.deepEqual(await state([other, full], at(30_000)), { blocked: true, resetAts: [at(10_000 + WINDOW)] });
+          assert.equal(await counterRow(other), undefined, 'and keeps no counter it created');
 
           const slots = counter('slots', 3);
           await fail([slots], at(30_000));
@@ -71,12 +77,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.equal((await reserve([slots], at(30_000))).ok, true);
           assert.deepEqual(await reserve([slots, other], at(30_000)), { ok: false, reason: 'slots' });
           assert.equal(await live(other), 0, 'all-or-none');
-          assert.deepEqual(await state([slots], at(30_000)), { blocked: false, resetAts: [] });
+          assert.ok(await counterRow(slots), 'a refusal keeps counters with failures or live reservations');
 
           // An expired lease stops counting, and an expired window starts with no failures.
           assert.equal((await reserve([slots], at(30_000 + LEASE))).ok, true);
-          assert.equal((await state([full], at(10_000 + WINDOW - 1))).blocked, true);
-          assert.deepEqual(await state([full], at(10_000 + WINDOW)), { blocked: false, resetAts: [] });
+          assert.deepEqual(await reserve([full], at(10_000 + WINDOW - 1)), { ok: false, reason: 'blocked', resetAts: [at(10_000 + WINDOW)] });
           const fresh = await reserve([full], at(10_000 + WINDOW));
           assert.equal(fresh.ok, true);
           const row = (await counterRow(full))!;
@@ -121,7 +126,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const reopened = createStorage(await initializeDatabase(config));
       try {
         const durable = counter('durable', 3);
-        assert.deepEqual(await reopened.rateLimits.state([durable], at(8 * WINDOW + 1)), { blocked: true, resetAts: [at(9 * WINDOW)] });
         assert.deepEqual(await reopened.rateLimits.reserve([durable], at(8 * WINDOW + 1), WINDOW, LEASE), { ok: false, reason: 'blocked', resetAts: [at(9 * WINDOW)] });
         await reopened.rateLimits.reset([durable.keyHash], at(8 * WINDOW + 2));
         assert.equal((await reopened.rateLimits.reserve([durable], at(8 * WINDOW + 2), WINDOW, LEASE)).ok, true);

@@ -48,12 +48,19 @@ function isAddressOrRange(entry: string): boolean {
   return /^[0-9]{1,3}$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128);
 }
 
+const invalidTrustProxy = () => new ConfigurationError('Invalid TOKKL_TRUST_PROXY: use empty or 0 to trust no proxy, a positive number of proxy hops, or a comma-separated list of IP addresses and CIDR ranges.');
+
 function trustProxy(value: string | undefined): Config['trustProxy'] {
   const trimmed = (value ?? '').trim();
-  if (/^[0-9]*$/.test(trimmed)) return Number(trimmed) > 0 ? Number(trimmed) : false;
+  if (/^[0-9]*$/.test(trimmed)) {
+    const hops = Number(trimmed);
+    // A count too large to be exact, such as Infinity, would trust every hop.
+    if (!Number.isSafeInteger(hops)) throw invalidTrustProxy();
+    return hops > 0 ? hops : false;
+  }
   const entries = trimmed.split(',').map((entry) => entry.trim());
   if (entries.every(isAddressOrRange)) return entries;
-  throw new ConfigurationError('Invalid TOKKL_TRUST_PROXY: use empty or 0 to trust no proxy, a positive number of proxy hops, or a comma-separated list of IP addresses and CIDR ranges.');
+  throw invalidTrustProxy();
 }
 
 function int(value: string | undefined, fallback: number): number {

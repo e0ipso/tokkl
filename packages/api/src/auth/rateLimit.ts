@@ -92,14 +92,6 @@ export class FailureLimiter {
     this.windowMs = windowMs;
   }
 
-  async isBlocked(keys: Keys): Promise<boolean> {
-    return (await this.limits.state(this.stored(keys), new Date().toISOString())).blocked;
-  }
-
-  async recordFailure(keys: Keys): Promise<void> {
-    await this.limits.recordFailure(this.stored(keys), new Date().toISOString(), this.windowMs);
-  }
-
   /** Clears the failure counts. Checks still running for a key keep their slots. */
   async reset(keys: Keys): Promise<void> {
     await this.limits.reset(this.stored(keys).map(({ keyHash }) => keyHash), new Date().toISOString());
@@ -129,16 +121,9 @@ export class FailureLimiter {
 
   /**
    * Whole seconds, rounded up, until every counter now at its limit has reset. An attempt is refused
-   * while any counter is full, so waiting for only the first to reset could still get a refusal. Call
-   * it after `isBlocked` returned true; `attempt` returns the same value with its refusal. It is never
-   * below 1 or above the window, and it is 1 when no counter is at its limit. The result does not say
-   * which counter is full.
+   * while any counter is full, so waiting for only the first to reset could still get a refusal. It is
+   * never below 1 or above the window.
    */
-  async retryAfterSeconds(keys: Keys): Promise<number> {
-    const now = Date.now();
-    return this.secondsUntil((await this.limits.state(this.stored(keys), new Date(now).toISOString())).resetAts, now);
-  }
-
   private secondsUntil(resetAts: readonly string[], now: number): number {
     if (resetAts.length === 0) return 1;
     const seconds = Math.ceil((Math.max(...resetAts.map(at => Date.parse(at))) - now) / 1000);

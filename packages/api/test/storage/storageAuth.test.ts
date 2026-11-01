@@ -6,6 +6,7 @@ import express, { type ErrorRequestHandler } from 'express';
 import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
 import type { StorageAuthentication } from '../../src/auth/storageMiddleware.ts';
 import type { RateLimitsRepository } from '../../src/storage/contracts.ts';
+import type { FailureLimiter as Limiter, Keys } from '../../src/auth/rateLimit.ts';
 
 // Hold a real scrypt result while a second real connection commits a credential change.
 const realScrypt = crypto.scrypt as unknown as (...args: unknown[]) => void;
@@ -57,11 +58,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const limits: RateLimitsRepository = {
         reserve: (...args) => runner.transaction(r => r.rateLimits.reserve(...args)),
         release: (...args) => runner.transaction(r => r.rateLimits.release(...args)),
-        recordFailure: (...args) => runner.transaction(r => r.rateLimits.recordFailure(...args)),
         reset: (...args) => runner.transaction(r => r.rateLimits.reset(...args)),
-        state: (...args) => runner.readSnapshot(r => r.rateLimits.state(...args)),
       };
       const loginLimiter = new FailureLimiter(limits, 'password', 10, PASSWORD_WINDOW_MS), setupLimiter = new FailureLimiter(limits, 'setup-code', 10, PASSWORD_WINDOW_MS);
+      /** Whether an attempt is refused now. When it is not, the check passes and records nothing. */
+      const blocked = async (limiter: Limiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
+      const fail = (keys: Keys) => loginLimiter.attempt(keys, async () => false);
       const setup = { code: 'setup-code' as string | null };
       const sessions = createStorageSessions(runner, operations, { loginLimiter, setupLimiter, sessionDays: 30, setup });
       const auth = createStorageAuth(runner, loginLimiter);
@@ -122,7 +124,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         for (const path of ['/setup', '/login', '/invites/missing', '/resets/missing']) {
           await expectError(path, 403, 'Missing CSRF header', { method: 'POST', body: 'invalid JSON' });
         }
-        assert.equal(await setupLimiter.isBlocked('192.0.2.1'), false);
+        assert.equal(await blocked(setupLimiter, '192.0.2.1'), false);
         assert.deepEqual((await request('/status')).body, { setup_required: true });
         for (let n = 0; n < 10; n++) await expectError('/setup', 403, 'Invalid setup code. It is printed in the server log on startup.', { method: 'POST', headers: csrf, body: { setup_code: 'wrong' } });
         const refused = await expectError('/setup', 429, 'Too many failed attempts, try again later', { method: 'POST', headers: csrf, body: { setup_code: 'setup-code' } });
@@ -200,23 +202,25 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const counters = passwordCounters(member.email, '192.0.2.1');
         for (let n = 0; n < 9; n++) await expectError('/login', 403, 'Incorrect email or password', { method: 'POST', headers: csrf, body: { email: member.email, password: 'wrong' } });
         await expectError('/me', 403, 'Incorrect username and/or password', { headers: basic(member.email.toUpperCase(), 'wrong') });
-        assert.equal(await loginLimiter.isBlocked(counters), true);
+        assert.equal(await blocked(loginLimiter, counters), true);
         const refused = await expectError('/me', 429, 'Too many failed login attempts, try again later', { headers: basic(member.email, 'password one') });
         assert.ok(Number(refused.headers.get('retry-after')) <= 900);
         assert.ok(Number(refused.headers.get('retry-after')) >= 1);
         assert.equal((await request('/me', { headers: basic(member.apiToken, 'api_token') })).status, 200);
         await loginLimiter.reset(accountCounters(member.email, '192.0.2.1'));
-        for (let n = 0; n < 49; n++) await loginLimiter.recordFailure(accountCounters(member.email, 'elsewhere')[1]!.key);
+        const account = accountCounters(member.email, 'elsewhere')[1]!;
+        for (let n = 0; n < 49; n++) await fail([account]);
         await login(member.email);
-        assert.equal(await loginLimiter.isBlocked(accountCounters(member.email, 'elsewhere')[1]!.key), false);
+        // A limit of one is reached by any failure left on the account counter.
+        assert.equal(await blocked(loginLimiter, [{ key: account.key, limit: 1 }]), false);
         // A successful form login cleared account counters while ten failures still charge the address.
-        for (let n = 0; n < 90; n++) await loginLimiter.recordFailure(addressCounter('192.0.2.1'));
-        assert.equal(await loginLimiter.isBlocked(addressCounter('192.0.2.1')), true);
+        for (let n = 0; n < 90; n++) await fail(addressCounter('192.0.2.1'));
+        assert.equal(await blocked(loginLimiter, addressCounter('192.0.2.1')), true);
         await loginLimiter.reset(addressCounter('192.0.2.1'));
         for (const email of ['unknown@example.test', member.email]) {
           if (email === member.email) await competing.setAccess(admin.id, member.id, { disabled: true });
           for (let n = 0; n < 10; n++) await expectError('/me', 403, 'Incorrect username and/or password', { headers: basic(email, 'password one') });
-          assert.equal(await loginLimiter.isBlocked(passwordCounters(email, '192.0.2.1')), true);
+          assert.equal(await blocked(loginLimiter, passwordCounters(email, '192.0.2.1')), true);
         }
         await expectError('/me', 403, 'Incorrect username and/or password', { headers: basic(member.apiToken, 'api_token') });
       });
@@ -227,9 +231,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const reset = await operations.createPasswordReset(admin.id, member.id);
         assert.deepEqual((await request(`/resets/${reset.token}`)).body, { email: member.email });
         await expectError(`/resets/${reset.token}`, 403, 'Missing CSRF header', { method: 'POST', body: { password: 'password two' } });
-        for (let n = 0; n < 10; n++) await loginLimiter.recordFailure(accountCounters(member.email, '192.0.2.1'));
+        for (let n = 0; n < 10; n++) await fail(accountCounters(member.email, '192.0.2.1'));
         assert.equal((await request(`/resets/${reset.token}`, { method: 'POST', headers: legacyCsrf, body: { password: 'password two' } })).status, 200);
-        assert.equal(await loginLimiter.isBlocked(accountCounters(member.email, '192.0.2.1')), false);
+        assert.equal(await blocked(loginLimiter, accountCounters(member.email, '192.0.2.1')), false);
         assert.notEqual((await getUser(member.id))!.apiToken, tokenBefore);
         for (const headers of [{ cookie: firstCookie }, { cookie: secondCookie }, basic(tokenBefore, 'api_token')]) await expectError('/me', 403, 'Incorrect username and/or password', { headers });
         await expectError(`/resets/${reset.token}`, 404, 'This password reset link is not valid. Ask your admin for a new one.');

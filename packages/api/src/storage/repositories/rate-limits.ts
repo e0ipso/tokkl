@@ -82,6 +82,12 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
         if (rows.length) await db.insertInto('rate_limit_reservations').values(rows).execute();
         result = { ok: true, reservations: rows.map(row => row.id) };
       }
+      // A refusal keeps no idle counter, so refused attempts cannot fill the table with new keys.
+      if (!result.ok) {
+        await db.deleteFrom('rate_limit_counters').where('key_hash', 'in', counters.map(counter => counter.keyHash)).where('failures', '=', 0)
+          .where(eb => eb.not(eb.exists(eb.selectFrom('rate_limit_reservations').select('id')
+            .whereRef('rate_limit_reservations.key_hash', '=', 'rate_limit_counters.key_hash').where('expires_at', '>', now)))).execute();
+      }
       await cleanup(now);
       return result;
     },
@@ -91,11 +97,6 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
       if (failed) for (const { keyHash } of ordered(counters)) await addFailure(keyHash, now, windowMs);
       await cleanup(now);
     },
-    async recordFailure(counters, at, windowMs) {
-      const now = utcInstant(at);
-      for (const { keyHash } of ordered(counters)) await addFailure(keyHash, now, windowMs);
-      await cleanup(now);
-    },
     async reset(keyHashes, at) {
       const now = utcInstant(at);
       // Ending the window now lets cleanup drop the counter once no reservation holds it.
@@ -103,18 +104,6 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
         await db.updateTable('rate_limit_counters').set({ failures: 0, reset_at: now }).where('key_hash', '=', keyHash).execute();
       }
       await cleanup(now);
-    },
-    async state(counters, at) {
-      const now = utcInstant(at);
-      if (!counters.length) return { blocked: false, resetAts: [] };
-      const rows = await db.selectFrom('rate_limit_counters').select(['key_hash', 'failures', 'reset_at'])
-        .where('key_hash', 'in', counters.map(counter => counter.keyHash)).where('reset_at', '>', now).execute();
-      const current = new Map(rows.map(row => [row.key_hash, row]));
-      const resetAts = counters.flatMap(({ keyHash, limit }) => {
-        const row = current.get(keyHash);
-        return row && safeInteger(row.failures) >= limit ? [utcInstant(row.reset_at)] : [];
-      });
-      return { blocked: resetAts.length > 0, resetAts };
     },
   };
 }

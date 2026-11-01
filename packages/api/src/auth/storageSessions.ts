@@ -28,21 +28,24 @@ export function createStorageSessions<R extends AccountRepositories>(
     res.cookie(SESSION_COOKIE, session.token, { httpOnly: true, sameSite: 'lax', secure: req.secure, path: '/', expires: session.expires });
     res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
   };
-  const linkCounter = async (req: Request) => {
-    const counter = addressCounter(clientAddress(req));
-    if (await loginLimiter.isBlocked(counter)) throw tooManyRequests('Too many failed attempts, try again later', await loginLimiter.retryAfterSeconds(counter));
-    return counter;
+  /**
+   * Looks a link token up under the address counter. The lookup holds a slot like a password check,
+   * so parallel bad links cannot pass the limit before their failures are recorded.
+   */
+  const linked = async <T>(req: Request, find: (token: string) => Promise<T | undefined>, missing: string) => {
+    const token = String(req.params.token);
+    let found: T | undefined;
+    const result = await loginLimiter.attempt(addressCounter(clientAddress(req)), async () => (found = await find(token)) !== undefined);
+    if (result.refused) throw tooManyRequests('Too many failed attempts, try again later', result.retryAfter);
+    if (found === undefined) throw notFound(missing);
+    return { token, found };
   };
   const inviteFor = async (req: Request) => {
-    const counter = await linkCounter(req), token = String(req.params.token);
-    const invite = await runner.readSnapshot(ctx => findUsableInvite(ctx, token));
-    if (!invite?.role) { await loginLimiter.recordFailure(counter); throw notFound(INVITE_NOT_FOUND); }
-    return { token, role: invite.role };
+    const { token, found: role } = await linked(req, async token => (await runner.readSnapshot(ctx => findUsableInvite(ctx, token)))?.role || undefined, INVITE_NOT_FOUND);
+    return { token, role };
   };
   const resetFor = async (req: Request) => {
-    const counter = await linkCounter(req), token = String(req.params.token);
-    const user = await runner.readSnapshot(ctx => findResetUser(ctx, token));
-    if (!user) { await loginLimiter.recordFailure(counter); throw notFound(RESET_NOT_FOUND); }
+    const { token, found: user } = await linked(req, token => runner.readSnapshot(ctx => findResetUser(ctx, token)), RESET_NOT_FOUND);
     return { token, user };
   };
   const status: RequestHandler = async (_req, res) => res.json({ setup_required: await runner.readSnapshot(ctx => ctx.users.count()) === 0 });
@@ -60,13 +63,15 @@ export function createStorageSessions<R extends AccountRepositories>(
   const firstAdmin: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
     if (await runner.readSnapshot(ctx => ctx.users.count()) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
-    const address = clientAddress(req);
-    if (await setupLimiter.isBlocked(address)) throw tooManyRequests('Too many failed attempts, try again later', await setupLimiter.retryAfterSeconds(address));
-    const body = readJson(req);
-    if (typeof body.setup_code !== 'string' || !safeEqual(body.setup_code.trim(), setup.code)) {
-      await setupLimiter.recordFailure(address);
-      throw forbidden('Invalid setup code. It is printed in the server log on startup.');
-    }
+    const code = setup.code;
+    let body: ReturnType<typeof readJson> = {};
+    // The comparison holds a slot, so parallel wrong codes cannot pass the limit.
+    const result = await setupLimiter.attempt(clientAddress(req), async () => {
+      body = readJson(req);
+      return typeof body.setup_code === 'string' && safeEqual(body.setup_code.trim(), code);
+    });
+    if (result.refused) throw tooManyRequests('Too many failed attempts, try again later', result.retryAfter);
+    if (!result.valid) throw forbidden('Invalid setup code. It is printed in the server log on startup.');
     const user = await operations.createFirstAdmin(body);
     setup.code = null;
     await startSession(req, res, user);

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ACCOUNT_ADDRESS_LIMIT, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from '../../src/auth/rateLimit.ts';
+import { ACCOUNT_ADDRESS_LIMIT, ADDRESS_LIMIT, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from '../../src/auth/rateLimit.ts';
 import { databaseUrl, startApi, type ApiProcess } from './support/apiProcess.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
@@ -18,6 +18,12 @@ const post = (proc: ApiProcess, path: string, body: unknown) => fetch(proc.base 
 });
 const setupWith = (proc: ApiProcess, code: string) => post(proc, '/api/app/setup', { email: EMAIL, password: PASSWORD, fullname: 'Ada', timezone: 'Europe/Madrid', setup_code: code });
 const login = (proc: ApiProcess, password: string) => post(proc, '/api/app/login', { email: EMAIL, password });
+
+/** Sorted statuses of `count` parallel requests, alternating between two processes. */
+async function parallelStatuses(count: number, request: (i: number) => Promise<Response>): Promise<number[]> {
+  const responses = await Promise.all(Array.from({ length: count }, (_, i) => request(i)));
+  return responses.map(response => response.status).sort();
+}
 
 async function expectStatus(response: Response, status: number, what: string): Promise<void> {
   const text = await response.text();
@@ -55,12 +61,27 @@ test('postgres: failure limits are shared by two API processes and survive a res
     const url = databaseUrl(namespace.config);
     const a = await start(url, 'setup-a');
     const b = await start(url, 'setup-b');
-    for (let i = 0; i < SETUP_CODE_LIMIT; i++) {
-      await expectStatus(await setupWith(i % 2 === 0 ? a : b, `WRONG-${i}`), 403, `wrong setup code ${i + 1}`);
-    }
+    // Parallel, so a check and the failure it records cannot be separate steps.
+    const statuses = await parallelStatuses(4 * SETUP_CODE_LIMIT, i => setupWith(i % 2 === 0 ? a : b, `WRONG-${i}`));
+    assert.deepEqual(statuses, [...Array(SETUP_CODE_LIMIT).fill(403), ...Array(3 * SETUP_CODE_LIMIT).fill(429)]);
     await expectRefused(await setupWith(a, 'WRONG-A'), 'wrong setup code past the limit on A');
     await expectRefused(await setupWith(b, 'WRONG-B'), 'wrong setup code past the limit on B');
     await expectRefused(await setupWith(b, 'TEST-CODE'), 'correct setup code past the limit');
+    await a.stop();
+    await b.stop();
+    await namespace.cleanup();
+  });
+
+  await t.test('links: parallel bad links sent to A and B stop at the address limit', async () => {
+    const namespace = await fixture.namespace!();
+    const url = databaseUrl(namespace.config);
+    const a = await start(url, 'links-a');
+    const b = await start(url, 'links-b');
+    const link = (proc: ApiProcess) => fetch(`${proc.base}/api/app/invites/not-a-token`);
+    const left = 5;
+    for (let i = 0; i < ADDRESS_LIMIT - left; i++) await expectStatus(await link(i % 2 === 0 ? a : b), 404, `bad link ${i + 1}`);
+    const statuses = await parallelStatuses(4 * left, i => link(i % 2 === 0 ? a : b));
+    assert.deepEqual(statuses, [...Array(left).fill(404), ...Array(3 * left).fill(429)]);
     await a.stop();
     await b.stop();
     await namespace.cleanup();

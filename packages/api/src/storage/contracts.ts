@@ -77,20 +77,20 @@ export type RateLimitReservation =
   | { ok: false; reason: 'blocked'; resetAts: UtcInstant[] }
   /** No counter is at its limit, but live reservations fill at least one. */
   | { ok: false; reason: 'slots' };
-export interface RateLimitState { blocked: boolean; resetAts: UtcInstant[] }
 /**
  * Callers supply `now`. A counter whose window has ended has no failures. Each write also deletes
  * expired reservations, and expired counters that no live reservation holds.
  */
 export interface RateLimitsRepository {
-  /** All or none: one reservation per counter, or none when any counter is blocked or full. */
+  /**
+   * All or none: one reservation per counter, or none when any counter is blocked or full. A refusal
+   * keeps no counter row it would have created.
+   */
   reserve(counters: readonly RateLimitCounter[], now: UtcInstant, windowMs: number, leaseMs: number): Promise<RateLimitReservation>;
   /** Deletes the reservations. A failed check adds one failure to every counter. */
   release(reservations: readonly string[], counters: readonly RateLimitCounterKey[], failed: boolean, now: UtcInstant, windowMs: number): Promise<void>;
-  recordFailure(counters: readonly RateLimitCounterKey[], now: UtcInstant, windowMs: number): Promise<void>;
   /** Clears failures. Live reservations keep their slots. */
   reset(keyHashes: readonly string[], now: UtcInstant): Promise<void>;
-  state(counters: readonly RateLimitCounter[], now: UtcInstant): Promise<RateLimitState>;
 }
 export interface ClientFilter { status?: 'active' | 'archived' | 'both'; name?: string }
 export interface ClientsRepository {

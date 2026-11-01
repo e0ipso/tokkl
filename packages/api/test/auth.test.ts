@@ -11,7 +11,7 @@ import { createApp } from '../src/app.ts';
 import { hashPassword, generateApiToken, MAX_PASSWORD_LENGTH, sha256 } from '../src/auth/crypto.ts';
 import {
   ACCOUNT_ADDRESS_LIMIT, accountCounters, FailureLimiter, normalizeEmail, passwordCounters, SETUP_CODE_LIMIT,
-  type AttemptResult,
+  type AttemptResult, type Keys,
 } from '../src/auth/rateLimit.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
@@ -440,6 +440,14 @@ async function newLimiter(limit: number, windowMs = 15 * 60 * 1000) {
   return new FailureLimiter(storageFor(await openDatabase()).rateLimits, 'password', limit, windowMs);
 }
 /** The check's result, or null when the attempt was refused unchecked. */
+/** Whether an attempt is refused now. When it is not, the check passes and records nothing. */
+const blocked = async (limiter: FailureLimiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
+/** The Retry-After of a refused attempt. */
+const waitFor = async (limiter: FailureLimiter, keys: Keys) => {
+  const result = await limiter.attempt(keys, async () => true);
+  assert.ok(result.refused, 'refused');
+  return result.retryAfter;
+};
 const outcome = async (result: Promise<AttemptResult>) => {
   const settled = await result;
   return settled.refused ? null : settled.valid;
@@ -483,8 +491,8 @@ test('FailureLimiter charges every counter, refuses when any is full and resets 
   const parallel = await Promise.all(Array.from({ length: 4 }, () => outcome(limiter.attempt([small, large], failingCheck))));
   assert.deepEqual(parallel.toSorted(), [false, false, null, null], 'the smaller counter caps the parallel checks');
   assert.equal(checks, 2);
-  assert.equal(await limiter.isBlocked([small]), true);
-  assert.equal(await limiter.isBlocked([large]), false);
+  assert.equal(await blocked(limiter, [small]), true);
+  assert.equal(await blocked(limiter, [large]), false);
 
   // The larger counter still holds the two failures charged with the smaller one.
   await limiter.reset([small]);
@@ -680,7 +688,7 @@ test('the tt_session cookie and X-Timetrack-CSRF header from before the rename s
 const WINDOW_SECONDS = 15 * 60;
 const retryAfter = (response: Response) => response.headers.get('retry-after');
 
-test('FailureLimiter.retryAfterSeconds rounds up, uses the latest full counter and stays within the window', async (t) => {
+test('FailureLimiter refusals round Retry-After up, use the latest full counter and stay within the window', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const limiter = await newLimiter(100);
   const early = { key: 'early', limit: 2 };
@@ -691,20 +699,19 @@ test('FailureLimiter.retryAfterSeconds rounds up, uses the latest full counter a
   t.mock.timers.tick(100_000);
   await limiter.attempt([early, late], fail);
   await limiter.attempt([late], fail);
-  assert.equal(await limiter.isBlocked([early]), true);
-  assert.equal(await limiter.isBlocked([late]), true);
+  assert.equal(await blocked(limiter, [early]), true);
+  assert.equal(await blocked(limiter, [late]), true);
 
-  assert.equal(await limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100);
-  assert.equal(await limiter.retryAfterSeconds([late]), WINDOW_SECONDS);
-  assert.equal(await limiter.retryAfterSeconds([late, early]), WINDOW_SECONDS, 'the latest full counter');
-  assert.equal(await limiter.retryAfterSeconds([early, late]), WINDOW_SECONDS, 'whatever the order');
-  assert.equal(await limiter.retryAfterSeconds([{ key: 'free', limit: 2 }, late]), WINDOW_SECONDS);
-  assert.deepEqual(await limiter.attempt([late], async () => true), { refused: true, retryAfter: WINDOW_SECONDS }, 'a refused attempt carries the same wait');
+  assert.equal(await waitFor(limiter, [early]), WINDOW_SECONDS - 100);
+  assert.equal(await waitFor(limiter, [late]), WINDOW_SECONDS);
+  assert.equal(await waitFor(limiter, [late, early]), WINDOW_SECONDS, 'the latest full counter');
+  assert.equal(await waitFor(limiter, [early, late]), WINDOW_SECONDS, 'whatever the order');
+  assert.equal(await waitFor(limiter, [{ key: 'free', limit: 2 }, late]), WINDOW_SECONDS);
 
   t.mock.timers.tick(1);
-  assert.equal(await limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100, 'a partial second rounds up');
+  assert.equal(await waitFor(limiter, [early]), WINDOW_SECONDS - 100, 'a partial second rounds up');
   t.mock.timers.tick(WINDOW_SECONDS * 1000 - 100_001 - 1);
-  assert.equal(await limiter.retryAfterSeconds([early]), 1, 'never below one second');
+  assert.equal(await waitFor(limiter, [early]), 1, 'never below one second');
 
   t.mock.timers.tick(1);
   assert.equal(await outcome(limiter.attempt([early], async () => true)), true, 'the wait frees the counter');
@@ -721,8 +728,6 @@ test('FailureLimiter refuses at once with one second when running checks hold ev
   // Refused while both checks still run: there is no queue to wait in.
   assert.deepEqual(await limiter.attempt('addr', slow), { refused: true, retryAfter: 1 });
   assert.equal(started, 2);
-  assert.equal(await limiter.isBlocked('addr'), false);
-  assert.equal(await limiter.retryAfterSeconds('addr'), 1);
   release();
   assert.deepEqual(await Promise.all(running), [{ refused: false, valid: false }, { refused: false, valid: false }]);
 });

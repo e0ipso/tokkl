@@ -23,7 +23,7 @@ test('TOKKL_TRUST_PROXY accepts off, a hop count or proxy addresses and ranges, 
  assert.equal(trust(undefined),false); assert.equal(trust(''),false); assert.equal(trust('0'),false);
  assert.equal(trust('1'),1); assert.equal(trust('3'),3);
  assert.deepEqual(trust('10.0.0.1, 192.168.0.0/16,::1 , fd00::/8,0.0.0.0/0'),['10.0.0.1','192.168.0.0/16','::1','fd00::/8','0.0.0.0/0']);
- for(const value of ['true','yes','on','false','no','off','-1','1.5','10.0.0.0/33','::/129','10.0.0.0/','10.0.0.0/8/1','10.0.0.1,,10.0.0.2','proxy.example.com','loopback']) {
+ for(const value of ['true','yes','on','false','no','off','-1','1.5','10.0.0.0/33','::/129','10.0.0.0/','10.0.0.0/8/1','10.0.0.1,,10.0.0.2','proxy.example.com','loopback','9'.repeat(309),'9007199254740993']) {
   assert.throws(()=>trust(value),(error:Error)=>/TOKKL_TRUST_PROXY/.test(error.message)&&/hop/.test(error.message)&&/CIDR/.test(error.message),value);
  }
 });

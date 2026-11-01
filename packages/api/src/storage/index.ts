@@ -87,9 +87,7 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>): 
     rateLimits: {
       reserve: (...args: Parameters<Repositories['rateLimits']['reserve']>) => runner.transaction(r => r.rateLimits.reserve(...args)),
       release: (...args: Parameters<Repositories['rateLimits']['release']>) => runner.transaction(r => r.rateLimits.release(...args)),
-      recordFailure: (...args: Parameters<Repositories['rateLimits']['recordFailure']>) => runner.transaction(r => r.rateLimits.recordFailure(...args)),
       reset: (...args: Parameters<Repositories['rateLimits']['reset']>) => runner.transaction(r => r.rateLimits.reset(...args)),
-      state: (...args: Parameters<Repositories['rateLimits']['state']>) => runner.readSnapshot(r => r.rateLimits.state(...args)),
     },
     clients: {
       list: (...args: Parameters<Repositories['clients']['list']>) => runner.readSnapshot(r => r.clients.list(...args)),
