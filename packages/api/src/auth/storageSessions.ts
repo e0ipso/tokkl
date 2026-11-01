@@ -28,21 +28,21 @@ export function createStorageSessions<R extends AccountRepositories>(
     res.cookie(SESSION_COOKIE, session.token, { httpOnly: true, sameSite: 'lax', secure: req.secure, path: '/', expires: session.expires });
     res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
   };
-  const linkCounter = (req: Request) => {
+  const linkCounter = async (req: Request) => {
     const counter = addressCounter(clientAddress(req));
-    if (loginLimiter.isBlocked(counter)) throw tooManyRequests('Too many failed attempts, try again later', loginLimiter.retryAfterSeconds(counter));
+    if (await loginLimiter.isBlocked(counter)) throw tooManyRequests('Too many failed attempts, try again later', await loginLimiter.retryAfterSeconds(counter));
     return counter;
   };
   const inviteFor = async (req: Request) => {
-    const counter = linkCounter(req), token = String(req.params.token);
+    const counter = await linkCounter(req), token = String(req.params.token);
     const invite = await runner.readSnapshot(ctx => findUsableInvite(ctx, token));
-    if (!invite?.role) { loginLimiter.recordFailure(counter); throw notFound(INVITE_NOT_FOUND); }
+    if (!invite?.role) { await loginLimiter.recordFailure(counter); throw notFound(INVITE_NOT_FOUND); }
     return { token, role: invite.role };
   };
   const resetFor = async (req: Request) => {
-    const counter = linkCounter(req), token = String(req.params.token);
+    const counter = await linkCounter(req), token = String(req.params.token);
     const user = await runner.readSnapshot(ctx => findResetUser(ctx, token));
-    if (!user) { loginLimiter.recordFailure(counter); throw notFound(RESET_NOT_FOUND); }
+    if (!user) { await loginLimiter.recordFailure(counter); throw notFound(RESET_NOT_FOUND); }
     return { token, user };
   };
   const status: RequestHandler = async (_req, res) => res.json({ setup_required: await runner.readSnapshot(ctx => ctx.users.count()) === 0 });
@@ -54,17 +54,17 @@ export function createStorageSessions<R extends AccountRepositories>(
     const user = await authenticatePassword(runner, loginLimiter, email, password, address);
     if (!user) throw forbidden('Incorrect email or password');
     await startSession(req, res, user);
-    loginLimiter.reset(accountCounters(email, address));
+    await loginLimiter.reset(accountCounters(email, address));
     return res.json({ ok: true });
   };
   const firstAdmin: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
     if (await runner.readSnapshot(ctx => ctx.users.count()) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
     const address = clientAddress(req);
-    if (setupLimiter.isBlocked(address)) throw tooManyRequests('Too many failed attempts, try again later', setupLimiter.retryAfterSeconds(address));
+    if (await setupLimiter.isBlocked(address)) throw tooManyRequests('Too many failed attempts, try again later', await setupLimiter.retryAfterSeconds(address));
     const body = readJson(req);
     if (typeof body.setup_code !== 'string' || !safeEqual(body.setup_code.trim(), setup.code)) {
-      setupLimiter.recordFailure(address);
+      await setupLimiter.recordFailure(address);
       throw forbidden('Invalid setup code. It is printed in the server log on startup.');
     }
     const user = await operations.createFirstAdmin(body);
@@ -85,7 +85,7 @@ export function createStorageSessions<R extends AccountRepositories>(
     requireCsrfHeader(req);
     const { token, user } = await resetFor(req);
     await operations.resetPassword(token, readJson(req).password);
-    loginLimiter.reset(accountCounters(user.email, clientAddress(req)));
+    await loginLimiter.reset(accountCounters(user.email, clientAddress(req)));
     return res.json({ ok: true });
   };
   const logout: RequestHandler = async (req, res) => {

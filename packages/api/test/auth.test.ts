@@ -8,9 +8,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { storageFor, setServices } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
-import { hashPassword, generateApiToken, MAX_PASSWORD_LENGTH } from '../src/auth/crypto.ts';
+import { hashPassword, generateApiToken, MAX_PASSWORD_LENGTH, sha256 } from '../src/auth/crypto.ts';
 import {
   ACCOUNT_ADDRESS_LIMIT, accountCounters, FailureLimiter, normalizeEmail, passwordCounters, SETUP_CODE_LIMIT,
+  type AttemptResult,
 } from '../src/auth/rateLimit.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
@@ -434,10 +435,20 @@ test('wrong API tokens are not counted as password failures', async () => {
   assert.equal(login.status, 200);
 });
 
+/** A limiter over a fresh database. A plain key gets `limit`. */
+async function newLimiter(limit: number, windowMs = 15 * 60 * 1000) {
+  return new FailureLimiter(storageFor(await openDatabase()).rateLimits, 'password', limit, windowMs);
+}
+/** The check's result, or null when the attempt was refused unchecked. */
+const outcome = async (result: Promise<AttemptResult>) => {
+  const settled = await result;
+  return settled.refused ? null : settled.valid;
+};
+
 test('FailureLimiter runs no checks past the limit and unblocks when the window expires', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const windowMs = 15 * 60 * 1000;
-  const limiter = new FailureLimiter(10, windowMs);
+  const limiter = await newLimiter(10, windowMs);
   let checks = 0;
   const failingCheck = async () => {
     checks++;
@@ -445,21 +456,21 @@ test('FailureLimiter runs no checks past the limit and unblocks when the window 
     return false;
   };
 
-  const results = await Promise.all(Array.from({ length: 12 }, () => limiter.attempt('1.2.3.4', failingCheck)));
+  const results = await Promise.all(Array.from({ length: 12 }, () => outcome(limiter.attempt('1.2.3.4', failingCheck))));
   assert.equal(checks, 10);
   assert.equal(results.filter((result) => result === false).length, 10);
   assert.equal(results.filter((result) => result === null).length, 2);
-  assert.equal(await limiter.attempt('5.6.7.8', async () => true), true, 'other addresses are unaffected');
+  assert.equal(await outcome(limiter.attempt('5.6.7.8', async () => true)), true, 'other addresses are unaffected');
 
   t.mock.timers.tick(windowMs - 1);
-  assert.equal(await limiter.attempt('1.2.3.4', async () => true), null);
+  assert.equal(await outcome(limiter.attempt('1.2.3.4', async () => true)), null);
   assert.equal(checks, 10);
   t.mock.timers.tick(1);
-  assert.equal(await limiter.attempt('1.2.3.4', async () => true), true);
+  assert.equal(await outcome(limiter.attempt('1.2.3.4', async () => true)), true);
 });
 
 test('FailureLimiter charges every counter, refuses when any is full and resets only the keys given', async () => {
-  const limiter = new FailureLimiter(100, 15 * 60 * 1000);
+  const limiter = await newLimiter(100);
   const small = { key: 'small', limit: 2 };
   const large = { key: 'large', limit: 5 };
   let checks = 0;
@@ -469,22 +480,22 @@ test('FailureLimiter charges every counter, refuses when any is full and resets 
     return false;
   };
 
-  const parallel = await Promise.all(Array.from({ length: 4 }, () => limiter.attempt([small, large], failingCheck)));
-  assert.deepEqual(parallel, [false, false, null, null], 'the smaller counter caps the parallel checks');
+  const parallel = await Promise.all(Array.from({ length: 4 }, () => outcome(limiter.attempt([small, large], failingCheck))));
+  assert.deepEqual(parallel.toSorted(), [false, false, null, null], 'the smaller counter caps the parallel checks');
   assert.equal(checks, 2);
-  assert.equal(limiter.isBlocked([small]), true);
-  assert.equal(limiter.isBlocked([large]), false);
+  assert.equal(await limiter.isBlocked([small]), true);
+  assert.equal(await limiter.isBlocked([large]), false);
 
   // The larger counter still holds the two failures charged with the smaller one.
-  limiter.reset([small]);
+  await limiter.reset([small]);
   for (let i = 0; i < 3; i++) await limiter.attempt([{ key: 'other', limit: 10 }, large], failingCheck);
-  assert.equal(await limiter.attempt([small, large], async () => true), null, 'blocked by the larger counter alone');
+  assert.equal(await outcome(limiter.attempt([small, large], async () => true)), null, 'blocked by the larger counter alone');
   assert.equal(checks, 5);
 });
 
 test('normalizeEmail and passwordCounters key accounts by trimmed, ASCII-lowercased email and keep pairs apart', () => {
   assert.equal(normalizeEmail('  Me@Example.COM '), 'me@example.com');
-  assert.equal(normalizeEmail('Äß@EXAMPLE.com'), 'Äß@example.com', 'only ASCII is folded, as SQLite NOCASE does');
+  assert.equal(normalizeEmail('Äß@EXAMPLE.com'), 'Äß@example.com', 'only ASCII is folded, as users.email_key does');
   assert.notEqual(passwordCounters('Ä@example.com', 'x')[1]!.key, passwordCounters('ä@example.com', 'x')[1]!.key);
   assert.deepEqual(passwordCounters(' ME@example.com', '1.2.3.4'), passwordCounters('me@example.com', '1.2.3.4'));
   assert.deepEqual(passwordCounters('a@b', '1.2.3.4').map(({ limit }) => limit), [10, 50, 100]);
@@ -501,7 +512,8 @@ async function multiUserApp(count: number, names = Array.from({ length: count },
   const owner = (await createFirstAdmin(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' }));
   const users = [owner, ...await Promise.all(names.slice(1).map(name => insertSecondUser(db, owner, name)))];
   const emails = users.map((user) => user.email);
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: null } }));
+  const storage = storageFor(db);
+  const app = testServer(createApp({ storage, config: { ...testConfig(db), trustProxy: 1 }, setup: { code: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address },
@@ -513,7 +525,7 @@ async function multiUserApp(count: number, names = Array.from({ length: count },
     headers: { 'content-type': 'application/json', 'x-forwarded-for': address, authorization: basic(user.apiToken, 'api_token') },
     body: JSON.stringify({ current_password: current, password: 'new password 1' }),
   })).status;
-  return { app, db, users, emails, login, changePassword };
+  return { app, db, storage, users, emails, login, changePassword };
 }
 
 test('one account signing in from an address does not reset failures against another', async () => {
@@ -525,7 +537,7 @@ test('one account signing in from an address does not reset failures against ano
 });
 
 test('accounts share failure counters only when the database matches their emails', async () => {
-  // users.email is COLLATE NOCASE, which folds ASCII only, so these are two accounts.
+  // The users.email_key match folds ASCII only, so these are two accounts.
   const { login } = (await multiUserApp(2, ['Ä@example.com', 'ä@example.com']));
   for (let i = 0; i < 10; i++) assert.equal((await login('ä@example.com', 'wrong')), 403);
   assert.equal((await login('ä@example.com', PASSWORD)), 429);
@@ -670,7 +682,7 @@ const retryAfter = (response: Response) => response.headers.get('retry-after');
 
 test('FailureLimiter.retryAfterSeconds rounds up, uses the latest full counter and stays within the window', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
-  const limiter = new FailureLimiter(100, 15 * 60 * 1000);
+  const limiter = await newLimiter(100);
   const early = { key: 'early', limit: 2 };
   const late = { key: 'late', limit: 2 };
   const fail = async () => false;
@@ -679,35 +691,61 @@ test('FailureLimiter.retryAfterSeconds rounds up, uses the latest full counter a
   t.mock.timers.tick(100_000);
   await limiter.attempt([early, late], fail);
   await limiter.attempt([late], fail);
-  assert.equal(limiter.isBlocked([early]), true);
-  assert.equal(limiter.isBlocked([late]), true);
+  assert.equal(await limiter.isBlocked([early]), true);
+  assert.equal(await limiter.isBlocked([late]), true);
 
-  assert.equal(limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100);
-  assert.equal(limiter.retryAfterSeconds([late]), WINDOW_SECONDS);
-  assert.equal(limiter.retryAfterSeconds([late, early]), WINDOW_SECONDS, 'the latest full counter');
-  assert.equal(limiter.retryAfterSeconds([early, late]), WINDOW_SECONDS, 'whatever the order');
-  assert.equal(limiter.retryAfterSeconds([{ key: 'free', limit: 2 }, late]), WINDOW_SECONDS);
+  assert.equal(await limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100);
+  assert.equal(await limiter.retryAfterSeconds([late]), WINDOW_SECONDS);
+  assert.equal(await limiter.retryAfterSeconds([late, early]), WINDOW_SECONDS, 'the latest full counter');
+  assert.equal(await limiter.retryAfterSeconds([early, late]), WINDOW_SECONDS, 'whatever the order');
+  assert.equal(await limiter.retryAfterSeconds([{ key: 'free', limit: 2 }, late]), WINDOW_SECONDS);
+  assert.deepEqual(await limiter.attempt([late], async () => true), { refused: true, retryAfter: WINDOW_SECONDS }, 'a refused attempt carries the same wait');
 
   t.mock.timers.tick(1);
-  assert.equal(limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100, 'a partial second rounds up');
+  assert.equal(await limiter.retryAfterSeconds([early]), WINDOW_SECONDS - 100, 'a partial second rounds up');
   t.mock.timers.tick(WINDOW_SECONDS * 1000 - 100_001 - 1);
-  assert.equal(limiter.retryAfterSeconds([early]), 1, 'never below one second');
+  assert.equal(await limiter.retryAfterSeconds([early]), 1, 'never below one second');
 
   t.mock.timers.tick(1);
-  assert.equal(await limiter.attempt([early], async () => true), true, 'the wait frees the counter');
+  assert.equal(await outcome(limiter.attempt([early], async () => true)), true, 'the wait frees the counter');
 });
 
-test('FailureLimiter gives one second to an attempt refused only because the waiting queue is full', async () => {
-  const limiter = new FailureLimiter(2, 15 * 60 * 1000);
+test('FailureLimiter refuses at once with one second when running checks hold every slot', async () => {
+  const limiter = await newLimiter(2);
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
-  const slow = async () => { await held; return false; };
-  const queued = Array.from({ length: 5 }, () => limiter.attempt('addr', slow));
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(limiter.isBlocked('addr'), false);
-  assert.equal(limiter.retryAfterSeconds('addr'), 1);
+  let started = 0;
+  const slow = async () => { started++; await held; return false; };
+  const running = Array.from({ length: 2 }, () => limiter.attempt('addr', slow));
+  while (started < 2) await new Promise((resolve) => setImmediate(resolve));
+  // Refused while both checks still run: there is no queue to wait in.
+  assert.deepEqual(await limiter.attempt('addr', slow), { refused: true, retryAfter: 1 });
+  assert.equal(started, 2);
+  assert.equal(await limiter.isBlocked('addr'), false);
+  assert.equal(await limiter.retryAfterSeconds('addr'), 1);
   release();
-  await Promise.all(queued);
+  assert.deepEqual(await Promise.all(running), [{ refused: false, valid: false }, { refused: false, valid: false }]);
+});
+
+test('a login gets 429 with Retry-After: 1 at once while other instances hold every slot', async () => {
+  const { app, users, storage } = (await multiUserApp(1));
+  const [owner] = users as [User];
+  // Ten checks running elsewhere hold the account+address counter, stored under its hashed namespaced key.
+  const [pair] = accountCounters(owner.email, '10.0.0.1');
+  const counter = { keyHash: sha256(`password:${pair!.key}`), limit: pair!.limit };
+  for (let i = 0; i < ACCOUNT_ADDRESS_LIMIT; i++) {
+    assert.equal((await storage.rateLimits.reserve([counter], new Date().toISOString(), 15 * 60 * 1000, 60_000)).ok, true);
+  }
+  const send = (address: string) => app.request('/api/app/login', {
+    method: 'POST',
+    headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address },
+    body: JSON.stringify({ email: owner.email, password: PASSWORD }),
+  });
+  const refused = await send('10.0.0.1');
+  assert.equal(refused.status, 429);
+  assert.equal(retryAfter(refused), '1');
+  assert.match(await refused.text(), /Too many failed/);
+  assert.equal((await send('10.0.0.2')).status, 200, 'another address has its own pair counter');
 });
 
 test('login, Basic auth and password-change 429s carry Retry-After, and waiting that long frees the counter', async (t) => {

@@ -75,12 +75,12 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
 
 export function createApp({ storage, config, setup, timerStreamOptions, timerBus = createLocalTimerBus() }: AppOptions): Express {
   const app = express();
-  const loginLimiter = new FailureLimiter(ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
+  const loginLimiter = new FailureLimiter(storage.rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   const deps: Deps = {
     storage,
     config,
     loginLimiter,
-    setupLimiter: new FailureLimiter(SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
+    setupLimiter: new FailureLimiter(storage.rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
     ...createApplicationServices(storage, config.storage, loginLimiter, timerStreamOptions, timerBus),
   };
   timerBus.receive(signal => {
