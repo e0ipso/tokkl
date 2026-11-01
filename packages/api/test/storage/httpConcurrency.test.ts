@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TimerState } from '@tokkl/types';
-import type { Storage } from '../../src/storage/contracts.ts';
 import type { User } from '../../src/storage/domain.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openConnection } from '../../src/storage/connections.ts';
@@ -11,7 +10,7 @@ import { createApp } from '../../src/app.ts';
 import { sha256 } from '../../src/auth/crypto.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
-import { gate, serveInvariant } from './support/invariantHttp.ts';
+import { serveInvariant, transactionBarrier } from './support/invariantHttp.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(`${backend}: overlapping HTTP invariants on independent storage connections`, { timeout: 180000 }, async t => {
@@ -19,28 +18,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const config = fixture.config.backend === 'sqlite' ? fixture.config : { ...fixture.config, poolMax: 1 };
     const c = await initializeDatabase(config), other = await openConnection<PhysicalDatabase>(config);
     const stores = [createStorage(c), createStorage(other)];
-    let barrier: { remaining: number; entered: ReturnType<typeof gate>; release: ReturnType<typeof gate> } | undefined;
-    const wrapped = (storage: Storage): Storage => ({ ...storage, async transaction(work, options) {
-      const current = barrier;
-      if (current && current.remaining > 0) {
-        if (--current.remaining === 0) current.entered.resolve();
-        await current.release.promise;
-      }
-      return storage.transaction(work, options);
-    } });
-    const apps = stores.map(storage => createApp({ storage: wrapped(storage), config: { ...testConfig(), storage: config }, setup: { code: 'TEST-CODE' } }));
+    const barrier = transactionBarrier();
+    const apps = stores.map(storage => createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: config }, setup: { code: 'TEST-CODE' } }));
     const servers = await Promise.all(apps.map(serveInvariant));
-    t.after(async () => { barrier?.release.resolve(); await Promise.all(servers.map(s => s.close())); await Promise.all(stores.map(s => s.close())); await fixture.cleanup(); });
+    t.after(async () => { barrier.release(); await Promise.all(servers.map(s => s.close())); await Promise.all(stores.map(s => s.close())); await fixture.cleanup(); });
     const request = (i: number, method: string, path: string, body?: unknown, token?: string) => servers[i]!.request(method, path, body, token);
-    async function overlap(first: () => Promise<Response>, second: () => Promise<Response>) {
-      barrier = { remaining: 2, entered: gate(), release: gate() };
-      const current = barrier;
-      const work = Promise.all([first(), second()]);
-      const deadline = setTimeout(() => current.entered.resolve(), 5000);
-      try { await current.entered.promise; assert.equal(current.remaining, 0, 'both real HTTP requests reached independent write transactions'); }
-      finally { clearTimeout(deadline); current.release.resolve(); barrier = undefined; }
-      return work;
-    }
+    const overlap = (first: () => Promise<Response>, second: () => Promise<Response>) => barrier.overlap(first, second);
     const json = async (r: Response) => ({ status: r.status, body: await r.json() as unknown });
     const status = (rs: Response[]) => rs.map(r => r.status).sort((a,b) => a-b);
     const account = async (email: string, role: 'admin' | 'user' = 'user'): Promise<User> => {

@@ -3,11 +3,38 @@ import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 import type { TimerState } from '@tokkl/types';
+import type { Storage } from '../../../src/storage/contracts.ts';
 
 export function gate() {
   let resolve!: () => void;
   const promise = new Promise<void>(r => { resolve = r; });
   return { promise, resolve };
+}
+/** Forces HTTP writes to overlap. The wrapped storage holds each write at its `storage.transaction`
+ * call, before the engine opens a transaction, until every request passed to `overlap` has arrived,
+ * then releases them together. On SQLite the hold comes before BEGIN IMMEDIATE, so the released
+ * writes queue on the write lock instead of deadlocking on the barrier. */
+export function transactionBarrier() {
+  let armed: { remaining: number; entered: ReturnType<typeof gate>; release: ReturnType<typeof gate> } | undefined;
+  return {
+    wrap: (storage: Storage): Storage => ({ ...storage, async transaction(work, options) {
+      const current = armed;
+      if (current && current.remaining > 0) {
+        if (--current.remaining === 0) current.entered.resolve();
+        await current.release.promise;
+      }
+      return storage.transaction(work, options);
+    } }),
+    async overlap<T>(...requests: Array<() => Promise<T>>): Promise<T[]> {
+      const current = armed = { remaining: requests.length, entered: gate(), release: gate() };
+      const work = Promise.all(requests.map(request => request()));
+      const deadline = setTimeout(() => current.entered.resolve(), 5000);
+      try { await current.entered.promise; assert.equal(current.remaining, 0, 'every real HTTP request reached its write transaction'); }
+      finally { clearTimeout(deadline); current.release.resolve(); armed = undefined; }
+      return work;
+    },
+    release: () => armed?.release.resolve(),
+  };
 }
 export async function serveInvariant(app: Express) {
   const server = app.listen(0, '127.0.0.1');

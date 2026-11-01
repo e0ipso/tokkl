@@ -231,3 +231,22 @@ export function indexDDL(backend: Backend, index: SchemaIndex): string {
 export function baselineDDL(backend: Backend): string[] {
   return [...Object.entries(baselineTables).map(([name, columns]) => createTableDDL(backend, name, columns)), ...(serverDDL(backend) ? [`CREATE TRIGGER workspaces_delete_projects BEFORE DELETE ON ${quote(backend, 'workspaces')} FOR EACH ROW DELETE FROM ${quote(backend, 'projects')} WHERE workspace_id = OLD.id`] : []), ...baselineIndexes.map(index => indexDDL(backend, index)), indexDDL(backend, { name: 'time_entries_running', table: 'time_entries', columns: [serverDDL(backend) ? 'running_user_id' : 'user_id'], unique: true, where: 'stop IS NULL AND deleted_at IS NULL' })];
 }
+// InnoDB checks a unique secondary key with gap locks around it, even under READ COMMITTED.
+// A timer switch stops one entry and starts another under the same running key, so the check
+// locked gaps beside other users' keys and stalled their writes. A primary key row per user
+// keeps one running entry per user and locks only that user's row. time_entries_running stays
+// as a plain lookup index.
+export function runningEntriesDDL(backend: Backend): string[] {
+  if (!serverDDL(backend)) return [];
+  const q = (v: string) => quote(backend, v);
+  const running = (row: 'OLD' | 'NEW') => `${row}.${q('stop')} IS NULL AND ${row}.${q('deleted_at')} IS NULL`;
+  const kept = `${running('OLD')} AND ${running('NEW')} AND OLD.${q('user_id')} = NEW.${q('user_id')}`;
+  const insert = `INSERT INTO ${q('running_entries')} (${q('user_id')}, ${q('entry_id')})`;
+  return [
+    createTableDDL(backend, 'running_entries', { user_id: { ...ref('users'), primary: true }, entry_id: ref('time_entries') }),
+    `${insert} SELECT ${q('user_id')}, ${q('id')} FROM ${q('time_entries')} WHERE ${q('stop')} IS NULL AND ${q('deleted_at')} IS NULL`,
+    `CREATE TRIGGER time_entries_running_insert AFTER INSERT ON ${q('time_entries')} FOR EACH ROW ${insert} SELECT NEW.${q('user_id')}, NEW.${q('id')} FROM DUAL WHERE ${running('NEW')}`,
+    `CREATE TRIGGER time_entries_running_update AFTER UPDATE ON ${q('time_entries')} FOR EACH ROW BEGIN IF ${running('OLD')} AND NOT (${kept}) THEN DELETE FROM ${q('running_entries')} WHERE ${q('user_id')} = OLD.${q('user_id')} AND ${q('entry_id')} = OLD.${q('id')}; END IF; IF ${running('NEW')} AND NOT (${kept}) THEN ${insert} VALUES (NEW.${q('user_id')}, NEW.${q('id')}); END IF; END`,
+    `ALTER TABLE ${q('time_entries')} DROP INDEX ${q('time_entries_running')}, ADD INDEX ${q('time_entries_running')} (${q('running_user_id')})`,
+  ];
+}

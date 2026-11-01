@@ -39,7 +39,10 @@ export async function assertSchema(db: TestDb, backend: Backend): Promise<void> 
     }
     assert.equal(actual.length, Object.keys(columns).length + (['users','clients','projects','tasks','tags'].includes(table) ? 1 : 0) + (table === 'projects' ? 1 : 0) + (table === 'time_entries' && serverDDL(backend) ? 1 : 0));
   }
-  for (const index of [...baselineIndexes, ...totalsIndexes, { name: 'time_entries_running', table: 'time_entries', columns: [serverDDL(backend) ? 'running_user_id' : 'user_id'], unique: true }]) {
+  // On InnoDB a primary key per user enforces one running entry; time_entries_running is only a lookup.
+  const running = serverDDL(backend) ? [{ name: 'time_entries_running', table: 'time_entries', columns: ['running_user_id'] }, { name: 'PRIMARY', table: 'running_entries', columns: ['user_id'], unique: true }]
+    : [{ name: 'time_entries_running', table: 'time_entries', columns: ['user_id'], unique: true }];
+  for (const index of [...baselineIndexes, ...totalsIndexes, ...running]) {
     if (backend === 'sqlite') {
       const indexes = (await sql.raw<{ name: string; unique: number }>(`PRAGMA index_list(${quote(backend,index.table)})`).execute(db)).rows;
       assert.equal(indexes.find(i => i.name === index.name)?.unique, index.unique ? 1 : 0, index.name);
