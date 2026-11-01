@@ -10,7 +10,7 @@ export const TIMER_BUS_APPLICATION = 'tokkl-timer-bus';
 const FIRST_RETRY_MS = 100;
 const MAX_RETRY_MS = 5000;
 
-export class TimerBusStartError extends Error {
+class TimerBusStartError extends Error {
   constructor() {
     super('Timer bus start failed');
     this.name = 'TimerBusStartError';
@@ -18,7 +18,7 @@ export class TimerBusStartError extends Error {
 }
 
 /** Any role that can connect may NOTIFY on the channel, so anything but the exact shape is dropped. */
-export function parseSignal(payload: string | undefined): TimerSignal | undefined {
+function parseSignal(payload: string | undefined): TimerSignal | undefined {
   let value: unknown;
   try { value = JSON.parse(payload ?? ''); } catch { return undefined; }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
