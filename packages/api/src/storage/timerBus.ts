@@ -35,13 +35,17 @@ export function startTimerBus(config: StorageConfig): Promise<TimerBus> {
   return config.backend === 'postgres' ? startPostgresTimerBus(config) : Promise.resolve(createLocalTimerBus());
 }
 
-/** A graceful end waits for the server; a half-open socket must not hold shutdown past the limit. */
+/** A graceful end waits for the server. Past the limit the socket is destroyed, so a silent peer
+ * cannot keep the process alive. */
 function endQuietly(client: pg.Client, limitMs?: number): Promise<void> {
   const ended = client.end().catch(() => {});
   if (limitMs === undefined) return ended;
   let timer: NodeJS.Timeout | undefined;
-  return Promise.race([ended, new Promise<void>(resolve => { timer = setTimeout(resolve, limitMs); timer.unref(); })])
-    .finally(() => clearTimeout(timer));
+  const expired = new Promise<void>(resolve => {
+    timer = setTimeout(() => { client.connection.stream.destroy(); resolve(); }, limitMs);
+    timer.unref();
+  });
+  return Promise.race([ended, expired]).finally(() => clearTimeout(timer));
 }
 
 async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {

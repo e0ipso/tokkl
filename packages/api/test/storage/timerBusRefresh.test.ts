@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
+import { sql } from 'kysely';
 import type { TimerState } from '@tokkl/types';
 import type { Storage } from '../../src/storage/contracts.ts';
 import type { User } from '../../src/storage/domain.ts';
@@ -197,6 +198,38 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       assert.deepEqual(logged.mock.calls.map(call => call.arguments), [['Timer bus send failed']]);
       assert.equal(buses[0]!.sent.length, sent);
     });
+
+    await t.test('state built for a deleted account never reaches the account that reuses its id', async () => {
+      const doomed = await account('doomed'), onBDoomed = await stream(1, doomed);
+      const started = await ok<{ id: number }>(await send(0, doomed, 'POST', entries(doomed), { start: new Date().toISOString(), description: 'doomed private 1' }));
+      await ok(await send(0, doomed, 'PUT', `${entries(doomed)}/${started.id}`, { description: 'doomed private 2' }));
+      const delivered = await revision(doomed);
+      await onBDoomed.until(() => onBDoomed.states.some(s => s.revision === delivered));
+      // B reads the next revision, then waits while the account is deleted and its id handed out again.
+      const held = remote.hold('after');
+      await ok(await send(0, doomed, 'PUT', `${entries(doomed)}/${started.id}`, { description: 'doomed private 3' }));
+      await held.entered.promise;
+      await ok(await send(0, admin, 'DELETE', `/api/app/admin/users/${doomed.id}`, { email: doomed.email }));
+      // SQLite hands out the highest free id again. Servers keep a counter, so point it back.
+      if (backend === 'postgres') await sql.raw(`ALTER TABLE users ALTER COLUMN id RESTART WITH ${doomed.id}`).execute(c.db);
+      if (backend === 'mysql' || backend === 'mariadb') await sql.raw(`ALTER TABLE users AUTO_INCREMENT = ${doomed.id}`).execute(c.db);
+      const replacement = await account('replacement');
+      assert.equal(replacement.id, doomed.id);
+      const onB = await stream(1, replacement);
+      held.release.resolve();
+      await hub.settled(); await pause(50);
+      const leaked = (states: TimerState[]) => states.filter(s => s.running_entry?.description?.startsWith('doomed'));
+      assert.deepEqual(onB.states.map(s => s.revision), [0], 'only the replacement\'s own initial state');
+      assert.deepEqual(leaked(onB.states), []);
+
+      await ok(await send(0, replacement, 'POST', entries(replacement), { start: new Date().toISOString(), description: 'replacement own' }));
+      const own = await revision(replacement);
+      assert.ok(own < delivered, 'the replacement\'s revisions start below what B delivered before');
+      await onB.until(() => onB.states.some(s => s.revision === own));
+      assert.equal(onB.states.at(-1)!.running_entry!.description, 'replacement own');
+      assert.deepEqual(leaked(onB.states), []);
+      assert.deepEqual(buses[1]!.sent, []);
+    });
   });
 }
 
@@ -205,7 +238,7 @@ test('a refresh that started before the account was forgotten delivers nothing',
   const state = (revision: number): TimerState => ({ revision, server_time: '2026-10-30T12:00:00.000Z', running_entry: null, pause: null, pomodoro: null, discarded_pomodoro: null });
   let streams = true;
   const publish = createTimerPublication(async (_id, s) => { delivered.push(s.revision); }, () => { streams = false; },
-    { hasStreams: () => streams, async rebuild() { built.resolve(); await release.promise; return state(4); } });
+    { hasStreams: () => streams, async rebuild() { built.resolve(); await release.promise; return { state: state(4), incarnation: 'only' }; } });
   const refreshing = publish.refresh(7, 4);
   await built.promise;
   publish.forgetUser(7);
@@ -216,4 +249,26 @@ test('a refresh that started before the account was forgotten delivers nothing',
   streams = true;
   await publish.refresh(7, 4);
   assert.deepEqual(delivered, [4]);
+});
+
+test('a process drops deliveries for an incarnation of the id other than the one its streams opened for', async () => {
+  const delivered: number[] = [], forgotten: number[] = [];
+  const state = (revision: number): TimerState => ({ revision, server_time: '2026-10-30T12:00:00.000Z', running_entry: null, pause: null, pomodoro: null, discarded_pomodoro: null });
+  let rebuilt = { state: state(9), incarnation: 'first' };
+  const publish = createTimerPublication(async (_id, s) => { delivered.push(s.revision); }, id => { forgotten.push(id); },
+    { hasStreams: () => true, async rebuild() { return rebuilt; } });
+  publish.claim(7, 'first');
+  await publish(7, state(5), 'first');
+  // Another process deleted the account and a new one got the id. Its stream opens here.
+  publish.claim(7, 'second');
+  assert.deepEqual(forgotten, [7], 'the first account\'s streams and cached state go');
+  await publish(7, state(6), 'first');
+  await publish.refresh(7, 9);
+  assert.deepEqual(delivered, [5], 'late work for the first account delivers nothing');
+  rebuilt = { state: state(1), incarnation: 'second' };
+  await publish.refresh(7, 1);
+  await publish(7, state(2), 'second');
+  assert.deepEqual(delivered, [5, 1, 2], 'the second account starts from nothing');
+  publish.claim(7, 'second');
+  assert.deepEqual(forgotten, [7], 'another stream for the same account forgets nothing');
 });

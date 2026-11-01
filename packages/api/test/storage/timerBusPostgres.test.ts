@@ -62,6 +62,48 @@ test('a server bus that cannot reach its database rejects within the connect tim
   await local.close();
 });
 
+/** Speaks just enough of the protocol to accept a login and one LISTEN, then goes silent. It never
+ * closes its side, so a graceful client end waits for a reply that never comes. */
+async function silentPeer(t: TestContext) {
+  const message = (type: string, body: Buffer) => {
+    const head = Buffer.alloc(5);
+    head.write(type, 0, 'latin1');
+    head.writeInt32BE(body.length + 4, 1);
+    return Buffer.concat([head, body]);
+  };
+  const ready = message('Z', Buffer.from('I'));
+  const sockets = new Set<Socket>();
+  const server = createServer({ allowHalfOpen: true }, socket => {
+    sockets.add(socket);
+    let started = false, listening = false;
+    socket.on('data', chunk => {
+      if (!started) { started = true; socket.write(Buffer.concat([message('R', Buffer.alloc(4)), ready])); }
+      else if (!listening && chunk[0] === 'Q'.charCodeAt(0)) { listening = true; socket.write(Buffer.concat([message('C', Buffer.from('LISTEN\0')), ready])); }
+    });
+    socket.on('error', () => {});
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => { for (const socket of sockets) socket.destroy(); server.close(); });
+  return { port: (server.address() as { port: number }).port, connections: () => sockets.size };
+}
+
+test('closing a bus whose server stopped answering destroys the listener socket at the deadline', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-bus-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const peer = await silentPeer(t);
+  const config = parseStorageConfig({ TOKKL_DATABASE_URL: `postgres://bus-user:bus-secret@127.0.0.1:${peer.port}/bus_db?sslmode=disable&connect_timeout_ms=300` }, dir);
+  const ends = t.mock.method(pg.Client.prototype, 'end');
+  const bus = await startTimerBus(config);
+  assert.equal(peer.connections(), 1);
+  const started = performance.now();
+  await bus.close();
+  assert.ok(performance.now() - started < 1500, 'close gives up near the deadline');
+  assert.equal(ends.mock.callCount(), 1);
+  const client = ends.mock.calls[0]!.this as pg.Client;
+  assert.ok(client.connection.stream.destroyed, 'nothing is left to keep the process alive');
+});
+
 test('postgres: two buses share signals, reject forged payloads, survive a dropped listener and close cleanly', { timeout: 180000 }, async t => {
   const fixture = await disposableBackend('postgres');
   const buses: TimerBus[] = [];

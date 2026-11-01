@@ -9,24 +9,36 @@ import type { AccountEntryEffects, AccountRepositories } from './accounts.ts';
 import type { CatalogTimerEffects } from './catalogs.ts';
 import { createTimeEntry, entryDurationSeconds, getTimeEntry, memberWorkspace, protectEntryOperation, reanchorNoTimeEntries, serializeTimeEntry, stopEntryAt, type EntryContext, type EntryRepositories } from './timeEntries.ts';
 
-/** One local application instance owns this callback. No connection or database identity is exposed. */
-export type TimerPublication = (userId: Id, state: TimerState) => Promise<void>;
+/** One local application instance owns this callback. No connection or database identity is exposed.
+ * `incarnation` is the user row's `createdAt`. It tells apart accounts that reuse a deleted id. */
+export type TimerPublication = (userId: Id, state: TimerState, incarnation: string) => Promise<void>;
+export type TimerDelivery = (userId: Id, state: TimerState) => Promise<void>;
 export type LocalTimerPublication = TimerPublication & { forgetUser(userId: Id): void };
 /** Reads committed state for a signalled user. `rebuild` must only read: no settling, no commit. */
 export interface RemoteTimerSource {
   hasStreams(userId: Id): boolean;
-  rebuild(userId: Id): Promise<TimerState | undefined>;
+  rebuild(userId: Id): Promise<{ state: TimerState; incarnation: string } | undefined>;
 }
 export type OrderedTimerPublication = LocalTimerPublication & {
   /** Delivers the database's state when it is newer than what this process delivered. Never signals. */
   refresh(userId: Id, hintedRevision: number): Promise<void>;
+  /** A stream opens for this incarnation. State held for another one is forgotten first, because
+   * that account was deleted by another process. */
+  claim(userId: Id, incarnation: string): void;
 };
 /** Serialize deliveries per user after release. Drop overtaken revisions; a failed delivery is
- * reported by the runner and never retried as a write. Later deliveries still run. */
-export function createTimerPublication(deliver: TimerPublication, forgotten: (userId: Id) => void = () => {}, remote?: RemoteTimerSource): OrderedTimerPublication {
+ * reported by the runner and never retried as a write. Later deliveries still run. Every delivery
+ * must belong to the incarnation this process holds state for; any other is dropped. */
+export function createTimerPublication(deliver: TimerDelivery, forgotten: (userId: Id) => void = () => {}, remote?: RemoteTimerSource): OrderedTimerPublication {
   const queues = new Map<Id, Promise<void>>(), delivered = new Map<Id, number>();
-  const generations = new Map<Id, object>();
+  const generations = new Map<Id, object>(), incarnations = new Map<Id, string>();
   const behind = (id: Id, revision: number) => revision > (delivered.get(id) ?? -1);
+  // An id with no state yet takes the first incarnation seen, so `delivered` always has an owner.
+  function owns(id: Id, incarnation: string): boolean {
+    const known = incarnations.get(id);
+    if (known === undefined) incarnations.set(id, incarnation);
+    return known === undefined || known === incarnation;
+  }
   async function enqueue(id: Id, work: (current: () => boolean) => Promise<void>): Promise<void> {
     // Captured before any await, so a deletion while this waits or builds discards the result.
     let generation = generations.get(id);
@@ -40,16 +52,22 @@ export function createTimerPublication(deliver: TimerPublication, forgotten: (us
     delivered.set(id, state.revision);
     await deliver(id, structuredClone(state));
   }
-  return Object.assign((id: Id, state: TimerState) => enqueue(id, async current => {
-    if (current() && behind(id, state.revision)) await send(id, state);
+  function forgetUser(id: Id) { generations.delete(id); delivered.delete(id); incarnations.delete(id); forgotten(id); }
+  return Object.assign((id: Id, state: TimerState, incarnation: string) => enqueue(id, async current => {
+    if (current() && owns(id, incarnation) && behind(id, state.revision)) await send(id, state);
   }), {
-    forgetUser(id: Id) { generations.delete(id); delivered.delete(id); forgotten(id); },
+    forgetUser,
+    claim(id: Id, incarnation: string) {
+      const known = incarnations.get(id);
+      if (known !== undefined && known !== incarnation) forgetUser(id);
+      incarnations.set(id, incarnation);
+    },
     refresh(id: Id, hint: number): Promise<void> {
       if (!remote?.hasStreams(id) || !behind(id, hint)) return Promise.resolve();
       return enqueue(id, async current => {
         if (!current() || !behind(id, hint) || !remote.hasStreams(id)) return;
-        const state = await remote.rebuild(id);
-        if (state && current() && behind(id, state.revision)) await send(id, state);
+        const rebuilt = await remote.rebuild(id);
+        if (rebuilt && current() && owns(id, rebuilt.incarnation) && behind(id, rebuilt.state.revision)) await send(id, rebuilt.state);
       });
     },
   });
@@ -107,7 +125,7 @@ export async function settleTimer(ctx: EntryContext, userId: Id, publish: TimerP
     data.revision = { userId, revision: (data.revision?.revision ?? 0) + 1, fingerprint, discardedPomodoro: discarded };
     await ctx.timers.saveRevision(data.revision);
     const state = await buildTimerState(ctx, user, new Date(), data);
-    ctx.afterCommit(() => publish(userId, state));
+    ctx.afterCommit(() => publish(userId, state, user.createdAt));
   }
   for (const response of responses.get(ctx)?.get(userId) ?? []) Object.assign(response.state, await buildTimerState(ctx, user, response.now, data));
   return changed;
@@ -229,14 +247,14 @@ export function createCatalogTimerEffects(full: EntryContext, publish: TimerPubl
       await full.lockUsers(users);
       let pending = prepared.get(wid);
       if (!pending) {
-        const captured = new Set<Id>(), committed: Array<{ id: Id; state: TimerState }> = [];
-        const retain: TimerPublication = async (id, state) => { committed.push({ id, state }); };
+        const captured = new Set<Id>(), committed: Array<{ id: Id; state: TimerState; incarnation: string }> = [];
+        const retain: TimerPublication = async (id, state, incarnation) => { committed.push({ id, state, incarnation }); };
         pending = { users: captured, retain,
           async settle() { for (const id of [...captured].sort((a,b) => a-b)) await settleTimer(full, id, retain); },
           async publish() {
             let failed = false;
             for (const event of committed.splice(0)) {
-              try { await publish(event.id, event.state); } catch { failed = true; }
+              try { await publish(event.id, event.state, event.incarnation); } catch { failed = true; }
             }
             if (failed) throw new Error('Timer publication failed');
           } };

@@ -4,6 +4,7 @@ import { createStorageAuth, currentCredentialUser, type StorageAuthentication } 
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import { createAccountOperations, isActiveAdmin } from '../domain/accounts.ts';
 import type { TimerState } from '@tokkl/types';
+import type { Response } from 'express';
 import type { Id } from '../storage/domain.ts';
 import { createLocalTimerBus, type TimerBus } from '../domain/timerBus.ts';
 import { buildTimerState, createAccountEntryEffects, createCatalogTimerEffects, createTimerOperations, createTimerPublication, type OrderedTimerPublication } from '../domain/timers.ts';
@@ -25,18 +26,19 @@ export function createApplicationServices(storage: Storage, config: StorageConfi
     // Read-only on purpose: settling here would commit a new revision and signal it back.
     rebuild: id => storage.readSnapshot(async repositories => {
       const user = await repositories.users.get(id);
-      return user ? buildTimerState(repositories, user) : undefined;
+      return user ? { state: await buildTimerState(repositories, user), incarnation: user.createdAt } : undefined;
     }),
   });
   const refreshes = new Set<Promise<void>>();
   // Every local commit publishes through here. Remote refreshes skip the send, which stops echo loops.
-  const publish: OrderedTimerPublication = Object.assign((id: Id, state: TimerState) => {
-    const delivery = ordered(id, state);
+  const publish: OrderedTimerPublication = Object.assign((id: Id, state: TimerState, incarnation: string) => {
+    const delivery = ordered(id, state, incarnation);
     try { bus.send({ userId: id, revision: state.revision }); }
     catch { console.error('Timer bus send failed'); }
     return delivery;
   }, {
     forgetUser: ordered.forgetUser,
+    claim: ordered.claim,
     refresh(id: Id, hintedRevision: number) {
       const refresh = ordered.refresh(id, hintedRevision);
       refreshes.add(refresh);
@@ -66,6 +68,11 @@ export function createApplicationServices(storage: Storage, config: StorageConfi
   }
   return {
     hub, auth, accounts, entryEffects, timerStreams, publish, reports,
+    /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
+    openTimerStream(authentication: StorageAuthentication, res: Response): Promise<void> {
+      publish.claim(authentication.user.id, authentication.user.createdAt);
+      return timerStreams.open(authentication.user.id, res, auth.credentialCheck(authentication));
+    },
     readFor<T>(authentication: StorageAuthentication, work: (repositories: Repositories) => Promise<T>, administrative = false): Promise<T> {
       return storage.readSnapshot(async repositories => {
         const user = await currentCredentialUser(repositories, authentication);

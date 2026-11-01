@@ -118,11 +118,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const held = gate(), release = gate(), states: number[] = [];
         const p = createTimerPublication(async (_id, state) => { states.push(state.revision); if (states.length === 1) { held.resolve(); await release.promise; } });
         const state = await timers[0]!.getTimerState(user.id);
-        const a = p(user.id, { ...state, revision: 30 }); await held.promise;
-        const b = p(user.id, { ...state, revision: 32 }), c = p(user.id, { ...state, revision: 31 });
+        const a = p(user.id, { ...state, revision: 30 }, user.createdAt); await held.promise;
+        const b = p(user.id, { ...state, revision: 32 }, user.createdAt), c = p(user.id, { ...state, revision: 31 }, user.createdAt);
         release.resolve(); await Promise.all([a,b,c]); assert.deepEqual(states, [30,32]);
         p.forgetUser(user.id);
-        await p(user.id, { ...state, revision: 1 });
+        await p(user.id, { ...state, revision: 1 }, user.createdAt);
         assert.deepEqual(states, [30,32,1], 'a deleted account ID can be reused by a new account');
       });
     } finally { await other.close(); await connection.close(); await fixture.cleanup(); }
