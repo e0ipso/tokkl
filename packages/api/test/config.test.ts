@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../src/config.ts';
 function tempDir() { const dir=mkdtempSync(join(tmpdir(),'tokkl-config-')); after(()=>rmSync(dir,{recursive:true,force:true})); return dir; }
 test('URL selects storage while unrelated current and legacy settings retain their behavior',()=>{
@@ -24,4 +26,12 @@ test('TOKKL_TRUST_PROXY accepts off, a hop count or proxy addresses and ranges, 
  for(const value of ['true','yes','on','false','no','off','-1','1.5','10.0.0.0/33','::/129','10.0.0.0/','10.0.0.0/8/1','10.0.0.1,,10.0.0.2','proxy.example.com','loopback']) {
   assert.throws(()=>trust(value),(error:Error)=>/TOKKL_TRUST_PROXY/.test(error.message)&&/hop/.test(error.message)&&/CIDR/.test(error.message),value);
  }
+});
+test('startup names TOKKL_TRUST_PROXY when its value is invalid',async()=>{
+ const dir=tempDir();
+ const child=spawn(process.execPath,[fileURLToPath(new URL('../src/index.ts',import.meta.url))],{env:{...process.env,TOKKL_DATA_DIR:dir,TOKKL_DATABASE_URL:'sqlite::memory:',TOKKL_TRUST_PROXY:'true',HOST:'127.0.0.1',PORT:'0'},stdio:['ignore','pipe','pipe']});
+ let logs=''; child.stdout.on('data',b=>{logs+=String(b);}); child.stderr.on('data',b=>{logs+=String(b);});
+ const deadline=setTimeout(()=>child.kill('SIGKILL'),10000);
+ try { assert.equal(await new Promise<number|null>(r=>child.once('exit',r)),1); } finally { clearTimeout(deadline); }
+ assert.match(logs,/Startup failed\. Invalid TOKKL_TRUST_PROXY/); assert.doesNotMatch(logs,/tokkl listening/);
 });

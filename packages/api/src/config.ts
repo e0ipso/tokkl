@@ -32,6 +32,14 @@ export interface LoadedConfig {
 /** Its presence requires explicit database selection before startup. */
 export const LEGACY_DATABASE_FILE = 'timetrack.sqlite';
 
+/** An invalid setting. Its message names the setting and holds no secret, so startup prints it. */
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigurationError';
+  }
+}
+
 function isAddressOrRange(entry: string): boolean {
   const [address = '', prefix, ...rest] = entry.split('/');
   const family = isIP(address);
@@ -45,7 +53,7 @@ function trustProxy(value: string | undefined): Config['trustProxy'] {
   if (/^[0-9]*$/.test(trimmed)) return Number(trimmed) > 0 ? Number(trimmed) : false;
   const entries = trimmed.split(',').map((entry) => entry.trim());
   if (entries.every(isAddressOrRange)) return entries;
-  throw new Error('Invalid TOKKL_TRUST_PROXY: use empty or 0 to trust no proxy, a positive number of proxy hops, or a comma-separated list of IP addresses and CIDR ranges.');
+  throw new ConfigurationError('Invalid TOKKL_TRUST_PROXY: use empty or 0 to trust no proxy, a positive number of proxy hops, or a comma-separated list of IP addresses and CIDR ranges.');
 }
 
 function int(value: string | undefined, fallback: number): number {
