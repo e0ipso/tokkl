@@ -60,27 +60,38 @@ export async function authenticatePassword<R extends AccountRepositories>(
   if (!seen || !valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }
+const unchangedActive = (current: User | undefined, seen: User): current is User =>
+  isActiveUser(current) && current.passwordHash === seen.passwordHash;
 export async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: User): Promise<User | undefined> {
   const current = await ctx.users.get(seen.id);
-  return isActiveUser(current) && current.passwordHash === seen.passwordHash ? current : undefined;
+  return unchangedActive(current, seen) ? current : undefined;
 }
-/** Check credentials in the data snapshot for reads, or under the operation's guards for writes. */
-export async function currentCredentialUser(ctx: Pick<Repositories, 'users' | 'sessions'>, auth: StorageAuthentication): Promise<User | undefined> {
-  const current = await currentActiveUser(ctx, auth.user);
-  if (!current) return;
+/** Apply the credential rules to the user row the caller loaded in this snapshot or under its guards. */
+async function checkCredential(ctx: Pick<Repositories, 'sessions'>, auth: StorageAuthentication, current: User | undefined): Promise<User | undefined> {
+  if (!unchangedActive(current, auth.user)) return;
   if (auth.credential.kind === 'session') {
     const session = await ctx.sessions.find(sha256(auth.credential.token));
     if (!session || session.userId !== current.id || session.expiresAt < new Date().toISOString()) return;
   } else if (!safeEqual(current.apiToken, auth.credential.kind === 'api-token' ? auth.credential.token : auth.user.apiToken)) return;
   return current;
 }
+/** Check credentials in the data snapshot for reads, or under the operation's guards for writes. */
+export async function currentCredentialUser(ctx: Pick<Repositories, 'users' | 'sessions'>, auth: StorageAuthentication): Promise<User | undefined> {
+  return checkCredential(ctx, auth, await ctx.users.get(auth.user.id));
+}
+/** A passing stream check carries the user's timer revision, read by the same user statement. */
+export type StreamCredentialResult = { valid: false } | { valid: true; revision: number };
+async function currentCredentialRevision(ctx: Pick<Repositories, 'users' | 'sessions'>, auth: StorageAuthentication): Promise<StreamCredentialResult> {
+  const current = await ctx.users.getWithTimerRevision(auth.user.id);
+  return current && await checkCredential(ctx, auth, current.user) ? { valid: true, revision: current.timerRevision } : { valid: false };
+}
 /** Independent async stream port. Storage failures fail closed and never reject a keep-alive callback. */
-export function credentialCheck<R extends AccountRepositories>(runner: AccountRunner<R>, auth: StorageAuthentication): () => Promise<boolean> {
+export function credentialCheck<R extends AccountRepositories>(runner: AccountRunner<R>, auth: StorageAuthentication): () => Promise<StreamCredentialResult> {
   // Capture fingerprints now, even if HTTP locals are replaced after a profile update.
   const observed = { ...auth, user: { ...auth.user }, credential: { ...auth.credential } };
   return async () => {
-    try { return !!await runner.readSnapshot(ctx => currentCredentialUser(ctx, observed)); }
-    catch { return false; }
+    try { return await runner.readSnapshot(ctx => currentCredentialRevision(ctx, observed)); }
+    catch { return { valid: false }; }
   };
 }
 export function createStorageAuth<R extends AccountRepositories>(runner: AccountRunner<R>, limiter: FailureLimiter) {

@@ -40,6 +40,7 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>): 
       count: (...args: Parameters<Repositories['users']['count']>) => runner.readSnapshot(r => r.users.count(...args)),
       countActiveAdmins: (...args: Parameters<Repositories['users']['countActiveAdmins']>) => runner.readSnapshot(r => r.users.countActiveAdmins(...args)),
       get: (...args: Parameters<Repositories['users']['get']>) => runner.readSnapshot(r => r.users.get(...args)),
+      getWithTimerRevision: (...args: Parameters<Repositories['users']['getWithTimerRevision']>) => runner.readSnapshot(r => r.users.getWithTimerRevision(...args)),
       findByEmail: (...args: Parameters<Repositories['users']['findByEmail']>) => runner.readSnapshot(r => r.users.findByEmail(...args)),
       findByApiToken: (...args: Parameters<Repositories['users']['findByApiToken']>) => runner.readSnapshot(r => r.users.findByApiToken(...args)),
       list: (...args: Parameters<Repositories['users']['list']>) => runner.readSnapshot(r => r.users.list(...args)),

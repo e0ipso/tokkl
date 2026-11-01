@@ -151,17 +151,17 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           for (const [token, offset, expected] of [['equal', 0, 200], ['expired', -1, 403]] as const) {
             await runner.transaction(ctx => ctx.sessions.create({ tokenHash: sha256(token), userId: user.id, createdAt: new Date(instant - 1000).toISOString(), expiresAt: new Date(instant + offset).toISOString(), userAgent: 'boundary' }));
             assert.equal((await request('/me', { headers: { cookie: `tokkl_session=${token}` } })).status, expected);
-            assert.equal(await credentialCheck(runner, { user, authMethod: 'session', credential: { kind: 'session', token } })(), expected === 200);
+            assert.equal((await credentialCheck(runner, { user, authMethod: 'session', credential: { kind: 'session', token } })()).valid, expected === 200);
           }
         } finally { t.mock.timers.reset(); }
         for (const mode of ['session', 'api-token', 'password'] as const) {
           const member = await add(`recheck-${mode}`), session = await operations.createSession(member, 'check', 30);
           const state: StorageAuthentication = { user: member, authMethod: mode === 'session' ? 'session' : 'basic', credential: mode === 'session' ? { kind: 'session', token: session.token } : mode === 'api-token' ? { kind: 'api-token', token: member.apiToken } : { kind: 'password' } };
           const check = credentialCheck(runner, state);
-          assert.equal(await check(), true);
+          assert.equal((await check()).valid, true);
           if (mode === 'session') await competing.deleteSession(session.token);
           else await competing.rotateApiToken(member, { kind: 'session', token: session.token });
-          assert.equal(await check(), false);
+          assert.equal((await check()).valid, false);
         }
       });
       await t.test('stream credential port rechecks every revocation with actual repositories', async () => {
@@ -172,7 +172,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             user: member, authMethod: kind === 'session' ? 'session' : 'basic',
             credential: kind === 'session' ? { kind, token: session.token } : kind === 'api-token' ? { kind, token: member.apiToken } : { kind: 'password' },
           }));
-          assert.deepEqual(await Promise.all(checks.map(check => check())), [true, true, true]);
+          assert.deepEqual(await Promise.all(checks.map(async check => (await check()).valid)), [true, true, true]);
           if (change === 'reset') { const reset = await operations.createPasswordReset(admin.id, member.id); await competing.resetPassword(reset.token, 'owner password'); }
           if (change === 'password-change') await competing.updateProfile(member, { kind: 'session', token: session.token }, { password: 'owner password', current_password: 'password one' }, effects, {
             attempt: check => loginLimiter.attempt(passwordCounters(member.email, '192.0.2.2'), check), retryAfterSeconds: () => 1,
@@ -183,7 +183,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           if (change === 'rotate') await competing.rotateApiToken(member, { kind: 'session', token: session.token });
           if (change === 'logout') await competing.deleteSession(session.token);
           const expected = change === 'rotate' ? [true, false, false] : change === 'revoke' || change === 'logout' ? [false, true, true] : [false, false, false];
-          assert.deepEqual(await Promise.all(checks.map(check => check())), expected, change);
+          assert.deepEqual(await Promise.all(checks.map(async check => (await check()).valid)), expected, change);
         }
       });
       await t.test('limiter shares password paths, charges unknown/disabled accounts, retains address and sends Retry-After', async () => {
@@ -319,7 +319,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.equal(mapped.length, count + 1);
         for (const path of ['/login', '/setup', '/invites/missing', '/resets/missing', '/me']) await expectError(path, 403, 'Missing CSRF header', { method: 'POST', headers: { cookie }, body: 'invalid' });
         await expectError('/login', 500, 'Internal server error', { method: 'POST', headers: csrf, body: { email: admin.email, password: 'password one' } });
-        assert.equal(await check(), false);
+        assert.deepEqual(await check(), { valid: false });
         assert.ok(notified.length > 0);
       });
     } finally {

@@ -5,7 +5,7 @@ export function timerRoutes(deps: Deps): Router {
   const api = express.Router(), auth = deps.auth.requireAuth;
   api.get('/timer', auth, async (_req, res) => res.json(await deps.timersFor(res.locals.auth).getTimerState(res.locals.auth.user.id)));
   api.get('/timer/events', auth, async (_req, res) => {
-    await deps.timerStreams.open(res.locals.auth.user.id, res, deps.auth.credentialCheck(res.locals.auth));
+    await deps.openTimerStream(res.locals.auth, res);
   });
   api.post('/timer/pause', auth, async (_req, res) => res.json(await deps.timersFor(res.locals.auth).pauseTimer(res.locals.auth.user.id)));
   api.post('/timer/resume', auth, async (req, res) => res.json(await deps.timersFor(res.locals.auth).resumeTimer(res.locals.auth.user.id, readJson(req).revision)));

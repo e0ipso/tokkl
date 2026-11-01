@@ -3,18 +3,48 @@ import type { StorageConfig } from '../storage/config.ts';
 import { createStorageAuth, currentCredentialUser, type StorageAuthentication } from '../auth/storageMiddleware.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import { createAccountOperations, isActiveAdmin } from '../domain/accounts.ts';
-import { createAccountEntryEffects, createCatalogTimerEffects, createTimerOperations, createTimerPublication } from '../domain/timers.ts';
+import type { TimerState } from '@tokkl/types';
+import type { Response } from 'express';
+import type { Id } from '../storage/domain.ts';
+import { createLocalTimerBus, type TimerBus } from '../domain/timerBus.ts';
+import { buildTimerState, createAccountEntryEffects, createCatalogTimerEffects, createTimerOperations, createTimerPublication, type OrderedTimerPublication } from '../domain/timers.ts';
 import { createStorageImports } from './storageImportJson.ts';
 import { StorageReportRunner } from './storageReportRunner.ts';
 import { TimerHub } from './timerHub.ts';
 import { TimerStreams } from './timerStreams.ts';
 import { forbidden } from '../lib/errors.ts';
-export function createApplicationServices(storage: Storage, config: StorageConfig, limiter: FailureLimiter, streamOptions?: import('./timerStreams.ts').TimerStreamOptions) {
-  const timerStreams = new TimerStreams(id => timers.getTimerState(id), streamOptions);
+export function createApplicationServices(storage: Storage, config: StorageConfig, limiter: FailureLimiter, streamOptions?: import('./timerStreams.ts').TimerStreamOptions, bus: TimerBus = createLocalTimerBus()) {
+  const timerStreams = new TimerStreams(id => timers.getTimerState(id), { ...streamOptions,
+    // `publish` is defined below; the tick calls this only after construction.
+    onBehind: (id, revision) => { publish.refresh(id, revision).catch(() => console.error('Timer refresh failed')); } });
   const hub = new TimerHub();
-  const publish = createTimerPublication(async (id, state) => { await Promise.allSettled([timerStreams.publish(id, state), hub.publish(id, state)]); }, id => {
+  const ordered = createTimerPublication(async (id, state) => { await Promise.allSettled([timerStreams.publish(id, state), hub.publish(id, state)]); }, id => {
     timerStreams.forgetUser(id);
     hub.forgetUser(id);
+  }, {
+    hasStreams: id => timerStreams.hasStreams(id),
+    // Read-only on purpose: settling here would commit a new revision and signal it back.
+    rebuild: id => storage.readSnapshot(async repositories => {
+      const user = await repositories.users.get(id);
+      return user ? { state: await buildTimerState(repositories, user), incarnation: user.createdAt } : undefined;
+    }),
+  });
+  const refreshes = new Set<Promise<void>>();
+  // Every local commit publishes through here. Remote refreshes skip the send, which stops echo loops.
+  const publish: OrderedTimerPublication = Object.assign((id: Id, state: TimerState, incarnation: string) => {
+    const delivery = ordered(id, state, incarnation);
+    try { bus.send({ userId: id, revision: state.revision }); }
+    catch { console.error('Timer bus send failed'); }
+    return delivery;
+  }, {
+    forgetUser: ordered.forgetUser,
+    claim: ordered.claim,
+    refresh(id: Id, hintedRevision: number) {
+      const refresh = ordered.refresh(id, hintedRevision);
+      refreshes.add(refresh);
+      void refresh.then(() => refreshes.delete(refresh), () => refreshes.delete(refresh));
+      return refresh;
+    },
   });
   const timers = createTimerOperations(storage, publish);
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
@@ -38,6 +68,11 @@ export function createApplicationServices(storage: Storage, config: StorageConfi
   }
   return {
     hub, auth, accounts, entryEffects, timerStreams, publish, reports,
+    /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
+    openTimerStream(authentication: StorageAuthentication, res: Response): Promise<void> {
+      publish.claim(authentication.user.id, authentication.user.createdAt);
+      return timerStreams.open(authentication.user.id, res, auth.credentialCheck(authentication));
+    },
     readFor<T>(authentication: StorageAuthentication, work: (repositories: Repositories) => Promise<T>, administrative = false): Promise<T> {
       return storage.readSnapshot(async repositories => {
         const user = await currentCredentialUser(repositories, authentication);
@@ -64,6 +99,8 @@ export function createApplicationServices(storage: Storage, config: StorageConfi
     },
     async close() {
       const results = await Promise.allSettled([timerStreams.closeAll(), reports.close()]);
+      // Streams are closed, so no new rebuild starts. Let started ones finish before storage closes.
+      await Promise.allSettled([...refreshes]);
       hub.close();
       if (results.some(result => result.status === 'rejected'))
         throw new Error('Application shutdown failed');
