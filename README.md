@@ -69,7 +69,7 @@ export TOKKL_DATABASE_URL='mysql://tokkl:REPLACE_ME@db.example.test:3306/tokkl?s
 export TOKKL_DATABASE_URL='mariadb://tokkl:REPLACE_ME@db.example.test:3306/tokkl?sslmode=verify-full'
 ```
 
-Choose one line. `postgresql://` also selects PostgreSQL. SQLite paths must be absolute, without query parameters or dot segments. `sqlite::memory:` is temporary and loses all data at process exit.
+Choose one line. `postgresql://` also selects PostgreSQL. SQLite paths must be absolute, without query parameters or dot segments. `sqlite::memory:` is temporary and loses all data at process exit. SQLite supports one process only. For several instances, use PostgreSQL, MySQL or MariaDB; do not share a SQLite file across hosts or run multiple processes against one SQLite file.
 
 Percent-encode username, password and database components separately. For example, a password `p@ss:word` becomes `p%40ss%3Aword`. Shell-quote the entire URL and keep credentials out of committed files and command logs. Supply container secrets through your deployment's protected environment configuration. The application redacts database credentials from startup errors; the first-admin setup code remains a secret printed intentionally at first startup.
 
@@ -93,6 +93,14 @@ Startup checks the selected engine version, acquires migration ownership, initia
 
 `GET /healthz` probes storage. On SIGTERM/SIGINT, the server stops accepting requests, closes streams and report workers, drains storage work and closes pools. HTTP connections have a ten-second drain deadline. In-flight reports can be cancelled; clients should reconnect after a restart.
 
+
+## Running several instances
+
+Tokkl is currently supported as a single instance. Running multiple instances behind a load balancer is unsupported until [timer updates reach every instance](https://github.com/e0ipso/tokkl/issues/62), [login and setup-code rate limits are shared](https://github.com/e0ipso/tokkl/issues/63), [the first-admin setup code works across instances](https://github.com/e0ipso/tokkl/issues/64), and [rolling deploys preserve schema and web-asset compatibility](https://github.com/e0ipso/tokkl/issues/65).
+
+When those changes are available, each instance will need the same `TOKKL_*` settings and a shared PostgreSQL, MySQL or MariaDB database. Configure the load balancer with an idle timeout well above the 25-second timer-stream keep-alive, and disable response buffering for `/api/app/timer/events`. Use `GET /healthz` for health checks. Drain connections before stopping an instance during deployment; Tokkl allows up to ten seconds for HTTP connections to drain. Keep each host's clock synchronized with NTP because timer start and stop times use the application host's clock.
+
+Each instance can open up to `pool_max` writer connections plus one report-reader connection. For N instances, budget up to N × (`pool_max` + 1) database connections. PgBouncer transaction pooling is incompatible with migrations because they use a session-level `pg_advisory_lock`; run migrations through a direct database connection.
 ## Backups and restore
 
 Settings → Data exports the signed-in account's accessible workspace data. JSON restore maps records into the importing account's default workspace, skips duplicates and reports records it cannot import. It preserves imported entry times. It does not restore credentials, API tokens, sessions, invites, instance settings or all accounts. It is not a lossless instance migration between database engines.
