@@ -7,6 +7,8 @@
 // TOKKL_SMOKE_ICON_DIR then name the installed widget, backend and icon theme
 // directories that Plasma must resolve.
 
+#include "testcorona.h"
+
 #include <KConfigLoader>
 #include <KLocalizedContext>
 #include <KPackage/Package>
@@ -115,17 +117,6 @@ void checkPersistedUrl(QObject *page)
     QCOMPARE(page->property("cfg_instanceUrl").toString(), QString());
 }
 }
-
-// The smallest shell that can host an applet: one screen and an empty
-// containment, which Plasma creates when the requested plugin does not exist.
-class TestCorona : public Plasma::Corona
-{
-public:
-    QRect screenGeometry(int) const override
-    {
-        return QRect(0, 0, 1280, 800);
-    }
-};
 
 class SmokeLoadTest : public QObject
 {
