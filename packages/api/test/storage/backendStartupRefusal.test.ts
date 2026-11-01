@@ -37,7 +37,7 @@ for (const backend of ['mysql', 'mariadb'] as const) {
       assert.deepEqual(readdirSync(dir), []); assert.deepEqual(await tables(), []);
     } finally { clearTimeout(deadline); if (child.exitCode === null) child.kill('SIGKILL'); }
     const valid = await initializeDatabase(config);
-    try { assert.equal((await valid.db.selectFrom('storage_migrations').selectAll().execute()).length, 4); }
+    try { assert.equal((await valid.db.selectFrom('storage_migrations').selectAll().execute()).length, 5); }
     finally { await valid.close(); }
   });
 }

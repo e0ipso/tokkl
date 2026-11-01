@@ -297,7 +297,7 @@ test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop
   const { createFirstAdmin } = await import('./fixtures/domain.ts');
   const db = await open();
   (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
-  const app = testServer(create({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }));
+  const app = testServer(create({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: null } }));
   let last = 0;
   for (let i = 0; i < 12; i++) {
     const response = await app.request('/api/app/login', {
@@ -308,6 +308,23 @@ test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop
     last = response.status;
   }
   assert.equal(last, 429, 'a spoofed leftmost entry must not reset the limit');
+});
+
+test('behind two trusted proxies, a hop count or their addresses make the client address the rate limit key', async () => {
+  for (const trustProxy of [2, ['127.0.0.1', '192.168.1.0/24']]) {
+    const db = (await openDatabase());
+    (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
+    const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy }, setup: { code: null } }));
+    const login = (forwardedFor: string, password: string) => app.request('/api/app/login', {
+      method: 'POST',
+      headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': forwardedFor },
+      body: JSON.stringify({ email: 'me@example.com', password }),
+    });
+    let last = 0;
+    for (let i = 0; i < 12; i++) last = (await login(`10.0.0.${i}, 203.0.113.7, 192.168.1.50`, 'wrong')).status;
+    assert.equal(last, 429, `${JSON.stringify(trustProxy)}: a spoofed leftmost entry must not reset the limit`);
+    assert.equal((await login('203.0.113.8, 192.168.1.50', PASSWORD)).status, 200, `${JSON.stringify(trustProxy)}: another client behind the same proxy is unaffected`);
+  }
 });
 
 test('bad since and bad report dates are 400, not 500', async () => {
@@ -484,7 +501,7 @@ async function multiUserApp(count: number, names = Array.from({ length: count },
   const owner = (await createFirstAdmin(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' }));
   const users = [owner, ...await Promise.all(names.slice(1).map(name => insertSecondUser(db, owner, name)))];
   const emails = users.map((user) => user.email);
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address },
@@ -570,7 +587,7 @@ test('one address is refused after 100 failures across accounts, and a success d
 
 test('setup codes have their own per-address limit of ten', async () => {
   const db = (await openDatabase());
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (path: string, body: unknown, address = '10.0.0.1') => app.request(path, {
     method: 'POST', headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address }, body: JSON.stringify(body),
   });
@@ -770,7 +787,7 @@ test('with two full counters, waiting the advertised Retry-After lets the next l
 test('setup 429s carry Retry-After, and waiting that long allows another code', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const db = (await openDatabase());
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: true }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: 'ABCD-EFGH-JKLM' } }));
   const post = (setupCode: string) => app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },

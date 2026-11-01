@@ -4,8 +4,9 @@ import type { AccountChanges, NewAccount, Repositories } from '../contracts.ts';
 import type { AccountToken, InstanceSettings, MembershipRole, User, UserRole, Workspace } from '../domain.ts';
 import type { AccountTokensRow, PhysicalDatabase, UsersRow, WorkspacesRow } from '../physical.ts';
 import { entityId, finiteNumber, jsonObject, safeInteger, utcInstant } from '../conversion.ts';
+import { createRateLimitRepository } from './rate-limits.ts';
 
-export type AccountRepositories = Pick<Repositories, 'users' | 'workspaces' | 'settings' | 'tokens' | 'sessions'>;
+export type AccountRepositories = Pick<Repositories, 'users' | 'workspaces' | 'settings' | 'tokens' | 'sessions' | 'rateLimits'>;
 function role(value: string): UserRole {
   if (value !== 'admin' && value !== 'user') throw new Error('Invalid storage account role');
   return value;
@@ -159,7 +160,7 @@ export function createAccountRepositories(db: Kysely<PhysicalDatabase>, backend:
     async delete(id) { await db.deleteFrom('users').where('id', '=', entityId(id)).execute(); },
   };
   return {
-    users, workspaces,
+    users, workspaces, rateLimits: createRateLimitRepository(db, backend),
     settings: {
       async read() {
         const values: Partial<InstanceSettings> = {};

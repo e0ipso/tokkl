@@ -178,6 +178,18 @@ export interface TimerStatesRow {
   discarded_stop: string | null;
 }
 
+export interface RateLimitCountersRow {
+  key_hash: string;
+  reset_at: string;
+  failures: Int;
+}
+
+export interface RateLimitReservationsRow {
+  id: string;
+  key_hash: string;
+  expires_at: string;
+}
+
 export interface PhysicalDatabase {
   users: UsersRow;
   workspaces: WorkspacesRow;
@@ -194,5 +206,7 @@ export interface PhysicalDatabase {
   pomodoro_sessions: PomodoroSessionsRow;
   pause_chains: PauseChainsRow;
   timer_states: TimerStatesRow;
+  rate_limit_counters: RateLimitCountersRow;
+  rate_limit_reservations: RateLimitReservationsRow;
   storage_migrations: { version: Int; name: string; checksum: string; state: string; schema_hash: string | null };
 }

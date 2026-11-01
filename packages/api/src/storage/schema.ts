@@ -250,3 +250,18 @@ export function runningEntriesDDL(backend: Backend): string[] {
     `ALTER TABLE ${q('time_entries')} DROP INDEX ${q('time_entries_running')}, ADD INDEX ${q('time_entries_running')} (${q('running_user_id')})`,
   ];
 }
+// Shared failure counters for login, link and setup-code limits. Reservations hold in-flight
+// checks, one row per slot. Their random primary key and plain secondary indexes keep InnoDB from
+// taking gap locks beside other keys; counter rows are locked by primary key only.
+export const rateLimitTables: Record<string, Record<string, Column>> = {
+  rate_limit_counters: { key_hash: { ...key, primary: true }, reset_at: instant, failures: integer },
+  rate_limit_reservations: { id: { ...key, primary: true }, key_hash: key, expires_at: instant },
+};
+export const rateLimitIndexes: SchemaIndex[] = [
+  { name: 'rate_limit_counters_reset_at', table: 'rate_limit_counters', columns: ['reset_at'] },
+  { name: 'rate_limit_reservations_key_hash_expires_at', table: 'rate_limit_reservations', columns: ['key_hash', 'expires_at'] },
+  { name: 'rate_limit_reservations_expires_at', table: 'rate_limit_reservations', columns: ['expires_at'] },
+];
+export function rateLimitDDL(backend: Backend): string[] {
+  return [...Object.entries(rateLimitTables).map(([name, columns]) => createTableDDL(backend, name, columns)), ...rateLimitIndexes.map(index => indexDDL(backend, index))];
+}

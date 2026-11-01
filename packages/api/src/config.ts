@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
 import { parseStorageConfig, type StorageConfig } from './storage/config.ts';
 
@@ -8,8 +9,11 @@ export interface Config {
   dataDir: string;
   storage: StorageConfig;
   webRoot: string;
-  /** Trust X-Forwarded-For / X-Forwarded-Proto from a reverse proxy. */
-  trustProxy: boolean;
+  /**
+   * Which reverse proxies may set X-Forwarded-For / X-Forwarded-Proto: `false` for none, a hop
+   * count, or proxy IP addresses and CIDR ranges. Passed to Express's `trust proxy` setting as is.
+   */
+  trustProxy: false | number | readonly string[];
   /**
    * Session lifetime used until an admin stores `session_days` in the instance settings. Read the
    * effective value through the account domain settings operation.
@@ -28,9 +32,20 @@ export interface LoadedConfig {
 /** Its presence requires explicit database selection before startup. */
 export const LEGACY_DATABASE_FILE = 'timetrack.sqlite';
 
-function bool(value: string | undefined, fallback: boolean): boolean {
-  if (value === undefined || value === '') return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+function isAddressOrRange(entry: string): boolean {
+  const [address = '', prefix, ...rest] = entry.split('/');
+  const family = isIP(address);
+  if (family === 0 || rest.length > 0) return false;
+  if (prefix === undefined) return true;
+  return /^[0-9]{1,3}$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128);
+}
+
+function trustProxy(value: string | undefined): Config['trustProxy'] {
+  const trimmed = (value ?? '').trim();
+  if (/^[0-9]*$/.test(trimmed)) return Number(trimmed) > 0 ? Number(trimmed) : false;
+  const entries = trimmed.split(',').map((entry) => entry.trim());
+  if (entries.every(isAddressOrRange)) return entries;
+  throw new Error('Invalid TOKKL_TRUST_PROXY: use empty or 0 to trust no proxy, a positive number of proxy hops, or a comma-separated list of IP addresses and CIDR ranges.');
 }
 
 function int(value: string | undefined, fallback: number): number {
@@ -59,7 +74,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
     dataDir,
     storage: parseStorageConfig(env, dataDir),
     webRoot: resolve(setting('WEB_ROOT') ?? 'dist/web'),
-    trustProxy: bool(setting('TRUST_PROXY'), false),
+    trustProxy: trustProxy(setting('TRUST_PROXY')),
     sessionDays: int(setting('SESSION_DAYS'), 30),
     setupCode: setting('SETUP_CODE') || undefined,
   };

@@ -51,7 +51,7 @@ The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DA
 | `HOST` | `0.0.0.0` | Bind address |
 | `TOKKL_DATA_DIR` | `./data` | Default SQLite folder |
 | `TOKKL_DATABASE_URL` | absent | Database selector; absence selects `<data dir>/tokkl.sqlite`. An empty or invalid value fails startup. |
-| `TOKKL_TRUST_PROXY` | `false` | Trust one proxy hop: the last `X-Forwarded-For` entry supplies the client address for login rate limiting; `X-Forwarded-Proto: https` enables Secure cookies and HSTS. Enable only if the app is reachable through that proxy alone. |
+| `TOKKL_TRUST_PROXY` | absent | Reverse proxies whose forwarded headers are trusted. Empty or `0` trusts none. A positive number trusts that many proxy hops. A comma-separated list of IP addresses or CIDR ranges trusts those proxies. The client address for login rate limiting is the `X-Forwarded-For` entry the outermost trusted proxy added; `X-Forwarded-Proto: https` enables Secure cookies and HSTS. Any other value fails startup. Trust only proxies the app is reachable through. |
 | `TOKKL_SESSION_DAYS` | `30` | New-session lifetime until overridden on the Admin page; existing expiries stay unchanged. |
 | `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs |
 | `TOKKL_WEB_ROOT` | `dist/web` | Built web app folder |

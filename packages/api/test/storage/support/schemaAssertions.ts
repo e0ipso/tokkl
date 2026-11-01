@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { sql, type Kysely } from 'kysely';
 import type { Backend } from '../../../src/storage/config.ts';
 import type { PhysicalDatabase } from '../../../src/storage/physical.ts';
-import { baselineTables, baselineIndexes, totalsIndexes, quote, serverDDL } from '../../../src/storage/schema.ts';
+import { baselineTables, baselineIndexes, rateLimitIndexes, rateLimitTables, totalsIndexes, quote, serverDDL } from '../../../src/storage/schema.ts';
 
 export type TestDb = Kysely<PhysicalDatabase>;
 export async function insert(db: TestDb, backend: Backend, table: string, row: Record<string, unknown>): Promise<void> {
@@ -22,7 +22,7 @@ export async function seed(db: TestDb, backend: Backend): Promise<void> {
   }
 }
 export async function assertSchema(db: TestDb, backend: Backend): Promise<void> {
-  for (const [table, columns] of Object.entries(baselineTables)) {
+  for (const [table, columns] of Object.entries({ ...baselineTables, ...rateLimitTables })) {
     const q = quote(backend, table);
     const actual = backend === 'sqlite' ? (await sql.raw<{ name: string; notnull: number; dflt_value: string | null; type: string; hidden: number }>(`PRAGMA table_xinfo(${q})`).execute(db)).rows.map(c => ({ name: c.name, type: c.type.toLowerCase(), nullable: c.notnull === 0, default: c.dflt_value }))
       : (await sql<{ name: string; nullable: string; type: string; default: string | null }>`select column_name as name, data_type as type, is_nullable as nullable, column_default as ${sql.raw(quote(backend, 'default'))} from information_schema.columns where table_schema=${backend === 'postgres' ? sql`current_schema()` : sql`database()`} and table_name=${table}`.execute(db)).rows.map(c => ({ ...c, nullable: c.nullable === 'YES' }));
@@ -42,7 +42,11 @@ export async function assertSchema(db: TestDb, backend: Backend): Promise<void> 
   // On InnoDB a primary key per user enforces one running entry; time_entries_running is only a lookup.
   const running = serverDDL(backend) ? [{ name: 'time_entries_running', table: 'time_entries', columns: ['running_user_id'] }, { name: 'PRIMARY', table: 'running_entries', columns: ['user_id'], unique: true }]
     : [{ name: 'time_entries_running', table: 'time_entries', columns: ['user_id'], unique: true }];
-  for (const index of [...baselineIndexes, ...totalsIndexes, ...running]) {
+  // SQLite names the implicit indexes of text primary keys itself, so only server engines check them by name.
+  const primaryKeys = backend === 'sqlite' ? [] : Object.entries(rateLimitTables).map(([table, columns]) => ({
+    name: backend === 'postgres' ? `${table}_pkey` : 'PRIMARY', table, columns: Object.keys(columns).filter(name => columns[name]!.primary), unique: true,
+  }));
+  for (const index of [...baselineIndexes, ...totalsIndexes, ...running, ...rateLimitIndexes, ...primaryKeys]) {
     if (backend === 'sqlite') {
       const indexes = (await sql.raw<{ name: string; unique: number }>(`PRAGMA index_list(${quote(backend,index.table)})`).execute(db)).rows;
       assert.equal(indexes.find(i => i.name === index.name)?.unique, index.unique ? 1 : 0, index.name);

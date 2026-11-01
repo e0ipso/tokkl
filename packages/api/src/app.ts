@@ -89,9 +89,9 @@ export function createApp({ storage, config, setup, timerStreamOptions, timerBus
 
   app.disable('x-powered-by');
   app.set('etag', false);
-  // One hop: the reverse proxy. req.ip becomes the address it appended to X-Forwarded-For, and
-  // req.secure follows its X-Forwarded-Proto.
-  app.set('trust proxy', config.trustProxy ? 1 : false);
+  // A hop count or the proxies' addresses. req.ip becomes the address the outermost trusted proxy
+  // appended to X-Forwarded-For, and req.secure follows X-Forwarded-Proto.
+  app.set('trust proxy', config.trustProxy);
   app.use(securityHeaders);
   const active = new Set<AbortController>();
   let closing = false;
