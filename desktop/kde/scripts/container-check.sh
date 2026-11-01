@@ -39,7 +39,9 @@
 # are loaded from <dir>/<format>-<identity>.tar when it exists, and images
 # built in this run are saved there; CI keeps that file between runners.
 # Each target container fetches the package lists again
-# (scripts/prepare-target.sh --refresh), as the image may be older.
+# (scripts/prepare-target.sh --refresh), as the image may be older. For the
+# same reason the build and test images are upgraded to the archive
+# (scripts/prepare-target.sh --upgrade) before anything is built in them.
 
 set -euo pipefail
 
@@ -173,6 +175,35 @@ for format in $formats; do
         fi
     fi
     echo "== $format: images ready in $((SECONDS - images_started))s"
+
+    # The archives move between image builds, and a library can change its
+    # soname on the way: Fedora 44 updates replaced Plasma 6.7 (libPlasma.so.7)
+    # with 6.8 (libPlasma.so.8). A package built in an older image would then
+    # need a library no archive still ships, and fail to install on the clean
+    # target. So the build and test images are upgraded to the archive as it
+    # is now before anything is built, and the build image records its new
+    # baseline. ci/realserver.sh runs in the upgraded test image. The target
+    # image stays as built, because check-package.sh installs into it from the
+    # archive.
+    upgrade_started=$SECONDS
+    for stage in build test; do
+        cmd="$("$engine" image inspect --format '{{ json .Config.Cmd }}' "$image:$format-$stage")"
+        # shellcheck disable=SC2016
+        container="$("$engine" create -v "$desktop_dir:/desktop:ro" "$image:$format-$stage" bash -euc '
+            /desktop/kde/scripts/prepare-target.sh --format "$1" --upgrade
+            if [ -f /opt/tokkl-kde/baseline.txt ]; then
+                /desktop/kde/ci/baseline.sh --format "$2" > /opt/tokkl-kde/baseline.txt
+            fi
+        ' bash "$package_format" "$format")"
+        if ! "$engine" start -a "$container"; then
+            "$engine" rm "$container" > /dev/null
+            echo "error: upgrading $image:$format-$stage to the archive failed" >&2
+            exit 1
+        fi
+        "$engine" commit --change "CMD $cmd" "$container" "$image:$format-$stage" > /dev/null
+        "$engine" rm "$container" > /dev/null
+    done
+    echo "== $format: build and test images upgraded to the archive in $((SECONDS - upgrade_started))s"
     "$engine" run --rm "$image:$format-build" cat /opt/tokkl-kde/baseline.txt
 
     echo "== $format: build and run CTest for $version"

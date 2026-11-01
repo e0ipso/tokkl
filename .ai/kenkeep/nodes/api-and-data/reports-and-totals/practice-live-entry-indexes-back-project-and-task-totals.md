@@ -23,6 +23,8 @@ Keep the live-entry and project/task scope predicates compatible with the indexe
 
 Migrations are append-only definitions. `initializeDatabase` applies them under migration ownership and validates the `storage_migrations` checksum/state/schema ledger. Never edit an applied definition. Add a new migration and verify earlier recognized ledgers upgrade on every engine.
 
+Migration 4 `running_entries_by_user` (`runningEntriesDDL` in `storage/schema.ts`) runs on MySQL and MariaDB only. It adds a `running_entries` table with one primary-key row per user, kept in sync by AFTER INSERT/UPDATE triggers on `time_entries`. That row enforces one running entry per user, and `time_entries_running` is a plain index. A unique secondary key made InnoDB take gap locks beside other users' keys, even under READ COMMITTED. A timer switch (stop one entry, start another in one transaction) then stalled other users' writes. Do not turn the index back into a unique key. SQLite and PostgreSQL get an empty migration.
+
 <!-- kk:citations:start -->
 # Citations
 
