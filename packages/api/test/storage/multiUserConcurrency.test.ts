@@ -10,7 +10,7 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
-import { serveInvariant, transactionBarrier } from './support/invariantHttp.ts';
+import { readTimerStream, serveInvariant, transactionBarrier } from './support/invariantHttp.ts';
 
 interface HttpEntry { id: number; user_id: number; workspace_id: number; project_id: number | null; task_id: number | null; stop: string | null; duration: number }
 /** Clients carry their workspace as `wid`. Projects, tasks and tags carry it as `workspace_id`. */
@@ -251,6 +251,141 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.equal(timer.running_entry?.project_id, mine.timerProject); assert.equal(timer.running_entry?.project_name, 'Timer renamed');
       }
       assert.deepEqual(accounts.map(u => u.revision), [7, 6, 5]);
+      await verify();
+    });
+
+    await t.test('each user\'s timer stream carries only that user\'s states while both users change their timers at once', async t => {
+      // Each app delivers only the commits made through it to its own streams, and nothing passes
+      // timer states between apps. So A and B both stream and write through one app, as they would
+      // against one server. On the server engines its pool holds two connections, so the writes the
+      // barrier releases run side by side; on SQLite they queue on the write lock.
+      const streamConfig = fixture.config.backend === 'sqlite' ? fixture.config : { ...fixture.config, poolMax: 2 };
+      const storage = createStorage(await openConnection<PhysicalDatabase>(streamConfig));
+      const server = await serveInvariant(createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: streamConfig }, setup: { code: null } }));
+      const streams = new Map<Account, Awaited<ReturnType<typeof readTimerStream>>>();
+      t.after(async () => {
+        barrier.release();
+        await Promise.all([...streams.values()].map(s => s.close()));
+        await server.close(); await storage.close();
+      });
+      const [a, b] = accounts as [Account, Account];
+      const send = (u: Account, method: string, path: string, body?: unknown) => server.request(method, path, body, u.user.apiToken);
+      assert.notEqual(b.running, null, 'b starts with a running timer for its first change to stop');
+
+      const project = new Map<Account, number>();
+      for (const u of [a, b]) {
+        const created = await ok<HttpProject>(u, await send(u, 'POST', `${ws(u)}/projects`, { name: `${u.name}-stream` }));
+        project.set(u, created.id); u.projects.add(created.id);
+      }
+      /** What an account owns in storage: entry ids and descriptions, and each project's names. */
+      interface Owned { entries: Set<number>; descriptions: Set<string>; projects: Map<number, Set<string>> }
+      async function collect(u: Account, owned: Owned = { entries: new Set(), descriptions: new Set(), projects: new Map() }) {
+        for (const e of await c.db.selectFrom('time_entries').select(['id', 'description']).where('user_id', '=', u.user.id).execute()) {
+          owned.entries.add(Number(e.id)); owned.descriptions.add(e.description);
+        }
+        for (const p of await c.db.selectFrom('projects').select(['id', 'name']).where('workspace_id', '=', u.user.defaultWorkspaceId).execute()) {
+          const names = owned.projects.get(Number(p.id)) ?? new Set<string>();
+          names.add(p.name); owned.projects.set(Number(p.id), names);
+        }
+        return owned;
+      }
+      // Collected before and after the writes, so each project keeps the name it had before the rename.
+      const owned = new Map([[a, await collect(a)], [b, await collect(b)]]);
+
+      const received = () => [a, b].map(u => `${u.name} received: ${JSON.stringify(streams.get(u)?.states ?? [])}`).join('\n');
+      const opened = new Map<Account, number>();
+      for (const u of [a, b]) {
+        const stream = await readTimerStream(await send(u, 'GET', '/api/app/timer/events'));
+        streams.set(u, stream);
+        await stream.until(() => stream.states.length > 0, { timeoutMs: 10000, describe: received });
+        assert.equal(stream.states[0]!.revision, u.revision, `${u.name}: the stream opens with the current timer`);
+        opened.set(u, u.revision);
+      }
+
+      // Every change below changes its user's timer once. Pomodoro entries start at the server's
+      // clock, later than every `at()` time, so neither user starts or stops an entry after their
+      // Pomodoro start. `onProject` holds the running entry each user put on their stream project.
+      const onProject = new Map<Account, number>();
+      const change = {
+        start: (minute: number) => async (u: Account) => {
+          const entry = await ok<HttpEntry>(u, await send(u, 'POST', `${ws(u)}/time_entries`, { start: at(minute), description: `${u.name}-1`, project_id: project.get(u) }));
+          assert.equal(entry.user_id, u.user.id); assert.equal(entry.stop, null); assert.equal(entry.project_id, project.get(u));
+          u.live.add(entry.id); u.running = entry.id; onProject.set(u, entry.id);
+        },
+        stop: (minute: number) => async (u: Account) => {
+          const entry = await ok<HttpEntry>(u, await send(u, 'PATCH', `${ws(u)}/time_entries/${u.running}/stop`, { stop: at(minute) }));
+          assert.equal(entry.id, u.running); assert.notEqual(entry.stop, null);
+          u.running = null;
+        },
+        pomodoro: async (u: Account) => {
+          const state = await ok<TimerState>(u, await send(u, 'POST', '/api/app/pomodoro', { description: `${u.name}-pomodoro`, project_id: project.get(u) }));
+          assert.ok(state.pomodoro, `${u.name}: Pomodoro session`); assert.equal(state.running_entry?.project_id, project.get(u));
+          u.live.add(state.running_entry!.id); u.running = state.running_entry!.id; onProject.set(u, u.running);
+        },
+        rename: async (u: Account) => {
+          assert.equal(u.running, onProject.get(u), `${u.name}: an entry runs on the project being renamed`);
+          const renamed = await ok<HttpProject>(u, await send(u, 'PUT', `${ws(u)}/projects/${project.get(u)}`, { name: `${u.name}-stream renamed` }));
+          assert.equal(renamed.name, `${u.name}-stream renamed`);
+        },
+      };
+      // The users make a different change in every round.
+      const rounds = [
+        [change.start(1440), change.stop(1440)],
+        [change.rename, change.start(1500)],
+        [change.stop(1470), change.pomodoro],
+        [change.pomodoro, change.rename],
+      ] as const;
+      for (const [forA, forB] of rounds) {
+        await barrier.overlap(() => forA(a), () => forB(b));
+        a.revision++; b.revision++;
+      }
+
+      const current = new Map<Account, TimerState>();
+      for (const u of [a, b]) {
+        const timer = await ok<TimerState>(u, await send(u, 'GET', '/api/app/timer'));
+        assert.equal(timer.revision, u.revision, `${u.name}: timer revision`);
+        assert.equal(timer.running_entry?.id, u.running, `${u.name}: running entry`);
+        current.set(u, timer);
+        const stream = streams.get(u)!;
+        await stream.until(() => stream.states.some(s => s.revision >= timer.revision), { timeoutMs: 10000, describe: received });
+      }
+      for (const [u, other] of [[a, b], [b, a]] as const) {
+        const mine = await collect(u, owned.get(u)), theirs = await collect(other, owned.get(other));
+        const theirDescriptions = new Set([...theirs.descriptions].filter(text => !mine.descriptions.has(text)));
+        const states = streams.get(u)!.states;
+        for (const [i, state] of states.entries()) {
+          const where = `${u.name}'s stream, event ${i} at revision ${state.revision}`;
+          assert.ok(i === 0 || state.revision > states[i - 1]!.revision, `${where}: revisions only increase`);
+          const { running_entry: entry, pause, pomodoro, discarded_pomodoro: discarded } = state;
+          if (entry) {
+            assert.equal((entry as typeof entry & { user_id: number }).user_id, u.user.id, `${where}: running entry owner`);
+            assert.equal(entry.workspace_id, u.user.defaultWorkspaceId, `${where}: running entry workspace`);
+            if (entry.project_id !== null) assert.ok(mine.projects.get(entry.project_id)?.has(entry.project_name!), `${where}: project name ${entry.project_name}`);
+          }
+          if (pause) assert.equal(pause.workspace_id, u.user.defaultWorkspaceId, `${where}: pause workspace`);
+          for (const id of [entry?.id, pomodoro?.entry_id, pause?.clone_entry_id, discarded?.entry_id]) {
+            if (id == null) continue;
+            assert.ok(!theirs.entries.has(id), `${where}: entry ${id} belongs to ${other.name}`);
+            assert.ok(mine.entries.has(id), `${where}: entry ${id} is not this user's`);
+          }
+          for (const id of [entry?.project_id, pause?.project_id]) {
+            if (id == null) continue;
+            assert.ok(!theirs.projects.has(id), `${where}: project ${id} belongs to ${other.name}`);
+            assert.ok(mine.projects.has(id), `${where}: project ${id} is not this user's`);
+          }
+          for (const text of [entry?.description, pause?.description]) {
+            if (text == null) continue;
+            assert.ok(!theirDescriptions.has(text), `${where}: description ${JSON.stringify(text)} belongs to ${other.name}`);
+            assert.ok(mine.descriptions.has(text), `${where}: description ${JSON.stringify(text)} is not this user's`);
+          }
+        }
+        // Each user's changes ran one after another, and a write answers only after its state was
+        // published, so the stream holds every revision of the user's timer since it opened.
+        assert.deepEqual(states.map(s => s.revision), Array.from({ length: u.revision - opened.get(u)! + 1 }, (_, i) => opened.get(u)! + i), `${u.name}: stream revisions`);
+        const { server_time: _streamed, ...last } = states.at(-1)!, { server_time: _read, ...expected } = current.get(u)!;
+        assert.deepEqual(last, expected, `${u.name}: the stream's last state is the user's current timer`);
+      }
+      assert.deepEqual(accounts.map(u => u.revision), [11, 10, 5]);
       await verify();
     });
   });

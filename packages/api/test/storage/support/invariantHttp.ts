@@ -77,11 +77,12 @@ export async function readTimerStream(response: Response) {
   })();
   return {
     states, ended: () => ended,
-    async until(predicate: () => boolean) {
-      const deadline = performance.now() + 5000;
+    /** `describe` adds what the caller saw to the deadline failure. */
+    async until(predicate: () => boolean, { timeoutMs = 5000, describe }: { timeoutMs?: number; describe?: () => string } = {}) {
+      const deadline = performance.now() + timeoutMs;
       while (!predicate()) {
         if (failure) throw failure;
-        assert.ok(performance.now() < deadline, 'SSE observation deadline');
+        if (performance.now() >= deadline) assert.fail(`SSE observation deadline${describe ? `\n${describe()}` : ''}`);
         await new Promise(r => setTimeout(r, 5));
       }
     },
