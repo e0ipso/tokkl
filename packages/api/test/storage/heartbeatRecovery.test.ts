@@ -47,8 +47,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const local = createStorage(c), remote = countedReads(counted, () => statements);
     // Both instances use the default local bus, so B learns about A's commits only from its own tick.
     const apps = [
-      createApp({ storage: local, config: { ...testConfig(), storage: config }, setup: { code: null }, timerStreamOptions: { keepAliveMs: 600000 } }),
-      createApp({ storage: remote.storage, config: { ...testConfig(), storage: config }, setup: { code: null }, timerStreamOptions: { keepAliveMs: KEEP_ALIVE_MS } }),
+      createApp({ storage: local, config: { ...testConfig(), storage: config }, setup: { explicitCode: null }, timerStreamOptions: { keepAliveMs: 600000 } }),
+      createApp({ storage: remote.storage, config: { ...testConfig(), storage: config }, setup: { explicitCode: null }, timerStreamOptions: { keepAliveMs: KEEP_ALIVE_MS } }),
     ];
     const servers = await Promise.all(apps.map(serveInvariant));
     const streams: Array<Awaited<ReturnType<typeof readTimerStream>>> = [];

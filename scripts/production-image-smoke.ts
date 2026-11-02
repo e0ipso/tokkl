@@ -36,6 +36,21 @@ async function until(check: () => Promise<boolean>, label: string, timeout = 120
   while (!await check()) { assert.ok(performance.now() < deadline, `${label} deadline`); await delay(250); }
 }
 
+interface CommandResult { code: number; stdout: string; stderr: string }
+// Runs the recovery entrypoint inside the container. The database target travels through the
+// environment, not argv, and the exit code is returned because refusals are expected outcomes.
+async function setupCodeCommand(container: string, environment: NodeJS.ProcessEnv): Promise<CommandResult> {
+  const argv = ['exec', ...Object.keys(environment).flatMap(key => ['-e', key]), container, 'node', 'packages/api/src/setupCode.ts'];
+  try {
+    const result = await exec('docker', argv, { env: { ...process.env, ...environment }, timeout: 60000 });
+    return { code: 0, stdout: result.stdout.trim(), stderr: result.stderr.trim() };
+  } catch (error) {
+    const e = error as { code?: number; stdout?: string; stderr?: string };
+    assert.equal(typeof e.code, 'number', 'Recovery command could not run');
+    return { code: e.code!, stdout: (e.stdout ?? '').trim(), stderr: redact(e.stderr ?? '').trim() };
+  }
+}
+
 for (const backend of backends.filter(b => !args[3] || b === args[3])) {
   const namespace = `tokkl-image-${backend}-${randomBytes(8).toString('hex')}`;
   const password = randomBytes(24).toString('hex');
@@ -93,10 +108,24 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     event('production-runtime', runtime);
     const html = await fetch(base + '/'); assert.equal(html.status, 200); assert.match(await html.text(), /<html/);
     assert.deepEqual(await (await fetch(base + '/api/app/status')).json(), { setup_required: true });
+    // The recovery command runs against a separate empty database, with the container's configured code cleared.
+    const recoveryUrl = backend === 'sqlite' ? 'sqlite:///data/recovery.sqlite' : url.replace('/tokkl_test?', '/tokkl_recovery?');
+    secrets.push(recoveryUrl);
+    if (backend === 'postgres') await query('CREATE DATABASE tokkl_recovery');
+    else if (backend !== 'sqlite') await query("CREATE DATABASE tokkl_recovery; GRANT ALL ON tokkl_recovery.* TO 'tokkl'@'%'");
+    const recovered = await setupCodeCommand(app, { TOKKL_DATABASE_URL: recoveryUrl, TOKKL_SETUP_CODE: '' });
+    assert.equal(recovered.code, 0, recovered.stderr);
+    assert.match(recovered.stdout, /^New setup code: [A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}\. Earlier setup codes no longer work\.$/);
+    event('setup-code-recovery', { backend, exit: recovered.code, stderr: recovered.stderr });
     const setup = await fetch(base + '/api/app/setup', { method: 'POST', headers: { 'content-type': 'application/json', 'x-tokkl-csrf': '1' }, body: JSON.stringify({ email: 'image@example.test', password, fullname: 'Image smoke', timezone: 'UTC', setup_code: setupCode }) });
     assert.equal(setup.status, 200);
     const cookie = setup.headers.get('set-cookie')!.split(';')[0]!;
     const meResponse = await fetch(base + '/api/v9/me', { headers: { cookie } }); assert.equal(meResponse.status, 200);
+    const configuredRefusal = await setupCodeCommand(app, {});
+    assert.equal(configuredRefusal.code, 1); assert.equal(configuredRefusal.stdout, ''); assert.match(configuredRefusal.stderr, /TOKKL_SETUP_CODE is set/);
+    const completeRefusal = await setupCodeCommand(app, { TOKKL_SETUP_CODE: '' });
+    assert.equal(completeRefusal.code, 1); assert.equal(completeRefusal.stdout, ''); assert.match(completeRefusal.stderr, /Setup is already complete/);
+    event('setup-code-refusals', { backend, configured: configuredRefusal.code, complete: completeRefusal.code });
     const me = await meResponse.json() as { id: number; api_token: string; default_workspace_id: number };
     secrets.push(me.api_token, cookie);
     const auth = `Basic ${Buffer.from(`${me.api_token}:api_token`).toString('base64')}`; secrets.push(auth);

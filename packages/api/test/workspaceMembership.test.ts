@@ -45,7 +45,7 @@ test('a fresh database has no memberships until setup creates the first admin, w
   assert.equal(await completedMigrations(db),migrations(db.backend).length);
   assert.deepEqual((await memberships(db)), []);
 
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { explicitCode: 'ABCD-EFGH-JKLM' } }));
   const response = await app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json' },

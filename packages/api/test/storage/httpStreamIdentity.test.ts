@@ -12,7 +12,7 @@ import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.t
 for (const delayed of [false, true]) test(`SQLite reused account identity cannot inherit a deleted account SSE snapshot${delayed ? ' with an old publication pending' : ''}`, { timeout: 20000 }, async t => {
   const fixture = await disposableBackend('sqlite');
   const storage = createStorage(await initializeDatabase(fixture.config));
-  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { explicitCode: null } });
   const server = await serveInvariant(app), services = app.locals.services;
   const release = gate(), entered = gate(), releasePublication = gate(), publicationEntered = gate();
   let holdPublicationCheck = false;

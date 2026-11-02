@@ -1,21 +1,28 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type { AccountEntryEffects, AccountRepositories, AccountRunner, createAccountOperations } from '../domain/accounts.ts';
-import { findResetUser, findUsableInvite, INVALID_SETUP_CODE, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accounts.ts';
+import type { AccountEntryEffects, AccountRepositories, AccountRunner, createAccountOperations, SetupCredential } from '../domain/accounts.ts';
+import { findResetUser, findUsableInvite, INVALID_SETUP_CODE, INVITE_NOT_FOUND, RESET_NOT_FOUND, setupCredentialValid } from '../domain/accounts.ts';
 import type { User } from '../storage/domain.ts';
 import { clientAddress, readJson } from '../http/context.ts';
 import { forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
-import { safeEqual } from './crypto.ts';
 import { accountCounters, addressCounter, type FailureLimiter } from './rateLimit.ts';
 import {
   authenticatePassword, hasCsrfHeader, LEGACY_SESSION_COOKIE, passwordAttempt,
   requireCsrfHeader, SESSION_COOKIE, sessionTokens, type StorageAuthentication,
 } from './storageMiddleware.ts';
 
+/**
+ * How this process accepts the first-admin setup code. A configured code is checked as given and
+ * never stored. Without one, the code is the hashed pending code in storage, shared by every
+ * instance. Storage alone decides whether setup is complete.
+ */
+export interface SetupState {
+  explicitCode: string | null;
+}
 export interface StorageSessionOptions {
   loginLimiter: FailureLimiter;
   setupLimiter: FailureLimiter;
   sessionDays: number;
-  setup: { code: string | null };
+  setup: SetupState;
 }
 /** Session HTTP adapters over the guarded account operations. */
 export function createStorageSessions<R extends AccountRepositories>(
@@ -48,6 +55,8 @@ export function createStorageSessions<R extends AccountRepositories>(
     const { token, found: user } = await linked(req, token => runner.readSnapshot(ctx => findResetUser(ctx, token)), RESET_NOT_FOUND);
     return { token, user };
   };
+  const setupCredential = (submitted: unknown): SetupCredential => setup.explicitCode === null
+    ? { kind: 'generated', submitted } : { kind: 'explicit', code: setup.explicitCode, submitted };
   const status: RequestHandler = async (_req, res) => res.json({ setup_required: await runner.readSnapshot(ctx => ctx.users.count()) === 0 });
   const login: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
@@ -62,18 +71,18 @@ export function createStorageSessions<R extends AccountRepositories>(
   };
   const firstAdmin: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
-    if (await runner.readSnapshot(ctx => ctx.users.count()) > 0 || setup.code === null) throw forbidden('Setup has already been completed');
-    const code = setup.code;
+    if (await runner.readSnapshot(ctx => ctx.users.count()) > 0) throw forbidden('Setup has already been completed');
     let body: ReturnType<typeof readJson> = {};
     // The comparison holds a slot, so parallel wrong codes cannot pass the limit.
+    // With no pending code stored, a check without a configured code fails like a wrong code.
     const result = await setupLimiter.attempt(clientAddress(req), async () => {
       body = readJson(req);
-      return typeof body.setup_code === 'string' && safeEqual(body.setup_code.trim(), code);
+      return runner.readSnapshot(ctx => setupCredentialValid(ctx, setupCredential(body.setup_code)));
     });
     if (result.refused) throw tooManyRequests('Too many failed attempts, try again later', result.retryAfter);
     if (!result.valid) throw forbidden(INVALID_SETUP_CODE);
-    const user = await operations.createFirstAdmin(body, { kind: 'explicit', code, submitted: body.setup_code });
-    setup.code = null;
+    // The account write checks the code again under the instance guard and consumes it.
+    const user = await operations.createFirstAdmin(body, setupCredential(body.setup_code));
     await startSession(req, res, user);
     return res.json({ ok: true });
   };

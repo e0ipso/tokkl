@@ -12,7 +12,7 @@ test('credentials revoked after HTTP authentication cannot authorize an entry wr
  const accounts=createAccountOperations(storage,{recheckUser:async()=>{}});
  const user=await accounts.createFirstAdmin({email:'me@example.test',password:'correct horse battery',fullname:'Me',timezone:'UTC'},{ kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
  const entered=gate(),release=gate();let intercept=true;
- const app=createApp({storage:{...storage,transaction:async(work,options)=>{if(intercept){intercept=false;entered.resolve();await release.promise;}return storage.transaction(work,options);}},config:testConfig(),setup:{code:null}});
+ const app=createApp({storage:{...storage,transaction:async(work,options)=>{if(intercept){intercept=false;entered.resolve();await release.promise;}return storage.transaction(work,options);}},config:testConfig(),setup:{explicitCode:null}});
  t.after(async()=>{release.resolve();await app.locals.close();await storage.close();});
  const server=testServer(app);
  const request=server.request(`/api/v9/workspaces/${user.defaultWorkspaceId}/time_entries`,{method:'POST',headers:{authorization:`Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`},body:JSON.stringify({start:'2026-10-30T12:00:00Z',description:'stale'})});
@@ -33,7 +33,7 @@ for (const backend of ['postgres','mysql','mariadb'] as const) test(`${backend}:
  const {disposableBackend}=await import('./support/disposableBackend.ts');const fixture=await disposableBackend(backend);t.after(()=>fixture.cleanup());
  const storage=createStorage(await initializeDatabase(fixture.config));t.after(()=>storage.close());
  const users=await storage.transaction(async ctx=>{const out=[];for(const name of ['owner','other'])out.push(await ctx.users.createAccount({email:`${name}@example.test`,fullName:name,passwordHash:'hash',apiToken:name,timezone:'UTC',role:'admin',preferences:{}}));return out;});
- const app=createApp({storage,config:{...testConfig(),storage:fixture.config},setup:{code:null}});t.after(()=>app.locals.close());
+ const app=createApp({storage,config:{...testConfig(),storage:fixture.config},setup:{explicitCode:null}});t.after(()=>app.locals.close());
  const {createTimeEntry}=await import('../../src/domain/timeEntries.ts');const entered=gate(),release=gate();
  const owner=users[0]!,other=users[1]!,server=testServer(app);let ownerEntry=0,otherEntry=0;
  const start=(user:typeof owner,at:string)=>server.request(`/api/v9/workspaces/${user.defaultWorkspaceId}/time_entries`,{method:'POST',headers:{authorization:`Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`},body:JSON.stringify({start:at})});

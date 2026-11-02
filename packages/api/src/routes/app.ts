@@ -4,11 +4,9 @@ import { jsonRead, query, readText } from '../http/context.ts';
 import { badRequest, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
-import { createStorageSessions } from '../auth/storageSessions.ts';
+import { createStorageSessions, type SetupState } from '../auth/storageSessions.ts';
 import { restoreTimeEntry, purgeDeletedEntries, serializeTimeEntry } from '../domain/timeEntries.ts';
-export interface SetupState {
-  code: string | null;
-}
+export type { SetupState };
 export function appRoutes(deps: Deps, setup: SetupState): Router {
   const { storage, config, accounts, loginLimiter, setupLimiter } = deps;
   const app = express.Router(), auth = deps.auth.requireAuth;

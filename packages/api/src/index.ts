@@ -5,7 +5,21 @@ import { createStorage } from './storage/index.ts';
 import { startTimerBus } from './storage/timerBus.ts';
 import type { TimerBus } from './domain/timerBus.ts';
 import { safeDestination } from './storage/config.ts';
-import { generateSetupCode } from './auth/crypto.ts';
+import { initializeSetupCode } from './domain/accounts.ts';
+import type { Storage } from './storage/contracts.ts';
+const creatorLine = (code: string) => `No admin account yet. Open the web UI and use this setup code to create it: ${code}`;
+const PENDING_LINE = 'No admin account yet. The setup code was printed in the log of the instance that created it. Run npm run setup:code to print a replacement.';
+/**
+ * The setup line to print once listening, or undefined when an admin exists. Without a configured
+ * code this stores a shared code when none is pending. Its plaintext comes back only from the
+ * transaction that committed it, so a retried attempt never prints a discarded code.
+ */
+async function setupNotice(storage: Storage, explicitCode: string | null): Promise<string | undefined> {
+  if (explicitCode !== null) return await storage.users.count() === 0 ? creatorLine(explicitCode) : undefined;
+  const state = await initializeSetupCode(storage);
+  if (state.kind === 'generated') return creatorLine(state.code);
+  if (state.kind === 'pending') return PENDING_LINE;
+}
 async function main(): Promise<void> {
   const { config, notices } = loadConfig();
   for (const notice of notices)
@@ -13,7 +27,8 @@ async function main(): Promise<void> {
   const storage = createStorage(await initializeDatabase(config.storage));
   let bus: TimerBus | undefined;
   try {
-    const setup = { code: await storage.users.count() === 0 ? config.setupCode ?? generateSetupCode() : null };
+    const setup = { explicitCode: config.setupCode ?? null };
+    const notice = await setupNotice(storage, setup.explicitCode);
     // A process must hear other instances' timer signals before it reports that it is listening.
     const timerBus = bus = await startTimerBus(config.storage);
     const app = createApp({ storage, config, setup, timerBus });
@@ -43,8 +58,8 @@ async function main(): Promise<void> {
       });
     server.once('listening', () => {
       console.log(`tokkl listening on http://${config.host}:${config.port} (${safeDestination(config.storage)})`);
-      if (setup.code)
-        console.log(`No admin account yet. Open the web UI and use this setup code to create it: ${setup.code}`);
+      if (notice)
+        console.log(notice);
     });
   }
   catch (error) {

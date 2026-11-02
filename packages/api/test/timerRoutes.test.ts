@@ -257,7 +257,7 @@ test('opening one stream over the cap closes the oldest', STREAM_TEST, async (t)
 
 test('closing every stream lets the server close', STREAM_TEST, async (t) => {
   const ctx = (await setup());
-  const app=createApp({storage:storageFor(ctx.db),config:testConfig(),setup:{code:null},timerStreamOptions:{keepAliveMs:SLOW_KEEP_ALIVE_MS}});
+  const app=createApp({storage:storageFor(ctx.db),config:testConfig(),setup:{explicitCode:null},timerStreamOptions:{keepAliveMs:SLOW_KEEP_ALIVE_MS}});
   const streams=app.locals.services.timerStreams;
   const listening = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => listening.once('listening', resolve));

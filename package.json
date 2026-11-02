@@ -26,7 +26,8 @@
     "icons": "node scripts/icons.ts",
     "prepare": "husky",
     "test:backends": "npm run test:backends --workspace @tokkl/api --",
-    "test:container": "node scripts/production-image-smoke.ts"
+    "test:container": "node scripts/production-image-smoke.ts",
+    "setup:code": "node packages/api/src/setupCode.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",

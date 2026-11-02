@@ -45,7 +45,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     // so after release the writes take the write lock one at a time. The checks look only at
     // results, which must be the same whether the writes ran side by side or in a queue.
     const barrier = transactionBarrier();
-    const apps = stores.map(storage => createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: config }, setup: { code: null } }));
+    const apps = stores.map(storage => createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: config }, setup: { explicitCode: null } }));
     const servers = await Promise.all(apps.map(serveInvariant));
     t.after(async () => { barrier.release(); await Promise.all(servers.map(s => s.close())); await Promise.all(stores.map(s => s.close())); await fixture.cleanup(); });
 
@@ -261,7 +261,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       // barrier releases run side by side; on SQLite they queue on the write lock.
       const streamConfig = fixture.config.backend === 'sqlite' ? fixture.config : { ...fixture.config, poolMax: 2 };
       const storage = createStorage(await openConnection<PhysicalDatabase>(streamConfig));
-      const server = await serveInvariant(createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: streamConfig }, setup: { code: null } }));
+      const server = await serveInvariant(createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: streamConfig }, setup: { explicitCode: null } }));
       const streams = new Map<Account, Awaited<ReturnType<typeof readTimerStream>>>();
       t.after(async () => {
         barrier.release();

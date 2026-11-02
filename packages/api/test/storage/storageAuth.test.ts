@@ -25,7 +25,7 @@ const { initializeDatabase } = await import('../../src/storage/migrations.ts');
 const { openConnection } = await import('../../src/storage/connections.ts');
 const { createTransactionRunner } = await import('../../src/storage/transactions.ts');
 const { createAccountRepositories } = await import('../../src/storage/repositories/accounts.ts');
-const { createAccountOperations } = await import('../../src/domain/accounts.ts');
+const { createAccountOperations, initializeSetupCode } = await import('../../src/domain/accounts.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } = await import('../../src/auth/rateLimit.ts');
 const { createStorageAuth, credentialCheck } = await import('../../src/auth/storageMiddleware.ts');
 const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
@@ -64,14 +64,16 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       /** Whether an attempt is refused now. When it is not, the check passes and records nothing. */
       const blocked = async (limiter: Limiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
       const fail = (keys: Keys) => loginLimiter.attempt(keys, async () => false);
-      const setup = { code: 'setup-code' as string | null };
-      const sessions = createStorageSessions(runner, operations, { loginLimiter, setupLimiter, sessionDays: 30, setup });
+      const sessions = createStorageSessions(runner, operations, { loginLimiter, setupLimiter, sessionDays: 30, setup: { explicitCode: 'setup-code' } });
+      // Both modes share one limiter, as two processes with different settings share the database.
+      const generated = createStorageSessions(runner, operations, { loginLimiter, setupLimiter, sessionDays: 30, setup: { explicitCode: null } });
       const auth = createStorageAuth(runner, loginLimiter);
       const app = express();
       app.set('trust proxy', true);
       app.use(express.text({ type: () => true }));
       app.get('/status', sessions.status);
       app.post('/setup', sessions.firstAdmin);
+      app.post('/generated-setup', generated.firstAdmin);
       app.post('/login', sessions.login);
       app.post('/logout', sessions.logout);
       app.get('/invites/:token', sessions.inviteInfo);
@@ -121,21 +123,30 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         return operations.acceptInvite(invite.token, { email: `${name}@example.test`, password: 'password one' });
       };
       await t.test('setup and anonymous writes check CSRF before parsing, limiter charges or lookups', async () => {
-        for (const path of ['/setup', '/login', '/invites/missing', '/resets/missing']) {
+        const invalid = 'Invalid setup code. It is printed in the server log on startup.';
+        for (const path of ['/setup', '/generated-setup', '/login', '/invites/missing', '/resets/missing']) {
           await expectError(path, 403, 'Missing CSRF header', { method: 'POST', body: 'invalid JSON' });
         }
         assert.equal(await blocked(setupLimiter, '192.0.2.1'), false);
         assert.deepEqual((await request('/status')).body, { setup_required: true });
-        for (let n = 0; n < 10; n++) await expectError('/setup', 403, 'Invalid setup code. It is printed in the server log on startup.', { method: 'POST', headers: csrf, body: { setup_code: 'wrong' } });
-        const refused = await expectError('/setup', 429, 'Too many failed attempts, try again later', { method: 'POST', headers: csrf, body: { setup_code: 'setup-code' } });
-        assert.ok(Number(refused.headers.get('retry-after')) >= 1);
+        // Before a code is stored, the configured value is no stored code.
+        await expectError('/generated-setup', 403, invalid, { method: 'POST', headers: csrf, body: { setup_code: 'setup-code' } });
+        const pending = await initializeSetupCode(runner);
+        if (pending.kind !== 'generated') throw new Error('expected a generated code');
+        await expectError('/setup', 403, invalid, { method: 'POST', headers: csrf, body: { setup_code: pending.code } });
+        for (let n = 0; n < 8; n++) await expectError(n % 2 ? '/setup' : '/generated-setup', 403, invalid, { method: 'POST', headers: csrf, body: { setup_code: 'wrong' } });
+        for (const [path, code] of [['/setup', 'setup-code'], ['/generated-setup', pending.code]]) {
+          const refused = await expectError(path!, 429, 'Too many failed attempts, try again later', { method: 'POST', headers: csrf, body: { setup_code: code } });
+          assert.ok(Number(refused.headers.get('retry-after')) >= 1);
+        }
         await setupLimiter.reset('192.0.2.1');
-        await expectError('/setup', 400, 'Invalid JSON input', { method: 'POST', headers: csrf, body: 'wrong' });
-        const response = await request('/setup', { method: 'POST', headers: { ...legacyCsrf, 'x-forwarded-proto': 'https' }, body: { setup_code: ' setup-code ', email: 'admin@example.test', password: 'password one' } });
+        await expectError('/generated-setup', 400, 'Invalid JSON input', { method: 'POST', headers: csrf, body: 'wrong' });
+        const response = await request('/generated-setup', { method: 'POST', headers: { ...legacyCsrf, 'x-forwarded-proto': 'https' }, body: { setup_code: ` ${pending.code} `, email: 'admin@example.test', password: 'password one' } });
         assert.equal(response.status, 200);
         assert.match(response.headers.get('set-cookie')!, /Secure/);
-        assert.equal(setup.code, null);
-        await expectError('/setup', 403, 'Setup has already been completed', { method: 'POST', headers: csrf, body: {} });
+        assert.equal(await runner.readSnapshot(ctx => ctx.setupCodes.read()), undefined);
+        for (const [path, code] of [['/setup', 'setup-code'], ['/generated-setup', pending.code]])
+          await expectError(path!, 403, 'Setup has already been completed', { method: 'POST', headers: csrf, body: { setup_code: code } });
       });
       const admin = (await runner.readSnapshot(ctx => ctx.users.findByEmail('admin@example.test')))!;
       const user = await add('member');

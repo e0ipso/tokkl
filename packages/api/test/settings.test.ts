@@ -16,7 +16,7 @@ const DAY_MS = 86_400_000;
 
 /** Serves `db` with its own config and returns a GET/PUT client signed in as `user` by API token. */
 function serveWith(db: FixtureDatabase, user: User, sessionDays = 30) {
-  const server = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), sessionDays }, setup: { code: null } }));
+  const server = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), sessionDays }, setup: { explicitCode: null } }));
   const authorization = `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`;
   return async (method: string, path: string, body?: unknown) => {
     const response = await server.request(path, {

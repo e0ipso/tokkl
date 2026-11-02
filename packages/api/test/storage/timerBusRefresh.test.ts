@@ -69,7 +69,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const hub = signalHub(), buses = [hub.bus(), hub.bus()], remote = readGate(stores[1]!);
     // No keep-alive tick during the test, so every read on B comes from the step that caused it.
     const options = (storage: Storage, timerBus: TimerBus) => ({ storage, timerBus, config: { ...testConfig(), storage: config },
-      setup: { code: null }, timerStreamOptions: { keepAliveMs: 600000 } });
+      setup: { explicitCode: null }, timerStreamOptions: { keepAliveMs: 600000 } });
     const apps = [createApp(options(stores[0]!, buses[0]!.bus)), createApp(options(remote.storage, buses[1]!.bus))];
     const servers = await Promise.all(apps.map(serveInvariant));
     const streams: Array<Awaited<ReturnType<typeof readTimerStream>>> = [];

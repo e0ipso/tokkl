@@ -57,7 +57,7 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
   await ok(user, 'POST', `/api/v9/workspaces/${user.wid}/projects`, { name: 'Other project', active: true });
   const before = await snapshot(admin);
 
-  const app = createApp({ storage: storageFor(admin.db), config: { ...testConfig(), storage: storageConfigFor(admin.db) }, setup: { code: null } });
+  const app = createApp({ storage: storageFor(admin.db), config: { ...testConfig(), storage: storageConfigFor(admin.db) }, setup: { explicitCode: null } });
   const server = createServer(app);
   const url = await listen(server, Number(process.env.TOKKL_GNOME_TEST_PORT ?? 0));
   const fixture = { url, token: user.user.apiToken, project: { id: project.id, name: project.name, color: project.color } };

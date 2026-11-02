@@ -30,7 +30,7 @@ function holdAuthentication(t: TestContext, storage: Storage, token: string) {
 test('SQLite authenticated reads reject a replacement account with reused IDs', { timeout: 60000 }, async t => {
   const fixture = await disposableBackend('sqlite');
   const storage = createStorage(await initializeDatabase(fixture.config));
-  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { explicitCode: null } });
   const server = await serveInvariant(app), services = app.locals.services;
   t.after(async () => { await server.close(); await storage.close(); await fixture.cleanup(); });
   const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password }, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
@@ -72,7 +72,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
   test(`${backend}: deferred reads and reports recheck credentials and admin access`, { timeout: 180000 }, async t => {
     const fixture = await disposableBackend(backend);
     const storage = createStorage(await initializeDatabase(fixture.config));
-    const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+    const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { explicitCode: null } });
     const server = await serveInvariant(app), services = app.locals.services;
     t.after(async () => { await server.close(); await storage.close(); await fixture.cleanup(); });
     const founder = await services.accounts.createFirstAdmin({ email: 'founder@example.test', password }, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
@@ -123,7 +123,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
 test('SQLite queued HTTP reports reject a replacement account with reused IDs', { timeout: 30000 }, async t => {
   const fixture = await disposableBackend('sqlite');
   const storage = createStorage(await initializeDatabase(fixture.config));
-  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { explicitCode: null } });
   const server = await serveInvariant(app), services = app.locals.services;
   t.after(async () => { await server.close(); await storage.close(); await fixture.cleanup(); });
   const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password }, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });

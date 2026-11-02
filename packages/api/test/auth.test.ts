@@ -16,6 +16,7 @@ import {
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
 import { insertAccount, createFirstAdmin, getUser, type User } from './fixtures/domain.ts';
+import { initializeSetupCode, rotateSetupCode } from '../src/domain/accounts.ts';
 import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';
 
 test('API token Basic auth works and wrong credentials get 403', async () => {
@@ -87,28 +88,66 @@ test('wrong passwords are rate limited', async () => {
   assert.equal(last, 429);
 });
 
-test('first-run setup needs the setup code and only works once', async () => {
-  const db = (await openDatabase());
-  const setupState = { code: 'ABCD-EFGH-JKLM' };
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: setupState }));
-  const post = (body: unknown) => (app.request('/api/app/setup', {
+const setupPoster = (app: ReturnType<typeof testServer>) => async (body: unknown) => {
+  const response = await app.request('/api/app/setup', {
     method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' }, body: JSON.stringify(body),
-  }));
+  });
+  return { status: response.status, body: await response.json() as unknown, cookie: response.headers.get('set-cookie') ?? '' };
+};
+const INVALID_CODE = 'Invalid setup code. It is printed in the server log on startup.';
+const COMPLETED = 'Setup has already been completed';
+
+test('first-run setup needs the configured code, ignores a stored code, and only works once', async () => {
+  const db = (await openDatabase());
+  const storage = storageFor(db);
+  const app = testServer(createApp({ storage, config: testConfig(db), setup: { explicitCode: 'ABCD-EFGH-JKLM' } }));
+  const post = setupPoster(app);
+  const generated = await initializeSetupCode(storage);
+  assert.equal(generated.kind, 'generated');
 
   assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true });
   const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', timezone: 'Europe/Madrid' };
-  assert.equal((await post({ ...account, setup_code: 'WRONG' })).status, 403);
+  assert.deepEqual(await post({ ...account, setup_code: 'WRONG' }), { status: 403, body: INVALID_CODE, cookie: '' });
+  if (generated.kind === 'generated') assert.equal((await post({ ...account, setup_code: generated.code })).status, 403, 'a configured code replaces the stored one');
   const ok = await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' });
   assert.equal(ok.status, 200);
-  assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/);
-  assert.equal((await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' })).status, 403);
+  assert.match(ok.cookie, /tokkl_session=/);
+  assert.equal(await storage.readSnapshot(ctx => ctx.setupCodes.read()), undefined, 'completion clears the pending stored code');
+  assert.deepEqual(await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' }), { status: 403, body: COMPLETED, cookie: '' });
   assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false });
+});
+
+test('without a configured code, setup checks the stored code, follows rotation without a restart, and is consumed once', async () => {
+  const db = (await openDatabase());
+  const storage = storageFor(db);
+  const app = testServer(createApp({ storage, config: testConfig(db), setup: { explicitCode: null } }));
+  const post = setupPoster(app);
+  const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', timezone: 'Europe/Madrid' };
+
+  // Nothing is stored yet, so no code can match, not even an empty one.
+  for (const setup_code of ['', 'ABCD-EFGH-JKLM']) assert.deepEqual(await post({ ...account, setup_code }), { status: 403, body: INVALID_CODE, cookie: '' });
+  const first = await initializeSetupCode(storage);
+  assert.equal(first.kind, 'generated');
+  assert.deepEqual(await initializeSetupCode(storage), { kind: 'pending' });
+  const replaced = await rotateSetupCode(storage);
+  if (first.kind !== 'generated' || replaced.kind !== 'generated') throw new Error('expected generated codes');
+  assert.deepEqual(await post({ ...account, setup_code: first.code }), { status: 403, body: INVALID_CODE, cookie: '' });
+  assert.deepEqual(await post({ ...account, setup_code: replaced.code.toLowerCase() }), { status: 403, body: INVALID_CODE, cookie: '' });
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true });
+
+  const ok = await post({ ...account, setup_code: ` ${replaced.code} ` });
+  assert.equal(ok.status, 200);
+  assert.match(ok.cookie, /tokkl_session=/);
+  assert.equal(await storage.readSnapshot(ctx => ctx.setupCodes.read()), undefined);
+  assert.deepEqual(await post({ ...account, setup_code: replaced.code }), { status: 403, body: COMPLETED, cookie: '' });
+  assert.deepEqual(await rotateSetupCode(storage), { kind: 'complete' });
+  assert.deepEqual((await storage.users.list()).map(user => user.email), ['owner@example.com']);
 });
 
 test('setup stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
   const attempt = async (timezone: unknown) => {
     const db = (await openDatabase());
-    const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
+    const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { explicitCode: 'ABCD-EFGH-JKLM' } }));
     const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', setup_code: 'ABCD-EFGH-JKLM' };
     const response = await app.request('/api/app/setup', {
       method: 'POST', headers: { ...CSRF, 'content-type': 'application/json' },
@@ -135,7 +174,7 @@ const textPlain = (body: unknown, headers: Record<string, string> = {}): Request
 test('form login without the CSRF header is refused before the password check and charges no counter', async () => {
   const db = (await openDatabase());
   (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { explicitCode: null } }));
   const login = (password: string, headers?: Record<string, string>) =>
     app.request('/api/app/login', textPlain({ email: 'me@example.com', password }, headers));
   const sessions = () => sessionCount(db);
@@ -161,7 +200,7 @@ test('form login without the CSRF header is refused before the password check an
 
 test('setup without the CSRF header is refused before the code check and charges no counter', async () => {
   const db = (await openDatabase());
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { explicitCode: 'ABCD-EFGH-JKLM' } }));
   const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner' };
   const post = (setupCode: string, headers?: Record<string, string>) =>
     app.request('/api/app/setup', textPlain({ ...account, setup_code: setupCode }, headers));
@@ -298,7 +337,7 @@ test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop
   const { createFirstAdmin } = await import('./fixtures/domain.ts');
   const db = await open();
   (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
-  const app = testServer(create({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: null } }));
+  const app = testServer(create({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { explicitCode: null } }));
   let last = 0;
   for (let i = 0; i < 12; i++) {
     const response = await app.request('/api/app/login', {
@@ -315,7 +354,7 @@ test('behind two trusted proxies, a hop count or their addresses make the client
   for (const trustProxy of [2, ['127.0.0.1', '192.168.1.0/24']]) {
     const db = (await openDatabase());
     (await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' }));
-    const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy }, setup: { code: null } }));
+    const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy }, setup: { explicitCode: null } }));
     const login = (forwardedFor: string, password: string) => app.request('/api/app/login', {
       method: 'POST',
       headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': forwardedFor },
@@ -343,7 +382,7 @@ const basic = (username: string, password: string) => `Basic ${Buffer.from(`${us
 
 test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => {
   const db = (await openDatabase());
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { explicitCode: 'ABCD-EFGH-JKLM' } }));
   const post = (password: string) => app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json' },
@@ -367,7 +406,7 @@ test('an owner with a password over the cap can still log in and rotate it', asy
   const db = (await openDatabase());
   const legacy = 'L'.repeat(MAX_PASSWORD_LENGTH * 2);
   const user = (await insertAccount(db, { email: 'me@example.com', passwordHash: await hashPassword(legacy), role:'admin', fullname: '', timezone: 'UTC' }));
-  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { explicitCode: null } }));
   const put = (body: unknown) => app.request('/api/v9/me', {
     method: 'PUT',
     headers: { authorization: basic(user.apiToken, 'api_token'), 'content-type': 'application/json' },
@@ -521,7 +560,7 @@ async function multiUserApp(count: number, names = Array.from({ length: count },
   const users = [owner, ...await Promise.all(names.slice(1).map(name => insertSecondUser(db, owner, name)))];
   const emails = users.map((user) => user.email);
   const storage = storageFor(db);
-  const app = testServer(createApp({ storage, config: { ...testConfig(db), trustProxy: 1 }, setup: { code: null } }));
+  const app = testServer(createApp({ storage, config: { ...testConfig(db), trustProxy: 1 }, setup: { explicitCode: null } }));
   const login = async (email: string, password: string, address = '10.0.0.1') => (await app.request('/api/app/login', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address },
@@ -607,7 +646,7 @@ test('one address is refused after 100 failures across accounts, and a success d
 
 test('setup codes have their own per-address limit of ten', async () => {
   const db = (await openDatabase());
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { explicitCode: 'ABCD-EFGH-JKLM' } }));
   const post = (path: string, body: unknown, address = '10.0.0.1') => app.request(path, {
     method: 'POST', headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': address }, body: JSON.stringify(body),
   });
@@ -830,7 +869,7 @@ test('with two full counters, waiting the advertised Retry-After lets the next l
 test('setup 429s carry Retry-After, and waiting that long allows another code', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const db = (await openDatabase());
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { code: 'ABCD-EFGH-JKLM' } }));
+  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), trustProxy: 1 }, setup: { explicitCode: 'ABCD-EFGH-JKLM' } }));
   const post = (setupCode: string) => app.request('/api/app/setup', {
     method: 'POST',
     headers: { ...CSRF, 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },

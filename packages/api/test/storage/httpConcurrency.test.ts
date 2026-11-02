@@ -19,7 +19,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const c = await initializeDatabase(config), other = await openConnection<PhysicalDatabase>(config);
     const stores = [createStorage(c), createStorage(other)];
     const barrier = transactionBarrier();
-    const apps = stores.map(storage => createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: config }, setup: { code: 'TEST-CODE' } }));
+    const apps = stores.map(storage => createApp({ storage: barrier.wrap(storage), config: { ...testConfig(), storage: config }, setup: { explicitCode: 'TEST-CODE' } }));
     const servers = await Promise.all(apps.map(serveInvariant));
     t.after(async () => { barrier.release(); await Promise.all(servers.map(s => s.close())); await Promise.all(stores.map(s => s.close())); await fixture.cleanup(); });
     const request = (i: number, method: string, path: string, body?: unknown, token?: string) => servers[i]!.request(method, path, body, token);

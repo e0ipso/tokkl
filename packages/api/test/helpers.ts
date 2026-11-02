@@ -99,7 +99,7 @@ export async function sessionCookie(ctx: TestContext): Promise<string> {
 /** Serves `db` (reusing its app if it has one) and signs every request in as `user` with its API token. */
 function serve(db: FixtureDatabase, user: User): TestContext {
   let app = apps.get(db);
-  if (!app) { const application=createApp({ storage:storageFor(db),config:testConfig(db),setup:{code:null} }); setServices(db,application.locals.services); app=testServer(application); after(()=>application.locals.close()); }
+  if (!app) { const application=createApp({ storage:storageFor(db),config:testConfig(db),setup:{explicitCode:null} }); setServices(db,application.locals.services); app=testServer(application); after(()=>application.locals.close()); }
   apps.set(db, app);
   const auth = `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`;
   const request = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -156,7 +156,7 @@ export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<un
   });
 }
 
-export function replaceFixtureApp(ctx:TestContext,options:import('../src/services/timerStreams.ts').TimerStreamOptions) {const app=createApp({storage:storageFor(ctx.db),config:testConfig(ctx.db),setup:{code:null},timerStreamOptions:options});setServices(ctx.db,app.locals.services);after(()=>app.locals.close());const server=testServer(app);apps.set(ctx.db,server);return {streams:app.locals.services.timerStreams as import('../src/services/timerStreams.ts').TimerStreams,server};}
+export function replaceFixtureApp(ctx:TestContext,options:import('../src/services/timerStreams.ts').TimerStreamOptions) {const app=createApp({storage:storageFor(ctx.db),config:testConfig(ctx.db),setup:{explicitCode:null},timerStreamOptions:options});setServices(ctx.db,app.locals.services);after(()=>app.locals.close());const server=testServer(app);apps.set(ctx.db,server);return {streams:app.locals.services.timerStreams as import('../src/services/timerStreams.ts').TimerStreams,server};}
 
 /** A second app/storage instance for report isolation; SQLite additionally exercises file-copy workers. */
 export async function independentReportServer(ctx: TestContext): Promise<TestContext> {
