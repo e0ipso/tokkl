@@ -12,7 +12,8 @@ kk_schema_version: 3
 kk_id: practice-password-checks-go-through-failurelimiter-attempt
 kk_derived_from:
   - 'd103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8'
-kk_relates_to: []
+kk_relates_to:
+  - map-first-admin-setup-code-is-shared-through-setup-codes
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -30,7 +31,7 @@ Authentication in `auth/storageMiddleware.ts` runs password verification through
 
 Form login (`auth/storageSessions.ts`, mounted in `routes/app.ts`), HTTP Basic auth (`auth/storageMiddleware.ts`) and the password change in the Toggl v9 `me` update (`routes/togglV9.ts`, charged to the caller's own email) all use these counters. The password change reaches `updateProfile` in `domain/accounts.ts` through the `AccountPasswordAttempt` port, which `passwordAttempt` builds.
 
-`PUT /me` password rotation validates the current credential again under the protected account transaction after hashing. `createApplicationServices` in `services/application.ts` composes these guarded rechecks; no synchronous no-await window is assumed. API race tests hold actual crypto work or guard acquisition to prove revocation. An unknown email still counts against its account and address and still costs a scrypt run through `verifyAgainstDummy`, so response time does not reveal which emails exist. A successful form login resets only `accountCounters` (account plus address, and account), never the address counter. A reset clears failures but leaves reservations of checks still running. Setup codes use the separate `setupLimiter` keyed by address (`SETUP_CODE_LIMIT`, 10). The setup code itself stays in process memory; only its wrong-guess counter is in the database.
+`PUT /me` password rotation validates the current credential again under the protected account transaction after hashing. `createApplicationServices` in `services/application.ts` composes these guarded rechecks; no synchronous no-await window is assumed. API race tests hold actual crypto work or guard acquisition to prove revocation. An unknown email still counts against its account and address and still costs a scrypt run through `verifyAgainstDummy`, so response time does not reveal which emails exist. A successful form login resets only `accountCounters` (account plus address, and account), never the address counter. A reset clears failures but leaves reservations of checks still running. Setup codes use the separate `setupLimiter` keyed by address (`SETUP_CODE_LIMIT`, 10). Both the setup code hash (`setup_codes`) and its wrong-guess counter are in the database; see the first-admin setup node.
 
 Accounts are keyed by `normalizeEmail`: trim, then lowercase ASCII A-Z only. That matches the `users.email_key` column, which folds the same letters on every engine. Do not use `toLowerCase`, which also folds letters such as Ä and would merge distinct users (`Ä@` and `ä@`) into one counter.
 

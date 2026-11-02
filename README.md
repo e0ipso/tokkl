@@ -28,6 +28,8 @@ npm start
 
 Open `http://localhost:8080` and create the first admin with the setup code from the server log. Admins share one-use invite and password-reset links manually; no email is sent. Admins cannot access other accounts' workspaces.
 
+Without `TOKKL_SETUP_CODE`, the first instance to start on an empty database stores a setup code and prints it after `No admin account yet. Open the web UI and use this setup code to create it:`. Other instances on that database, and restarts before setup, print a line saying the code is in the log of the instance that created it. The code stays valid across restarts until the first admin exists. If that log is lost, `npm run setup:code` prints a replacement, and every running instance rejects the old code from then on. The command refuses when `TOKKL_SETUP_CODE` is set or an account already exists.
+
 The Admin page manages accounts, session and invite lifetimes, and time resolution. Stopped entries snap to a five-minute grid by default, so saved timestamps can differ from those submitted. Entries that round to zero are refused or trashed. CSV imports and JSON restores keep entry times from the file without snapping. See [time-resolution behavior](docs/PRD.md#63-behavior-details-that-clients-depend-on).
 
 By default, data lives in `data/tokkl.sqlite`, with SQLite's `-wal` and `-shm` files. Select a server database or another SQLite path with `TOKKL_DATABASE_URL`. Settings → Data provides account/workspace JSON restore and CSV export; see [backups](#backups-and-restore).
@@ -41,6 +43,8 @@ docker run -d --name tokkl -p 8080:8080 -v tokkl-data:/data ghcr.io/e0ipso/tokkl
 docker logs tokkl    # first-admin setup code
 ```
 
+If the code is lost before setup, print a replacement with `docker exec tokkl node packages/api/src/setupCode.ts`. Earlier codes stop working.
+
 The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DATA_DIR`. With `--user`, mount a directory owned by that UID. Pass configuration with `-e`. Disposable storage needs `--tmpfs /data:mode=1777`; plain tmpfs is unwritable. Its data disappears when the container stops.
 
 ## Configuration
@@ -53,7 +57,7 @@ The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DA
 | `TOKKL_DATABASE_URL` | absent | Database selector; absence selects `<data dir>/tokkl.sqlite`. An empty or invalid value fails startup. |
 | `TOKKL_TRUST_PROXY` | absent | Reverse proxies whose forwarded headers are trusted. Empty or `0` trusts none. A positive number trusts that many proxy hops. A comma-separated list of IP addresses or CIDR ranges trusts those proxies. The client address for login rate limiting is the `X-Forwarded-For` entry the outermost trusted proxy added; `X-Forwarded-Proto: https` enables Secure cookies and HSTS. Any other value fails startup. Trust only proxies the app is reachable through. |
 | `TOKKL_SESSION_DAYS` | `30` | New-session lifetime until overridden on the Admin page; existing expiries stay unchanged. |
-| `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs |
+| `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs. It is never stored and must be the same on every replica. Without it, one generated code is stored as a hash and shared. |
 | `TOKKL_WEB_ROOT` | `dist/web` | Built web app folder |
 
 ## Database selection
@@ -71,7 +75,7 @@ export TOKKL_DATABASE_URL='mariadb://tokkl:REPLACE_ME@db.example.test:3306/tokkl
 
 Choose one line. `postgresql://` also selects PostgreSQL. SQLite paths must be absolute, without query parameters or dot segments. `sqlite::memory:` is temporary and loses all data at process exit.
 
-Percent-encode username, password and database components separately. For example, a password `p@ss:word` becomes `p%40ss%3Aword`. Shell-quote the entire URL and keep credentials out of committed files and command logs. Supply container secrets through your deployment's protected environment configuration. The application redacts database credentials from startup errors; the first-admin setup code remains a secret printed intentionally at first startup.
+Percent-encode username, password and database components separately. For example, a password `p@ss:word` becomes `p%40ss%3Aword`. Shell-quote the entire URL and keep credentials out of committed files and command logs. Supply container secrets through your deployment's protected environment configuration. The application redacts database credentials from startup errors; the first-admin setup code remains a secret printed intentionally by the instance that creates it.
 
 Server connections verify the certificate chain and the configured hostname or IP address by default. For a private CA, append `&sslrootcert=%2Frun%2Fsecrets%2Fdatabase-ca.pem` and mount that readable PEM file in the application container. The certificate must cover the URL host, including an IP subject alternative name when using an IP. Only `sslmode=verify-full` and `sslmode=disable` are accepted. Use `disable` only for an intentionally unencrypted local/private test connection. There is no certificate-verification bypass mode.
 

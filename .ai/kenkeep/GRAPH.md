@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:bdc1715d1c1642a0c0456cffae0693a16ac2264cb83fe189d2000ffbd3ce8e7c'
-node_count: 109
+nodes_hash: 'sha256:8d435575e5f69735a5dd18ab68a8dabaa522129a730e95fde86fbafdb4222b96'
+node_count: 110
 ---
 # kenkeep Graph
 
-Total nodes: 109
+Total nodes: 110
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -76,6 +76,14 @@ Total nodes: 109
 - **path:** tooling-and-project/kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md
 - **tags:** desktop, timer, sse, kde, gnome, macos
 - **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, practice-kde-timer-controller-rules, map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+
+## map-first-admin-setup-code-is-shared-through-setup-codes
+
+- **kind:** map
+- **title:** First-admin setup code is shared through setup_codes
+- **path:** api-and-data/users-and-admin/map-first-admin-setup-code-is-shared-through-setup-codes.md
+- **tags:** server, auth, admin
+- **relates_to:** practice-password-checks-go-through-failurelimiter-attempt, map-users-roles-and-workspace-membership
 
 ## map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix
 
@@ -690,6 +698,7 @@ Total nodes: 109
 - **title:** Password checks go through FailureLimiter.attempt
 - **path:** api-and-data/password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md
 - **tags:** server, auth, rate-limit
+- **relates_to:** map-first-admin-setup-code-is-shared-through-setup-codes
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
 
 ## practice-phone-layout-css-gotchas
