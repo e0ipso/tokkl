@@ -9,7 +9,7 @@ export { MAX_FAVORITES } from '../../src/domain/accountValues.ts';
 export { serializeTimeEntry } from '../../src/domain/timeEntries.ts';
 const silent = createTimerPublication(async () => {});
 const publication = (db: FixtureDatabase) => servicesFor(db)?.publish ?? silent;
-export function createFirstAdmin(db: FixtureDatabase, body: Record<string,unknown>) { return createAccountOperations(storageFor(db), {recheckUser:async()=>{}}).createFirstAdmin(body); }
+export function createFirstAdmin(db: FixtureDatabase, body: Record<string,unknown>) { return createAccountOperations(storageFor(db), {recheckUser:async()=>{}}).createFirstAdmin(body, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' }); }
 export function insertAccount(db: FixtureDatabase, input: {email:string;fullname:string;timezone:string;passwordHash:string;role:'admin'|'user'}) {return transaction(db,ctx=>ctx.users.createAccount({email:input.email,fullName:input.fullname,timezone:input.timezone,passwordHash:input.passwordHash,role:input.role,apiToken:generateApiToken(),preferences:{pg_time_zone_name:input.timezone}}));}
 export const getUser = (db: FixtureDatabase,id:number)=>(currentContext(db)??storageFor(db)).users.get(id);
 export const createWorkspace = (db: FixtureDatabase,name:string)=>transaction(db,ctx=>ctx.workspaces.create(name));

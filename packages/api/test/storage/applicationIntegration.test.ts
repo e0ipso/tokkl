@@ -10,7 +10,7 @@ function gate(){let resolve!:()=>void;const promise=new Promise<void>(r=>{resolv
 test('credentials revoked after HTTP authentication cannot authorize an entry write',async t=>{
  const storage=createStorage(await initializeDatabase({backend:'sqlite',filename:':memory:',busyTimeoutMs:5000}));
  const accounts=createAccountOperations(storage,{recheckUser:async()=>{}});
- const user=await accounts.createFirstAdmin({email:'me@example.test',password:'correct horse battery',fullname:'Me',timezone:'UTC'});
+ const user=await accounts.createFirstAdmin({email:'me@example.test',password:'correct horse battery',fullname:'Me',timezone:'UTC'},{ kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
  const entered=gate(),release=gate();let intercept=true;
  const app=createApp({storage:{...storage,transaction:async(work,options)=>{if(intercept){intercept=false;entered.resolve();await release.promise;}return storage.transaction(work,options);}},config:testConfig(),setup:{code:null}});
  t.after(async()=>{release.resolve();await app.locals.close();await storage.close();});

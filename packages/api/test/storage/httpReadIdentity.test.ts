@@ -33,7 +33,7 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
   const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
   const server = await serveInvariant(app), services = app.locals.services;
   t.after(async () => { await server.close(); await storage.close(); await fixture.cleanup(); });
-  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password });
+  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password }, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
   const paths = [
     '/api/v9/me?with_related_data=true',
     '/api/v9/me/time_entries?start_date=2026-10-30&end_date=2026-10-31',
@@ -75,7 +75,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
     const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
     const server = await serveInvariant(app), services = app.locals.services;
     t.after(async () => { await server.close(); await storage.close(); await fixture.cleanup(); });
-    const founder = await services.accounts.createFirstAdmin({ email: 'founder@example.test', password });
+    const founder = await services.accounts.createFirstAdmin({ email: 'founder@example.test', password }, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
     const invite = await services.accounts.createInvite(founder.id, { role: 'admin' }, 30);
     const user = await services.accounts.acceptInvite(invite.token, { email: 'reader@example.test', password });
     let token = user.apiToken;
@@ -126,7 +126,7 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
   const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
   const server = await serveInvariant(app), services = app.locals.services;
   t.after(async () => { await server.close(); await storage.close(); await fixture.cleanup(); });
-  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password });
+  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password }, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
   for (const [index, report] of ['/api/app/report/entries', '/reports/api/v3/workspace/{wid}/search/time_entries'].entries()) {
     await t.test(report, async child => {
       const invite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);

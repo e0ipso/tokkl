@@ -27,7 +27,7 @@ for (const delayed of [false, true]) test(`SQLite reused account identity cannot
     };
   });
   t.after(async () => { release.resolve(); releasePublication.resolve(); await server.close(); await storage.close(); await fixture.cleanup(); });
-  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password: 'correct horse battery' });
+  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password: 'correct horse battery' }, { kind: 'explicit', code: 'TEST-CODE', submitted: 'TEST-CODE' });
   const invite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);
   const old = await services.accounts.acceptInvite(invite.token, { email: 'old@example.test', password: 'correct horse battery' });
   const nextInvite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);

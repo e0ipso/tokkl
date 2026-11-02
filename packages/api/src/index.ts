@@ -1,4 +1,3 @@
-import { randomInt } from 'node:crypto';
 import { createApp } from './app.ts';
 import { ConfigurationError, loadConfig } from './config.ts';
 import { initializeDatabase } from './storage/migrations.ts';
@@ -6,13 +5,7 @@ import { createStorage } from './storage/index.ts';
 import { startTimerBus } from './storage/timerBus.ts';
 import type { TimerBus } from './domain/timerBus.ts';
 import { safeDestination } from './storage/config.ts';
-function setupCode(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 12; i++)
-    code += alphabet[randomInt(alphabet.length)];
-  return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`;
-}
+import { generateSetupCode } from './auth/crypto.ts';
 async function main(): Promise<void> {
   const { config, notices } = loadConfig();
   for (const notice of notices)
@@ -20,7 +13,7 @@ async function main(): Promise<void> {
   const storage = createStorage(await initializeDatabase(config.storage));
   let bus: TimerBus | undefined;
   try {
-    const setup = { code: await storage.users.count() === 0 ? config.setupCode ?? setupCode() : null };
+    const setup = { code: await storage.users.count() === 0 ? config.setupCode ?? generateSetupCode() : null };
     // A process must hear other instances' timer signals before it reports that it is listening.
     const timerBus = bus = await startTimerBus(config.storage);
     const app = createApp({ storage, config, setup, timerBus });

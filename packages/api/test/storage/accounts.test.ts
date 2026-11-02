@@ -8,7 +8,7 @@ import { HttpError } from '../../src/lib/errors.ts';
 import { sha256, verifyPassword } from '../../src/auth/crypto.ts';
 import { getPreferences, serializeAccount, serializeInvite, serializeUser, serializeWorkspace, readNewAccount } from '../../src/domain/accountValues.ts';
 import { jsonObject } from '../../src/storage/conversion.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
+import { createAccountOperations, initializeSetupCode, rotateSetupCode, type SetupCredential } from '../../src/domain/accounts.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -25,16 +25,60 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const security = { async recheckUser(userId: number) { invalidations.push(userId); } };
       const operations = createAccountOperations(runner, security);
       const competitor = createAccountOperations(second, security);
-      await t.test('setup race creates one admin, private workspace and owner membership', async () => {
-        const result = await Promise.allSettled([operations, competitor].map((op, i) => op.createFirstAdmin({ email: `first${i}@example.test`, fullname: 'First', timezone: 'UTC', password: 'password one' })));
+      const error = (status: number, message: string) => (e: unknown) => e instanceof HttpError && e.status === status && e.message === message;
+      await t.test('setup codes initialize once, rotate, and are consumed atomically by one first admin', async () => {
+        const stored = () => runner.readSnapshot(ctx => ctx.setupCodes.read());
+        const users = () => runner.readSnapshot(ctx => ctx.users.count());
+        const generated = (submitted: unknown): SetupCredential => ({ kind: 'generated', submitted });
+        const invalid = error(403, 'Invalid setup code. It is printed in the server log on startup.');
+        const account = (email: string) => ({ email, fullname: 'First', timezone: 'UTC', password: 'password one' });
+        // Concurrent startups store one hash and only the creator receives plaintext.
+        const started = await Promise.all([runner, second].map(r => initializeSetupCode(r)));
+        const created = started.filter(s => s.kind === 'generated');
+        assert.equal(created.length, 1); assert.deepEqual(started.filter(s => s.kind === 'pending'), [{ kind: 'pending' }]);
+        const first = created[0]!.kind === 'generated' ? created[0]!.code : '';
+        assert.match(first, /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+        assert.equal(await stored(), sha256(first));
+        assert.deepEqual(await initializeSetupCode(runner), { kind: 'pending' });
+        assert.equal(await stored(), sha256(first));
+        const rotated = await rotateSetupCode(second);
+        assert.equal(rotated.kind, 'generated');
+        const code = rotated.kind === 'generated' ? rotated.code : '';
+        assert.notEqual(code, first); assert.match(code, /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+        assert.equal(await stored(), sha256(code));
+        // Rotated, case-changed, unseparated, non-string and wrong explicit codes create nothing.
+        for (const credential of [generated(first), generated(code.toLowerCase()), generated(code.replaceAll('-', '')), generated(undefined), generated(123),
+          { kind: 'explicit', code: 'TEST-CODE', submitted: 'test-code' } satisfies SetupCredential])
+          await assert.rejects(operations.createFirstAdmin(account('wrong@example.test'), credential), invalid);
+        assert.equal(await users(), 0); assert.equal(await stored(), sha256(code));
+        // A failed account write rolls back the credential deletion that precedes it.
+        const seen: Array<string | undefined> = [];
+        const failing = createAccountOperations(createTransactionRunner(connection!, db => {
+          const repositories = createAccountRepositories(db, backend);
+          return { ...repositories, users: { ...repositories.users, async createAccount() {
+            seen.push(await repositories.setupCodes.read()); throw new Error('forced account failure');
+          } } };
+        }), security);
+        for (const credential of [generated(` ${code}\n`), { kind: 'explicit', code: 'TEST-CODE', submitted: ' TEST-CODE ' } satisfies SetupCredential])
+          await assert.rejects(failing.createFirstAdmin(account('failed@example.test'), credential), /forced account failure/);
+        assert.deepEqual(seen, [undefined, undefined]);
+        assert.equal(await users(), 0); assert.equal(await stored(), sha256(code));
+        // Competing valid submissions create one admin with one owned workspace and consume the code.
+        const result = await Promise.allSettled([operations, competitor].map((op, i) => op.createFirstAdmin(account(`first${i}@example.test`), generated(`  ${code}  `))));
         assert.equal(result.filter(r => r.status === 'fulfilled').length, 1);
+        const loser = result.find(r => r.status === 'rejected');
+        assert.ok(loser && error(403, 'Setup has already been completed')(loser.reason));
         await runner.readSnapshot(async ctx => {
           assert.equal(await ctx.users.count(), 1);
           const [user] = await ctx.users.list();
           assert.equal(user!.role, 'admin');
           assert.equal(await ctx.workspaces.getRole(user!.id, user!.defaultWorkspaceId), 'owner');
           assert.equal((await ctx.workspaces.listForUser(user!.id)).length, 1);
+          assert.equal(await ctx.setupCodes.read(), undefined);
         });
+        assert.deepEqual(await initializeSetupCode(second), { kind: 'complete' });
+        assert.deepEqual(await rotateSetupCode(runner), { kind: 'complete' });
+        assert.equal(await stored(), undefined);
       });
 
       const readUser = (id: number) => runner.readSnapshot(ctx => ctx.users.get(id));
@@ -45,7 +89,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       };
       const bob = await add('bob@example.test');
       const carol = await add('carol@example.test');
-      const error = (status: number, message: string) => (e: unknown) => e instanceof HttpError && e.status === status && e.message === message;
       const calls: string[] = [];
       const effects = {
         async reanchorTimezone(_ctx: unknown, _id: number, oldZone: string, newZone: string) { calls.push(`${oldZone}->${newZone}`); },

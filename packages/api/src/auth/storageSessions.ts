@@ -1,6 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express';
 import type { AccountEntryEffects, AccountRepositories, AccountRunner, createAccountOperations } from '../domain/accounts.ts';
-import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accounts.ts';
+import { findResetUser, findUsableInvite, INVALID_SETUP_CODE, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accounts.ts';
 import type { User } from '../storage/domain.ts';
 import { clientAddress, readJson } from '../http/context.ts';
 import { forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
@@ -71,8 +71,8 @@ export function createStorageSessions<R extends AccountRepositories>(
       return typeof body.setup_code === 'string' && safeEqual(body.setup_code.trim(), code);
     });
     if (result.refused) throw tooManyRequests('Too many failed attempts, try again later', result.retryAfter);
-    if (!result.valid) throw forbidden('Invalid setup code. It is printed in the server log on startup.');
-    const user = await operations.createFirstAdmin(body);
+    if (!result.valid) throw forbidden(INVALID_SETUP_CODE);
+    const user = await operations.createFirstAdmin(body, { kind: 'explicit', code, submitted: body.setup_code });
     setup.code = null;
     await startSession(req, res, user);
     return res.json({ ok: true });

@@ -21,8 +21,8 @@ const { initializeDatabase } = await import('../../src/storage/migrations.ts');
 const { openConnection } = await import('../../src/storage/connections.ts');
 const { createTransactionRunner } = await import('../../src/storage/transactions.ts');
 const { createAccountRepositories } = await import('../../src/storage/repositories/accounts.ts');
-const { createAccountOperations } = await import('../../src/domain/accounts.ts');
-const { verifyPassword } = await import('../../src/auth/crypto.ts');
+const { createAccountOperations, initializeSetupCode, rotateSetupCode } = await import('../../src/domain/accounts.ts');
+const { sha256, verifyPassword } = await import('../../src/auth/crypto.ts');
 const { HttpError } = await import('../../src/lib/errors.ts');
 const { disposableBackend } = await import('./support/disposableBackend.ts');
 const attempt = { async attempt(check: () => Promise<boolean>) { return { refused: false as const, valid: await check() }; } };
@@ -43,7 +43,23 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const notifications: number[] = [];
       const security = { async recheckUser(userId: number) { notifications.push(userId); } };
       const op = createAccountOperations(runner, security), competing = createAccountOperations(second, security);
-      const admin = await op.createFirstAdmin({ email: 'admin@example.test', password: 'password one' });
+      const generated = (submitted: string) => ({ kind: 'generated' as const, submitted });
+      let replacement = '';
+      await t.test('setup code rotated during first-admin hashing refuses the old code', async () => {
+        const started = await initializeSetupCode(runner);
+        assert.equal(started.kind, 'generated');
+        hold = { remaining: 1, async during() {
+          const rotated = await rotateSetupCode(second);
+          if (rotated.kind === 'generated') replacement = rotated.code;
+        } };
+        await assert.rejects(op.createFirstAdmin({ email: 'stale@example.test', password: 'password one' }, generated(started.kind === 'generated' ? started.code : '')),
+          e => e instanceof HttpError && e.status === 403 && e.message === 'Invalid setup code. It is printed in the server log on startup.');
+        assert.equal(hold, undefined); assert.notEqual(replacement, '');
+        assert.equal(await runner.readSnapshot(ctx => ctx.users.count()), 0);
+        assert.equal(await runner.readSnapshot(ctx => ctx.setupCodes.read()), sha256(replacement));
+      });
+      const admin = await op.createFirstAdmin({ email: 'admin@example.test', password: 'password one' }, generated(replacement));
+      assert.equal(await runner.readSnapshot(ctx => ctx.setupCodes.read()), undefined);
       for (const [phase, nth] of [['verification', 1], ['hashing', 2]] as const) {
         for (const change of ['reset', 'password-change', 'session-revoke', 'token-rotate', 'logout', 'suspend', 'delete'] as const) {
           await t.test(`${change} committed during ${phase} refuses stale change`, async () => {

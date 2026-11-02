@@ -8,7 +8,7 @@ import { startOfDay } from '@tokkl/common/time';
 import type { EntryFilter, ProjectFilter } from '../storage/contracts.ts';
 import type { User, Workspace } from '../storage/domain.ts';
 import { getPreferences, serializeUser, serializeWorkspace } from '../domain/accountValues.ts';
-import { getInstanceSettings, memberWorkspace, type AccountRepositories } from '../domain/accounts.ts';
+import { getInstanceSettings, memberWorkspace, type AccountReads } from '../domain/accounts.ts';
 import * as catalog from '../domain/catalogs.ts';
 import { createTimeEntry, updateTimeEntry, stopTimeEntry, deleteTimeEntry, patchTimeEntries, serializeTimeEntry, getTimeEntry } from '../domain/timeEntries.ts';
 const { createClient, updateClient, deleteClient, restoreClient, setClientArchived, getClient, serializeClient, createProject, updateProject, deleteProject, getProject, serializeProject, createTask, updateTask, deleteTask, getTask, serializeTask, createTag, updateTag, deleteTag, serializeTag } = catalog;
@@ -60,8 +60,8 @@ export function togglV9Routes(deps: Deps): Router {
   const { storage: db, config } = deps;
   const api = express.Router();
   api.use(deps.auth.requireAuth);
-  const workspaceFor = (db: AccountRepositories, req: Request, res: Response) => memberWorkspace(db, res.locals.auth.user.id, parseId(req.params.wid));
-  const workspaceDto = async (db: AccountRepositories, user: User, ws: Workspace) => serializeWorkspace(ws, await db.workspaces.getRole(user.id, ws.id));
+  const workspaceFor = (db: AccountReads, req: Request, res: Response) => memberWorkspace(db, res.locals.auth.user.id, parseId(req.params.wid));
+  const workspaceDto = async (db: AccountReads, user: User, ws: Workspace) => serializeWorkspace(ws, await db.workspaces.getRole(user.id, ws.id));
   api.get('/me', jsonRead(deps, async (req, res, db) => {
     const user = res.locals.auth.user;
     const body: Record<string, unknown> = { ...serializeUser(user, { includeToken: true }), role: user.role, time_resolution_minutes: (await getInstanceSettings(db, config.sessionDays)).timeResolutionMinutes };

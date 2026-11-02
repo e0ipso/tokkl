@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { badRequest } from '../lib/errors.ts';
 
@@ -59,6 +59,14 @@ export function generateApiToken(): string {
 
 export function generateSessionToken(): string {
   return randomBytes(32).toString('base64url');
+}
+
+const SETUP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+/** Twelve characters from a 32-symbol alphabet without look-alikes, shown as XXXX-XXXX-XXXX. */
+export function generateSetupCode(): string {
+  let code = '';
+  for (let i = 0; i < 12; i++) code += SETUP_CODE_ALPHABET[randomInt(SETUP_CODE_ALPHABET.length)];
+  return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`;
 }
 
 export function sha256(value: string): string {

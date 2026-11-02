@@ -3,11 +3,13 @@ import type { Id, InstanceSettings, JsonObject, User, UserRole, Workspace } from
 import { StorageConflict } from '../storage/errors.ts';
 import { badRequest, forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
 import { optionalBool, optionalRate, optionalString } from '../lib/values.ts';
-import { generateApiToken, generateSessionToken, hashPassword, readNewPassword, sha256, verifyPassword } from '../auth/crypto.ts';
+import { generateApiToken, generateSessionToken, generateSetupCode, hashPassword, readNewPassword, safeEqual, sha256, verifyPassword } from '../auth/crypto.ts';
 import { normalizeEmail, type AttemptResult } from '../auth/rateLimit.ts';
 import { DEFAULT_PREFERENCES, getPreferences, readNewAccount, readProfileChanges, validatePreferenceChanges } from './accountValues.ts';
 
-export type AccountRepositories = Pick<Repositories, 'users' | 'workspaces' | 'settings' | 'tokens' | 'sessions'>;
+export type AccountRepositories = Pick<Repositories, 'users' | 'workspaces' | 'settings' | 'tokens' | 'sessions' | 'setupCodes'>;
+/** Account reads that Storage serves directly, outside transactions and snapshots. */
+export type AccountReads = Omit<AccountRepositories, 'setupCodes'>;
 export type AccountContext = OperationContext<AccountRepositories>;
 export interface AccountRunner<R extends AccountRepositories = AccountRepositories> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
@@ -27,6 +29,15 @@ export interface AccountEntryEffects<R extends AccountRepositories = AccountRepo
 }
 /** Application composition supplies local stream credential rechecks. Called after confirmed commit. */
 export interface AccountSecurityEffects { recheckUser(userId: Id): Promise<void> }
+/**
+ * A submitted first-admin setup code. An explicit code comes from configuration and is never stored.
+ * A generated code is checked against the pending hash in storage.
+ */
+export type SetupCredential = { kind: 'explicit'; code: string; submitted: unknown } | { kind: 'generated'; submitted: unknown };
+/** Plaintext is returned only to the caller whose transaction stored its hash. */
+export type GeneratedSetupCode = { kind: 'generated'; code: string };
+export type SetupCodeState = { kind: 'complete' } | { kind: 'pending' } | GeneratedSetupCode;
+export const INVALID_SETUP_CODE = 'Invalid setup code. It is printed in the server log on startup.';
 export const NO_WORKSPACE_ACCESS = 'User does not have access to this resource.';
 export const INVITE_NOT_FOUND = 'This invite link is not valid. Ask your admin for a new one.';
 export const RESET_NOT_FOUND = 'This password reset link is not valid. Ask your admin for a new one.';
@@ -39,15 +50,15 @@ export const isActiveAdmin = (user: User) => active(user) && user.role === 'admi
 const activeAdmin = isActiveAdmin;
 const refused = () => forbidden('Incorrect username and/or password');
 
-export async function memberWorkspace(ctx: AccountRepositories, userId: Id, workspaceId: Id): Promise<Workspace> {
+export async function memberWorkspace(ctx: AccountReads, userId: Id, workspaceId: Id): Promise<Workspace> {
   const ws = await ctx.workspaces.forMember(userId, workspaceId);
   if (!ws) throw forbidden(NO_WORKSPACE_ACCESS);
   return ws;
 }
-export async function findUsableInvite(ctx: AccountRepositories, token: string) {
+export async function findUsableInvite(ctx: AccountReads, token: string) {
   return ctx.tokens.findUsable(sha256(token), 'invite', now());
 }
-export async function findResetUser(ctx: AccountRepositories, token: string): Promise<User | undefined> {
+export async function findResetUser(ctx: AccountReads, token: string): Promise<User | undefined> {
   const reset = await ctx.tokens.findUsable(sha256(token), 'password_reset', now());
   const user = reset?.userId ? await ctx.users.get(reset.userId) : undefined;
   return active(user) ? user : undefined;
@@ -71,6 +82,38 @@ async function currentSignedIn(ctx: AccountRepositories, seen: User, credential:
     if (!session || session.userId !== current.id || session.expiresAt < now()) return;
   }
   return current;
+}
+/** Submitted codes are trimmed, then compared exactly, so case and separators matter. */
+export async function setupCredentialValid(ctx: AccountRepositories, credential: SetupCredential): Promise<boolean> {
+  if (typeof credential.submitted !== 'string') return false;
+  const submitted = credential.submitted.trim();
+  if (credential.kind === 'explicit') return safeEqual(submitted, credential.code);
+  const stored = await ctx.setupCodes.read();
+  // Both sides are 64 hex characters, so the comparison is constant time.
+  return stored !== undefined && safeEqual(sha256(submitted), stored);
+}
+async function storeNewSetupCode(ctx: AccountRepositories): Promise<GeneratedSetupCode> {
+  // A retried body generates another code. Only the committed attempt's code reaches the caller.
+  const code = generateSetupCode();
+  await ctx.setupCodes.replace(sha256(code), now());
+  return { kind: 'generated', code };
+}
+/** Stores a new pending code unless setup is complete or a code is already pending. */
+export function initializeSetupCode<R extends AccountRepositories>(runner: AccountRunner<R>): Promise<SetupCodeState> {
+  return runner.transaction(async ctx => {
+    await ctx.lockInstanceAdministration();
+    if (await ctx.users.count() > 0) return { kind: 'complete' };
+    if (await ctx.setupCodes.read() !== undefined) return { kind: 'pending' };
+    return storeNewSetupCode(ctx);
+  });
+}
+/** Replaces any pending code with a new one. Refuses once setup is complete. */
+export function rotateSetupCode<R extends AccountRepositories>(runner: AccountRunner<R>): Promise<{ kind: 'complete' } | GeneratedSetupCode> {
+  return runner.transaction(async ctx => {
+    await ctx.lockInstanceAdministration();
+    if (await ctx.users.count() > 0) return { kind: 'complete' };
+    return storeNewSetupCode(ctx);
+  });
 }
 async function accountInput(input: Record<string, unknown>, role: UserRole) {
   const account = readNewAccount(input);
@@ -98,7 +141,7 @@ export function readSettingChanges(body: Record<string, unknown>): Partial<Insta
   if (!Object.keys(changes).length) throw badRequest('Expected session_days or invite_days or time_resolution_minutes');
   return changes;
 }
-export async function getInstanceSettings(ctx: AccountRepositories, sessionDays: number): Promise<InstanceSettings> {
+export async function getInstanceSettings(ctx: AccountReads, sessionDays: number): Promise<InstanceSettings> {
   const stored = await ctx.settings.read();
   return { sessionDays: validSetting('sessionDays', stored.sessionDays) ? stored.sessionDays : sessionDays,
     inviteDays: validSetting('inviteDays', stored.inviteDays) ? stored.inviteDays : 7,
@@ -110,11 +153,16 @@ export function serializeSettings(settings: InstanceSettings) {
 
 export function createAccountOperations<R extends AccountRepositories>(runner: AccountRunner<R>, security: AccountSecurityEffects) {
   return {
-    async createFirstAdmin(input: Record<string, unknown>): Promise<User> {
+    /** Hashes the password unguarded, then revalidates the credential under the instance guard. */
+    async createFirstAdmin(input: Record<string, unknown>, credential: SetupCredential): Promise<User> {
       const account = await accountInput(input, 'admin');
       return runner.transaction(async ctx => {
         await ctx.lockInstanceAdministration();
         if (await ctx.users.count() > 0) throw forbidden('Setup has already been completed');
+        // A code rotated or consumed while the password was hashing fails here.
+        if (!await setupCredentialValid(ctx, credential)) throw forbidden(INVALID_SETUP_CODE);
+        // Both modes clear the pending code. A failed account write rolls the deletion back.
+        await ctx.setupCodes.delete();
         return ctx.users.createAccount(account);
       });
     },
