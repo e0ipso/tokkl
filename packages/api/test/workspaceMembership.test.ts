@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { storageFor, setServices } from './fixtures/database.ts';
+import { migrations } from '../src/storage/migrations.ts';
 import { createApp } from '../src/app.ts';
 import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
 import { createSession, listWorkspacesForUser } from './fixtures/domain.ts';
@@ -41,7 +42,7 @@ test('SQLite legacy schema version 2 is refused without modifying its data', asy
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = (await openDatabase());
-  assert.equal(await completedMigrations(db),5);
+  assert.equal(await completedMigrations(db),migrations(db.backend).length);
   assert.deepEqual((await memberships(db)), []);
 
   const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: 'ABCD-EFGH-JKLM' } }));

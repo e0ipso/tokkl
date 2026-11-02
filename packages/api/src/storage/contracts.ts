@@ -92,6 +92,16 @@ export interface RateLimitsRepository {
   /** Clears failures. Live reservations keep their slots. */
   reset(keyHashes: readonly string[], now: UtcInstant): Promise<void>;
 }
+/**
+ * The pending generated first-admin setup code, stored as a lowercase hex SHA-256 hash and never as
+ * plaintext. There is at most one. Callers write it under lockInstanceAdministration.
+ */
+export interface SetupCodesRepository {
+  read(): Promise<string | undefined>;
+  /** Stores the hash as the only pending code, replacing any earlier one. */
+  replace(codeHash: string, at: UtcInstant): Promise<void>;
+  delete(): Promise<void>;
+}
 export interface ClientFilter { status?: 'active' | 'archived' | 'both'; name?: string }
 export interface ClientsRepository {
   list(workspaceId: Id, filter?: ClientFilter): Promise<Client[]>;
@@ -200,8 +210,8 @@ export interface TransfersRepository {
 }
 export interface Repositories {
   users: UsersRepository; workspaces: WorkspacesRepository; settings: SettingsRepository;
-  tokens: TokensRepository; sessions: SessionsRepository; rateLimits: RateLimitsRepository; clients: ClientsRepository;
-  projects: ProjectsRepository; tasks: TasksRepository; tags: TagsRepository;
+  tokens: TokensRepository; sessions: SessionsRepository; rateLimits: RateLimitsRepository; setupCodes: SetupCodesRepository;
+  clients: ClientsRepository; projects: ProjectsRepository; tasks: TasksRepository; tags: TagsRepository;
   entries: EntriesRepository; timers: TimersRepository; reports: ReportsRepository; transfers: TransfersRepository;
 }
 /** SQL-free operations shared by transaction-bound repository sets. */
@@ -218,7 +228,8 @@ export interface TransactionScope<R extends object> {
 }
 export type OperationContext<R extends object> = R & TransactionScope<R>;
 export type TransactionContext = OperationContext<Repositories>;
-export interface Storage extends Repositories {
+/** The pending setup code stays inside transactions and snapshots, with no one-call wrapper. */
+export interface Storage extends Omit<Repositories, 'setupCodes'> {
   transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
   readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;

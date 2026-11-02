@@ -190,6 +190,12 @@ export interface RateLimitReservationsRow {
   expires_at: string;
 }
 
+export interface SetupCodesRow {
+  purpose: string;
+  code_hash: string;
+  created_at: string;
+}
+
 export interface PhysicalDatabase {
   users: UsersRow;
   workspaces: WorkspacesRow;
@@ -208,5 +214,6 @@ export interface PhysicalDatabase {
   timer_states: TimerStatesRow;
   rate_limit_counters: RateLimitCountersRow;
   rate_limit_reservations: RateLimitReservationsRow;
+  setup_codes: SetupCodesRow;
   storage_migrations: { version: Int; name: string; checksum: string; state: string; schema_hash: string | null };
 }

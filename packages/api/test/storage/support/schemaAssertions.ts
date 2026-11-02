@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { sql, type Kysely } from 'kysely';
 import type { Backend } from '../../../src/storage/config.ts';
 import type { PhysicalDatabase } from '../../../src/storage/physical.ts';
-import { baselineTables, baselineIndexes, rateLimitIndexes, rateLimitTables, totalsIndexes, quote, serverDDL } from '../../../src/storage/schema.ts';
+import { baselineTables, baselineIndexes, rateLimitIndexes, rateLimitTables, setupCodeTables, totalsIndexes, quote, serverDDL } from '../../../src/storage/schema.ts';
 
 export type TestDb = Kysely<PhysicalDatabase>;
 export async function insert(db: TestDb, backend: Backend, table: string, row: Record<string, unknown>): Promise<void> {
@@ -12,17 +12,17 @@ export async function rows(db: TestDb, backend: Backend, table: string): Promise
   return (await sql.raw<Record<string, unknown>>(`select * from ${quote(backend, table)}`).execute(db)).rows;
 }
 export async function seed(db: TestDb, backend: Backend): Promise<void> {
-  for (const [table, columns] of Object.entries(baselineTables)) {
+  for (const [table, columns] of Object.entries({ ...baselineTables, ...setupCodeTables })) {
     const row: Record<string, unknown> = {};
     for (const [name, column] of Object.entries(columns)) {
       if (column.default !== undefined || column.nullable) continue;
-      row[name] = column.choices?.[0] ?? (['integer', 'id', 'real'].includes(column.type) ? 1 : column.type === 'instant' ? '2026-10-01T00:00:00.000Z' : `${table}_${name}`);
+      row[name] = column.choices?.[0] ?? (column.hex ? 'a'.repeat(column.hex) : ['integer', 'id', 'real'].includes(column.type) ? 1 : column.type === 'instant' ? '2026-10-01T00:00:00.000Z' : `${table}_${name}`);
     }
     await insert(db, backend, table, row);
   }
 }
 export async function assertSchema(db: TestDb, backend: Backend): Promise<void> {
-  for (const [table, columns] of Object.entries({ ...baselineTables, ...rateLimitTables })) {
+  for (const [table, columns] of Object.entries({ ...baselineTables, ...rateLimitTables, ...setupCodeTables })) {
     const q = quote(backend, table);
     const actual = backend === 'sqlite' ? (await sql.raw<{ name: string; notnull: number; dflt_value: string | null; type: string; hidden: number }>(`PRAGMA table_xinfo(${q})`).execute(db)).rows.map(c => ({ name: c.name, type: c.type.toLowerCase(), nullable: c.notnull === 0, default: c.dflt_value }))
       : (await sql<{ name: string; nullable: string; type: string; default: string | null }>`select column_name as name, data_type as type, is_nullable as nullable, column_default as ${sql.raw(quote(backend, 'default'))} from information_schema.columns where table_schema=${backend === 'postgres' ? sql`current_schema()` : sql`database()`} and table_name=${table}`.execute(db)).rows.map(c => ({ ...c, nullable: c.nullable === 'YES' }));
@@ -43,7 +43,7 @@ export async function assertSchema(db: TestDb, backend: Backend): Promise<void> 
   const running = serverDDL(backend) ? [{ name: 'time_entries_running', table: 'time_entries', columns: ['running_user_id'] }, { name: 'PRIMARY', table: 'running_entries', columns: ['user_id'], unique: true }]
     : [{ name: 'time_entries_running', table: 'time_entries', columns: ['user_id'], unique: true }];
   // SQLite names the implicit indexes of text primary keys itself, so only server engines check them by name.
-  const primaryKeys = backend === 'sqlite' ? [] : Object.entries(rateLimitTables).map(([table, columns]) => ({
+  const primaryKeys = backend === 'sqlite' ? [] : Object.entries({ ...rateLimitTables, ...setupCodeTables }).map(([table, columns]) => ({
     name: backend === 'postgres' ? `${table}_pkey` : 'PRIMARY', table, columns: Object.keys(columns).filter(name => columns[name]!.primary), unique: true,
   }));
   for (const index of [...baselineIndexes, ...totalsIndexes, ...running, ...rateLimitIndexes, ...primaryKeys]) {
@@ -66,7 +66,7 @@ export async function assertSchema(db: TestDb, backend: Backend): Promise<void> 
 }
 export async function assertDefaultsAndForeignKeys(db: TestDb, backend: Backend): Promise<void> {
   await seed(db, backend);
-  for (const [table, columns] of Object.entries(baselineTables)) {
+  for (const [table, columns] of Object.entries({ ...baselineTables, ...setupCodeTables })) {
     const row = (await rows(db, backend, table))[0]!;
     for (const [name, c] of Object.entries(columns)) {
       if (c.nullable) assert.equal(row[name], null, `${table}.${name} defaults NULL`);
@@ -75,6 +75,13 @@ export async function assertDefaultsAndForeignKeys(db: TestDb, backend: Backend)
       if (!c.nullable && c.type !== 'id') await assert.rejects(sql`update ${sql.raw(quote(backend,table))} set ${sql.raw(quote(backend,name))}=null`.execute(db), `${table}.${name} rejects null`);
       if (c.choices) await assert.rejects(sql`update ${sql.raw(quote(backend,table))} set ${sql.raw(quote(backend,name))}='invalid'`.execute(db), `${table}.${name} checks values`);
       if (c.choices) await assert.rejects(sql`update ${sql.raw(quote(backend,table))} set ${sql.raw(quote(backend,name))}=${c.choices[0] + ' '}`.execute(db), `${table}.${name} rejects padded choice`);
+      if (c.hex) {
+        const digits = '0123456789abcdef'.repeat(Math.ceil(c.hex / 16)).slice(0, c.hex);
+        for (const value of [digits.slice(1), `${digits}0`, digits.toUpperCase(), `${digits.slice(1)}g`, `${digits.slice(1)} `, ' '.repeat(c.hex)]) {
+          await assert.rejects(sql`update ${sql.raw(quote(backend,table))} set ${sql.raw(quote(backend,name))}=${value}`.execute(db), `${table}.${name} rejects ${JSON.stringify(value)}`);
+        }
+        await sql`update ${sql.raw(quote(backend,table))} set ${sql.raw(quote(backend,name))}=${digits}`.execute(db);
+      }
     }
   }
   // Populate every optional FK, then exercise all detach and cascade paths with actual rows.

@@ -15,7 +15,7 @@ import { jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';
 import { sql } from 'kysely';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
-import { initializeDatabase } from '../../src/storage/migrations.ts';
+import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { StorageReportRunner } from '../../src/services/storageReportRunner.ts';
@@ -56,7 +56,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
     ] as ExportAssemblyJob[]) assert.deepEqual(await runner.assembleExport(exported, assembly), formatExportJob(exported, assembly));
     const worker = (runner as unknown as { worker: Worker }).worker;
     assert.ok(worker instanceof Worker);
-    assert.equal(Number((await sql<{ n: number | string }>`select count(*) as n from storage_migrations`.execute(c.db)).rows[0]!.n), 5);
+    assert.equal(Number((await sql<{ n: number | string }>`select count(*) as n from storage_migrations`.execute(c.db)).rows[0]!.n), migrations(backend).length);
     await t.test('crash rejects current work and starts a fresh worker', async crash => {
       // Hold delivery so the one-row report cannot finish before termination.
       // The runner still assigns the job to this real worker and handles its exit.

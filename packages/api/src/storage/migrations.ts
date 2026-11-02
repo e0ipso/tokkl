@@ -7,7 +7,7 @@ import { sql, type Kysely } from 'kysely';
 import type { Backend, StorageConfig } from './config.ts';
 import { openConnection, openReadConnection, type StorageConnection } from './connections.ts';
 import type { PhysicalDatabase } from './physical.ts';
-import { baselineDDL, createTableDDL, indexDDL, ledgerColumns, quote, rateLimitDDL, runningEntriesDDL, serverDDL, totalsIndexes } from './schema.ts';
+import { baselineDDL, createTableDDL, indexDDL, ledgerColumns, quote, rateLimitDDL, runningEntriesDDL, serverDDL, setupCodeDDL, totalsIndexes } from './schema.ts';
 
 export class StorageMigrationError extends Error {
   constructor(reason: 'unsupported-engine' | 'unsupported-schema' | 'inconsistent-schema' | 'migration-failed' | 'reader') {
@@ -27,6 +27,7 @@ export function migrations(backend: Backend): readonly Migration[] {
       : 'ALTER TABLE tasks MODIFY COLUMN estimated_seconds DOUBLE NULL'] },
     { version: 4, name: 'running_entries_by_user', statements: runningEntriesDDL(backend) },
     { version: 5, name: 'rate_limits', statements: rateLimitDDL(backend) },
+    { version: 6, name: 'setup_codes', statements: setupCodeDDL(backend) },
   ];
 }
 const run = (db: Kysely<PhysicalDatabase>, statement: string) => sql.raw(statement).execute(db);

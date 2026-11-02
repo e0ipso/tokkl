@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { migrations } from '../packages/api/src/storage/migrations.ts';
 import { images } from '../packages/api/test/storage/support/images.ts';
 
 const exec = promisify(execFile);
@@ -108,7 +109,7 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     // HTTP reads and reports below independently check the resulting history.
     const seed = `import { loadConfig } from './packages/api/src/config.ts'; import { initializeDatabase } from './packages/api/src/storage/migrations.ts'; const c=await initializeDatabase(loadConfig().config.storage); try { for(let offset=0;offset<30000;offset+=100) await c.db.insertInto('time_entries').values(Array.from({length:100},(_,i)=>({user_id:${me.id},workspace_id:${me.default_workspace_id},project_id:null,task_id:null,description:'image history '+(offset+i),start:'2026-10-05T10:00:00.000Z',stop:'2026-10-05T11:00:00.000Z',billable:0,duronly:0,all_day:0,deleted_at:null,created_with:'image-smoke',created_at:'2026-10-05T10:00:00.000Z',updated_at:'2026-10-05T11:00:00.000Z'}))).execute(); console.log(JSON.stringify({rows:Number((await c.db.selectFrom('time_entries').select(c.db.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),migrations:await c.db.selectFrom('storage_migrations').selectAll().execute()})); } finally { await c.close(); }`;
     const seeded = JSON.parse(await docker(['exec', app, 'node', '--input-type=module', '-e', seed]));
-    assert.equal(seeded.rows, 30000); assert.equal(seeded.migrations.length, 5); event('seeded', seeded);
+    assert.equal(seeded.rows, 30000); assert.equal(seeded.migrations.length, migrations(backend).length); event('seeded', seeded);
     const running = await json<{ id: number }>(`/api/v9/workspaces/${me.default_workspace_id}/time_entries`, 'POST', { description: 'persisted image timer', start: new Date().toISOString() });
     const range = { start_date: '2026-10-01', end_date: '2026-10-30' };
     const report = await fetch(base + '/api/app/report/detailed.csv', { method: 'POST', headers, body: JSON.stringify(range) });
