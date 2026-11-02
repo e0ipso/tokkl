@@ -75,6 +75,8 @@ export TOKKL_DATABASE_URL='mariadb://tokkl:REPLACE_ME@db.example.test:3306/tokkl
 
 Choose one line. `postgresql://` also selects PostgreSQL. SQLite paths must be absolute, without query parameters or dot segments. `sqlite::memory:` is temporary and loses all data at process exit.
 
+SQLite, including `sqlite::memory:`, supports one process only. Hosts can't share a SQLite file, because file locking isn't reliable over network filesystems, and each `sqlite::memory:` process has its own empty database. Several instances need PostgreSQL, MySQL or MariaDB; see [Running several instances](#running-several-instances).
+
 Percent-encode username, password and database components separately. For example, a password `p@ss:word` becomes `p%40ss%3Aword`. Shell-quote the entire URL and keep credentials out of committed files and command logs. Supply container secrets through your deployment's protected environment configuration. The application redacts database credentials from startup errors; the first-admin setup code remains a secret printed intentionally by the instance that creates it.
 
 Server connections verify the certificate chain and the configured hostname or IP address by default. For a private CA, append `&sslrootcert=%2Frun%2Fsecrets%2Fdatabase-ca.pem` and mount that readable PEM file in the application container. The certificate must cover the URL host, including an IP subject alternative name when using an IP. Only `sslmode=verify-full` and `sslmode=disable` are accepted. Use `disable` only for an intentionally unencrypted local/private test connection. There is no certificate-verification bypass mode.
@@ -107,7 +109,7 @@ For a full instance backup, stop the application and use your database's consist
 
 Upgrades need a short outage, so stop every instance before starting the new release. Once a release adds a migration, an old instance that restarts refuses the newer migration ledger, and old instances still running query a schema they were not written for.
 
-Start one instance of the new release first. It applies new migrations before it opens the HTTP port, so `tokkl listening` in its log means the schema is current. Then start the rest; they find nothing to apply and only validate the schema. An instance that starts while another is still migrating waits for it, and on SQLite, MySQL and MariaDB it fails startup after 30 seconds of waiting.
+Start one instance of the new release first. It applies new migrations before it opens the HTTP port, so `tokkl listening` in its log means the schema is current. Then start the rest; they find nothing to apply and only validate the schema. An instance that starts while another is still migrating waits for it, and on MySQL and MariaDB it fails startup after 30 seconds of waiting.
 
 An older release refuses a database that a newer release has migrated. To keep the option of rolling back, take a full backup as described in [Backups and restore](#backups-and-restore) before upgrading.
 
@@ -126,6 +128,22 @@ location /api/app/timer/events {
 ```
 
 Each user may hold 10 streams on each instance. Opening an 11th on the same instance closes the oldest there, so a user whose streams spread across several instances may hold more in total.
+
+## Running several instances
+
+Each instance needs:
+
+- the same PostgreSQL, MySQL or MariaDB database, and the same `TOKKL_*` settings as the others;
+- a load balancer idle timeout well above 25 seconds and no response buffering on `/api/app/timer/events`, as in [Behind a reverse proxy](#behind-a-reverse-proxy);
+- load balancer health checks on `GET /healthz`;
+- connection draining, so the load balancer stops sending it requests before it stops. After SIGTERM, open HTTP connections get ten seconds to finish;
+- a clock kept in sync with NTP. Timer start and stop times come from the clock of the instance that handles the request.
+
+Upgrade by stopping every instance, as described in [Upgrading](#upgrading). Rolling deploys are not supported.
+
+Each instance opens up to `pool_max` writer connections and one report-reader connection. On PostgreSQL it keeps one more connection for `LISTEN`, which tells the other instances about timer changes. N instances need up to N × (`pool_max` + 1) connections on MySQL or MariaDB, and N × (`pool_max` + 2) on PostgreSQL.
+
+Don't put PgBouncer in transaction pooling mode between Tokkl and PostgreSQL. Each instance takes a session-level `pg_advisory_lock` while it migrates at startup, and the `LISTEN` connection needs its own session. Connect directly or use session pooling.
 
 ## Moving from Toggl Track
 
