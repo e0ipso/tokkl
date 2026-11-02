@@ -1,3 +1,14 @@
+## [2.1.0](https://github.com/e0ipso/tokkl/compare/v2.0.0...v2.1.0) (2026-11-02)
+
+### Features
+
+* **api:** deliver timer changes to SSE streams on every instance ([#68](https://github.com/e0ipso/tokkl/issues/68)) ([f7df2f2](https://github.com/e0ipso/tokkl/commit/f7df2f2c0d46aee9e3340c6ec1df6d54e39535a5)), closes [#62](https://github.com/e0ipso/tokkl/issues/62)
+* **api:** share login and setup-code rate limits across instances ([#70](https://github.com/e0ipso/tokkl/issues/70)) ([3ef2701](https://github.com/e0ipso/tokkl/commit/3ef2701d08a4c2cde503f889ce2ed025a00c410b))
+
+### Bug Fixes
+
+* **api:** stop timer switches from blocking other users on MySQL ([413a578](https://github.com/e0ipso/tokkl/commit/413a578fa95cacf66adebb07fdc39d620752e7a6)), closes [#60](https://github.com/e0ipso/tokkl/issues/60)
+
 ## [2.0.0](https://github.com/e0ipso/tokkl/compare/v1.13.0...v2.0.0) (2026-10-31)
 
 ### ⚠ BREAKING CHANGES
