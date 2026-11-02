@@ -6,7 +6,6 @@ import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
 import { createStorageSessions, type SetupState } from '../auth/storageSessions.ts';
 import { restoreTimeEntry, purgeDeletedEntries, serializeTimeEntry } from '../domain/timeEntries.ts';
-export type { SetupState };
 export function appRoutes(deps: Deps, setup: SetupState): Router {
   const { storage, config, accounts, loginLimiter, setupLimiter } = deps;
   const app = express.Router(), auth = deps.auth.requireAuth;
