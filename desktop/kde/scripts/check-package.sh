@@ -26,7 +26,8 @@
 #      published release): before anything is installed, check that it is a
 #      tokkl-kde package for this architecture and, for an RPM, this
 #      distribution release, with a version older than <file>'s. After the
-#      first removal install it, upgrade to <file>,
+#      first removal install it (an RPM whose dependencies no longer resolve
+#      goes in with rpm --nodeps), upgrade to <file>,
 #      check that only the new package's files are present, load it again
 #      with --load-test, then remove it (purge on Debian).
 # A fixture home with Plasma applet settings and a KDE Wallet file is created
@@ -195,6 +196,29 @@ install_file() {
     else
         dnf install -y -q "$1"
     fi
+}
+# A published package can outlive the libraries it was built against: Fedora
+# replaces a library in its updates repository, the old soname goes with it
+# and the previous release no longer resolves. The upgrade only needs that
+# package's files and scripts in place, so when dnf cannot resolve its
+# dependencies it goes in with rpm --nodeps and says so. The upgrade and the
+# load check that follow still resolve every dependency of the new package.
+# Any other install failure fails the check.
+install_previous() {
+    local out
+    [ "$format" = rpm ] || { install_file "$1"; return; }
+    if out="$(dnf install -y -q "$1" 2>&1)"; then
+        [ -z "$out" ] || printf '%s\n' "$out"
+        return 0
+    fi
+    printf '%s\n' "$out" >&2
+    case "$out" in
+        *"Failed to resolve the transaction"*) ;;
+        *) return 1 ;;
+    esac
+    echo "notice: dnf cannot resolve the dependencies of $(basename "$1") on this system;" \
+        "installing it with rpm --nodeps to check the upgrade from it" >&2
+    rpm -i --nodeps "$1"
 }
 upgrade_file() {
     if [ "$format" = deb ]; then
@@ -434,7 +458,7 @@ check_removed
 
 if [ -n "$previous" ]; then
     step "install $previous_version, then upgrade to $native_version"
-    install_file "$previous"
+    install_previous "$previous"
     got="$(installed_version)"
     expect "installed version $previous_version" \
         "installed version is '$got', expected $previous_version" \
