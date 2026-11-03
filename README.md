@@ -53,7 +53,7 @@ The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DA
 | `TOKKL_DATABASE_URL` | absent | Database selector; absence selects `<data dir>/tokkl.sqlite`. An empty or invalid value fails startup. |
 | `TOKKL_TRUST_PROXY` | absent | Reverse proxies whose forwarded headers are trusted. Empty or `0` trusts none. A positive number trusts that many proxy hops. A comma-separated list of IP addresses or CIDR ranges trusts those proxies. The client address for login rate limiting is the `X-Forwarded-For` entry the outermost trusted proxy added; `X-Forwarded-Proto: https` enables Secure cookies and HSTS. Any other value fails startup. Trust only proxies the app is reachable through. |
 | `TOKKL_SESSION_DAYS` | `30` | New-session lifetime until overridden on the Admin page; existing expiries stay unchanged. |
-| `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs |
+| `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs. Several instances need the same value on each; see [Running several instances](#running-several-instances). |
 | `TOKKL_WEB_ROOT` | `dist/web` | Built web app folder |
 
 ## Database selection
@@ -127,7 +127,7 @@ Each user may hold 10 streams on each instance. Opening an 11th on the same inst
 
 ## Running several instances
 
-Running more than one instance behind a load balancer is not supported yet, because [the first-admin setup code works on one instance only](https://github.com/e0ipso/tokkl/issues/64). Until that is fixed, run a single instance.
+Set `TOKKL_SETUP_CODE` to the same value on every instance before the first start. Without it, each instance makes up its own setup code and accepts only that one, so the load balancer can send the setup request to an instance that rejects the code from the log you read. Wrong codes count against the setup-code limit on every instance.
 
 Each instance needs:
 
