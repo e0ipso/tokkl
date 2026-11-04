@@ -261,6 +261,24 @@ test('plus, minus and the arrow keys step a length by one and clamp at the edges
   await expect(session(page)).toBeVisible();
 });
 
+test('the length cards sit in one row on a desktop and never split three and one', async ({ page }) => {
+  await openPomodoro(page);
+  /** How many cards each row of the grid holds, top row first. */
+  const rows = () => form(page).locator('.length-stepper').evaluateAll((cards) => {
+    const counts = new Map<number, number>();
+    for (const card of cards) {
+      const top = Math.round(card.getBoundingClientRect().top);
+      counts.set(top, (counts.get(top) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort(([a], [b]) => a - b).map(([, count]) => count);
+  });
+  expect(await rows()).toEqual([4]);
+  for (let width = 1280; width >= 320; width -= 20) {
+    await page.setViewportSize({ width, height: 900 });
+    expect([[4], [2, 2], [1, 1, 1, 1]], `rows at a ${width}px viewport`).toContainEqual(await rows());
+  }
+});
+
 test.describe('on a phone', () => {
   test.use(PHONE);
 

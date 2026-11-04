@@ -994,14 +994,19 @@ input[aria-invalid='true'], select[aria-invalid='true'], textarea[aria-invalid='
 /* Stepper cards (components/LengthStepper.tsx) for the Pomodoro lengths. Each column is at least
    half the grid and 136px, so the grid keeps two columns from 284px of its own width, which a card
    on a 360px-wide phone has, and drops to one below; 136px still holds both steps side by side.
+   Once four 136px columns fit (580px), the cards sit in one row, so a desktop card doesn't stretch
+   two cards across its whole width. auto-fit alone would pass through three columns with the
+   fourth card on its own row; the container query on the wrapper jumps straight from two to four.
    A card has the 2px frame and 16px corner without the panel's shadow, since it sits inside a
    card. Out of range, empty or not whole, the frame, value and unit line turn danger; the field
    keeps its transparent border, so the frame is the only outline. The steps are 48px wide and
    44px tall, the phone button height. Positioned for the .visually-hidden description. */
-.length-stepper-grid {
+.length-stepper-grid { container-type: inline-size; }
+.length-stepper-cards {
   display: grid; gap: var(--space-3);
   grid-template-columns: repeat(auto-fit, minmax(max(136px, calc((100% - var(--space-3)) / 2)), 1fr));
 }
+@container (min-width: 580px) { .length-stepper-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .length-stepper {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--space-1);
   min-width: 0; padding: var(--space-3); border: 2px solid var(--border); border-radius: var(--radius-lg); background: var(--surface);
