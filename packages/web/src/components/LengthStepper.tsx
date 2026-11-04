@@ -99,7 +99,14 @@ export function LengthStepper({ label, unit, spokenUnit, range, value, onChange,
   );
 }
 
-/** The cards in two columns, or one when the grid is narrower than 360px. */
+/**
+ * The cards in four columns when four fit, otherwise two, or one on the narrowest screens. The
+ * outer element is the size container the column count queries; the inner one is the grid.
+ */
 export function LengthStepperGrid({ children, ...group }: { children: ReactNode; 'aria-labelledby'?: string }) {
-  return <div className="length-stepper-grid" role={group['aria-labelledby'] ? 'group' : undefined} {...group}>{children}</div>;
+  return (
+    <div className="length-stepper-grid" role={group['aria-labelledby'] ? 'group' : undefined} {...group}>
+      <div className="length-stepper-cards">{children}</div>
+    </div>
+  );
 }
