@@ -34,10 +34,13 @@ export function inviteRow(page: Page, note: string): Locator {
   return page.locator('#invites tbody tr').filter({ hasText: note });
 }
 
-/** The inline error a control points at through aria-describedby. */
+/**
+ * The inline error a control points at through aria-describedby. The error comes first; a stepper
+ * card (components/LengthStepper.tsx) lists its range description after it.
+ */
 export async function describedError(control: Locator): Promise<Locator> {
   await expect(control).toHaveAttribute('aria-invalid', 'true');
-  const id = await control.getAttribute('aria-describedby');
+  const id = (await control.getAttribute('aria-describedby'))?.split(' ')[0];
   expect(id, 'the control points at its error').toBeTruthy();
   return control.page().locator(`[id="${id}"]`);
 }

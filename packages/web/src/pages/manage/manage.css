@@ -116,7 +116,8 @@
 }
 .card .settings-card-head h2 { margin: 0; font-size: var(--text-xl); font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; }
 .hint.settings-intro { margin-bottom: 14px; }
-.settings-card > .form-grid { margin-top: 8px; }
+.settings-card > .form-grid, .settings-card > .length-stepper-grid { margin-top: 8px; }
+.hint.settings-hint { margin-top: 12px; }
 .settings-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
 .settings-subheading { margin: 16px 0 6px; }
 .settings-card-head + .settings-subheading { margin-top: 0; }

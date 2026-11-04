@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { describedError, expect, test } from './admin-tests-helpers.ts';
 import { login } from './helpers.ts';
+import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 import { clickNotification, focusCalls, permissionRequests, stubNotifications, type NotificationSetup } from './notification-tests-helpers.ts';
 import { RuntimeErrors } from './runtime-errors.ts';
 import {
@@ -27,10 +28,16 @@ const session = (page: Page) => page.getByRole('region', { name: 'Running Pomodo
 const banner = (page: Page) => page.getByRole('region', { name: 'Pomodoro phase ended' });
 const timer = (page: Page) => page.getByRole('region', { name: 'Timer', exact: true });
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Main' });
+/** Each length's card label, the unit it shows and its maximum; every minimum is 1. */
 const LENGTHS = [
-  ['Work (minutes)', 180], ['Short rest (minutes)', 60],
-  ['Long rest (minutes)', 60], ['Long rest every (pomodoros)', 12],
+  ['Work', 'min', 180], ['Short rest', 'min', 60],
+  ['Long rest', 'min', 60], ['Long rest every', 'pomodoros', 12],
 ] as const;
+/** The value field of a length's stepper card. */
+const length = (page: Page, label: string) => form(page).getByRole('spinbutton', { name: label, exact: true });
+/** The stepper card around a length's value field. */
+const lengthCard = (page: Page, label: string) =>
+  form(page).locator('.length-stepper').filter({ has: page.getByRole('spinbutton', { name: label, exact: true }) });
 
 /** Opens the Pomodoro page. `fakeClock: false` keeps the browser clock real, for scenarios where the page writes its own timestamps. */
 async function openPomodoro(page: Page, { fakeClock = true } = {}) {
@@ -43,8 +50,8 @@ async function openPomodoro(page: Page, { fakeClock = true } = {}) {
 }
 
 async function startPomodoro(page: Page, description = 'Session work') {
-  for (const [label] of LENGTHS) await form(page).getByLabel(label, { exact: true }).fill('1');
-  await form(page).getByLabel('Long rest every (pomodoros)').fill('2');
+  for (const [label] of LENGTHS) await length(page, label).fill('1');
+  await length(page, 'Long rest every').fill('2');
   await form(page).getByLabel('Description').fill(description);
   await form(page).getByRole('button', { name: 'Start', exact: true }).click();
   await expect(session(page)).toBeVisible();
@@ -111,11 +118,11 @@ test('one-minute sessions retain entry fields, skip phases, count overtime and l
   const api = await openPomodoro(page);
   const preferences = await api.preferences();
   for (const [label, key] of [
-    ['Work (minutes)', 'pomodoro_focus_interval_in_minutes'],
-    ['Short rest (minutes)', 'pomodoro_break_interval_in_minutes'],
-    ['Long rest (minutes)', 'pomodoro_long_break_interval_in_minutes'],
-    ['Long rest every (pomodoros)', 'pomodoro_long_break_every'],
-  ]) await expect(form(page).getByLabel(label!, { exact: true })).toHaveValue(String(preferences[key!]));
+    ['Work', 'pomodoro_focus_interval_in_minutes'],
+    ['Short rest', 'pomodoro_break_interval_in_minutes'],
+    ['Long rest', 'pomodoro_long_break_interval_in_minutes'],
+    ['Long rest every', 'pomodoro_long_break_every'],
+  ]) await expect(length(page, label!)).toHaveValue(String(preferences[key!]));
   const project_id = await api.createProject('Session project');
   const task_id = await api.createTask(project_id, 'Session task');
   const fields = { ...FIELDS, description: 'Session template', project_id, task_id, tags: ['focus'], billable: true };
@@ -179,22 +186,99 @@ test('the Pomodoro nav item marks a running session on every page until it ends'
   await expect(nav(page).getByRole('link', { name: 'Pomodoro', exact: true })).toHaveAttribute('aria-current', 'page');
 });
 
-for (const [label, max] of LENGTHS) {
-  test(`${label} rejects invalid lengths with an associated error and focus`, async ({ page }) => {
+for (const [label, unit, max] of LENGTHS) {
+  test(`${label} turns its card invalid out of range, names the limit, and Start focuses it`, async ({ page }) => {
     await openPomodoro(page);
-    const control = form(page).getByLabel(label, { exact: true });
-    for (const value of ['0', String(max + 1), '1.5', '']) {
+    const control = length(page, label);
+    const unitLine = lengthCard(page, label).locator('.length-stepper-unit');
+    const spokenUnit = unit === 'min' ? 'minutes' : unit;
+    await expect(unitLine).toHaveText(`${unit} · 1–${max}`);
+    for (const [value, line] of [
+      ['0', 'at least 1'], [String(max + 1), `max ${max}`], ['1.5', `${unit} · 1–${max}`], ['', `${unit} · 1–${max}`],
+    ] as const) {
       await control.fill(value);
+      await expect(control).toHaveAttribute('aria-invalid', 'true');
+      await expect(lengthCard(page, label)).toHaveAttribute('data-invalid', 'true');
+      await expect(unitLine).toHaveText(line);
+      await expect(control).toHaveAccessibleDescription(`Enter 1 to ${max} ${spokenUnit}`);
       await form(page).getByRole('button', { name: 'Start', exact: true }).click();
-      await expect(await describedError(control)).toHaveText(`Enter a whole number from 1 to ${max}.`);
       await expect(control).toBeFocused();
       await expect(session(page)).toHaveCount(0);
     }
     await control.fill(String(max));
+    await expect(control).not.toHaveAttribute('aria-invalid', 'true');
+    await expect(unitLine).toHaveText(`${unit} · 1–${max}`);
+    await expect(control).toHaveAccessibleDescription(`${spokenUnit}, 1 to ${max}`);
     await form(page).getByRole('button', { name: 'Start', exact: true }).click();
     await expect(session(page)).toBeVisible();
   });
 }
+
+test('plus, minus and the arrow keys step a length by one and clamp at the edges', async ({ page }) => {
+  await openPomodoro(page);
+  const work = length(page, 'Work');
+  const increase = form(page).getByRole('button', { name: 'Increase Work' });
+  const decrease = form(page).getByRole('button', { name: 'Decrease Work' });
+
+  await work.fill('179');
+  await increase.click();
+  await expect(work).toHaveValue('180');
+  await expect(increase).toHaveAttribute('aria-disabled', 'true');
+  // force: Playwright waits for an aria-disabled button to be enabled; the press must do nothing.
+  await increase.click({ force: true });
+  await expect(work).toHaveValue('180');
+  await decrease.click();
+  await expect(work).toHaveValue('179');
+  await expect(increase).not.toHaveAttribute('aria-disabled');
+
+  await work.fill('2');
+  await decrease.click();
+  await expect(work).toHaveValue('1');
+  await expect(decrease).toHaveAttribute('aria-disabled', 'true');
+  await decrease.click({ force: true });
+  await expect(work).toHaveValue('1');
+
+  // Out of range or empty, one press brings the value back into the range.
+  await work.fill('240');
+  await decrease.click();
+  await expect(work).toHaveValue('180');
+  await work.fill('');
+  await increase.click();
+  await expect(work).toHaveValue('1');
+
+  await work.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(work).toHaveValue('2');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect(work).toHaveValue('1');
+  // The steps are not tab stops: Tab goes from one value to the next.
+  await page.keyboard.press('Tab');
+  await expect(length(page, 'Short rest')).toBeFocused();
+
+  await expect(work).toHaveAttribute('aria-valuenow', '1');
+  await form(page).getByRole('button', { name: 'Start', exact: true }).click();
+  await expect(session(page)).toBeVisible();
+});
+
+test.describe('on a phone', () => {
+  test.use(PHONE);
+
+  test('the length cards keep two columns down to a 360px screen and stack below it', async ({ page }) => {
+    await openPomodoro(page);
+    const box = async (label: string) => (await lengthCard(page, label).boundingBox())!;
+    for (const width of [390, 360]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect((await box('Short rest')).y).toBe((await box('Work')).y);
+      expect((await box('Long rest')).y).toBeGreaterThan((await box('Work')).y);
+      await expectNoPageOverflow(page);
+    }
+    await page.setViewportSize({ width: 320, height: 700 });
+    expect((await box('Short rest')).y).toBeGreaterThan((await box('Work')).y);
+    for (const [label] of LENGTHS) await expectFits(lengthCard(page, label));
+    await expectNoPageOverflow(page);
+  });
+});
 
 for (const [name, setup, message] of [
   ['granted', { permission: 'granted' }, 'Notifications are allowed.'],

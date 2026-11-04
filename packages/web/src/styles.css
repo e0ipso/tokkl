@@ -163,6 +163,9 @@
    and danger on bg beside the tag form in the page toolbar. An invalid field's border is danger
    against the surface inside the input and against bg, surface or surface-2 around it. The danger
    rows above cover each pair.
+   A Pomodoro stepper card (.length-stepper) is on surface: label and unit muted, value text, frame
+   and step outlines border; out of range the frame, value and unit are danger on surface. The
+   muted, text, border and danger rows above cover each pair.
    The sidebar and the phone header strip are drawn with gradients of the texture tokens over
    surface. The glow fills the top 40% of the sidebar and the swell with its stripes the bottom 30%,
    so the two never overlap; within each band every pixel lies between surface and the strongest
@@ -988,6 +991,42 @@ input[aria-invalid='true'], select[aria-invalid='true'], textarea[aria-invalid='
 /* The tag form sits in a toolbar; keep the toolbar's other controls level with the field, not centred on the taller form. */
 .toolbar:has(> form .field-error) { align-items: flex-start; }
 @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+/* Stepper cards (components/LengthStepper.tsx) for the Pomodoro lengths. Each column is at least
+   half the grid and 136px, so the grid keeps two columns from 284px of its own width, which a card
+   on a 360px-wide phone has, and drops to one below; 136px still holds both steps side by side.
+   A card has the 2px frame and 16px corner without the panel's shadow, since it sits inside a
+   card. Out of range, empty or not whole, the frame, value and unit line turn danger; the field
+   keeps its transparent border, so the frame is the only outline. The steps are 48px wide and
+   44px tall, the phone button height. Positioned for the .visually-hidden description. */
+.length-stepper-grid {
+  display: grid; gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(max(136px, calc((100% - var(--space-3)) / 2)), 1fr));
+}
+.length-stepper {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--space-1);
+  min-width: 0; padding: var(--space-3); border: 2px solid var(--border); border-radius: var(--radius-lg); background: var(--surface);
+}
+.length-stepper-label { font-size: var(--text-sm); color: var(--muted); text-align: center; }
+.length-stepper-value {
+  width: 100%; padding: 0; text-align: center; color: var(--text);
+  font-family: var(--font-display); font-size: 2.75rem; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums;
+  border: 1px solid transparent; background: transparent;
+}
+.length-stepper-value:is(:hover, :focus) { border-color: var(--border); }
+.length-stepper-value[aria-invalid='true'] { border-color: transparent; }
+.length-stepper-value[aria-invalid='true']:is(:hover, :focus) { border-color: var(--danger); }
+.length-stepper-unit { margin: 0; font-size: var(--text-sm); color: var(--muted); text-align: center; }
+.length-stepper-steps { display: flex; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
+.length-stepper-step {
+  display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 44px;
+  border: 2px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text); cursor: pointer;
+}
+.length-stepper-step:hover:not([aria-disabled='true']) { background: var(--surface-2); }
+.length-stepper-step[aria-disabled='true'] { opacity: 0.6; cursor: default; }
+.length-stepper .field-error { text-align: center; }
+.length-stepper[data-invalid] { border-color: var(--danger); }
+.length-stepper[data-invalid] :is(.length-stepper-value, .length-stepper-unit) { color: var(--danger); }
+.length-stepper[data-invalid] .length-stepper-unit { font-weight: 700; }
 
 /* Cards and tables shared by management pages. Tables and cards are data surfaces: no texture. */
 .card { padding: var(--space-5); border-width: 2px; border-radius: var(--radius-lg); }

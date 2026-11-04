@@ -3,10 +3,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { keys, useSavePreferences } from '../../../api/hooks.ts';
 import type { DurationFormat, Preferences } from '../../../api/types.ts';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
+import { LengthStepper, LengthStepperGrid } from '../../../components/LengthStepper.tsx';
+import type { StepperRange } from '../../../components/lengthStepper.ts';
 import { useToast } from '../../../components/Toast.tsx';
 import { formatDate, formatTime, today, useSettings } from '../../../lib/settings.ts';
 import { formatDuration } from '@tokkl/common/duration';
-import { DEFAULT_POMODORO_SESSION_CONFIG } from '@tokkl/common/pomodoroSession';
+import { DEFAULT_POMODORO_SESSION_CONFIG, POMODORO_SESSION_CONFIG_RANGES } from '@tokkl/common/pomodoroSession';
 import { AllowNotifications } from './AllowNotifications.tsx';
 import { SettingsCard } from './SettingsCard.tsx';
 
@@ -32,13 +34,16 @@ const THEMES: ReadonlyArray<{ value: Preferences['theme']; label: string }> = [
 /** 47 minutes and 6 seconds, the example Toggl uses for its duration formats. */
 const SAMPLE_SECONDS = 47 * 60 + 6;
 
-/** The lengths a new Pomodoro session starts with, with the unit the error message names. */
+/**
+ * The lengths a new Pomodoro session starts with: the card's label, the short unit it shows, the unit
+ * a screen reader and the error message name, and the range the server accepts.
+ */
 const POMODORO_NUMBERS = [
-  { key: 'pomodoro_focus_interval_in_minutes', label: 'Work (minutes)', unit: 'minutes' },
-  { key: 'pomodoro_break_interval_in_minutes', label: 'Short rest (minutes)', unit: 'minutes' },
-  { key: 'pomodoro_long_break_interval_in_minutes', label: 'Long rest (minutes)', unit: 'minutes' },
-  { key: 'pomodoro_long_break_every', label: 'Long rest every (pomodoros)', unit: 'pomodoros' },
-] as const satisfies ReadonlyArray<{ key: keyof Preferences; label: string; unit: string }>;
+  { key: 'pomodoro_focus_interval_in_minutes', label: 'Work', shortUnit: 'min', unit: 'minutes', range: POMODORO_SESSION_CONFIG_RANGES.workMinutes },
+  { key: 'pomodoro_break_interval_in_minutes', label: 'Short rest', shortUnit: 'min', unit: 'minutes', range: POMODORO_SESSION_CONFIG_RANGES.shortRestMinutes },
+  { key: 'pomodoro_long_break_interval_in_minutes', label: 'Long rest', shortUnit: 'min', unit: 'minutes', range: POMODORO_SESSION_CONFIG_RANGES.longRestMinutes },
+  { key: 'pomodoro_long_break_every', label: 'Long rest every', shortUnit: 'pomodoros', unit: 'pomodoros', range: POMODORO_SESSION_CONFIG_RANGES.longRestEvery },
+] as const satisfies ReadonlyArray<{ key: keyof Preferences; label: string; shortUnit: string; unit: string; range: StepperRange }>;
 
 const NUMBER_FIELDS = [...POMODORO_NUMBERS, { key: 'long_timer_reminder_hours', unit: 'hours' }] as const;
 type NumberKey = typeof NUMBER_FIELDS[number]['key'];
@@ -238,22 +243,19 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
         <p className="hint field-full">Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.</p>
       </div>
       <h3 className="settings-subheading" id="pomodoro-title">Pomodoro session defaults</h3>
-      <div className="form-grid" role="group" aria-labelledby="pomodoro-title">
-        {POMODORO_NUMBERS.map(({ key, label }) => (
-          <div key={key} className="field">
-            <label htmlFor={fields.id(key)}>{label}</label>
-            <input
-              {...fields.field(key)}
-              type="number"
-              inputMode="numeric"
-              value={draft[key]}
-              onChange={(event) => set(key, event.target.value)}
-            />
-            {fields.message(key)}
-          </div>
+      <LengthStepperGrid aria-labelledby="pomodoro-title">
+        {POMODORO_NUMBERS.map(({ key, label, shortUnit, unit, range }) => (
+          <LengthStepper
+            key={key}
+            label={label} unit={shortUnit} spokenUnit={unit} range={range}
+            value={draft[key]}
+            onChange={(text) => { set(key, text); fields.clear(key); }}
+            inputProps={fields.field(key)}
+            error={fields.message(key)}
+          />
         ))}
-        <p className="hint field-full">New sessions on the Pomodoro page start with these lengths. You can change them there before you start.</p>
-      </div>
+      </LengthStepperGrid>
+      <p className="hint settings-hint">New sessions on the Pomodoro page start with these lengths. You can change them there before you start.</p>
       <h3 className="settings-subheading" id="notifications-title">Notifications</h3>
       <div className="form-grid" role="group" aria-labelledby="notifications-title">
         <AllowNotifications />
