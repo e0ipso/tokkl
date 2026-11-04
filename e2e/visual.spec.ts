@@ -63,13 +63,15 @@ const PAGES: readonly Capture[] = [
   {
     name: 'pomodoro-idle',
     path: '/pomodoro',
-    ready: (page) => page.getByRole('form', { name: 'Start a Pomodoro session' }).getByLabel('Work (minutes)'),
+    ready: (page) => page.getByRole('form', { name: 'Start a Pomodoro session' }).getByRole('spinbutton', { name: 'Work', exact: true }),
   },
   {
     name: 'pomodoro-running',
     path: '/pomodoro',
     act: (page) => page.getByRole('form', { name: 'Start a Pomodoro session' }).getByRole('button', { name: 'Start' }).click(),
     ready: (page) => page.getByRole('timer', { name: 'Time remaining' }).getByText('25:00', { exact: true }),
+    // Clicking Start scrolls the taller start form; the phone's fixed bottom bar follows the scroll.
+    settle: (page) => page.evaluate(() => window.scrollTo(0, 0)),
   },
   { name: 'projects', path: '/projects', ready: (page) => page.getByRole('main').getByText('Website').first() },
   {

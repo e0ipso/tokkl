@@ -98,7 +98,7 @@ test('account preferences persist across restart and a legacy backup leaves its 
 
   await page.goto(`${upgraded.baseURL}/settings`);
   const defaults = page.getByRole('group', { name: 'Pomodoro session defaults' });
-  await expect(defaults.getByLabel('Work (minutes)')).toHaveValue('42');
+  await expect(defaults.getByRole('spinbutton', { name: 'Work', exact: true })).toHaveValue('42');
   const backup = transferFixture('restore-full.json');
   backup.buffer = Buffer.from(JSON.stringify({
     ...JSON.parse(backup.buffer.toString()),
@@ -115,7 +115,7 @@ test('account preferences persist across restart and a legacy backup leaves its 
   expect(restored.status()).toBe(200);
   expect(await restored.json()).toEqual(retained);
   await page.reload();
-  await expect(defaults.getByLabel('Work (minutes)')).toHaveValue('42');
+  await expect(defaults.getByRole('spinbutton', { name: 'Work', exact: true })).toHaveValue('42');
 
   // Check the stored row too: a read-time filter alone would leave the obsolete keys on disk.
   // The page leaves first, because it reads the timer again once the server's stream ends.

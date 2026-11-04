@@ -6,7 +6,8 @@ import {
 import { useCurrentEntry, useEntries, usePreferences, useUpdateEntry } from '../api/hooks.ts';
 import type { Preferences, TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { EntryFields, type EntryFieldsHandle } from '../components/EntryFields.tsx';
-import { useFieldErrors } from '../components/FieldError.tsx';
+import { LengthStepper, LengthStepperGrid } from '../components/LengthStepper.tsx';
+import { stepperStatus } from '../components/lengthStepper.ts';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { SESSION_PHASE_LABEL, clock, countdown } from '../components/pomodoroSessionPresentation.ts';
@@ -17,10 +18,10 @@ import { AllowNotifications } from './manage/settings/AllowNotifications.tsx';
 import './PomodoroPage.css';
 
 const LENGTH_FIELDS = [
-  { key: 'workMinutes', preference: 'pomodoro_focus_interval_in_minutes', label: 'Work (minutes)' },
-  { key: 'shortRestMinutes', preference: 'pomodoro_break_interval_in_minutes', label: 'Short rest (minutes)' },
-  { key: 'longRestMinutes', preference: 'pomodoro_long_break_interval_in_minutes', label: 'Long rest (minutes)' },
-  { key: 'longRestEvery', preference: 'pomodoro_long_break_every', label: 'Long rest every (pomodoros)' },
+  { key: 'workMinutes', preference: 'pomodoro_focus_interval_in_minutes', label: 'Work', unit: 'min', spokenUnit: 'minutes' },
+  { key: 'shortRestMinutes', preference: 'pomodoro_break_interval_in_minutes', label: 'Short rest', unit: 'min', spokenUnit: 'minutes' },
+  { key: 'longRestMinutes', preference: 'pomodoro_long_break_interval_in_minutes', label: 'Long rest', unit: 'min', spokenUnit: 'minutes' },
+  { key: 'longRestEvery', preference: 'pomodoro_long_break_every', label: 'Long rest every', unit: 'pomodoros', spokenUnit: 'pomodoros' },
 ] as const;
 type LengthKey = keyof PomodoroSessionConfig;
 
@@ -35,22 +36,22 @@ function StartForm({ preferences, recentEntries }: { preferences: Preferences; r
   const { start, busy, unlockAudio } = usePomodoroSession();
   const [lengthEdits, setLengthEdits] = useState<Partial<Record<LengthKey, string>>>({});
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT);
-  const fields = useFieldErrors<LengthKey>();
+  const inputs = useRef(new Map<LengthKey, HTMLInputElement>());
   const form = useRef<HTMLFormElement>(null);
   const value = (key: LengthKey, preference: typeof LENGTH_FIELDS[number]['preference']) =>
     lengthEdits[key] ?? String(preferences[preference] ?? DEFAULT_POMODORO_SESSION_CONFIG[key]);
 
   const startSession = () => {
     if (busy) return;
+    // The cards already show which lengths are out of range; Start moves focus to the first one.
+    const invalid = LENGTH_FIELDS.find(({ key, preference }) =>
+      stepperStatus(value(key, preference), POMODORO_SESSION_CONFIG_RANGES[key]) !== 'valid');
+    if (invalid) {
+      inputs.current.get(invalid.key)?.focus();
+      return;
+    }
     const config = { ...DEFAULT_POMODORO_SESSION_CONFIG };
-    const checks = LENGTH_FIELDS.map(({ key, preference }) => {
-      const text = value(key, preference).trim();
-      config[key] = Number(text);
-      const { min, max } = POMODORO_SESSION_CONFIG_RANGES[key];
-      const valid = /^\d+$/.test(text) && Number(text) >= min && Number(text) <= max;
-      return [key, valid ? null : `Enter a whole number from ${min} to ${max}.`] as const;
-    });
-    if (!fields.validate(checks)) return;
+    for (const { key, preference } of LENGTH_FIELDS) config[key] = Number(value(key, preference).trim());
     unlockAudio();
     void start(config, draft);
   };
@@ -59,20 +60,17 @@ function StartForm({ preferences, recentEntries }: { preferences: Preferences; r
     <form ref={form} className="card pomodoro-card" aria-label="Start a Pomodoro session" noValidate onSubmit={(event) => { event.preventDefault(); startSession(); }}>
       <h2>Start a session</h2>
       <p className="hint">These lengths apply to this session. Your saved preferences stay the same.</p>
-      <div className="form-grid">
-        {LENGTH_FIELDS.map(({ key, preference, label }) => (
-          <div className="field" key={key}>
-            <label htmlFor={fields.id(key)}>{label}</label>
-            <input
-              {...fields.field(key)}
-              type="number" min={POMODORO_SESSION_CONFIG_RANGES[key].min} max={POMODORO_SESSION_CONFIG_RANGES[key].max} step={1}
-              value={value(key, preference)}
-              onChange={(event) => setLengthEdits((current) => ({ ...current, [key]: event.target.value }))}
-            />
-            {fields.message(key)}
-          </div>
+      <LengthStepperGrid>
+        {LENGTH_FIELDS.map(({ key, preference, label, unit, spokenUnit }) => (
+          <LengthStepper
+            key={key}
+            label={label} unit={unit} spokenUnit={spokenUnit} range={POMODORO_SESSION_CONFIG_RANGES[key]}
+            value={value(key, preference)}
+            onChange={(text) => setLengthEdits((current) => ({ ...current, [key]: text }))}
+            inputProps={{ ref: (element) => { if (element) inputs.current.set(key, element); else inputs.current.delete(key); } }}
+          />
         ))}
-      </div>
+      </LengthStepperGrid>
       <fieldset className="pomodoro-entry-fields">
         <legend>Entry details</legend>
         <EntryFields
