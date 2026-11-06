@@ -173,7 +173,8 @@ function generatedEntries(fixture: readonly ExportEntry[]): ExportEntry[] {
   const nowMs = Date.parse(NOW);
   const rows: ExportEntry[] = [];
   let id = 100;
-  for (let date = FIRST_DAY, day = 0; date <= TODAY; date = addDays(date, 1), day++) {
+  let day = 0;
+  for (let date = FIRST_DAY; date <= TODAY; date = addDays(date, 1)) {
     const plan = WEEK[weekdayIndex(date)] ?? [];
     plan.forEach((block, index) => {
       // Trim 0, 10 or 20 minutes off the end so the weeks do not look identical. Every block is
@@ -183,6 +184,7 @@ function generatedEntries(fixture: readonly ExportEntry[]): ExportEntry[] {
       if (Date.parse(row.stop!) > nowMs || taken.has(`${row.description}|${Date.parse(row.start)}`)) return;
       rows.push(row);
     });
+    day++;
   }
   rows.push(entry(id, TODAY, RUNNING, null));
   return rows;

@@ -46,6 +46,8 @@ async function docker(argv: string[], environment: NodeJS.ProcessEnv = {}): Prom
       durationMs: performance.now() - started,
       stderr: redact(e.stderr ?? ''),
     });
+    // The raw error carries unredacted command output, so it is not attached as the cause.
+    // eslint-disable-next-line preserve-caught-error
     throw Error(`Docker command failed: ${argv[0]}`);
   }
 }

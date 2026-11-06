@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { describedError, expect, test } from './admin-tests-helpers.ts';
+import { expect, test } from './admin-tests-helpers.ts';
 import { login } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 import {

@@ -14,6 +14,8 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'max-statements-per-line': ['error', { max: 1 }],
+      // Input validation deliberately matches control characters.
+      'no-control-regex': 'off',
       'no-restricted-syntax': ['error', { selector: 'SequenceExpression', message: 'Use separate statements.' }],
     },
   },

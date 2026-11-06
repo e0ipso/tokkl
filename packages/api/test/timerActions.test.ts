@@ -418,7 +418,7 @@ test('a refused action gets a 409 with the current state and changes nothing', a
   await assertRefused(ctx, 'discard without a chain', idle, async now => await discardPause(db, user, 0, now));
 
   // A revision that is not an integer is a bad request, whatever the state.
-  for (const revision of ['0', 0.5, 1e400, null, undefined, true]) {
+  for (const revision of ['0', 0.5, Number.POSITIVE_INFINITY, null, undefined, true]) {
     for (const action of [nextPomodoroPhase, endPomodoro, resumeTimer, discardPause]) {
       await assert.rejects(
         () => action(db, user, revision, idle),

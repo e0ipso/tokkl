@@ -874,7 +874,6 @@ test.describe('all-day creation by touch', () => {
 
   test('selected days create on the account DST day and keep the row and dialog inside the phone', async ({
     page,
-    data,
   }, testInfo) => {
     await page.clock.setFixedTime(new Date('2026-03-28T11:00:00Z'));
     await login(page);

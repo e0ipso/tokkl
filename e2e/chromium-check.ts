@@ -25,6 +25,7 @@ export default async function checkChromium(): Promise<void> {
         'Either install it once with `npm run test:e2e:install`,',
         'or set CHROMIUM_PATH to an existing Chromium or chrome-headless-shell binary.',
       ].join('\n'),
+      { cause: error },
     );
   }
 }
