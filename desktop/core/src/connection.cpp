@@ -509,9 +509,7 @@ void Connection::bind(const Me &me)
         // The same credentials now name another account or workspace.
         resetAccount();
     }
-    const bool changed = !hasContext() || m_context->me.email != me.email || m_context->me.fullname != me.fullname
-        || m_context->me.timezone != me.timezone || m_context->me.beginningOfWeek != me.beginningOfWeek
-        || m_context->me.timeResolutionMinutes != me.timeResolutionMinutes;
+    const bool changed = !hasContext() || m_context->me != me;
     m_context = Context{m_generation, m_instance.key(), me};
     setState(Connected);
     if (changed) {
@@ -763,7 +761,7 @@ void Connection::fetchCurrentEntry(Callback<std::optional<TimeEntry>> done)
         Access::Account,
         &decodeCurrentEntry,
         [this](const std::optional<TimeEntry> &entry) {
-            const bool changed = entry.has_value() != m_currentEntry.has_value() || (entry && entry->toVariantMap() != m_currentEntry->toVariantMap());
+            const bool changed = entry != m_currentEntry;
             m_currentEntry = entry;
             if (changed) {
                 Q_EMIT currentEntryChanged();

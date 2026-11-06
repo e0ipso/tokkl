@@ -45,11 +45,6 @@ bool sameChain(const std::optional<TimerPause> &a, const std::optional<TimerPaus
         || (a->paused == b->paused && a->seconds == b->seconds && a->cloneEntryId == b->cloneEntryId && a->projectId == b->projectId
             && a->billable == b->billable);
 }
-
-bool sameEntry(const std::optional<TimeEntry> &a, const std::optional<TimeEntry> &b)
-{
-    return a.has_value() == b.has_value() && (!a || a->toVariantMap() == b->toVariantMap());
-}
 }
 
 TimerController::TimerController(QObject *parent)
@@ -846,7 +841,7 @@ void TimerController::applyView(const std::optional<TimeEntry> &stoppedReply)
             chain.reset();
         }
     }
-    const bool entryChanged = !sameEntry(next, m_entry);
+    const bool entryChanged = next != m_entry;
     const bool chainChanged = !sameChain(chain, m_chain);
     const bool sessionChanged = session != m_sessionActive;
     // A stop the state shows, not a context that went away.
@@ -1046,7 +1041,7 @@ void TimerController::updateIndicator()
 
 void TimerController::setEntryProject(const std::optional<Project> &project)
 {
-    const bool changed = project.has_value() != m_entryProject.has_value() || (project && project->toVariantMap() != m_entryProject->toVariantMap());
+    const bool changed = project != m_entryProject;
     m_entryProject = project;
     if (changed) {
         Q_EMIT entryProjectChanged();

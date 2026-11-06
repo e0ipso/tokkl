@@ -85,6 +85,7 @@ struct Me {
     int timeResolutionMinutes = 1;
 
     QVariantMap toVariantMap() const;
+    bool operator==(const Me &other) const = default;
 };
 
 struct Project {
@@ -98,6 +99,7 @@ struct Project {
     bool billable = false;
 
     QVariantMap toVariantMap() const;
+    bool operator==(const Project &other) const = default;
 };
 
 struct TimeEntry {
@@ -118,6 +120,7 @@ struct TimeEntry {
     }
 
     QVariantMap toVariantMap() const;
+    bool operator==(const TimeEntry &other) const = default;
 };
 
 // An entry of GET /me/time_entries?meta=true with the project flags the meta
