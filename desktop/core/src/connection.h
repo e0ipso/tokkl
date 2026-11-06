@@ -261,8 +261,10 @@ private:
               std::function<std::optional<T>(const QJsonValue &)> decode,
               std::function<void(const T &)> apply,
               Callback<T> done);
-    template<typename T>
-    void failLater(ApiError error, Callback<T> done);
+    // Runs done with result from the event loop, unless the generation
+    // changes first.
+    template<typename Result>
+    void deliverLater(std::function<void(const Result &)> done, Result result);
     // The refusal a request got before it was sent, or nullopt when access
     // allows it.
     std::optional<ApiError> refusal(Access access) const;

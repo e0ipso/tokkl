@@ -454,19 +454,13 @@ void Connection::authenticate(bool explicitRequest)
 
 void Connection::handleMe(const HttpResponse &response)
 {
-    if (isSuccess(response)) {
-        const std::optional<QJsonValue> json = parseJsonBody(response.body);
-        const std::optional<Me> me = json ? decodeMe(*json) : std::nullopt;
-        if (!me) {
-            resetAccount();
-            setState(Error, tr("The address did not answer like a Tokkl instance. Check the instance URL."));
-            return;
-        }
-        bind(*me);
+    const ApiResult<Me> me = meFromResponse(response);
+    if (me.ok()) {
+        bind(*me.value);
         return;
     }
 
-    const ApiError error = errorFromResponse(response);
+    const ApiError &error = me.error;
     switch (error.kind) {
     case ApiError::Kind::Forbidden:
     case ApiError::Kind::Unauthorized:
@@ -627,8 +621,8 @@ void Connection::send(const QByteArray &method, const QUrl &url, const QByteArra
     });
 }
 
-template<typename T>
-void Connection::failLater(ApiError error, Callback<T> done)
+template<typename Result>
+void Connection::deliverLater(std::function<void(const Result &)> done, Result result)
 {
     if (!done) {
         return;
@@ -636,9 +630,9 @@ void Connection::failLater(ApiError error, Callback<T> done)
     const quint64 generation = m_generation;
     QMetaObject::invokeMethod(
         this,
-        [this, generation, error, done] {
+        [this, generation, done = std::move(done), result = std::move(result)] {
             if (generation == m_generation) {
-                done(ApiResult<T>::failure(error));
+                done(result);
             }
         },
         Qt::QueuedConnection);
@@ -700,7 +694,7 @@ void Connection::call(const QByteArray &method,
                       Callback<T> done)
 {
     if (const std::optional<ApiError> refused = refusal(access)) {
-        failLater<T>(*refused, done);
+        deliverLater<ApiResult<T>>(std::move(done), ApiResult<T>::failure(*refused));
         return;
     }
 
@@ -948,18 +942,7 @@ void Connection::fetchTimerState(Callback<TimerState> done)
 void Connection::timerAction(const QString &path, const QByteArray &body, ActionCallback done)
 {
     if (const std::optional<ApiError> refused = refusal(Access::Write)) {
-        if (done) {
-            const quint64 generation = m_generation;
-            const TimerActionResult result{TimerActionResult::Outcome::Refused, std::nullopt, *refused};
-            QMetaObject::invokeMethod(
-                this,
-                [this, generation, result, done] {
-                    if (generation == m_generation) {
-                        done(result);
-                    }
-                },
-                Qt::QueuedConnection);
-        }
+        deliverLater<TimerActionResult>(std::move(done), TimerActionResult{TimerActionResult::Outcome::Refused, std::nullopt, *refused});
         return;
     }
 
@@ -988,7 +971,7 @@ void Connection::timerAction(const QString &path, const QByteArray &body, Action
             } else if (!absorbFailure(response, result.error, Access::Write)) {
                 return; // the generation changed; the caller's state is gone too
             } else {
-                result.outcome = result.error.isTransient() ? TimerActionResult::Outcome::Unknown : TimerActionResult::Outcome::Refused;
+                result.outcome = result.error.outcomeUnknown() ? TimerActionResult::Outcome::Unknown : TimerActionResult::Outcome::Refused;
             }
         }
         if (done) {

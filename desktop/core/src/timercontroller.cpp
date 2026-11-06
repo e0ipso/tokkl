@@ -12,26 +12,12 @@ namespace
 {
 using Outcome = TimerActionResult::Outcome;
 
-// The request failed without saying whether the server acted on it.
-bool outcomeUnknown(const ApiError &error)
-{
-    switch (error.kind) {
-    case ApiError::Kind::Network:
-    case ApiError::Kind::Timeout:
-    case ApiError::Kind::Server:
-    case ApiError::Kind::InvalidResponse:
-        return true;
-    default:
-        return false;
-    }
-}
-
 Outcome outcomeOf(const ApiError &error, bool succeeded)
 {
     if (succeeded) {
         return Outcome::Applied;
     }
-    return outcomeUnknown(error) ? Outcome::Unknown : Outcome::Refused;
+    return error.outcomeUnknown() ? Outcome::Unknown : Outcome::Refused;
 }
 
 // What the panel shows of a chain: whether it is paused, its seconds, the
@@ -358,17 +344,12 @@ bool TimerController::start()
     const qint64 revision = m_view->revision;
     beginMutation();
 
-    QPointer<TimerController> self(this);
-    const quint64 epoch = m_epoch;
-    m_connection->startEntry(entry, [self, epoch, revision](const ApiResult<TimeEntry> &result) {
-        if (!self || epoch != self->m_epoch) {
-            return;
+    m_connection->startEntry(entry, m_epoch.guard(this, [this, revision](const ApiResult<TimeEntry> &result) {
+        if (result.ok() && !m_workspaceLost) {
+            showReply(revision, result.value->isRunning() ? result.value : std::nullopt);
         }
-        if (result.ok() && !self->m_workspaceLost) {
-            self->showReply(revision, result.value->isRunning() ? result.value : std::nullopt);
-        }
-        self->finishMutation(outcomeOf(result.error, result.ok()), result.error, true, true);
-    });
+        finishMutation(outcomeOf(result.error, result.ok()), result.error, true, true);
+    }));
     return true;
 }
 
@@ -382,13 +363,9 @@ bool TimerController::stop()
             return false;
         }
         beginMutation();
-        QPointer<TimerController> self(this);
-        const quint64 epoch = m_epoch;
-        m_state->discard([self, epoch](const TimerActionResult &result) {
-            if (self && epoch == self->m_epoch) {
-                self->finishMutation(result.outcome, result.error);
-            }
-        });
+        m_state->discard(m_epoch.guard(this, [this](const TimerActionResult &result) {
+            finishMutation(result.outcome, result.error);
+        }));
         return true;
     }
     if (!canWrite() || !m_entry) {
@@ -398,19 +375,14 @@ bool TimerController::stop()
     const qint64 revision = m_view->revision;
     beginMutation();
 
-    QPointer<TimerController> self(this);
-    const quint64 epoch = m_epoch;
-    m_connection->stopEntry(entryId, [self, epoch, entryId, revision](const ApiResult<TimeEntry> &result) {
-        if (!self || epoch != self->m_epoch) {
-            return;
-        }
-        if (result.ok() && !self->m_workspaceLost && self->m_entry && self->m_entry->id == entryId) {
+    m_connection->stopEntry(entryId, m_epoch.guard(this, [this, entryId, revision](const ApiResult<TimeEntry> &result) {
+        if (result.ok() && !m_workspaceLost && m_entry && m_entry->id == entryId) {
             // The reply names the project the server stopped, which another
             // client may have changed since the last state.
-            self->showReply(revision, std::nullopt, result.value);
+            showReply(revision, std::nullopt, result.value);
         }
-        self->finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
-    });
+        finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
+    }));
     return true;
 }
 
@@ -421,13 +393,9 @@ bool TimerController::pause()
     }
     beginMutation();
 
-    QPointer<TimerController> self(this);
-    const quint64 epoch = m_epoch;
-    m_state->pause([self, epoch](const TimerActionResult &result) {
-        if (self && epoch == self->m_epoch) {
-            self->finishMutation(result.outcome, result.error);
-        }
-    });
+    m_state->pause(m_epoch.guard(this, [this](const TimerActionResult &result) {
+        finishMutation(result.outcome, result.error);
+    }));
     return true;
 }
 
@@ -443,13 +411,9 @@ bool TimerController::resume()
     m_nextStartPicked = false;
     beginMutation();
 
-    QPointer<TimerController> self(this);
-    const quint64 epoch = m_epoch;
-    m_state->resume([self, epoch](const TimerActionResult &result) {
-        if (self && epoch == self->m_epoch) {
-            self->finishMutation(result.outcome, result.error, true);
-        }
-    });
+    m_state->resume(m_epoch.guard(this, [this](const TimerActionResult &result) {
+        finishMutation(result.outcome, result.error, true);
+    }));
     return true;
 }
 
@@ -522,17 +486,12 @@ bool TimerController::updateEntry(const TimeEntryUpdate &update)
     const qint64 revision = m_view->revision;
     beginMutation();
 
-    QPointer<TimerController> self(this);
-    const quint64 epoch = m_epoch;
-    m_connection->updateEntry(entryId, update, [self, epoch, entryId, revision](const ApiResult<TimeEntry> &result) {
-        if (!self || epoch != self->m_epoch) {
-            return;
+    m_connection->updateEntry(entryId, update, m_epoch.guard(this, [this, entryId, revision](const ApiResult<TimeEntry> &result) {
+        if (result.ok() && !m_workspaceLost && m_entry && m_entry->id == entryId) {
+            showReply(revision, result.value->isRunning() ? result.value : std::nullopt, result.value);
         }
-        if (result.ok() && !self->m_workspaceLost && self->m_entry && self->m_entry->id == entryId) {
-            self->showReply(revision, result.value->isRunning() ? result.value : std::nullopt, result.value);
-        }
-        self->finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
-    });
+        finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
+    }));
     return true;
 }
 
@@ -737,36 +696,34 @@ void TimerController::fetchLastEntry()
     const quint64 number = ++m_lastEntryReads;
     m_lastEntryRead = number;
 
-    QPointer<TimerController> self(this);
-    const quint64 epoch = m_epoch;
     // Known limit: the API lists only the entries of the last 9 days, so
     // after a longer break there is no last entry and the next start has no
     // project. The newest entry comes first.
-    m_connection->fetchRecentEntries([self, epoch, number](const ApiResult<QList<ListedEntry>> &result) {
-        if (!self || epoch != self->m_epoch || self->m_lastEntryRead != number) {
+    m_connection->fetchRecentEntries(m_epoch.guard(this, [this, number](const ApiResult<QList<ListedEntry>> &result) {
+        if (m_lastEntryRead != number) {
             return; // another context, or a choice or start since it was sent
         }
-        self->m_lastEntryRead = 0;
-        if (self->m_workspaceLost || self->m_nextStartPicked || self->m_entry) {
+        m_lastEntryRead = 0;
+        if (m_workspaceLost || m_nextStartPicked || m_entry) {
             return;
         }
         if (!result.ok()) {
             // Try again after the next state.
-            self->m_lastEntryWanted = true;
+            m_lastEntryWanted = true;
             return;
         }
         std::optional<qint64> project;
         bool billable = false;
         if (!result.value->isEmpty()) {
             const ListedEntry &last = result.value->first();
-            if (last.entry.workspaceId == self->workspaceId() && last.entry.projectId && last.projectActive) {
+            if (last.entry.workspaceId == workspaceId() && last.entry.projectId && last.projectActive) {
                 project = last.entry.projectId;
                 billable = last.projectBillable;
             }
         }
-        self->m_stopDefault.reset();
-        self->setNextStart(project, billable);
-    });
+        m_stopDefault.reset();
+        setNextStart(project, billable);
+    }));
 }
 
 void TimerController::fetchProjects()
@@ -776,31 +733,26 @@ void TimerController::fetchProjects()
     }
     m_projectsPending = true;
 
-    QPointer<TimerController> self(this);
-    const quint64 epoch = m_epoch;
-    m_connection->fetchProjects([self, epoch](const ApiResult<QList<Project>> &result) {
-        if (!self || epoch != self->m_epoch) {
-            return;
-        }
-        self->m_projectsPending = false;
-        if (self->m_workspaceLost) {
+    m_connection->fetchProjects(m_epoch.guard(this, [this](const ApiResult<QList<Project>> &result) {
+        m_projectsPending = false;
+        if (m_workspaceLost) {
             return;
         }
         if (result.ok()) {
-            self->m_projects = *result.value;
-            self->m_projectsIncomplete = self->m_connection && self->m_connection->projectsIncomplete();
-            self->m_projectsKnown = true;
-            self->m_lookedUpStale = self->m_lookedUp.has_value();
-            ++self->m_projectsRevision;
-            Q_EMIT self->projectsChanged();
-            self->applyStopDefault();
-            self->resolveProject();
+            m_projects = *result.value;
+            m_projectsIncomplete = m_connection && m_connection->projectsIncomplete();
+            m_projectsKnown = true;
+            m_lookedUpStale = m_lookedUp.has_value();
+            ++m_projectsRevision;
+            Q_EMIT projectsChanged();
+            applyStopDefault();
+            resolveProject();
         } else if (result.error.kind == ApiError::Kind::Forbidden) {
-            self->loseWorkspace(result.error);
+            loseWorkspace(result.error);
         } else {
-            Q_EMIT self->statusChanged();
+            Q_EMIT statusChanged();
         }
-    });
+    }));
 }
 
 void TimerController::showReply(qint64 revision, const std::optional<TimeEntry> &running, const std::optional<TimeEntry> &stoppedReply)
@@ -972,42 +924,37 @@ void TimerController::resolveProject()
     if (id && !listed && (!knownProject(*id) || stale) && m_projectsKnown && !m_lookupsPending.contains(*id) && readable()) {
         m_lookupsPending.insert(*id);
 
-        QPointer<TimerController> self(this);
-        const quint64 epoch = m_epoch;
         const quint64 revision = m_projectsRevision;
         const qint64 projectId = *id;
-        m_connection->fetchProject(projectId, [self, epoch, revision, projectId](const ApiResult<Project> &result) {
-            if (!self || epoch != self->m_epoch) {
-                return;
-            }
-            self->m_lookupsPending.remove(projectId);
-            if (self->m_workspaceLost || self->chosenProject() != projectId) {
+        m_connection->fetchProject(projectId, m_epoch.guard(this, [this, revision, projectId](const ApiResult<Project> &result) {
+            m_lookupsPending.remove(projectId);
+            if (m_workspaceLost || chosenProject() != projectId) {
                 return;
             }
             // Asked before the latest project list: show the answer for now
             // and read the project once more.
-            const bool stale = revision != self->m_projectsRevision;
+            const bool stale = revision != m_projectsRevision;
             if (result.ok()) {
-                self->m_lookedUp = *result.value;
-                self->m_lookedUpGone = false;
-                self->m_lookedUpStale = stale;
+                m_lookedUp = *result.value;
+                m_lookedUpGone = false;
+                m_lookedUpStale = stale;
             } else if (result.error.kind == ApiError::Kind::Forbidden) {
-                self->loseWorkspace(result.error);
+                loseWorkspace(result.error);
                 return;
             } else if (result.error.status == 404) {
                 // Deleted since it was chosen: keep the id, without a name.
                 Project gone;
                 gone.id = projectId;
-                gone.workspaceId = self->workspaceId();
+                gone.workspaceId = workspaceId();
                 gone.active = false;
-                self->m_lookedUp = gone;
-                self->m_lookedUpGone = true;
-                self->m_lookedUpStale = stale;
+                m_lookedUp = gone;
+                m_lookedUpGone = true;
+                m_lookedUpStale = stale;
             } else {
                 return; // read again on the next resolve
             }
-            self->resolveProject();
-        });
+            resolveProject();
+        }));
     }
     const std::optional<qint64> entryId = m_entry || isPaused() ? chosenProject() : std::nullopt;
     setEntryProject(entryId ? knownProject(*entryId) : std::nullopt);
@@ -1081,7 +1028,7 @@ void TimerController::onGenerationChanged()
 void TimerController::reset()
 {
     // Another generation, account or client: nothing carries over.
-    ++m_epoch;
+    m_epoch.advance();
     m_mutating = false;
     m_settleWhenDone = false;
     m_workspaceLost = false;

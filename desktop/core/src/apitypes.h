@@ -274,6 +274,13 @@ struct ApiError {
     {
         return kind == Kind::Network || kind == Kind::Timeout || kind == Kind::Server;
     }
+
+    // The request failed without saying whether the server acted on it: a
+    // transient failure, or an answer Tokkl could not read.
+    bool outcomeUnknown() const
+    {
+        return isTransient() || kind == Kind::InvalidResponse;
+    }
 };
 
 template<typename T>
@@ -337,6 +344,11 @@ std::optional<QJsonValue> parseJsonBody(const QByteArray &body);
 // The error a non-2xx or failed response stands for. The API sends errors as
 // a bare JSON string.
 ApiError errorFromResponse(const HttpResponse &response);
+
+// The account in an answer to GET /api/v9/me, or why there is none. A 2xx
+// answer that is not an account is InvalidResponse, with a message that
+// points at the instance URL.
+ApiResult<Me> meFromResponse(const HttpResponse &response);
 
 // createdWith names the client that starts the entry.
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);

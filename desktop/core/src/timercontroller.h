@@ -3,6 +3,7 @@
 #include "apitypes.h"
 #include "clock.h"
 #include "connection.h"
+#include "epoch.h"
 #include "timerstateclient.h"
 
 #include <QObject>
@@ -314,8 +315,8 @@ private:
     QPointer<TimerStateClient> m_state;
     QPointer<Connection> m_connection;
 
-    // Bumped by reset(); callbacks from an earlier epoch do nothing.
-    quint64 m_epoch = 0;
+    // Advanced by reset(); callbacks from an earlier epoch do nothing.
+    Epoch m_epoch;
     Connection::State m_lastState = Connection::Unconfigured;
     // The data of the current context was requested once.
     bool m_loaded = false;

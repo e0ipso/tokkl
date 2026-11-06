@@ -15,6 +15,7 @@ add_library(tokklcore STATIC
     connectionsetup.h
     credentialstore.cpp
     credentialstore.h
+    epoch.h
     instanceurl.cpp
     instanceurl.h
     pomodoropreferences.cpp
