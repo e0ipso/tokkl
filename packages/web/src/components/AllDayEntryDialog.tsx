@@ -11,7 +11,11 @@ import { useToast } from './Toast.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from './useEntryFields.ts';
 
 /** A calendar draft for a no-time entry, independent of the timer bar and saved-entry editor. */
-export function AllDayEntryDialog({ date, recentEntries, onClose }: {
+export function AllDayEntryDialog({
+  date,
+  recentEntries,
+  onClose,
+}: {
   date: string;
   recentEntries: TimeEntry[];
   onClose: () => void;
@@ -29,7 +33,9 @@ export function AllDayEntryDialog({ date, recentEntries, onClose }: {
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+    };
   }, []);
 
   const save = async () => {
@@ -53,25 +59,36 @@ export function AllDayEntryDialog({ date, recentEntries, onClose }: {
     <Modal
       title="Add all-day entry"
       onClose={onClose}
-      footer={(
+      footer={
         <>
-          <button type="button" className="button button-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="button button-ghost" onClick={onClose}>
+            Cancel
+          </button>
           <button type="submit" form={formId} className="button button-primary" disabled={create.isPending}>
             {create.isPending ? 'Adding…' : 'Add entry'}
           </button>
         </>
-      )}
+      }
     >
-      <form id={formId} className="form-grid all-day-entry-form" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <form
+        id={formId}
+        className="form-grid all-day-entry-form"
+        onSubmit={event => {
+          event.preventDefault();
+          void save();
+        }}
+      >
         <div className="field-full all-day-entry-details">
           <EntryFields
             draft={draft}
             recentEntries={recentEntries}
             placeholder="What did you work on?"
-            onType={(description) => setDraft((current) => ({ ...current, description }))}
-            onEdit={(changes) => setDraft((current) => ({ ...current, ...changes }))}
+            onType={description => setDraft(current => ({ ...current, description }))}
+            onEdit={changes => setDraft(current => ({ ...current, ...changes }))}
             onDescriptionBlur={() => {}}
-            onEnter={() => { void save(); }}
+            onEnter={() => {
+              void save();
+            }}
             readOnly={create.isPending}
           />
         </div>
@@ -81,7 +98,12 @@ export function AllDayEntryDialog({ date, recentEntries, onClose }: {
         </label>
         <label className="field">
           <span>Date</span>
-          <input type="date" value={day} disabled={create.isPending} onChange={(event) => event.target.value && setDay(event.target.value)} />
+          <input
+            type="date"
+            value={day}
+            disabled={create.isPending}
+            onChange={event => event.target.value && setDay(event.target.value)}
+          />
         </label>
         <div className="field">
           <label htmlFor={fields.id('duration')}>Duration</label>
@@ -90,7 +112,7 @@ export function AllDayEntryDialog({ date, recentEntries, onClose }: {
             value={durationText}
             placeholder="e.g. 1:30 or 90m"
             disabled={create.isPending}
-            onChange={(event) => setDurationText(event.target.value)}
+            onChange={event => setDurationText(event.target.value)}
           />
           {fields.message('duration')}
         </div>

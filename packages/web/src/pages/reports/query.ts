@@ -3,8 +3,17 @@ import type { ReportState } from './urlState.ts';
 
 /** Filter fields shared by the app report endpoints and the CSV exports. */
 export type ReportFilterBody = Pick<
-  ReportQuery, 'start_date' | 'end_date' | 'project_ids' | 'client_ids' | 'tag_ids' | 'billable' | 'description'
-  | 'exclude_project_ids' | 'exclude_client_ids' | 'exclude_tag_ids'
+  ReportQuery,
+  | 'start_date'
+  | 'end_date'
+  | 'project_ids'
+  | 'client_ids'
+  | 'tag_ids'
+  | 'billable'
+  | 'description'
+  | 'exclude_project_ids'
+  | 'exclude_client_ids'
+  | 'exclude_tag_ids'
 >;
 
 function idFilter(ids: ReportState['projects'], negated: boolean, include: string, exclude: string) {

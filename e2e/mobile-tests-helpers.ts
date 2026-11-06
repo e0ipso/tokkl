@@ -46,8 +46,8 @@ export async function openMore(page: Page): Promise<Locator> {
   await expect(sheet).toBeVisible();
   // Visible can mean the sheet is still sliding up from below the viewport. Wait for its
   // opening animation before checking link bounds, including frames delayed by a busy runner.
-  await sheet.evaluate(async (element) => {
-    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  await sheet.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
   });
   return sheet;
 }
@@ -69,7 +69,12 @@ export async function tapNav(page: Page, name: string): Promise<void> {
     const link = nav.getByRole('link', { name, exact: true });
     await tap(link);
     await expect(link).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('heading', { level: 1 }).or(page.getByRole('region', { name: 'Timer' })).first()).toBeVisible();
+    await expect(
+      page
+        .getByRole('heading', { level: 1 })
+        .or(page.getByRole('region', { name: 'Timer' }))
+        .first(),
+    ).toBeVisible();
   }
   await expectNoPageOverflow(page);
 }
@@ -93,7 +98,11 @@ export async function tapDownload(page: Page, control: Locator): Promise<{ filen
 }
 
 /** Taps a file-picking control and answers the chooser it opens. */
-export async function tapUpload(page: Page, control: Locator, file: { name: string; mimeType: string; buffer: Buffer }): Promise<void> {
+export async function tapUpload(
+  page: Page,
+  control: Locator,
+  file: { name: string; mimeType: string; buffer: Buffer },
+): Promise<void> {
   const chooser = page.waitForEvent('filechooser');
   await tap(control);
   await (await chooser).setFiles(file);

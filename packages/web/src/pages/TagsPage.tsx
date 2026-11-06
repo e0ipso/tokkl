@@ -19,9 +19,9 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
   const cancelled = useRef(false);
 
   const rename = useAction<string, Tag>({
-    mutationFn: (name) => api.put<Tag>(wsPath(wid, 'tags', tag.id), { name }),
+    mutationFn: name => api.put<Tag>(wsPath(wid, 'tags', tag.id), { name }),
     invalidate: TAG_KEYS,
-    success: (saved) => `Renamed to ${saved.name}`,
+    success: saved => `Renamed to ${saved.name}`,
     onSuccess: () => setDraft(null),
   });
 
@@ -50,9 +50,9 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
             maxLength={255}
             autoFocus
             disabled={rename.isPending}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={event => setDraft(event.target.value)}
             onBlur={commit}
-            onKeyDown={(event) => {
+            onKeyDown={event => {
               if (event.key === 'Enter') event.currentTarget.blur();
               if (event.key === 'Escape') {
                 cancelled.current = true;
@@ -63,10 +63,23 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
         )}
       </td>
       <td className="manage-actions">
-        <button type="button" className="icon-button" aria-label={`Rename ${tag.name}`} title="Rename" onClick={() => setDraft(tag.name)}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={`Rename ${tag.name}`}
+          title="Rename"
+          onClick={() => setDraft(tag.name)}
+        >
           <Icon name="edit" size={16} />
         </button>
-        <button type="button" className="icon-button" aria-label={`Delete ${tag.name}`} title="Delete" data-row-action="delete" onClick={onDelete}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={`Delete ${tag.name}`}
+          title="Delete"
+          data-row-action="delete"
+          onClick={onDelete}
+        >
           <Icon name="trash" size={16} />
         </button>
       </td>
@@ -85,13 +98,13 @@ export function TagsPage() {
   const heading = useRef<HTMLHeadingElement>(null);
 
   const create = useAction<string, Tag>({
-    mutationFn: (name) => api.post<Tag>(wsPath(wid, 'tags'), { name }),
+    mutationFn: name => api.post<Tag>(wsPath(wid, 'tags'), { name }),
     invalidate: [keys.tags],
-    success: (tag) => `Created ${tag.name}`,
+    success: tag => `Created ${tag.name}`,
     onSuccess: () => setNewName(''),
   });
   const remove = useAction<Tag>({
-    mutationFn: (tag) => api.delete(wsPath(wid, 'tags', tag.id)),
+    mutationFn: tag => api.delete(wsPath(wid, 'tags', tag.id)),
     invalidate: TAG_KEYS,
     success: (_result, tag) => `Deleted ${tag.name}`,
     onSuccess: (_result, tag) => {
@@ -108,18 +121,27 @@ export function TagsPage() {
     create.mutate(trimmed);
   };
 
-  const visible = (tags ?? []).filter((tag) => includesText(tag.name, search));
+  const visible = (tags ?? []).filter(tag => includesText(tag.name, search));
 
   return (
     <div className="page manage-page manage-narrow">
       <header className="page-header">
-        <h1 ref={heading} tabIndex={-1}>Tags</h1>
+        <h1 ref={heading} tabIndex={-1}>
+          Tags
+        </h1>
       </header>
 
       <div className="toolbar">
         <form className="field" onSubmit={submit}>
           <div className="inline-controls">
-            <input {...fields.field('name')} value={newName} placeholder="New tag" aria-label="New tag name" maxLength={255} onChange={(event) => setNewName(event.target.value)} />
+            <input
+              {...fields.field('name')}
+              value={newName}
+              placeholder="New tag"
+              aria-label="New tag name"
+              maxLength={255}
+              onChange={event => setNewName(event.target.value)}
+            />
             <button type="submit" className="button button-primary" disabled={create.isPending}>
               <Icon name="plus" size={16} /> Add tag
             </button>
@@ -150,16 +172,22 @@ export function TagsPage() {
             <thead>
               <tr>
                 <th>Tag</th>
-                <th><span className="visually-hidden">Actions</span></th>
+                <th>
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody ref={tbody}>
-              {visible.map((tag) => <TagRow key={tag.id} tag={tag} onDelete={() => setDeleting(tag)} />)}
+              {visible.map(tag => (
+                <TagRow key={tag.id} tag={tag} onDelete={() => setDeleting(tag)} />
+              ))}
             </tbody>
           </table>
         </div>
       ) : null}
-      {tags && tags.length > 0 ? <p className="hint manage-footnote">Click a tag to rename it. Renaming updates every entry that uses it.</p> : null}
+      {tags && tags.length > 0 ? (
+        <p className="hint manage-footnote">Click a tag to rename it. Renaming updates every entry that uses it.</p>
+      ) : null}
 
       {deleting ? (
         <ConfirmModal

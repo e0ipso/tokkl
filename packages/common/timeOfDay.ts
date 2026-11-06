@@ -14,7 +14,8 @@ function matchTimeOfDay(raw: string): RegExpExecArray | null {
  * Times are minutes after midnight. An explicit suffix is never second-guessed.
  */
 export function parseTimeOfDay(
-  raw: string, options: { twelveHour?: boolean; reference?: number; after?: number } = {},
+  raw: string,
+  options: { twelveHour?: boolean; reference?: number; after?: number } = {},
 ): number | null {
   const match = matchTimeOfDay(raw);
   if (!match) return null;

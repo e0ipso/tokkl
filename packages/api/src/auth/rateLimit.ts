@@ -30,7 +30,7 @@ export const SETUP_CODE_LIMIT = 10;
  * they are the same account. toLowerCase would also fold letters such as Ä that the key keeps apart.
  */
 export function normalizeEmail(email: string): string {
-  return email.trim().replace(/[A-Z]/g, (letter) => String.fromCharCode(letter.charCodeAt(0) + 32));
+  return email.trim().replace(/[A-Z]/g, letter => String.fromCharCode(letter.charCodeAt(0) + 32));
 }
 
 /** The counters a successful login clears: the account from this address, and the account. */
@@ -94,7 +94,10 @@ export class FailureLimiter {
 
   /** Clears the failure counts. Checks still running for a key keep their slots. */
   async reset(keys: Keys): Promise<void> {
-    await this.limits.reset(this.stored(keys).map(({ keyHash }) => keyHash), new Date().toISOString());
+    await this.limits.reset(
+      this.stored(keys).map(({ keyHash }) => keyHash),
+      new Date().toISOString(),
+    );
   }
 
   /**
@@ -105,9 +108,17 @@ export class FailureLimiter {
   async attempt(keys: Keys, check: () => Promise<boolean>): Promise<AttemptResult> {
     const counters = this.stored(keys);
     const now = Date.now();
-    const reservation = await this.limits.reserve(counters, new Date(now).toISOString(), this.windowMs, RESERVATION_LEASE_MS);
+    const reservation = await this.limits.reserve(
+      counters,
+      new Date(now).toISOString(),
+      this.windowMs,
+      RESERVATION_LEASE_MS,
+    );
     if (!reservation.ok) {
-      return { refused: true, retryAfter: reservation.reason === 'slots' ? 1 : this.secondsUntil(reservation.resetAts, now) };
+      return {
+        refused: true,
+        retryAfter: reservation.reason === 'slots' ? 1 : this.secondsUntil(reservation.resetAts, now),
+      };
     }
     let failed = false;
     try {

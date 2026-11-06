@@ -39,18 +39,56 @@ const SAMPLE_SECONDS = 47 * 60 + 6;
  * a screen reader and the error message name, and the range the server accepts.
  */
 const POMODORO_NUMBERS = [
-  { key: 'pomodoro_focus_interval_in_minutes', label: 'Work', shortUnit: 'min', unit: 'minutes', range: POMODORO_SESSION_CONFIG_RANGES.workMinutes },
-  { key: 'pomodoro_break_interval_in_minutes', label: 'Short rest', shortUnit: 'min', unit: 'minutes', range: POMODORO_SESSION_CONFIG_RANGES.shortRestMinutes },
-  { key: 'pomodoro_long_break_interval_in_minutes', label: 'Long rest', shortUnit: 'min', unit: 'minutes', range: POMODORO_SESSION_CONFIG_RANGES.longRestMinutes },
-  { key: 'pomodoro_long_break_every', label: 'Long rest every', shortUnit: 'pomodoros', unit: 'pomodoros', range: POMODORO_SESSION_CONFIG_RANGES.longRestEvery },
-] as const satisfies ReadonlyArray<{ key: keyof Preferences; label: string; shortUnit: string; unit: string; range: StepperRange }>;
+  {
+    key: 'pomodoro_focus_interval_in_minutes',
+    label: 'Work',
+    shortUnit: 'min',
+    unit: 'minutes',
+    range: POMODORO_SESSION_CONFIG_RANGES.workMinutes,
+  },
+  {
+    key: 'pomodoro_break_interval_in_minutes',
+    label: 'Short rest',
+    shortUnit: 'min',
+    unit: 'minutes',
+    range: POMODORO_SESSION_CONFIG_RANGES.shortRestMinutes,
+  },
+  {
+    key: 'pomodoro_long_break_interval_in_minutes',
+    label: 'Long rest',
+    shortUnit: 'min',
+    unit: 'minutes',
+    range: POMODORO_SESSION_CONFIG_RANGES.longRestMinutes,
+  },
+  {
+    key: 'pomodoro_long_break_every',
+    label: 'Long rest every',
+    shortUnit: 'pomodoros',
+    unit: 'pomodoros',
+    range: POMODORO_SESSION_CONFIG_RANGES.longRestEvery,
+  },
+] as const satisfies ReadonlyArray<{
+  key: keyof Preferences;
+  label: string;
+  shortUnit: string;
+  unit: string;
+  range: StepperRange;
+}>;
 
 const NUMBER_FIELDS = [...POMODORO_NUMBERS, { key: 'long_timer_reminder_hours', unit: 'hours' }] as const;
-type NumberKey = typeof NUMBER_FIELDS[number]['key'];
+type NumberKey = (typeof NUMBER_FIELDS)[number]['key'];
 
-type Editable = Pick<Preferences,
-  'theme' | 'date_format' | 'timeofday_format' | 'duration_format' | 'collapseTimeEntries' | 'keyboard_shortcuts_enabled'
-  | 'long_timer_reminder_enabled' | NumberKey>;
+type Editable = Pick<
+  Preferences,
+  | 'theme'
+  | 'date_format'
+  | 'timeofday_format'
+  | 'duration_format'
+  | 'collapseTimeEntries'
+  | 'keyboard_shortcuts_enabled'
+  | 'long_timer_reminder_enabled'
+  | NumberKey
+>;
 
 /** What the form shows: the numbers are the text in their inputs, so a half-typed value survives. */
 type Draft = { [K in keyof Editable]: K extends NumberKey ? string : Editable[K] };
@@ -65,9 +103,12 @@ function pick(prefs: Preferences): Editable {
     duration_format: prefs.duration_format,
     collapseTimeEntries: prefs.collapseTimeEntries,
     keyboard_shortcuts_enabled: prefs.keyboard_shortcuts_enabled,
-    pomodoro_focus_interval_in_minutes: prefs.pomodoro_focus_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.workMinutes,
-    pomodoro_break_interval_in_minutes: prefs.pomodoro_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.shortRestMinutes,
-    pomodoro_long_break_interval_in_minutes: prefs.pomodoro_long_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestMinutes,
+    pomodoro_focus_interval_in_minutes:
+      prefs.pomodoro_focus_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.workMinutes,
+    pomodoro_break_interval_in_minutes:
+      prefs.pomodoro_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.shortRestMinutes,
+    pomodoro_long_break_interval_in_minutes:
+      prefs.pomodoro_long_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestMinutes,
     pomodoro_long_break_every: prefs.pomodoro_long_break_every ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestEvery,
   };
 }
@@ -88,14 +129,17 @@ const isWholeNumber = (text: string) => text.trim() !== '' && Number.isInteger(N
 /** Whether an edited value is what the server stores, comparing a typed number by its value, not its text. */
 function isStored(key: keyof Draft, value: Draft[keyof Draft], stored: Editable): boolean {
   const current = stored[key];
-  return typeof current === 'number' ? typeof value === 'string' && isWholeNumber(value) && Number(value.trim()) === current : value === current;
+  return typeof current === 'number'
+    ? typeof value === 'string' && isWholeNumber(value) && Number(value.trim()) === current
+    : value === current;
 }
 
 /** The request body for the edited fields; a typed number goes as a number. */
 function changesFrom(edits: Partial<Draft>): Partial<Preferences> {
   const changes: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(edits)) {
-    changes[key] = typeof value === 'string' && NUMBER_FIELDS.some((field) => field.key === key) ? Number(value.trim()) : value;
+    changes[key] =
+      typeof value === 'string' && NUMBER_FIELDS.some(field => field.key === key) ? Number(value.trim()) : value;
   }
   return changes;
 }
@@ -116,23 +160,27 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   const [edits, setEdits] = useState<Partial<Draft>>({});
   const serverDraft = toDraft(pick(prefs));
   const draft: Draft = { ...serverDraft, ...edits };
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setEdits((current) => {
-    const next = { ...current };
-    if (!save.isPending && value === serverDraft[key]) delete next[key];
-    else next[key] = value;
-    return next;
-  });
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
+    setEdits(current => {
+      const next = { ...current };
+      if (!save.isPending && value === serverDraft[key]) delete next[key];
+      else next[key] = value;
+      return next;
+    });
 
   // Once a save settles, an edit equal to the stored value is no longer an edit. Anything else typed
   // while the request ran stays, even a value equal to what the server had before the save.
-  const dropEditsEqualTo = (stored: Editable) => setEdits((current) => Object.fromEntries(
-    Object.entries(current).filter(([key, value]) => !isStored(key as keyof Draft, value, stored)),
-  ));
+  const dropEditsEqualTo = (stored: Editable) =>
+    setEdits(current =>
+      Object.fromEntries(
+        Object.entries(current).filter(([key, value]) => !isStored(key as keyof Draft, value, stored)),
+      ),
+    );
 
   const todayKey = today(settings.timeZone);
   const now = new Date();
   // A saved format this form doesn't offer stays selectable instead of silently switching.
-  const dateFormats: string[] = DATE_FORMATS.includes(draft.date_format as typeof DATE_FORMATS[number])
+  const dateFormats: string[] = DATE_FORMATS.includes(draft.date_format as (typeof DATE_FORMATS)[number])
     ? [...DATE_FORMATS]
     : [draft.date_format, ...DATE_FORMATS];
   const twelveHour = /a/i.test(draft.timeofday_format);
@@ -140,21 +188,22 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   // Only whole numbers go to the server; it checks the allowed values, and its 400 shows on the
   // field it names, as in "Invalid pomodoro_long_break_every: expected ...".
   const submit = () => {
-    const valid = fields.validate(NUMBER_FIELDS.map(({ key, unit }) => [
-      key,
-      !isWholeNumber(draft[key]) && `Enter a whole number of ${unit}`,
-    ] as const));
+    const valid = fields.validate(
+      NUMBER_FIELDS.map(
+        ({ key, unit }) => [key, !isWholeNumber(draft[key]) && `Enter a whole number of ${unit}`] as const,
+      ),
+    );
     if (!valid) return;
     if (Object.keys(edits).length === 0) {
       toast.show('No changes to save');
       return;
     }
     save.mutate(changesFrom(edits), {
-      onSuccess: (saved) => {
+      onSuccess: saved => {
         dropEditsEqualTo(pick(saved));
         toast.show('Preferences saved');
       },
-      onError: (error) => {
+      onError: error => {
         // The failed save has rolled the cache back to the stored values.
         const stored = queryClient.getQueryData<Preferences>(keys.preferences);
         if (stored) dropEditsEqualTo(pick(stored));
@@ -170,22 +219,31 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
       <div className="form-grid">
         <label className="field">
           <span>Theme</span>
-          <select value={draft.theme} onChange={(event) => set('theme', event.target.value as Preferences['theme'])}>
-            {THEMES.map((theme) => <option key={theme.value} value={theme.value}>{theme.label}</option>)}
+          <select value={draft.theme} onChange={event => set('theme', event.target.value as Preferences['theme'])}>
+            {THEMES.map(theme => (
+              <option key={theme.value} value={theme.value}>
+                {theme.label}
+              </option>
+            ))}
           </select>
         </label>
         <label className="field">
           <span>Date format</span>
-          <select value={draft.date_format} onChange={(event) => set('date_format', event.target.value)}>
-            {dateFormats.map((format) => (
-              <option key={format} value={format}>{format} ({formatDate(todayKey, format)})</option>
+          <select value={draft.date_format} onChange={event => set('date_format', event.target.value)}>
+            {dateFormats.map(format => (
+              <option key={format} value={format}>
+                {format} ({formatDate(todayKey, format)})
+              </option>
             ))}
           </select>
         </label>
         <label className="field">
           <span>Time format</span>
-          <select value={twelveHour ? 'h:mm A' : 'H:mm'} onChange={(event) => set('timeofday_format', event.target.value)}>
-            {TIME_FORMATS.map((format) => (
+          <select
+            value={twelveHour ? 'h:mm A' : 'H:mm'}
+            onChange={event => set('timeofday_format', event.target.value)}
+          >
+            {TIME_FORMATS.map(format => (
               <option key={format.value} value={format.value}>
                 {format.label} ({formatTime(now, { timeZone: settings.timeZone, twelveHour: format.twelveHour })})
               </option>
@@ -194,9 +252,14 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
         </label>
         <label className="field">
           <span>Duration format</span>
-          <select value={draft.duration_format} onChange={(event) => set('duration_format', event.target.value as DurationFormat)}>
-            {DURATION_FORMATS.map((format) => (
-              <option key={format.value} value={format.value}>{format.label} ({formatDuration(SAMPLE_SECONDS, format.value)})</option>
+          <select
+            value={draft.duration_format}
+            onChange={event => set('duration_format', event.target.value as DurationFormat)}
+          >
+            {DURATION_FORMATS.map(format => (
+              <option key={format.value} value={format.value}>
+                {format.label} ({formatDuration(SAMPLE_SECONDS, format.value)})
+              </option>
             ))}
           </select>
         </label>
@@ -204,7 +267,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
           <input
             type="checkbox"
             checked={draft.collapseTimeEntries}
-            onChange={(event) => set('collapseTimeEntries', event.target.checked)}
+            onChange={event => set('collapseTimeEntries', event.target.checked)}
           />
           <span>Group similar time entries in the timer list</span>
         </label>
@@ -212,18 +275,20 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
           <input
             type="checkbox"
             checked={draft.keyboard_shortcuts_enabled}
-            onChange={(event) => set('keyboard_shortcuts_enabled', event.target.checked)}
+            onChange={event => set('keyboard_shortcuts_enabled', event.target.checked)}
           />
           <span>Keyboard shortcuts</span>
         </label>
       </div>
-      <h3 className="settings-subheading" id="timer-reminder-title">Long-running timers</h3>
+      <h3 className="settings-subheading" id="timer-reminder-title">
+        Long-running timers
+      </h3>
       <div className="form-grid" role="group" aria-labelledby="timer-reminder-title">
         <label className="field checkbox-field field-full">
           <input
             type="checkbox"
             checked={draft.long_timer_reminder_enabled}
-            onChange={(event) => set('long_timer_reminder_enabled', event.target.checked)}
+            onChange={event => set('long_timer_reminder_enabled', event.target.checked)}
           />
           <span>Remind me to check long-running timers</span>
         </label>
@@ -236,27 +301,41 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
             min={1}
             max={168}
             value={draft.long_timer_reminder_hours}
-            onChange={(event) => set('long_timer_reminder_hours', event.target.value)}
+            onChange={event => set('long_timer_reminder_hours', event.target.value)}
           />
           {fields.message('long_timer_reminder_hours')}
         </div>
-        <p className="hint field-full">Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.</p>
+        <p className="hint field-full">
+          Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.
+        </p>
       </div>
-      <h3 className="settings-subheading" id="pomodoro-title">Pomodoro session defaults</h3>
+      <h3 className="settings-subheading" id="pomodoro-title">
+        Pomodoro session defaults
+      </h3>
       <LengthStepperGrid aria-labelledby="pomodoro-title">
         {POMODORO_NUMBERS.map(({ key, label, shortUnit, unit, range }) => (
           <LengthStepper
             key={key}
-            label={label} unit={shortUnit} spokenUnit={unit} range={range}
+            label={label}
+            unit={shortUnit}
+            spokenUnit={unit}
+            range={range}
             value={draft[key]}
-            onChange={(text) => { set(key, text); fields.clear(key); }}
+            onChange={text => {
+              set(key, text);
+              fields.clear(key);
+            }}
             inputProps={fields.field(key)}
             error={fields.message(key)}
           />
         ))}
       </LengthStepperGrid>
-      <p className="hint settings-hint">New sessions on the Pomodoro page start with these lengths. You can change them there before you start.</p>
-      <h3 className="settings-subheading" id="notifications-title">Notifications</h3>
+      <p className="hint settings-hint">
+        New sessions on the Pomodoro page start with these lengths. You can change them there before you start.
+      </p>
+      <h3 className="settings-subheading" id="notifications-title">
+        Notifications
+      </h3>
       <div className="form-grid" role="group" aria-labelledby="notifications-title">
         <AllowNotifications />
       </div>

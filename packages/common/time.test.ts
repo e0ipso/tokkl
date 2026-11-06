@@ -1,7 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addClockMinutes, addDays, canonicalTimeZone, clockMinutes, clockSpanOnDay, dateKey, startOfDay, startOfWeek, zonedToUtc,
+  addClockMinutes,
+  addDays,
+  canonicalTimeZone,
+  clockMinutes,
+  clockSpanOnDay,
+  dateKey,
+  startOfDay,
+  startOfWeek,
+  zonedToUtc,
 } from './time.ts';
 
 test('canonicalTimeZone folds case and returns the name Intl resolves', () => {
@@ -11,15 +19,18 @@ test('canonicalTimeZone folds case and returns the name Intl resolves', () => {
 });
 
 test('canonicalTimeZone maps the UTC aliases to UTC', () => {
-  for (const name of ['UTC', 'utc', 'Etc/UTC', 'etc/utc', 'GMT', 'Etc/GMT']) assert.equal(canonicalTimeZone(name), 'UTC', name);
+  for (const name of ['UTC', 'utc', 'Etc/UTC', 'etc/utc', 'GMT', 'Etc/GMT'])
+    assert.equal(canonicalTimeZone(name), 'UTC', name);
 });
 
 test('canonicalTimeZone refuses offset IDs, also the ones Intl accepts', () => {
-  for (const name of ['+02:00', '-0500', '-05:00', '\u221205:00', '+23:59', '+00:00']) assert.equal(canonicalTimeZone(name), null, name);
+  for (const name of ['+02:00', '-0500', '-05:00', '\u221205:00', '+23:59', '+00:00'])
+    assert.equal(canonicalTimeZone(name), null, name);
 });
 
 test('canonicalTimeZone refuses names Intl does not know', () => {
-  for (const name of ['', 'Bogus/Zone', 'Europe/Nowhere', 'Z', ' Europe/Madrid']) assert.equal(canonicalTimeZone(name), null, name);
+  for (const name of ['', 'Bogus/Zone', 'Europe/Nowhere', 'Z', ' Europe/Madrid'])
+    assert.equal(canonicalTimeZone(name), null, name);
 });
 
 test('startOfDay handles DST transitions', () => {
@@ -70,17 +81,25 @@ test('clockMinutes reads the local wall clock, with seconds as a fraction', () =
 
 test('clockSpanOnDay places entries by clock time on Madrid DST days', () => {
   // Spring: a 10:00-11:00 entry sits at 600-660, not one hour higher.
-  assert.deepEqual(clockSpanOnDay(at('2026-03-29T08:00:00Z'), at('2026-03-29T09:00:00Z'), '2026-03-29', MADRID),
-    { top: 600, bottom: 660 });
+  assert.deepEqual(clockSpanOnDay(at('2026-03-29T08:00:00Z'), at('2026-03-29T09:00:00Z'), '2026-03-29', MADRID), {
+    top: 600,
+    bottom: 660,
+  });
   // 01:30 CET to 03:30 CEST is one hour of elapsed time across the gap but spans 90-210 on the clock.
-  assert.deepEqual(clockSpanOnDay(at('2026-03-29T00:30:00Z'), at('2026-03-29T01:30:00Z'), '2026-03-29', MADRID),
-    { top: 90, bottom: 210 });
+  assert.deepEqual(clockSpanOnDay(at('2026-03-29T00:30:00Z'), at('2026-03-29T01:30:00Z'), '2026-03-29', MADRID), {
+    top: 90,
+    bottom: 210,
+  });
   // Autumn: 10:00-11:00 CET.
-  assert.deepEqual(clockSpanOnDay(at('2026-10-25T09:00:00Z'), at('2026-10-25T10:00:00Z'), '2026-10-25', MADRID),
-    { top: 600, bottom: 660 });
+  assert.deepEqual(clockSpanOnDay(at('2026-10-25T09:00:00Z'), at('2026-10-25T10:00:00Z'), '2026-10-25', MADRID), {
+    top: 600,
+    bottom: 660,
+  });
   // Inside the repeated hour, 02:30 CEST to 02:15 CET ends above where it starts.
-  assert.deepEqual(clockSpanOnDay(at('2026-10-25T00:30:00Z'), at('2026-10-25T01:15:00Z'), '2026-10-25', MADRID),
-    { top: 150, bottom: 135 });
+  assert.deepEqual(clockSpanOnDay(at('2026-10-25T00:30:00Z'), at('2026-10-25T01:15:00Z'), '2026-10-25', MADRID), {
+    top: 150,
+    bottom: 135,
+  });
 });
 
 test('clockSpanOnDay clips multi-day entries and skips days they miss', () => {
@@ -104,8 +123,10 @@ test('clockSpanOnDay on a day whose midnight does not exist', () => {
   assert.deepEqual(clockSpanOnDay(start, stop, '2026-09-05', 'America/Santiago'), { top: 1380, bottom: 1440 });
   assert.deepEqual(clockSpanOnDay(start, stop, '2026-09-06', 'America/Santiago'), { top: 0, bottom: 120 });
   // An entry starting at the first instant of the day sits at 01:00 on the clock.
-  assert.deepEqual(clockSpanOnDay(at('2026-09-06T04:00:00Z'), stop, '2026-09-06', 'America/Santiago'),
-    { top: 60, bottom: 120 });
+  assert.deepEqual(clockSpanOnDay(at('2026-09-06T04:00:00Z'), stop, '2026-09-06', 'America/Santiago'), {
+    top: 60,
+    bottom: 120,
+  });
 });
 
 test('clockSpanOnDay places an empty range on the day that contains it', () => {
@@ -122,7 +143,10 @@ test('clockSpanOnDay places an empty range on the day that contains it', () => {
   assert.deepEqual(clockSpanOnDay(nextMidnight, nextMidnight, '2026-06-18', MADRID), { top: 0, bottom: 0 });
   // A range that ends at midnight still misses the next day.
   assert.equal(clockSpanOnDay(at('2026-06-16T21:00:00Z'), midnight, '2026-06-17', MADRID), null);
-  assert.deepEqual(clockSpanOnDay(at('2026-06-16T21:00:00Z'), midnight, '2026-06-16', MADRID), { top: 1380, bottom: 1440 });
+  assert.deepEqual(clockSpanOnDay(at('2026-06-16T21:00:00Z'), midnight, '2026-06-16', MADRID), {
+    top: 1380,
+    bottom: 1440,
+  });
 });
 
 test('clockSpanOnDay places an empty range at midnight on days the clocks change', () => {
@@ -170,7 +194,10 @@ test('the next local day at a clock time spans DST nights correctly', () => {
   assert.equal(hours(zonedToUtc(2026, 10, 24, 10, 0, 0, MADRID), zonedToUtc(2026, 10, 25, 9, 0, 0, MADRID)), 24);
   assert.equal(hours(zonedToUtc(2026, 10, 13, 10, 0, 0, MADRID), zonedToUtc(2026, 10, 14, 9, 0, 0, MADRID)), 23);
   // Overnight splits resolve 04:00 on the next calendar date, which is not start + 24 hours on DST nights.
-  for (const [day, iso] of [['2026-03-29', '2026-03-29T02:00:00.000Z'], ['2026-10-25', '2026-10-25T03:00:00.000Z']] as const) {
+  for (const [day, iso] of [
+    ['2026-03-29', '2026-03-29T02:00:00.000Z'],
+    ['2026-10-25', '2026-10-25T03:00:00.000Z'],
+  ] as const) {
     const previous = addDays(day, -1);
     const [y, m, d] = day.split('-').map(Number) as [number, number, number];
     const split = zonedToUtc(y, m, d, 4, 0, 0, MADRID);

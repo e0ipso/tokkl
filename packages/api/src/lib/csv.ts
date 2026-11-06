@@ -41,7 +41,7 @@ export function parseCsv(text: string): string[][] {
     row.push(field);
     rows.push(row);
   }
-  return rows.filter((r) => r.some((value) => value.trim() !== ''));
+  return rows.filter(r => r.some(value => value.trim() !== ''));
 }
 
 function escapeField(value: string): string {
@@ -51,6 +51,9 @@ function escapeField(value: string): string {
 }
 
 export function toCsv(rows: Array<Array<string | number | null | undefined>>): string {
-  return rows.map((row) => row.map((value) => escapeField(value === null || value === undefined ? '' : String(value))).join(','))
-    .join('\r\n') + '\r\n';
+  return (
+    rows
+      .map(row => row.map(value => escapeField(value === null || value === undefined ? '' : String(value))).join(','))
+      .join('\r\n') + '\r\n'
+  );
 }

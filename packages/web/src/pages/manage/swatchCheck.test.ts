@@ -9,7 +9,7 @@ const DARK = 'var(--swatch-check-dark)';
 // Independent WCAG 2 contrast so the test does not reuse the helper's own maths.
 function contrast(a: string, b: string): number {
   const lum = (hex: string) => {
-    const [r, g, b] = [1, 3, 5].map((i) => {
+    const [r, g, b] = [1, 3, 5].map(i => {
       const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
       return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
     }) as [number, number, number];
@@ -40,7 +40,7 @@ test('checkColor picks the higher-contrast check for every palette swatch', () =
 });
 
 test('the worst palette case matches the figure recorded in manage.css', () => {
-  const ratios = PROJECT_COLORS.map((hex) => ({ hex, ratio: contrast(hex, tokenHex[checkColor(hex)]!) }));
+  const ratios = PROJECT_COLORS.map(hex => ({ hex, ratio: contrast(hex, tokenHex[checkColor(hex)]!) }));
   const worst = ratios.reduce((a, b) => (b.ratio < a.ratio ? b : a));
   assert.equal(worst.hex, '#9e5bd9');
   assert.equal(checkColor(worst.hex), DARK);

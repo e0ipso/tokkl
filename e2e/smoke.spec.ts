@@ -123,8 +123,12 @@ test('undoing a discard while another timer runs restores the entry stopped on t
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.entry-line', { has: page.locator('input[value="Started by mistake"]') })).toHaveCount(1);
   const all = await api.entries();
-  expect(all.filter((entry) => entry.stop === null).map((entry) => entry.id)).toEqual([kept.id]);
-  expectSnapped(all.find((entry) => entry.id === discarded.id)!, discarded.start, (await data.me()).time_resolution_minutes * 60_000);
+  expect(all.filter(entry => entry.stop === null).map(entry => entry.id)).toEqual([kept.id]);
+  expectSnapped(
+    all.find(entry => entry.id === discarded.id)!,
+    discarded.start,
+    (await data.me()).time_resolution_minutes * 60_000,
+  );
   await expect(timer.getByLabel('Description')).toHaveValue('Started on purpose');
   await timer.getByRole('button', { name: 'Stop timer' }).click();
 });
@@ -151,25 +155,39 @@ test('a timer stopped seconds after it started goes to the trash, and Undo bring
 test('Continue, a favorite and C each replace a running timer', async ({ page, data }) => {
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   await data.createEntry({ description: 'Earlier work', start: `${day}T10:00:00Z`, stop: `${day}T11:15:00Z` });
-  await data.savePreferences({ favorites: [{ description: 'Standup', project_id: null, task_id: null, tags: [], billable: false }] });
+  await data.savePreferences({
+    favorites: [{ description: 'Standup', project_id: null, task_id: null, tags: [], billable: false }],
+  });
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
-  const entries = async () => (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'))
-    .json() as Promise<Array<{ id: number; description: string; start: string; stop: string | null }>>;
-  const trash = async () => (await page.request.get('/api/app/trash'))
-    .json() as Promise<Array<{ description: string; start: string; stop: string }>>;
+  const entries = async () =>
+    (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01')).json() as Promise<
+      Array<{ id: number; description: string; start: string; stop: string | null }>
+    >;
+  const trash = async () =>
+    (await page.request.get('/api/app/trash')).json() as Promise<
+      Array<{ description: string; start: string; stop: string }>
+    >;
   const step = (await data.me()).time_resolution_minutes * 60_000;
   // Exactly one entry runs and it is `description`. `previous` was replaced seconds after it
   // started, so it rounded to zero and is the newest of `trashed` entries in the trash, with zero
   // length on a grid point.
   const expectReplaced = async (description: string, previous: string, trashed: number) => {
     await expect(timer.getByLabel('Description')).toHaveValue(description);
-    await expect.poll(async () => {
-      const running = (await entries()).filter((entry) => !entry.stop);
-      const gone = await trash();
-      return running.length === 1 && running[0]!.description === description && gone.length === trashed
-        && gone[0]!.description === previous && gone[0]!.stop === gone[0]!.start && Date.parse(gone[0]!.start) % step === 0;
-    }).toBe(true);
+    await expect
+      .poll(async () => {
+        const running = (await entries()).filter(entry => !entry.stop);
+        const gone = await trash();
+        return (
+          running.length === 1 &&
+          running[0]!.description === description &&
+          gone.length === trashed &&
+          gone[0]!.description === previous &&
+          gone[0]!.stop === gone[0]!.start &&
+          Date.parse(gone[0]!.start) % step === 0
+        );
+      })
+      .toBe(true);
   };
 
   await timer.getByLabel('Description').fill('Running now');
@@ -177,10 +195,12 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
 
   // A double click starts one entry, not two.
-  await page.locator('.entry-line', { has: page.locator('input[value="Earlier work"]') })
-    .getByRole('button', { name: 'Continue this entry' }).dblclick();
+  await page
+    .locator('.entry-line', { has: page.locator('input[value="Earlier work"]') })
+    .getByRole('button', { name: 'Continue this entry' })
+    .dblclick();
   await expectReplaced('Earlier work', 'Running now', 1);
-  expect((await entries()).filter((entry) => entry.description === 'Earlier work')).toHaveLength(2);
+  expect((await entries()).filter(entry => entry.description === 'Earlier work')).toHaveLength(2);
 
   await page.locator('.favorites').getByRole('button', { name: 'Standup' }).click();
   await expectReplaced('Standup', 'Earlier work', 2);
@@ -192,13 +212,22 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   expect(await entries()).toHaveLength(2);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
-  await expect.poll(async () => (await trash()).map((entry) => entry.description))
+  await expect
+    .poll(async () => (await trash()).map(entry => entry.description))
     .toEqual(['Earlier work', 'Standup', 'Earlier work', 'Running now']);
-  expect((await entries()).map((entry) => entry.description)).toEqual(['Earlier work']);
+  expect((await entries()).map(entry => entry.description)).toEqual(['Earlier work']);
 });
 
-test('a manual entry across the autumn clock change moves the date to its stop day', async ({ page, runtimeErrors }) => {
-  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/v9\/workspaces\/\d+\/time_entries$/, reason: 'the scenario fakes a failed save' });
+test('a manual entry across the autumn clock change moves the date to its stop day', async ({
+  page,
+  runtimeErrors,
+}) => {
+  runtimeErrors.allowResponse({
+    status: 500,
+    method: 'POST',
+    path: /^\/api\/v9\/workspaces\/\d+\/time_entries$/,
+    reason: 'the scenario fakes a failed save',
+  });
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByRole('button', { name: 'Manual mode' }).click();
@@ -210,9 +239,14 @@ test('a manual entry across the autumn clock change moves the date to its stop d
   await expect(timer.locator('.manual-duration')).toHaveText('5:30:00');
 
   // A failed save keeps the date and times.
-  await page.route(/\/api\/v9\/workspaces\/\d+\/time_entries\?/, (route) => (route.request().method() === 'POST'
-    ? route.fulfill({ status: 500, contentType: 'application/json', body: '"Server unavailable"' })
-    : route.continue()), { times: 1 });
+  await page.route(
+    /\/api\/v9\/workspaces\/\d+\/time_entries\?/,
+    route =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 500, contentType: 'application/json', body: '"Server unavailable"' })
+        : route.continue(),
+    { times: 1 },
+  );
   await timer.getByRole('button', { name: 'Add entry' }).click();
   await expect(page.getByText('Server unavailable')).toBeVisible();
   await expect(timer.getByLabel('Date')).toHaveValue('2025-10-25');
@@ -224,7 +258,9 @@ test('a manual entry across the autumn clock change moves the date to its stop d
   await expect(timer.getByLabel('Date')).toHaveValue('2025-10-26');
   await expect(timer.getByLabel('Start time')).toHaveValue('03:30');
   await expect(timer.getByLabel('End time')).toHaveValue('');
-  const [saved] = await (await page.request.get('/api/v9/me/time_entries?start_date=2025-10-25&end_date=2025-10-27')).json();
+  const [saved] = await (
+    await page.request.get('/api/v9/me/time_entries?start_date=2025-10-25&end_date=2025-10-27')
+  ).json();
   expect([saved.start, saved.stop]).toEqual(['2025-10-25T21:00:00+00:00', '2025-10-26T02:30:00+00:00']);
 });
 

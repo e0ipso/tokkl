@@ -25,18 +25,27 @@ class FakeSource implements TimerEventSource {
 }
 
 const state = (revision: number): TimerState => ({
-  revision, server_time: '2026-10-27T10:00:00.000Z', running_entry: null, pause: null, pomodoro: null, discarded_pomodoro: null,
+  revision,
+  server_time: '2026-10-27T10:00:00.000Z',
+  running_entry: null,
+  pause: null,
+  pomodoro: null,
+  discarded_pomodoro: null,
 });
 
 function setup() {
   const sources: FakeSource[] = [];
   const states: TimerState[] = [];
   const statuses: boolean[] = [];
-  const stop = connectTimerStream(() => {
-    const source = new FakeSource();
-    sources.push(source);
-    return source;
-  }, { onState: (s) => states.push(s), onStatus: (up) => statuses.push(up) }, 5000);
+  const stop = connectTimerStream(
+    () => {
+      const source = new FakeSource();
+      sources.push(source);
+      return source;
+    },
+    { onState: s => states.push(s), onStatus: up => statuses.push(up) },
+    5000,
+  );
   const at = (index: number): FakeSource => {
     const source = sources[index];
     if (!source) throw new Error(`No source ${index} was opened`);
@@ -53,7 +62,10 @@ test('states pass to the handler, malformed events are ignored, and status repor
   source.emit('timer', '{not json');
   source.emit('timer', JSON.stringify({ revision: 'x' }));
   source.emit('timer', JSON.stringify(state(2)));
-  assert.deepEqual(states.map((s) => s.revision), [1, 2]);
+  assert.deepEqual(
+    states.map(s => s.revision),
+    [1, 2],
+  );
   // The browser reconnects by itself while the source is connecting; each error and open is a change only once.
   source.readyState = 0;
   source.emit('error');
@@ -63,7 +75,7 @@ test('states pass to the handler, malformed events are ignored, and status repor
   stop();
 });
 
-test('a source the browser gave up on is closed and reopened after the delay, until stopped', (t) => {
+test('a source the browser gave up on is closed and reopened after the delay, until stopped', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { sources, at, statuses, stop } = setup();
   at(0).open();
@@ -84,7 +96,7 @@ test('a source the browser gave up on is closed and reopened after the delay, un
   assert.deepEqual(statuses, [true, false], 'a stopped stream reports nothing more');
 });
 
-test('a stream that stays silent past the timeout counts as down and opens again', (t) => {
+test('a stream that stays silent past the timeout counts as down and opens again', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { sources, at, states, statuses, stop } = setup();
   at(0).open();
@@ -104,7 +116,10 @@ test('a stream that stays silent past the timeout counts as down and opens again
   assert.equal(sources.length, 2);
   at(1).open();
   at(1).emit('timer', JSON.stringify(state(2)));
-  assert.deepEqual(states.map((s) => s.revision), [1, 2]);
+  assert.deepEqual(
+    states.map(s => s.revision),
+    [1, 2],
+  );
   assert.deepEqual(statuses, [true, false, true]);
 
   // While the browser reconnects by itself there is nothing to time out, and a stopped stream waits for nothing.

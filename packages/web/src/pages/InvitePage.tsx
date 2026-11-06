@@ -54,23 +54,23 @@ export function InvitePage({ token }: { token: string }) {
         <p className="muted">
           {check.data.role === 'admin'
             ? 'You are invited as an administrator of this Tokkl server.'
-            : 'You are invited to track time on this Tokkl server.'}
-          {' '}Your entries stay private to your account.
+            : 'You are invited to track time on this Tokkl server.'}{' '}
+          Your entries stay private to your account.
         </p>
         <label className="field">
           <span>Name</span>
-          <input value={fullname} onChange={(e) => setFullname(e.target.value)} autoComplete="name" autoFocus />
+          <input value={fullname} onChange={e => setFullname(e.target.value)} autoComplete="name" autoFocus />
         </label>
         <label className="field">
           <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" />
         </label>
         <label className="field">
           <span>Password</span>
           <input
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
             minLength={8}
             autoComplete="new-password"

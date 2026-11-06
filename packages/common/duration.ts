@@ -7,9 +7,21 @@ export const MAX_DURATION_SECONDS = 999 * 3600;
 export const MAX_ALL_DAY_SECONDS = 24 * 3600;
 
 const UNIT_SECONDS: ReadonlyMap<string, number> = new Map([
-  ['h', 3600], ['hr', 3600], ['hrs', 3600], ['hour', 3600], ['hours', 3600],
-  ['m', 60], ['min', 60], ['mins', 60], ['minute', 60], ['minutes', 60],
-  ['s', 1], ['sec', 1], ['secs', 1], ['second', 1], ['seconds', 1],
+  ['h', 3600],
+  ['hr', 3600],
+  ['hrs', 3600],
+  ['hour', 3600],
+  ['hours', 3600],
+  ['m', 60],
+  ['min', 60],
+  ['mins', 60],
+  ['minute', 60],
+  ['minutes', 60],
+  ['s', 1],
+  ['sec', 1],
+  ['secs', 1],
+  ['second', 1],
+  ['seconds', 1],
 ]);
 
 /** Keeps a parsed total only when it fits the 999-hour limit; also drops NaN and Infinity. */

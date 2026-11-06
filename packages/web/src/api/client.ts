@@ -44,7 +44,12 @@ export async function request<T>(method: Method, path: string, body?: unknown, i
 }
 
 /** POSTs a body and saves the response as a file. */
-export async function download(path: string, filename: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<void> {
+export async function download(
+  path: string,
+  filename: string,
+  method: 'GET' | 'POST' = 'GET',
+  body?: unknown,
+): Promise<void> {
   const response = await fetch(path, {
     method,
     headers: { 'X-Tokkl-CSRF': '1', ...(body ? { 'Content-Type': 'application/json' } : {}) },

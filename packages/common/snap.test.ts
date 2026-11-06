@@ -44,6 +44,8 @@ test('snapDuration moves a duration to the nearest step, a tie going up', () => 
 });
 
 test('only divisors of 60 are resolutions', () => {
-  for (const minutes of [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]) assert.equal(isTimeResolution(minutes), true, String(minutes));
-  for (const minutes of [0, -5, 7, 45, 90, 120, 2.5, Number.NaN]) assert.equal(isTimeResolution(minutes), false, String(minutes));
+  for (const minutes of [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60])
+    assert.equal(isTimeResolution(minutes), true, String(minutes));
+  for (const minutes of [0, -5, 7, 45, 90, 120, 2.5, Number.NaN])
+    assert.equal(isTimeResolution(minutes), false, String(minutes));
 });

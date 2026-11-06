@@ -9,8 +9,10 @@ const storage = new Map<string, string>();
 const tabStorage = new Map<string, string>();
 const attributes = new Map<string, string>();
 const fakeStorage = (map: Map<string, string>): Storage => ({
-  get length() { return map.size; },
-  key: (index) => [...map.keys()][index] ?? null,
+  get length() {
+    return map.size;
+  },
+  key: index => [...map.keys()][index] ?? null,
   clear: () => map.clear(),
   getItem: (key: string) => map.get(key) ?? null,
   setItem: (key: string, value: string) => void map.set(key, value),

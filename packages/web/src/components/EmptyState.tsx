@@ -19,7 +19,14 @@ function Swell() {
  * What a list shows when it has nothing in it: an icon over a wave, a headline, a line on what to do
  * next and optional action buttons. Compact drops the art, for popovers and small panels.
  */
-export function EmptyState({ icon, title, children, actions, compact = false, className }: {
+export function EmptyState({
+  icon,
+  title,
+  children,
+  actions,
+  compact = false,
+  className,
+}: {
   icon?: ReactNode;
   title: string;
   children?: ReactNode;

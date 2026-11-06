@@ -3,7 +3,10 @@ import { promisify } from 'node:util';
 import { badRequest } from '../lib/errors.ts';
 
 const scryptAsync = promisify(scrypt) as (
-  password: string, salt: Buffer, keylen: number, options: { N: number; r: number; p: number; maxmem: number },
+  password: string,
+  salt: Buffer,
+  keylen: number,
+  options: { N: number; r: number; p: number; maxmem: number },
 ) => Promise<Buffer>;
 
 const N = 2 ** 15;
@@ -23,8 +26,10 @@ export const MAX_PASSWORD_LENGTH = 1024;
  */
 export function readNewPassword(value: unknown): string {
   const password = typeof value === 'string' ? value : '';
-  if (password.length < MIN_PASSWORD_LENGTH) throw badRequest(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
-  if (password.length > MAX_PASSWORD_LENGTH) throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+  if (password.length < MIN_PASSWORD_LENGTH)
+    throw badRequest(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  if (password.length > MAX_PASSWORD_LENGTH)
+    throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
   return password;
 }
 
@@ -47,7 +52,10 @@ export async function verifyPassword(password: string, stored: string): Promise<
   if (scheme !== 'scrypt' || !n || !r || !p || !saltB64 || !keyB64) return false;
   const expected = Buffer.from(keyB64, 'base64');
   const actual = await scryptAsync(password, Buffer.from(saltB64, 'base64'), expected.length, {
-    N: Number(n), r: Number(r), p: Number(p), maxmem: MAXMEM,
+    N: Number(n),
+    r: Number(r),
+    p: Number(p),
+    maxmem: MAXMEM,
   });
   return timingSafeEqual(actual, expected);
 }

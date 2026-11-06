@@ -9,7 +9,7 @@ import { EntityApi } from './entity-tests-helpers.ts';
 
 /** The first opaque background at or behind an element. */
 function backgroundOf(target: Locator): Promise<string> {
-  return target.evaluate((el) => {
+  return target.evaluate(el => {
     for (let node: Element | null = el; node; node = node.parentElement) {
       const background = getComputedStyle(node).backgroundColor;
       if (!/^rgba\(.*,\s*0\)$/.test(background) && background !== 'transparent') return background;
@@ -148,7 +148,10 @@ test('the timer bar refuses an unreadable duration instead of starting a timer',
   const duration = timer.getByLabel('Duration');
 
   // Over 999 hours is as unreadable as text that is no duration at all; Enter and the button agree.
-  for (const [text, submit] of [['1000h', 'enter'], ['forever', 'click']] as const) {
+  for (const [text, submit] of [
+    ['1000h', 'enter'],
+    ['forever', 'click'],
+  ] as const) {
     await duration.fill(text);
     await expectValid(duration);
     if (submit === 'enter') await duration.press('Enter');
@@ -172,13 +175,14 @@ test('the timer bar refuses an unreadable duration instead of starting a timer',
   await expect(page.getByText('Added 0:20:00')).toBeVisible();
   await expect(duration).toHaveValue('');
   const saved = await api.entries();
-  expect(saved.map((entry) => [entry.description, entry.duration])).toEqual([['Not started', 1200]]);
+  expect(saved.map(entry => [entry.description, entry.duration])).toEqual([['Not started', 1200]]);
 
   // An empty duration still starts a running timer.
   await timer.getByLabel('Description').fill('Running');
   await timer.getByRole('button', { name: 'Start timer' }).click();
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
-  await expect.poll(async () => (await api.entries()).filter((entry) => entry.description === 'Running').map((entry) => entry.stop))
+  await expect
+    .poll(async () => (await api.entries()).filter(entry => entry.description === 'Running').map(entry => entry.stop))
     .toEqual([null]);
 });
 
@@ -274,7 +278,11 @@ test('the settings forms show password, workspace and profile errors inline', as
   await workspace.getByLabel('Default hourly rate').fill('much');
   await workspace.getByRole('button', { name: 'Save' }).click();
   await expectFieldError(page, currency, 'Currency must be a 3-letter code, like EUR');
-  await expectFieldError(page, workspace.getByLabel('Default hourly rate'), 'Hourly rate must be a number of 0 or more');
+  await expectFieldError(
+    page,
+    workspace.getByLabel('Default hourly rate'),
+    'Hourly rate must be a number of 0 or more',
+  );
   await expect(currency).toBeFocused();
 
   const profile = page.locator('#profile');

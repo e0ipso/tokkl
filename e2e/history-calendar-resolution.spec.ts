@@ -31,7 +31,10 @@ const RESIZES = [
 ];
 
 for (const { resolution, step, end, next, travel, joined } of RESIZES) {
-  test(`at a ${resolution}-minute resolution the bottom edge drags in ${step}-minute steps onto the next entry's start`, async ({ page, data }) => {
+  test(`at a ${resolution}-minute resolution the bottom edge drags in ${step}-minute steps onto the next entry's start`, async ({
+    page,
+    data,
+  }) => {
     await data.saveInstanceSettings({ time_resolution_minutes: resolution });
     const before = await data.createEntry({ description: 'Before', start: at(0), stop: at(end) });
     const after = await data.createEntry({ description: 'After', start: at(next), stop: at(next + 60) });
@@ -52,12 +55,16 @@ for (const { resolution, step, end, next, travel, joined } of RESIZES) {
 
 /** The body of the next PUT the page sends for entry `id`. */
 async function sentUpdate(page: Page, id: number): Promise<{ start?: string; stop?: string }> {
-  const request = await page.waitForRequest((request) =>
-    request.method() === 'PUT' && new URL(request.url()).pathname.endsWith(`/time_entries/${id}`));
+  const request = await page.waitForRequest(
+    request => request.method() === 'PUT' && new URL(request.url()).pathname.endsWith(`/time_entries/${id}`),
+  );
   return request.postDataJSON() as { start?: string; stop?: string };
 }
 
-test('at a 12-minute resolution a moved or resized entry with an off-grid start lands on the grid', async ({ page, data }) => {
+test('at a 12-minute resolution a moved or resized entry with an off-grid start lands on the grid', async ({
+  page,
+  data,
+}) => {
   // Saved at a 1-minute resolution, so they keep times off the 12-minute grid, as imports do.
   await data.saveInstanceSettings({ time_resolution_minutes: 1 });
   const moved = await data.createEntry({ description: 'Moved', start: at(7), stop: at(50) });

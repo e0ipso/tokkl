@@ -62,7 +62,13 @@ function absoluteLink(path: string): string {
   return new URL(path, window.location.origin).href;
 }
 
-function UserRow({ user, self, settings, onDelete, onResetLink }: {
+function UserRow({
+  user,
+  self,
+  settings,
+  onDelete,
+  onResetLink,
+}: {
   user: AdminAccount;
   self: boolean;
   settings: Settings;
@@ -74,11 +80,12 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
 
   // A refusal, such as the last-admin 400, shows under the control that sent the change.
   const update = useAction<{ role: UserRole } | { disabled: boolean }, AdminAccount>({
-    mutationFn: (body) => api.patch<AdminAccount>(`${ADMIN}/users/${user.id}`, body),
+    mutationFn: body => api.patch<AdminAccount>(`${ADMIN}/users/${user.id}`, body),
     invalidate: [adminKeys.users, keys.me],
-    success: (updated, body) => ('role' in body
-      ? `${updated.email} is now ${roleLabel(updated.role)}`
-      : `${updated.disabled_at ? 'Disabled' : 'Enabled'} ${updated.email}`),
+    success: (updated, body) =>
+      'role' in body
+        ? `${updated.email} is now ${roleLabel(updated.role)}`
+        : `${updated.disabled_at ? 'Disabled' : 'Enabled'} ${updated.email}`,
     onError: (error, body) => fields.validate([['role' in body ? 'role' : 'status', error.message]]),
   });
   const revoke = useAction({
@@ -87,7 +94,7 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
   });
   const reset = useAction<void, PasswordResetLink>({
     mutationFn: () => api.post<PasswordResetLink>(`${ADMIN}/users/${user.id}/password-reset`),
-    onSuccess: (created) => onResetLink(user, absoluteLink(created.url)),
+    onSuccess: created => onResetLink(user, absoluteLink(created.url)),
   });
 
   // The controls stay enabled while a change is pending, so the one that failed keeps focus and
@@ -101,7 +108,10 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
   return (
     <tr className={disabled ? 'archived' : undefined} data-id={user.id}>
       <td className="admin-account">
-        <span className="admin-account-name">{user.fullname || user.email}{self ? <span className="muted"> (you)</span> : null}</span>
+        <span className="admin-account-name">
+          {user.fullname || user.email}
+          {self ? <span className="muted"> (you)</span> : null}
+        </span>
         {user.fullname ? <span className="admin-account-email">{user.email}</span> : null}
       </td>
       <td>
@@ -109,9 +119,13 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
           {...fields.field('role')}
           aria-label={`Role of ${user.email}`}
           value={user.role}
-                    onChange={(event) => change({ role: event.target.value as UserRole })}
+          onChange={event => change({ role: event.target.value as UserRole })}
         >
-          {ROLES.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+          {ROLES.map(role => (
+            <option key={role.value} value={role.value}>
+              {role.label}
+            </option>
+          ))}
         </select>
         {fields.message('role')}
       </td>
@@ -123,7 +137,7 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
             type="button"
             className="button button-ghost"
             aria-label={`${disabled ? 'Enable' : 'Disable'} ${user.email}`}
-                        onClick={() => change({ disabled: !disabled })}
+            onClick={() => change({ disabled: !disabled })}
           >
             {disabled ? 'Enable' : 'Disable'}
           </button>
@@ -173,21 +187,34 @@ function UserRow({ user, self, settings, onDelete, onResetLink }: {
   );
 }
 
-function DeleteUserModal({ user, onClose, onDeleted }: { user: AdminAccount; onClose: () => void; onDeleted: () => void }) {
+function DeleteUserModal({
+  user,
+  onClose,
+  onDeleted,
+}: {
+  user: AdminAccount;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
   const fields = useFieldErrors<'email'>();
   const [email, setEmail] = useState('');
   const remove = useAction<string>({
-    mutationFn: (typed) => api.delete(`${ADMIN}/users/${user.id}`, { email: typed }),
+    mutationFn: typed => api.delete(`${ADMIN}/users/${user.id}`, { email: typed }),
     invalidate: [adminKeys.users],
     success: `Deleted ${user.email}`,
     onSuccess: onDeleted,
-    onError: (error) => fields.validate([['email', error.message]]),
+    onError: error => fields.validate([['email', error.message]]),
   });
 
   const confirm = (event?: FormEvent) => {
     event?.preventDefault();
     const typed = email.trim();
-    if (!fields.validate([['email', typed.toLowerCase() !== user.email.toLowerCase() && "Type the account's email to confirm"]])) return;
+    if (
+      !fields.validate([
+        ['email', typed.toLowerCase() !== user.email.toLowerCase() && "Type the account's email to confirm"],
+      ])
+    )
+      return;
     remove.mutate(typed);
   };
 
@@ -199,18 +226,23 @@ function DeleteUserModal({ user, onClose, onDeleted }: { user: AdminAccount; onC
       onConfirm={() => confirm()}
       onClose={onClose}
     >
-      <p>This deletes the account and its workspace, with every time entry, project, client and tag in it. It cannot be undone.</p>
+      <p>
+        This deletes the account and its workspace, with every time entry, project, client and tag in it. It cannot be
+        undone.
+      </p>
       <p>To keep the data, disable the account instead. A disabled account can be enabled again.</p>
       <p>Ask them to export their data first, from Settings, Data.</p>
       <form noValidate onSubmit={confirm}>
         <div className="field">
-          <label htmlFor={fields.id('email')}>Type <strong>{user.email}</strong> to confirm</label>
+          <label htmlFor={fields.id('email')}>
+            Type <strong>{user.email}</strong> to confirm
+          </label>
           <input
             {...fields.field('email')}
             type="email"
             autoComplete="off"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={event => setEmail(event.target.value)}
           />
           {fields.message('email')}
         </div>
@@ -219,7 +251,15 @@ function DeleteUserModal({ user, onClose, onDeleted }: { user: AdminAccount; onC
   );
 }
 
-function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: number | undefined; settings: Settings }) {
+function UsersSection({
+  users,
+  meId,
+  settings,
+}: {
+  users: AdminAccount[];
+  meId: number | undefined;
+  settings: Settings;
+}) {
   const [deleting, setDeleting] = useState<AdminAccount | null>(null);
   const [reset, setReset] = useState<{ id: number; email: string; link: string } | null>(null);
   const tbody = useRef<HTMLTableSectionElement>(null);
@@ -239,11 +279,13 @@ function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: 
               <th>Role</th>
               <th>Status</th>
               <th className="num">Created</th>
-              <th><span className="visually-hidden">Actions</span></th>
+              <th>
+                <span className="visually-hidden">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody ref={tbody}>
-            {users.map((user) => (
+            {users.map(user => (
               <UserRow
                 key={user.id}
                 user={user}
@@ -292,7 +334,13 @@ function UsersSection({ users, meId, settings }: { users: AdminAccount[]; meId: 
  * A new one-time link, such as an invite or a password reset link. The server returns it only once,
  * so it is gone after a reload.
  */
-function NewLink({ link, label, copied, onDone, children }: {
+function NewLink({
+  link,
+  label,
+  copied,
+  onDone,
+  children,
+}: {
   link: string;
   label: string;
   copied: string;
@@ -301,20 +349,26 @@ function NewLink({ link, label, copied, onDone, children }: {
 }) {
   const toast = useToast();
   const copy = () => {
-    copyText(link, 'Could not copy. Select the link and copy it by hand.')
-      .then(() => toast.show(copied), (error: unknown) => toast.error(error));
+    copyText(link, 'Could not copy. Select the link and copy it by hand.').then(
+      () => toast.show(copied),
+      (error: unknown) => toast.error(error),
+    );
   };
   return (
     <div className="settings-notice admin-new-link" role="status">
       <div className="admin-new-link-text">
         <p>{children}</p>
-        <code className="token-value" aria-label={label}>{link}</code>
+        <code className="token-value" aria-label={label}>
+          {link}
+        </code>
       </div>
       <div className="inline-controls">
         <button type="button" className="button button-ghost" onClick={copy}>
           <Icon name="copy" size={16} /> Copy link
         </button>
-        <button type="button" className="button button-ghost" onClick={onDone}>Done</button>
+        <button type="button" className="button button-ghost" onClick={onDone}>
+          Done
+        </button>
       </div>
     </div>
   );
@@ -331,7 +385,9 @@ function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: 
   return (
     <tr data-id={invite.id}>
       <td>{invite.role === 'admin' ? 'Admin' : 'User'}</td>
-      <td className="manage-notes" title={invite.note ?? undefined}>{invite.note ?? <span className="muted">None</span>}</td>
+      <td className="manage-notes" title={invite.note ?? undefined}>
+        {invite.note ?? <span className="muted">None</span>}
+      </td>
       <td className="num admin-date">{day(invite.created_at, settings)}</td>
       <td className="num admin-date">{dateTime(invite.expires_at, settings)}</td>
       <td className="manage-actions">
@@ -363,13 +419,13 @@ function InvitesSection({ settings }: { settings: Settings }) {
   const revoked = (id: number) => keepFocusPastRow(tbody.current, id, 'revoke', heading.current);
 
   const create = useAction<{ role: UserRole; note: string }, Invite & { url: string }>({
-    mutationFn: (body) => api.post<Invite & { url: string }>(`${ADMIN}/invites`, body),
+    mutationFn: body => api.post<Invite & { url: string }>(`${ADMIN}/invites`, body),
     invalidate: [adminKeys.invites],
-    onSuccess: (invite) => {
+    onSuccess: invite => {
       setLink(absoluteLink(invite.url));
       setNote('');
     },
-    onError: (error) => fields.validate([[/role/i.test(error.message) ? 'role' : 'note', error.message]]),
+    onError: error => fields.validate([[/role/i.test(error.message) ? 'role' : 'note', error.message]]),
   });
 
   const submit = (event: FormEvent) => {
@@ -387,8 +443,12 @@ function InvitesSection({ settings }: { settings: Settings }) {
       <form className="form-grid admin-invite-form" aria-label="New invite" noValidate onSubmit={submit}>
         <div className="field">
           <label htmlFor={fields.id('role')}>Role</label>
-          <select {...fields.field('role')} value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
-            {ROLES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          <select {...fields.field('role')} value={role} onChange={event => setRole(event.target.value as UserRole)}>
+            {ROLES.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           {fields.message('role')}
         </div>
@@ -399,7 +459,7 @@ function InvitesSection({ settings }: { settings: Settings }) {
             value={note}
             maxLength={MAX_NOTE_LENGTH}
             placeholder="Who it is for"
-            onChange={(event) => setNote(event.target.value)}
+            onChange={event => setNote(event.target.value)}
           />
           {fields.message('note')}
         </div>
@@ -423,13 +483,21 @@ function InvitesSection({ settings }: { settings: Settings }) {
         </NewLink>
       ) : null}
 
-      <h3 ref={heading} className="settings-subheading" tabIndex={-1}>Pending invites</h3>
+      <h3 ref={heading} className="settings-subheading" tabIndex={-1}>
+        Pending invites
+      </h3>
       {invites.error ? (
-        <LoadError message={`Could not load invites: ${invites.error.message}`} onRetry={() => void invites.refetch()} className="is-compact" />
+        <LoadError
+          message={`Could not load invites: ${invites.error.message}`}
+          onRetry={() => void invites.refetch()}
+          className="is-compact"
+        />
       ) : null}
       {invites.isLoading ? <Loading label="Loading invites…" className="is-compact" /> : null}
       {invites.data && invites.data.length === 0 ? (
-        <EmptyState compact title="No pending invites">Links that were used, revoked or expired drop off this list.</EmptyState>
+        <EmptyState compact title="No pending invites">
+          Links that were used, revoked or expired drop off this list.
+        </EmptyState>
       ) : null}
       {invites.data && invites.data.length > 0 ? (
         <div className="table-wrap">
@@ -440,11 +508,13 @@ function InvitesSection({ settings }: { settings: Settings }) {
                 <th>Note</th>
                 <th className="num">Created</th>
                 <th className="num">Expires</th>
-                <th><span className="visually-hidden">Actions</span></th>
+                <th>
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody ref={tbody}>
-              {invites.data.map((invite) => (
+              {invites.data.map(invite => (
                 <InviteRow key={invite.id} invite={invite} settings={settings} onRevoked={() => revoked(invite.id)} />
               ))}
             </tbody>
@@ -456,8 +526,18 @@ function InvitesSection({ settings }: { settings: Settings }) {
 }
 
 const SETTING_FIELDS = [
-  { key: 'session_days', unit: 'days', label: 'Session length (days)', hint: 'New logins stay signed in this long. Existing sessions keep their expiry.' },
-  { key: 'invite_days', unit: 'days', label: 'Invite link lifetime (days)', hint: 'New invite links stop working after this many days.' },
+  {
+    key: 'session_days',
+    unit: 'days',
+    label: 'Session length (days)',
+    hint: 'New logins stay signed in this long. Existing sessions keep their expiry.',
+  },
+  {
+    key: 'invite_days',
+    unit: 'days',
+    label: 'Invite link lifetime (days)',
+    hint: 'New invite links stop working after this many days.',
+  },
   {
     key: 'time_resolution_minutes',
     unit: 'minutes',
@@ -489,19 +569,24 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
 
   // Once a save settles, an edit equal to the server's value is no longer an edit. Anything else
   // typed while the request ran stays, even a value equal to what the server had before the save.
-  const dropEditsEqualTo = (values: InstanceSettings) => setEdits((current) => Object.fromEntries(
-    Object.entries(current).filter(([key, value]) => Number(value.trim()) !== values[key as keyof InstanceSettings]),
-  ));
+  const dropEditsEqualTo = (values: InstanceSettings) =>
+    setEdits(current =>
+      Object.fromEntries(
+        Object.entries(current).filter(
+          ([key, value]) => Number(value.trim()) !== values[key as keyof InstanceSettings],
+        ),
+      ),
+    );
 
   const save = useAction<Partial<InstanceSettings>, InstanceSettings>({
-    mutationFn: (body) => api.put<InstanceSettings>(`${ADMIN}/settings`, body),
+    mutationFn: body => api.put<InstanceSettings>(`${ADMIN}/settings`, body),
     invalidate: [adminKeys.settings],
     success: 'Instance settings saved',
-    onSuccess: (saved) => {
+    onSuccess: saved => {
       queryClient.setQueryData(adminKeys.settings, saved);
       dropEditsEqualTo(saved);
     },
-    onError: (error) => {
+    onError: error => {
       const current = queryClient.getQueryData<InstanceSettings>(adminKeys.settings);
       if (current) dropEditsEqualTo(current);
       // The server names the setting it refused, as in "Invalid invite_days: ...".
@@ -513,10 +598,16 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
 
   // Only whole numbers go to the server; it checks the allowed values and its 400 shows on the field.
   const submit = () => {
-    const valid = fields.validate(SETTING_FIELDS.map(({ key, unit }) => [
-      key,
-      (draft[key].trim() === '' || !Number.isInteger(Number(draft[key].trim()))) && `Enter a whole number of ${unit}`,
-    ] as const));
+    const valid = fields.validate(
+      SETTING_FIELDS.map(
+        ({ key, unit }) =>
+          [
+            key,
+            (draft[key].trim() === '' || !Number.isInteger(Number(draft[key].trim()))) &&
+              `Enter a whole number of ${unit}`,
+          ] as const,
+      ),
+    );
     if (!valid) return;
     const changes: Partial<InstanceSettings> = {};
     for (const { key } of SETTING_FIELDS) {
@@ -529,12 +620,13 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
 
   // A value equal to the server's is not an edit, so later refetches show the server's value again.
   // While a save is pending the server's value may still change, so every typed value stays.
-  const edit = (key: keyof InstanceSettings, value: string) => setEdits((current) => {
-    const next = { ...current };
-    if (!save.isPending && value === String(server[key])) delete next[key];
-    else next[key] = value;
-    return next;
-  });
+  const edit = (key: keyof InstanceSettings, value: string) =>
+    setEdits(current => {
+      const next = { ...current };
+      if (!save.isPending && value === String(server[key])) delete next[key];
+      else next[key] = value;
+      return next;
+    });
 
   return (
     <SettingsCard id="instance" title="Instance settings" onSubmit={submit} saving={save.isPending}>
@@ -547,7 +639,7 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
               type="number"
               inputMode="numeric"
               value={draft[key]}
-              onChange={(event) => edit(key, event.target.value)}
+              onChange={event => edit(key, event.target.value)}
             />
             {fields.message(key)}
             <p className="hint">{hint}</p>
@@ -596,15 +688,27 @@ export function AdminPage() {
     <div className="page manage-page settings-page admin-page">
       {header}
       <nav className="settings-nav" aria-label="Admin sections">
-        {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
+        {SECTIONS.map(([id, label]) => (
+          <a key={id} href={`#${id}`}>
+            {label}
+          </a>
+        ))}
       </nav>
       <UsersSection users={users.data} meId={me?.id} settings={settings} />
       <InvitesSection settings={settings} />
-      {instance.data ? <InstanceSettingsSection server={instance.data} /> : (
+      {instance.data ? (
+        <InstanceSettingsSection server={instance.data} />
+      ) : (
         <SettingsCard id="instance" title="Instance settings">
           {instance.error ? (
-            <LoadError message={`Could not load instance settings: ${instance.error.message}`} onRetry={() => void instance.refetch()} className="is-compact" />
-          ) : <Loading label="Loading instance settings…" className="is-compact" />}
+            <LoadError
+              message={`Could not load instance settings: ${instance.error.message}`}
+              onRetry={() => void instance.refetch()}
+              className="is-compact"
+            />
+          ) : (
+            <Loading label="Loading instance settings…" className="is-compact" />
+          )}
         </SettingsCard>
       )}
     </div>

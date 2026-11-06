@@ -15,7 +15,10 @@ const ROUNDING_MODES = [
   { value: -1, label: 'Down' },
 ] as const;
 
-type WorkspaceBody = Pick<Workspace, 'name' | 'default_currency' | 'default_hourly_rate' | 'rounding' | 'rounding_minutes'>;
+type WorkspaceBody = Pick<
+  Workspace,
+  'name' | 'default_currency' | 'default_hourly_rate' | 'rounding' | 'rounding_minutes'
+>;
 
 function stepLabel(minutes: number): string {
   if (minutes === 0) return "Don't round";
@@ -34,7 +37,7 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
   const [roundingMinutes, setRoundingMinutes] = useState(workspace.rounding_minutes);
 
   const save = useAction<WorkspaceBody, Workspace>({
-    mutationFn: (body) => api.put<Workspace>(wsPath(wid), body),
+    mutationFn: body => api.put<Workspace>(wsPath(wid), body),
     invalidate: [keys.workspace, keys.report, keys.projects],
     success: 'Workspace saved',
   });
@@ -57,7 +60,7 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
     });
   };
 
-  const steps: number[] = ROUNDING_MINUTES.includes(roundingMinutes as typeof ROUNDING_MINUTES[number])
+  const steps: number[] = ROUNDING_MINUTES.includes(roundingMinutes as (typeof ROUNDING_MINUTES)[number])
     ? [...ROUNDING_MINUTES]
     : [...ROUNDING_MINUTES, roundingMinutes].sort((a, b) => a - b);
 
@@ -66,7 +69,12 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
       <div className="form-grid">
         <div className="field field-full">
           <label htmlFor={fields.id('name')}>Name</label>
-          <input {...fields.field('name')} value={name} maxLength={140} onChange={(event) => setName(event.target.value)} />
+          <input
+            {...fields.field('name')}
+            value={name}
+            maxLength={140}
+            onChange={event => setName(event.target.value)}
+          />
           {fields.message('name')}
         </div>
         <div className="field">
@@ -76,30 +84,49 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
             value={currency}
             maxLength={3}
             autoCapitalize="characters"
-            onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+            onChange={event => setCurrency(event.target.value.toUpperCase())}
           />
           {fields.message('currency')}
         </div>
         <div className="field">
           <label htmlFor={fields.id('rate')}>Default hourly rate</label>
-          <input {...fields.field('rate')} inputMode="decimal" value={rate} placeholder="No rate" onChange={(event) => setRate(event.target.value)} />
+          <input
+            {...fields.field('rate')}
+            inputMode="decimal"
+            value={rate}
+            placeholder="No rate"
+            onChange={event => setRate(event.target.value)}
+          />
           {fields.message('rate')}
         </div>
         <p className="hint field-full">Billable entries on projects without their own rate use this rate.</p>
         <label className="field">
           <span>Round durations in reports</span>
-          <select value={roundingMinutes} onChange={(event) => setRoundingMinutes(Number(event.target.value))}>
-            {steps.map((minutes) => <option key={minutes} value={minutes}>{stepLabel(minutes)}</option>)}
+          <select value={roundingMinutes} onChange={event => setRoundingMinutes(Number(event.target.value))}>
+            {steps.map(minutes => (
+              <option key={minutes} value={minutes}>
+                {stepLabel(minutes)}
+              </option>
+            ))}
           </select>
         </label>
         <label className="field">
           <span>Rounding direction</span>
-          <select value={rounding} disabled={roundingMinutes === 0} onChange={(event) => setRounding(Number(event.target.value))}>
-            {ROUNDING_MODES.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+          <select
+            value={rounding}
+            disabled={roundingMinutes === 0}
+            onChange={event => setRounding(Number(event.target.value))}
+          >
+            {ROUNDING_MODES.map(mode => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
           </select>
         </label>
         <p className="hint field-full">
-          The Reports page rounds each entry. Tracked entries keep their exact times. Toggl API report calls round only when they ask for it.
+          The Reports page rounds each entry. Tracked entries keep their exact times. Toggl API report calls round only
+          when they ask for it.
         </p>
       </div>
     </SettingsCard>

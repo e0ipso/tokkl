@@ -42,7 +42,9 @@ export function ShortcutHelp({ onClose }: { onClose: () => void }) {
       <dl className="shortcut-list">
         {SHORTCUTS.map(([key, label]) => (
           <div key={key}>
-            <dt><kbd>{key}</kbd></dt>
+            <dt>
+              <kbd>{key}</kbd>
+            </dt>
             <dd>{label}</dd>
           </div>
         ))}

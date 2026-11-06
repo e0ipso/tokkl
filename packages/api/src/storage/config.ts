@@ -40,7 +40,8 @@ function bounded(value: string | null, fallback: number, min: number, max: numbe
 /** Only an absent selector defaults. Unknown options and insecure TLS verification modes are errors. */
 export function parseStorageConfig(env: { TOKKL_DATABASE_URL?: string }, dataDir: string): StorageConfig {
   const raw = env.TOKKL_DATABASE_URL;
-  if (raw === undefined) return { backend: 'sqlite', filename: join(resolve(dataDir), 'tokkl.sqlite'), busyTimeoutMs: 5000 };
+  if (raw === undefined)
+    return { backend: 'sqlite', filename: join(resolve(dataDir), 'tokkl.sqlite'), busyTimeoutMs: 5000 };
   try {
     if (raw === 'sqlite::memory:') return { backend: 'sqlite', filename: ':memory:', busyTimeoutMs: 5000 };
     if (!raw || /[\x00-\x20\x7f]/.test(raw)) throw new StorageConfigurationError();
@@ -48,8 +49,14 @@ export function parseStorageConfig(env: { TOKKL_DATABASE_URL?: string }, dataDir
       // Check the raw path before URL's dot-segment normalization can hide it.
       if (!raw.startsWith('sqlite:///') || /[?#]/.test(raw)) throw new StorageConfigurationError();
       const filename = decodeURIComponent(raw.slice('sqlite://'.length));
-      if (!isAbsolute(filename) || filename.startsWith('//') || filename.endsWith('/')
-        || /[\x00-\x1f\x7f\\]/.test(filename) || filename.split('/').some((part) => part === '.' || part === '..')) throw new StorageConfigurationError();
+      if (
+        !isAbsolute(filename) ||
+        filename.startsWith('//') ||
+        filename.endsWith('/') ||
+        /[\x00-\x1f\x7f\\]/.test(filename) ||
+        filename.split('/').some(part => part === '.' || part === '..')
+      )
+        throw new StorageConfigurationError();
       return { backend: 'sqlite', filename, busyTimeoutMs: 5000 };
     }
     const url = new URL(raw);
@@ -60,8 +67,18 @@ export function parseStorageConfig(env: { TOKKL_DATABASE_URL?: string }, dataDir
     // URL removes dot segments. Validate the requested path before that normalization.
     const rawPath = /^[a-z]+:\/\/[^/?#]*(\/[^?#]*)/i.exec(raw)?.[1] ?? '';
     const database = decodeURIComponent(rawPath.slice(1));
-    if (!cleanText(user) || /[\x00-\x1f\x7f]/.test(password) || !cleanText(database) || database === '.' || database === '..' || /[/\\]/.test(database)
-      || !url.hostname || url.hash || /[\\]/.test(raw)) throw new StorageConfigurationError();
+    if (
+      !cleanText(user) ||
+      /[\x00-\x1f\x7f]/.test(password) ||
+      !cleanText(database) ||
+      database === '.' ||
+      database === '..' ||
+      /[/\\]/.test(database) ||
+      !url.hostname ||
+      url.hash ||
+      /[\\]/.test(raw)
+    )
+      throw new StorageConfigurationError();
     const allowed = new Set(['pool_max', 'connect_timeout_ms', 'query_timeout_ms', 'sslmode', 'sslrootcert']);
     for (const key of url.searchParams.keys()) {
       if (!allowed.has(key) || url.searchParams.getAll(key).length !== 1) throw new StorageConfigurationError();
@@ -69,11 +86,15 @@ export function parseStorageConfig(env: { TOKKL_DATABASE_URL?: string }, dataDir
     const mode = url.searchParams.get('sslmode') ?? 'verify-full';
     if (mode !== 'verify-full' && mode !== 'disable') throw new StorageConfigurationError();
     const caFile = url.searchParams.get('sslrootcert');
-    if (caFile !== null && (mode !== 'verify-full' || !isAbsolute(caFile) || /[\x00-\x1f\x7f]/.test(caFile))) throw new StorageConfigurationError();
+    if (caFile !== null && (mode !== 'verify-full' || !isAbsolute(caFile) || /[\x00-\x1f\x7f]/.test(caFile)))
+      throw new StorageConfigurationError();
     return {
-      backend, host: url.hostname.replace(/^\[|\]$/g, ''),
+      backend,
+      host: url.hostname.replace(/^\[|\]$/g, ''),
       port: bounded(url.port || null, backend === 'postgres' ? 5432 : 3306, 1, 65535),
-      database, user, password,
+      database,
+      user,
+      password,
       poolMax: bounded(url.searchParams.get('pool_max'), 5, 1, 20),
       connectTimeoutMs: bounded(url.searchParams.get('connect_timeout_ms'), 5000, 100, 60000),
       queryTimeoutMs: bounded(url.searchParams.get('query_timeout_ms'), 30000, 100, 300000),

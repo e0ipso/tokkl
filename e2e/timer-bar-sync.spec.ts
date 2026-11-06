@@ -17,12 +17,15 @@ const CURRENT = /\/api\/v9\/me\/time_entries\/current/;
 
 /** Another device writes through the same account; the page only learns of it on a refetch. */
 async function remotePut(page: Page, api: TimerApi, id: number, changes: Record<string, unknown>) {
-  const response = await page.request.put(`/api/v9/workspaces/${api.workspaceId}/time_entries/${id}`, { headers: CSRF, data: changes });
+  const response = await page.request.put(`/api/v9/workspaces/${api.workspaceId}/time_entries/${id}`, {
+    headers: CSRF,
+    data: changes,
+  });
   expect(response.ok()).toBe(true);
 }
 
 async function refetchOnFocus(page: Page) {
-  const refetched = page.waitForResponse((response) => CURRENT.test(response.url()) && response.ok());
+  const refetched = page.waitForResponse(response => CURRENT.test(response.url()) && response.ok());
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await refetched;
 }
@@ -35,13 +38,13 @@ test('a remote edit shows in the timer bar even when the entry keeps the same "a
   await timer.getByRole('button', { name: 'Start timer' }).click();
   const running = await nextRunning(api, null);
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
-  const raw = await (await page.request.get('/api/v9/me/time_entries/current')).json() as { at: string };
+  const raw = (await (await page.request.get('/api/v9/me/time_entries/current')).json()) as { at: string };
 
   // "at" has whole-second precision, so a write in the same second leaves it unchanged. Pin it
   // to make that happen on every run.
-  await page.route(CURRENT, async (route) => {
+  await page.route(CURRENT, async route => {
     const response = await route.fetch();
-    const body = await response.json() as { at?: string } | null;
+    const body = (await response.json()) as { at?: string } | null;
     await route.fulfill({ response, json: body ? { ...body, at: raw.at } : body });
   });
   await remotePut(page, api, running.id, { description: 'Renamed elsewhere', tags: ['remote'], billable: true });
@@ -69,14 +72,18 @@ test('edits made right after Start, before the running entry loads, are saved to
 
   // Hold every current-entry response until the edits are done, like a slow server.
   let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  await page.route(CURRENT, async (route) => {
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route(CURRENT, async route => {
     await gate;
     await route.continue();
   });
-  const created = page.waitForResponse((response) => response.request().method() === 'POST' && /\/time_entries\?/.test(response.url()));
+  const created = page.waitForResponse(
+    response => response.request().method() === 'POST' && /\/time_entries\?/.test(response.url()),
+  );
   await timer.getByRole('button', { name: 'Start timer' }).click();
-  const entry = await (await created).json() as { id: number };
+  const entry = (await (await created).json()) as { id: number };
 
   await timer.getByLabel('Description').fill('Draft the spec');
   await timer.getByLabel('Description').blur();
@@ -85,10 +92,16 @@ test('edits made right after Start, before the running entry loads, are saved to
   release();
 
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
-  await expect.poll(async () => metadataOf((await api.current())!)).toEqual({
-    description: 'Draft the spec', project_id: null, task_id: null, tags: [], billable: true,
-  });
-  expect((await api.entries()).map((saved) => saved.id)).toEqual([entry.id]);
+  await expect
+    .poll(async () => metadataOf((await api.current())!))
+    .toEqual({
+      description: 'Draft the spec',
+      project_id: null,
+      task_id: null,
+      tags: [],
+      billable: true,
+    });
+  expect((await api.entries()).map(saved => saved.id)).toEqual([entry.id]);
   await expect(timer.getByLabel('Description')).toHaveValue('Draft the spec');
   await expect(timer.getByRole('button', { name: 'Billable' })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -101,7 +114,14 @@ test('a timer started on another device replaces the idle bar draft', async ({ p
   await description.fill('Idle draft');
 
   const response = await page.request.post(`/api/v9/workspaces/${api.workspaceId}/time_entries`, {
-    headers: CSRF, data: { description: 'Remote timer', tags: ['remote'], start: new Date().toISOString(), duration: -1, created_with: 'e2e' },
+    headers: CSRF,
+    data: {
+      description: 'Remote timer',
+      tags: ['remote'],
+      start: new Date().toISOString(),
+      duration: -1,
+      created_with: 'e2e',
+    },
   });
   expect(response.ok()).toBe(true);
   await refetchOnFocus(page);

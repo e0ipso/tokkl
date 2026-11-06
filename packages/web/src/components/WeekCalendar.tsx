@@ -4,8 +4,31 @@ import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';
 import { assignLanes, heightClearingMarkers } from '../lib/calendarLanes.ts';
-import { DAY_MODE_QUERY, classifySwipe, clampDayMove, dragStep, droppedMinute, fitMoveInDay, splitAllDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
-import { dayLabel, duration, shortDate, entrySeconds, formatTime, minutesOfDay, snappedInstant, snappedSeconds, today, useNow, useSettings, weekdayName } from '../lib/settings.ts';
+import {
+  DAY_MODE_QUERY,
+  classifySwipe,
+  clampDayMove,
+  dragStep,
+  droppedMinute,
+  fitMoveInDay,
+  splitAllDay,
+  stepDay,
+  type SwipeDirection,
+} from '../lib/calendarDay.ts';
+import {
+  dayLabel,
+  duration,
+  shortDate,
+  entrySeconds,
+  formatTime,
+  minutesOfDay,
+  snappedInstant,
+  snappedSeconds,
+  today,
+  useNow,
+  useSettings,
+  weekdayName,
+} from '../lib/settings.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { AllDayEntryDialog } from './AllDayEntryDialog.tsx';
 import { arrowTarget } from './arrowKeys.ts';
@@ -24,7 +47,15 @@ const LONG_PRESS_TOLERANCE_PX = 10;
 
 type Drag =
   | { kind: 'create'; day: string; fromMinute: number; toMinute: number }
-  | { kind: 'move' | 'resize'; entry: TimeEntry; day: string; originY: number; startMinute: number; endMinute: number; deltaMinutes: number };
+  | {
+      kind: 'move' | 'resize';
+      entry: TimeEntry;
+      day: string;
+      originY: number;
+      startMinute: number;
+      endMinute: number;
+      deltaMinutes: number;
+    };
 
 /** A touch that is being held on a column or block, and the drag it becomes if the hold completes. */
 interface LongPress {
@@ -57,7 +88,9 @@ function layout(entries: TimeEntry[], days: string[], timeZone: string, now: Dat
   for (const day of days) {
     const onDay = entries.flatMap((entry): Block[] => {
       const span = clockSpanOnDay(new Date(entry.start), entry.stop ? new Date(entry.stop) : now, day, timeZone);
-      return span ? [{ entry, day, top: span.top, bottom: span.bottom, lane: 0, lanes: 1, minHeight: MIN_BLOCK_HEIGHT }] : [];
+      return span
+        ? [{ entry, day, top: span.top, bottom: span.bottom, lane: 0, lanes: 1, minHeight: MIN_BLOCK_HEIGHT }]
+        : [];
     });
     const laid = assignLanes(onDay);
     for (const block of laid) block.minHeight = heightClearingMarkers(block, laid, HOUR_HEIGHT / 60, MIN_BLOCK_HEIGHT);
@@ -98,7 +131,10 @@ export function WeekCalendar() {
   // Where a day-mode gesture on the grid began, until pointer up decides whether it was a swipe.
   const swipeStart = useRef<{ pointerId: number; x: number; y: number } | null>(null);
   // No-time entries have no place on the clock, so only timed ones reach the lane layout.
-  const { timed, allDay } = useMemo(() => splitAllDay(entries, days, settings.timeZone), [entries, days, settings.timeZone]);
+  const { timed, allDay } = useMemo(
+    () => splitAllDay(entries, days, settings.timeZone),
+    [entries, days, settings.timeZone],
+  );
   const blocks = useMemo(() => layout(timed, days, settings.timeZone, now), [timed, days, settings.timeZone, now]);
 
   useEffect(() => {
@@ -156,7 +192,8 @@ export function WeekCalendar() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || document.querySelector('.modal, .popover')) return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || document.querySelector('.modal, .popover'))
+        return;
       if (event.key.toLowerCase() === 't' && !event.ctrlKey && !event.metaKey) {
         selectDay(todayKey);
       }
@@ -199,7 +236,8 @@ export function WeekCalendar() {
       // The dropped boundary then goes to the nearest point of the resolution grid, as the preview
       // shows it, so an entry imported off the grid lands on it and the server keeps the drop.
       const start = new Date(current.entry.start);
-      const dropAt = (from: Date) => snappedInstant(addClockMinutes(from, current.deltaMinutes, settings.timeZone), settings).getTime();
+      const dropAt = (from: Date) =>
+        snappedInstant(addClockMinutes(from, current.deltaMinutes, settings.timeZone), settings).getTime();
       if (current.kind === 'move') {
         // The start lands on the dropped slot and the entry keeps the duration the server stores
         // for it, so an entry imported off the grid moves as the span it would snap to.
@@ -232,11 +270,15 @@ export function WeekCalendar() {
   // The arrows step one day in day mode and one week otherwise; stepping the selected day by seven
   // keeps the derived week start on the same weekday, so the week view moves a whole week.
   const step = (direction: 1 | -1) => selectDay(stepDay(selectedDay, dayMode ? direction : direction * 7));
-  const dayTotal = (day: string) => entries
-    .filter((entry) => localDay(entry.start, settings.timeZone) === day)
-    .reduce((sum, entry) => sum + entrySeconds(entry, now), 0);
+  const dayTotal = (day: string) =>
+    entries
+      .filter(entry => localDay(entry.start, settings.timeZone) === day)
+      .reduce((sum, entry) => sum + entrySeconds(entry, now), 0);
   const weekTotal = entries
-    .filter((entry) => { const day = localDay(entry.start, settings.timeZone); return day >= weekStart && day <= weekDays[6]!; })
+    .filter(entry => {
+      const day = localDay(entry.start, settings.timeZone);
+      return day >= weekStart && day <= weekDays[6]!;
+    })
     .reduce((sum, entry) => sum + entrySeconds(entry, now), 0);
   const nowMinute = minutesOfDay(now, settings.timeZone);
   // A gesture that edits nothing (no drag, or a create drag that never grew) can still be a swipe.
@@ -246,39 +288,70 @@ export function WeekCalendar() {
     <div
       ref={root}
       className={`calendar${dayMode ? ' day-mode' : ''}`}
-      onPointerMove={(event) => {
+      onPointerMove={event => {
         const press = longPress.current;
-        if (press && press.pointerId === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > LONG_PRESS_TOLERANCE_PX) {
+        if (
+          press &&
+          press.pointerId === event.pointerId &&
+          Math.hypot(event.clientX - press.x, event.clientY - press.y) > LONG_PRESS_TOLERANCE_PX
+        ) {
           cancelLongPress();
         }
       }}
       onPointerUp={() => void finishDrag()}
       onPointerLeave={() => void finishDrag()}
       // The browser took the touch for a scroll, so a held or dragged block goes back where it was.
-      onPointerCancel={() => { cancelLongPress(); updateDrag(null); }}
+      onPointerCancel={() => {
+        cancelLongPress();
+        updateDrag(null);
+      }}
     >
       <div className="calendar-toolbar">
         {dayMode ? (
           <>
-            <button type="button" className="icon-button" aria-label="Previous day" onClick={() => step(-1)}><Icon name="chevronLeft" /></button>
-            <button type="button" className="button button-ghost" onClick={() => selectDay(todayKey)} title="Current day (T)">
+            <button type="button" className="icon-button" aria-label="Previous day" onClick={() => step(-1)}>
+              <Icon name="chevronLeft" />
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => selectDay(todayKey)}
+              title="Current day (T)"
+            >
               Current day
             </button>
-            <button type="button" className="icon-button" aria-label="Next day" onClick={() => step(1)}><Icon name="chevronRight" /></button>
-            <span className="calendar-range">{weekdayName(selectedDay)}, {shortDate(selectedDay)}</span>
+            <button type="button" className="icon-button" aria-label="Next day" onClick={() => step(1)}>
+              <Icon name="chevronRight" />
+            </button>
+            <span className="calendar-range">
+              {weekdayName(selectedDay)}, {shortDate(selectedDay)}
+            </span>
           </>
         ) : (
           <>
-            <button type="button" className="icon-button" aria-label="Previous week" onClick={() => step(-1)}><Icon name="chevronLeft" /></button>
-            <button type="button" className="button button-ghost" onClick={() => selectDay(todayKey)} title="This week (T)">
+            <button type="button" className="icon-button" aria-label="Previous week" onClick={() => step(-1)}>
+              <Icon name="chevronLeft" />
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => selectDay(todayKey)}
+              title="This week (T)"
+            >
               This week
             </button>
-            <button type="button" className="icon-button" aria-label="Next week" onClick={() => step(1)}><Icon name="chevronRight" /></button>
-            <span className="calendar-range">{shortDate(weekDays[0]!)} to {shortDate(weekDays[6]!)}</span>
+            <button type="button" className="icon-button" aria-label="Next week" onClick={() => step(1)}>
+              <Icon name="chevronRight" />
+            </button>
+            <span className="calendar-range">
+              {shortDate(weekDays[0]!)} to {shortDate(weekDays[6]!)}
+            </span>
           </>
         )}
         <span className="spacer" />
-        <span className="muted">Week total <strong>{duration(weekTotal, settings)}</strong></span>
+        <span className="muted">
+          Week total <strong>{duration(weekTotal, settings)}</strong>
+        </span>
       </div>
       {dayMode ? (
         // The week's days as one Tab stop: arrows, Home and End move between them and select.
@@ -286,14 +359,16 @@ export function WeekCalendar() {
           {weekDays.map((day, index) => (
             <button
               key={day}
-              ref={(element) => { stripButtons.current[index] = element; }}
+              ref={element => {
+                stripButtons.current[index] = element;
+              }}
               type="button"
               className={`calendar-strip-day${day === todayKey ? ' today' : ''}`}
               aria-pressed={day === selectedDay}
               aria-label={`${weekdayName(day)} ${shortDate(day)}, ${duration(dayTotal(day), settings)}`}
               tabIndex={day === selectedDay ? 0 : -1}
               onClick={() => selectDay(day)}
-              onKeyDown={(event) => {
+              onKeyDown={event => {
                 const next = arrowTarget(event.key, index, weekDays.length);
                 if (next === null) return;
                 event.preventDefault();
@@ -310,7 +385,7 @@ export function WeekCalendar() {
       ) : (
         <div className="calendar-head">
           <div className="calendar-gutter" />
-          {weekDays.map((day) => (
+          {weekDays.map(day => (
             <div key={day} className={`calendar-day-head${day === todayKey ? ' today' : ''}`}>
               <span>{dayLabel(day, todayKey)}</span>
               <small>{duration(dayTotal(day), settings)}</small>
@@ -321,23 +396,25 @@ export function WeekCalendar() {
       {/* One cell per shown day, outside the hour scroller. Add controls and chips are siblings. */}
       <div className="calendar-all-day" role="group" aria-label="All-day entries">
         <div className="calendar-all-day-label">All day</div>
-        {days.map((day) => (
+        {days.map(day => (
           <div key={day} className="calendar-all-day-cell">
             <button
               type="button"
               className="calendar-all-day-add"
               aria-label={`Add all-day entry for ${day}`}
               title={`Add all-day entry for ${day}`}
-              onClick={(event) => {
+              onClick={event => {
                 event.currentTarget.focus();
                 setCreatingDay(day);
               }}
             >
               <Icon name="plus" size={14} />
             </button>
-            {(allDay.get(day) ?? []).map((entry) => {
+            {(allDay.get(day) ?? []).map(entry => {
               const elapsed = duration(entrySeconds(entry, now), settings);
-              const label = [entry.description || '(no description)', entry.project_name, elapsed].filter(Boolean).join(', ');
+              const label = [entry.description || '(no description)', entry.project_name, elapsed]
+                .filter(Boolean)
+                .join(', ');
               return (
                 <button
                   key={entry.id}
@@ -361,17 +438,20 @@ export function WeekCalendar() {
           className="calendar-body"
           ref={scroller}
           // Capture phase: a block stops its pointer down from bubbling, but a swipe may start on it.
-          onPointerDownCapture={(event) => {
-            if (dayMode && event.isPrimary) swipeStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+          onPointerDownCapture={event => {
+            if (dayMode && event.isPrimary)
+              swipeStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
           }}
-          onPointerUp={(event) => {
+          onPointerUp={event => {
             const start = swipeStart.current;
             swipeStart.current = null;
             if (!dayMode || !start || start.pointerId !== event.pointerId || !gestureEditsNothing) return;
             const direction = classifySwipe(event.clientX - start.x, event.clientY - start.y);
             if (direction) step(direction === 'next' ? 1 : -1);
           }}
-          onPointerCancel={() => { swipeStart.current = null; }}
+          onPointerCancel={() => {
+            swipeStart.current = null;
+          }}
         >
           <div
             key={dayMode ? selectedDay : 'week'}
@@ -379,7 +459,9 @@ export function WeekCalendar() {
             style={{ height: 24 * HOUR_HEIGHT }}
             data-slide={dayMode && slide ? slide : undefined}
             // Android Chrome opens a context menu on a long press; a right-click still gets one.
-            onContextMenu={(event) => { if (longPress.current || dragRef.current) event.preventDefault(); }}
+            onContextMenu={event => {
+              if (longPress.current || dragRef.current) event.preventDefault();
+            }}
           >
             <div className="calendar-gutter">
               {Array.from({ length: 24 }, (_, hour) => (
@@ -388,86 +470,102 @@ export function WeekCalendar() {
                 </span>
               ))}
             </div>
-            {days.map((day) => (
+            {days.map(day => (
               <div
                 key={day}
                 className={`calendar-column${day === todayKey ? ' today' : ''}`}
-                onPointerDown={(event) => {
+                onPointerDown={event => {
                   if (event.button !== 0 || (event.target as HTMLElement).closest('.calendar-block')) return;
                   const minute = snap(minuteAt(event.clientY, event.currentTarget), stepMinutes);
                   beginDrag(event, { kind: 'create', day, fromMinute: minute, toMinute: minute });
                 }}
-                onPointerMove={(event) => {
+                onPointerMove={event => {
                   if (!drag) return;
                   if (drag.kind === 'create' && drag.day === day) {
                     updateDrag({ ...drag, toMinute: snap(minuteAt(event.clientY, event.currentTarget), stepMinutes) });
                   } else if (drag.kind !== 'create') {
-                    const snapped = Math.round(((event.clientY - drag.originY) / HOUR_HEIGHT) * 60 / stepMinutes) * stepMinutes;
+                    const snapped =
+                      Math.round((((event.clientY - drag.originY) / HOUR_HEIGHT) * 60) / stepMinutes) * stepMinutes;
                     // A day-mode move stays on the shown day; the week view lets a block cross midnight.
-                    const delta = dayMode && drag.kind === 'move' ? clampDayMove(snapped, drag.startMinute, drag.endMinute) : snapped;
+                    const delta =
+                      dayMode && drag.kind === 'move'
+                        ? clampDayMove(snapped, drag.startMinute, drag.endMinute)
+                        : snapped;
                     if (delta !== drag.deltaMinutes) updateDrag({ ...drag, deltaMinutes: delta });
                   }
                 }}
               >
-                {day === todayKey ? <div className="calendar-now" style={{ top: (nowMinute / 60) * HOUR_HEIGHT }} /> : null}
-                {blocks.filter((block) => block.day === day).map((block) => {
-                  const active = drag && drag.kind !== 'create' && drag.entry.id === block.entry.id;
-                  let top = block.top;
-                  let bottom = block.bottom;
-                  if (active && drag.kind === 'move') {
-                    top = droppedMinute(block.top, drag.deltaMinutes, settings.timeResolution);
-                    bottom += top - block.top;
-                  } else if (active && drag.kind === 'resize') {
-                    bottom = Math.max(top + stepMinutes, droppedMinute(bottom, drag.deltaMinutes, settings.timeResolution));
-                  }
-                  const width = 100 / block.lanes;
-                  const storedHeight = ((bottom - top) / 60) * HOUR_HEIGHT;
-                  const { description, project_name: projectName } = block.entry;
-                  const elapsed = duration(entrySeconds(block.entry, now), settings);
-                  const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
-                  const heading = description || projectName || '(no description)';
-                  return (
-                    <div
-                      key={`${block.entry.id}-${day}`}
-                      className={`calendar-block${block.entry.stop ? '' : ' running'}${storedHeight < MIN_BLOCK_HEIGHT ? ' thin' : ''}${storedHeight === 0 ? ' marker' : ''}${active ? ' dragging' : ''}`}
-                      style={{
-                        top: (top / 60) * HOUR_HEIGHT,
-                        height: Math.max(storedHeight, active ? MIN_BLOCK_HEIGHT : block.minHeight),
-                        left: `calc(${block.lane * width}% + 2px)`,
-                        width: `calc(${width}% - 4px)`,
-                        ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),
-                      }}
-                      role="group"
-                      aria-label={label}
-                      title={`${label}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
-                      onPointerDown={(event) => {
-                        if (event.button !== 0) return;
-                        event.stopPropagation();
-                        const resize = (event.target as HTMLElement).classList.contains('calendar-resize');
-                        beginDrag(event, {
-                          kind: resize ? 'resize' : 'move', entry: block.entry, day, originY: event.clientY,
-                          startMinute: block.top, endMinute: block.bottom, deltaMinutes: 0,
-                        });
-                      }}
-                    >
-                      {bottom - top >= 45 ? (
-                        <>
-                          <strong>{heading}</strong>
-                          <span>
-                            {projectName ? `${projectName} · ` : null}
-                            <span className="calendar-block-duration">{elapsed}</span>
-                          </span>
-                        </>
-                      ) : (
-                        <div className="calendar-block-line">
-                          <strong>{heading}</strong>
-                          {description && projectName ? <span> · {projectName}</span> : null}
-                        </div>
-                      )}
-                      {block.entry.stop ? <span className="calendar-resize" aria-hidden /> : null}
-                    </div>
-                  );
-                })}
+                {day === todayKey ? (
+                  <div className="calendar-now" style={{ top: (nowMinute / 60) * HOUR_HEIGHT }} />
+                ) : null}
+                {blocks
+                  .filter(block => block.day === day)
+                  .map(block => {
+                    const active = drag && drag.kind !== 'create' && drag.entry.id === block.entry.id;
+                    let top = block.top;
+                    let bottom = block.bottom;
+                    if (active && drag.kind === 'move') {
+                      top = droppedMinute(block.top, drag.deltaMinutes, settings.timeResolution);
+                      bottom += top - block.top;
+                    } else if (active && drag.kind === 'resize') {
+                      bottom = Math.max(
+                        top + stepMinutes,
+                        droppedMinute(bottom, drag.deltaMinutes, settings.timeResolution),
+                      );
+                    }
+                    const width = 100 / block.lanes;
+                    const storedHeight = ((bottom - top) / 60) * HOUR_HEIGHT;
+                    const { description, project_name: projectName } = block.entry;
+                    const elapsed = duration(entrySeconds(block.entry, now), settings);
+                    const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
+                    const heading = description || projectName || '(no description)';
+                    return (
+                      <div
+                        key={`${block.entry.id}-${day}`}
+                        className={`calendar-block${block.entry.stop ? '' : ' running'}${storedHeight < MIN_BLOCK_HEIGHT ? ' thin' : ''}${storedHeight === 0 ? ' marker' : ''}${active ? ' dragging' : ''}`}
+                        style={{
+                          top: (top / 60) * HOUR_HEIGHT,
+                          height: Math.max(storedHeight, active ? MIN_BLOCK_HEIGHT : block.minHeight),
+                          left: `calc(${block.lane * width}% + 2px)`,
+                          width: `calc(${width}% - 4px)`,
+                          ...projectColorStyle(block.entry.project_color ?? 'var(--muted)'),
+                        }}
+                        role="group"
+                        aria-label={label}
+                        title={`${label}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
+                        onPointerDown={event => {
+                          if (event.button !== 0) return;
+                          event.stopPropagation();
+                          const resize = (event.target as HTMLElement).classList.contains('calendar-resize');
+                          beginDrag(event, {
+                            kind: resize ? 'resize' : 'move',
+                            entry: block.entry,
+                            day,
+                            originY: event.clientY,
+                            startMinute: block.top,
+                            endMinute: block.bottom,
+                            deltaMinutes: 0,
+                          });
+                        }}
+                      >
+                        {bottom - top >= 45 ? (
+                          <>
+                            <strong>{heading}</strong>
+                            <span>
+                              {projectName ? `${projectName} · ` : null}
+                              <span className="calendar-block-duration">{elapsed}</span>
+                            </span>
+                          </>
+                        ) : (
+                          <div className="calendar-block-line">
+                            <strong>{heading}</strong>
+                            {description && projectName ? <span> · {projectName}</span> : null}
+                          </div>
+                        )}
+                        {block.entry.stop ? <span className="calendar-resize" aria-hidden /> : null}
+                      </div>
+                    );
+                  })}
                 {drag?.kind === 'create' && drag.day === day ? (
                   <div
                     className="calendar-block calendar-ghost"
@@ -483,12 +581,28 @@ export function WeekCalendar() {
             ))}
           </div>
         </div>
-        {isLoading ? <Loading label="Loading week…" className="calendar-state" /> : error && !data ? (
-          <LoadError className="calendar-state" message={`Could not load this week: ${error.message}`} onRetry={() => void refetch()} />
+        {isLoading ? (
+          <Loading label="Loading week…" className="calendar-state" />
+        ) : error && !data ? (
+          <LoadError
+            className="calendar-state"
+            message={`Could not load this week: ${error.message}`}
+            onRetry={() => void refetch()}
+          />
         ) : null}
       </div>
-      <p className="hint">Drag on an empty slot to add an entry. Drag a block to move it, or its bottom edge to change the end. Click a block to edit it.</p>
-      {creatingDay ? <AllDayEntryDialog key={creatingDay} date={creatingDay} recentEntries={entries} onClose={() => setCreatingDay(null)} /> : null}
+      <p className="hint">
+        Drag on an empty slot to add an entry. Drag a block to move it, or its bottom edge to change the end. Click a
+        block to edit it.
+      </p>
+      {creatingDay ? (
+        <AllDayEntryDialog
+          key={creatingDay}
+          date={creatingDay}
+          recentEntries={entries}
+          onClose={() => setCreatingDay(null)}
+        />
+      ) : null}
       {editing ? <EntryEditor entry={editing} onClose={() => setEditing(null)} /> : null}
     </div>
   );

@@ -2,7 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,9 +29,9 @@ const GITHUB_ASSETS: { path: string; label: string }[] = RELEASERC.plugins.find(
   (entry: unknown) => Array.isArray(entry) && entry[0] === '@semantic-release/github',
 )[1].assets;
 const LABEL = {
-  deb: GITHUB_ASSETS.find((asset) => asset.path.endsWith('_amd64.deb'))!.label,
-  'ubuntu-deb': GITHUB_ASSETS.find((asset) => asset.path.endsWith('-ubuntu26.04.deb'))!.label,
-  rpm: GITHUB_ASSETS.find((asset) => asset.path.endsWith('.rpm'))!.label,
+  deb: GITHUB_ASSETS.find(asset => asset.path.endsWith('_amd64.deb'))!.label,
+  'ubuntu-deb': GITHUB_ASSETS.find(asset => asset.path.endsWith('-ubuntu26.04.deb'))!.label,
+  rpm: GITHUB_ASSETS.find(asset => asset.path.endsWith('.rpm'))!.label,
 };
 
 const GH = `#!/usr/bin/env bash
@@ -53,9 +63,15 @@ type Asset = { name: string; label?: string; state?: string; digest?: string | n
 type Release = { tag: string; assets: Asset[] };
 
 const sha256 = (content: string) => createHash('sha256').update(content).digest('hex');
-const deb = (native: string, extra: Partial<Asset> = {}): Asset => ({ name: `tokkl-kde_${native}_amd64.deb`, label: LABEL.deb, ...extra });
+const deb = (native: string, extra: Partial<Asset> = {}): Asset => ({
+  name: `tokkl-kde_${native}_amd64.deb`,
+  label: LABEL.deb,
+  ...extra,
+});
 const ubuntu = (native: string, extra: Partial<Asset> = {}): Asset => ({
-  name: `tokkl-kde_${native}_amd64-ubuntu26.04.deb`, label: LABEL['ubuntu-deb'], ...extra,
+  name: `tokkl-kde_${native}_amd64-ubuntu26.04.deb`,
+  label: LABEL['ubuntu-deb'],
+  ...extra,
 });
 const rpm = (native: string, dist = 'fc44', extra: Partial<Asset> = {}): Asset => ({
   name: `tokkl-kde-${native}-1.${dist}.x86_64.rpm`,
@@ -64,7 +80,7 @@ const rpm = (native: string, dist = 'fc44', extra: Partial<Asset> = {}): Asset =
 });
 
 /** A throwaway directory with the stand-in `gh` and the given releases, deleted when the test ends. */
-function fixture(t: { after: (fn: () => void) => void }, releases: Release[], tags = releases.map((r) => r.tag)) {
+function fixture(t: { after: (fn: () => void) => void }, releases: Release[], tags = releases.map(r => r.tag)) {
   const root = mkdtempSync(join(tmpdir(), 'tokkl-previous-package-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, 'bin');
@@ -74,10 +90,10 @@ function fixture(t: { after: (fn: () => void) => void }, releases: Release[], ta
   mkdirSync(join(data, 'releases'), { recursive: true });
   writeFileSync(join(bin, 'gh'), GH);
   chmodSync(join(bin, 'gh'), 0o755);
-  writeFileSync(join(data, 'tags'), tags.map((tag) => `${tag}\n`).join(''));
+  writeFileSync(join(data, 'tags'), tags.map(tag => `${tag}\n`).join(''));
   for (const release of releases) {
     mkdirSync(join(data, 'files', release.tag), { recursive: true });
-    const assets = release.assets.map((asset) => {
+    const assets = release.assets.map(asset => {
       const content = asset.content ?? `${release.tag} ${asset.name}`;
       writeFileSync(join(data, 'files', release.tag, asset.name), content);
       return {
@@ -107,7 +123,7 @@ function fixture(t: { after: (fn: () => void) => void }, releases: Release[], ta
 
 const FALLBACK = /the upgrade check uses a build of this source as 0\.0\.0 instead\n$/;
 
-test('selects the Ubuntu predecessor separately from Debian packages in the same release', (t) => {
+test('selects the Ubuntu predecessor separately from Debian packages in the same release', t => {
   const box = fixture(t, [
     { tag: 'v1.2.2', assets: [deb('1.2.2')] },
     { tag: 'v1.2.1', assets: [deb('1.2.1'), ubuntu('1.2.1'), rpm('1.2.1')] },
@@ -118,7 +134,7 @@ test('selects the Ubuntu predecessor separately from Debian packages in the same
   assert.deepEqual(result.left, [ubuntu('1.2.1').name]);
 });
 
-test('selects the Debian predecessor when the release also contains an Ubuntu DEB', (t) => {
+test('selects the Debian predecessor when the release also contains an Ubuntu DEB', t => {
   const box = fixture(t, [{ tag: 'v1.2.2', assets: [deb('1.2.2'), ubuntu('1.2.2')] }]);
   const result = box.run('deb', '1.2.3');
   assert.equal(result.status, 0, result.stderr);
@@ -133,15 +149,19 @@ function assertFallback(result: ReturnType<ReturnType<typeof fixture>['run']>, r
   assert.deepEqual(result.left, []);
 }
 
-test('picks the newest strictly older release with one asset of the format by package version order', (t) => {
-  const box = fixture(t, [
-    { tag: 'v1.2.9', assets: [deb('1.2.9')] },
-    { tag: 'v1.4.0', assets: [deb('1.4.0')] },
-    { tag: 'v1.3.0', assets: [deb('1.3.0')] },
-    { tag: 'v1.3.0-rc.1', assets: [deb('1.3.0~rc1', { label: 'tokkl-kde DEB for Debian 12 (amd64)' })] },
-    { tag: 'v1.2.11', assets: [deb('1.2.11', { digest: null })] },
-    { tag: 'v1.2.10', assets: [deb('1.2.10'), rpm('1.2.10')] },
-  ], ['v1.2.9', 'v1.4.0', 'nightly', 'v1.3.0', 'v1.3.0-rc.1', 'v1.2.11', 'v1.2.10', 'v1.2.3-rc-1']);
+test('picks the newest strictly older release with one asset of the format by package version order', t => {
+  const box = fixture(
+    t,
+    [
+      { tag: 'v1.2.9', assets: [deb('1.2.9')] },
+      { tag: 'v1.4.0', assets: [deb('1.4.0')] },
+      { tag: 'v1.3.0', assets: [deb('1.3.0')] },
+      { tag: 'v1.3.0-rc.1', assets: [deb('1.3.0~rc1', { label: 'tokkl-kde DEB for Debian 12 (amd64)' })] },
+      { tag: 'v1.2.11', assets: [deb('1.2.11', { digest: null })] },
+      { tag: 'v1.2.10', assets: [deb('1.2.10'), rpm('1.2.10')] },
+    ],
+    ['v1.2.9', 'v1.4.0', 'nightly', 'v1.3.0', 'v1.3.0-rc.1', 'v1.2.11', 'v1.2.10', 'v1.2.3-rc-1'],
+  );
   const result = box.run('deb', '1.3.0');
   assert.equal(result.status, 0, result.stderr);
   const file = join(result.output, 'tokkl-kde_1.2.10_amd64.deb');
@@ -156,18 +176,29 @@ test('picks the newest strictly older release with one asset of the format by pa
   ]);
   assert.equal(result.gh.length, 5);
   assert.ok(
-    result.gh[4]!.startsWith(`release download v1.2.10 --pattern tokkl-kde_1.2.10_amd64.deb --dir ${result.output}/.download.`),
+    result.gh[4]!.startsWith(
+      `release download v1.2.10 --pattern tokkl-kde_1.2.10_amd64.deb --dir ${result.output}/.download.`,
+    ),
     result.gh[4],
   );
-  assert.match(result.stderr, /v1\.3\.0-rc\.1 has no single "tokkl-kde DEB for Debian 13 \(amd64\)" asset for 1\.3\.0~rc1; trying older/);
+  assert.match(
+    result.stderr,
+    /v1\.3\.0-rc\.1 has no single "tokkl-kde DEB for Debian 13 \(amd64\)" asset for 1\.3\.0~rc1; trying older/,
+  );
   assert.match(result.stderr, /v1\.2\.11 has no single .* asset for 1\.2\.11; trying older/);
-  assert.match(result.stderr, /tokkl-kde_1\.2\.10_amd64\.deb from v1\.2\.10, SHA-256 [0-9a-f]{64}, for the upgrade to 1\.3\.0\n$/);
+  assert.match(
+    result.stderr,
+    /tokkl-kde_1\.2\.10_amd64\.deb from v1\.2\.10, SHA-256 [0-9a-f]{64}, for the upgrade to 1\.3\.0\n$/,
+  );
 });
 
-test('passes over a release with two RPMs for the target and RPMs it cannot name', (t) => {
+test('passes over a release with two RPMs for the target and RPMs it cannot name', t => {
   const box = fixture(t, [
     { tag: 'v1.2.2', assets: [rpm('1.2.2', 'fc43'), rpm('1.2.2', 'fc44')] },
-    { tag: 'v1.2.1', assets: [deb('1.2.1'), rpm('1.2.1', 'fc44.debug'), rpm('1.2.1', 'fc44'), rpm('1.2.1', 'fc45', { state: 'open' })] },
+    {
+      tag: 'v1.2.1',
+      assets: [deb('1.2.1'), rpm('1.2.1', 'fc44.debug'), rpm('1.2.1', 'fc44'), rpm('1.2.1', 'fc45', { state: 'open' })],
+    },
   ]);
   const result = box.run('rpm', '1.2.3');
   assert.equal(result.status, 0, result.stderr);
@@ -176,7 +207,7 @@ test('passes over a release with two RPMs for the target and RPMs it cannot name
   assert.match(result.stderr, /v1\.2\.2 has no single "tokkl-kde RPM for Fedora KDE 44 \(x86_64\)" asset/);
 });
 
-test('falls back when gh is not installed', (t) => {
+test('falls back when gh is not installed', t => {
   const box = fixture(t, [{ tag: 'v1.2.2', assets: [deb('1.2.2')] }]);
   // Only the tools the script needs before it looks for gh, so no gh on PATH at all.
   const tools = join(box.root, 'tools');
@@ -189,25 +220,31 @@ test('falls back when gh is not installed', (t) => {
   assert.deepEqual(result.gh, []);
 });
 
-test('falls back when the releases cannot be listed', (t) => {
+test('falls back when the releases cannot be listed', t => {
   const box = fixture(t, [{ tag: 'v1.2.2', assets: [deb('1.2.2')] }]);
   box.mark('fail-list');
   assertFallback(box.run('deb', '1.2.3'), /cannot list the releases \(HTTP 403: Resource not accessible\);/);
 });
 
-test('falls back when there are no releases', (t) => {
-  assertFallback(fixture(t, []).run('deb', '1.2.3'), /no published release older than 1\.2\.3 has a "tokkl-kde DEB for Debian 13 \(amd64\)" asset;/);
+test('falls back when there are no releases', t => {
+  assertFallback(
+    fixture(t, []).run('deb', '1.2.3'),
+    /no published release older than 1\.2\.3 has a "tokkl-kde DEB for Debian 13 \(amd64\)" asset;/,
+  );
 });
 
-test('falls back when the assets of the release cannot be read', (t) => {
-  const box = fixture(t, [{ tag: 'v1.2.2', assets: [deb('1.2.2')] }, { tag: 'v1.2.1', assets: [deb('1.2.1')] }]);
+test('falls back when the assets of the release cannot be read', t => {
+  const box = fixture(t, [
+    { tag: 'v1.2.2', assets: [deb('1.2.2')] },
+    { tag: 'v1.2.1', assets: [deb('1.2.1')] },
+  ]);
   box.forget('v1.2.2');
   const result = box.run('deb', '1.2.3');
   assertFallback(result, /cannot read the assets of v1\.2\.2;/);
-  assert.equal(result.gh.filter((call) => call.startsWith('release view')).length, 1);
+  assert.equal(result.gh.filter(call => call.startsWith('release view')).length, 1);
 });
 
-test('falls back when no older release has a package for the target', (t) => {
+test('falls back when no older release has a package for the target', t => {
   const box = fixture(t, [
     { tag: 'v1.3.0', assets: [deb('1.3.0')] },
     { tag: 'v1.2.3', assets: [deb('1.2.3')] },
@@ -215,12 +252,18 @@ test('falls back when no older release has a package for the target', (t) => {
     { tag: 'v1.2.1', assets: [rpm('1.2.1')] },
   ]);
   const result = box.run('deb', '1.2.3');
-  assertFallback(result, /no published release older than 1\.2\.3 has a "tokkl-kde DEB for Debian 13 \(amd64\)" asset;/);
-  assert.equal(result.gh.some((call) => call.startsWith('release download')), false);
+  assertFallback(
+    result,
+    /no published release older than 1\.2\.3 has a "tokkl-kde DEB for Debian 13 \(amd64\)" asset;/,
+  );
+  assert.equal(
+    result.gh.some(call => call.startsWith('release download')),
+    false,
+  );
 });
 
 for (const partial of [false, true]) {
-  test(`falls back when the download fails${partial ? ' after writing part of the file' : ''}`, (t) => {
+  test(`falls back when the download fails${partial ? ' after writing part of the file' : ''}`, t => {
     const box = fixture(t, [{ tag: 'v1.2.2', assets: [deb('1.2.2')] }]);
     box.mark('fail-download');
     if (partial) box.mark('partial');
@@ -234,18 +277,21 @@ for (const [what, asset] of [
   ['size', deb('1.2.2', { size: 999 })],
   ['SHA-256', deb('1.2.2', { digest: `sha256:${sha256('something else')}` })],
 ] as const) {
-  test(`fails, leaving nothing behind, when the download does not match its published ${what}`, (t) => {
+  test(`fails, leaving nothing behind, when the download does not match its published ${what}`, t => {
     const box = fixture(t, [{ tag: 'v1.2.2', assets: [asset] }]);
     const result = box.run('deb', '1.2.3');
     assert.equal(result.status, 1);
     assert.equal(result.stdout, '');
-    assert.match(result.stderr, /^error: tokkl-kde_1\.2\.2_amd64\.deb from v1\.2\.2 does not match its published size \d+ and SHA-256 [0-9a-f]{64}$/m);
+    assert.match(
+      result.stderr,
+      /^error: tokkl-kde_1\.2\.2_amd64\.deb from v1\.2\.2 does not match its published size \d+ and SHA-256 [0-9a-f]{64}$/m,
+    );
     assert.doesNotMatch(result.stderr, FALLBACK);
     assert.deepEqual(result.left, []);
   });
 }
 
-test('removes a stale file of the same name when the download does not verify', (t) => {
+test('removes a stale file of the same name when the download does not verify', t => {
   const box = fixture(t, [{ tag: 'v1.2.2', assets: [deb('1.2.2', { size: 999 })] }]);
   const output = join(box.root, 'previous');
   mkdirSync(output);

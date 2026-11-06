@@ -22,14 +22,17 @@ const POMODORO_RANGES: Record<string, [min: number, max: number]> = {
 const storedPreferences = async (ctx: TestContext) =>
   JSON.stringify((await storageFor(ctx.db).users.get(ctx.user.id))!.preferences);
 const pomodoroOf = (prefs: Record<string, unknown>) =>
-  Object.fromEntries(Object.keys(POMODORO_DEFAULTS).map((key) => [key, prefs[key]]));
+  Object.fromEntries(Object.keys(POMODORO_DEFAULTS).map(key => [key, prefs[key]]));
 
 test('invalid known preferences are rejected with 400 and nothing is saved', async () => {
-  const ctx = (await setup());
-  const saved = await ctx.json('POST', '/api/v9/me/preferences', { date_format: 'DD/MM/YYYY', favorites: [favorite('Standup')] });
+  const ctx = await setup();
+  const saved = await ctx.json('POST', '/api/v9/me/preferences', {
+    date_format: 'DD/MM/YYYY',
+    favorites: [favorite('Standup')],
+  });
   assert.equal(saved.status, 200);
   const before = (await ctx.json('GET', '/api/v9/me/preferences')).body;
-  const storedBefore = (await storedPreferences(ctx));
+  const storedBefore = await storedPreferences(ctx);
 
   const invalid: Array<Record<string, unknown>> = [
     { favorites: {} },
@@ -46,7 +49,8 @@ test('invalid known preferences are rejected with 400 and nothing is saved', asy
     { collapseTimeEntries: 1 },
     // Below, above, a fraction inside the range and a numeric string for every integer key.
     ...Object.entries(POMODORO_RANGES).flatMap(([key, [min, max]]) =>
-      [min - 1, max + 1, min + 0.5, String(min)].map((value) => ({ [key]: value }))),
+      [min - 1, max + 1, min + 0.5, String(min)].map(value => ({ [key]: value })),
+    ),
     { pomodoro_focus_interval_in_minutes: null },
     { pomodoro_focus_interval_in_minutes: true },
     // A valid change next to an invalid one must not be saved either.
@@ -66,19 +70,22 @@ test('invalid known preferences are rejected with 400 and nothing is saved', asy
   );
   assert.deepEqual((await ctx.json('GET', '/api/v9/me/preferences')).body, before);
   // Reads fall back to defaults, so only the stored record shows that nothing was written.
-  assert.equal((await storedPreferences(ctx)), storedBefore);
+  assert.equal(await storedPreferences(ctx), storedBefore);
 });
 
 test('a new account reads the Pomodoro defaults', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   assert.deepEqual(pomodoroOf((await ctx.json('GET', '/api/v9/me/preferences')).body), POMODORO_DEFAULTS);
-  assert.deepEqual(pomodoroOf(JSON.parse((await storedPreferences(ctx)))), POMODORO_DEFAULTS);
+  assert.deepEqual(pomodoroOf(JSON.parse(await storedPreferences(ctx))), POMODORO_DEFAULTS);
 });
 
 test('Pomodoro settings save and read back at the bounds of their ranges', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const values: Array<[string, unknown]> = [
-    ...Object.entries(POMODORO_RANGES).flatMap(([key, [min, max]]): Array<[string, unknown]> => [[key, min], [key, max]]),
+    ...Object.entries(POMODORO_RANGES).flatMap(([key, [min, max]]): Array<[string, unknown]> => [
+      [key, min],
+      [key, max],
+    ]),
   ];
   for (const [key, value] of values) {
     const saved = await ctx.json('POST', '/api/v9/me/preferences', { [key]: value });
@@ -88,17 +95,25 @@ test('Pomodoro settings save and read back at the bounds of their ranges', async
   }
 
   // A client-specific save writes the account's record, which every client reads.
-  assert.equal((await ctx.json('POST', '/api/v9/me/preferences/android', { pomodoro_long_break_every: 6 })).status, 200);
+  assert.equal(
+    (await ctx.json('POST', '/api/v9/me/preferences/android', { pomodoro_long_break_every: 6 })).status,
+    200,
+  );
   assert.equal((await ctx.json('GET', '/api/v9/me/preferences')).body.pomodoro_long_break_every, 6);
   assert.equal((await ctx.json('GET', '/api/v9/me/preferences/web')).body.pomodoro_long_break_every, 6);
 });
 
 test('unknown keys and custom formats are preserved across saves', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const favorites = Array.from({ length: MAX_FAVORITES }, (_, i) => favorite(`F${i}`));
   const saved = await ctx.json('POST', '/api/v9/me/preferences/web', {
-    date_format: 'ddd D MMM', timeofday_format: 'h:mm a', theme: 'dark', timerView: 'calendar',
-    showTimeInTitle: true, favorites, client_widget: { nested: [1, 2] },
+    date_format: 'ddd D MMM',
+    timeofday_format: 'h:mm a',
+    theme: 'dark',
+    timerView: 'calendar',
+    showTimeInTitle: true,
+    favorites,
+    client_widget: { nested: [1, 2] },
   });
   assert.equal(saved.status, 200);
 
@@ -114,12 +129,20 @@ test('unknown keys and custom formats are preserved across saves', async () => {
 });
 
 test('invalid values stored before validation read back as defaults', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   await storageFor(ctx.db).users.setPreferences(ctx.user.id, {
-    date_format: 7, timeofday_format: '', theme: 'neon', duration_format: 'hours', manualMode: 'yes',
-    favorites: {}, timerView: 'grid', legacy_key: 'kept',
-    pomodoro_focus_interval_in_minutes: 0, pomodoro_break_interval_in_minutes: 61,
-    pomodoro_long_break_interval_in_minutes: 7.5, pomodoro_long_break_every: '4',
+    date_format: 7,
+    timeofday_format: '',
+    theme: 'neon',
+    duration_format: 'hours',
+    manualMode: 'yes',
+    favorites: {},
+    timerView: 'grid',
+    legacy_key: 'kept',
+    pomodoro_focus_interval_in_minutes: 0,
+    pomodoro_break_interval_in_minutes: 61,
+    pomodoro_long_break_interval_in_minutes: 7.5,
+    pomodoro_long_break_every: '4',
   });
 
   const prefs = (await ctx.json('GET', '/api/v9/me/preferences')).body;
@@ -135,29 +158,34 @@ test('invalid values stored before validation read back as defaults', async () =
 });
 
 test('long timer reminders default to eight hours and validate saved settings', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const initial = (await ctx.json('GET', '/api/v9/me/preferences')).body;
   assert.equal(initial.long_timer_reminder_enabled, true);
   assert.equal(initial.long_timer_reminder_hours, 8);
   for (const hours of [1, 12, 168]) {
     const saved = await ctx.json('POST', '/api/v9/me/preferences', {
-      long_timer_reminder_hours: hours, long_timer_reminder_enabled: false,
+      long_timer_reminder_hours: hours,
+      long_timer_reminder_enabled: false,
     });
     assert.equal(saved.status, 200);
     const read = (await ctx.json('GET', '/api/v9/me/preferences')).body;
     assert.equal(read.long_timer_reminder_hours, hours);
     assert.equal(read.long_timer_reminder_enabled, false);
   }
-  const before = (await storedPreferences(ctx));
+  const before = await storedPreferences(ctx);
   for (const hours of [0, -1, 169, 1.5, '8', null, true]) {
     assert.equal((await ctx.json('POST', '/api/v9/me/preferences', { long_timer_reminder_hours: hours })).status, 400);
   }
   for (const enabled of ['true', 1, null]) {
-    assert.equal((await ctx.json('POST', '/api/v9/me/preferences', { long_timer_reminder_enabled: enabled })).status, 400);
+    assert.equal(
+      (await ctx.json('POST', '/api/v9/me/preferences', { long_timer_reminder_enabled: enabled })).status,
+      400,
+    );
   }
-  assert.equal((await storedPreferences(ctx)), before);
+  assert.equal(await storedPreferences(ctx), before);
   await storageFor(ctx.db).users.setPreferences(ctx.user.id, {
-    long_timer_reminder_enabled: 'yes', long_timer_reminder_hours: 0,
+    long_timer_reminder_enabled: 'yes',
+    long_timer_reminder_hours: 0,
   });
   const legacy = (await ctx.json('GET', '/api/v9/me/preferences')).body;
   assert.equal(legacy.long_timer_reminder_enabled, true);

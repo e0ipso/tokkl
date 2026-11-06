@@ -1,91 +1,254 @@
 /* Reports page. Colours, including the chart, tooltip and report table tokens, come from the token
    block in styles.css, and their contrast is in the table there. */
 
-.reports .is-dimmed { opacity: 0.55; transition: opacity 0.15s; }
-.reports .nowrap { white-space: nowrap; }
-.reports .strong { font-weight: 600; }
+.reports .is-dimmed {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.reports .nowrap {
+  white-space: nowrap;
+}
+.reports .strong {
+  font-weight: 600;
+}
 
 /* Header: range control and exports */
-.reports-header { row-gap: 10px; }
-.range-control { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; }
-.range-control .icon-button { width: 40px; height: 40px; border-radius: var(--radius-pill); }
+.reports-header {
+  row-gap: 10px;
+}
+.range-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.range-control .icon-button {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+}
 /* .range-button is a .select-button; the e2e suite selects it by this class. A chunky pill with
    the range in the display face. */
 .range-button {
-  white-space: nowrap; min-width: 0; min-height: 40px; padding: 6px 16px; gap: var(--space-2);
-  border-width: 2px; border-radius: var(--radius-pill);
-  font-family: var(--font-display); font-stretch: 85%; font-weight: 600;
+  white-space: nowrap;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 16px;
+  gap: var(--space-2);
+  border-width: 2px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-weight: 600;
 }
-.range-button strong { font-weight: 800; }
-.range-button > span { overflow: hidden; text-overflow: ellipsis; }
-.range-button[aria-expanded='true'] { border-color: var(--primary); }
-.range-presets { display: flex; flex-direction: column; padding: 4px; }
+.range-button strong {
+  font-weight: 800;
+}
+.range-button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.range-button[aria-expanded='true'] {
+  border-color: var(--primary);
+}
+.range-presets {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+}
 .range-preset {
-  display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: none; background: none;
-  border-radius: 6px; cursor: pointer; text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
 }
-.range-preset:hover { background: var(--surface-2); }
-.range-preset.selected { font-weight: 600; }
-.range-check { display: inline-flex; width: 16px; color: var(--primary); }
+.range-preset:hover {
+  background: var(--surface-2);
+}
+.range-preset.selected {
+  font-weight: 600;
+}
+.range-check {
+  display: inline-flex;
+  width: 16px;
+  color: var(--primary);
+}
 .range-custom {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
 }
-.range-custom-title { grid-column: 1 / -1; font-size: 0.82rem; font-weight: 600; color: var(--muted); }
-.range-custom .field { min-width: 0; }
-.range-custom input { width: 100%; min-width: 0; }
-.range-custom .button { grid-column: 1 / -1; justify-content: center; }
-.export-buttons { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.export-buttons .button { display: inline-flex; align-items: center; gap: 6px; }
+.range-custom-title {
+  grid-column: 1 / -1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.range-custom .field {
+  min-width: 0;
+}
+.range-custom input {
+  width: 100%;
+  min-width: 0;
+}
+.range-custom .button {
+  grid-column: 1 / -1;
+  justify-content: center;
+}
+.export-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.export-buttons .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* Filters */
-.report-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-bottom: var(--space-4); }
-.report-filters > * { min-width: 0; }
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+.report-filters > * {
+  min-width: 0;
+}
 /* Chunky pills. An active filter is a filled primary pill, and it also shows its value as text
    (the chip's value, the billable select's chosen option), so colour is not the only cue. */
-.filter-chip, .filter-select {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; max-width: 100%; padding: 6px 14px;
-  border: 2px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); color: var(--text);
-  cursor: pointer; font-size: var(--text-md); font-weight: 600;
-  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+.filter-chip,
+.filter-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 6px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--text-md);
+  font-weight: 600;
+  transition:
+    background-color var(--duration-fast),
+    border-color var(--duration-fast);
 }
-.filter-chip:hover, .filter-select:hover { background: var(--surface-2); }
-.filter-chip.active, .filter-select.active,
-.filter-chip.active:hover, .filter-select.active:hover {
-  border-color: var(--primary); background: var(--primary); color: var(--on-primary);
+.filter-chip:hover,
+.filter-select:hover {
+  background: var(--surface-2);
+}
+.filter-chip.active,
+.filter-select.active,
+.filter-chip.active:hover,
+.filter-select.active:hover {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 /* Keep the 2px focus ring clear of the filled pill, so it sits on the page background. */
-.filter-chip.active:focus-visible, .filter-select.active:focus-visible { outline-offset: 2px; }
-.filter-chip-value {
-  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--primary-text); font-weight: 800;
+.filter-chip.active:focus-visible,
+.filter-select.active:focus-visible {
+  outline-offset: 2px;
 }
-.filter-chip.active .filter-chip-value { color: inherit; }
-.filter-select { padding-right: 10px; }
+.filter-chip-value {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--primary-text);
+  font-weight: 800;
+}
+.filter-chip.active .filter-chip-value {
+  color: inherit;
+}
+.filter-select {
+  padding-right: 10px;
+}
 /* The open option list must not inherit the filled pill's colours. */
-.filter-select option { background: var(--surface); color: var(--text); }
+.filter-select option {
+  background: var(--surface);
+  color: var(--text);
+}
 /* The description SearchBox takes the pill shape of the filter chips beside it. */
-.report-filters .search-box { min-height: 40px; border-width: 2px; border-radius: var(--radius-pill); }
-.report-filters .search-box input { padding: 4px 0; width: 160px; }
-.filter-option-hint { margin-left: auto; font-size: 0.82rem; }
-.filter-popover-footer { display: flex; justify-content: flex-end; padding: 6px 12px 10px; border-top: 1px solid var(--border); }
+.report-filters .search-box {
+  min-height: 40px;
+  border-width: 2px;
+  border-radius: var(--radius-pill);
+}
+.report-filters .search-box input {
+  padding: 4px 0;
+  width: 160px;
+}
+.filter-option-hint {
+  margin-left: auto;
+  font-size: 0.82rem;
+}
+.filter-popover-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 12px 10px;
+  border-top: 1px solid var(--border);
+}
 
 /* Tabs */
 /* The active tab has a thick primary marker under its label and the heaviest weight, so the
    shape marks it as well as the colour. */
 .report-tabs {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1);
-  border-bottom: 2px solid var(--border); margin-bottom: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  border-bottom: 2px solid var(--border);
+  margin-bottom: var(--space-4);
 }
 .report-tab {
-  border: none; background: none; padding: 10px 16px 8px; cursor: pointer; color: var(--muted);
-  border-bottom: 5px solid transparent; margin-bottom: -2px;
-  font-family: var(--font-display); font-stretch: 85%; font-size: var(--text-base); font-weight: 600;
-  transition: border-color var(--duration-fast), color var(--duration-fast);
+  border: none;
+  background: none;
+  padding: 10px 16px 8px;
+  cursor: pointer;
+  color: var(--muted);
+  border-bottom: 5px solid transparent;
+  margin-bottom: -2px;
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-size: var(--text-base);
+  font-weight: 600;
+  transition:
+    border-color var(--duration-fast),
+    color var(--duration-fast);
 }
-.report-tab:hover { color: var(--text); border-bottom-color: var(--border); }
-.report-tab.active { color: var(--text); border-bottom-color: var(--primary); font-weight: 800; }
-.report-refreshing, .report-stale { margin-left: auto; }
-.report-stale { color: var(--danger); }
-.report-error p { margin: 0 0 12px; }
+.report-tab:hover {
+  color: var(--text);
+  border-bottom-color: var(--border);
+}
+.report-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--primary);
+  font-weight: 800;
+}
+.report-refreshing,
+.report-stale {
+  margin-left: auto;
+}
+.report-stale {
+  color: var(--danger);
+}
+.report-error p {
+  margin: 0 0 12px;
+}
 
 /* Totals */
 /* Stat tiles: a small label over a big display-face figure. The amount is the loudest number.
@@ -95,25 +258,61 @@
    for a time such as 1127:55:00 at --text-2xl. */
 .report-totals {
   --tile-basis: 220px;
-  display: flex; flex-wrap: wrap; gap: var(--space-3); margin: 0 0 var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
 }
 /* Each total is a .card; flex items sit side by side, so drop the stacking margin. */
-.report-totals > .card { flex: 1 1 var(--tile-basis); min-width: 0; border-width: 2px; border-radius: var(--radius-lg); }
-.report-totals > .report-totals-amount { flex-basis: auto; }
-.report-totals > .card + .card { margin-top: 0; }
+.report-totals > .card {
+  flex: 1 1 var(--tile-basis);
+  min-width: 0;
+  border-width: 2px;
+  border-radius: var(--radius-lg);
+}
+.report-totals > .report-totals-amount {
+  flex-basis: auto;
+}
+.report-totals > .card + .card {
+  margin-top: 0;
+}
 .report-totals dt {
-  font-size: var(--text-sm); font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 .report-totals dd {
-  margin: var(--space-1) 0 0; font-family: var(--font-display); font-stretch: 85%; font-size: var(--text-2xl);
-  font-weight: 800; line-height: 1.1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
-  min-width: 0; overflow-wrap: anywhere;
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1.1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
-.report-totals-share { font-size: var(--text-md); font-weight: 600; }
-.report-amount { font-size: var(--text-3xl); font-weight: 900; color: var(--primary-text); white-space: nowrap; overflow-wrap: normal; }
+.report-totals-share {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.report-amount {
+  font-size: var(--text-3xl);
+  font-weight: 900;
+  color: var(--primary-text);
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
 
 /* Chart */
-.report-chart-card { margin-bottom: 16px; }
+.report-chart-card {
+  margin-bottom: 16px;
+}
 /* SeriesChart.tsx reads the geometry properties once when the chart mounts. Each takes a
    unitless or px number; a missing or invalid value falls back to the same default in the
    component. */
@@ -128,126 +327,403 @@
   --chart-radius: 4px;
   transition: opacity 0.15s;
 }
-.series-chart.is-dimmed { opacity: 0.55; }
-.chart-defs { position: absolute; }
+.series-chart.is-dimmed {
+  opacity: 0.55;
+}
+.chart-defs {
+  position: absolute;
+}
 .chart-legend {
-  display: flex; gap: var(--space-4); font-size: var(--text-sm); color: var(--muted); margin-bottom: var(--space-2);
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-bottom: var(--space-2);
 }
-.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.chart-frame { position: relative; width: 100%; min-height: var(--chart-height); }
-.chart-frame svg { display: block; overflow: visible; }
-.chart-frame svg:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-frame {
+  position: relative;
+  width: 100%;
+  min-height: var(--chart-height);
+}
+.chart-frame svg {
+  display: block;
+  overflow: visible;
+}
+.chart-frame svg:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 /* Billable is solid; non-billable takes the stripe pattern through its fill attribute. */
-.mark-billable { fill: var(--chart-billable); }
-.chart-stripes-wash { fill: var(--chart-other-wash); }
-.chart-stripes-line { stroke: var(--chart-other); stroke-width: 3px; }
-.chart-grid { stroke: var(--surface-2); stroke-width: 1; shape-rendering: crispEdges; }
-.chart-baseline { stroke: var(--border); stroke-width: 1; shape-rendering: crispEdges; }
-.chart-tick { fill: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
-.chart-hit { fill: transparent; }
-.chart-band { fill: var(--chart-band); }
-.chart-band-strip { fill: var(--primary); }
-.chart-tooltip {
-  position: absolute; pointer-events: none; z-index: 2;
-  display: flex; flex-direction: column; gap: 2px; min-width: 170px; padding: var(--space-2) var(--space-3);
-  background: var(--chart-tooltip-bg); color: var(--chart-tooltip-text);
-  border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow); font-size: var(--text-sm);
+.mark-billable {
+  fill: var(--chart-billable);
 }
-.chart-tooltip strong { font-size: var(--text-base); font-variant-numeric: tabular-nums; }
-.chart-tooltip-label { color: var(--muted); margin-bottom: var(--space-1); }
-.chart-tooltip-row { display: flex; align-items: center; gap: 6px; color: var(--muted); }
-.chart-tooltip-row b { margin-left: auto; color: var(--chart-tooltip-text); font-weight: 600; font-variant-numeric: tabular-nums; }
-.chart-tooltip .key { flex-shrink: 0; }
-.chart-data { margin-top: var(--space-3); font-size: var(--text-md); }
-.chart-data summary { cursor: pointer; color: var(--muted); }
-.chart-data summary:hover { color: var(--text); }
-.chart-data .table-wrap { margin-top: var(--space-2); max-height: 320px; overflow: auto; }
+.chart-stripes-wash {
+  fill: var(--chart-other-wash);
+}
+.chart-stripes-line {
+  stroke: var(--chart-other);
+  stroke-width: 3px;
+}
+.chart-grid {
+  stroke: var(--surface-2);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.chart-baseline {
+  stroke: var(--border);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.chart-tick {
+  fill: var(--muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.chart-hit {
+  fill: transparent;
+}
+.chart-band {
+  fill: var(--chart-band);
+}
+.chart-band-strip {
+  fill: var(--primary);
+}
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--chart-tooltip-bg);
+  color: var(--chart-tooltip-text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  font-size: var(--text-sm);
+}
+.chart-tooltip strong {
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip-label {
+  color: var(--muted);
+  margin-bottom: var(--space-1);
+}
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.chart-tooltip-row b {
+  margin-left: auto;
+  color: var(--chart-tooltip-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip .key {
+  flex-shrink: 0;
+}
+.chart-data {
+  margin-top: var(--space-3);
+  font-size: var(--text-md);
+}
+.chart-data summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.chart-data summary:hover {
+  color: var(--text);
+}
+.chart-data .table-wrap {
+  margin-top: var(--space-2);
+  max-height: 320px;
+  overflow: auto;
+}
 
 /* Report tables: a header band and zebra rows for the breakdown, detailed and weekly tables.
    Rows take the zebra on the row, so cells without their own background (the weekly row
    headers) follow it; hover and subgroup backgrounds sit on the cells, over it. */
 :is(.breakdown-table, .detailed-table, .weekly-table) thead th {
-  background: var(--report-head-bg); color: var(--report-head-text); font-weight: 700; border-bottom: none;
+  background: var(--report-head-bg);
+  color: var(--report-head-text);
+  font-weight: 700;
+  border-bottom: none;
 }
-:is(.breakdown-table, .detailed-table, .weekly-table) thead .sort-button.active { color: inherit; }
-:is(.breakdown-table, .detailed-table, .weekly-table) thead :focus-visible { outline-color: var(--report-head-text); }
-:is(.breakdown-table, .detailed-table, .weekly-table) > tbody > tr:nth-child(even) { background: var(--report-zebra); }
+:is(.breakdown-table, .detailed-table, .weekly-table) thead .sort-button.active {
+  color: inherit;
+}
+:is(.breakdown-table, .detailed-table, .weekly-table) thead :focus-visible {
+  outline-color: var(--report-head-text);
+}
+:is(.breakdown-table, .detailed-table, .weekly-table) > tbody > tr:nth-child(even) {
+  background: var(--report-zebra);
+}
 
 /* Breakdown */
-.breakdown-toolbar { gap: 12px; }
-.inline-select { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.9rem; }
-.inline-select select { color: var(--text); }
-.breakdown-table td:first-child { width: 50%; }
-.group-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.group-toggle { width: 26px; height: 26px; min-width: 26px; padding: 0; }
-.group-toggle-space { display: inline-block; width: 26px; flex-shrink: 0; }
-.subgroup-row td { background: var(--surface-2); font-size: 0.92rem; }
-.subgroup-title { padding-left: 34px; }
-.share { display: inline-flex; align-items: center; gap: 10px; min-width: 150px; width: 100%; }
-.share-track {
-  flex: 1; height: 8px; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; min-width: 60px;
+.breakdown-toolbar {
+  gap: 12px;
 }
-.subgroup-row .share-track { background: var(--surface); }
+.inline-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.inline-select select {
+  color: var(--text);
+}
+.breakdown-table td:first-child {
+  width: 50%;
+}
+.group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.group-toggle {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0;
+}
+.group-toggle-space {
+  display: inline-block;
+  width: 26px;
+  flex-shrink: 0;
+}
+.subgroup-row td {
+  background: var(--surface-2);
+  font-size: 0.92rem;
+}
+.subgroup-title {
+  padding-left: 34px;
+}
+.share {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
+  width: 100%;
+}
+.share-track {
+  flex: 1;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+  min-width: 60px;
+}
+.subgroup-row .share-track {
+  background: var(--surface);
+}
 /* Primary unless the row passes a project colour (.share-fill.project-fill in styles.css). The
    percent beside the bar stays as text. */
-.share-fill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--primary); }
-.share-value { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.88rem; min-width: 48px; text-align: right; }
+.share-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+}
+.share-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.88rem;
+  min-width: 48px;
+  text-align: right;
+}
 
 /* Detailed */
-.report-detailed .hint, .report-weekly .hint, .report-breakdown .hint { margin-bottom: 10px; }
-.report-breakdown > .hint { margin-top: 8px; }
-.sort-button {
-  display: inline-flex; align-items: center; gap: 4px; border: none; background: none; padding: 0;
-  font: inherit; color: inherit; cursor: pointer;
+.report-detailed .hint,
+.report-weekly .hint,
+.report-breakdown .hint {
+  margin-bottom: 10px;
 }
-.sort-button.active { color: var(--text); }
-.sort-arrow { font-size: 0.65rem; min-width: 8px; }
-.entry-row { cursor: pointer; }
-.entry-row:hover td, .entry-row:focus-visible td { background: var(--surface-2); }
-.entry-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.entry-row.is-loading { opacity: 0.6; }
-.detailed-table td { font-size: 0.92rem; }
-.detailed-description { min-width: 180px; max-width: 340px; }
-.billable-mark { display: inline-flex; vertical-align: middle; margin-left: 6px; color: var(--state-billable); }
-.tag-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.detailed-table .project-label { max-width: 220px; }
+.report-breakdown > .hint {
+  margin-top: 8px;
+}
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.sort-button.active {
+  color: var(--text);
+}
+.sort-arrow {
+  font-size: 0.65rem;
+  min-width: 8px;
+}
+.entry-row {
+  cursor: pointer;
+}
+.entry-row:hover td,
+.entry-row:focus-visible td {
+  background: var(--surface-2);
+}
+.entry-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.entry-row.is-loading {
+  opacity: 0.6;
+}
+.detailed-table td {
+  font-size: 0.92rem;
+}
+.detailed-description {
+  min-width: 180px;
+  max-width: 340px;
+}
+.billable-mark {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+  color: var(--state-billable);
+}
+.tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.detailed-table .project-label {
+  max-width: 220px;
+}
 /* The table is wider than a phone screen, so the browser shrinks every column that can wrap to
    its narrowest width: one word of the client per line and one tag per line, which made short
    rows about 80px tall. Client and tags stay on one line and the table scrolls sideways instead.
    A long client name is cut off with an ellipsis; the cell's title holds the full name. */
-.detailed-table .detailed-client { white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
-.detailed-table .detailed-tags .tag-list { flex-wrap: nowrap; }
-.detailed-table .detailed-tags .tag-chip { white-space: nowrap; }
-.pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 0; flex-wrap: wrap; }
-.pager .button { display: inline-flex; align-items: center; gap: 4px; }
-
-/* Weekly */
-.weekly-table th.num { vertical-align: bottom; }
-.weekly-head { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
-.weekly-head span { font-weight: 400; font-size: 0.75rem; }
-.weekly-table .weekly-row-title { font-weight: 500; white-space: nowrap; background: none; font-size: 0.95rem; color: var(--text); }
-.weekly-table tbody th, .weekly-table tfoot th { text-align: left; }
-.weekly-table tfoot td, .weekly-table tfoot th { border-top: 2px solid var(--border); background: var(--surface-2); }
-.weekly-table td.num { min-width: 72px; }
-.weekly-table tfoot th, .weekly-table tfoot td { border-bottom: none; }
-.report-weekly .toolbar .hint { margin: 0; }
-
-@media (max-width: 760px) {
-  .reports-header .spacer { display: none; }
-  .range-control { width: 100%; }
-  .range-button { flex: 1; justify-content: center; }
-  .report-filters .search-box { flex: 1 1 160px; }
-  .report-filters .search-box input { width: 100%; }
-  .report-totals dd { font-size: var(--text-xl); }
-  .report-amount { font-size: var(--text-2xl); }
-  /* Times are set at --text-xl here, so the tiles are narrower, and Entries sizes to its content so it
-     can share a row with Amount. */
-  .report-totals { --tile-basis: 160px; }
-  .report-totals > .report-totals-entries { flex-basis: auto; }
-  .report-tab { padding: 8px 12px 6px; }
-  .breakdown-table td:first-child { width: auto; }
-  .share { min-width: 110px; gap: 6px; }
-  .share-track { min-width: 36px; }
+.detailed-table .detailed-client {
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detailed-table .detailed-tags .tag-list {
+  flex-wrap: nowrap;
+}
+.detailed-table .detailed-tags .tag-chip {
+  white-space: nowrap;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 0;
+  flex-wrap: wrap;
+}
+.pager .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.filter-mode { margin: 0 8px 6px; align-self: flex-start; }
+/* Weekly */
+.weekly-table th.num {
+  vertical-align: bottom;
+}
+.weekly-head {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+.weekly-head span {
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+.weekly-table .weekly-row-title {
+  font-weight: 500;
+  white-space: nowrap;
+  background: none;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.weekly-table tbody th,
+.weekly-table tfoot th {
+  text-align: left;
+}
+.weekly-table tfoot td,
+.weekly-table tfoot th {
+  border-top: 2px solid var(--border);
+  background: var(--surface-2);
+}
+.weekly-table td.num {
+  min-width: 72px;
+}
+.weekly-table tfoot th,
+.weekly-table tfoot td {
+  border-bottom: none;
+}
+.report-weekly .toolbar .hint {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .reports-header .spacer {
+    display: none;
+  }
+  .range-control {
+    width: 100%;
+  }
+  .range-button {
+    flex: 1;
+    justify-content: center;
+  }
+  .report-filters .search-box {
+    flex: 1 1 160px;
+  }
+  .report-filters .search-box input {
+    width: 100%;
+  }
+  .report-totals dd {
+    font-size: var(--text-xl);
+  }
+  .report-amount {
+    font-size: var(--text-2xl);
+  }
+  /* Times are set at --text-xl here, so the tiles are narrower, and Entries sizes to its content so it
+     can share a row with Amount. */
+  .report-totals {
+    --tile-basis: 160px;
+  }
+  .report-totals > .report-totals-entries {
+    flex-basis: auto;
+  }
+  .report-tab {
+    padding: 8px 12px 6px;
+  }
+  .breakdown-table td:first-child {
+    width: auto;
+  }
+  .share {
+    min-width: 110px;
+    gap: 6px;
+  }
+  .share-track {
+    min-width: 36px;
+  }
+}
+
+.filter-mode {
+  margin: 0 8px 6px;
+  align-self: flex-start;
+}

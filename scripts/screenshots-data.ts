@@ -38,25 +38,64 @@ interface ExportDocument {
 const PROJECT = { website: 21, roadmap: 22, billing: 24, mobile: 25 } as const;
 const TASK = { design: 31, onboarding: 33 } as const;
 const TAG = { ux: 41, ops: 42, meeting: 43, review: 44 } as const;
-const BILLABLE: Record<number, boolean> = { [PROJECT.website]: true, [PROJECT.roadmap]: false, [PROJECT.billing]: true, [PROJECT.mobile]: true };
+const BILLABLE: Record<number, boolean> = {
+  [PROJECT.website]: true,
+  [PROJECT.roadmap]: false,
+  [PROJECT.billing]: true,
+  [PROJECT.mobile]: true,
+};
 
 const EXTRA_CLIENTS = [{ id: 13, name: 'Northwind', notes: null, archived: false }];
 const EXTRA_PROJECTS = [
   {
-    id: PROJECT.billing, name: 'Billing API', client_id: 13, color: '#9e5bd9', active: true, is_private: false,
-    billable: true, estimated_hours: 120, rate: 95, currency: 'EUR', fixed_fee: null,
-    start_date: '2026-05-04', end_date: null, template: false,
+    id: PROJECT.billing,
+    name: 'Billing API',
+    client_id: 13,
+    color: '#9e5bd9',
+    active: true,
+    is_private: false,
+    billable: true,
+    estimated_hours: 120,
+    rate: 95,
+    currency: 'EUR',
+    fixed_fee: null,
+    start_date: '2026-05-04',
+    end_date: null,
+    template: false,
   },
   {
-    id: PROJECT.mobile, name: 'Mobile app', client_id: 13, color: '#e36a00', active: true, is_private: false,
-    billable: true, estimated_hours: 80, rate: 90, currency: 'EUR', fixed_fee: null,
-    start_date: '2026-05-04', end_date: null, template: false,
+    id: PROJECT.mobile,
+    name: 'Mobile app',
+    client_id: 13,
+    color: '#e36a00',
+    active: true,
+    is_private: false,
+    billable: true,
+    estimated_hours: 80,
+    rate: 90,
+    currency: 'EUR',
+    fixed_fee: null,
+    start_date: '2026-05-04',
+    end_date: null,
+    template: false,
   },
 ];
-const EXTRA_TASKS = [{ id: TASK.onboarding, name: 'Onboarding', project_id: PROJECT.mobile, active: true, estimated_seconds: 72000 }];
-const EXTRA_TAGS = [{ id: TAG.meeting, name: 'meeting' }, { id: TAG.review, name: 'review' }];
+const EXTRA_TASKS = [
+  { id: TASK.onboarding, name: 'Onboarding', project_id: PROJECT.mobile, active: true, estimated_seconds: 72000 },
+];
+const EXTRA_TAGS = [
+  { id: TAG.meeting, name: 'meeting' },
+  { id: TAG.review, name: 'review' },
+];
 
-type Block = readonly [start: string, stop: string, description: string, project: number, task: number | null, tags: readonly number[]];
+type Block = readonly [
+  start: string,
+  stop: string,
+  description: string,
+  project: number,
+  task: number | null,
+  tags: readonly number[],
+];
 
 /** One plan per weekday, Monday first. */
 const WEEK: ReadonlyArray<readonly Block[]> = [
@@ -116,7 +155,12 @@ function clock(total: number): string {
 function entry(id: number, date: string, block: Block, stop: string | null): ExportEntry {
   const [start, , description, project, task, tags] = block;
   return {
-    id, description, project_id: project, task_id: task, billable: BILLABLE[project] ?? false, tag_ids: [...tags],
+    id,
+    description,
+    project_id: project,
+    task_id: task,
+    billable: BILLABLE[project] ?? false,
+    tag_ids: [...tags],
     start: accountTime(date, `${start}:00`),
     stop: stop === null ? null : accountTime(date, `${stop}:00`),
     created_with: 'screenshots',
@@ -125,7 +169,7 @@ function entry(id: number, date: string, block: Block, stop: string | null): Exp
 
 /** Weekday entries from FIRST_DAY to TODAY, ending before NOW, plus the running timer. */
 function generatedEntries(fixture: readonly ExportEntry[]): ExportEntry[] {
-  const taken = new Set(fixture.map((row) => `${row.description}|${Date.parse(row.start)}`));
+  const taken = new Set(fixture.map(row => `${row.description}|${Date.parse(row.start)}`));
   const nowMs = Date.parse(NOW);
   const rows: ExportEntry[] = [];
   let id = 100;

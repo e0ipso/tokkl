@@ -14,7 +14,7 @@ export function PasswordSection() {
   const [confirm, setConfirm] = useState('');
 
   const change = useAction<{ current_password: string; password: string }>({
-    mutationFn: (body) => api.put(`${V9}/me`, body),
+    mutationFn: body => api.put(`${V9}/me`, body),
     // The server replaces the API token with the password, so the API token card must refetch it.
     invalidate: [keys.me],
     success: 'Password changed. Other browsers were logged out.',
@@ -47,7 +47,13 @@ export function PasswordSection() {
       <div className="form-grid">
         <div className="field field-full">
           <label htmlFor={fields.id('current')}>Current password</label>
-          <input {...fields.field('current')} type="password" value={current} autoComplete="current-password" onChange={(event) => setCurrent(event.target.value)} />
+          <input
+            {...fields.field('current')}
+            type="password"
+            value={current}
+            autoComplete="current-password"
+            onChange={event => setCurrent(event.target.value)}
+          />
           {fields.message('current')}
         </div>
         <div className="field">
@@ -58,7 +64,7 @@ export function PasswordSection() {
             value={next}
             minLength={MIN_LENGTH}
             autoComplete="new-password"
-            onChange={(event) => setNext(event.target.value)}
+            onChange={event => setNext(event.target.value)}
           />
           {fields.message('next')}
         </div>
@@ -70,7 +76,7 @@ export function PasswordSection() {
             value={confirm}
             minLength={MIN_LENGTH}
             autoComplete="new-password"
-            onChange={(event) => setConfirm(event.target.value)}
+            onChange={event => setConfirm(event.target.value)}
           />
           {fields.message('confirm')}
         </div>

@@ -74,11 +74,11 @@ function nearestGridPoint(time: number, step: number, timeZone: string): number 
     return (time - below) * 2 >= step ? below + step : below;
   }
   return offsets
-    .flatMap((offset) => {
+    .flatMap(offset => {
       const below = gridFloor(time, step, offset);
       return [below - step, below, below + step, below + 2 * step];
     })
-    .filter((candidate) => gridFloor(candidate, step, offsetAt(candidate)) === candidate)
+    .filter(candidate => gridFloor(candidate, step, offsetAt(candidate)) === candidate)
     .reduce((best, candidate) => {
       const nearer = Math.abs(candidate - time) - Math.abs(best - time);
       return nearer < 0 || (nearer === 0 && candidate > best) ? candidate : best;

@@ -9,7 +9,15 @@ import { useAction, useInvalidate } from '../queries.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
 const IMPORT_PATH = '/api/app/import/toggl-csv';
-const IMPORT_KEYS = [keys.entries, keys.current, keys.projects, keys.clients, keys.tags, keys.tasks, keys.report] as const;
+const IMPORT_KEYS = [
+  keys.entries,
+  keys.current,
+  keys.projects,
+  keys.clients,
+  keys.tags,
+  keys.tasks,
+  keys.report,
+] as const;
 
 function stamp(): string {
   return new Date().toISOString().slice(0, 10);
@@ -32,7 +40,9 @@ function ImportSummary({ result }: { result: ImportResult }) {
     <div className="import-summary" aria-live="polite">
       <ul className="import-stats">
         <li>{plural(result.rows, 'row')} in the file</li>
-        <li>{plural(result.created, 'entry', 'entries')} {preview ? 'to import' : 'imported'}</li>
+        <li>
+          {plural(result.created, 'entry', 'entries')} {preview ? 'to import' : 'imported'}
+        </li>
         <li>{result.skipped_duplicates} already here, skipped</li>
         {otherUsers > 0 ? <li>{plural(otherUsers, 'row')} from other Toggl users, skipped</li> : null}
         {failed > 0 ? <li className="is-error">{plural(failed, 'row')} with problems</li> : null}
@@ -52,10 +62,16 @@ function ImportSummary({ result }: { result: ImportResult }) {
       {result.errors.length > 0 ? (
         <details className="import-errors" open={result.errors.length <= 5}>
           <summary>
-            {result.errors.length < failed ? `First ${result.errors.length} problems` : plural(result.errors.length, 'problem')}
+            {result.errors.length < failed
+              ? `First ${result.errors.length} problems`
+              : plural(result.errors.length, 'problem')}
           </summary>
           <ul>
-            {result.errors.map((error) => <li key={error.row}>Row {error.row}: {error.message}</li>)}
+            {result.errors.map(error => (
+              <li key={error.row}>
+                Row {error.row}: {error.message}
+              </li>
+            ))}
           </ul>
         </details>
       ) : null}
@@ -75,7 +91,11 @@ interface RestoreResult {
 }
 
 /** Checkboxes for a team export: whose rows to import. */
-function ImportUsers({ users, selected, onToggle }: {
+function ImportUsers({
+  users,
+  selected,
+  onToggle,
+}: {
   users: ImportResult['users'];
   selected: string[];
   onToggle: (key: string, checked: boolean) => void;
@@ -83,9 +103,13 @@ function ImportUsers({ users, selected, onToggle }: {
   return (
     <fieldset className="import-users">
       <legend>This file has entries from {users.length} Toggl users. Choose whose entries to import.</legend>
-      {users.map((user) => (
+      {users.map(user => (
         <label key={user.key} className="field checkbox-field">
-          <input type="checkbox" checked={selected.includes(user.key)} onChange={(event) => onToggle(user.key, event.target.checked)} />
+          <input
+            type="checkbox"
+            checked={selected.includes(user.key)}
+            onChange={event => onToggle(user.key, event.target.checked)}
+          />
           <span>
             {user.user || user.email || 'No Toggl user'}
             {user.user && user.email ? <span className="muted"> {user.email}</span> : null}
@@ -105,7 +129,8 @@ function RestoreJson() {
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [result, setResult] = useState<RestoreResult | null>(null);
   const run = useAction<{ text: string; dryRun: boolean }, RestoreResult>({
-    mutationFn: ({ text, dryRun }) => api.post<RestoreResult>(`/api/app/import/json${dryRun ? '?dry_run=true' : ''}`, text),
+    mutationFn: ({ text, dryRun }) =>
+      api.post<RestoreResult>(`/api/app/import/json${dryRun ? '?dry_run=true' : ''}`, text),
     onSuccess: (restored, { dryRun }) => {
       setResult(restored);
       if (!dryRun) {
@@ -135,7 +160,7 @@ function RestoreJson() {
       <div className="inline-controls settings-row">
         <label className="button button-ghost file-button">
           <Icon name="upload" size={16} /> Choose JSON file
-          <input ref={input} type="file" accept=".json,application/json" onChange={(event) => void choose(event)} />
+          <input ref={input} type="file" accept=".json,application/json" onChange={event => void choose(event)} />
         </label>
         {file ? <span className="muted file-name">{file.name}</span> : null}
       </div>
@@ -143,25 +168,49 @@ function RestoreJson() {
       {result ? (
         <div className="import-summary" aria-live="polite">
           <ul className="import-stats">
-            <li>{plural(result.time_entries, 'entry', 'entries')} {verb}</li>
+            <li>
+              {plural(result.time_entries, 'entry', 'entries')} {verb}
+            </li>
             <li>{result.skipped_duplicates} already here, skipped</li>
-            <li>{plural(result.projects, 'project')}, {plural(result.clients, 'client')}, {plural(result.tasks, 'task')}, {plural(result.tags, 'tag')} {verb}</li>
+            <li>
+              {plural(result.projects, 'project')}, {plural(result.clients, 'client')}, {plural(result.tasks, 'task')},{' '}
+              {plural(result.tags, 'tag')} {verb}
+            </li>
             {result.errors.length ? <li className="is-error">{plural(result.errors.length, 'problem')}</li> : null}
           </ul>
           {result.errors.length ? (
             <details className="import-errors">
               <summary>Problems</summary>
-              <ul>{result.errors.map((error, i) => <li key={i}>{error.entity} {String(error.id)}: {error.message}</li>)}</ul>
+              <ul>
+                {result.errors.map((error, i) => (
+                  <li key={i}>
+                    {error.entity} {String(error.id)}: {error.message}
+                  </li>
+                ))}
+              </ul>
             </details>
           ) : null}
         </div>
       ) : null}
       {file && result?.dry_run ? (
         <div className="inline-controls settings-row">
-          <button type="button" className="button button-primary" disabled={run.isPending} onClick={() => run.mutate({ text: file.text, dryRun: false })}>
+          <button
+            type="button"
+            className="button button-primary"
+            disabled={run.isPending}
+            onClick={() => run.mutate({ text: file.text, dryRun: false })}
+          >
             <Icon name="upload" size={16} /> Restore
           </button>
-          <button type="button" className="button button-ghost" onClick={() => { setFile(null); setResult(null); if (input.current) input.current.value = ''; }}>
+          <button
+            type="button"
+            className="button button-ghost"
+            onClick={() => {
+              setFile(null);
+              setResult(null);
+              if (input.current) input.current.value = '';
+            }}
+          >
             Cancel
           </button>
         </div>
@@ -182,7 +231,8 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   const latest = useRef(0);
 
   const runImport = useAction<{ text: string; dryRun: boolean; users: string[]; request: number }, ImportResult>({
-    mutationFn: ({ text, dryRun, users }) => api.post<ImportResult>(`${IMPORT_PATH}${importQuery(dryRun, users)}`, text),
+    mutationFn: ({ text, dryRun, users }) =>
+      api.post<ImportResult>(`${IMPORT_PATH}${importQuery(dryRun, users)}`, text),
     onSuccess: (imported, { dryRun, request }) => {
       if (!dryRun) {
         void invalidate(...IMPORT_KEYS);
@@ -206,7 +256,10 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   const exportFile = async (kind: 'json' | 'csv') => {
     setExporting(kind);
     try {
-      await download(`/api/app/export.${kind}`, kind === 'json' ? `tokkl-${stamp()}.json` : `tokkl-entries-${stamp()}.csv`);
+      await download(
+        `/api/app/export.${kind}`,
+        kind === 'json' ? `tokkl-${stamp()}.json` : `tokkl-entries-${stamp()}.csv`,
+      );
     } catch (error) {
       toast.error(error);
     } finally {
@@ -239,8 +292,9 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   // Each change previews again, so the counts describe the chosen users' rows only.
   const toggleUser = (key: string, checked: boolean) => {
     if (!file || !result) return;
-    const next = result.users.map((user) => user.key)
-      .filter((candidate) => (candidate === key ? checked : selected.includes(candidate)));
+    const next = result.users
+      .map(user => user.key)
+      .filter(candidate => (candidate === key ? checked : selected.includes(candidate)));
     setSelected(next);
     send(file.text, true, next);
   };
@@ -250,33 +304,45 @@ export function DataSection({ timeZone }: { timeZone: string }) {
     <SettingsCard id="data" title="Data">
       <h3 className="settings-subheading">Export</h3>
       <p className="hint">
-        JSON has your clients, projects, tasks, tags, time entries and settings. CSV has one row per time entry, with the
-        same columns as the Toggl Track detailed report.
+        JSON has your clients, projects, tasks, tags, time entries and settings. CSV has one row per time entry, with
+        the same columns as the Toggl Track detailed report.
       </p>
       <div className="inline-controls settings-row">
-        <button type="button" className="button button-ghost" disabled={exporting !== null} onClick={() => void exportFile('json')}>
+        <button
+          type="button"
+          className="button button-ghost"
+          disabled={exporting !== null}
+          onClick={() => void exportFile('json')}
+        >
           <Icon name="download" size={16} /> Export JSON
         </button>
-        <button type="button" className="button button-ghost" disabled={exporting !== null} onClick={() => void exportFile('csv')}>
+        <button
+          type="button"
+          className="button button-ghost"
+          disabled={exporting !== null}
+          onClick={() => void exportFile('csv')}
+        >
           <Icon name="download" size={16} /> Export CSV
         </button>
       </div>
 
       <h3 className="settings-subheading">Import from Toggl Track</h3>
       <p className="hint">
-        In Toggl Track, go to Reports → Detailed, pick the date range, then Export → CSV. Upload that file here.
-        Times in the file are read in the account timezone, {timeZone}. Entries that are already here get skipped,
-        so importing the same file twice is safe.
+        In Toggl Track, go to Reports → Detailed, pick the date range, then Export → CSV. Upload that file here. Times
+        in the file are read in the account timezone, {timeZone}. Entries that are already here get skipped, so
+        importing the same file twice is safe.
       </p>
       <div className="inline-controls settings-row">
         <label className="button button-ghost file-button">
           <Icon name="upload" size={16} /> Choose CSV file
-          <input ref={fileInput} type="file" accept=".csv,text/csv" onChange={(event) => void chooseFile(event)} />
+          <input ref={fileInput} type="file" accept=".csv,text/csv" onChange={event => void chooseFile(event)} />
         </label>
         {file ? <span className="muted file-name">{file.name}</span> : null}
       </div>
 
-      {runImport.isPending ? <p className="hint">{runImport.variables?.dryRun ? 'Checking the file…' : 'Importing…'}</p> : null}
+      {runImport.isPending ? (
+        <p className="hint">{runImport.variables?.dryRun ? 'Checking the file…' : 'Importing…'}</p>
+      ) : null}
       {file && result?.dry_run && mustChoose ? (
         <ImportUsers users={result.users} selected={selected} onToggle={toggleUser} />
       ) : null}
@@ -292,7 +358,9 @@ export function DataSection({ timeZone }: { timeZone: string }) {
           >
             <Icon name="upload" size={16} /> Import {plural(result.created, 'entry', 'entries')}
           </button>
-          <button type="button" className="button button-ghost" onClick={reset}>Cancel</button>
+          <button type="button" className="button button-ghost" onClick={reset}>
+            Cancel
+          </button>
         </div>
       ) : null}
 

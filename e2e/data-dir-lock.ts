@@ -35,7 +35,9 @@ function readLock(path: string): string | null {
 function owner(content: string): { pid: number; host: string } | null {
   try {
     const parsed = JSON.parse(content) as { pid?: unknown; host?: unknown };
-    return typeof parsed.pid === 'number' && typeof parsed.host === 'string' ? { pid: parsed.pid, host: parsed.host } : null;
+    return typeof parsed.pid === 'number' && typeof parsed.host === 'string'
+      ? { pid: parsed.pid, host: parsed.host }
+      : null;
   } catch {
     return null;
   }
@@ -125,9 +127,9 @@ export function claimDataDir(dataDir: string): () => void {
     if (!isStale(held)) {
       const by = owner(held);
       throw new Error(
-        `TOKKL_E2E_DATA_DIR ${dataDir} is in use by another e2e run`
-        + `${by ? ` (process ${by.pid} on ${by.host})` : ''}. Wait for it to finish or use another`
-        + ` directory. If no run is using it, delete ${lockPath}.`,
+        `TOKKL_E2E_DATA_DIR ${dataDir} is in use by another e2e run` +
+          `${by ? ` (process ${by.pid} on ${by.host})` : ''}. Wait for it to finish or use another` +
+          ` directory. If no run is using it, delete ${lockPath}.`,
       );
     }
     if (!removeStale(lockPath, lockPath, held)) pause(RETRY_MS);

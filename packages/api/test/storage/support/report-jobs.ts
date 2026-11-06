@@ -6,7 +6,8 @@ export function jobs(filter: ReportFilter): ReportJob[] {
   return [
     { kind: 'app-report', filter, grouping: 'project', sub: 'description' },
     { kind: 'app-report', filter, grouping: 'tag', sub: 'client' },
-    { kind: 'app-weekly', filter, rows: 'clients' }, { kind: 'app-weekly', filter, rows: 'projects' },
+    { kind: 'app-weekly', filter, rows: 'clients' },
+    { kind: 'app-weekly', filter, rows: 'projects' },
     { kind: 'app-entries', filter, sort: 'description', dir: 'asc', pageSize: 2, page: 99 },
     { kind: 'app-detailed-csv', filter, sort: 'date', dir: 'desc', durationFormat: 'decimal' },
     { kind: 'app-summary-csv', filter, grouping: 'project', sub: 'description', durationFormat: 'classic' },

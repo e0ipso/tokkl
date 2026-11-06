@@ -14,14 +14,17 @@ test('fixture identities expose storage without synchronous driver methods and i
 });
 
 test('fixtures refuse operator targets before opening any storage', async () => {
-  for (const key of ['TOKKL_DATABASE_URL','TOKKL_TEST_DATABASE_URL']) {
-    const previous=process.env[key];
-    process.env[key]='postgres://operator:do-not-use@127.0.0.1/production';
-    try { await assert.rejects(openDatabase(), /Operator database targets are forbidden/); }
-    finally { if(previous===undefined) delete process.env[key]; else process.env[key]=previous; }
+  for (const key of ['TOKKL_DATABASE_URL', 'TOKKL_TEST_DATABASE_URL']) {
+    const previous = process.env[key];
+    process.env[key] = 'postgres://operator:do-not-use@127.0.0.1/production';
+    try {
+      await assert.rejects(openDatabase(), /Operator database targets are forbidden/);
+    } finally {
+      if (previous === undefined) delete process.env[key];
+      else process.env[key] = previous;
+    }
   }
 });
-
 
 test('SQLite physical tag allocation reuses a deleted maximum identifier', async () => {
   const ctx = await setup({ sqlite: true });

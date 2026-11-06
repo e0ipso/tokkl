@@ -3,7 +3,12 @@ import { api } from './client.ts';
 import { keys } from './hooks.ts';
 import { getClockOffset, setClockOffset } from './serverClock.ts';
 import {
-  TIMER_ACTION_KEY, TimerActionError, explainTimerActionError, planTimerUpdate, revisionToSend, settleOtherWrites,
+  TIMER_ACTION_KEY,
+  TimerActionError,
+  explainTimerActionError,
+  planTimerUpdate,
+  revisionToSend,
+  settleOtherWrites,
 } from './timerState.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { TimeEntryInput, TimerState } from './types.ts';
@@ -83,7 +88,11 @@ const actionOptions = { mutationKey: TIMER_ACTION_KEY, networkMode: 'always' } a
  * its body and fails with a `TimerActionError` of kind `conflict`; no reply at all fails with kind
  * `offline`. Both carry the message to show. Other failures keep their `ApiError`.
  */
-async function postAction(qc: QueryClient, path: string, body: Record<string, unknown> | undefined): Promise<TimerState> {
+async function postAction(
+  qc: QueryClient,
+  path: string,
+  body: Record<string, unknown> | undefined,
+): Promise<TimerState> {
   try {
     return acceptTimerState(qc, await api.post<TimerState>(path, body));
   } catch (error) {
@@ -102,7 +111,10 @@ function useRevisionAction(path: string) {
 }
 
 /** Fields of a Pomodoro start: the entry's fields and the session lengths, in minutes, for this session only. */
-export interface StartPomodoroInput extends Pick<TimeEntryInput, 'description' | 'project_id' | 'task_id' | 'billable' | 'tag_ids'> {
+export interface StartPomodoroInput extends Pick<
+  TimeEntryInput,
+  'description' | 'project_id' | 'task_id' | 'billable' | 'tag_ids'
+> {
   tags?: string[];
   workspace_id?: number;
   created_with?: string;
@@ -117,7 +129,7 @@ export function useStartPomodoro() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, StartPomodoroInput>({
     ...actionOptions,
-    mutationFn: (input) => postAction(qc, pomodoroPath, { created_with: 'tokkl-web', ...input }),
+    mutationFn: input => postAction(qc, pomodoroPath, { created_with: 'tokkl-web', ...input }),
   });
 }
 

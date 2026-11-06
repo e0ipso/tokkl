@@ -74,10 +74,10 @@ function run(root: string): { status: number | null; stdout: string; stderr: str
 
 /** The `path:line` hit lines the script prints, without the summary and the hint. */
 function hitLines(stderr: string): string[] {
-  return stderr.split('\n').filter((line) => /:\d+$/.test(line));
+  return stderr.split('\n').filter(line => /:\d+$/.test(line));
 }
 
-test('a repository with no references passes and says so', (t) => {
+test('a repository with no references passes and says so', t => {
   const { root, write } = repo(t);
   write('README.md', 'Plain prose.\nNothing to see.\n');
   write('src/a.ts', 'export const a = 1;\n');
@@ -88,7 +88,7 @@ test('a repository with no references passes and says so', (t) => {
   assert.equal(result.stderr, '');
 });
 
-test('a ticket ID is reported as file:line with a singular summary and exit 1', (t) => {
+test('a ticket ID is reported as file:line with a singular summary and exit 1', t => {
   const { root, write } = repo(t);
   write('src/a.ts', `// first\n// second\n// waits on ${ticket('0042')}\n`);
   track(root);
@@ -100,7 +100,7 @@ test('a ticket ID is reported as file:line with a singular summary and exit 1', 
   assert.match(result.stderr, /add the path to EXCLUDED in scripts\/check-tracker-refs\.ts/);
 });
 
-test('a plan path is reported and several hits across files use the plural summary', (t) => {
+test('a plan path is reported and several hits across files use the plural summary', t => {
   const { root, write } = repo(t);
   write('docs/a.md', `see ${PLANS}/12/plan.md\n`);
   write('docs/b.md', `ok\n${ticket('7')} and ${ticket('9')} on one line\n`);
@@ -111,7 +111,7 @@ test('a plan path is reported and several hits across files use the plural summa
   assert.match(result.stderr, /^2 tracked lines cite a ticket ID or a plan path:/);
 });
 
-test('every ticket pattern edge: digit count, word boundaries and near misses', (t) => {
+test('every ticket pattern edge: digit count, word boundaries and near misses', t => {
   const { root, write } = repo(t);
   const lines = [
     `${ticket('1')}`, //                    1 match: one digit is enough
@@ -133,14 +133,14 @@ test('every ticket pattern edge: digit count, word boundaries and near misses', 
   assert.deepEqual(hitLines(result.stderr), ['notes.txt:1', 'notes.txt:2', 'notes.txt:3']);
 });
 
-test('a partial plan path does not match', (t) => {
+test('a partial plan path does not match', t => {
   const { root, write } = repo(t);
   write('a.md', ['.ai/strikethroo', '.ai/sift/plans', 'strikethroo/plans'].join('\n') + '\n');
   track(root);
   assert.equal(run(root).status, 0);
 });
 
-test('files under the excluded paths are skipped, near-miss paths are not', (t) => {
+test('files under the excluded paths are skipped, near-miss paths are not', t => {
   const { root, write } = repo(t);
   const body = `cites ${ticket('0001')} and ${PLANS}/1\n`;
   for (const path of [
@@ -174,10 +174,10 @@ test('files under the excluded paths are skipped, near-miss paths are not', (t) 
   track(root);
   const result = run(root);
   assert.equal(result.status, 1);
-  assert.deepEqual(hitLines(result.stderr).sort(), near.map((path) => `${path}:1`).sort());
+  assert.deepEqual(hitLines(result.stderr).sort(), near.map(path => `${path}:1`).sort());
 });
 
-test('untracked and gitignored files are not scanned', (t) => {
+test('untracked and gitignored files are not scanned', t => {
   const { root, write } = repo(t);
   write('.gitignore', 'ignored.md\n');
   write('tracked.md', 'clean\n');
@@ -188,7 +188,7 @@ test('untracked and gitignored files are not scanned', (t) => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('a staged hit is found even before it is committed, a hit removed from the index is not', (t) => {
+test('a staged hit is found even before it is committed, a hit removed from the index is not', t => {
   const { root, write } = repo(t);
   write('a.md', `${ticket('5')}\n`);
   track(root);
@@ -197,17 +197,17 @@ test('a staged hit is found even before it is committed, a hit removed from the 
   assert.equal(run(root).status, 0);
 });
 
-test('paths with spaces, quotes and non-ASCII characters are listed intact', (t) => {
+test('paths with spaces, quotes and non-ASCII characters are listed intact', t => {
   const { root, write } = repo(t);
   const names = ['has space.md', 'quo"te.md', 'café/über ☃.md'];
   for (const name of names) write(name, `${ticket('3')}\n`);
   track(root);
   const result = run(root);
   assert.equal(result.status, 1);
-  assert.deepEqual(hitLines(result.stderr).sort(), names.map((name) => `${name}:1`).sort());
+  assert.deepEqual(hitLines(result.stderr).sort(), names.map(name => `${name}:1`).sort());
 });
 
-test('binary files are skipped even when they contain a reference', (t) => {
+test('binary files are skipped even when they contain a reference', t => {
   const { root, write } = repo(t);
   write('image.bin', Buffer.concat([Buffer.from(`${ticket('0001')}\n`), Buffer.from([0, 1, 2, 3])]));
   write('text.md', 'clean\n');
@@ -215,14 +215,14 @@ test('binary files are skipped even when they contain a reference', (t) => {
   assert.equal(run(root).status, 0);
 });
 
-test('a NUL byte past the first chunk still marks the file binary', (t) => {
+test('a NUL byte past the first chunk still marks the file binary', t => {
   const { root, write } = repo(t);
   write('late.bin', Buffer.concat([Buffer.from(`${ticket('0001')}\n`), Buffer.alloc(200_000, 0x61), Buffer.from([0])]));
   track(root);
   assert.equal(run(root).status, 0);
 });
 
-test('a tracked symlink is not followed to the file it points at', (t) => {
+test('a tracked symlink is not followed to the file it points at', t => {
   const { root, write } = repo(t);
   write('target.md', 'clean\n');
   symlinkSync('target.md', join(root, 'link.md'));
@@ -237,7 +237,7 @@ test('a tracked symlink is not followed to the file it points at', (t) => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('a tracked file deleted from the working tree is skipped, not fatal', (t) => {
+test('a tracked file deleted from the working tree is skipped, not fatal', t => {
   const { root, write } = repo(t);
   write('gone.md', `${ticket('0001')}\n`);
   write('kept.md', 'clean\n');
@@ -248,7 +248,7 @@ test('a tracked file deleted from the working tree is skipped, not fatal', (t) =
   assert.equal(result.stdout.trim(), CLEAN_MESSAGE);
 });
 
-test('the working-tree content is scanned, not the staged blob', (t) => {
+test('the working-tree content is scanned, not the staged blob', t => {
   const { root, write } = repo(t);
   write('a.md', 'clean\n');
   track(root);
@@ -256,7 +256,7 @@ test('the working-tree content is scanned, not the staged blob', (t) => {
   assert.equal(run(root).status, 1);
 });
 
-test('a CRLF file reports the right line and a file without a trailing newline is scanned', (t) => {
+test('a CRLF file reports the right line and a file without a trailing newline is scanned', t => {
   const { root, write } = repo(t);
   write('crlf.md', `one\r\ntwo\r\n${ticket('4')}\r\n`);
   write('nonl.md', `one\n${ticket('4')}`);
@@ -265,7 +265,7 @@ test('a CRLF file reports the right line and a file without a trailing newline i
   assert.deepEqual(hitLines(result.stderr), ['crlf.md:3', 'nonl.md:2']);
 });
 
-test('an unreadable tracked file fails loudly instead of passing', (t) => {
+test('an unreadable tracked file fails loudly instead of passing', t => {
   if (process.getuid?.() === 0) return t.skip('root can read any file');
   const { root, write } = repo(t);
   write('locked.md', 'clean\n');
@@ -278,7 +278,7 @@ test('an unreadable tracked file fails loudly instead of passing', (t) => {
   assert.doesNotMatch(result.stdout, /No ticket or plan references/);
 });
 
-test('outside a git repository the script fails instead of reporting a clean tree', (t) => {
+test('outside a git repository the script fails instead of reporting a clean tree', t => {
   const root = mkdtempSync(join(tmpdir(), 'tokkl-tracker-refs-nogit-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'scripts'));
@@ -288,7 +288,7 @@ test('outside a git repository the script fails instead of reporting a clean tre
   assert.doesNotMatch(result.stdout, /No ticket or plan references/);
 });
 
-test('an empty repository passes', (t) => {
+test('an empty repository passes', t => {
   const { root } = repo(t);
   const result = run(root);
   assert.equal(result.status, 0, result.stderr);
@@ -304,7 +304,10 @@ test('the gate is wired into npm, CI and the README', () => {
   const typecheck = ci.indexOf('- run: npm run typecheck');
   const gate = ci.indexOf('- run: npm run check:tracker-refs');
   const unit = ci.indexOf('- run: npm test');
-  assert.ok(typecheck >= 0 && gate > typecheck && unit > gate, 'check:tracker-refs runs after typecheck and before npm test');
+  assert.ok(
+    typecheck >= 0 && gate > typecheck && unit > gate,
+    'check:tracker-refs runs after typecheck and before npm test',
+  );
 
   assert.match(readFileSync(join(REPO_ROOT, 'README.md'), 'utf8'), /check:tracker-refs/);
 });

@@ -1,6 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type RefObject } from 'react';
 import {
-  useCreateEntry, useDeleteEntry, usePreferences, useRestoreEntry, useSavePreferences, useStopEntry, useUpdateEntry,
+  useCreateEntry,
+  useDeleteEntry,
+  usePreferences,
+  useRestoreEntry,
+  useSavePreferences,
+  useStopEntry,
+  useUpdateEntry,
 } from '../api/hooks.ts';
 import { useDiscardPause, usePauseTimer, useResumeTimer, useServerNow, useTimerState } from '../api/timerHooks.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
@@ -35,7 +41,13 @@ function useHeightProperty(ref: RefObject<HTMLElement | null>, property: string)
 }
 
 function draftOf(entry: TimeEntry): Draft {
-  return { description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags, billable: entry.billable };
+  return {
+    description: entry.description,
+    project_id: entry.project_id,
+    task_id: entry.task_id,
+    tags: entry.tags,
+    billable: entry.billable,
+  };
 }
 
 /** The fields of `draft` that differ from `base`. */
@@ -59,7 +71,10 @@ export interface TimerBarHandle {
 }
 
 /** The bar at the top of the timer page: running timer, new timer, or manual entry form. */
-export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] }>(function TimerBar({ recentEntries }, ref) {
+export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] }>(function TimerBar(
+  { recentEntries },
+  ref,
+) {
   const settings = useSettings();
   const now = useNow(1000);
   const serverNow = useServerNow(1000);
@@ -90,9 +105,10 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
   const manual = !current && !paused && (prefs?.manualMode ?? false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   // While paused the bar shows the fields Resume will start. The server holds them, so they are not editable.
-  const held = useMemo(() => (paused && chain ? pauseDraft(chain) : null), [
-    paused, chain?.description, chain?.project_id, chain?.task_id, chain?.billable, chain?.tags.join('\u0000'),
-  ]);
+  const held = useMemo(
+    () => (paused && chain ? pauseDraft(chain) : null),
+    [paused, chain?.description, chain?.project_id, chain?.task_id, chain?.billable, chain?.tags.join('\u0000')],
+  );
   const [editing, setEditing] = useState(false);
   const [manualDay, setManualDay] = useState(() => today(settings.timeZone));
   const [manualStart, setManualStart] = useState('');
@@ -133,16 +149,27 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       // A refetch of the same entry must not wipe a description that is still being typed.
       const typing = shownEntryId.current === current.id && (fields.current?.hasFocus() ?? false);
       shownEntryId.current = current.id;
-      setDraft((previous) => ({
+      setDraft(previous => ({
         description: typing ? previous.description : current.description,
-        project_id: current.project_id, task_id: current.task_id, tags: current.tags, billable: current.billable,
+        project_id: current.project_id,
+        task_id: current.task_id,
+        tags: current.tags,
+        billable: current.billable,
       }));
     } else if (shownEntryId.current !== null) {
       shownEntryId.current = null;
       ownStart.current = null;
       setDraft(EMPTY);
     }
-  }, [current?.id, current?.at, current?.description, current?.project_id, current?.task_id, current?.billable, current?.tags.join('\u0000')]);
+  }, [
+    current?.id,
+    current?.at,
+    current?.description,
+    current?.project_id,
+    current?.task_id,
+    current?.billable,
+    current?.tags.join('\u0000'),
+  ]);
 
   const patchRunning = (changes: TimeEntryInput) => {
     // While a start is loading, `current` is missing or the entry being replaced; the sync effect
@@ -177,7 +204,11 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
       if (seconds !== null && seconds > 0) {
         // A duration typed into the idle timer saves a finished entry that ends now.
         const stop = new Date();
-        saved = await create.mutateAsync({ ...from, start: new Date(stop.getTime() - seconds * 1000).toISOString(), stop: stop.toISOString() });
+        saved = await create.mutateAsync({
+          ...from,
+          start: new Date(stop.getTime() - seconds * 1000).toISOString(),
+          stop: stop.toISOString(),
+        });
         // The server snaps the entry to the time resolution, so the toast shows what it stored.
         toast.show(`Added ${formatDuration(entrySeconds(saved, stop))}`);
         setDraft(EMPTY);
@@ -239,7 +270,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     if (!stopped) return;
     // The server keeps no entry that rounds to zero at the time resolution: it went to the trash.
     if (stopped.server_deleted_at) {
-      toast.show('Too short to keep, so the entry went to the trash', { action: { label: 'Undo', run: () => restore.mutate(stopped.id) } });
+      toast.show('Too short to keep, so the entry went to the trash', {
+        action: { label: 'Undo', run: () => restore.mutate(stopped.id) },
+      });
     }
   };
 
@@ -292,14 +325,25 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
 
   const addManual = async () => {
     if (manualNoTimes) return addNoTimes();
-    const options = { timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(new Date(), settings.timeZone) };
+    const options = {
+      timeZone: settings.timeZone,
+      twelveHour: settings.twelveHour,
+      nowMinutes: minutesOfDay(new Date(), settings.timeZone),
+    };
     const range = resolveRange(manualDay, manualStart, manualEnd, options);
     const unreadable = !range && unreadableTime(manualStart, options);
     const message = 'Enter a start and end time, like 9:00 and 10:30';
-    manualErrors.validate([['start', unreadable === 'start' && message], ['end', unreadable === 'end' && message]]);
+    manualErrors.validate([
+      ['start', unreadable === 'start' && message],
+      ['end', unreadable === 'end' && message],
+    ]);
     if (!range) return;
     try {
-      const saved = await create.mutateAsync({ ...draft, start: range.start.toISOString(), stop: range.stop.toISOString() });
+      const saved = await create.mutateAsync({
+        ...draft,
+        start: range.start.toISOString(),
+        stop: range.stop.toISOString(),
+      });
       toast.show(`Added ${formatDuration(entrySeconds(saved, range.stop))}`);
       setDraft(EMPTY);
       // The next entry starts where the stored one stopped, which is the next day after midnight.
@@ -327,7 +371,7 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
     },
     stop: () => void stop(),
     toggleManual,
-    startFrom: (from) => {
+    startFrom: from => {
       if (manual) {
         setDraft(from);
         fields.current?.focus();
@@ -339,28 +383,43 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
 
   // The chain total while paused or while its clone runs, otherwise the running entry's own time.
   const elapsed = barSeconds(current, chain, serverNow.getTime());
-  const announcement = paused ? 'Timer paused' : chain && current && chain.clone_entry_id === current.id ? 'Timer resumed' : '';
-  const manualRange = manual && !manualNoTimes ? resolveRange(manualDay, manualStart, manualEnd, {
-    timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(now, settings.timeZone),
-  }) : null;
+  const announcement = paused
+    ? 'Timer paused'
+    : chain && current && chain.clone_entry_id === current.id
+      ? 'Timer resumed'
+      : '';
+  const manualRange =
+    manual && !manualNoTimes
+      ? resolveRange(manualDay, manualStart, manualEnd, {
+          timeZone: settings.timeZone,
+          twelveHour: settings.twelveHour,
+          nowMinutes: minutesOfDay(now, settings.timeZone),
+        })
+      : null;
 
   return (
-    <section ref={barRef} className={`timer-bar${current ? ' is-running' : paused ? ' is-paused' : ''}`} aria-label="Timer">
+    <section
+      ref={barRef}
+      className={`timer-bar${current ? ' is-running' : paused ? ' is-paused' : ''}`}
+      aria-label="Timer"
+    >
       <EntryFields
         ref={fields}
         draft={held ?? draft}
         readOnly={paused}
         recentEntries={recentEntries}
-        placeholder={manual ? 'What did you work on?' : current || paused ? 'Add a description' : 'What are you working on?'}
-        onType={(description) => setDraft((d) => ({ ...d, description }))}
-        onEdit={(changes) => {
-          setDraft((d) => ({ ...d, ...changes }));
+        placeholder={
+          manual ? 'What did you work on?' : current || paused ? 'Add a description' : 'What are you working on?'
+        }
+        onType={description => setDraft(d => ({ ...d, description }))}
+        onEdit={changes => {
+          setDraft(d => ({ ...d, ...changes }));
           if (current) patchRunning(changes);
         }}
         onDescriptionBlur={() => {
           if (current && draft.description !== current.description) patchRunning({ description: draft.description });
         }}
-        onEnter={(event) => {
+        onEnter={event => {
           if (current || paused) {
             event.currentTarget.blur();
           } else if (manual) {
@@ -378,14 +437,19 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
                 type="checkbox"
                 role="switch"
                 checked={manualNoTimes}
-                onChange={(event) => {
+                onChange={event => {
                   setManualNoTimes(event.target.checked);
                   (['start', 'end', 'duration'] as const).forEach(manualErrors.clear);
                 }}
               />
               No times
             </label>
-            <input type="date" aria-label="Date" value={manualDay} onChange={(event) => event.target.value && setManualDay(event.target.value)} />
+            <input
+              type="date"
+              aria-label="Date"
+              value={manualDay}
+              onChange={event => event.target.value && setManualDay(event.target.value)}
+            />
             {manualNoTimes ? (
               <input
                 {...manualErrors.field('duration')}
@@ -393,8 +457,10 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
                 aria-label="Duration"
                 placeholder="Duration"
                 value={manualDuration}
-                onChange={(event) => setManualDuration(event.target.value)}
-                onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
+                onChange={event => setManualDuration(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') void addManual();
+                }}
               />
             ) : (
               <>
@@ -404,8 +470,10 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
                   aria-label="Start time"
                   placeholder="Start"
                   value={manualStart}
-                  onChange={(event) => setManualStart(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
+                  onChange={event => setManualStart(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') void addManual();
+                  }}
                 />
                 <span className="muted">–</span>
                 <input
@@ -414,24 +482,33 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
                   aria-label="End time"
                   placeholder="End"
                   value={manualEnd}
-                  onChange={(event) => setManualEnd(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === 'Enter') void addManual(); }}
+                  onChange={event => setManualEnd(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') void addManual();
+                  }}
                 />
               </>
             )}
             <span className="manual-duration">
               {manualNoTimes
                 ? formatDuration(noTimeDuration(manualDuration, settings.timeResolution).seconds ?? 0)
-                : manualRange ? formatDuration(snappedSeconds(manualRange.start, manualRange.stop, settings)) : '0:00:00'}
+                : manualRange
+                  ? formatDuration(snappedSeconds(manualRange.start, manualRange.stop, settings))
+                  : '0:00:00'}
             </span>
-            {manualRange && localDay(manualRange.stop, settings.timeZone) !== manualDay ? <span className="hint">+1 day</span> : null}
+            {manualRange && localDay(manualRange.stop, settings.timeZone) !== manualDay ? (
+              <span className="hint">+1 day</span>
+            ) : null}
             {manualErrors.message('start')}
             {manualErrors.message('end')}
             {manualErrors.message('duration')}
           </div>
         ) : current ? (
           <>
-            <span className="timer-running"><span className="timer-running-dot" aria-hidden="true" />Running</span>
+            <span className="timer-running">
+              <span className="timer-running-dot" aria-hidden="true" />
+              Running
+            </span>
             <button
               type="button"
               className="timer-clock"
@@ -445,7 +522,11 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         ) : paused ? (
           <>
             <span className="timer-paused">Paused</span>
-            <span className="timer-clock is-paused" role="timer" aria-label={`${formatDuration(elapsed)} elapsed, paused`}>
+            <span
+              className="timer-clock is-paused"
+              role="timer"
+              aria-label={`${formatDuration(elapsed)} elapsed, paused`}
+            >
               {formatDuration(elapsed)}
             </span>
           </>
@@ -456,30 +537,59 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             aria-label="Duration"
             placeholder="0:00:00"
             value={timerDuration}
-            onChange={(event) => setTimerDuration(event.target.value)}
-            onKeyDown={(event) => { if (event.key === 'Enter') void start(); }}
+            onChange={event => setTimerDuration(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter') void start();
+            }}
           />
         )}
 
         {manual ? (
-          <button type="button" className="timer-button add" onClick={() => void addManual()} aria-label="Add entry" title="Add entry">
+          <button
+            type="button"
+            className="timer-button add"
+            onClick={() => void addManual()}
+            aria-label="Add entry"
+            title="Add entry"
+          >
             <Icon name="plus" size={22} />
             <span className="timer-button-label">Add</span>
           </button>
         ) : current || paused ? (
           <>
             {current ? (
-              <button type="button" className="timer-button pause" onClick={() => void pause()} disabled={chainBusy} aria-label="Pause timer" title="Pause">
+              <button
+                type="button"
+                className="timer-button pause"
+                onClick={() => void pause()}
+                disabled={chainBusy}
+                aria-label="Pause timer"
+                title="Pause"
+              >
                 <Icon name="pause" size={22} />
                 <span className="timer-button-label">Pause</span>
               </button>
             ) : (
-              <button type="button" className="timer-button start" onClick={() => void resume()} disabled={chainBusy} aria-label="Resume timer" title="Resume">
+              <button
+                type="button"
+                className="timer-button start"
+                onClick={() => void resume()}
+                disabled={chainBusy}
+                aria-label="Resume timer"
+                title="Resume"
+              >
                 <Icon name="play" size={22} />
                 <span className="timer-button-label">Resume</span>
               </button>
             )}
-            <button type="button" className="timer-button stop" onClick={() => void stop()} disabled={chainBusy} aria-label="Stop timer" title="Stop (S)">
+            <button
+              type="button"
+              className="timer-button stop"
+              onClick={() => void stop()}
+              disabled={chainBusy}
+              aria-label="Stop timer"
+              title="Stop (S)"
+            >
               <Icon name="stop" size={22} />
               <span className="timer-button-label">Stop</span>
             </button>
@@ -493,14 +603,26 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
             title="Start (N)"
           >
             <Icon name={timerDuration && parseDuration(timerDuration) ? 'check' : 'play'} size={22} />
-            <span className="timer-button-label">{timerDuration && parseDuration(timerDuration) ? 'Save' : 'Start'}</span>
+            <span className="timer-button-label">
+              {timerDuration && parseDuration(timerDuration) ? 'Save' : 'Start'}
+            </span>
           </button>
         )}
 
         {paused ? null : (
-          <div className="mode-switch" role={current ? undefined : 'group'} aria-label={current ? undefined : 'Entry mode'}>
+          <div
+            className="mode-switch"
+            role={current ? undefined : 'group'}
+            aria-label={current ? undefined : 'Entry mode'}
+          >
             {current ? (
-              <button type="button" className="icon-button" title="Discard running entry" aria-label="Discard running entry" onClick={() => void discard()}>
+              <button
+                type="button"
+                className="icon-button"
+                title="Discard running entry"
+                aria-label="Discard running entry"
+                onClick={() => void discard()}
+              >
                 <Icon name="trash" size={16} />
               </button>
             ) : (
@@ -531,7 +653,9 @@ export const TimerBar = forwardRef<TimerBarHandle, { recentEntries: TimeEntry[] 
         )}
         {!manual && !current && !paused ? timerErrors.message('duration') : null}
       </EntryFields>
-      <span className="visually-hidden" aria-live="polite">{announcement}</span>
+      <span className="visually-hidden" aria-live="polite">
+        {announcement}
+      </span>
 
       {editing && current ? <EntryEditor entry={current} onClose={() => setEditing(false)} /> : null}
     </section>

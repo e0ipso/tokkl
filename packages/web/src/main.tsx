@@ -13,7 +13,7 @@ import './styles.css';
 // too (docs/PRD.md C3). Visibility still decides whether the app counts as focused. Switching
 // tabs fires both events, so one refresh per second is enough.
 const REFOCUS_GAP_MS = 1000;
-focusManager.setEventListener((handleFocus) => {
+focusManager.setEventListener(handleFocus => {
   let lastRefresh = -Infinity;
   const onChange = () => {
     if (document.visibilityState !== 'hidden') {

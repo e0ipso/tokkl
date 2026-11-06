@@ -69,7 +69,12 @@ export function clampDayMove(delta: number, top: number, bottom: number): number
  * whose original stop was already past the day's end is cut off at midnight on the shown day; it
  * can only move earlier and may still end the next day, so it is left alone.
  */
-export function fitMoveInDay(movedStartMs: number, durationMs: number, originalStopMs: number, dayEndMs: number): number {
+export function fitMoveInDay(
+  movedStartMs: number,
+  durationMs: number,
+  originalStopMs: number,
+  dayEndMs: number,
+): number {
   if (originalStopMs > dayEndMs || movedStartMs + durationMs <= dayEndMs) return movedStartMs;
   return dayEndMs - durationMs;
 }

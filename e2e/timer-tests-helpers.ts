@@ -46,20 +46,42 @@ export class TimerApi {
   }
 
   async createProject(name: string, billable = false): Promise<number> {
-    return (await ok<{ id: number }>(await this.page.request.post(`${this.ws}/projects`, { headers: CSRF, data: { name, billable } }))).id;
+    return (
+      await ok<{ id: number }>(
+        await this.page.request.post(`${this.ws}/projects`, { headers: CSRF, data: { name, billable } }),
+      )
+    ).id;
   }
 
   async createTask(projectId: number, name: string): Promise<number> {
-    return (await ok<{ id: number }>(await this.page.request.post(`${this.ws}/projects/${projectId}/tasks`, { headers: CSRF, data: { name } }))).id;
+    return (
+      await ok<{ id: number }>(
+        await this.page.request.post(`${this.ws}/projects/${projectId}/tasks`, { headers: CSRF, data: { name } }),
+      )
+    ).id;
   }
 
   async createEntry(entry: Partial<Metadata> & { start: string; stop: string }): Promise<EntryView> {
-    return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, created_with: 'e2e' } })));
+    return view(
+      await ok(
+        await this.page.request.post(`${this.ws}/time_entries`, {
+          headers: CSRF,
+          data: { ...entry, created_with: 'e2e' },
+        }),
+      ),
+    );
   }
 
   /** Seeds a running entry, as another device that started a timer at `start` would. */
   async startTimer(entry: Partial<Metadata> & { start: string }): Promise<EntryView> {
-    return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, duration: -1, created_with: 'e2e' } })));
+    return view(
+      await ok(
+        await this.page.request.post(`${this.ws}/time_entries`, {
+          headers: CSRF,
+          data: { ...entry, duration: -1, created_with: 'e2e' },
+        }),
+      ),
+    );
   }
 
   /**
@@ -70,7 +92,9 @@ export class TimerApi {
   async backdate(id: number, minutes: number): Promise<EntryView> {
     const entry = await ok<EntryView>(await this.page.request.get(`/api/v9/me/time_entries/${id}`));
     const start = new Date(Date.parse(entry.start) - minutes * 60_000).toISOString();
-    return view(await ok(await this.page.request.put(`${this.ws}/time_entries/${id}`, { headers: CSRF, data: { start } })));
+    return view(
+      await ok(await this.page.request.put(`${this.ws}/time_entries/${id}`, { headers: CSRF, data: { start } })),
+    );
   }
 
   async trash(): Promise<EntryView[]> {
@@ -83,7 +107,9 @@ export class TimerApi {
   }
 
   async entries(): Promise<EntryView[]> {
-    const all = await ok<EntryView[]>(await this.page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
+    const all = await ok<EntryView[]>(
+      await this.page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'),
+    );
     return all.map(view);
   }
 
@@ -110,18 +136,30 @@ export function metadataOf(entry: Metadata): Metadata {
 /** Waits until a running entry other than `previousId` exists and returns it. */
 export async function nextRunning(api: TimerApi, previousId: number | null): Promise<EntryView> {
   let running: EntryView | null = null;
-  await expect.poll(async () => {
-    running = await api.current();
-    return running !== null && running.id !== previousId;
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      running = await api.current();
+      return running !== null && running.id !== previousId;
+    })
+    .toBe(true);
   return running!;
 }
 
 /** Date key (YYYY-MM-DD) and 24-hour clock text of an instant in Europe/Madrid, the e2e account zone. */
 export function madridWallClock(at: Date): { day: string; time: string } {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Madrid', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).formatToParts(at).map((part) => [part.type, part.value]));
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Madrid',
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+      .formatToParts(at)
+      .map(part => [part.type, part.value]),
+  );
   return { day: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
@@ -156,22 +194,24 @@ export async function holdNextStop(
   alsoHold?: RegExp,
 ): Promise<{ sent: Promise<unknown>; release: () => void; stops: { count: number } }> {
   let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
   const stops = { count: 0 };
   if (alsoHold) {
-    await page.route(alsoHold, async (route) => {
+    await page.route(alsoHold, async route => {
       await gate;
       await route.continue();
     });
   }
-  await page.route(STOP_REQUEST, async (route) => {
+  await page.route(STOP_REQUEST, async route => {
     stops.count += 1;
     if (stops.count > 1) return route.continue();
     const response = await route.fetch();
     await gate;
     return route.fulfill({ response });
   });
-  const sent = page.waitForRequest((request) => request.method() === 'PATCH' && STOP_REQUEST.test(request.url()));
+  const sent = page.waitForRequest(request => request.method() === 'PATCH' && STOP_REQUEST.test(request.url()));
   return { sent, release, stops };
 }
 
@@ -199,13 +239,16 @@ export async function watchTimerTraffic(page: Page): Promise<void> {
       constructor(url: string | URL, init?: EventSourceInit) {
         super(url, init);
         window.timerStreams.push(this);
-        this.addEventListener('timer', () => { window.timerTraffic++; });
+        this.addEventListener('timer', () => {
+          window.timerTraffic++;
+        });
       }
     };
     const nativeFetch = window.fetch;
     window.fetch = async function (this: unknown, ...args: Parameters<typeof fetch>) {
       const response = await nativeFetch.apply(this, args);
-      if (/^\/api\/app\/(timer|pomodoro)(\/(pause|resume|discard|next|end))?$/.test(new URL(response.url).pathname)) window.timerTraffic++;
+      if (/^\/api\/app\/(timer|pomodoro)(\/(pause|resume|discard|next|end))?$/.test(new URL(response.url).pathname))
+        window.timerTraffic++;
       return response;
     };
   });
@@ -225,23 +268,36 @@ const KEEP_ALIVE_MS = 25_000;
 export async function fastForwardStreaming(page: Page, ms: number): Promise<void> {
   for (let left = ms; left > 0; left -= KEEP_ALIVE_MS) {
     await page.clock.fastForward(Math.min(left, KEEP_ALIVE_MS));
-    await Promise.all(page.context().pages().map((open) => open.evaluate(() => {
-      for (const stream of window.timerStreams ?? []) {
-        if (stream.readyState === EventSource.OPEN) stream.dispatchEvent(new MessageEvent('keep-alive', { data: '' }));
-      }
-    })));
+    await Promise.all(
+      page
+        .context()
+        .pages()
+        .map(open =>
+          open.evaluate(() => {
+            for (const stream of window.timerStreams ?? []) {
+              if (stream.readyState === EventSource.OPEN)
+                stream.dispatchEvent(new MessageEvent('keep-alive', { data: '' }));
+            }
+          }),
+        ),
+    );
   }
 }
 
 /** Waits until no timer state has reached the page for 300 ms. Needs `watchTimerTraffic`. */
 export async function settleTimerTraffic(page: Page): Promise<void> {
   let last = -1;
-  await expect.poll(async () => {
-    const seen = await page.evaluate(() => window.timerTraffic);
-    const quiet = seen === last;
-    last = seen;
-    return quiet;
-  }, { intervals: [300], timeout: 15_000 }).toBe(true);
+  await expect
+    .poll(
+      async () => {
+        const seen = await page.evaluate(() => window.timerTraffic);
+        const quiet = seen === last;
+        last = seen;
+        return quiet;
+      },
+      { intervals: [300], timeout: 15_000 },
+    )
+    .toBe(true);
 }
 
 /**
@@ -254,7 +310,10 @@ export async function openSecondDevice(
   browser: Browser,
   { path = '/', prepare }: { path?: string; prepare?: (other: Page) => Promise<void> } = {},
 ): Promise<{ other: Page; errors: RuntimeErrors }> {
-  const context = await browser.newContext({ storageState: await page.context().storageState(), timezoneId: 'Europe/Madrid' });
+  const context = await browser.newContext({
+    storageState: await page.context().storageState(),
+    timezoneId: 'Europe/Madrid',
+  });
   const other = await context.newPage();
   const errors = new RuntimeErrors(other);
   await prepare?.(other);
@@ -266,11 +325,15 @@ export async function openSecondDevice(
  * Holds the first request that matches `path` and `method` before it leaves the page, as a slow
  * network would, and lets it through on `release()`. `sent` resolves when the page has issued it.
  */
-export async function holdRequest(page: Page, path: RegExp, method = 'POST'): Promise<{ sent: Promise<void>; release: () => void }> {
+export async function holdRequest(
+  page: Page,
+  path: RegExp,
+  method = 'POST',
+): Promise<{ sent: Promise<void>; release: () => void }> {
   const sent = Promise.withResolvers<void>();
   const gate = Promise.withResolvers<void>();
   let held = false;
-  await page.route(path, async (route) => {
+  await page.route(path, async route => {
     if (held || route.request().method() !== method) return route.continue();
     held = true;
     sent.resolve();

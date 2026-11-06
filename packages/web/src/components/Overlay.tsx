@@ -24,7 +24,13 @@ function useDismiss(ref: React.RefObject<HTMLElement | null>, onClose: () => voi
 }
 
 /** A floating panel placed under `anchor`, closed by Escape or a click outside. */
-export function Popover({ anchor, onClose, children, width = 300, align = 'left' }: {
+export function Popover({
+  anchor,
+  onClose,
+  children,
+  width = 300,
+  align = 'left',
+}: {
   anchor: HTMLElement | null;
   onClose: () => void;
   children: ReactNode;
@@ -40,9 +46,10 @@ export function Popover({ anchor, onClose, children, width = 300, align = 'left'
   let left = align === 'right' ? rect.right - effectiveWidth : rect.left;
   left = Math.max(8, Math.min(left, viewportWidth - effectiveWidth - 8));
   const spaceBelow = window.innerHeight - rect.bottom;
-  const style: React.CSSProperties = spaceBelow < 260 && rect.top > spaceBelow
-    ? { left, bottom: window.innerHeight - rect.top + 4, width: effectiveWidth, maxHeight: rect.top - 16 }
-    : { left, top: rect.bottom + 4, width: effectiveWidth, maxHeight: spaceBelow - 16 };
+  const style: React.CSSProperties =
+    spaceBelow < 260 && rect.top > spaceBelow
+      ? { left, bottom: window.innerHeight - rect.top + 4, width: effectiveWidth, maxHeight: rect.top - 16 }
+      : { left, top: rect.bottom + 4, width: effectiveWidth, maxHeight: spaceBelow - 16 };
   return createPortal(
     <div ref={ref} className="popover" style={style} role="dialog">
       {children}
@@ -51,7 +58,13 @@ export function Popover({ anchor, onClose, children, width = 300, align = 'left'
   );
 }
 
-export function Modal({ title, onClose, children, footer, wide }: {
+export function Modal({
+  title,
+  onClose,
+  children,
+  footer,
+  wide,
+}: {
   title: string;
   onClose: () => void;
   children: ReactNode;
@@ -83,7 +96,7 @@ export function Modal({ title, onClose, children, footer, wide }: {
   return createPortal(
     <div
       className="modal-backdrop"
-      onPointerDown={(event) => {
+      onPointerDown={event => {
         if (event.target !== event.currentTarget) return;
         // Stops the press from focusing the page behind once the backdrop is gone.
         event.preventDefault();
@@ -93,7 +106,9 @@ export function Modal({ title, onClose, children, footer, wide }: {
       <div ref={ref} className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className="modal-header">
           <h2>{title}</h2>
-          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label="Close">×</button>
+          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
         </header>
         <div className="modal-body">{children}</div>
         {footer ? <footer className="modal-footer">{footer}</footer> : null}

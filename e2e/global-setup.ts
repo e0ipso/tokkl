@@ -14,7 +14,7 @@ export default async function globalSetup(config: FullConfig) {
   // The web servers are already up. Create each one's setup admin once here, so parallel workers
   // do not race to set up the server they share. A server on a reused TOKKL_E2E_DATA_DIR can still
   // hold worker accounts from a run that was killed before its workers stopped; delete them.
-  for (const baseURL of new Set(config.projects.map((project) => project.use.baseURL))) {
+  for (const baseURL of new Set(config.projects.map(project => project.use.baseURL))) {
     if (!baseURL) continue;
     const admin = await TestData.open(baseURL);
     try {

@@ -25,7 +25,9 @@ test('page routes serve the app shell while API paths keep JSON 404s', async () 
   const db = await openDatabase();
   const webRoot = makeWebRoot();
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html><title>app</title>');
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), webRoot }, setup: { code: null } }));
+  const app = testServer(
+    createApp({ storage: storageFor(db), config: { ...testConfig(db), webRoot }, setup: { code: null } }),
+  );
 
   for (const path of ['/', '/reports', '/reports?range=last_week', '/projects', '/settings']) {
     const response = await app.request(path);
@@ -69,7 +71,9 @@ test('the Pomodoro transition sounds are served from the app origin as WAV audio
   const webRoot = makeWebRoot();
   writeFileSync(join(webRoot, 'index.html'), '<!doctype html>');
   cpSync(sounds, join(webRoot, 'sounds'), { recursive: true });
-  const app = testServer(createApp({ storage: storageFor(db), config: { ...testConfig(db), webRoot }, setup: { code: null } }));
+  const app = testServer(
+    createApp({ storage: storageFor(db), config: { ...testConfig(db), webRoot }, setup: { code: null } }),
+  );
 
   for (const name of ['work-to-short-rest', 'short-rest-to-work', 'work-to-long-rest', 'long-rest-to-work']) {
     const file = `pomodoro-${name}.wav`;

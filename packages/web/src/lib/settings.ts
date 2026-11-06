@@ -106,7 +106,11 @@ export function entrySeconds(entry: { start: string; stop: string | null }, now:
  * (or `stop` is not after `start`). Use it to preview an entry before saving; a saved entry already
  * holds its snapped times, and a running timer shows real seconds (`entrySeconds`).
  */
-export function snappedSeconds(start: Date, stop: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>): number {
+export function snappedSeconds(
+  start: Date,
+  stop: Date,
+  settings: Pick<Settings, 'timeZone' | 'timeResolution'>,
+): number {
   const from = wholeSecond(start);
   const to = wholeSecond(stop);
   if (to <= from) return 0;
@@ -135,7 +139,10 @@ export interface SplitHalves {
  * strictly inside the snapped whole, or the whole is too short to keep.
  */
 export function snappedSplit(
-  start: Date, stop: Date, at: Date, settings: Pick<Settings, 'timeZone' | 'timeResolution'>,
+  start: Date,
+  stop: Date,
+  at: Date,
+  settings: Pick<Settings, 'timeZone' | 'timeResolution'>,
 ): SplitHalves | 'outside' {
   const whole = snapSpan(wholeSecond(start), wholeSecond(stop), settings.timeResolution, settings.timeZone);
   const cut = snappedInstant(at, settings);

@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
 import { keys, useMe } from '../api/hooks.ts';
@@ -40,7 +49,13 @@ export function usePomodoroSession(): PomodoroSession {
 export function PomodoroSessionProvider({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
   // The alarm's audio lock and channel are per account, so they are rebuilt if authentication switches in place.
-  return me ? <AccountSession key={me.id} accountId={me.id}>{children}</AccountSession> : children;
+  return me ? (
+    <AccountSession key={me.id} accountId={me.id}>
+      {children}
+    </AccountSession>
+  ) : (
+    children
+  );
 }
 
 /**
@@ -59,11 +74,15 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
   // Set synchronously, so a second click in the same frame sees it before the mutation reports pending.
   const acting = useRef(false);
 
-  const alarm = useMemo(() => createPomodoroSessionAlarm(accountId, {
-    // Read the cache, not a render's copy, so a state that just arrived silences the alarm at once.
-    current: () => phaseAlarm(qc.getQueryData<TimerState>(keys.timer)?.pomodoro, Date.now() + getClockOffset()),
-    onError: setAudioBlocked,
-  }), [accountId, qc]);
+  const alarm = useMemo(
+    () =>
+      createPomodoroSessionAlarm(accountId, {
+        // Read the cache, not a render's copy, so a state that just arrived silences the alarm at once.
+        current: () => phaseAlarm(qc.getQueryData<TimerState>(keys.timer)?.pomodoro, Date.now() + getClockOffset()),
+        onError: setAudioBlocked,
+      }),
+    [accountId, qc],
+  );
 
   useLayoutEffect(() => {
     alarm.activate();
@@ -86,7 +105,9 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
   const target = phaseAlarm(session, now.getTime());
   const ringKey = target?.key ?? null;
   // Runs on every new state and on every tick that crosses the planned end.
-  useLayoutEffect(() => { alarm.update(target); }, [alarm, ringKey, target?.transition]);
+  useLayoutEffect(() => {
+    alarm.update(target);
+  }, [alarm, ringKey, target?.transition]);
   useEffect(() => {
     if (!ringKey || !session) return;
     const notification = notifySessionPhaseEnd(ringKey, SESSION_PHASE_LABEL[session.phase.kind]);
@@ -101,28 +122,49 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
   const run = async (operation: () => Promise<unknown>) => {
     if (acting.current) return;
     acting.current = true;
-    try { await operation(); } catch (error) { toast.error(error); }
-    finally { acting.current = false; }
+    try {
+      await operation();
+    } catch (error) {
+      toast.error(error);
+    } finally {
+      acting.current = false;
+    }
   };
 
   return (
-    <Context.Provider value={{
-      session, phase: session?.phase ?? null, now,
-      plannedEnd: session ? new Date(session.phase.planned_end) : null,
-      transitionKind: session?.transition ?? null,
-      busy: startPomodoro.isPending || confirmNext.isPending || endPomodoro.isPending,
-      ringing: target !== null, audioBlocked,
-      unlockAudio: () => alarm.unlock(),
-      retryAudio: () => { alarm.unlock(); alarm.retry(); },
-      start: (config, fields) => run(() => startPomodoro.mutateAsync({
-        description: fields.description, project_id: fields.project_id, task_id: fields.task_id,
-        tags: [...fields.tags], billable: fields.billable,
-        work_minutes: config.workMinutes, short_rest_minutes: config.shortRestMinutes,
-        long_rest_minutes: config.longRestMinutes, long_rest_every: config.longRestEvery,
-      })),
-      nextPhase: () => run(() => confirmNext.mutateAsync()),
-      end: () => run(() => endPomodoro.mutateAsync()),
-    }}>
+    <Context.Provider
+      value={{
+        session,
+        phase: session?.phase ?? null,
+        now,
+        plannedEnd: session ? new Date(session.phase.planned_end) : null,
+        transitionKind: session?.transition ?? null,
+        busy: startPomodoro.isPending || confirmNext.isPending || endPomodoro.isPending,
+        ringing: target !== null,
+        audioBlocked,
+        unlockAudio: () => alarm.unlock(),
+        retryAudio: () => {
+          alarm.unlock();
+          alarm.retry();
+        },
+        start: (config, fields) =>
+          run(() =>
+            startPomodoro.mutateAsync({
+              description: fields.description,
+              project_id: fields.project_id,
+              task_id: fields.task_id,
+              tags: [...fields.tags],
+              billable: fields.billable,
+              work_minutes: config.workMinutes,
+              short_rest_minutes: config.shortRestMinutes,
+              long_rest_minutes: config.longRestMinutes,
+              long_rest_every: config.longRestEvery,
+            }),
+          ),
+        nextPhase: () => run(() => confirmNext.mutateAsync()),
+        end: () => run(() => endPomodoro.mutateAsync()),
+      }}
+    >
       {children}
     </Context.Provider>
   );

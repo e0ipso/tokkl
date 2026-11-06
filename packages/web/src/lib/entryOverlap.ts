@@ -10,7 +10,7 @@ export interface OverlapEntry {
  * overlaps; we only flag them. No-time entries have no clock range, so they are left out.
  */
 export function overlappingIds(entries: OverlapEntry[]): Set<number> {
-  const sorted = entries.filter((e) => e.stop && !e.all_day).sort((a, b) => a.start.localeCompare(b.start));
+  const sorted = entries.filter(e => e.stop && !e.all_day).sort((a, b) => a.start.localeCompare(b.start));
   const ids = new Set<number>();
   let latest: OverlapEntry | null = null;
   for (const entry of sorted) {

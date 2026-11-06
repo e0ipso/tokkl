@@ -18,35 +18,54 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
 
-  const dismiss = useCallback((id: number) => setToasts((list) => list.filter((toast) => toast.id !== id)), []);
+  const dismiss = useCallback((id: number) => setToasts(list => list.filter(toast => toast.id !== id)), []);
 
-  const show = useCallback<ToastApi['show']>((message, options = {}) => {
-    const id = nextId.current++;
-    setToasts((list) => [...list.slice(-3), { id, message, kind: options.kind ?? 'info', action: options.action }]);
-    setTimeout(() => dismiss(id), options.durationMs ?? (options.action ? 8000 : 4000));
-  }, [dismiss]);
+  const show = useCallback<ToastApi['show']>(
+    (message, options = {}) => {
+      const id = nextId.current++;
+      setToasts(list => [...list.slice(-3), { id, message, kind: options.kind ?? 'info', action: options.action }]);
+      setTimeout(() => dismiss(id), options.durationMs ?? (options.action ? 8000 : 4000));
+    },
+    [dismiss],
+  );
 
-  const error = useCallback((err: unknown) => {
-    show(err instanceof Error ? err.message : String(err), { kind: 'error' });
-  }, [show]);
+  const error = useCallback(
+    (err: unknown) => {
+      show(err instanceof Error ? err.message : String(err), { kind: 'error' });
+    },
+    [show],
+  );
 
   return (
     <ToastContext.Provider value={{ show, error }}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
-        {toasts.map((toast) => (
-          <div key={toast.id} className={`toast toast-${toast.kind}`} role={toast.kind === 'error' ? 'alert' : undefined}>
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={`toast toast-${toast.kind}`}
+            role={toast.kind === 'error' ? 'alert' : undefined}
+          >
             {toast.kind === 'error' ? <ErrorIcon /> : null}
             <span>
               {toast.kind === 'error' ? <span className="visually-hidden">Error: </span> : null}
               {toast.message}
             </span>
             {toast.action ? (
-              <button type="button" className="link-button" onClick={() => { toast.action!.run(); dismiss(toast.id); }}>
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  toast.action!.run();
+                  dismiss(toast.id);
+                }}
+              >
                 {toast.action.label}
               </button>
             ) : null}
-            <button type="button" className="icon-button" aria-label="Dismiss" onClick={() => dismiss(toast.id)}>×</button>
+            <button type="button" className="icon-button" aria-label="Dismiss" onClick={() => dismiss(toast.id)}>
+              ×
+            </button>
           </div>
         ))}
       </div>
@@ -57,7 +76,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 /** A circled exclamation mark, so an error toast does not rely on its red background alone. */
 function ErrorIcon() {
   return (
-    <svg className="toast-icon" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg
+      className="toast-icon"
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
       <path d="M12 8v5M12 16h.01M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z" />
     </svg>
   );

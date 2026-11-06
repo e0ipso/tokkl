@@ -33,7 +33,13 @@ export function accountTime(date: string, time: string): string {
   for (const offset of ['+01:00', '+02:00']) {
     const instant = new Date(`${date}T${time}${offset}`);
     const wall = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: ACCOUNT_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZone: ACCOUNT_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
     }).format(instant);
     if (wall === `${date} ${time}`) return `${instant.toISOString().slice(0, 19)}+00:00`;
   }
@@ -111,7 +117,7 @@ export async function readAccount(page: Page, workspaceId: number): Promise<Acco
     entries: entries.sort((a, b) => a.start.localeCompare(b.start)),
     projects: byName(await get<Project[]>(`${ws}/projects?active=both`)),
     clients: byName(await get<Client[]>(`${ws}/clients?status=both`)),
-    tags: (await get<Array<{ name: string }>>(`${ws}/tags`)).map((tag) => tag.name).sort(),
+    tags: (await get<Array<{ name: string }>>(`${ws}/tags`)).map(tag => tag.name).sort(),
     tasks: byName(await get<Task[]>('/api/v9/me/tasks?include_not_active=true')),
   };
 }
@@ -120,8 +126,11 @@ export async function readAccount(page: Page, workspaceId: number): Promise<Acco
 export async function expectEmptyAccount(page: Page, workspaceId: number): Promise<void> {
   const account = await readAccount(page, workspaceId);
   expect({
-    entries: account.entries.length, projects: account.projects.length, clients: account.clients.length,
-    tags: account.tags.length, tasks: account.tasks.length,
+    entries: account.entries.length,
+    projects: account.projects.length,
+    clients: account.clients.length,
+    tags: account.tags.length,
+    tasks: account.tasks.length,
   }).toEqual({ entries: 0, projects: 0, clients: 0, tags: 0, tasks: 0 });
 }
 

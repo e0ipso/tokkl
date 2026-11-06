@@ -81,30 +81,42 @@ function gate(t: { after: (fn: () => void) => void }, version = '1.2.3', native 
   return { ...repo, revision, dist, deb, ubuntu, rpm, put, manifest, logs, context };
 }
 
-test('prepare accepts exactly both DEBs, the RPM and their manifests for the next version', async (t) => {
+test('prepare accepts exactly both DEBs, the RPM and their manifests for the next version', async t => {
   const fixture = gate(t);
   await plugin.prepare({}, fixture.context());
-  assert.deepEqual(fixture.logs, [['Releasing %s, %s and %s, built and checked from %s', fixture.deb, fixture.ubuntu, fixture.rpm, fixture.revision]]);
+  assert.deepEqual(fixture.logs, [
+    ['Releasing %s, %s and %s, built and checked from %s', fixture.deb, fixture.ubuntu, fixture.rpm, fixture.revision],
+  ]);
 });
 
-test('prepare names the packages by the native version of a prerelease', async (t) => {
+test('prepare names the packages by the native version of a prerelease', async t => {
   const fixture = gate(t, '1.3.0-rc.1', '1.3.0~rc1');
   await plugin.prepare({}, fixture.context());
   assert.equal(fixture.logs.length, 1);
 });
 
-test('prepare refuses when dist/kde is missing', async (t) => {
+test('prepare refuses when dist/kde is missing', async t => {
   const fixture = gate(t);
   rmSync(fixture.dist, { recursive: true });
   await assert.rejects(plugin.prepare({}, fixture.context()), /found: nothing$/);
 });
 
 for (const missing of ['deb', 'ubuntu', 'rpm', 'kde-deb.json', 'kde-ubuntu-deb.json', 'kde-rpm.json'] as const) {
-  test(`prepare refuses when ${missing} is missing`, async (t) => {
+  test(`prepare refuses when ${missing} is missing`, async t => {
     const fixture = gate(t);
-    const name = missing === 'deb' ? fixture.deb : missing === 'ubuntu' ? fixture.ubuntu : missing === 'rpm' ? fixture.rpm : missing;
+    const name =
+      missing === 'deb'
+        ? fixture.deb
+        : missing === 'ubuntu'
+          ? fixture.ubuntu
+          : missing === 'rpm'
+            ? fixture.rpm
+            : missing;
     rmSync(join(fixture.dist, name));
-    await assert.rejects(plugin.prepare({}, fixture.context()), /^Error: Expected tokkl-kde_1\.2\.3_amd64\.deb, one tokkl-kde-1\.2\.3-1\.\*\.x86_64\.rpm/);
+    await assert.rejects(
+      plugin.prepare({}, fixture.context()),
+      /^Error: Expected tokkl-kde_1\.2\.3_amd64\.deb, one tokkl-kde-1\.2\.3-1\.\*\.x86_64\.rpm/,
+    );
   });
 }
 
@@ -114,16 +126,19 @@ for (const [what, extra] of [
   ['an RPM of another version', 'tokkl-kde-1.2.2-1.fc44.x86_64.rpm'],
   ['an unrelated file', 'notes.txt'],
 ] as const) {
-  test(`prepare refuses ${what} in dist/kde`, async (t) => {
+  test(`prepare refuses ${what} in dist/kde`, async t => {
     const fixture = gate(t);
     fixture.put(extra, 'bytes');
     await assert.rejects(plugin.prepare({}, fixture.context()), new RegExp(`found: .*${extra.replace(/\./g, '\\.')}`));
   });
 }
 
-test('prepare refuses packages built for another version', async (t) => {
+test('prepare refuses packages built for another version', async t => {
   const fixture = gate(t);
-  await assert.rejects(plugin.prepare({}, { ...fixture.context(), nextRelease: { version: '1.2.4' } }), /^Error: Expected tokkl-kde_1\.2\.4_amd64\.deb/);
+  await assert.rejects(
+    plugin.prepare({}, { ...fixture.context(), nextRelease: { version: '1.2.4' } }),
+    /^Error: Expected tokkl-kde_1\.2\.4_amd64\.deb/,
+  );
 });
 
 for (const format of ['deb', 'ubuntu-deb', 'rpm'] as const) {
@@ -134,51 +149,66 @@ for (const format of ['deb', 'ubuntu-deb', 'rpm'] as const) {
     ['package', 'tokkl-kde_1.2.2_amd64.deb'],
     ['sha256', sha256('other bytes')],
   ] as const) {
-    test(`prepare refuses kde-${format}.json with another ${key}`, async (t) => {
+    test(`prepare refuses kde-${format}.json with another ${key}`, async t => {
       const fixture = gate(t);
       fixture.manifest(format, { [key]: value });
-      await assert.rejects(plugin.prepare({}, fixture.context()), new RegExp(`dist/kde/kde-${format}\\.json has ${key} "${value}", expected `));
+      await assert.rejects(
+        plugin.prepare({}, fixture.context()),
+        new RegExp(`dist/kde/kde-${format}\\.json has ${key} "${value}", expected `),
+      );
     });
   }
 
-  test(`prepare refuses kde-${format}.json without a field`, async (t) => {
+  test(`prepare refuses kde-${format}.json without a field`, async t => {
     const fixture = gate(t);
     fixture.manifest(format, { revision: undefined });
-    await assert.rejects(plugin.prepare({}, fixture.context()), new RegExp(`kde-${format}\\.json has revision undefined, expected "`));
+    await assert.rejects(
+      plugin.prepare({}, fixture.context()),
+      new RegExp(`kde-${format}\\.json has revision undefined, expected "`),
+    );
   });
 
-  test(`prepare refuses a ${format} changed after its manifest was written`, async (t) => {
+  test(`prepare refuses a ${format} changed after its manifest was written`, async t => {
     const fixture = gate(t);
-    fixture.put(format === 'deb' ? fixture.deb : format === 'ubuntu-deb' ? fixture.ubuntu : fixture.rpm, 'tampered bytes');
+    fixture.put(
+      format === 'deb' ? fixture.deb : format === 'ubuntu-deb' ? fixture.ubuntu : fixture.rpm,
+      'tampered bytes',
+    );
     await assert.rejects(plugin.prepare({}, fixture.context()), new RegExp(`kde-${format}\\.json has sha256 `));
   });
 
-  test(`prepare refuses kde-${format}.json that is not JSON`, async (t) => {
+  test(`prepare refuses kde-${format}.json that is not JSON`, async t => {
     const fixture = gate(t);
     fixture.put(`kde-${format}.json`, '{"format":');
-    await assert.rejects(plugin.prepare({}, fixture.context()), new RegExp(`dist/kde/kde-${format}\\.json is not valid JSON`));
+    await assert.rejects(
+      plugin.prepare({}, fixture.context()),
+      new RegExp(`dist/kde/kde-${format}\\.json is not valid JSON`),
+    );
   });
 }
 
-test('prepare refuses packages recorded for an earlier commit', async (t) => {
+test('prepare refuses packages recorded for an earlier commit', async t => {
   const fixture = gate(t);
   fixture.git('commit', '--quiet', '--allow-empty', '-m', 'fix: later');
-  await assert.rejects(plugin.prepare({}, fixture.context()), /kde-deb\.json has revision "[0-9a-f]{40}", expected "[0-9a-f]{40}"/);
+  await assert.rejects(
+    plugin.prepare({}, fixture.context()),
+    /kde-deb\.json has revision "[0-9a-f]{40}", expected "[0-9a-f]{40}"/,
+  );
 });
 
-test('verifyRelease accepts the version the packages were built for', async (t) => {
+test('verifyRelease accepts the version the packages were built for', async t => {
   const fixture = gate(t);
   await plugin.verifyRelease({}, fixture.context({ TOKKL_KDE_RELEASE_VERSION: '1.2.3' }));
   assert.deepEqual(fixture.logs, [['KDE packages for %s will have version %s', '1.2.3', '1.2.3']]);
 });
 
-test('verifyRelease accepts any packageable version when no build version is given', async (t) => {
+test('verifyRelease accepts any packageable version when no build version is given', async t => {
   const fixture = gate(t);
   await plugin.verifyRelease({}, fixture.context());
   assert.equal(fixture.logs.length, 1);
 });
 
-test('verifyRelease refuses a next version other than the one the packages were built for', async (t) => {
+test('verifyRelease refuses a next version other than the one the packages were built for', async t => {
   const fixture = gate(t);
   await assert.rejects(
     plugin.verifyRelease({}, fixture.context({ TOKKL_KDE_RELEASE_VERSION: '1.2.2' })),
@@ -186,7 +216,7 @@ test('verifyRelease refuses a next version other than the one the packages were 
   );
 });
 
-test('verifyRelease refuses a version the packages cannot carry', async (t) => {
+test('verifyRelease refuses a version the packages cannot carry', async t => {
   const fixture = gate(t);
   await assert.rejects(
     plugin.verifyRelease({}, { ...fixture.context(), nextRelease: { version: '1.2.3-rc-1' } }),
@@ -204,9 +234,14 @@ function releaseRepository(t: { after: (fn: () => void) => void }) {
   execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch', 'main', remote]);
   const config = JSON.parse(readFileSync(RELEASERC, 'utf8'));
   const keep = ['@semantic-release/commit-analyzer', '@semantic-release/release-notes-generator'];
-  const plugins = config.plugins.filter((entry: string | [string]) => keep.includes(Array.isArray(entry) ? entry[0] : entry));
+  const plugins = config.plugins.filter((entry: string | [string]) =>
+    keep.includes(Array.isArray(entry) ? entry[0] : entry),
+  );
   assert.equal(plugins.length, keep.length, '.releaserc.json lost a plugin these tests rely on');
-  writeFileSync(join(repo.cwd, '.releaserc.json'), JSON.stringify({ ...config, plugins: [...plugins, PLUGIN], repositoryUrl: pathToFileURL(remote).href }));
+  writeFileSync(
+    join(repo.cwd, '.releaserc.json'),
+    JSON.stringify({ ...config, plugins: [...plugins, PLUGIN], repositoryUrl: pathToFileURL(remote).href }),
+  );
   repo.git('add', '.releaserc.json');
   repo.git('commit', '--quiet', '-m', 'chore: release configuration');
   repo.git('remote', 'add', 'origin', pathToFileURL(remote).href);
@@ -224,7 +259,7 @@ function releaseRepository(t: { after: (fn: () => void) => void }) {
   return { commit, tag, nextRelease };
 }
 
-test('next-release prints only the first version when nothing was released yet', (t) => {
+test('next-release prints only the first version when nothing was released yet', t => {
   const repo = releaseRepository(t);
   repo.commit('feat: first feature');
   const result = repo.nextRelease();
@@ -233,7 +268,7 @@ test('next-release prints only the first version when nothing was released yet',
   assert.match(result.stderr, /There is no previous release/);
 });
 
-test('next-release bumps the last release by the release rules', (t) => {
+test('next-release bumps the last release by the release rules', t => {
   for (const [message, next] of [
     ['fix: a bug', '1.2.4'],
     ['refactor: tidy up', '1.2.4'],
@@ -249,7 +284,7 @@ test('next-release bumps the last release by the release rules', (t) => {
   }
 });
 
-test('next-release prints nothing when the commits warrant no release', (t) => {
+test('next-release prints nothing when the commits warrant no release', t => {
   const repo = releaseRepository(t);
   repo.commit('feat: earlier');
   repo.tag('v1.2.3');
@@ -260,7 +295,7 @@ test('next-release prints nothing when the commits warrant no release', (t) => {
   assert.equal(result.stdout, '');
 });
 
-test('next-release fails, printing nothing, when the KDE plugin refuses the version', (t) => {
+test('next-release fails, printing nothing, when the KDE plugin refuses the version', t => {
   const repo = releaseRepository(t);
   repo.commit('feat: earlier');
   repo.tag('v1.2.3');

@@ -3,7 +3,17 @@ import { api } from './client.ts';
 import { coversPreviousRange } from './entriesPlaceholder.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type {
-  Client, Me, Preferences, Project, Report, ReportQuery, Tag, Task, TimeEntry, TimeEntryInput, Workspace,
+  Client,
+  Me,
+  Preferences,
+  Project,
+  Report,
+  ReportQuery,
+  Tag,
+  Task,
+  TimeEntry,
+  TimeEntryInput,
+  Workspace,
 } from './types.ts';
 
 const v9 = '/api/v9';
@@ -34,7 +44,11 @@ export function useWid(): number {
 }
 
 export function usePreferences() {
-  return useQuery({ queryKey: keys.preferences, queryFn: () => api.get<Preferences>(`${v9}/me/preferences`), staleTime: 60_000 });
+  return useQuery({
+    queryKey: keys.preferences,
+    queryFn: () => api.get<Preferences>(`${v9}/me/preferences`),
+    staleTime: 60_000,
+  });
 }
 
 export function useSavePreferences() {
@@ -43,7 +57,7 @@ export function useSavePreferences() {
     // The Pomodoro waits for this save to settle before it trusts an optimistic switch-off.
     mutationKey: keys.preferences,
     mutationFn: (changes: Partial<Preferences>) => api.post<Preferences>(`${v9}/me/preferences`, changes),
-    onMutate: (changes) => {
+    onMutate: changes => {
       const previous = qc.getQueryData<Preferences>(keys.preferences);
       if (previous) qc.setQueryData(keys.preferences, { ...previous, ...changes });
       return { previous };
@@ -51,7 +65,7 @@ export function useSavePreferences() {
     onError: (_error, _changes, context) => {
       if (context?.previous) qc.setQueryData(keys.preferences, context.previous);
     },
-    onSuccess: (data) => qc.setQueryData(keys.preferences, data),
+    onSuccess: data => qc.setQueryData(keys.preferences, data),
   });
 }
 
@@ -85,7 +99,11 @@ export function useClients() {
 
 export function useTags() {
   const wid = useWid();
-  return useQuery({ queryKey: keys.tags, queryFn: () => api.get<Tag[]>(`${v9}/workspaces/${wid}/tags`), enabled: wid > 0 });
+  return useQuery({
+    queryKey: keys.tags,
+    queryFn: () => api.get<Tag[]>(`${v9}/workspaces/${wid}/tags`),
+    enabled: wid > 0,
+  });
 }
 
 export function useTasks() {
@@ -137,7 +155,7 @@ export function useReport(query: ReportQuery | null) {
     queryKey: [...keys.report, query],
     queryFn: () => api.post<Report>('/api/app/report', query),
     enabled: query !== null,
-    placeholderData: (previous) => previous,
+    placeholderData: previous => previous,
     // The summary and the other tabs ask for different groupings; going back to the summary
     // reuses its result instead of refetching it. Edits invalidate keys.report anyway.
     staleTime: 60_000,
@@ -146,15 +164,16 @@ export function useReport(query: ReportQuery | null) {
 
 function useInvalidateEntries() {
   const qc = useQueryClient();
-  return () => Promise.all([
-    qc.invalidateQueries({ queryKey: keys.entries }),
-    qc.invalidateQueries({ queryKey: keys.current }),
-    qc.invalidateQueries({ queryKey: keys.timer }),
-    qc.invalidateQueries({ queryKey: keys.report }),
-    qc.invalidateQueries({ queryKey: keys.projects }),
-    qc.invalidateQueries({ queryKey: keys.tags }),
-    qc.invalidateQueries({ queryKey: keys.trash }),
-  ]);
+  return () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: keys.entries }),
+      qc.invalidateQueries({ queryKey: keys.current }),
+      qc.invalidateQueries({ queryKey: keys.timer }),
+      qc.invalidateQueries({ queryKey: keys.report }),
+      qc.invalidateQueries({ queryKey: keys.projects }),
+      qc.invalidateQueries({ queryKey: keys.tags }),
+      qc.invalidateQueries({ queryKey: keys.trash }),
+    ]);
 }
 
 export function useCreateEntry() {
@@ -183,8 +202,10 @@ export function useStopEntry() {
   return useMutation({
     mutationFn: (input: number | { id: number; stop: string }) => {
       const id = typeof input === 'number' ? input : input.id;
-      return api.patch<TimeEntry>(`${v9}/workspaces/${wid}/time_entries/${id}/stop?meta=true`,
-        typeof input === 'number' ? undefined : { stop: input.stop });
+      return api.patch<TimeEntry>(
+        `${v9}/workspaces/${wid}/time_entries/${id}/stop?meta=true`,
+        typeof input === 'number' ? undefined : { stop: input.stop },
+      );
     },
     onSuccess: invalidate,
   });
@@ -219,7 +240,9 @@ export function useBulkPatch() {
   return useMutation({
     mutationFn: ({ ids, operations }: { ids: number[]; operations: PatchOperation[] }) =>
       api.patch<{ success: number[]; failure: Array<{ id: number; message: string }> }>(
-        `${v9}/workspaces/${wid}/time_entries/${ids.join(',')}`, operations),
+        `${v9}/workspaces/${wid}/time_entries/${ids.join(',')}`,
+        operations,
+      ),
     onSuccess: invalidate,
   });
 }
@@ -228,11 +251,13 @@ export function useCreateProject() {
   const wid = useWid();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Partial<Project> & { name: string }) => api.post<Project>(`${v9}/workspaces/${wid}/projects`, input),
-    onSuccess: () => Promise.all([
-      qc.invalidateQueries({ queryKey: keys.projects }),
-      qc.invalidateQueries({ queryKey: keys.clients }),
-    ]),
+    mutationFn: (input: Partial<Project> & { name: string }) =>
+      api.post<Project>(`${v9}/workspaces/${wid}/projects`, input),
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: keys.projects }),
+        qc.invalidateQueries({ queryKey: keys.clients }),
+      ]),
   });
 }
 

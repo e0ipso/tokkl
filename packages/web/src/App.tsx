@@ -77,9 +77,11 @@ function useRunningTitle() {
   // A session's countdown runs on the server's clock, like the Pomodoro page's.
   const { session, now: serverNow } = usePomodoroSession();
   useEffect(() => {
-    document.title = session ? sessionTitle(session, serverNow) : current
-      ? `${formatDuration(entrySeconds(current, now))} · ${current.description || 'Running'}`
-      : 'Tokkl';
+    document.title = session
+      ? sessionTitle(session, serverNow)
+      : current
+        ? `${formatDuration(entrySeconds(current, now))} · ${current.description || 'Running'}`
+        : 'Tokkl';
   }, [current, session, now, serverNow]);
 }
 
@@ -139,8 +141,14 @@ function SignedInUser() {
   return (
     <div className="signed-in">
       <span className="visually-hidden">Signed in as </span>
-      {name ? <span className="signed-in-name" title={name}>{name}</span> : null}
-      <span className="signed-in-email" title={me.email}>{me.email}</span>
+      {name ? (
+        <span className="signed-in-name" title={name}>
+          {name}
+        </span>
+      ) : null}
+      <span className="signed-in-email" title={me.email}>
+        {me.email}
+      </span>
     </div>
   );
 }
@@ -207,10 +215,14 @@ function Shell() {
         <span>{item.label}</span>
         {/* A session's open pomodoro is the running entry; the session's own marker stands for it. */}
         {item.href === '/' && current && !session ? (
-          <span className="running-dot" title="Timer running"><span className="visually-hidden">Timer running</span></span>
+          <span className="running-dot" title="Timer running">
+            <span className="visually-hidden">Timer running</span>
+          </span>
         ) : null}
         {item.href === '/pomodoro' && session ? (
-          <span className="running-dot" title="Pomodoro session running"><span className="visually-hidden">Pomodoro session running</span></span>
+          <span className="running-dot" title="Pomodoro session running">
+            <span className="visually-hidden">Pomodoro session running</span>
+          </span>
         ) : null}
       </Link>
     );
@@ -223,19 +235,19 @@ function Shell() {
     </button>
   );
 
-  const nav = NAV.filter((item) => !item.adminOnly || me?.role === 'admin');
-  const moreItems = nav.filter((item) => item.inMore);
+  const nav = NAV.filter(item => !item.adminOnly || me?.role === 'admin');
+  const moreItems = nav.filter(item => item.inMore);
   // The open page under More, whose hue the More button takes so the button and the page agree.
-  const moreCurrent = moreItems.find((item) => isActive(item.href));
+  const moreCurrent = moreItems.find(item => isActive(item.href));
   // The open page's section hue; pages read it for their stickers. Every route is in NAV, Admin too.
-  const section = NAV.find((item) => isActive(item.href))?.section ?? 'timer';
+  const section = NAV.find(item => isActive(item.href))?.section ?? 'timer';
 
   return (
     <div className="shell">
       <nav className="sidebar" aria-label="Main">
         {phone ? (
           <>
-            {nav.filter((item) => !item.inMore).map((item) => navLink(item))}
+            {nav.filter(item => !item.inMore).map(item => navLink(item))}
             <button
               ref={moreButton}
               type="button"
@@ -243,14 +255,14 @@ function Shell() {
               data-section={moreCurrent?.section ?? 'more'}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
-              onClick={() => setMoreOpen((open) => !open)}
+              onClick={() => setMoreOpen(open => !open)}
             >
               <Icon name="more" className="nav-icon" />
               <span>More</span>
             </button>
             {moreOpen ? (
               <MoreSheet onClose={closeMore}>
-                {moreItems.map((item) => navLink(item, closeMore))}
+                {moreItems.map(item => navLink(item, closeMore))}
                 <SignedInUser />
                 {logoutButton}
                 <div className="app-version">Version {version}</div>
@@ -260,7 +272,7 @@ function Shell() {
         ) : (
           <>
             <Brand />
-            {nav.map((item) => navLink(item))}
+            {nav.map(item => navLink(item))}
             <span className="spacer" />
             <SignedInUser />
             {logoutButton}
@@ -268,23 +280,29 @@ function Shell() {
           </>
         )}
       </nav>
-      {phone ? <header className="phone-header"><Brand size="sm" /></header> : null}
+      {phone ? (
+        <header className="phone-header">
+          <Brand size="sm" />
+        </header>
+      ) : null}
       <main className="content" data-section={section}>
         <LongTimerReminder />
         <PomodoroSessionBanner />
         <ErrorBoundary resetKey={location}>
-        <Switch>
-          <Route path="/" component={TimerPage} />
-          <Route path="/pomodoro" component={PomodoroPage} />
-          <Route path="/reports" component={ReportsPage} />
-          <Route path="/projects" component={ProjectsPage} />
-          <Route path="/clients" component={ClientsPage} />
-          <Route path="/tags" component={TagsPage} />
-          <Route path="/trash" component={TrashPage} />
-          <Route path="/settings" component={SettingsPage} />
-          <Route path="/admin" component={AdminPage} />
-          <Route><Redirect to="/" /></Route>
-        </Switch>
+          <Switch>
+            <Route path="/" component={TimerPage} />
+            <Route path="/pomodoro" component={PomodoroPage} />
+            <Route path="/reports" component={ReportsPage} />
+            <Route path="/projects" component={ProjectsPage} />
+            <Route path="/clients" component={ClientsPage} />
+            <Route path="/tags" component={TagsPage} />
+            <Route path="/trash" component={TrashPage} />
+            <Route path="/settings" component={SettingsPage} />
+            <Route path="/admin" component={AdminPage} />
+            <Route>
+              <Redirect to="/" />
+            </Route>
+          </Switch>
         </ErrorBoundary>
       </main>
     </div>
@@ -329,7 +347,12 @@ export function App() {
   // Reachable signed in or not: the person resetting has usually lost access to the account.
   if (isReset) return <ResetPasswordPage key={reset.token} token={reset.token} />;
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
-    return <div className="splash"><Brand size="lg" /><Loading /></div>;
+    return (
+      <div className="splash">
+        <Brand size="lg" />
+        <Loading />
+      </div>
+    );
   }
   if (status.data?.setup_required) return <AuthPage mode="setup" />;
   if (forbidden) return <AuthPage mode="login" />;
@@ -347,7 +370,9 @@ export function App() {
   }
   return (
     <TimerStateProvider>
-      <PomodoroSessionProvider><Shell /></PomodoroSessionProvider>
+      <PomodoroSessionProvider>
+        <Shell />
+      </PomodoroSessionProvider>
     </TimerStateProvider>
   );
 }

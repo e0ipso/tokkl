@@ -13,13 +13,20 @@ const TOGGL_CSV = [
 ].join('\n');
 
 test('imports a Toggl detailed CSV in the account timezone and skips duplicates on re-import', async () => {
-  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
-  const dry = await ctx.request('POST', '/api/app/import/toggl-csv?dry_run=true', TOGGL_CSV, { 'content-type': 'text/csv' });
-  const dryBody = await dry.json() as any as any;
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
+  const dry = await ctx.request('POST', '/api/app/import/toggl-csv?dry_run=true', TOGGL_CSV, {
+    'content-type': 'text/csv',
+  });
+  const dryBody = (await dry.json()) as any as any;
   assert.equal(dryBody.created, 3);
-  assert.equal((await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03')).body.length, 0);
+  assert.equal(
+    (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03')).body.length,
+    0,
+  );
 
-  const first = await (await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' })).json() as any;
+  const first = (await (
+    await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' })
+  ).json()) as any;
   assert.equal(first.created, 3);
   assert.deepEqual(first.errors, [{ row: 5, message: 'Invalid start date or time' }]);
   assert.deepEqual(first.created_clients, ['ACME']);
@@ -37,14 +44,16 @@ test('imports a Toggl detailed CSV in the account timezone and skips duplicates 
   const midnight = entries.body.find((e: any) => e.description === 'Inbox zero');
   assert.equal(midnight.duration, 2700);
 
-  const second = await (await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' })).json() as any;
+  const second = (await (
+    await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' })
+  ).json()) as any;
   assert.equal(second.created, 0);
   assert.equal(second.skipped_duplicates, 3);
 });
 
 // Live writes snap to the time resolution; imported history keeps the times in the file.
 test('CSV import and JSON restore keep exact times, and a second import adds nothing', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const csv = [
     'User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount (EUR)',
     'Me,me@example.com,,,,From CSV,No,2026-09-01,09:02:31,2026-09-01,09:13:07,00:10:36,,',
@@ -53,7 +62,8 @@ test('CSV import and JSON restore keep exact times, and a second import adds not
     format: 'tokkl-export',
     time_entries: [{ id: 1, start: '2026-09-02T08:00:07Z', stop: '2026-09-02T08:31:45Z', description: 'From JSON' }],
   };
-  const importCsv = async () => (await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  const importCsv = async () =>
+    (await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
 
   assert.equal((await importCsv()).created, 1);
   assert.equal((await restoreJson(ctx, file)).time_entries, 1);
@@ -65,43 +75,52 @@ test('CSV import and JSON restore keep exact times, and a second import adds not
   assert.deepEqual(times('From CSV'), ['2026-09-01T09:02:31+00:00', '2026-09-01T09:13:07+00:00', 636]);
   assert.deepEqual(times('From JSON'), ['2026-09-02T08:00:07+00:00', '2026-09-02T08:31:45+00:00', 1898]);
 
-  const csvAgain = (await importCsv());
+  const csvAgain = await importCsv();
   assert.deepEqual([csvAgain.created, csvAgain.skipped_duplicates], [0, 1]);
-  const jsonAgain = (await restoreJson(ctx, file));
+  const jsonAgain = await restoreJson(ctx, file);
   assert.deepEqual([jsonAgain.time_entries, jsonAgain.skipped_duplicates], [0, 1]);
   assert.equal(await entryCount(ctx), 2);
 });
 
 test('CSV export round-trips through the importer and neutralises formulas', async () => {
-  const ctx = (await setup({ timezone: 'America/New_York' }));
+  const ctx = await setup({ timezone: 'America/New_York' });
   await ctx.request('POST', '/api/app/import/toggl-csv', TOGGL_CSV, { 'content-type': 'text/csv' });
   const exported = await ctx.request('GET', '/api/app/export.csv');
   assert.equal(exported.status, 200);
   const csv = await exported.text();
-  assert.match(csv, /^User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags\r\n/);
+  assert.match(
+    csv,
+    /^User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags\r\n/,
+  );
   assert.match(csv, /'=cmd\(\)/);
   assert.match(csv, /"Homepage, hero"/);
 
-  const other = (await setup({ timezone: 'America/New_York' }));
-  const result = await (await other.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  const other = await setup({ timezone: 'America/New_York' });
+  const result = (await (
+    await other.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })
+  ).json()) as any;
   assert.equal(result.created, 3);
   const before = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-08-30&end_date=2026-09-05')).body;
   const after = (await other.json('GET', '/api/v9/me/time_entries?start_date=2026-08-30&end_date=2026-09-05')).body;
-  const shape = (list: any[]) => list.map((e) => [e.description, e.start, e.stop, e.billable, e.tags]).sort();
+  const shape = (list: any[]) => list.map(e => [e.description, e.start, e.stop, e.billable, e.tags]).sort();
   assert.deepEqual(shape(after), shape(before));
 });
 
 test('a no-time entry survives CSV export and import into another timezone, once', async () => {
-  const source = (await setup({ timezone: 'Europe/Madrid' }));
+  const source = await setup({ timezone: 'Europe/Madrid' });
   const created = await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
-    all_day: true, start_date: '2026-09-10', duration: 5400, description: 'Planning',
+    all_day: true,
+    start_date: '2026-09-10',
+    duration: 5400,
+    description: 'Planning',
   });
   assert.equal(created.status, 200);
   const csv = await (await source.request('GET', '/api/app/export.csv')).text();
 
-  const target = (await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' }));
-  const importCsv = async () => (await target.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
-  const first = (await importCsv());
+  const target = await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' });
+  const importCsv = async () =>
+    (await target.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  const first = await importCsv();
   assert.deepEqual([first.created, first.skipped_duplicates, first.errors], [1, 0, []]);
 
   const [entry] = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
@@ -110,30 +129,37 @@ test('a no-time entry survives CSV export and import into another timezone, once
   assert.equal(entry.start, '2026-09-10T04:00:00+00:00');
   assert.equal(entry.duration, 5400);
 
-  const again = (await importCsv());
+  const again = await importCsv();
   assert.deepEqual([again.created, again.skipped_duplicates], [0, 1]);
 });
 
 test('a no-time entry under an hour survives the detailed CSV in the classic duration format', async () => {
-  const source = (await setup({ timezone: 'Europe/Madrid' }));
+  const source = await setup({ timezone: 'Europe/Madrid' });
   await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
-    all_day: true, start_date: '2026-09-10', duration: 1800, description: 'Standup notes',
+    all_day: true,
+    start_date: '2026-09-10',
+    duration: 1800,
+    description: 'Standup notes',
   });
   const exported = await source.request('POST', '/api/app/report/detailed.csv', {
-    start_date: '2026-09-01', end_date: '2026-09-30', duration_format: 'classic',
+    start_date: '2026-09-01',
+    end_date: '2026-09-30',
+    duration_format: 'classic',
   });
   const csv = await exported.text();
   assert.match(csv, /,30:00 min,/);
 
-  const target = (await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' }));
-  const result = await (await target.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  const target = await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' });
+  const result = (await (
+    await target.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })
+  ).json()) as any;
   assert.deepEqual([result.created, result.errors], [1, []]);
   const [entry] = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
   assert.deepEqual([entry.all_day, entry.start, entry.duration], [true, '2026-09-10T04:00:00+00:00', 1800]);
 });
 
 test('CSV import refuses blank-time rows with no duration or one outside 0 to 24 hours, and imports the rest', async () => {
-  const ctx = (await setup({ timezone: 'Europe/Madrid' }));
+  const ctx = await setup({ timezone: 'Europe/Madrid' });
   const csv = [
     'User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags',
     'Me,me@example.com,,,,Zero,No,2026-09-10,,2026-09-10,,0:00:00,',
@@ -145,47 +171,63 @@ test('CSV import refuses blank-time rows with no duration or one outside 0 to 24
   const send = async (query: string) =>
     (await ctx.request('POST', `/api/app/import/toggl-csv${query}`, csv, { 'content-type': 'text/csv' })).json() as any;
 
-  const dry = (await send('?dry_run=true'));
+  const dry = await send('?dry_run=true');
   assert.deepEqual([dry.created, dry.errors.map((e: any) => e.row)], [1, [2, 3, 4, 5]]);
-  const result = (await send(''));
+  const result = await send('');
   assert.deepEqual([result.created, result.errors.map((e: any) => e.row)], [1, [2, 3, 4, 5]]);
   assert.equal(result.errors[2].message, 'Invalid start date');
   assert.equal(result.errors[3].message, 'Invalid duration');
   const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
-  assert.deepEqual(entries.map((e: any) => [e.description, e.all_day]), [['Fine', true]]);
+  assert.deepEqual(
+    entries.map((e: any) => [e.description, e.all_day]),
+    [['Fine', true]],
+  );
 });
 
 test('a no-time entry restores from JSON onto the same date at midnight in the restoring timezone, once', async () => {
-  const source = (await setup({ timezone: 'Europe/Madrid' }));
+  const source = await setup({ timezone: 'Europe/Madrid' });
   await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
-    all_day: true, start_date: '2026-09-10', duration: 7200, description: 'Review',
+    all_day: true,
+    start_date: '2026-09-10',
+    duration: 7200,
+    description: 'Review',
   });
   const exported = JSON.parse(await (await source.request('GET', '/api/app/export.json')).text());
   assert.equal(exported.time_entries[0].all_day, true);
 
-  const target = (await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' }));
-  const dry = (await restoreJson(target, exported, { dryRun: true }));
+  const target = await addUser(source, { email: 'ny@example.com', role: 'user', timezone: 'America/New_York' });
+  const dry = await restoreJson(target, exported, { dryRun: true });
   assert.equal(dry.time_entries, 1);
-  const restored = (await restoreJson(target, exported));
+  const restored = await restoreJson(target, exported);
   assert.deepEqual([restored.time_entries, restored.errors], [1, []]);
   const [entry] = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-09&end_date=2026-09-12')).body;
   assert.equal(entry.all_day, true);
   assert.equal(entry.start, '2026-09-10T04:00:00+00:00');
   assert.equal(entry.duration, 7200);
 
-  const again = (await restoreJson(target, exported));
+  const again = await restoreJson(target, exported);
   assert.deepEqual([again.time_entries, again.skipped_duplicates], [0, 1]);
 
   // Backups written before the flag existed, and any value but true, restore as timed entries.
-  const timed = { format: 'tokkl-export', time_entries: [{ id: 9, start: '2026-09-11T08:00:00Z', stop: '2026-09-11T09:00:00Z', all_day: 'true' }] };
+  const timed = {
+    format: 'tokkl-export',
+    time_entries: [{ id: 9, start: '2026-09-11T08:00:00Z', stop: '2026-09-11T09:00:00Z', all_day: 'true' }],
+  };
   assert.equal((await restoreJson(target, timed)).time_entries, 1);
   const found = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-11&end_date=2026-09-12')).body;
-  assert.deepEqual(found.map((e: any) => [e.start, e.all_day]), [['2026-09-11T08:00:00+00:00', false]]);
+  assert.deepEqual(
+    found.map((e: any) => [e.start, e.all_day]),
+    [['2026-09-11T08:00:00+00:00', false]],
+  );
 });
 
 test('JSON export contains every entity and never the password hash or token', async () => {
-  const ctx = (await setup());
-  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600, tags: ['a'] });
+  const ctx = await setup();
+  await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
+    start: '2026-10-01T08:00:00Z',
+    duration: 600,
+    tags: ['a'],
+  });
   const res = await ctx.request('GET', '/api/app/export.json');
   const text = await res.text();
   const body = JSON.parse(text);
@@ -197,7 +239,7 @@ test('JSON export contains every entity and never the password hash or token', a
 });
 
 test('JSON export includes the four Pomodoro lengths without retired toggle keys', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const response = await ctx.json('GET', '/api/app/export.json');
   assert.equal(response.status, 200);
   const preferences = response.body.preferences;
@@ -210,7 +252,7 @@ test('JSON export includes the four Pomodoro lengths without retired toggle keys
 });
 
 test('JSON restore accepts older exports containing retired Pomodoro toggle keys', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const file = {
     format: 'tokkl-export',
     version: 1,
@@ -223,50 +265,80 @@ test('JSON restore accepts older exports containing retired Pomodoro toggle keys
       pomodoro_long_break_every: 3,
     },
     projects: [{ id: 1, name: 'Legacy session' }],
-    time_entries: [{ id: 2, project_id: 1, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', description: 'Before sessions' }],
+    time_entries: [
+      {
+        id: 2,
+        project_id: 1,
+        start: '2026-10-01T09:00:00Z',
+        stop: '2026-10-01T10:00:00Z',
+        description: 'Before sessions',
+      },
+    ],
   };
   const preferencesBefore = (await ctx.json('GET', '/api/v9/me/preferences')).body;
   for (const dryRun of [true, false]) {
-    const result = (await restoreJson(ctx, file, { dryRun }));
+    const result = await restoreJson(ctx, file, { dryRun });
     assert.equal(result.projects, 1);
     assert.equal(result.time_entries, 1);
     assert.deepEqual(result.errors, []);
   }
-  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02&meta=true')).body;
-  assert.deepEqual(entries.map((entry: any) => [entry.description, entry.project_name]), [['Before sessions', 'Legacy session']]);
+  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02&meta=true'))
+    .body;
+  assert.deepEqual(
+    entries.map((entry: any) => [entry.description, entry.project_name]),
+    [['Before sessions', 'Legacy session']],
+  );
   assert.deepEqual((await ctx.json('GET', '/api/v9/me/preferences')).body, preferencesBefore);
 });
 
 test('JSON export restores into a fresh account, including colors, rates, tasks and tags', async () => {
-  const source = (await setup({ timezone: 'Europe/Madrid' }));
+  const source = await setup({ timezone: 'Europe/Madrid' });
   const base = `/api/v9/workspaces/${source.wid}`;
   const client = await source.json('POST', `${base}/clients`, { name: 'ACME' });
-  const project = await source.json('POST', `${base}/projects`, { name: 'Site', client_id: client.body.id, color: '#d92b2b', rate: 90, billable: true });
+  const project = await source.json('POST', `${base}/projects`, {
+    name: 'Site',
+    client_id: client.body.id,
+    color: '#d92b2b',
+    rate: 90,
+    billable: true,
+  });
   const task = await source.json('POST', `${base}/projects/${project.body.id}/tasks`, { name: 'Design' });
-  await source.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 3600, task_id: task.body.id, tags: ['ux'], description: 'Wireframes' });
-  await source.json('POST', `${base}/time_entries`, { start: '2026-10-02T08:00:00Z', duration: 600, description: 'Gone' }).then((r) =>
-    source.request('DELETE', `${base}/time_entries/${r.body.id}`));
+  await source.json('POST', `${base}/time_entries`, {
+    start: '2026-10-01T08:00:00Z',
+    duration: 3600,
+    task_id: task.body.id,
+    tags: ['ux'],
+    description: 'Wireframes',
+  });
+  await source
+    .json('POST', `${base}/time_entries`, { start: '2026-10-02T08:00:00Z', duration: 600, description: 'Gone' })
+    .then(r => source.request('DELETE', `${base}/time_entries/${r.body.id}`));
   const exported = await (await source.request('GET', '/api/app/export.json')).text();
 
-  const target = (await setup({ timezone: 'Europe/Madrid' }));
-  const dry = await (await target.request('POST', '/api/app/import/json?dry_run=true', exported)).json() as any;
+  const target = await setup({ timezone: 'Europe/Madrid' });
+  const dry = (await (await target.request('POST', '/api/app/import/json?dry_run=true', exported)).json()) as any;
   assert.equal(dry.time_entries, 1);
   assert.equal((await target.json('GET', '/api/v9/me/projects')).body.length, 0);
 
-  const restored = await (await target.request('POST', '/api/app/import/json', exported)).json() as any;
-  assert.deepEqual([restored.clients, restored.projects, restored.tasks, restored.tags, restored.time_entries], [1, 1, 1, 1, 1]);
+  const restored = (await (await target.request('POST', '/api/app/import/json', exported)).json()) as any;
+  assert.deepEqual(
+    [restored.clients, restored.projects, restored.tasks, restored.tags, restored.time_entries],
+    [1, 1, 1, 1, 1],
+  );
   assert.deepEqual(restored.errors, []);
   const projects = (await target.json('GET', '/api/v9/me/projects')).body;
   assert.equal(projects[0].color, '#d92b2b');
   assert.equal(projects[0].rate, 90);
   assert.equal(projects[0].client_name, 'ACME');
-  const entries = (await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-30&end_date=2026-10-05&meta=true')).body;
+  const entries = (
+    await target.json('GET', '/api/v9/me/time_entries?start_date=2026-09-30&end_date=2026-10-05&meta=true')
+  ).body;
   assert.equal(entries.length, 1);
   assert.equal(entries[0].task_name, 'Design');
   assert.deepEqual(entries[0].tags, ['ux']);
   assert.equal(entries[0].billable, true);
 
-  const again = await (await target.request('POST', '/api/app/import/json', exported)).json() as any;
+  const again = (await (await target.request('POST', '/api/app/import/json', exported)).json()) as any;
   assert.equal(again.time_entries, 0);
   assert.equal(again.skipped_duplicates, 1);
 
@@ -275,20 +347,25 @@ test('JSON export restores into a fresh account, including colors, rates, tasks 
 });
 
 test('CSV import rejects impossible dates instead of rolling them over', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const csv = [
     'Description,Start date,Start time,End date,End time',
     'Feb 31,2026-02-31,09:00:00,2026-02-31,10:00:00',
     'Month 13,13/25/2026,09:00:00,13/25/2026,10:00:00',
     'Fine,2026-02-28,09:00:00,2026-02-28,10:00:00',
   ].join('\n');
-  const result = await (await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  const result = (await (
+    await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })
+  ).json()) as any;
   assert.equal(result.created, 1);
-  assert.deepEqual(result.errors.map((e: any) => e.row), [2, 3]);
+  assert.deepEqual(
+    result.errors.map((e: any) => e.row),
+    [2, 3],
+  );
 });
 
 test('CSV import takes a duration up to 999 hours and refuses longer ones and unknown units', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const csv = [
     'Description,Start date,Start time,End date,End time,Duration',
     'At the limit,2026-03-02,09:00:00,,,999:00:00',
@@ -296,79 +373,100 @@ test('CSV import takes a duration up to 999 hours and refuses longer ones and un
     'Over in hours,2026-03-02,11:00:00,,,1000h',
     'Prototype key,2026-03-02,12:00:00,,,1 constructor',
   ].join('\n');
-  const result = await (await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })).json() as any;
+  const result = (await (
+    await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' })
+  ).json()) as any;
   assert.equal(result.created, 1);
-  assert.deepEqual(result.errors, [3, 4, 5].map((row) => ({ row, message: 'Invalid end time or duration' })));
+  assert.deepEqual(
+    result.errors,
+    [3, 4, 5].map(row => ({ row, message: 'Invalid end time or duration' })),
+  );
   const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-03-01&end_date=2026-04-15')).body;
-  assert.deepEqual(entries.map((e: any) => [e.description, e.duration]), [['At the limit', 999 * 3600]]);
+  assert.deepEqual(
+    entries.map((e: any) => [e.description, e.duration]),
+    [['At the limit', 999 * 3600]],
+  );
 });
 
 test('CSV import keeps a user apart from one whose User cell spells out a name and email', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const csv = [
     'User,Email,Description,Start date,Start time,End date,End time',
     'Alice,a@example.com,From Alice,2026-09-01,09:00:00,2026-09-01,10:00:00',
     '"Alice <a@example.com>",,From the other Alice,2026-09-01,11:00:00,2026-09-01,12:00:00',
   ].join('\n');
-  const post = (query: string) => ctx.request('POST', `/api/app/import/toggl-csv${query}`, csv, { 'content-type': 'text/csv' });
+  const post = (query: string) =>
+    ctx.request('POST', `/api/app/import/toggl-csv${query}`, csv, { 'content-type': 'text/csv' });
 
-  const preview = await (await post('?dry_run=true')).json() as any;
-  assert.deepEqual(preview.users.map(({ user, email, rows }: any) => ({ user, email, rows })), [
-    { user: 'Alice', email: 'a@example.com', rows: 1 },
-    { user: 'Alice <a@example.com>', email: '', rows: 1 },
-  ]);
+  const preview = (await (await post('?dry_run=true')).json()) as any;
+  assert.deepEqual(
+    preview.users.map(({ user, email, rows }: any) => ({ user, email, rows })),
+    [
+      { user: 'Alice', email: 'a@example.com', rows: 1 },
+      { user: 'Alice <a@example.com>', email: '', rows: 1 },
+    ],
+  );
   assert.notEqual(preview.users[0].key, preview.users[1].key);
   assert.equal((await post('')).status, 400, 'two users need a selection');
 
   const [alice, other] = preview.users;
-  const imported = await (await post(`?user=${encodeURIComponent(alice.key)}`)).json() as any;
+  const imported = (await (await post(`?user=${encodeURIComponent(alice.key)}`)).json()) as any;
   assert.equal(imported.created, 1);
   assert.deepEqual(imported.skipped, [{ rows: 1, reason: 'Rows from Alice <a@example.com> were not selected' }]);
   const entries = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-02');
-  assert.deepEqual(entries.body.map((entry: any) => entry.description), ['From Alice']);
+  assert.deepEqual(
+    entries.body.map((entry: any) => entry.description),
+    ['From Alice'],
+  );
 
-  const rest = await (await post(`?user=${encodeURIComponent(other.key)}`)).json() as any;
+  const rest = (await (await post(`?user=${encodeURIComponent(other.key)}`)).json()) as any;
   assert.equal(rest.created, 1);
   assert.deepEqual(rest.skipped, [{ rows: 1, reason: 'Rows from Alice <a@example.com> were not selected' }]);
 });
 
 test('a two-user CSV previews both users, needs a selection and imports only the selected rows, once', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const csv = [
     'User,Email,Project,Description,Start date,Start time,End date,End time',
     'Ann,ann@example.com,Ann project,Ann first,2026-09-01,09:00:00,2026-09-01,10:00:00',
     'Bob,bob@example.com,Bob project,Bob only,2026-09-01,10:00:00,2026-09-01,11:00:00',
     'Ann,ann@example.com,Ann project,Ann second,2026-09-02,09:00:00,2026-09-02,10:00:00',
   ].join('\n');
-  const post = (query: string) => ctx.request('POST', `/api/app/import/toggl-csv${query}`, csv, { 'content-type': 'text/csv' });
-  const empty = (await rowCounts(ctx));
+  const post = (query: string) =>
+    ctx.request('POST', `/api/app/import/toggl-csv${query}`, csv, { 'content-type': 'text/csv' });
+  const empty = await rowCounts(ctx);
 
-  const preview = await (await post('?dry_run=true')).json() as any;
-  assert.deepEqual(preview.users.map(({ user, email, rows }: any) => ({ user, email, rows })), [
-    { user: 'Ann', email: 'ann@example.com', rows: 2 },
-    { user: 'Bob', email: 'bob@example.com', rows: 1 },
-  ]);
-  assert.deepEqual((await rowCounts(ctx)), empty, 'the preview writes nothing');
+  const preview = (await (await post('?dry_run=true')).json()) as any;
+  assert.deepEqual(
+    preview.users.map(({ user, email, rows }: any) => ({ user, email, rows })),
+    [
+      { user: 'Ann', email: 'ann@example.com', rows: 2 },
+      { user: 'Bob', email: 'bob@example.com', rows: 1 },
+    ],
+  );
+  assert.deepEqual(await rowCounts(ctx), empty, 'the preview writes nothing');
 
   const unselected = await post('');
   assert.equal(unselected.status, 400);
-  assert.match(await unselected.json() as string, /2 Toggl users/);
-  assert.deepEqual((await rowCounts(ctx)), empty, 'a refused import writes nothing');
+  assert.match((await unselected.json()) as string, /2 Toggl users/);
+  assert.deepEqual(await rowCounts(ctx), empty, 'a refused import writes nothing');
 
   const ann = preview.users[0].key as string;
-  const first = await (await post(`?user=${encodeURIComponent(ann)}`)).json() as any;
+  const first = (await (await post(`?user=${encodeURIComponent(ann)}`)).json()) as any;
   assert.equal(first.created, 2);
   assert.deepEqual(first.skipped, [{ rows: 1, reason: 'Rows from Bob <bob@example.com> were not selected' }]);
   assert.deepEqual(first.created_projects, ['Ann project'], "the skipped user's project is not created");
-  const entries = async () => (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03')).body
-    .map((entry: any) => entry.description).sort();
-  assert.deepEqual((await entries()), ['Ann first', 'Ann second']);
+  const entries = async () =>
+    (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-01&end_date=2026-09-03')).body
+      .map((entry: any) => entry.description)
+      .sort();
+  assert.deepEqual(await entries(), ['Ann first', 'Ann second']);
 
-  const again = await (await post(`?user=${encodeURIComponent(ann)}`)).json() as any;
+  const again = (await (await post(`?user=${encodeURIComponent(ann)}`)).json()) as any;
   assert.equal(again.created, 0);
   assert.equal(again.skipped_duplicates, 2);
   assert.deepEqual(again.skipped, first.skipped);
-  assert.deepEqual((await entries()), ['Ann first', 'Ann second']);
+  assert.deepEqual(await entries(), ['Ann first', 'Ann second']);
   assert.equal((await rowCounts(ctx)).projects, empty.projects! + 1);
 });
 
@@ -387,59 +485,79 @@ function hoursAgo(hours: number): string {
 }
 
 test('JSON restore keeps project start dates and privacy, and a second restore leaves the project alone', async () => {
-  const source = (await setup());
+  const source = await setup();
   const base = `/api/v9/workspaces/${source.wid}`;
   await source.json('POST', `${base}/projects`, { name: 'Future public', start_date: '2031-05-20', is_private: false });
   await source.json('POST', `${base}/projects`, { name: 'Past private', start_date: '2026-03-01', is_private: true });
   const exported = await (await source.request('GET', '/api/app/export.json')).text();
 
-  const target = (await setup());
-  const empty = (await rowCounts(target));
-  const dry = (await restoreJson(target, exported, { dryRun: true }));
+  const target = await setup();
+  const empty = await rowCounts(target);
+  const dry = await restoreJson(target, exported, { dryRun: true });
   assert.equal(dry.projects, 2);
-  assert.deepEqual((await rowCounts(target)), empty);
+  assert.deepEqual(await rowCounts(target), empty);
 
-  const restored = (await restoreJson(target, exported));
+  const restored = await restoreJson(target, exported);
   assert.equal(restored.projects, 2);
   assert.deepEqual(restored.errors, []);
-  const shape = (list: any[]) => list.map((p) => [p.name, p.start_date, p.is_private, p.status]).sort();
+  const shape = (list: any[]) => list.map(p => [p.name, p.start_date, p.is_private, p.status]).sort();
   const projects = (await target.json('GET', '/api/v9/me/projects')).body;
-  assert.deepEqual(shape(projects), [['Future public', '2031-05-20', false, 'upcoming'], ['Past private', '2026-03-01', true, 'active']]);
+  assert.deepEqual(shape(projects), [
+    ['Future public', '2031-05-20', false, 'upcoming'],
+    ['Past private', '2026-03-01', true, 'active'],
+  ]);
 
   // Edit the restored project here; restoring the file again must neither duplicate nor overwrite it.
   const future = projects.find((p: any) => p.name === 'Future public');
-  await target.json('PUT', `/api/v9/workspaces/${target.wid}/projects/${future.id}`, { start_date: '2027-01-01', is_private: true });
-  const again = (await restoreJson(target, exported));
+  await target.json('PUT', `/api/v9/workspaces/${target.wid}/projects/${future.id}`, {
+    start_date: '2027-01-01',
+    is_private: true,
+  });
+  const again = await restoreJson(target, exported);
   assert.equal(again.projects, 0);
   assert.deepEqual(again.errors, []);
   const after = (await target.json('GET', '/api/v9/me/projects')).body;
-  assert.deepEqual(shape(after), [['Future public', '2027-01-01', true, 'upcoming'], ['Past private', '2026-03-01', true, 'active']]);
+  assert.deepEqual(shape(after), [
+    ['Future public', '2027-01-01', true, 'upcoming'],
+    ['Past private', '2026-03-01', true, 'active'],
+  ]);
 });
 
 test('JSON restore of a running entry waits until the timer running here is stopped, then imports it once', async () => {
-  const source = (await setup());
-  const fileTimer = await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, { start: hoursAgo(2), duration: -1, description: 'File timer' });
+  const source = await setup();
+  const fileTimer = await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
+    start: hoursAgo(2),
+    duration: -1,
+    description: 'File timer',
+  });
   const exported = await (await source.request('GET', '/api/app/export.json')).text();
 
-  const target = (await setup());
-  const here = await target.json('POST', `/api/v9/workspaces/${target.wid}/time_entries`, { start: hoursAgo(1), duration: -1, description: 'Here' });
-  const conflict = [{
-    entity: 'time_entry', id: fileTimer.body.id,
-    message: 'Another timer is running here. Stop it and restore again to import this running entry',
-  }];
-  const before = (await rowCounts(target));
+  const target = await setup();
+  const here = await target.json('POST', `/api/v9/workspaces/${target.wid}/time_entries`, {
+    start: hoursAgo(1),
+    duration: -1,
+    description: 'Here',
+  });
+  const conflict = [
+    {
+      entity: 'time_entry',
+      id: fileTimer.body.id,
+      message: 'Another timer is running here. Stop it and restore again to import this running entry',
+    },
+  ];
+  const before = await rowCounts(target);
   for (const dryRun of [true, false]) {
-    const result = (await restoreJson(target, exported, { dryRun }));
+    const result = await restoreJson(target, exported, { dryRun });
     assert.equal(result.time_entries, 0);
     assert.deepEqual(result.errors, conflict);
-    assert.deepEqual((await rowCounts(target)), before);
+    assert.deepEqual(await rowCounts(target), before);
     const current = (await target.json('GET', '/api/v9/me/time_entries/current')).body;
     assert.equal(current.id, here.body.id);
     assert.equal(current.stop, null);
   }
 
   await target.json('PATCH', `/api/v9/workspaces/${target.wid}/time_entries/${here.body.id}/stop`);
-  const retry = (await restoreJson(target, exported));
+  const retry = await restoreJson(target, exported);
   assert.equal(retry.time_entries, 1);
   assert.deepEqual(retry.errors, []);
   const current = (await target.json('GET', '/api/v9/me/time_entries/current')).body;
@@ -447,7 +565,7 @@ test('JSON restore of a running entry waits until the timer running here is stop
   assert.equal(current.start, fileTimer.body.start);
   assert.equal(current.stop, null);
 
-  const again = (await restoreJson(target, exported));
+  const again = await restoreJson(target, exported);
   assert.equal(again.time_entries, 0);
   assert.equal(again.skipped_duplicates, 1);
   assert.deepEqual(again.errors, []);
@@ -486,23 +604,27 @@ test('JSON restore reports references to records that were not imported and skip
     { entity: 'time_entry', id: 43, message: 'Its project 10 was not imported' },
   ];
 
-  const ctx = (await setup());
-  const empty = (await rowCounts(ctx));
-  const dry = (await restoreJson(ctx, file, { dryRun: true }));
+  const ctx = await setup();
+  const empty = await rowCounts(ctx);
+  const dry = await restoreJson(ctx, file, { dryRun: true });
   assert.deepEqual(dry.errors, errors);
-  assert.deepEqual((await rowCounts(ctx)), empty);
+  assert.deepEqual(await rowCounts(ctx), empty);
 
-  const result = (await restoreJson(ctx, file));
+  const result = await restoreJson(ctx, file);
   assert.deepEqual(result.errors, errors);
   assert.deepEqual([result.clients, result.projects, result.tasks, result.tags, result.time_entries], [1, 1, 1, 1, 2]);
-  assert.deepEqual((await rowCounts(ctx)), { clients: 1, projects: 1, tasks: 1, tags: 1, time_entries: 2 });
-  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-30&end_date=2026-10-02&meta=true')).body;
+  assert.deepEqual(await rowCounts(ctx), { clients: 1, projects: 1, tasks: 1, tags: 1, time_entries: 2 });
+  const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-09-30&end_date=2026-10-02&meta=true'))
+    .body;
   const shape = entries.map((e: any) => [e.description, e.project_name, e.task_name, e.tags]).sort();
-  assert.deepEqual(shape, [['Linked', 'No client', 'Build', ['ok']], ['Nulls', null, null, []]]);
+  assert.deepEqual(shape, [
+    ['Linked', 'No client', 'Build', ['ok']],
+    ['Nulls', null, null, []],
+  ]);
 });
 
 test('a failed task import leaves archived projects archived', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const legacy = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Legacy' });
   await ctx.json('PUT', `/api/v9/workspaces/${ctx.wid}/projects/${legacy.body.id}`, { active: false });
   const file = {
@@ -518,7 +640,7 @@ test('a failed task import leaves archived projects archived', async () => {
     ],
   };
 
-  const result = (await restoreJson(ctx, file));
+  const result = await restoreJson(ctx, file);
   assert.equal(result.projects, 1);
   assert.equal(result.tasks, 1);
   assert.deepEqual(result.errors, [
@@ -526,7 +648,10 @@ test('a failed task import leaves archived projects archived', async () => {
     { entity: 'task', id: 12, message: 'Task name must be at most 255 characters' },
   ]);
   const projects = (await ctx.json('GET', '/api/v9/me/projects?include_archived=true')).body;
-  assert.deepEqual(projects.map((p: any) => [p.name, p.active]).sort(), [['Legacy', false], ['Old', false]]);
+  assert.deepEqual(projects.map((p: any) => [p.name, p.active]).sort(), [
+    ['Legacy', false],
+    ['Old', false],
+  ]);
 });
 
 test('JSON restore rejects zone-free, impossible and non-string entry times per entry', async () => {
@@ -552,19 +677,25 @@ test('JSON restore rejects zone-free, impossible and non-string entry times per 
     { entity: 'time_entry', id: 5, message: stopError },
     { entity: 'time_entry', id: 6, message: stopError },
   ];
-  const ctx = (await setup());
+  const ctx = await setup();
   for (const dryRun of [true, false]) {
-    const result = (await restoreJson(ctx, file, { dryRun }));
+    const result = await restoreJson(ctx, file, { dryRun });
     assert.equal(result.time_entries, 1);
     assert.deepEqual(result.errors, errors);
   }
   const entries = (await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-02-01&end_date=2026-10-31')).body;
-  assert.deepEqual(entries.map((e: any) => [e.description, e.start, e.stop]), [['Valid', '2026-10-01T10:00:00+00:00', '2026-10-01T11:00:00+00:00']]);
+  assert.deepEqual(
+    entries.map((e: any) => [e.description, e.start, e.stop]),
+    [['Valid', '2026-10-01T10:00:00+00:00', '2026-10-01T11:00:00+00:00']],
+  );
 
   // A null or missing stop is a running entry, not an error.
   for (const running of [{ stop: null }, {}]) {
-    const other = (await setup());
-    const result = (await restoreJson(other, { format: 'tokkl-export', time_entries: [{ id: 1, start: hoursAgo(1), description: 'Open', ...running }] }));
+    const other = await setup();
+    const result = await restoreJson(other, {
+      format: 'tokkl-export',
+      time_entries: [{ id: 1, start: hoursAgo(1), description: 'Open', ...running }],
+    });
     assert.equal(result.time_entries, 1);
     assert.deepEqual(result.errors, []);
     const current = (await other.json('GET', '/api/v9/me/time_entries/current')).body;
@@ -573,30 +704,44 @@ test('JSON restore rejects zone-free, impossible and non-string entry times per 
   }
 
   // A file written by the exporter still restores completely, running entry included.
-  const source = (await setup());
-  await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, { start: hoursAgo(3), duration: 600, description: 'Done' });
-  await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, { start: hoursAgo(1), duration: -1, description: 'Running' });
+  const source = await setup();
+  await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
+    start: hoursAgo(3),
+    duration: 600,
+    description: 'Done',
+  });
+  await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
+    start: hoursAgo(1),
+    duration: -1,
+    description: 'Running',
+  });
   const exported = await (await source.request('GET', '/api/app/export.json')).text();
-  const target = (await setup());
-  const restored = (await restoreJson(target, exported));
+  const target = await setup();
+  const restored = await restoreJson(target, exported);
   assert.equal(restored.time_entries, 2);
   assert.deepEqual(restored.errors, []);
   assert.equal((await target.json('GET', '/api/v9/me/time_entries/current')).body.description, 'Running');
 });
 
 test('JSON restore refuses a project rate above the cap and still imports the rest', async () => {
-  const ctx = (await setup());
-  const result = (await restoreJson(ctx, {
+  const ctx = await setup();
+  const result = await restoreJson(ctx, {
     format: 'tokkl-export',
     projects: [
       { id: 1, name: 'Overpriced', rate: 1_000_000_001 },
       { id: 2, name: 'At the cap', rate: 1_000_000_000 },
     ],
     time_entries: [
-      { id: 3, start: '2026-10-01T08:00:00Z', stop: '2026-10-01T09:00:00Z', description: 'On overpriced', project_id: 1 },
+      {
+        id: 3,
+        start: '2026-10-01T08:00:00Z',
+        stop: '2026-10-01T09:00:00Z',
+        description: 'On overpriced',
+        project_id: 1,
+      },
       { id: 4, start: '2026-10-01T10:00:00Z', stop: '2026-10-01T11:00:00Z', description: 'On capped', project_id: 2 },
     ],
-  }));
+  });
   assert.deepEqual(result.errors, [
     { entity: 'project', id: 1, message: 'Invalid rate: expected at most 1000000000' },
     { entity: 'time_entry', id: 3, message: 'Its project 1 was not imported' },
@@ -604,18 +749,23 @@ test('JSON restore refuses a project rate above the cap and still imports the re
   assert.equal(result.projects, 1);
   assert.equal(result.time_entries, 1);
   const projects = (await ctx.json('GET', '/api/v9/me/projects')).body;
-  assert.deepEqual(projects.map((p: any) => [p.name, p.rate]), [['At the cap', 1_000_000_000]]);
+  assert.deepEqual(
+    projects.map((p: any) => [p.name, p.rate]),
+    [['At the cap', 1_000_000_000]],
+  );
 });
 
 test('JSON restore accepts an export written before the rename to Tokkl', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const file = {
     format: 'timetrack-export',
     version: 1,
     projects: [{ id: 1, name: 'Old export', color: '#0b83d9' }],
-    time_entries: [{ id: 2, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', description: 'Before', project_id: 1 }],
+    time_entries: [
+      { id: 2, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', description: 'Before', project_id: 1 },
+    ],
   };
-  const result = (await restoreJson(ctx, file));
+  const result = await restoreJson(ctx, file);
   assert.equal(result.projects, 1);
   assert.equal(result.time_entries, 1);
   assert.deepEqual(result.errors, []);
@@ -626,27 +776,38 @@ test('JSON restore accepts an export written before the rename to Tokkl', async 
 });
 
 test('imports into a default workspace the caller is not a member of are refused and write nothing', async () => {
-  const owner = (await setup());
-  const bob = (await addUser(owner, { email: 'bob@example.com', role: 'user' }));
+  const owner = await setup();
+  const bob = await addUser(owner, { email: 'bob@example.com', role: 'user' });
   // Data written before membership checks, or a membership that later ended, can leave this behind.
-  await storageFor(owner.db).users.updateAccount(bob.user.id, {defaultWorkspaceId:owner.wid});
+  await storageFor(owner.db).users.updateAccount(bob.user.id, { defaultWorkspaceId: owner.wid });
   const file = {
     format: 'tokkl-export',
     version: 1,
     clients: [{ id: 1, name: 'Intruder client' }],
     projects: [{ id: 2, name: 'Intruder project', client_id: 1 }],
     tags: [{ id: 3, name: 'intruder' }],
-    time_entries: [{ id: 4, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', description: 'Intruder', project_id: 2, tag_ids: [3] }],
+    time_entries: [
+      {
+        id: 4,
+        start: '2026-10-01T09:00:00Z',
+        stop: '2026-10-01T10:00:00Z',
+        description: 'Intruder',
+        project_id: 2,
+        tag_ids: [3],
+      },
+    ],
   };
-  const before = (await rowCounts(owner));
+  const before = await rowCounts(owner);
 
   for (const query of ['?dry_run=true', '']) {
     const json = await bob.request('POST', `/api/app/import/json${query}`, file);
     assert.equal(json.status, 403, `JSON import${query}`);
     assert.equal(await json.json(), 'User does not have access to this resource.');
-    const csv = await bob.request('POST', `/api/app/import/toggl-csv${query}`, TOGGL_CSV, { 'content-type': 'text/csv' });
+    const csv = await bob.request('POST', `/api/app/import/toggl-csv${query}`, TOGGL_CSV, {
+      'content-type': 'text/csv',
+    });
     assert.equal(csv.status, 403, `CSV import${query}`);
     assert.equal(await csv.json(), 'User does not have access to this resource.');
   }
-  assert.deepEqual((await rowCounts(owner)), before);
+  assert.deepEqual(await rowCounts(owner), before);
 });

@@ -19,7 +19,12 @@ async function workspaceFor(db: Repositories, req: Request, res: Response): Prom
 }
 
 const GROUPINGS: Record<string, Dimension> = {
-  projects: 'project', clients: 'client', tags: 'tag', tasks: 'task', time_entries: 'description', users: 'none',
+  projects: 'project',
+  clients: 'client',
+  tags: 'tag',
+  tasks: 'task',
+  time_entries: 'description',
+  users: 'none',
 };
 
 function dimension(value: unknown, fallback: string, field: string): [string, Dimension] {
@@ -31,7 +36,10 @@ function dimension(value: unknown, fallback: string, field: string): [string, Di
 
 /** Builds the response in the report runner and sends it. */
 async function send(deps: Deps, res: Response, ws: Workspace, job: ReportJob): Promise<void> {
-  const result: JobResult = await deps.reports.run(res.locals.auth.user.id, ws.id, job, { signal: res.locals.workSignal, authentication: res.locals.auth });
+  const result: JobResult = await deps.reports.run(res.locals.auth.user.id, ws.id, job, {
+    signal: res.locals.workSignal,
+    authentication: res.locals.auth,
+  });
   res.set(result.headers);
   if (result.type === 'csv') {
     res.set('Content-Type', 'text/csv; charset=utf-8');
@@ -61,13 +69,25 @@ export function reportsV3Routes(deps: Deps): Router {
     checkOrderBy(body.order_by);
     const pageSize = Math.min(Math.max(Number(body.page_size ?? 50) || 50, 1), 1000);
     const firstRow = Math.max(Number(body.first_row_number ?? 1) || 1, 1);
-    await send(deps, res, ws, { kind: 'v3-search', filter, orderBy: body.order_by, orderDir: body.order_dir, pageSize, firstRow });
+    await send(deps, res, ws, {
+      kind: 'v3-search',
+      filter,
+      orderBy: body.order_by,
+      orderDir: body.order_dir,
+      pageSize,
+      firstRow,
+    });
   });
 
   api.post('/workspace/:wid/search/time_entries/totals', async (req, res) => {
     const { ws, body, filter } = await v3Filter(req, res);
     const requestedResolution = body.granularity ?? body.resolution;
-    if (requestedResolution != null && requestedResolution !== 'day' && requestedResolution !== 'week' && requestedResolution !== 'month') {
+    if (
+      requestedResolution != null &&
+      requestedResolution !== 'day' &&
+      requestedResolution !== 'week' &&
+      requestedResolution !== 'month'
+    ) {
       throw badRequest("Invalid granularity or resolution: expected 'day', 'week' or 'month'");
     }
     const granularity = requestedResolution ?? resolutionFor(filter.startDate, filter.endDate);
@@ -77,7 +97,13 @@ export function reportsV3Routes(deps: Deps): Router {
   api.post('/workspace/:wid/search/time_entries.csv', async (req, res) => {
     const { ws, body, filter } = await v3Filter(req, res);
     checkOrderBy(body.order_by);
-    await send(deps, res, ws, { kind: 'v3-csv', filter, orderBy: body.order_by, orderDir: body.order_dir, durationFormat: body.duration_format });
+    await send(deps, res, ws, {
+      kind: 'v3-csv',
+      filter,
+      orderBy: body.order_by,
+      orderDir: body.order_dir,
+      durationFormat: body.duration_format,
+    });
   });
 
   const summary = async (req: Request, res: Response) => {
@@ -94,7 +120,13 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/summary/time_entries', async (req, res) => {
     const { ws, body, filter, grouping, sub } = await summary(req, res);
-    await send(deps, res, ws, { kind: 'v3-summary', filter, grouping, sub, includeIds: body.include_time_entry_ids === true });
+    await send(deps, res, ws, {
+      kind: 'v3-summary',
+      filter,
+      grouping,
+      sub,
+      includeIds: body.include_time_entry_ids === true,
+    });
   });
 
   api.post('/workspace/:wid/summary/time_entries.csv', async (req, res) => {
@@ -106,7 +138,11 @@ export function reportsV3Routes(deps: Deps): Router {
     const ws = await deps.readFor(res.locals.auth, db => workspaceFor(db, req, res));
     const body = readJson(req);
     const start = typeof body.start_date === 'string' ? body.start_date : '';
-    const range = filterFromBody({ ...body, end_date: body.end_date ?? (start ? addDays(start, 6) : undefined) }, ws, TOGGL_MAX_DAYS);
+    const range = filterFromBody(
+      { ...body, end_date: body.end_date ?? (start ? addDays(start, 6) : undefined) },
+      ws,
+      TOGGL_MAX_DAYS,
+    );
     const { filter, weekStart } = v3WeeklyFilter(range);
     await send(deps, res, ws, { kind: 'v3-weekly', filter, weekStart });
   });
@@ -119,7 +155,8 @@ const APP_MAX_PAGE_SIZE = 500;
 
 function positiveInt(value: unknown, fallback: number, field: string): number {
   if (value === undefined || value === null) return fallback;
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) throw badRequest(`Invalid '${field}' value`);
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
+    throw badRequest(`Invalid '${field}' value`);
   return value;
 }
 
@@ -141,7 +178,8 @@ export function appReportRoutes(deps: Deps): Router {
   api.post('/report/weekly', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
     const rows = body.rows ?? 'projects';
-    if (rows !== 'projects' && rows !== 'clients') throw badRequest("Invalid 'rows' value, allowed values are: 'projects, clients'");
+    if (rows !== 'projects' && rows !== 'clients')
+      throw badRequest("Invalid 'rows' value, allowed values are: 'projects, clients'");
     await send(deps, res, ws, { kind: 'app-weekly', filter, rows });
   });
 

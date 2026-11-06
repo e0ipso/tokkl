@@ -1,5 +1,10 @@
 import type { Request, RequestHandler } from 'express';
-import type { AccountCredential, AccountPasswordAttempt, AccountRepositories, AccountRunner } from '../domain/accounts.ts';
+import type {
+  AccountCredential,
+  AccountPasswordAttempt,
+  AccountRepositories,
+  AccountRunner,
+} from '../domain/accounts.ts';
 import { isActiveAdmin, isActiveUser } from '../domain/accounts.ts';
 import type { User } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
@@ -19,8 +24,16 @@ export interface StorageAuthentication {
   credential: AccountCredential;
   authMethod: 'session' | 'basic';
 }
-export interface StorageAuthLocals { auth: StorageAuthentication }
-export type StorageAuthHandler = RequestHandler<Record<string, string>, unknown, unknown, Request['query'], StorageAuthLocals>;
+export interface StorageAuthLocals {
+  auth: StorageAuthentication;
+}
+export type StorageAuthHandler = RequestHandler<
+  Record<string, string>,
+  unknown,
+  unknown,
+  Request['query'],
+  StorageAuthLocals
+>;
 
 export function hasCsrfHeader(req: Request): boolean {
   return req.headers[CSRF_HEADER] === '1' || req.headers[LEGACY_CSRF_HEADER] === '1';
@@ -45,7 +58,11 @@ export function passwordAttempt(limiter: FailureLimiter, email: string, address:
 }
 /** Only callable through the shared password attempt policy, including unknown/disabled accounts. */
 export async function authenticatePassword<R extends AccountRepositories>(
-  runner: AccountRunner<R>, limiter: FailureLimiter, email: string, password: string, address: string,
+  runner: AccountRunner<R>,
+  limiter: FailureLimiter,
+  email: string,
+  password: string,
+  address: string,
 ): Promise<User | undefined> {
   const seen = await runner.readSnapshot(ctx => ctx.users.findByEmail(email));
   const result = await passwordAttempt(limiter, email, address).attempt(async () => {
@@ -63,31 +80,52 @@ export async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: 
   return unchangedActive(current, seen) ? current : undefined;
 }
 /** Apply the credential rules to the user row the caller loaded in this snapshot or under its guards. */
-async function checkCredential(ctx: Pick<Repositories, 'sessions'>, auth: StorageAuthentication, current: User | undefined): Promise<User | undefined> {
+async function checkCredential(
+  ctx: Pick<Repositories, 'sessions'>,
+  auth: StorageAuthentication,
+  current: User | undefined,
+): Promise<User | undefined> {
   if (!unchangedActive(current, auth.user)) return;
   if (auth.credential.kind === 'session') {
     const session = await ctx.sessions.find(sha256(auth.credential.token));
     if (!session || session.userId !== current.id || session.expiresAt < new Date().toISOString()) return;
-  } else if (!safeEqual(current.apiToken, auth.credential.kind === 'api-token' ? auth.credential.token : auth.user.apiToken)) return;
+  } else if (
+    !safeEqual(current.apiToken, auth.credential.kind === 'api-token' ? auth.credential.token : auth.user.apiToken)
+  )
+    return;
   return current;
 }
 /** Check credentials in the data snapshot for reads, or under the operation's guards for writes. */
-export async function currentCredentialUser(ctx: Pick<Repositories, 'users' | 'sessions'>, auth: StorageAuthentication): Promise<User | undefined> {
+export async function currentCredentialUser(
+  ctx: Pick<Repositories, 'users' | 'sessions'>,
+  auth: StorageAuthentication,
+): Promise<User | undefined> {
   return checkCredential(ctx, auth, await ctx.users.get(auth.user.id));
 }
 /** A passing stream check carries the user's timer revision, read by the same user statement. */
 export type StreamCredentialResult = { valid: false } | { valid: true; revision: number };
-async function currentCredentialRevision(ctx: Pick<Repositories, 'users' | 'sessions'>, auth: StorageAuthentication): Promise<StreamCredentialResult> {
+async function currentCredentialRevision(
+  ctx: Pick<Repositories, 'users' | 'sessions'>,
+  auth: StorageAuthentication,
+): Promise<StreamCredentialResult> {
   const current = await ctx.users.getWithTimerRevision(auth.user.id);
-  return current && await checkCredential(ctx, auth, current.user) ? { valid: true, revision: current.timerRevision } : { valid: false };
+  return current && (await checkCredential(ctx, auth, current.user))
+    ? { valid: true, revision: current.timerRevision }
+    : { valid: false };
 }
 /** Independent async stream port. Storage failures fail closed and never reject a keep-alive callback. */
-export function credentialCheck<R extends AccountRepositories>(runner: AccountRunner<R>, auth: StorageAuthentication): () => Promise<StreamCredentialResult> {
+export function credentialCheck<R extends AccountRepositories>(
+  runner: AccountRunner<R>,
+  auth: StorageAuthentication,
+): () => Promise<StreamCredentialResult> {
   // Capture fingerprints now, even if HTTP locals are replaced after a profile update.
   const observed = { ...auth, user: { ...auth.user }, credential: { ...auth.credential } };
   return async () => {
-    try { return await runner.readSnapshot(ctx => currentCredentialRevision(ctx, observed)); }
-    catch { return { valid: false }; }
+    try {
+      return await runner.readSnapshot(ctx => currentCredentialRevision(ctx, observed));
+    } catch {
+      return { valid: false };
+    }
   };
 }
 export function createStorageAuth<R extends AccountRepositories>(runner: AccountRunner<R>, limiter: FailureLimiter) {
@@ -102,7 +140,13 @@ export function createStorageAuth<R extends AccountRepositories>(runner: Account
           return { user, credential: { kind: 'api-token', token: decoded.username }, authMethod: 'basic' };
         }
       } else {
-        const user = await authenticatePassword(runner, limiter, decoded.username, decoded.password, clientAddress(req));
+        const user = await authenticatePassword(
+          runner,
+          limiter,
+          decoded.username,
+          decoded.password,
+          clientAddress(req),
+        );
         if (user) return { user, credential: { kind: 'password' }, authMethod: 'basic' };
       }
       throw forbidden('Incorrect username and/or password');
@@ -113,7 +157,8 @@ export function createStorageAuth<R extends AccountRepositories>(runner: Account
         const session = await ctx.sessions.find(sha256(token));
         if (!session || session.expiresAt < new Date().toISOString()) continue;
         const user = await ctx.users.get(session.userId);
-        if (isActiveUser(user)) return { user, credential: { kind: 'session' as const, token }, authMethod: 'session' as const };
+        if (isActiveUser(user))
+          return { user, credential: { kind: 'session' as const, token }, authMethod: 'session' as const };
       }
     });
     if (!auth) throw forbidden('Incorrect username and/or password');
@@ -127,5 +172,10 @@ export function createStorageAuth<R extends AccountRepositories>(runner: Account
     if (!res.locals.auth || !isActiveAdmin(res.locals.auth.user)) throw forbidden('Admin access required');
     return next();
   };
-  return { authenticate, requireAuth, requireAdmin, credentialCheck: (auth: StorageAuthentication) => credentialCheck(runner, auth) };
+  return {
+    authenticate,
+    requireAuth,
+    requireAdmin,
+    credentialCheck: (auth: StorageAuthentication) => credentialCheck(runner, auth),
+  };
 }

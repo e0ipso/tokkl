@@ -14,8 +14,14 @@ function isRealDateTime(parts: number[]): boolean {
   const [year, month, day, hour, minute, second] = parts as [number, number, number, number, number, number];
   const date = new Date(0);
   date.setUTCFullYear(year, month - 1, day);
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-    && hour <= 23 && minute <= 59 && second <= 59;
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day &&
+    hour <= 23 &&
+    minute <= 59 &&
+    second <= 59
+  );
 }
 
 /**
@@ -26,7 +32,7 @@ export function parseInstant(value: unknown, field: string): Date {
   const invalid = () => badRequest(`Invalid ${field}: expected an RFC 3339 timestamp`);
   const match = typeof value === 'string' ? RFC3339.exec(value) : null;
   if (!match) throw invalid();
-  const [offsetHours, offsetMinutes] = [match[7], match[8]].map((part) => Number(part ?? 0)) as [number, number];
+  const [offsetHours, offsetMinutes] = [match[7], match[8]].map(part => Number(part ?? 0)) as [number, number];
   if (!isRealDateTime(match.slice(1, 7).map(Number)) || offsetHours > 23 || offsetMinutes > 59) throw invalid();
   const ms = Date.parse(value as string);
   if (Number.isNaN(ms)) throw invalid();
@@ -88,8 +94,8 @@ export function asBool(value: unknown): boolean {
 
 /** Parses "1,2,3" path segments into ids. */
 export function parseIdList(value: string, limit = 100): number[] {
-  const ids = value.split(',').map((part) => Number(part.trim()));
-  if (ids.length === 0 || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+  const ids = value.split(',').map(part => Number(part.trim()));
+  if (ids.length === 0 || ids.some(id => !Number.isSafeInteger(id) || id <= 0)) {
     throw badRequest('Invalid ID list');
   }
   if (ids.length > limit) throw badRequest(`At most ${limit} IDs per request`);

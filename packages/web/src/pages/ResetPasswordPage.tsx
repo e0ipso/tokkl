@@ -54,10 +54,12 @@ export function ResetPasswordPage({ token }: { token: string }) {
         <div className="auth-card" role="status">
           <h1>Password changed</h1>
           <p className="muted">
-            Log in as {check.data.email} with your new password. Every browser that was signed in to this account
-            is now signed out.
+            Log in as {check.data.email} with your new password. Every browser that was signed in to this account is now
+            signed out.
           </p>
-          <a className="button button-primary button-block" href="/">Go to log in</a>
+          <a className="button button-primary button-block" href="/">
+            Go to log in
+          </a>
         </div>
       </div>
     );
@@ -77,7 +79,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
             {...fields.field('password')}
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
             minLength={8}
             autoComplete="new-password"

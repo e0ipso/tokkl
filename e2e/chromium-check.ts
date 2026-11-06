@@ -8,7 +8,9 @@ import { existsSync } from 'node:fs';
 export default async function checkChromium(): Promise<void> {
   const override = process.env.CHROMIUM_PATH;
   if (override && !existsSync(override)) {
-    throw new Error(`CHROMIUM_PATH is set to ${override}, which does not exist. Point it at a Chromium or chrome-headless-shell binary, or unset it and run \`npm run test:e2e:install\`.`);
+    throw new Error(
+      `CHROMIUM_PATH is set to ${override}, which does not exist. Point it at a Chromium or chrome-headless-shell binary, or unset it and run \`npm run test:e2e:install\`.`,
+    );
   }
   try {
     const browser = await chromium.launch(override ? { executablePath: override } : {});
@@ -17,10 +19,12 @@ export default async function checkChromium(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     if (!message.includes("Executable doesn't exist")) throw error;
     const missing = /Executable doesn't exist at (\S+)/.exec(message)?.[1] ?? 'the Playwright browser cache';
-    throw new Error([
-      `The Chromium build this Playwright version needs is not installed (looked for ${missing}).`,
-      'Either install it once with `npm run test:e2e:install`,',
-      'or set CHROMIUM_PATH to an existing Chromium or chrome-headless-shell binary.',
-    ].join('\n'));
+    throw new Error(
+      [
+        `The Chromium build this Playwright version needs is not installed (looked for ${missing}).`,
+        'Either install it once with `npm run test:e2e:install`,',
+        'or set CHROMIUM_PATH to an existing Chromium or chrome-headless-shell binary.',
+      ].join('\n'),
+    );
   }
 }

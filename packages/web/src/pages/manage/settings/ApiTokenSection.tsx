@@ -26,7 +26,10 @@ export function ApiTokenSection({ me }: { me: Me }) {
   });
 
   const copy = () => {
-    copyText(me.api_token, 'Could not copy. Show the token and copy it by hand.').then(() => toast.show('API token copied'), (error: unknown) => toast.error(error));
+    copyText(me.api_token, 'Could not copy. Show the token and copy it by hand.').then(
+      () => toast.show('API token copied'),
+      (error: unknown) => toast.error(error),
+    );
   };
 
   return (
@@ -52,7 +55,9 @@ export function ApiTokenSection({ me }: { me: Me }) {
       </div>
 
       <h3 className="settings-subheading">Try it</h3>
-      <pre className="code-block"><code>{`curl -u <token>:api_token ${origin}/api/v9/me`}</code></pre>
+      <pre className="code-block">
+        <code>{`curl -u <token>:api_token ${origin}/api/v9/me`}</code>
+      </pre>
       <p className="hint">
         Any tool that lets you change the Toggl base URL can use this server. Point it at <code>{origin}/api/v9</code>,
         and the reports API at <code>{origin}/reports/api/v3</code>.
@@ -66,7 +71,10 @@ export function ApiTokenSection({ me }: { me: Me }) {
           onConfirm={() => reset.mutate()}
           onClose={() => setConfirmReset(false)}
         >
-          <p>The current token stops working right away. Every tool or script that uses it fails until you give it the new one.</p>
+          <p>
+            The current token stops working right away. Every tool or script that uses it fails until you give it the
+            new one.
+          </p>
         </ConfirmModal>
       ) : null}
     </SettingsCard>

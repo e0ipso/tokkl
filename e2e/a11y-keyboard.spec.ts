@@ -11,23 +11,30 @@ import { EntityApi } from './entity-tests-helpers.ts';
 async function tabInto(page: Page, target: Locator, limit = 30): Promise<number> {
   for (let i = 1; i <= limit; i++) {
     await page.keyboard.press('Tab');
-    if (await target.evaluate((el) => el.contains(document.activeElement))) return i;
+    if (await target.evaluate(el => el.contains(document.activeElement))) return i;
   }
   throw new Error(`Tab did not reach the target within ${limit} presses`);
 }
 
 /** Options or radios in the group that Tab can reach. */
 function tabStops(group: Locator): Promise<number> {
-  return group.evaluate((el) => [...el.querySelectorAll('[role="option"], [role="radio"]')]
-    .filter((node) => (node as HTMLElement).tabIndex >= 0).length);
+  return group.evaluate(
+    el =>
+      [...el.querySelectorAll('[role="option"], [role="radio"]')].filter(node => (node as HTMLElement).tabIndex >= 0)
+        .length,
+  );
 }
 
-test('the colour field is one Tab stop and arrows check swatches without opening the native picker', async ({ page }) => {
+test('the colour field is one Tab stop and arrows check swatches without opening the native picker', async ({
+  page,
+}) => {
   // Count calls to the native colour picker instead of opening it.
   await page.addInitScript(() => {
     const win = window as unknown as { pickerCalls: number };
     win.pickerCalls = 0;
-    HTMLInputElement.prototype.showPicker = function showPicker() { win.pickerCalls += 1; };
+    HTMLInputElement.prototype.showPicker = function showPicker() {
+      win.pickerCalls += 1;
+    };
   });
   await login(page);
   const api = await EntityApi.open(page);
@@ -43,14 +50,19 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   const count = await radios.count();
   expect(count).toBeGreaterThan(2);
   expect(await tabStops(group)).toBe(1);
-  const startIndex = await radios.evaluateAll((nodes) => nodes.findIndex((node) => node.getAttribute('aria-checked') === 'true'));
+  const startIndex = await radios.evaluateAll(nodes =>
+    nodes.findIndex(node => node.getAttribute('aria-checked') === 'true'),
+  );
   expect(startIndex).toBeGreaterThanOrEqual(0);
   // Every swatch has its own colour name, and only the checked one draws a check mark.
-  const names = await radios.evaluateAll((nodes) => nodes.map((node) => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim()));
+  const names = await radios.evaluateAll(nodes =>
+    nodes.map(node => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim()),
+  );
   expect(new Set(names).size).toBe(count);
   for (const name of names) expect(name).not.toMatch(/^(Color \d+)?$/);
-  expect(await radios.evaluateAll((nodes) => nodes.map((node) => node.querySelector('svg') !== null)))
-    .toEqual(names.map((_, index) => index === startIndex));
+  expect(await radios.evaluateAll(nodes => nodes.map(node => node.querySelector('svg') !== null))).toEqual(
+    names.map((_, index) => index === startIndex),
+  );
 
   // Tab lands on the checked radio.
   await tabInto(page, group);
@@ -86,7 +98,7 @@ test('the colour field is one Tab stop and arrows check swatches without opening
 
   // Tab leaves the group in one press, and Shift+Tab comes back to the checked radio.
   await page.keyboard.press('Tab');
-  expect(await group.evaluate((el) => el.contains(document.activeElement))).toBe(false);
+  expect(await group.evaluate(el => el.contains(document.activeElement))).toBe(false);
   await page.keyboard.press('Shift+Tab');
   await expect(radios.nth(0)).toBeFocused();
 
@@ -95,15 +107,17 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   await page.keyboard.press('Space');
   expect(await pickerCalls()).toBe(1);
 
-  const chosen = await radios.nth(0).evaluate((el) => (el as HTMLElement).style.background);
+  const chosen = await radios.nth(0).evaluate(el => (el as HTMLElement).style.background);
   await editor.getByRole('button', { name: 'Save' }).click();
   await expect(editor).toBeHidden();
   const saved = await api.project(project.id);
-  expect(await page.evaluate((color) => {
-    const probe = document.createElement('span');
-    probe.style.background = color;
-    return probe.style.background;
-  }, saved.color)).toBe(chosen);
+  expect(
+    await page.evaluate(color => {
+      const probe = document.createElement('span');
+      probe.style.background = color;
+      return probe.style.background;
+    }, saved.color),
+  ).toBe(chosen);
 });
 
 // Each swatch picks the check colour that reads best on it, at 3:1 or more.
@@ -123,7 +137,7 @@ test('every colour swatch draws its check mark at 3:1 or more against the swatch
     if (index > 0) await page.keyboard.press('ArrowRight');
     const swatch = swatches.nth(index);
     await expect(swatch).toHaveAttribute('aria-checked', 'true');
-    const { name, check, fill } = await swatch.evaluate((element) => ({
+    const { name, check, fill } = await swatch.evaluate(element => ({
       name: element.getAttribute('aria-label'),
       check: getComputedStyle(element.querySelector('svg')!).color,
       fill: getComputedStyle(element).backgroundColor,
@@ -146,7 +160,9 @@ test('the date range presets are one Tab stop that arrows walk without choosing'
   const selected = list.getByRole('option', { selected: true });
   await expect(selected).toHaveCount(1);
   const selectedName = (await selected.textContent())?.trim() ?? '';
-  const selectedIndex = await options.evaluateAll((nodes) => nodes.findIndex((node) => node.getAttribute('aria-selected') === 'true'));
+  const selectedIndex = await options.evaluateAll(nodes =>
+    nodes.findIndex(node => node.getAttribute('aria-selected') === 'true'),
+  );
 
   // Opening focuses the selected preset, the only Tab stop in the list.
   await expect(options.nth(selectedIndex)).toBeFocused();
@@ -180,7 +196,9 @@ test('the date range presets are one Tab stop that arrows walk without choosing'
   await expect(rangeButton).toBeFocused();
 });
 
-test('the project picker search is a combobox whose arrows move aria-activedescendant and Enter picks', async ({ page }) => {
+test('the project picker search is a combobox whose arrows move aria-activedescendant and Enter picks', async ({
+  page,
+}) => {
   await login(page);
   const api = await EntityApi.open(page);
   const alpha = await api.createProject({ name: 'Alpha' });
@@ -239,7 +257,7 @@ test('the project picker search is a combobox whose arrows move aria-activedesce
 
 /** The outline, bar and background a picker option renders with. */
 function optionLook(option: Locator) {
-  return option.evaluate((el) => {
+  return option.evaluate(el => {
     const style = getComputedStyle(el);
     return {
       outline: `${style.outlineWidth} ${style.outlineStyle}`,

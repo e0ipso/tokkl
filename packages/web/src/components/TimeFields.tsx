@@ -4,7 +4,15 @@ import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 import type { DurationFormat } from '../api/types.ts';
 
 /** Text field that accepts any duration grammar from @tokkl/common/duration and commits on blur or Enter. */
-export function DurationField({ seconds, onCommit, format = 'improved', disabled, className, ariaLabel, inputProps }: {
+export function DurationField({
+  seconds,
+  onCommit,
+  format = 'improved',
+  disabled,
+  className,
+  ariaLabel,
+  inputProps,
+}: {
   seconds: number;
   onCommit: (seconds: number) => void;
   format?: DurationFormat;
@@ -34,19 +42,32 @@ export function DurationField({ seconds, onCommit, format = 'improved', disabled
       disabled={disabled}
       aria-label={ariaLabel ?? 'Duration'}
       inputMode="text"
-      onFocus={(event) => { setEditing(true); event.target.select(); }}
-      onChange={(event) => setText(event.target.value)}
+      onFocus={event => {
+        setEditing(true);
+        event.target.select();
+      }}
+      onChange={event => setText(event.target.value)}
       onBlur={commit}
-      onKeyDown={(event) => {
+      onKeyDown={event => {
         if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
-        if (event.key === 'Escape') { setText(shown); setEditing(false); }
+        if (event.key === 'Escape') {
+          setText(shown);
+          setEditing(false);
+        }
       }}
     />
   );
 }
 
 /** Clock time field ("9", "930", "9:30", "9pm"); commits minutes after midnight. */
-export function TimeField({ minutes, display, onCommit, twelveHour, reference, ariaLabel }: {
+export function TimeField({
+  minutes,
+  display,
+  onCommit,
+  twelveHour,
+  reference,
+  ariaLabel,
+}: {
   minutes: number;
   display: string;
   onCommit: (minutes: number) => void;
@@ -70,12 +91,18 @@ export function TimeField({ minutes, display, onCommit, twelveHour, reference, a
       className="time-field"
       value={text}
       aria-label={ariaLabel}
-      onFocus={(event) => { setEditing(true); event.target.select(); }}
-      onChange={(event) => setText(event.target.value)}
+      onFocus={event => {
+        setEditing(true);
+        event.target.select();
+      }}
+      onChange={event => setText(event.target.value)}
       onBlur={commit}
-      onKeyDown={(event) => {
+      onKeyDown={event => {
         if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
-        if (event.key === 'Escape') { setText(display); setEditing(false); }
+        if (event.key === 'Escape') {
+          setText(display);
+          setEditing(false);
+        }
       }}
     />
   );

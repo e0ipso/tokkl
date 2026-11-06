@@ -13,7 +13,13 @@ test('every page renders without errors and core management flows work', async (
   await expect(page.getByRole('cell', { name: /Client site/ }).first()).toBeVisible();
   await page.screenshot({ path: 'test-results/page-projects.png', fullPage: true });
 
-  for (const [name, file] of [['Clients', 'clients'], ['Tags', 'tags'], ['Trash', 'trash'], ['Settings', 'settings'], ['Reports', 'reports']] as const) {
+  for (const [name, file] of [
+    ['Clients', 'clients'],
+    ['Tags', 'tags'],
+    ['Trash', 'trash'],
+    ['Settings', 'settings'],
+    ['Reports', 'reports'],
+  ] as const) {
     await page.getByRole('link', { name }).click();
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await page.screenshot({ path: `test-results/page-${file}.png`, fullPage: true });
@@ -22,7 +28,9 @@ test('every page renders without errors and core management flows work', async (
   // Restoring our own export finds everything already present.
   const exported = await (await page.request.get('/api/app/export.json')).body();
   await page.getByRole('link', { name: 'Settings' }).click();
-  await page.locator('input[type=file][accept*="json"]').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: exported });
+  await page
+    .locator('input[type=file][accept*="json"]')
+    .setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: exported });
   await expect(page.getByText('0 entries to add')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Restore' })).toBeVisible();
 
@@ -47,15 +55,23 @@ test('deleting a client renames its project when a clientless one has the same n
   await page.getByRole('button', { name: 'More actions for Acme' }).click();
   await page.getByRole('menuitem', { name: 'Delete' }).click();
   const dialog = page.getByRole('dialog', { name: 'Delete Acme?' });
-  await expect(dialog).toContainText('If a project without a client already has the same name, "(Acme)" is added to the moved one.');
+  await expect(dialog).toContainText(
+    'If a project without a client already has the same name, "(Acme)" is added to the moved one.',
+  );
   await dialog.getByRole('button', { name: 'Delete client' }).click();
   await expect(dialog).toBeHidden();
 
   await page.getByRole('link', { name: 'Projects' }).click();
   await expect(page.getByRole('cell', { name: 'Website (Acme)', exact: true })).toBeVisible();
   const projects = await (await page.request.get(`/api/v9/workspaces/${data.workspaceId}/projects?active=both`)).json();
-  expect(projects.map((p: { id: number; name: string; client_id: number | null }) => [p.id, p.name, p.client_id]))
-    .toEqual(expect.arrayContaining([[kept.id, 'Website', null], [moved.id, 'Website (Acme)', null]]));
+  expect(
+    projects.map((p: { id: number; name: string; client_id: number | null }) => [p.id, p.name, p.client_id]),
+  ).toEqual(
+    expect.arrayContaining([
+      [kept.id, 'Website', null],
+      [moved.id, 'Website (Acme)', null],
+    ]),
+  );
   expect(projects).toHaveLength(2);
 });
 
@@ -64,7 +80,16 @@ test('deleting a client renames its project when a clientless one has the same n
 test('the sidebar fills the current page in its section hue and main carries that section', async ({ page }) => {
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Main' });
-  const pages = [['Timer', 'timer'], ['Pomodoro', 'pomodoro'], ['Reports', 'reports'], ['Projects', 'projects'], ['Clients', 'more'], ['Tags', 'more'], ['Trash', 'more'], ['Settings', 'settings']] as const;
+  const pages = [
+    ['Timer', 'timer'],
+    ['Pomodoro', 'pomodoro'],
+    ['Reports', 'reports'],
+    ['Projects', 'projects'],
+    ['Clients', 'more'],
+    ['Tags', 'more'],
+    ['Trash', 'more'],
+    ['Settings', 'settings'],
+  ] as const;
   for (const [name, section] of [...pages, pages[0]]) {
     const link = nav.getByRole('link', { name, exact: true });
     await link.click();
@@ -83,14 +108,19 @@ test('the active Pomodoro link keeps readable text and a visible edge in light a
   await expectSectionHue(page, link, 'pomodoro');
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme });
-    const look = await link.evaluate((element) => {
+    const look = await link.evaluate(element => {
       const probe = document.createElement('div');
       probe.style.backgroundColor = 'var(--surface)';
       document.body.append(probe);
       const surface = getComputedStyle(probe).backgroundColor;
       probe.remove();
       const style = getComputedStyle(element);
-      return { surface, text: style.color, fill: style.backgroundColor, outline: style.boxShadow.match(/rgba?\([^)]*\)/)?.[0] ?? '' };
+      return {
+        surface,
+        text: style.color,
+        fill: style.backgroundColor,
+        outline: style.boxShadow.match(/rgba?\([^)]*\)/)?.[0] ?? '',
+      };
     });
     expect(contrast(look.text, look.fill), `${colorScheme} text on the fill`).toBeGreaterThanOrEqual(4.5);
     const edge = Math.max(contrast(look.fill, look.surface), look.outline ? contrast(look.outline, look.surface) : 0);
@@ -121,7 +151,13 @@ test('JSON restore reports what it cannot import and takes a running entry once 
   const backup = await (await page.request.get('/api/app/export.json')).json();
   backup.time_entries = [
     { id: 9001, description: 'Running there', start: '2025-05-05T09:00:00Z', stop: null },
-    { id: 9002, description: 'Missing project', start: '2025-05-06T09:00:00Z', stop: '2025-05-06T10:00:00Z', project_id: 424242 },
+    {
+      id: 9002,
+      description: 'Missing project',
+      start: '2025-05-06T09:00:00Z',
+      stop: '2025-05-06T10:00:00Z',
+      project_id: 424242,
+    },
     { id: 9003, description: 'No zone', start: '2025-05-07T09:00:00', stop: '2025-05-07T10:00:00Z' },
     { id: 9004, description: 'No such day', start: '2025-02-28T09:00:00Z', stop: '2025-02-30T10:00:00Z' },
     { id: 9005, description: 'Fine', start: '2025-05-08T09:00:00Z', stop: '2025-05-08T10:00:00Z' },
@@ -141,8 +177,12 @@ test('JSON restore reports what it cannot import and takes a running entry once 
   await expect(problems).toHaveCount(4);
   await expect(problems.filter({ hasText: 'time_entry 9001:' })).toContainText('Another timer is running here');
   await expect(problems.filter({ hasText: 'time_entry 9002:' })).toContainText('Its project 424242 was not imported');
-  await expect(problems.filter({ hasText: 'time_entry 9003:' })).toContainText('Invalid start: expected an RFC 3339 timestamp');
-  await expect(problems.filter({ hasText: 'time_entry 9004:' })).toContainText('Invalid stop: expected an RFC 3339 timestamp');
+  await expect(problems.filter({ hasText: 'time_entry 9003:' })).toContainText(
+    'Invalid start: expected an RFC 3339 timestamp',
+  );
+  await expect(problems.filter({ hasText: 'time_entry 9004:' })).toContainText(
+    'Invalid stop: expected an RFC 3339 timestamp',
+  );
 
   await page.getByRole('link', { name: 'Timer' }).click();
   await timer.getByRole('button', { name: 'Stop timer' }).click();

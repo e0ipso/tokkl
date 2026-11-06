@@ -48,7 +48,10 @@ function isAddressOrRange(entry: string): boolean {
   return /^[0-9]{1,3}$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128);
 }
 
-const invalidTrustProxy = () => new ConfigurationError('Invalid TOKKL_TRUST_PROXY: use empty or 0 to trust no proxy, a positive number of proxy hops, or a comma-separated list of IP addresses and CIDR ranges.');
+const invalidTrustProxy = () =>
+  new ConfigurationError(
+    'Invalid TOKKL_TRUST_PROXY: use empty or 0 to trust no proxy, a positive number of proxy hops, or a comma-separated list of IP addresses and CIDR ranges.',
+  );
 
 function trustProxy(value: string | undefined): Config['trustProxy'] {
   const trimmed = (value ?? '').trim();
@@ -58,7 +61,7 @@ function trustProxy(value: string | undefined): Config['trustProxy'] {
     if (!Number.isSafeInteger(hops)) throw invalidTrustProxy();
     return hops > 0 ? hops : false;
   }
-  const entries = trimmed.split(',').map((entry) => entry.trim());
+  const entries = trimmed.split(',').map(entry => entry.trim());
   if (entries.every(isAddressOrRange)) return entries;
   throw invalidTrustProxy();
 }
@@ -80,8 +83,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   };
 
   const dataDir = resolve(setting('DATA_DIR') ?? 'data');
-  if (env.TOKKL_DATABASE_URL === undefined && (env.TOKKL_DATABASE !== undefined || env.TIMETRACK_DATABASE !== undefined || existsSync(join(dataDir, LEGACY_DATABASE_FILE)))) {
-    throw new Error('Existing database configuration requires an explicit TOKKL_DATABASE_URL; unsupported schemas must be exported before switching.');
+  if (
+    env.TOKKL_DATABASE_URL === undefined &&
+    (env.TOKKL_DATABASE !== undefined ||
+      env.TIMETRACK_DATABASE !== undefined ||
+      existsSync(join(dataDir, LEGACY_DATABASE_FILE)))
+  ) {
+    throw new Error(
+      'Existing database configuration requires an explicit TOKKL_DATABASE_URL; unsupported schemas must be exported before switching.',
+    );
   }
   const config: Config = {
     port: int(env.PORT, 8080),
@@ -96,8 +106,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
 
   const notices: string[] = [];
   if (legacyNames.length > 0) {
-    const renamed = legacyNames.map((name) => name.replace(/^TIMETRACK_/, 'TOKKL_'));
-    notices.push(`Deprecated: ${legacyNames.join(', ')} still work, but a later release may drop them; rename them to ${renamed.join(', ')}.`);
+    const renamed = legacyNames.map(name => name.replace(/^TIMETRACK_/, 'TOKKL_'));
+    notices.push(
+      `Deprecated: ${legacyNames.join(', ')} still work, but a later release may drop them; rename them to ${renamed.join(', ')}.`,
+    );
   }
   return { config, notices };
 }

@@ -7,10 +7,15 @@ export type UtcInstant = string;
 /** Valid YYYY-MM-DD calendar key, separate from an instant. */
 export type DateOnly = string;
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
-export interface JsonObject { [key: string]: JsonValue }
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
 export type UserRole = 'admin' | 'user';
 export type MembershipRole = 'owner' | 'member';
-export interface AuditTimes { createdAt: UtcInstant; updatedAt: UtcInstant }
+export interface AuditTimes {
+  createdAt: UtcInstant;
+  updatedAt: UtcInstant;
+}
 export interface User extends AuditTimes {
   id: Id;
   email: string;
@@ -32,10 +37,27 @@ export interface Workspace extends AuditTimes {
   rounding: number;
   roundingMinutes: number;
 }
-export interface Membership { workspaceId: Id; userId: Id; role: MembershipRole }
-export interface WorkspaceMember extends Membership { email: string; fullName: string; timezone: string }
-export interface InstanceSettings { sessionDays: number; inviteDays: number; timeResolutionMinutes: number }
-export interface SettingChange { key: keyof InstanceSettings; value: number; updatedAt: UtcInstant; updatedBy: Id | null }
+export interface Membership {
+  workspaceId: Id;
+  userId: Id;
+  role: MembershipRole;
+}
+export interface WorkspaceMember extends Membership {
+  email: string;
+  fullName: string;
+  timezone: string;
+}
+export interface InstanceSettings {
+  sessionDays: number;
+  inviteDays: number;
+  timeResolutionMinutes: number;
+}
+export interface SettingChange {
+  key: keyof InstanceSettings;
+  value: number;
+  updatedAt: UtcInstant;
+  updatedBy: Id | null;
+}
 export interface AccountToken {
   id: Id;
   tokenHash: string;
@@ -48,8 +70,20 @@ export interface AccountToken {
   expiresAt: UtcInstant;
   usedAt: UtcInstant | null;
 }
-export interface Session { tokenHash: string; userId: Id; createdAt: UtcInstant; expiresAt: UtcInstant; userAgent: string }
-export interface Client extends AuditTimes { id: Id; workspaceId: Id; name: string; notes: string | null; archived: boolean }
+export interface Session {
+  tokenHash: string;
+  userId: Id;
+  createdAt: UtcInstant;
+  expiresAt: UtcInstant;
+  userAgent: string;
+}
+export interface Client extends AuditTimes {
+  id: Id;
+  workspaceId: Id;
+  name: string;
+  notes: string | null;
+  archived: boolean;
+}
 export interface Project extends AuditTimes {
   id: Id;
   workspaceId: Id;
@@ -67,9 +101,19 @@ export interface Project extends AuditTimes {
   endDate: DateOnly | null;
   template: boolean;
 }
-export interface ProjectSummary extends Project { clientName: string | null; actualSeconds: number }
+export interface ProjectSummary extends Project {
+  clientName: string | null;
+  actualSeconds: number;
+}
 export type ProjectRef = Pick<Project, 'id' | 'workspaceId' | 'active' | 'billable'>;
-export interface Task extends AuditTimes { id: Id; workspaceId: Id; projectId: Id; name: string; active: boolean; estimatedSeconds: number | null }
+export interface Task extends AuditTimes {
+  id: Id;
+  workspaceId: Id;
+  projectId: Id;
+  name: string;
+  active: boolean;
+  estimatedSeconds: number | null;
+}
 export interface TaskSummary extends Task {
   projectName: string;
   projectColor: string;
@@ -81,8 +125,15 @@ export interface TaskSummary extends Task {
   trackedMilliseconds: number;
 }
 export type TaskRef = Pick<Task, 'id' | 'workspaceId' | 'projectId' | 'active'>;
-export interface Tag extends AuditTimes { id: Id; workspaceId: Id; name: string }
-export interface TagLabel { id: Id; name: string }
+export interface Tag extends AuditTimes {
+  id: Id;
+  workspaceId: Id;
+  name: string;
+}
+export interface TagLabel {
+  id: Id;
+  name: string;
+}
 export interface TimeEntry extends AuditTimes {
   id: Id;
   workspaceId: Id;
@@ -117,11 +168,34 @@ export interface PauseChain {
   seconds: number;
   cloneEntryId: Id | null;
 }
-export interface PomodoroPhase { kind: SessionPhaseKind; startedAt: UtcInstant; completed: number }
-export interface PomodoroSession { userId: Id; entryId: Id; config: PomodoroSessionConfig; phase: PomodoroPhase }
-export interface DiscardedPomodoro { entryId: Id; start: UtcInstant; stop: UtcInstant }
-export interface TimerRevision { userId: Id; revision: number; fingerprint: string; discardedPomodoro: DiscardedPomodoro | null }
-export interface TimerSnapshot { running: EntryDetails | null; pauseChain: PauseChain | null; session: PomodoroSession | null; revision: TimerRevision | null }
+export interface PomodoroPhase {
+  kind: SessionPhaseKind;
+  startedAt: UtcInstant;
+  completed: number;
+}
+export interface PomodoroSession {
+  userId: Id;
+  entryId: Id;
+  config: PomodoroSessionConfig;
+  phase: PomodoroPhase;
+}
+export interface DiscardedPomodoro {
+  entryId: Id;
+  start: UtcInstant;
+  stop: UtcInstant;
+}
+export interface TimerRevision {
+  userId: Id;
+  revision: number;
+  fingerprint: string;
+  discardedPomodoro: DiscardedPomodoro | null;
+}
+export interface TimerSnapshot {
+  running: EntryDetails | null;
+  pauseChain: PauseChain | null;
+  session: PomodoroSession | null;
+  revision: TimerRevision | null;
+}
 
 /** Unrounded stopped-entry data; application report logic owns rounding, dates and money. */
 export interface ReportEntryProjection {
@@ -156,5 +230,14 @@ export interface AccountExportProjection {
   tags: Tag[];
   entries: EntryDetails[];
 }
-export interface EntryDuplicateKey { userId: Id; start: UtcInstant; stop: UtcInstant | null; description: string; projectId: Id | null }
-export interface EntryBounds { firstStart: UtcInstant | null; lastStart: UtcInstant | null }
+export interface EntryDuplicateKey {
+  userId: Id;
+  start: UtcInstant;
+  stop: UtcInstant | null;
+  description: string;
+  projectId: Id | null;
+}
+export interface EntryBounds {
+  firstStart: UtcInstant | null;
+  lastStart: UtcInstant | null;
+}

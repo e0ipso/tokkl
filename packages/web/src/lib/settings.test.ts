@@ -72,13 +72,21 @@ test('halves split at snappedInstant add up to the snapped whole', () => {
   assert.equal(first + second, snappedSeconds(start, stop, settings));
 });
 
-const isoHalves = (halves: SplitHalves | string) => typeof halves === 'string' ? halves : [
-  [halves.first.start.toISOString(), halves.first.stop.toISOString()],
-  [halves.second.start.toISOString(), halves.second.stop.toISOString()],
-];
+const isoHalves = (halves: SplitHalves | string) =>
+  typeof halves === 'string'
+    ? halves
+    : [
+        [halves.first.start.toISOString(), halves.first.stop.toISOString()],
+        [halves.second.start.toISOString(), halves.second.stop.toISOString()],
+      ];
 
 test('snappedSplit returns the halves the server stores, meeting at the split', () => {
-  const halves = snappedSplit(at('2026-10-16T09:00:00Z'), at('2026-10-16T10:00:00Z'), at('2026-10-16T09:15:00Z'), utc(15));
+  const halves = snappedSplit(
+    at('2026-10-16T09:00:00Z'),
+    at('2026-10-16T10:00:00Z'),
+    at('2026-10-16T09:15:00Z'),
+    utc(15),
+  );
   assert.deepEqual(isoHalves(halves), [
     ['2026-10-16T09:00:00.000Z', '2026-10-16T09:15:00.000Z'],
     ['2026-10-16T09:15:00.000Z', '2026-10-16T10:00:00.000Z'],
@@ -87,7 +95,12 @@ test('snappedSplit returns the halves the server stores, meeting at the split', 
 
 test('snappedSplit cuts an entry saved under another resolution from its snapped whole', () => {
   // At 15 minutes, 09:08 to 10:08 stores as 09:15 to 10:15, and 09:37 moves to 09:30.
-  const halves = snappedSplit(at('2026-10-16T09:08:00Z'), at('2026-10-16T10:08:00Z'), at('2026-10-16T09:37:00Z'), utc(15));
+  const halves = snappedSplit(
+    at('2026-10-16T09:08:00Z'),
+    at('2026-10-16T10:08:00Z'),
+    at('2026-10-16T09:37:00Z'),
+    utc(15),
+  );
   assert.deepEqual(isoHalves(halves), [
     ['2026-10-16T09:15:00.000Z', '2026-10-16T09:30:00.000Z'],
     ['2026-10-16T09:30:00.000Z', '2026-10-16T10:15:00.000Z'],
@@ -109,7 +122,12 @@ test('snappedSplit splits across a half-hour clock change', () => {
   // At a resolution of 60, 14:30 to 16:30 UTC stores as local 01:00 to 04:00 (17:00 UTC), and local
   // 03:00 (16:00 UTC) cuts it into halves of 90 and 60 minutes that meet.
   const lordHowe = { timeZone: 'Australia/Lord_Howe', timeResolution: 60 };
-  const halves = snappedSplit(at('2026-10-03T14:30:00Z'), at('2026-10-03T16:30:00Z'), at('2026-10-03T16:00:00Z'), lordHowe);
+  const halves = snappedSplit(
+    at('2026-10-03T14:30:00Z'),
+    at('2026-10-03T16:30:00Z'),
+    at('2026-10-03T16:00:00Z'),
+    lordHowe,
+  );
   assert.deepEqual(isoHalves(halves), [
     ['2026-10-03T14:30:00.000Z', '2026-10-03T16:00:00.000Z'],
     ['2026-10-03T16:00:00.000Z', '2026-10-03T17:00:00.000Z'],

@@ -79,7 +79,12 @@ describe('commitlint.config.js', () => {
     const packages = [...source.matchAll(/^import\s[^'"]*['"]([^'"]+)['"]/gm)]
       .map(match => match[1] ?? '')
       .filter(specifier => specifier && !specifier.startsWith('.') && !specifier.startsWith('node:'))
-      .map(specifier => specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/'));
+      .map(specifier =>
+        specifier
+          .split('/')
+          .slice(0, specifier.startsWith('@') ? 2 : 1)
+          .join('/'),
+      );
     assert.ok(packages.length > 0, 'no package import found in commitlint.config.js');
     for (const name of packages) {
       assert.ok(declared.has(name), `${name} is imported by commitlint.config.js but not in package.json`);
@@ -135,7 +140,10 @@ describe('commitlint.config.js', () => {
     });
 
     test('rejects a message that fails both custom checks on both rules', async () => {
-      await assertFails(`Revert "feat: implement ${ID}"\n\n${CO_AUTHOR}`, ['no-ai-generated', 'no-ticket-id-in-header']);
+      await assertFails(`Revert "feat: implement ${ID}"\n\n${CO_AUTHOR}`, [
+        'no-ai-generated',
+        'no-ticket-id-in-header',
+      ]);
     });
 
     test('still accepts the same shapes without a ticket ID or credit', async () => {
@@ -184,7 +192,8 @@ describe('commit-msg hook in a throwaway repository', () => {
   let env: NodeJS.ProcessEnv = {};
 
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8' }).trim();
-  const tryGit = (args: string[], input?: string) => spawnSync('git', args, { cwd: repo, env, encoding: 'utf8', input });
+  const tryGit = (args: string[], input?: string) =>
+    spawnSync('git', args, { cwd: repo, env, encoding: 'utf8', input });
   const head = () => git('rev-parse', 'HEAD');
   // Setup commits skip the hook; only the commit or merge under test runs it.
   const setupCommit = (message: string) => git('commit', '-q', '--allow-empty', '--no-verify', '-m', message);

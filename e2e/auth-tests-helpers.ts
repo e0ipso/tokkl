@@ -54,7 +54,7 @@ async function waitForHealth(baseURL: string, child: ChildProcess, log: () => st
     } catch {
       // Not listening yet.
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error(`Disposable server at ${baseURL} did not become healthy:\n${log()}`);
 }
@@ -66,15 +66,26 @@ async function startServer(options: ServerOptions): Promise<DisposableServer> {
   const args = options.clockShiftMs ? ['--import', clockShiftImport(options.clockShiftMs)] : [];
   const child = spawn(process.execPath, [...args, 'packages/api/src/index.ts'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: dataDir, TOKKL_DATABASE_URL: `sqlite://${join(dataDir,'tokkl.sqlite')}`, TOKKL_SETUP_CODE: SETUP_CODE },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      HOST: '127.0.0.1',
+      TOKKL_DATA_DIR: dataDir,
+      TOKKL_DATABASE_URL: `sqlite://${join(dataDir, 'tokkl.sqlite')}`,
+      TOKKL_SETUP_CODE: SETUP_CODE,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
-  child.stdout!.on('data', (chunk) => { output += chunk; });
-  child.stderr!.on('data', (chunk) => { output += chunk; });
+  child.stdout!.on('data', chunk => {
+    output += chunk;
+  });
+  child.stderr!.on('data', chunk => {
+    output += chunk;
+  });
   const stop = async () => {
     if (child.exitCode === null && child.signalCode === null) {
-      const exited = new Promise((resolve) => child.once('exit', resolve));
+      const exited = new Promise(resolve => child.once('exit', resolve));
       child.kill('SIGTERM');
       await exited;
     }
@@ -145,7 +156,10 @@ export function basic(username: string, password: string): string {
 export async function createAccount(baseURL: string): Promise<{ apiToken: string }> {
   const api = await request.newContext({ baseURL });
   try {
-    const setup = await api.post('/api/app/setup', { headers: CSRF, data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' } });
+    const setup = await api.post('/api/app/setup', {
+      headers: CSRF,
+      data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' },
+    });
     expect(setup.status()).toBe(200);
     const me = await api.get('/api/v9/me');
     expect(me.status()).toBe(200);
@@ -156,7 +170,11 @@ export async function createAccount(baseURL: string): Promise<{ apiToken: string
 }
 
 /** Runs `use` with a request context that sends the given Authorization header, then disposes it. */
-export async function withAuth<T>(baseURL: string, authorization: string, use: (api: APIRequestContext) => Promise<T>): Promise<T> {
+export async function withAuth<T>(
+  baseURL: string,
+  authorization: string,
+  use: (api: APIRequestContext) => Promise<T>,
+): Promise<T> {
   const api = await request.newContext({ baseURL, extraHTTPHeaders: { authorization } });
   try {
     return await use(api);
@@ -167,10 +185,10 @@ export async function withAuth<T>(baseURL: string, authorization: string, use: (
 
 /** Creates an invite as an admin, through the API, and returns its /invite/<token> path. */
 export async function createInvite(baseURL: string, apiToken: string, role: 'admin' | 'user'): Promise<string> {
-  return withAuth(baseURL, basic(apiToken, 'api_token'), async (api) => {
+  return withAuth(baseURL, basic(apiToken, 'api_token'), async api => {
     const response = await api.post('/api/app/admin/invites', { data: { role } });
     expect(response.status()).toBe(200);
-    const { url } = await response.json() as { url: string };
+    const { url } = (await response.json()) as { url: string };
     expect(url).toMatch(/^\/invite\/[\w-]+$/);
     return url;
   });
@@ -181,13 +199,13 @@ export async function createInvite(baseURL: string, apiToken: string, role: 'adm
  * returns its /reset/<token> path.
  */
 export async function createPasswordReset(baseURL: string, apiToken: string, email: string): Promise<string> {
-  return withAuth(baseURL, basic(apiToken, 'api_token'), async (api) => {
-    const users = await (await api.get('/api/app/admin/users')).json() as Array<{ id: number; email: string }>;
-    const user = users.find((account) => account.email === email);
+  return withAuth(baseURL, basic(apiToken, 'api_token'), async api => {
+    const users = (await (await api.get('/api/app/admin/users')).json()) as Array<{ id: number; email: string }>;
+    const user = users.find(account => account.email === email);
     expect(user, `an account for ${email}`).toBeDefined();
     const response = await api.post(`/api/app/admin/users/${user!.id}/password-reset`);
     expect(response.status()).toBe(200);
-    const { url } = await response.json() as { url: string };
+    const { url } = (await response.json()) as { url: string };
     expect(url).toMatch(/^\/reset\/[\w-]+$/);
     return url;
   });
@@ -218,11 +236,12 @@ export async function acceptInvite(baseURL: string, invite: string, email: strin
   const api = await request.newContext({ baseURL });
   try {
     const accept = await api.post(inviteApiPath(invite), {
-      headers: CSRF, data: { email, password, fullname: email, timezone: 'Europe/Madrid' },
+      headers: CSRF,
+      data: { email, password, fullname: email, timezone: 'Europe/Madrid' },
     });
     expect(accept.status()).toBe(200);
-    const session = (await api.storageState()).cookies.find((c) => c.name === 'tokkl_session')!.value;
-    const me = await (await api.get('/api/v9/me')).json() as { api_token: string; default_workspace_id: number };
+    const session = (await api.storageState()).cookies.find(c => c.name === 'tokkl_session')!.value;
+    const me = (await (await api.get('/api/v9/me')).json()) as { api_token: string; default_workspace_id: number };
     return { email, password, apiToken: me.api_token, workspaceId: me.default_workspace_id, session };
   } finally {
     await api.dispose();
@@ -260,7 +279,7 @@ export async function meWithBasic(baseURL: string, authorization: string): Promi
 }
 
 export async function sessionCookie(page: Page, baseURL: string): Promise<string> {
-  const cookie = (await page.context().cookies(baseURL)).find((c) => c.name === 'tokkl_session');
+  const cookie = (await page.context().cookies(baseURL)).find(c => c.name === 'tokkl_session');
   expect(cookie, 'the browser holds a session cookie').toBeDefined();
   return cookie!.value;
 }

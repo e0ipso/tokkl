@@ -39,7 +39,8 @@ if (!dataDir) {
 // change instance settings, compare screenshots of the admin page, or start disposable servers on
 // the fixed ports E2E_PORT + 50 to + 59. They run one at a time on their own server, alongside the
 // parallel project.
-const INSTANCE_SPECS = /\/(admin-page|history-calendar-resolution|timer-resolution|timer-pomodoro-session|visual|worker-accounts|auth-(access|browser|invite|reset|sessions|token))\.spec\.ts$/;
+const INSTANCE_SPECS =
+  /\/(admin-page|history-calendar-resolution|timer-resolution|timer-pomodoro-session|visual|worker-accounts|auth-(access|browser|invite|reset|sessions|token))\.spec\.ts$/;
 
 function server(serverPort: number, serverDataDir: string) {
   return {
@@ -53,7 +54,9 @@ function server(serverPort: number, serverDataDir: string) {
       PORT: String(serverPort),
       HOST: '127.0.0.1',
       TOKKL_DATA_DIR: serverDataDir,
-      ...(backend === 'sqlite' ? { TOKKL_DATABASE_URL: `sqlite://${join(resolve(import.meta.dirname, serverDataDir), 'tokkl.sqlite')}` } : {}),
+      ...(backend === 'sqlite'
+        ? { TOKKL_DATABASE_URL: `sqlite://${join(resolve(import.meta.dirname, serverDataDir), 'tokkl.sqlite')}` }
+        : {}),
       TOKKL_SETUP_CODE: 'E2E-SETUP-CODE',
     },
   };
@@ -61,7 +64,9 @@ function server(serverPort: number, serverDataDir: string) {
 
 export default defineConfig<object, { instanceWide: boolean }>({
   testDir: 'e2e',
-  outputDir: process.env.TOKKL_E2E_OUTPUT_DIR ?? (backend === 'sqlite' ? 'test-results' : `e2e/test-results/${backend}-${basename(dataDir)}`),
+  outputDir:
+    process.env.TOKKL_E2E_OUTPUT_DIR ??
+    (backend === 'sqlite' ? 'test-results' : `e2e/test-results/${backend}-${basename(dataDir)}`),
   // Only specs. e2e/*.test.ts files are node --test unit tests for the e2e tooling (npm test).
   testMatch: /\.spec\.ts$/,
   globalSetup: './e2e/global-setup.ts',

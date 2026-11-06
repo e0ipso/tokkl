@@ -11,11 +11,17 @@ export function PomodoroSessionBanner() {
       {audioBlocked ? (
         <div role="alert">
           Sound could not play in this tab.{' '}
-          <button type="button" className="button button-ghost" onClick={retryAudio}>Retry sound</button>
+          <button type="button" className="button button-ghost" onClick={retryAudio}>
+            Retry sound
+          </button>
         </div>
       ) : null}
-      <button type="button" className="button button-primary" disabled={busy} onClick={() => void nextPhase()}>Next phase</button>
-      <button type="button" className="button button-ghost" disabled={busy} onClick={() => void end()}>End session</button>
+      <button type="button" className="button button-primary" disabled={busy} onClick={() => void nextPhase()}>
+        Next phase
+      </button>
+      <button type="button" className="button button-ghost" disabled={busy} onClick={() => void end()}>
+        End session
+      </button>
     </section>
   );
 }

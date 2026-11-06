@@ -5,9 +5,7 @@ import { LoadError, Loading } from '../components/PageState.tsx';
 
 /** The answer to checking a one-time link, such as an invite or a password reset link. */
 export type LinkCheck<T> =
-  | { state: 'loading' }
-  | { state: 'valid'; data: T }
-  | { state: 'error'; message: string; invalid: boolean };
+  { state: 'loading' } | { state: 'valid'; data: T } | { state: 'error'; message: string; invalid: boolean };
 
 /**
  * Checks a one-time link's token once. Plain state rather than a query: the app clears the query
@@ -20,23 +18,33 @@ export function useLinkCheck<T>(path: string): [LinkCheck<T>, () => void] {
     let current = true;
     setCheck({ state: 'loading' });
     api.get<T>(path).then(
-      (data) => { if (current) setCheck({ state: 'valid', data }); },
+      data => {
+        if (current) setCheck({ state: 'valid', data });
+      },
       (error: unknown) => {
         if (!current) return;
         const message = error instanceof Error ? error.message : String(error);
         setCheck({ state: 'error', message, invalid: error instanceof ApiError && error.status === 404 });
       },
     );
-    return () => { current = false; };
+    return () => {
+      current = false;
+    };
   }, [path, attempt]);
-  return [check, () => setAttempt((n) => n + 1)];
+  return [check, () => setAttempt(n => n + 1)];
 }
 
 /**
  * The full-page loading or error state of a link check. A 404 means the link is not valid and has
  * no retry; any other failure can be retried. Both offer the login page.
  */
-export function LinkCheckSplash({ check, retry, loadingLabel, invalidTitle, failurePrefix }: {
+export function LinkCheckSplash({
+  check,
+  retry,
+  loadingLabel,
+  invalidTitle,
+  failurePrefix,
+}: {
   check: Exclude<LinkCheck<unknown>, { state: 'valid' }>;
   retry: () => void;
   loadingLabel: string;
@@ -44,7 +52,12 @@ export function LinkCheckSplash({ check, retry, loadingLabel, invalidTitle, fail
   failurePrefix: string;
 }) {
   if (check.state === 'loading') {
-    return <div className="splash"><Brand size="lg" /><Loading label={loadingLabel} /></div>;
+    return (
+      <div className="splash">
+        <Brand size="lg" />
+        <Loading label={loadingLabel} />
+      </div>
+    );
   }
   return (
     <div className="splash">
@@ -54,7 +67,9 @@ export function LinkCheckSplash({ check, retry, loadingLabel, invalidTitle, fail
         message={check.invalid ? check.message : `${failurePrefix}: ${check.message}`}
         onRetry={check.invalid ? undefined : retry}
       />
-      <a className="button button-ghost" href="/">Go to log in</a>
+      <a className="button button-ghost" href="/">
+        Go to log in
+      </a>
     </div>
   );
 }

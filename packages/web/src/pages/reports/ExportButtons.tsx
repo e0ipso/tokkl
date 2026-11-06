@@ -10,7 +10,15 @@ import type { SortDir, SortKey, SubGrouping } from './urlState.ts';
 type Kind = 'detailed' | 'summary';
 
 /** CSV downloads of the report on screen: same range, filters, rounding, grouping and sort order. */
-export function ExportButtons({ range, filters, grouping, subGrouping, sort, dir, durationFormat }: {
+export function ExportButtons({
+  range,
+  filters,
+  grouping,
+  subGrouping,
+  sort,
+  dir,
+  durationFormat,
+}: {
   range: DateRange;
   filters: ReportFilterBody;
   grouping: Grouping;
@@ -42,7 +50,7 @@ export function ExportButtons({ range, filters, grouping, subGrouping, sort, dir
 
   return (
     <div className="export-buttons" role="group" aria-label="Export">
-      {(['detailed', 'summary'] as const).map((kind) => (
+      {(['detailed', 'summary'] as const).map(kind => (
         <button
           key={kind}
           type="button"

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { addDays } from '@tokkl/common/time';
 import {
-  DEFAULT_POMODORO_SESSION_CONFIG, POMODORO_SESSION_CONFIG_RANGES, type PomodoroSessionConfig,
+  DEFAULT_POMODORO_SESSION_CONFIG,
+  POMODORO_SESSION_CONFIG_RANGES,
+  type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
 import { useCurrentEntry, useEntries, usePreferences, useUpdateEntry } from '../api/hooks.ts';
 import type { Preferences, TimeEntry, TimeEntryInput } from '../api/types.ts';
@@ -18,10 +20,34 @@ import { AllowNotifications } from './manage/settings/AllowNotifications.tsx';
 import './PomodoroPage.css';
 
 const LENGTH_FIELDS = [
-  { key: 'workMinutes', preference: 'pomodoro_focus_interval_in_minutes', label: 'Work', unit: 'min', spokenUnit: 'minutes' },
-  { key: 'shortRestMinutes', preference: 'pomodoro_break_interval_in_minutes', label: 'Short rest', unit: 'min', spokenUnit: 'minutes' },
-  { key: 'longRestMinutes', preference: 'pomodoro_long_break_interval_in_minutes', label: 'Long rest', unit: 'min', spokenUnit: 'minutes' },
-  { key: 'longRestEvery', preference: 'pomodoro_long_break_every', label: 'Long rest every', unit: 'pomodoros', spokenUnit: 'pomodoros' },
+  {
+    key: 'workMinutes',
+    preference: 'pomodoro_focus_interval_in_minutes',
+    label: 'Work',
+    unit: 'min',
+    spokenUnit: 'minutes',
+  },
+  {
+    key: 'shortRestMinutes',
+    preference: 'pomodoro_break_interval_in_minutes',
+    label: 'Short rest',
+    unit: 'min',
+    spokenUnit: 'minutes',
+  },
+  {
+    key: 'longRestMinutes',
+    preference: 'pomodoro_long_break_interval_in_minutes',
+    label: 'Long rest',
+    unit: 'min',
+    spokenUnit: 'minutes',
+  },
+  {
+    key: 'longRestEvery',
+    preference: 'pomodoro_long_break_every',
+    label: 'Long rest every',
+    unit: 'pomodoros',
+    spokenUnit: 'pomodoros',
+  },
 ] as const;
 type LengthKey = keyof PomodoroSessionConfig;
 
@@ -29,7 +55,13 @@ type LengthKey = keyof PomodoroSessionConfig;
 const DESCRIPTION_SAVE_DELAY_MS = 800;
 
 function draftOf(entry: TimeEntry): EntryDraft {
-  return { description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags, billable: entry.billable };
+  return {
+    description: entry.description,
+    project_id: entry.project_id,
+    task_id: entry.task_id,
+    tags: entry.tags,
+    billable: entry.billable,
+  };
 }
 
 function StartForm({ preferences, recentEntries }: { preferences: Preferences; recentEntries: TimeEntry[] }) {
@@ -38,14 +70,15 @@ function StartForm({ preferences, recentEntries }: { preferences: Preferences; r
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT);
   const inputs = useRef(new Map<LengthKey, HTMLInputElement>());
   const form = useRef<HTMLFormElement>(null);
-  const value = (key: LengthKey, preference: typeof LENGTH_FIELDS[number]['preference']) =>
+  const value = (key: LengthKey, preference: (typeof LENGTH_FIELDS)[number]['preference']) =>
     lengthEdits[key] ?? String(preferences[preference] ?? DEFAULT_POMODORO_SESSION_CONFIG[key]);
 
   const startSession = () => {
     if (busy) return;
     // The cards already show which lengths are out of range; Start moves focus to the first one.
-    const invalid = LENGTH_FIELDS.find(({ key, preference }) =>
-      stepperStatus(value(key, preference), POMODORO_SESSION_CONFIG_RANGES[key]) !== 'valid');
+    const invalid = LENGTH_FIELDS.find(
+      ({ key, preference }) => stepperStatus(value(key, preference), POMODORO_SESSION_CONFIG_RANGES[key]) !== 'valid',
+    );
     if (invalid) {
       inputs.current.get(invalid.key)?.focus();
       return;
@@ -57,31 +90,52 @@ function StartForm({ preferences, recentEntries }: { preferences: Preferences; r
   };
 
   return (
-    <form ref={form} className="card pomodoro-card" aria-label="Start a Pomodoro session" noValidate onSubmit={(event) => { event.preventDefault(); startSession(); }}>
+    <form
+      ref={form}
+      className="card pomodoro-card"
+      aria-label="Start a Pomodoro session"
+      noValidate
+      onSubmit={event => {
+        event.preventDefault();
+        startSession();
+      }}
+    >
       <h2>Start a session</h2>
       <p className="hint">These lengths apply to this session. Your saved preferences stay the same.</p>
       <LengthStepperGrid>
         {LENGTH_FIELDS.map(({ key, preference, label, unit, spokenUnit }) => (
           <LengthStepper
             key={key}
-            label={label} unit={unit} spokenUnit={spokenUnit} range={POMODORO_SESSION_CONFIG_RANGES[key]}
+            label={label}
+            unit={unit}
+            spokenUnit={spokenUnit}
+            range={POMODORO_SESSION_CONFIG_RANGES[key]}
             value={value(key, preference)}
-            onChange={(text) => setLengthEdits((current) => ({ ...current, [key]: text }))}
-            inputProps={{ ref: (element) => { if (element) inputs.current.set(key, element); else inputs.current.delete(key); } }}
+            onChange={text => setLengthEdits(current => ({ ...current, [key]: text }))}
+            inputProps={{
+              ref: element => {
+                if (element) inputs.current.set(key, element);
+                else inputs.current.delete(key);
+              },
+            }}
           />
         ))}
       </LengthStepperGrid>
       <fieldset className="pomodoro-entry-fields">
         <legend>Entry details</legend>
         <EntryFields
-          draft={draft} recentEntries={recentEntries} placeholder="What will you work on?"
-          onType={(description) => setDraft((current) => ({ ...current, description }))}
-          onEdit={(changes) => setDraft((current) => ({ ...current, ...changes }))}
+          draft={draft}
+          recentEntries={recentEntries}
+          placeholder="What will you work on?"
+          onType={description => setDraft(current => ({ ...current, description }))}
+          onEdit={changes => setDraft(current => ({ ...current, ...changes }))}
           onDescriptionBlur={() => {}}
           onEnter={() => form.current?.requestSubmit()}
         />
       </fieldset>
-      <button type="submit" className="button button-primary" disabled={busy}>Start</button>
+      <button type="submit" className="button button-primary" disabled={busy}>
+        Start
+      </button>
     </form>
   );
 }
@@ -114,7 +168,11 @@ function useRunningEntryEdits(entryId: number | null) {
     type(description: string) {
       if (entryId === null) return;
       if (waiting.current) clearTimeout(waiting.current.timer);
-      waiting.current = { id: entryId, description, timer: setTimeout(() => void latest.current(), DESCRIPTION_SAVE_DELAY_MS) };
+      waiting.current = {
+        id: entryId,
+        description,
+        timer: setTimeout(() => void latest.current(), DESCRIPTION_SAVE_DELAY_MS),
+      };
     },
     edit(changes: Partial<EntryDraft>) {
       if (entryId === null) return;
@@ -140,7 +198,7 @@ function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
   useEffect(() => {
     if (!open) return;
     const typing = (fieldsRef.current?.hasFocus() ?? false) || edits.pending();
-    setDraft((previous) => ({ ...draftOf(open), description: typing ? previous.description : open.description }));
+    setDraft(previous => ({ ...draftOf(open), description: typing ? previous.description : open.description }));
   }, [open?.id, open?.description, open?.project_id, open?.task_id, open?.billable, open?.tags.join('\u0000')]);
 
   const settleThen = (action: () => Promise<void>) => () => {
@@ -155,28 +213,43 @@ function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
     <section className="card pomodoro-card" aria-label="Running Pomodoro session">
       <div role="status">
         <h2>{SESSION_PHASE_LABEL[phase.kind]}</h2>
-        <p>Pomodoro {session.number} of {session.long_rest_every}</p>
+        <p>
+          Pomodoro {session.number} of {session.long_rest_every}
+        </p>
       </div>
       <div className="pomodoro-session-countdown" role="timer" aria-label={overtime ? 'Overtime' : 'Time remaining'}>
-        <span className="pomodoro-clock">{overtime ? '+' : ''}{clock(seconds)}</span>
+        <span className="pomodoro-clock">
+          {overtime ? '+' : ''}
+          {clock(seconds)}
+        </span>
         <span className="muted">{overtime ? 'Overtime' : 'Time remaining'}</span>
       </div>
       <div className="pomodoro-actions">
         <button type="button" className="button button-primary" disabled={busy} onClick={settleThen(nextPhase)}>
           Next phase: {SESSION_PHASE_LABEL[session.upcoming_phase]}
         </button>
-        <button type="button" className="button button-ghost" disabled={busy} onClick={settleThen(end)}>End session</button>
+        <button type="button" className="button button-ghost" disabled={busy} onClick={settleThen(end)}>
+          End session
+        </button>
       </div>
       <p className="hint">Next phase starts immediately, skipping any time remaining in this phase.</p>
       <fieldset className="pomodoro-entry-fields">
         <legend>Entry details</legend>
         <EntryFields
           ref={fieldsRef}
-          draft={draft} recentEntries={recentEntries} placeholder="What are you working on?"
-          onType={(description) => { setDraft((current) => ({ ...current, description })); edits.type(description); }}
-          onEdit={(changes) => { setDraft((current) => ({ ...current, ...changes })); edits.edit(changes); }}
+          draft={draft}
+          recentEntries={recentEntries}
+          placeholder="What are you working on?"
+          onType={description => {
+            setDraft(current => ({ ...current, description }));
+            edits.type(description);
+          }}
+          onEdit={changes => {
+            setDraft(current => ({ ...current, ...changes }));
+            edits.edit(changes);
+          }}
           onDescriptionBlur={() => void edits.settle()}
-          onEnter={(event) => event.currentTarget.blur()}
+          onEnter={event => event.currentTarget.blur()}
         />
       </fieldset>
       <p className="hint">Edits apply to this pomodoro and the ones that follow.</p>
@@ -193,13 +266,21 @@ export function PomodoroPage() {
 
   return (
     <div className="page pomodoro-page">
-      <header className="page-header"><h1>Pomodoro</h1></header>
-      {session ? <RunningSession recentEntries={recentEntries} /> : preferences ? (
+      <header className="page-header">
+        <h1>Pomodoro</h1>
+      </header>
+      {session ? (
+        <RunningSession recentEntries={recentEntries} />
+      ) : preferences ? (
         <StartForm preferences={preferences} recentEntries={recentEntries} />
       ) : error ? (
         <LoadError message={`Could not load preferences: ${error.message}`} onRetry={() => void refetch()} />
-      ) : <Loading label="Loading preferences…" />}
-      <div className="pomodoro-notifications"><AllowNotifications /></div>
+      ) : (
+        <Loading label="Loading preferences…" />
+      )}
+      <div className="pomodoro-notifications">
+        <AllowNotifications />
+      </div>
     </div>
   );
 }

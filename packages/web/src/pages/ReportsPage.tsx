@@ -32,26 +32,56 @@ export function ReportsPage() {
   if (report.isPending) {
     body = <Loading label="Loading report…" />;
   } else if (report.isError && !data) {
-    body = <LoadError className="report-error" message={`Couldn't load the report: ${report.error.message}`} onRetry={() => void report.refetch()} />;
+    body = (
+      <LoadError
+        className="report-error"
+        message={`Couldn't load the report: ${report.error.message}`}
+        onRetry={() => void report.refetch()}
+      />
+    );
   } else if (data && data.totals.entry_count === 0) {
-    const filtered = Boolean(filters.project_ids || filters.client_ids || filters.tag_ids || filters.billable !== undefined || filters.description);
+    const filtered = Boolean(
+      filters.project_ids ||
+      filters.client_ids ||
+      filters.tag_ids ||
+      filters.billable !== undefined ||
+      filters.description,
+    );
     body = (
       <EmptyState
         className={dimmed ? 'is-dimmed' : undefined}
         icon={<Icon name="chart" size={32} />}
         title={`No time tracked in this range${filtered ? ' with these filters' : ''}`}
       >
-        {filtered ? 'Loosen a filter, or pick another range with the arrows or the date menu.' : 'Pick another range with the arrows or the date menu.'}
+        {filtered
+          ? 'Loosen a filter, or pick another range with the arrows or the date menu.'
+          : 'Pick another range with the arrows or the date menu.'}
       </EmptyState>
     );
   } else if (data) {
-    body = state.tab === 'summary' ? (
-      <SummaryTab report={data} grouping={state.grouping} subGrouping={state.subGrouping} settings={settings} dimmed={dimmed} update={update} />
-    ) : state.tab === 'detailed' ? (
-      <DetailedTab filters={filters} sort={state.sort} dir={state.dir} page={state.page} settings={settings} dimmed={dimmed} update={update} />
-    ) : (
-      <WeeklyTab filters={filters} by={state.weeklyRows} settings={settings} dimmed={dimmed} update={update} />
-    );
+    body =
+      state.tab === 'summary' ? (
+        <SummaryTab
+          report={data}
+          grouping={state.grouping}
+          subGrouping={state.subGrouping}
+          settings={settings}
+          dimmed={dimmed}
+          update={update}
+        />
+      ) : state.tab === 'detailed' ? (
+        <DetailedTab
+          filters={filters}
+          sort={state.sort}
+          dir={state.dir}
+          page={state.page}
+          settings={settings}
+          dimmed={dimmed}
+          update={update}
+        />
+      ) : (
+        <WeeklyTab filters={filters} by={state.weeklyRows} settings={settings} dimmed={dimmed} update={update} />
+      );
   }
 
   return (
@@ -79,7 +109,7 @@ export function ReportsPage() {
       </header>
       <Filters state={state} update={update} />
       <div className="report-tabs" role="tablist" aria-label="Report type">
-        {TABS.map((tab) => (
+        {TABS.map(tab => (
           <button
             key={tab}
             type="button"
@@ -93,8 +123,16 @@ export function ReportsPage() {
             {TAB_LABELS[tab]}
           </button>
         ))}
-        {report.isFetching && !report.isPending ? <span className="hint report-refreshing" role="status">Updating…</span> : null}
-        {report.isError && data ? <span className="hint report-stale" role="alert">Couldn't refresh. Showing the last result.</span> : null}
+        {report.isFetching && !report.isPending ? (
+          <span className="hint report-refreshing" role="status">
+            Updating…
+          </span>
+        ) : null}
+        {report.isError && data ? (
+          <span className="hint report-stale" role="alert">
+            Couldn't refresh. Showing the last result.
+          </span>
+        ) : null}
       </div>
       <div id="report-panel" role="tabpanel" aria-labelledby={`report-tab-${state.tab}`}>
         {body}

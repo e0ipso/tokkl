@@ -20,7 +20,11 @@ class TimerBusStartError extends Error {
 /** Any role that can connect may NOTIFY on the channel, so anything but the exact shape is dropped. */
 function parseSignal(payload: string | undefined): TimerSignal | undefined {
   let value: unknown;
-  try { value = JSON.parse(payload ?? ''); } catch { return undefined; }
+  try {
+    value = JSON.parse(payload ?? '');
+  } catch {
+    return undefined;
+  }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   const keys = Object.keys(value);
   if (keys.length !== 2 || !keys.includes('userId') || !keys.includes('revision')) return undefined;
@@ -42,7 +46,10 @@ function endQuietly(client: pg.Client, limitMs?: number): Promise<void> {
   if (limitMs === undefined) return ended;
   let timer: NodeJS.Timeout | undefined;
   const expired = new Promise<void>(resolve => {
-    timer = setTimeout(() => { client.connection.stream.destroy(); resolve(); }, limitMs);
+    timer = setTimeout(() => {
+      client.connection.stream.destroy();
+      resolve();
+    }, limitMs);
     timer.unref();
   });
   return Promise.race([ended, expired]).finally(() => clearTimeout(timer));
@@ -69,21 +76,32 @@ async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {
     });
     // A connection that drops before it becomes current must not be handed out as live.
     let dropped = false;
-    client.on('error', () => { dropped = true; lost(client); });
-    client.on('end', () => { dropped = true; lost(client); });
+    client.on('error', () => {
+      dropped = true;
+      lost(client);
+    });
+    client.on('end', () => {
+      dropped = true;
+      lost(client);
+    });
     let deadline: NodeJS.Timeout | undefined;
     const listening = client.connect().then(() => client.query(`LISTEN ${TIMER_BUS_CHANNEL}`));
     listening.catch(() => {});
     try {
-      await Promise.race([listening, new Promise<never>((_, reject) => {
-        deadline = setTimeout(() => reject(new TimerBusStartError()), config.connectTimeoutMs);
-      })]);
+      await Promise.race([
+        listening,
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(() => reject(new TimerBusStartError()), config.connectTimeoutMs);
+        }),
+      ]);
       if (dropped) throw new TimerBusStartError();
       return client;
     } catch {
       void endQuietly(client);
       throw new TimerBusStartError();
-    } finally { clearTimeout(deadline); }
+    } finally {
+      clearTimeout(deadline);
+    }
   }
 
   /** Only the live client may start a reconnect; late events from a replaced one are ignored. */
@@ -98,14 +116,27 @@ async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {
 
   function schedule(): void {
     if (closed || retry) return;
-    retry = setTimeout(() => { retry = undefined; attempt = reconnect().finally(() => { attempt = undefined; }); }, delay);
+    retry = setTimeout(() => {
+      retry = undefined;
+      attempt = reconnect().finally(() => {
+        attempt = undefined;
+      });
+    }, delay);
     delay = Math.min(delay * 2, MAX_RETRY_MS);
   }
 
   async function reconnect(): Promise<void> {
     let client: pg.Client;
-    try { client = await open(); } catch { schedule(); return; }
-    if (closed) { await endQuietly(client, config.connectTimeoutMs); return; }
+    try {
+      client = await open();
+    } catch {
+      schedule();
+      return;
+    }
+    if (closed) {
+      await endQuietly(client, config.connectTimeoutMs);
+      return;
+    }
     current = client;
     delay = FIRST_RETRY_MS;
     console.log('Timer bus reconnected');
@@ -122,7 +153,9 @@ async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {
         if (!closed) console.warn('Timer bus send failed');
       });
     },
-    receive(next) { handler = next; },
+    receive(next) {
+      handler = next;
+    },
     close() {
       closing ??= (async () => {
         closed = true;

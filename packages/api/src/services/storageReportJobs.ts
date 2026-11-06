@@ -8,8 +8,16 @@ import { formatReportEntries, type ReportUser, type ReportData } from './storage
 import { toTogglCsv, assembleJsonExport, assembleCsvExport } from './storageExport.ts';
 import type { AccountExportProjection } from '../storage/domain.ts';
 import {
-  groupEntries, resolutionFor, timeSeries, totalsOf, weeklyGrid,
-  type Dimension, type Group, type ReportEntry, type ReportFilter, type Resolution,
+  groupEntries,
+  resolutionFor,
+  timeSeries,
+  totalsOf,
+  weeklyGrid,
+  type Dimension,
+  type Group,
+  type ReportEntry,
+  type ReportFilter,
+  type Resolution,
 } from './storageReports.ts';
 
 /**
@@ -26,8 +34,21 @@ export type ReportJob =
   | { kind: 'v3-weekly'; filter: ReportFilter; weekStart: string }
   | { kind: 'app-weekly'; filter: ReportFilter; rows: 'projects' | 'clients' }
   | { kind: 'app-report'; filter: ReportFilter; grouping: Dimension; sub: Dimension }
-  | { kind: 'app-entries'; filter: ReportFilter; sort: 'date' | 'duration' | 'description'; dir: 'asc' | 'desc'; pageSize: number; page: number }
-  | { kind: 'app-detailed-csv'; filter: ReportFilter; sort: 'date' | 'duration' | 'description'; dir: 'asc' | 'desc'; durationFormat: unknown }
+  | {
+      kind: 'app-entries';
+      filter: ReportFilter;
+      sort: 'date' | 'duration' | 'description';
+      dir: 'asc' | 'desc';
+      pageSize: number;
+      page: number;
+    }
+  | {
+      kind: 'app-detailed-csv';
+      filter: ReportFilter;
+      sort: 'date' | 'duration' | 'description';
+      dir: 'asc' | 'desc';
+      durationFormat: unknown;
+    }
   | { kind: 'app-summary-csv'; filter: ReportFilter; grouping: Dimension; sub: Dimension; durationFormat: unknown };
 
 /** A finished response: a JSON or CSV body plus any extra headers. */
@@ -87,20 +108,22 @@ function detailedRow(entry: ReportEntry, rowNumber: number, user: { id: number; 
     task_name: entry.taskName,
     description: entry.description,
     billable: entry.billable,
-    tag_ids: entry.tags.map((tag) => tag.id),
-    tag_names: entry.tags.map((tag) => tag.name),
+    tag_ids: entry.tags.map(tag => tag.id),
+    tag_names: entry.tags.map(tag => tag.name),
     hourly_rate_in_cents: entry.hourlyRateCents,
     billable_amount_in_cents: entry.amountCents,
     currency: entry.currency,
     row_number: rowNumber,
-    time_entries: [{
-      id: entry.id,
-      seconds: entry.seconds,
-      start: togglTime(entry.start),
-      stop: togglTime(entry.stop),
-      at: togglTime(entry.at),
-      all_day: entry.allDay,
-    }],
+    time_entries: [
+      {
+        id: entry.id,
+        seconds: entry.seconds,
+        start: togglTime(entry.start),
+        stop: togglTime(entry.stop),
+        at: togglTime(entry.at),
+        all_day: entry.allDay,
+      },
+    ],
   };
 }
 
@@ -108,7 +131,7 @@ function summaryGroup(group: Group, groupingDimension: Dimension, includeIds: bo
   return {
     id: groupingDimension === 'description' ? null : group.id,
     ...(groupingDimension === 'project' ? { project_color: group.color, project_hex_color: group.color } : {}),
-    sub_groups: group.subGroups.map((sub) => ({
+    sub_groups: group.subGroups.map(sub => ({
       id: sub.id,
       title: sub.title,
       seconds: sub.seconds,
@@ -120,9 +143,14 @@ function summaryGroup(group: Group, groupingDimension: Dimension, includeIds: bo
 
 /** Toggl's detailed CSV layout. */
 function detailedCsv(entries: ReportEntry[], user: ReportUser, durationFormat: unknown): string {
-  return toTogglCsv(entries.map((entry) => ({
-    ...entry, tags: entry.tags.map((tag) => tag.name),
-  })), user, durationFormatOf(durationFormat));
+  return toTogglCsv(
+    entries.map(entry => ({
+      ...entry,
+      tags: entry.tags.map(tag => tag.name),
+    })),
+    user,
+    durationFormatOf(durationFormat),
+  );
 }
 
 /** One row per group, or per sub-group when the groups have them. */
@@ -140,10 +168,21 @@ function summaryCsv(groups: Group[], durationFormat: unknown): string {
 
 function appEntry(entry: ReportEntry) {
   return {
-    id: entry.id, description: entry.description, start: entry.start, stop: entry.stop, seconds: entry.seconds,
-    billable: entry.billable, project_id: entry.projectId, project_name: entry.projectName, project_color: entry.projectColor,
-    client_name: entry.clientName, task_name: entry.taskName, tags: entry.tags.map((tag) => tag.name),
-    amount_cents: entry.amountCents, currency: entry.currency, all_day: entry.allDay,
+    id: entry.id,
+    description: entry.description,
+    start: entry.start,
+    stop: entry.stop,
+    seconds: entry.seconds,
+    billable: entry.billable,
+    project_id: entry.projectId,
+    project_name: entry.projectName,
+    project_color: entry.projectColor,
+    client_name: entry.clientName,
+    task_name: entry.taskName,
+    tags: entry.tags.map(tag => tag.name),
+    amount_cents: entry.amountCents,
+    currency: entry.currency,
+    all_day: entry.allDay,
   };
 }
 
@@ -151,17 +190,35 @@ function rangeHeaders(startDate: string, endDate: string): Record<string, string
   return { 'X-Range-Start': startDate, 'X-Range-End': endDate };
 }
 
-const json = (value: unknown, headers: Record<string, string> = {}): JobResult => ({ type: 'json', body: JSON.stringify(value), headers });
-const csv = (body: string, filename: string, headers: Record<string, string> = {}): JobResult => ({ type: 'csv', body, filename, headers });
+const json = (value: unknown, headers: Record<string, string> = {}): JobResult => ({
+  type: 'json',
+  body: JSON.stringify(value),
+  headers,
+});
+const csv = (body: string, filename: string, headers: Record<string, string> = {}): JobResult => ({
+  type: 'csv',
+  body,
+  filename,
+  headers,
+});
 
 function v3Weekly(entries: ReportEntry[], user: ReportUser, weekStart: string) {
   const rows = new Map<string, ReturnType<typeof emptyWeeklyRow>>();
   function emptyWeeklyRow(entry: ReportEntry) {
     return {
-      user_id: user.id, user_name: user.fullName, project_id: entry.projectId, project_name: entry.projectName,
-      project_color: entry.projectColor, project_hex_color: entry.projectColor, client_name: entry.clientName,
-      planned_task_id: null, seconds: Array<number>(7).fill(0), billable_seconds: Array<number>(7).fill(0),
-      billable_amounts_in_cents: Array<number>(7).fill(0), hourly_rate_in_cents: entry.hourlyRateCents, currency: entry.currency,
+      user_id: user.id,
+      user_name: user.fullName,
+      project_id: entry.projectId,
+      project_name: entry.projectName,
+      project_color: entry.projectColor,
+      project_hex_color: entry.projectColor,
+      client_name: entry.clientName,
+      planned_task_id: null,
+      seconds: Array<number>(7).fill(0),
+      billable_seconds: Array<number>(7).fill(0),
+      billable_amounts_in_cents: Array<number>(7).fill(0),
+      hourly_rate_in_cents: entry.hourlyRateCents,
+      currency: entry.currency,
     };
   }
   for (const entry of entries) {
@@ -191,27 +248,43 @@ export function formatReportJob(data: ReportData, job: ReportJob): JobResult {
         headers['X-Next-Row-Number'] = String(firstRow + pageSize);
       }
       const page = sorted.slice(firstRow - 1, firstRow - 1 + pageSize);
-      return json(page.map((entry, i) => detailedRow(entry, firstRow + i, user)), headers);
+      return json(
+        page.map((entry, i) => detailedRow(entry, firstRow + i, user)),
+        headers,
+      );
     }
     case 'v3-totals': {
       const list = entries();
       const totals = totalsOf(list);
       const series = timeSeries(list, filter.startDate, filter.endDate, job.granularity, user.beginningOfWeek);
-      return json({
-        seconds: totals.seconds,
-        tracked_days: new Set(list.map((e) => e.date)).size,
-        billable_amount_in_cents: totals.amounts.reduce((sum, a) => sum + a.cents, 0),
-        labour_cost_in_cents: 0,
-        resolution: job.granularity,
-        rates: [],
-        graph: job.withGraph ? series.map((point) => ({ seconds: point.seconds, billable_amount_in_cents: 0, labour_cost_in_cents: 0, by_rate: {} })) : [],
-      }, rangeHeaders(filter.startDate, filter.endDate));
+      return json(
+        {
+          seconds: totals.seconds,
+          tracked_days: new Set(list.map(e => e.date)).size,
+          billable_amount_in_cents: totals.amounts.reduce((sum, a) => sum + a.cents, 0),
+          labour_cost_in_cents: 0,
+          resolution: job.granularity,
+          rates: [],
+          graph: job.withGraph
+            ? series.map(point => ({
+                seconds: point.seconds,
+                billable_amount_in_cents: 0,
+                labour_cost_in_cents: 0,
+                by_rate: {},
+              }))
+            : [],
+        },
+        rangeHeaders(filter.startDate, filter.endDate),
+      );
     }
     case 'v3-csv':
-      return csv(detailedCsv(sortDetailed(entries(), job.orderBy, job.orderDir), user, job.durationFormat), 'Toggl_time_entries.csv');
+      return csv(
+        detailedCsv(sortDetailed(entries(), job.orderBy, job.orderDir), user, job.durationFormat),
+        'Toggl_time_entries.csv',
+      );
     case 'v3-summary': {
       const groups = groupEntries(entries(), job.grouping, job.sub);
-      return json({ groups: groups.map((group) => summaryGroup(group, job.grouping, job.includeIds)) });
+      return json({ groups: groups.map(group => summaryGroup(group, job.grouping, job.includeIds)) });
     }
     case 'v3-summary-csv':
       return csv(summaryCsv(groupEntries(entries(), job.grouping, job.sub), job.durationFormat), 'Toggl_summary.csv');
@@ -244,15 +317,24 @@ export function formatReportJob(data: ReportData, job: ReportJob): JobResult {
           entry_count: totals.entryCount,
           amounts: totals.amounts,
         },
-        series: timeSeries(list, filter.startDate, filter.endDate, resolution, user.beginningOfWeek)
-          .map((point) => ({ start: point.start, seconds: point.seconds, billable_seconds: point.billableSeconds })),
-        groups: groupEntries(list, job.grouping, job.grouping === job.sub ? 'none' : job.sub).map(function toJson(group): unknown {
-          return {
-            id: group.id, title: group.title, color: group.color, seconds: group.seconds,
-            billable_seconds: group.billableSeconds, amount_cents: group.amountCents,
-            sub_groups: group.subGroups.map(toJson),
-          };
-        }),
+        series: timeSeries(list, filter.startDate, filter.endDate, resolution, user.beginningOfWeek).map(point => ({
+          start: point.start,
+          seconds: point.seconds,
+          billable_seconds: point.billableSeconds,
+        })),
+        groups: groupEntries(list, job.grouping, job.grouping === job.sub ? 'none' : job.sub).map(
+          function toJson(group): unknown {
+            return {
+              id: group.id,
+              title: group.title,
+              color: group.color,
+              seconds: group.seconds,
+              billable_seconds: group.billableSeconds,
+              amount_cents: group.amountCents,
+              sub_groups: group.subGroups.map(toJson),
+            };
+          },
+        ),
       });
     }
     case 'app-entries': {
@@ -265,12 +347,15 @@ export function formatReportJob(data: ReportData, job: ReportJob): JobResult {
         page,
         page_size: job.pageSize,
         pages,
-        has_amounts: sorted.some((entry) => entry.amountCents !== null),
+        has_amounts: sorted.some(entry => entry.amountCents !== null),
         entries: sorted.slice((page - 1) * job.pageSize, page * job.pageSize).map(appEntry),
       });
     }
     case 'app-detailed-csv':
-      return csv(detailedCsv(sortDetailed(entries(), job.sort, job.dir), user, job.durationFormat), 'tokkl_detailed.csv');
+      return csv(
+        detailedCsv(sortDetailed(entries(), job.sort, job.dir), user, job.durationFormat),
+        'tokkl_detailed.csv',
+      );
     case 'app-summary-csv': {
       const groups = groupEntries(entries(), job.grouping, job.grouping === job.sub ? 'none' : job.sub);
       return csv(summaryCsv(groups, job.durationFormat), 'tokkl_summary.csv');
@@ -290,7 +375,13 @@ export type ExportAssemblyJob =
   | { kind: 'export-json'; exportedAt: string; filename: string }
   | { kind: 'export-csv'; range: { from?: string; to?: string }; filename: string; durationFormat?: DurationFormat };
 export function formatExportJob(data: AccountExportProjection, job: ExportAssemblyJob): JobResult {
-  return { type: job.kind === 'export-json' ? 'json' : 'csv', filename: job.filename, headers: {},
-    body: job.kind === 'export-json' ? JSON.stringify(assembleJsonExport(data, job.exportedAt))
-      : assembleCsvExport(data, job.range, job.durationFormat) };
+  return {
+    type: job.kind === 'export-json' ? 'json' : 'csv',
+    filename: job.filename,
+    headers: {},
+    body:
+      job.kind === 'export-json'
+        ? JSON.stringify(assembleJsonExport(data, job.exportedAt))
+        : assembleCsvExport(data, job.range, job.durationFormat),
+  };
 }

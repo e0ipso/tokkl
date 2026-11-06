@@ -13,22 +13,33 @@ export function reportDuration(backend: Backend): RawBuilder<number> {
 }
 /** SQLite lower() folds ASCII only. Bind literal text, including %, _ and backslash. */
 export function reportContains(backend: Backend, search: string): RawBuilder<boolean> {
-  let value: RawBuilder<unknown> = backend === 'mysql' || backend === 'mariadb' ? sql`cast(e.description as binary)` : sql`e.description`;
+  let value: RawBuilder<unknown> =
+    backend === 'mysql' || backend === 'mariadb' ? sql`cast(e.description as binary)` : sql`e.description`;
   for (const letter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') value = sql`replace(${value}, ${letter}, ${letter.toLowerCase()})`;
   const needle = search.replace(/[A-Z]/g, c => c.toLowerCase());
-  return backend === 'postgres' ? sql<boolean>`strpos(${value}, ${needle}) > 0` : sql<boolean>`instr(${value}, ${needle}) > 0`;
+  return backend === 'postgres'
+    ? sql<boolean>`strpos(${value}, ${needle}) > 0`
+    : sql<boolean>`instr(${value}, ${needle}) > 0`;
 }
 export function reportIds(column: string, ids?: Array<number | null>): RawBuilder<boolean> | undefined {
   if (!ids?.length) return;
   const numeric = ids.filter((id): id is number => id !== null);
-  const clauses = [...(numeric.length ? [sql`${sql.ref(column)} in (${sql.join(numeric)})`] : []),
-    ...(ids.includes(null) ? [sql`${sql.ref(column)} is null`] : [])];
+  const clauses = [
+    ...(numeric.length ? [sql`${sql.ref(column)} in (${sql.join(numeric)})`] : []),
+    ...(ids.includes(null) ? [sql`${sql.ref(column)} is null`] : []),
+  ];
   return sql<boolean>`(${sql.join(clauses, sql` or `)})`;
 }
 export function reportTags(ids?: Array<number | null>): RawBuilder<boolean> | undefined {
   if (!ids?.length) return;
   const numeric = ids.filter((id): id is number => id !== null);
-  const clauses = [...(numeric.length ? [sql`exists (select 1 from time_entry_tags x where x.time_entry_id = e.id and x.tag_id in (${sql.join(numeric)}))`] : []),
-    ...(ids.includes(null) ? [sql`not exists (select 1 from time_entry_tags x where x.time_entry_id = e.id)`] : [])];
+  const clauses = [
+    ...(numeric.length
+      ? [
+          sql`exists (select 1 from time_entry_tags x where x.time_entry_id = e.id and x.tag_id in (${sql.join(numeric)}))`,
+        ]
+      : []),
+    ...(ids.includes(null) ? [sql`not exists (select 1 from time_entry_tags x where x.time_entry_id = e.id)`] : []),
+  ];
   return sql<boolean>`(${sql.join(clauses, sql` or `)})`;
 }

@@ -13,7 +13,7 @@ function block(name: string, top: number, bottom: number): Named {
 
 /** Each block's `name:lane/lanes`, in the order assignLanes returns them. */
 function placed(blocks: Named[]): string[] {
-  return assignLanes(blocks).map((b) => `${b.name}:${b.lane}/${b.lanes}`);
+  return assignLanes(blocks).map(b => `${b.name}:${b.lane}/${b.lanes}`);
 }
 
 // 09:00 is minute 540.
@@ -50,32 +50,37 @@ test('entries whose stored spans overlap split into lanes', () => {
 test('a zero-length entry inside another entry takes a lane beside it', () => {
   assert.deepEqual(placed([block('long', 540, 600), block('switch', 570, 570)]), ['long:0/2', 'switch:1/2']);
   // The entry that starts where the zero-length one sits reuses its lane.
-  assert.deepEqual(
-    placed([block('long', 500, 600), block('switch', 540, 540), block('next', 540, 560)]),
-    ['long:0/2', 'switch:1/2', 'next:1/2'],
-  );
+  assert.deepEqual(placed([block('long', 500, 600), block('switch', 540, 540), block('next', 540, 560)]), [
+    'long:0/2',
+    'switch:1/2',
+    'next:1/2',
+  ]);
 });
 
 test('a zero-length entry where one entry ends inside another takes the lane that just ended', () => {
-  assert.deepEqual(
-    placed([block('a', 540, 600), block('b', 570, 630), block('switch', 600, 600)]),
-    ['a:0/2', 'b:1/2', 'switch:0/2'],
-  );
+  assert.deepEqual(placed([block('a', 540, 600), block('b', 570, 630), block('switch', 600, 600)]), [
+    'a:0/2',
+    'b:1/2',
+    'switch:0/2',
+  ]);
 });
 
 test('a lane is reused once its block ends, and each cluster counts its own lanes', () => {
-  assert.deepEqual(
-    placed([block('a', 480, 540), block('b', 500, 520), block('c', 520, 560), block('d', 600, 660)]),
-    ['a:0/2', 'b:1/2', 'c:1/2', 'd:0/1'],
-  );
+  assert.deepEqual(placed([block('a', 480, 540), block('b', 500, 520), block('c', 520, 560), block('d', 600, 660)]), [
+    'a:0/2',
+    'b:1/2',
+    'c:1/2',
+    'd:0/1',
+  ]);
 });
 
 test('zero-length entries at one instant take separate lanes', () => {
   assert.deepEqual(placed([block('one', 540, 540), block('two', 540, 540)]), ['one:0/2', 'two:1/2']);
-  assert.deepEqual(
-    placed([block('one', 540, 540), block('two', 540, 540), block('three', 540, 540)]),
-    ['one:0/3', 'two:1/3', 'three:2/3'],
-  );
+  assert.deepEqual(placed([block('one', 540, 540), block('two', 540, 540), block('three', 540, 540)]), [
+    'one:0/3',
+    'two:1/3',
+    'three:2/3',
+  ]);
 });
 
 test('zero-length entries at different instants stay in one lane', () => {
@@ -83,21 +88,24 @@ test('zero-length entries at different instants stay in one lane', () => {
 });
 
 test('zero-length entries at one instant do not widen the entry that starts there or the one that ends there', () => {
-  assert.deepEqual(
-    placed([block('next', 540, 600), block('two', 540, 540), block('one', 540, 540)]),
-    ['two:0/2', 'one:1/2', 'next:0/1'],
-  );
-  assert.deepEqual(
-    placed([block('before', 480, 540), block('one', 540, 540), block('two', 540, 540)]),
-    ['before:0/1', 'one:0/2', 'two:1/2'],
-  );
+  assert.deepEqual(placed([block('next', 540, 600), block('two', 540, 540), block('one', 540, 540)]), [
+    'two:0/2',
+    'one:1/2',
+    'next:0/1',
+  ]);
+  assert.deepEqual(placed([block('before', 480, 540), block('one', 540, 540), block('two', 540, 540)]), [
+    'before:0/1',
+    'one:0/2',
+    'two:1/2',
+  ]);
 });
 
 test('zero-length entries at one instant inside a longer entry each take a lane beside it', () => {
-  assert.deepEqual(
-    placed([block('long', 500, 600), block('one', 540, 540), block('two', 540, 540)]),
-    ['long:0/3', 'one:1/3', 'two:2/3'],
-  );
+  assert.deepEqual(placed([block('long', 500, 600), block('one', 540, 540), block('two', 540, 540)]), [
+    'long:0/3',
+    'one:1/3',
+    'two:2/3',
+  ]);
 });
 
 test('no blocks, no lanes', () => {
@@ -111,7 +119,7 @@ const MIN_HEIGHT = 6;
 /** The height each named block needs, after laying the blocks out. */
 function clearances(blocks: Named[]): Record<string, number> {
   const laid = assignLanes(blocks);
-  return Object.fromEntries(laid.map((b) => [b.name, heightClearingMarkers(b, laid, PX_PER_MINUTE, MIN_HEIGHT)]));
+  return Object.fromEntries(laid.map(b => [b.name, heightClearingMarkers(b, laid, PX_PER_MINUTE, MIN_HEIGHT)]));
 }
 
 test('a block that starts with a zero-length entry is drawn tall enough to show below it', () => {
@@ -134,12 +142,16 @@ test('only zero-length entries at or above a block, in its part of the column, r
   assert.deepEqual(clearances([block('short', 540, 545), block('switch', 545, 545)]), { short: 6, switch: 6 });
   // The marker sits in the other lane of a longer entry, beside the block.
   const beside = assignLanes([block('long', 500, 600), block('switch', 540, 540), block('inner', 540, 545)]);
-  assert.deepEqual(beside.map((b) => `${b.name}:${b.lane}/${b.lanes}`), ['long:0/2', 'switch:1/2', 'inner:1/2']);
+  assert.deepEqual(
+    beside.map(b => `${b.name}:${b.lane}/${b.lanes}`),
+    ['long:0/2', 'switch:1/2', 'inner:1/2'],
+  );
   assert.equal(heightClearingMarkers(beside[0]!, beside, PX_PER_MINUTE, MIN_HEIGHT), 6);
   assert.equal(heightClearingMarkers(beside[2]!, beside, PX_PER_MINUTE, MIN_HEIGHT), 12);
   // Several markers at one instant sit side by side and still cover the whole width of the block.
-  assert.deepEqual(
-    clearances([block('one', 540, 540), block('two', 540, 540), block('short', 540, 545)]),
-    { one: 6, two: 6, short: 12 },
-  );
+  assert.deepEqual(clearances([block('one', 540, 540), block('two', 540, 540), block('short', 540, 545)]), {
+    one: 6,
+    two: 6,
+    short: 12,
+  });
 });

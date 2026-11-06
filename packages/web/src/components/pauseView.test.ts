@@ -8,8 +8,17 @@ const minutes = (n: number) => n * 60_000;
 
 function pause(overrides: Partial<TimerPause> = {}): TimerPause {
   return {
-    paused: true, seconds: 600, workspace_id: 1, description: 'Write the spec', project_id: 4, task_id: 9,
-    tag_ids: [2, 3], tags: ['docs', 'web'], billable: true, clone_entry_id: null, ...overrides,
+    paused: true,
+    seconds: 600,
+    workspace_id: 1,
+    description: 'Write the spec',
+    project_id: 4,
+    task_id: 9,
+    tag_ids: [2, 3],
+    tags: ['docs', 'web'],
+    billable: true,
+    clone_entry_id: null,
+    ...overrides,
   };
 }
 
@@ -43,7 +52,11 @@ test('an idle bar shows zero', () => {
 
 test('the draft of a paused bar is the fields Resume will start', () => {
   assert.deepEqual(pauseDraft(pause()), {
-    description: 'Write the spec', project_id: 4, task_id: 9, tags: ['docs', 'web'], billable: true,
+    description: 'Write the spec',
+    project_id: 4,
+    task_id: 9,
+    tags: ['docs', 'web'],
+    billable: true,
   });
 });
 

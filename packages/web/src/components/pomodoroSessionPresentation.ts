@@ -1,7 +1,9 @@
 import type { PomodoroPhaseKind, TimerState } from '../api/types.ts';
 
 export const SESSION_PHASE_LABEL: Record<PomodoroPhaseKind, string> = {
-  work: 'Work', shortRest: 'Short rest', longRest: 'Long rest',
+  work: 'Work',
+  shortRest: 'Short rest',
+  longRest: 'Long rest',
 };
 
 /** Whole seconds left until `plannedEnd`, rounded up, or seconds past it, rounded down. */
@@ -28,7 +30,7 @@ export function sessionTitle(pomodoro: NonNullable<TimerState['pomodoro']>, now:
  */
 export function createDiscardNotices(): (state: TimerState) => boolean {
   let seen: number | null | undefined;
-  return (state) => {
+  return state => {
     const id = state.discarded_pomodoro?.entry_id ?? null;
     const first = seen === undefined;
     const announce = !first && id !== null && id !== seen;

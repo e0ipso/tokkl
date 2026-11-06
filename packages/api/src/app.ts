@@ -73,7 +73,13 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   return res.status(500).json('Internal Server Error');
 };
 
-export function createApp({ storage, config, setup, timerStreamOptions, timerBus = createLocalTimerBus() }: AppOptions): Express {
+export function createApp({
+  storage,
+  config,
+  setup,
+  timerStreamOptions,
+  timerBus = createLocalTimerBus(),
+}: AppOptions): Express {
   const app = express();
   const loginLimiter = new FailureLimiter(storage.rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   const deps: Deps = {
@@ -96,9 +102,18 @@ export function createApp({ storage, config, setup, timerStreamOptions, timerBus
   const active = new Set<AbortController>();
   let closing = false;
   app.use((req, res, next) => {
-    if (closing) { res.status(503).json('Server shutting down'); return; }
-    const controller = new AbortController(); active.add(controller); res.locals.workSignal = controller.signal;
-    res.once('close', () => { controller.abort(); active.delete(controller); }); next();
+    if (closing) {
+      res.status(503).json('Server shutting down');
+      return;
+    }
+    const controller = new AbortController();
+    active.add(controller);
+    res.locals.workSignal = controller.signal;
+    res.once('close', () => {
+      controller.abort();
+      active.delete(controller);
+    });
+    next();
   });
   app.locals.services = deps;
   app.locals.close = async () => {
@@ -130,11 +145,14 @@ export function createApp({ storage, config, setup, timerStreamOptions, timerBus
   if (existsSync(indexPath)) {
     // Hashed assets never change, so they can be cached for good. A miss must not fall through to
     // index.html, or a browser would cache HTML under a script URL for a year.
-    app.use('/assets', express.static(join(config.webRoot, 'assets'), {
-      immutable: true,
-      maxAge: '365d',
-      fallthrough: false,
-    }));
+    app.use(
+      '/assets',
+      express.static(join(config.webRoot, 'assets'), {
+        immutable: true,
+        maxAge: '365d',
+        fallthrough: false,
+      }),
+    );
     app.use(express.static(config.webRoot, { index: false }));
     // Read on every request (it is under 1 KB) so a rebuild never leaves the server pointing at
     // asset files that no longer exist.

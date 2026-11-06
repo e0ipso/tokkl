@@ -11,7 +11,14 @@ import { ProjectEditor } from './manage/ProjectEditor.tsx';
 import { includesText, useAction, wsPath } from './manage/queries.ts';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import {
-  ConfirmModal, RowMenu, STATUS_OPTIONS, SearchBox, Segmented, StatusBadge, matchesStatus, type StatusFilter,
+  ConfirmModal,
+  RowMenu,
+  STATUS_OPTIONS,
+  SearchBox,
+  Segmented,
+  StatusBadge,
+  matchesStatus,
+  type StatusFilter,
 } from './manage/ui.tsx';
 import './manage/manage.css';
 
@@ -27,10 +34,19 @@ function EstimateBar({ project, settings }: { project: Project; settings: Settin
   const over = percent > 100;
   return (
     <div className="estimate" title={`${duration(project.actual_seconds, settings)} of ${project.estimated_hours} h`}>
-      <div className="estimate-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(percent, 100)} aria-label="Estimate used">
+      <div
+        className="estimate-track"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.min(percent, 100)}
+        aria-label="Estimate used"
+      >
         <div className={`estimate-fill${over ? ' is-over' : ''}`} style={{ width: `${Math.min(percent, 100)}%` }} />
       </div>
-      <span className={`estimate-label${over ? ' is-over' : ''}`}>{percent}% of {project.estimated_hours} h</span>
+      <span className={`estimate-label${over ? ' is-over' : ''}`}>
+        {percent}% of {project.estimated_hours} h
+      </span>
     </div>
   );
 }
@@ -54,19 +70,25 @@ export function ProjectsPage() {
   const tbody = useRef<HTMLTableSectionElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
 
-  const visible = useMemo(() => (projects ?? []).filter((project) =>
-    matchesStatus(!project.active, status)
-    && (includesText(project.name, search) || includesText(project.client_name, search))
-    && (clientFilter === 'any' || (clientFilter === 'none' ? project.client_id === null : project.client_id === clientFilter)),
-  ), [projects, status, search, clientFilter]);
+  const visible = useMemo(
+    () =>
+      (projects ?? []).filter(
+        project =>
+          matchesStatus(!project.active, status) &&
+          (includesText(project.name, search) || includesText(project.client_name, search)) &&
+          (clientFilter === 'any' ||
+            (clientFilter === 'none' ? project.client_id === null : project.client_id === clientFilter)),
+      ),
+    [projects, status, search, clientFilter],
+  );
 
   const setActive = useAction<{ project: Project; active: boolean }, Project>({
     mutationFn: ({ project, active }) => api.put<Project>(wsPath(wid, 'projects', project.id), { active }),
     invalidate: PROJECT_KEYS,
-    success: (saved) => (saved.active ? `Restored ${saved.name}` : `Archived ${saved.name}`),
+    success: saved => (saved.active ? `Restored ${saved.name}` : `Archived ${saved.name}`),
     // The row leaves the list when the status filter no longer matches. The menu button that ran the
     // action had focus; keep it in the list unless the user has moved on.
-    onSuccess: (saved) => {
+    onSuccess: saved => {
       if (!matchesStatus(!saved.active, status)) keepFocusPastRow(tbody.current, saved.id, 'menu', heading.current);
     },
   });
@@ -74,9 +96,10 @@ export function ProjectsPage() {
   const remove = useAction<{ project: Project; mode: DeletionMode }>({
     mutationFn: ({ project, mode }) => api.delete(`${wsPath(wid, 'projects', project.id)}?teDeletionMode=${mode}`),
     invalidate: [...PROJECT_KEYS, keys.trash],
-    success: (_result, { project, mode }) => (mode === 'delete'
-      ? `Deleted ${project.name} and moved its entries to the trash`
-      : `Deleted ${project.name}. Its entries no longer have a project`),
+    success: (_result, { project, mode }) =>
+      mode === 'delete'
+        ? `Deleted ${project.name} and moved its entries to the trash`
+        : `Deleted ${project.name}. Its entries no longer have a project`,
     onSuccess: (_result, { project }) => {
       // The dialog had focus and would give it back to the row's menu button, which goes away.
       focusPastRow(tbody.current, project.id, 'menu', heading.current);
@@ -85,13 +108,16 @@ export function ProjectsPage() {
   });
 
   // Edit the freshest copy, so the modal reflects changes made since the list loaded.
-  const editingProject = editing === 'new' || editing === null ? editing : projects?.find((p) => p.id === editing.id) ?? editing;
+  const editingProject =
+    editing === 'new' || editing === null ? editing : (projects?.find(p => p.id === editing.id) ?? editing);
   const defaultCurrency = workspace?.default_currency ?? 'EUR';
 
   return (
     <div className="page manage-page">
       <header className="page-header">
-        <h1 ref={heading} tabIndex={-1}>Projects</h1>
+        <h1 ref={heading} tabIndex={-1}>
+          Projects
+        </h1>
         <span className="spacer" />
         <button type="button" className="button button-primary" onClick={() => setEditing('new')}>
           <Icon name="plus" size={16} /> New project
@@ -104,18 +130,24 @@ export function ProjectsPage() {
         <select
           aria-label="Client"
           value={String(clientFilter)}
-          onChange={(event) => {
+          onChange={event => {
             const value = event.target.value;
             setClientFilter(value === 'any' || value === 'none' ? value : Number(value));
           }}
         >
           <option value="any">All clients</option>
           <option value="none">No client</option>
-          {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+          {clients.map(client => (
+            <option key={client.id} value={client.id}>
+              {client.name}
+            </option>
+          ))}
         </select>
       </div>
 
-      {error ? <LoadError message={`Could not load projects: ${error.message}`} onRetry={() => void refetch()} /> : null}
+      {error ? (
+        <LoadError message={`Could not load projects: ${error.message}`} onRetry={() => void refetch()} />
+      ) : null}
       {isLoading ? <Loading label="Loading projects…" /> : null}
       {projects && visible.length === 0 ? (
         projects.length === 0 ? (
@@ -141,11 +173,13 @@ export function ProjectsPage() {
                 <th className="num">Rate</th>
                 <th className="num">Tracked</th>
                 <th>Estimate</th>
-                <th><span className="visually-hidden">Actions</span></th>
+                <th>
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody ref={tbody}>
-              {visible.map((project) => (
+              {visible.map(project => (
                 <tr key={project.id} data-id={project.id} className={project.active ? undefined : 'archived'}>
                   <td>
                     <button type="button" className="manage-name-button" onClick={() => setEditing(project)}>
@@ -154,13 +188,25 @@ export function ProjectsPage() {
                     </button>
                   </td>
                   <td>{project.client_name ?? <span className="muted">None</span>}</td>
-                  <td><StatusBadge archived={!project.active} /></td>
+                  <td>
+                    <StatusBadge archived={!project.active} />
+                  </td>
                   <td>{project.billable ? 'Yes' : <span className="muted">No</span>}</td>
-                  <td className="num">{rateText(project, defaultCurrency) ?? <span className="muted">Default</span>}</td>
+                  <td className="num">
+                    {rateText(project, defaultCurrency) ?? <span className="muted">Default</span>}
+                  </td>
                   <td className="num">{duration(project.actual_seconds, settings)}</td>
-                  <td><EstimateBar project={project} settings={settings} /></td>
+                  <td>
+                    <EstimateBar project={project} settings={settings} />
+                  </td>
                   <td className="manage-actions">
-                    <button type="button" className="icon-button" aria-label={`Edit ${project.name}`} title="Edit" onClick={() => setEditing(project)}>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Edit ${project.name}`}
+                      title="Edit"
+                      onClick={() => setEditing(project)}
+                    >
                       <Icon name="edit" size={16} />
                     </button>
                     <RowMenu
@@ -168,7 +214,11 @@ export function ProjectsPage() {
                       items={[
                         project.active
                           ? { label: 'Archive', onSelect: () => setActive.mutate({ project, active: false }) }
-                          : { label: 'Restore', icon: 'undo', onSelect: () => setActive.mutate({ project, active: true }) },
+                          : {
+                              label: 'Restore',
+                              icon: 'undo',
+                              onSelect: () => setActive.mutate({ project, active: true }),
+                            },
                         { label: 'Delete', icon: 'trash', danger: true, onSelect: () => setDeleting(project) },
                       ]}
                     />
@@ -196,24 +246,29 @@ export function ProjectsPage() {
           busy={remove.isPending}
           onConfirm={() => remove.mutate({ project: deleting, mode: 'unassign' })}
           onClose={() => setDeleting(null)}
-          extraActions={deleting.actual_seconds === 0 ? undefined : (
-            <button
-              type="button"
-              className="button button-danger"
-              disabled={remove.isPending}
-              onClick={() => remove.mutate({ project: deleting, mode: 'delete' })}
-            >
-              Delete entries too
-            </button>
-          )}
+          extraActions={
+            deleting.actual_seconds === 0 ? undefined : (
+              <button
+                type="button"
+                className="button button-danger"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate({ project: deleting, mode: 'delete' })}
+              >
+                Delete entries too
+              </button>
+            )
+          }
         >
           <p>This deletes the project and its tasks. You can't undo it.</p>
           {deleting.actual_seconds > 0 ? (
             <p>
-              It has {duration(deleting.actual_seconds, settings)} of tracked time. Keep those entries without a project,
-              or delete them too. Deleted entries go to the trash. If you restore them later, they come back without a project.
+              It has {duration(deleting.actual_seconds, settings)} of tracked time. Keep those entries without a
+              project, or delete them too. Deleted entries go to the trash. If you restore them later, they come back
+              without a project.
             </p>
-          ) : <p>It has no tracked time.</p>}
+          ) : (
+            <p>It has no tracked time.</p>
+          )}
         </ConfirmModal>
       ) : null}
     </div>

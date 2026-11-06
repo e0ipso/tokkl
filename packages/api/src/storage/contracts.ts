@@ -1,20 +1,59 @@
 import type {
-  AccountExportProjection, AccountToken, Client, EntryBounds, EntryDetails, EntryDuplicateKey, Id,
-  InstanceSettings, JsonObject, Membership, MembershipRole, PauseChain, PomodoroSession, Project,
-  ProjectRef, ProjectSummary, ReportEntryProjection, Session, SettingChange, Tag, Task, TaskRef,
-  TaskSummary, TimeEntry, TimerRevision, TimerSnapshot, User, UserRole, UtcInstant, Workspace, WorkspaceMember,
+  AccountExportProjection,
+  AccountToken,
+  Client,
+  EntryBounds,
+  EntryDetails,
+  EntryDuplicateKey,
+  Id,
+  InstanceSettings,
+  JsonObject,
+  Membership,
+  MembershipRole,
+  PauseChain,
+  PomodoroSession,
+  Project,
+  ProjectRef,
+  ProjectSummary,
+  ReportEntryProjection,
+  Session,
+  SettingChange,
+  Tag,
+  Task,
+  TaskRef,
+  TaskSummary,
+  TimeEntry,
+  TimerRevision,
+  TimerSnapshot,
+  User,
+  UserRole,
+  UtcInstant,
+  Workspace,
+  WorkspaceMember,
 } from './domain.ts';
 
 // Inputs have passed domain validation. Repositories still enforce scoping and database constraints.
 export interface NewAccount {
-  email: string; fullName: string; passwordHash: string; apiToken: string; timezone: string;
-  role: UserRole; preferences: JsonObject;
+  email: string;
+  fullName: string;
+  passwordHash: string;
+  apiToken: string;
+  timezone: string;
+  role: UserRole;
+  preferences: JsonObject;
 }
 export interface AccountChanges {
-  email?: string; fullName?: string; timezone?: string; beginningOfWeek?: number; defaultWorkspaceId?: Id;
+  email?: string;
+  fullName?: string;
+  timezone?: string;
+  beginningOfWeek?: number;
+  defaultWorkspaceId?: Id;
 }
 /** Revision 0 stands for a user without stored timer state. */
-export interface UserTimerRevision { user: User; timerRevision: number }
+export interface UserTimerRevision {
+  user: User;
+  timerRevision: number;
+}
 export interface UsersRepository {
   count(): Promise<number>;
   countActiveAdmins(): Promise<number>;
@@ -39,7 +78,12 @@ export interface WorkspacesRepository {
   forMember(userId: Id, workspaceId: Id): Promise<Workspace | undefined>;
   listForUser(userId: Id): Promise<Workspace[]>;
   create(name: string): Promise<Workspace>;
-  update(id: Id, changes: Partial<Pick<Workspace, 'name' | 'defaultCurrency' | 'defaultHourlyRate' | 'rounding' | 'roundingMinutes'>>): Promise<Workspace>;
+  update(
+    id: Id,
+    changes: Partial<
+      Pick<Workspace, 'name' | 'defaultCurrency' | 'defaultHourlyRate' | 'rounding' | 'roundingMinutes'>
+    >,
+  ): Promise<Workspace>;
   getRole(userId: Id, workspaceId: Id): Promise<MembershipRole | undefined>;
   addMember(membership: Membership): Promise<void>;
   countMembers(workspaceId: Id): Promise<number>;
@@ -69,7 +113,10 @@ export interface SessionsRepository {
   deleteExpired(now: UtcInstant): Promise<number>;
 }
 /** A hashed limiter key and the failures it allows per window. */
-export interface RateLimitCounter { keyHash: string; limit: number }
+export interface RateLimitCounter {
+  keyHash: string;
+  limit: number;
+}
 export type RateLimitCounterKey = Pick<RateLimitCounter, 'keyHash'>;
 export type RateLimitReservation =
   | { ok: true; reservations: string[] }
@@ -86,13 +133,27 @@ export interface RateLimitsRepository {
    * All or none: one reservation per counter, or none when any counter is blocked or full. A refusal
    * keeps no counter row it would have created.
    */
-  reserve(counters: readonly RateLimitCounter[], now: UtcInstant, windowMs: number, leaseMs: number): Promise<RateLimitReservation>;
+  reserve(
+    counters: readonly RateLimitCounter[],
+    now: UtcInstant,
+    windowMs: number,
+    leaseMs: number,
+  ): Promise<RateLimitReservation>;
   /** Deletes the reservations. A failed check adds one failure to every counter. */
-  release(reservations: readonly string[], counters: readonly RateLimitCounterKey[], failed: boolean, now: UtcInstant, windowMs: number): Promise<void>;
+  release(
+    reservations: readonly string[],
+    counters: readonly RateLimitCounterKey[],
+    failed: boolean,
+    now: UtcInstant,
+    windowMs: number,
+  ): Promise<void>;
   /** Clears failures. Live reservations keep their slots. */
   reset(keyHashes: readonly string[], now: UtcInstant): Promise<void>;
 }
-export interface ClientFilter { status?: 'active' | 'archived' | 'both'; name?: string }
+export interface ClientFilter {
+  status?: 'active' | 'archived' | 'both';
+  name?: string;
+}
 export interface ClientsRepository {
   list(workspaceId: Id, filter?: ClientFilter): Promise<Client[]>;
   get(workspaceId: Id, id: Id): Promise<Client | undefined>;
@@ -106,7 +167,13 @@ export interface ClientsRepository {
   /** Atomically detaches projects, resolving resulting name collisions before removing the client. */
   deleteAndDetachProjects(workspaceId: Id, id: Id): Promise<void>;
 }
-export interface ProjectFilter { active?: boolean | 'both'; name?: string; clientIds?: Id[]; billable?: boolean; changedSince?: UtcInstant }
+export interface ProjectFilter {
+  active?: boolean | 'both';
+  name?: string;
+  clientIds?: Id[];
+  billable?: boolean;
+  changedSince?: UtcInstant;
+}
 export type ProjectInput = Omit<Project, 'id' | 'createdAt' | 'updatedAt'>;
 export interface ProjectsRepository {
   count(workspaceId: Id): Promise<number>;
@@ -129,7 +196,12 @@ export interface TasksRepository {
   getRef(workspaceId: Id, id: Id): Promise<TaskRef | undefined>;
   findByName(workspaceId: Id, projectId: Id, name: string): Promise<Task | undefined>;
   create(input: TaskInput): Promise<TaskSummary>;
-  update(workspaceId: Id, projectId: Id, id: Id, changes: Partial<Pick<Task, 'name' | 'active' | 'estimatedSeconds'>>): Promise<TaskSummary>;
+  update(
+    workspaceId: Id,
+    projectId: Id,
+    id: Id,
+    changes: Partial<Pick<Task, 'name' | 'active' | 'estimatedSeconds'>>,
+  ): Promise<TaskSummary>;
   delete(workspaceId: Id, projectId: Id, id: Id): Promise<void>;
 }
 export interface TagsRepository {
@@ -143,7 +215,11 @@ export interface TagsRepository {
   delete(workspaceId: Id, id: Id): Promise<void>;
 }
 export interface EntryFilter {
-  from?: UtcInstant; to?: UtcInstant; changedSince?: UtcInstant; projectIds?: Array<Id | null>; limit?: number;
+  from?: UtcInstant;
+  to?: UtcInstant;
+  changedSince?: UtcInstant;
+  projectIds?: Array<Id | null>;
+  limit?: number;
 }
 /** Exact normalized values; application rules snap live writes before invoking persistence. */
 export type EntryInput = Omit<TimeEntry, 'id' | 'createdAt' | 'updatedAt'> & { tagIds: Id[] };
@@ -155,7 +231,12 @@ export interface EntriesRepository {
   create(input: EntryInput): Promise<EntryDetails>;
   /** Same integrity checks as create, without reloading labels discarded by import callers. */
   insert(input: EntryInput): Promise<Id>;
-  update(userId: Id, workspaceId: Id, id: Id, changes: Partial<Omit<EntryInput, 'userId' | 'workspaceId'>>): Promise<EntryDetails>;
+  update(
+    userId: Id,
+    workspaceId: Id,
+    id: Id,
+    changes: Partial<Omit<EntryInput, 'userId' | 'workspaceId'>>,
+  ): Promise<EntryDetails>;
   setTags(userId: Id, entryId: Id, tagIds: Id[]): Promise<void>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;
   restore(userId: Id, id: Id): Promise<EntryDetails>;
@@ -181,12 +262,21 @@ export interface TimersRepository {
 }
 export interface ReportSelection {
   /** UTC half-open start range, derived by application calendar rules. */
-  from: UtcInstant; to: UtcInstant;
-  projectIds?: Array<Id | null>; clientIds?: Array<Id | null>; taskIds?: Array<Id | null>;
-  tagIds?: Array<Id | null>; userIds?: Array<Id | null>;
-  excludeProjectIds?: Array<Id | null>; excludeClientIds?: Array<Id | null>; excludeTagIds?: Array<Id | null>;
-  timeEntryIds?: Id[]; billable?: boolean; description?: string;
-  minDurationSeconds?: number; maxDurationSeconds?: number;
+  from: UtcInstant;
+  to: UtcInstant;
+  projectIds?: Array<Id | null>;
+  clientIds?: Array<Id | null>;
+  taskIds?: Array<Id | null>;
+  tagIds?: Array<Id | null>;
+  userIds?: Array<Id | null>;
+  excludeProjectIds?: Array<Id | null>;
+  excludeClientIds?: Array<Id | null>;
+  excludeTagIds?: Array<Id | null>;
+  timeEntryIds?: Id[];
+  billable?: boolean;
+  description?: string;
+  minDurationSeconds?: number;
+  maxDurationSeconds?: number;
 }
 export interface ReportsRepository {
   /** Stopped, live entries ordered by start/id, with ordered tags in bounded relational queries. */
@@ -199,10 +289,20 @@ export interface TransfersRepository {
   hasRunningEntry(userId: Id): Promise<boolean>;
 }
 export interface Repositories {
-  users: UsersRepository; workspaces: WorkspacesRepository; settings: SettingsRepository;
-  tokens: TokensRepository; sessions: SessionsRepository; rateLimits: RateLimitsRepository; clients: ClientsRepository;
-  projects: ProjectsRepository; tasks: TasksRepository; tags: TagsRepository;
-  entries: EntriesRepository; timers: TimersRepository; reports: ReportsRepository; transfers: TransfersRepository;
+  users: UsersRepository;
+  workspaces: WorkspacesRepository;
+  settings: SettingsRepository;
+  tokens: TokensRepository;
+  sessions: SessionsRepository;
+  rateLimits: RateLimitsRepository;
+  clients: ClientsRepository;
+  projects: ProjectsRepository;
+  tasks: TasksRepository;
+  tags: TagsRepository;
+  entries: EntriesRepository;
+  timers: TimersRepository;
+  reports: ReportsRepository;
+  transfers: TransfersRepository;
 }
 /** SQL-free operations shared by transaction-bound repository sets. */
 export interface TransactionScope<R extends object> {
@@ -225,4 +325,7 @@ export interface Storage extends Repositories {
   close(): Promise<void>;
 }
 /** Startup owns migration invocation; report readers must never invoke it. */
-export interface MigrationLifecycle { migrate(): Promise<void>; verifyCurrent(): Promise<void> }
+export interface MigrationLifecycle {
+  migrate(): Promise<void>;
+  verifyCurrent(): Promise<void>;
+}

@@ -6,14 +6,17 @@ import { test as base, type InstanceSettings } from './fixtures.ts';
  * belong to the whole e2e server rather than to one account's workspace.
  */
 export const test = base.extend<{ instance: InstanceSettings }>({
-  instance: [async ({ data }, use) => {
-    const saved = await data.instanceSettings();
-    try {
-      await use(saved);
-    } finally {
-      await data.saveInstanceSettings(saved);
-    }
-  }, { auto: true }],
+  instance: [
+    async ({ data }, use) => {
+      const saved = await data.instanceSettings();
+      try {
+        await use(saved);
+      } finally {
+        await data.saveInstanceSettings(saved);
+      }
+    },
+    { auto: true },
+  ],
 });
 
 export { expect };

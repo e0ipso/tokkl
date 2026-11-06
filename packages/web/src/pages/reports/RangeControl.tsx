@@ -3,7 +3,15 @@ import { arrowTarget } from '../../components/arrowKeys.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
 import {
-  PRESETS, PRESET_LABELS, formatRange, isDateKey, matchingPreset, presetRange, shiftRange, type DateRange, type Preset,
+  PRESETS,
+  PRESET_LABELS,
+  formatRange,
+  isDateKey,
+  matchingPreset,
+  presetRange,
+  shiftRange,
+  type DateRange,
+  type Preset,
 } from './range.ts';
 import type { ReportPatch } from './urlState.ts';
 
@@ -14,12 +22,21 @@ import type { ReportPatch } from './urlState.ts';
 function ownsArrows(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target.closest('[data-own-arrows]') !== null) return true;
-  return target instanceof HTMLElement
-    && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  );
 }
 
 /** Preset list plus a custom range, with arrows that move the range by its own length. */
-export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDay, update }: {
+export function RangeControl({
+  range,
+  preset,
+  todayKey,
+  beginningOfWeek,
+  firstDay,
+  update,
+}: {
   range: DateRange;
   preset: Preset | null;
   todayKey: string;
@@ -82,7 +99,13 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
 
   return (
     <div className="range-control">
-      <button type="button" className="icon-button" aria-label="Previous period" title="Previous period (Left arrow)" onClick={() => shift(-1)}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Previous period"
+        title="Previous period (Left arrow)"
+        onClick={() => shift(-1)}
+      >
         <Icon name="chevronLeft" />
       </button>
       <button
@@ -93,14 +116,20 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
         aria-expanded={open}
         onClick={() => {
           setCustom(range);
-          setOpen((v) => !v);
+          setOpen(v => !v);
         }}
       >
         <Icon name="calendar" size={16} />
         {active ? <strong>{PRESET_LABELS[active]}</strong> : null}
         <span className={active ? 'muted' : undefined}>{formatRange(range, todayKey)}</span>
       </button>
-      <button type="button" className="icon-button" aria-label="Next period" title="Next period (Right arrow)" onClick={() => shift(1)}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Next period"
+        title="Next period (Right arrow)"
+        onClick={() => shift(1)}
+      >
         <Icon name="chevronRight" />
       </button>
       {open ? (
@@ -109,7 +138,9 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
             {PRESETS.map((name, index) => (
               <button
                 key={name}
-                ref={(element) => { presets.current[index] = element; }}
+                ref={element => {
+                  presets.current[index] = element;
+                }}
                 type="button"
                 role="option"
                 tabIndex={index === tabStop ? 0 : -1}
@@ -117,21 +148,23 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
                 className={`range-preset${active === name ? ' selected' : ''}`}
                 onClick={() => choose(name)}
                 onFocus={() => setFocused(index)}
-                onKeyDown={(event) => {
+                onKeyDown={event => {
                   const next = arrowTarget(event.key, index, PRESETS.length, true);
                   if (next === null) return;
                   event.preventDefault();
                   presets.current[next]?.focus();
                 }}
               >
-                <span className="range-check" aria-hidden="true">{active === name ? <Icon name="check" size={16} /> : null}</span>
+                <span className="range-check" aria-hidden="true">
+                  {active === name ? <Icon name="check" size={16} /> : null}
+                </span>
                 {PRESET_LABELS[name]}
               </button>
             ))}
           </div>
           <form
             className="range-custom"
-            onSubmit={(event) => {
+            onSubmit={event => {
               event.preventDefault();
               applyCustom();
             }}
@@ -139,13 +172,25 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
             <span className="range-custom-title">Custom</span>
             <label className="field">
               <span>From</span>
-              <input type="date" value={custom.from} required onChange={(event) => setCustom({ ...custom, from: event.target.value })} />
+              <input
+                type="date"
+                value={custom.from}
+                required
+                onChange={event => setCustom({ ...custom, from: event.target.value })}
+              />
             </label>
             <label className="field">
               <span>To</span>
-              <input type="date" value={custom.to} required onChange={(event) => setCustom({ ...custom, to: event.target.value })} />
+              <input
+                type="date"
+                value={custom.to}
+                required
+                onChange={event => setCustom({ ...custom, to: event.target.value })}
+              />
             </label>
-            <button type="submit" className="button button-primary">Apply</button>
+            <button type="submit" className="button button-primary">
+              Apply
+            </button>
           </form>
         </Popover>
       ) : null}

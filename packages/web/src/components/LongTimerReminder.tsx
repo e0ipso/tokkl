@@ -14,9 +14,17 @@ interface Reminder {
 function read(key: string): Reminder | null {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
-    if (value && typeof value === 'object' && 'timer' in value && typeof value.timer === 'string'
-      && 'notified' in value && typeof value.notified === 'boolean'
-      && 'confirmed' in value && typeof value.confirmed === 'boolean') return value as Reminder;
+    if (
+      value &&
+      typeof value === 'object' &&
+      'timer' in value &&
+      typeof value.timer === 'string' &&
+      'notified' in value &&
+      typeof value.notified === 'boolean' &&
+      'confirmed' in value &&
+      typeof value.confirmed === 'boolean'
+    )
+      return value as Reminder;
   } catch {
     // Blocked storage and old or damaged values leave the reminder usable in this tab.
   }
@@ -35,8 +43,12 @@ export function LongTimerReminder() {
   const key = `tokkl.longTimerReminder.${me?.id ?? 0}`;
   const timer = current ? `${current.id}:${current.start}` : null;
   const hours = prefs?.long_timer_reminder_hours ?? 8;
-  const due = !!me && !!prefs && prefs.long_timer_reminder_enabled && !!current
-    && now - Date.parse(current.start) > hours * 3_600_000;
+  const due =
+    !!me &&
+    !!prefs &&
+    prefs.long_timer_reminder_enabled &&
+    !!current &&
+    now - Date.parse(current.start) > hours * 3_600_000;
   const stored = read(key) ?? (memory.current?.key === key ? memory.current.value : null);
   const confirmed = stored?.timer === timer && stored.confirmed;
 
@@ -47,12 +59,12 @@ export function LongTimerReminder() {
     } catch {
       // Keep confirmation in memory when browser storage is unavailable.
     }
-    refresh((revision) => revision + 1);
+    refresh(revision => revision + 1);
   };
 
   useEffect(() => {
     const changed = (event: StorageEvent) => {
-      if (event.key === key || event.key === null) refresh((revision) => revision + 1);
+      if (event.key === key || event.key === null) refresh(revision => revision + 1);
     };
     window.addEventListener('storage', changed);
     return () => window.removeEventListener('storage', changed);
@@ -64,19 +76,31 @@ export function LongTimerReminder() {
     const latest = read(key) ?? (memory.current?.key === key ? memory.current.value : null);
     if (latest?.timer === timer && (latest.confirmed || latest.notified)) return;
     write({ timer, notified: true, confirmed: false });
-    notifyInBackground('Is your timer still running on purpose?',
+    notifyInBackground(
+      'Is your timer still running on purpose?',
       `Your timer has been running for more than ${hours} ${hours === 1 ? 'hour' : 'hours'}. Open Tokkl to confirm or review it.`,
-      `tokkl-long-timer-${me?.id}`);
+      `tokkl-long-timer-${me?.id}`,
+    );
   });
 
   if (!due || confirmed || !timer) return null;
   return (
     <div className="timer-reminder" role="status" aria-label="Long-running timer reminder">
-      <span>Your timer has been running for more than {hours} {hours === 1 ? 'hour' : 'hours'}. Is it still running on purpose?</span>
+      <span>
+        Your timer has been running for more than {hours} {hours === 1 ? 'hour' : 'hours'}. Is it still running on
+        purpose?
+      </span>
       <div className="inline-controls">
-        <button type="button" className="button button-ghost"
-          onClick={() => write({ timer, notified: true, confirmed: true })}>Keep running</button>
-        <Link href="/" className="button button-ghost">Review timer</Link>
+        <button
+          type="button"
+          className="button button-ghost"
+          onClick={() => write({ timer, notified: true, confirmed: true })}
+        >
+          Keep running
+        </button>
+        <Link href="/" className="button button-ghost">
+          Review timer
+        </Link>
       </div>
     </div>
   );

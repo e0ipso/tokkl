@@ -28,10 +28,10 @@ const MAX_ROWS = 100_000;
 const MAX_ERRORS = 100;
 
 function columnIndex(header: string[]): Record<string, number> {
-  const normalized = header.map((name) => name.trim().toLowerCase());
+  const normalized = header.map(name => name.trim().toLowerCase());
   const index: Record<string, number> = {};
   for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
-    const position = normalized.findIndex((name) => aliases.includes(name));
+    const position = normalized.findIndex(name => aliases.includes(name));
     if (position >= 0) index[key] = position;
   }
   return index;
@@ -98,7 +98,6 @@ function unescapeCell(value: string): string {
   return /^'[=+\-@]/.test(value) ? value.slice(1) : value;
 }
 
-
 /**
  * How a selection names a Toggl user. JSON keeps the pair unambiguous, so User "Alice" with Email
  * "a@x" and User "Alice <a@x>" with no Email stay two users.
@@ -119,35 +118,65 @@ function skippedReason(found: ImportUser): string {
 }
 
 /** Joins the supplied operation; each selected row owns one recoverable savepoint. */
-export async function importTogglCsv(ctx: OperationContext<EntryRepositories>, userId: number, text: string,
-  options: { dryRun: boolean; users?: string[] }, publish: TimerPublication): Promise<ImportResult> {
-  const rows = parseCsv(text), header = rows.shift();
+export async function importTogglCsv(
+  ctx: OperationContext<EntryRepositories>,
+  userId: number,
+  text: string,
+  options: { dryRun: boolean; users?: string[] },
+  publish: TimerPublication,
+): Promise<ImportResult> {
+  const rows = parseCsv(text),
+    header = rows.shift();
   if (!header) throw badRequest('The file is empty');
   if (rows.length > MAX_ROWS) throw badRequest(`At most ${MAX_ROWS} rows per import`);
   const col = columnIndex(header);
-  if (col.startDate === undefined || col.startTime === undefined) throw badRequest('Missing "Start date" and "Start time" columns. Export a Detailed report as CSV from Toggl Track.');
-  if (col.duration === undefined && (col.endDate === undefined || col.endTime === undefined)) throw badRequest('Missing "End date"/"End time" or "Duration" columns.');
-  const cell = (row: string[], key: string): string => col[key] === undefined ? '' : unescapeCell((row[col[key]!] ?? '').trim());
+  if (col.startDate === undefined || col.startTime === undefined)
+    throw badRequest(
+      'Missing "Start date" and "Start time" columns. Export a Detailed report as CSV from Toggl Track.',
+    );
+  if (col.duration === undefined && (col.endDate === undefined || col.endTime === undefined))
+    throw badRequest('Missing "End date"/"End time" or "Duration" columns.');
+  const cell = (row: string[], key: string): string =>
+    col[key] === undefined ? '' : unescapeCell((row[col[key]!] ?? '').trim());
   const hasUsers = col.user !== undefined || col.email !== undefined;
-  const rowUsers = rows.map(row => hasUsers ? userKey(cell(row, 'user'), cell(row, 'email')) : '');
+  const rowUsers = rows.map(row => (hasUsers ? userKey(cell(row, 'user'), cell(row, 'email')) : ''));
   const users = new Map<string, ImportUser>();
-  if (hasUsers) rows.forEach((row, i) => {
-    const key = rowUsers[i]!, found = users.get(key);
-    if (found) found.rows++;
-    else users.set(key, { key, user: cell(row, 'user'), email: cell(row, 'email'), rows: 1 });
-  });
+  if (hasUsers)
+    rows.forEach((row, i) => {
+      const key = rowUsers[i]!,
+        found = users.get(key);
+      if (found) found.rows++;
+      else users.set(key, { key, user: cell(row, 'user'), email: cell(row, 'email'), rows: 1 });
+    });
   const selected = options.users ? new Set(options.users) : null;
   if (selected && !selected.size) throw badRequest('Choose whose rows to import.');
-  for (const key of selected ?? []) if (!users.has(key)) throw badRequest(`No rows in the file belong to the Toggl user key ${key}`);
-  if (!selected && users.size > 1 && !options.dryRun) throw badRequest(`The file has rows from ${users.size} Toggl users. Choose whose rows to import.`);
-  const user = await protectImport(ctx, userId), wid = user.defaultWorkspaceId;
-  const result: ImportResult = { dry_run: options.dryRun, rows: rows.length, created: 0, skipped_duplicates: 0, created_projects: [], created_clients: [], errors: [],
-    users: [...users.values()], skipped: [...users.values()].filter(u => selected && !selected.has(u.key)).map(u => ({ rows: u.rows, reason: skippedReason(u) })) };
+  for (const key of selected ?? [])
+    if (!users.has(key)) throw badRequest(`No rows in the file belong to the Toggl user key ${key}`);
+  if (!selected && users.size > 1 && !options.dryRun)
+    throw badRequest(`The file has rows from ${users.size} Toggl users. Choose whose rows to import.`);
+  const user = await protectImport(ctx, userId),
+    wid = user.defaultWorkspaceId;
+  const result: ImportResult = {
+    dry_run: options.dryRun,
+    rows: rows.length,
+    created: 0,
+    skipped_duplicates: 0,
+    created_projects: [],
+    created_clients: [],
+    errors: [],
+    users: [...users.values()],
+    skipped: [...users.values()]
+      .filter(u => selected && !selected.has(u.key))
+      .map(u => ({ rows: u.rows, reason: skippedReason(u) })),
+  };
   // Reuse successful name lookups only while workspace/user guards remain held.
-  const clients = new Map<string, number>(), projects = new Map<string, number>(), tasks = new Map<string, number>();
+  const clients = new Map<string, number>(),
+    projects = new Map<string, number>(),
+    tasks = new Map<string, number>();
   function remember<K, V>(cache: Map<K, V>, key: K, value: V): V {
     if (cache.size >= 256) cache.delete(cache.keys().next().value!);
-    cache.set(key, value); return value;
+    cache.set(key, value);
+    return value;
   }
   async function projectId(name: string, client: string): Promise<number | null> {
     if (!name) return null;
@@ -158,56 +187,101 @@ export async function importTogglCsv(ctx: OperationContext<EntryRepositories>, u
       cid = clients.get(client) ?? null;
       if (cid === null) {
         let c = await ctx.clients.findByName(wid, client);
-        if (!c) { c = await createClient(ctx, wid, { name: client }); result.created_clients.push(client); }
+        if (!c) {
+          c = await createClient(ctx, wid, { name: client });
+          result.created_clients.push(client);
+        }
         cid = remember(clients, client, c.id);
       }
     }
     let p = await ctx.projects.findByName(wid, cid, name);
-    if (!p) { p = await createProject(ctx, wid, { name, client_id: cid }); result.created_projects.push(client ? `${name} (${client})` : name); }
+    if (!p) {
+      p = await createProject(ctx, wid, { name, client_id: cid });
+      result.created_projects.push(client ? `${name} (${client})` : name);
+    }
     return remember(projects, key, p.id);
   }
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {
     for (const [index, row] of rows.entries()) {
       if (selected && !selected.has(rowUsers[index]!)) continue;
-      const projectsBefore = result.created_projects.length, clientsBefore = result.created_clients.length;
+      const projectsBefore = result.created_projects.length,
+        clientsBefore = result.created_clients.length;
       try {
         await writer.savepoint(async () => {
           const noTime = !cell(row, 'startTime') && !cell(row, 'endTime') && cell(row, 'duration') !== '';
-          let start: Date | null, stop: Date | null = null, noTimeEntry: { day: string; duration: number } | null = null;
+          let start: Date | null,
+            stop: Date | null = null,
+            noTimeEntry: { day: string; duration: number } | null = null;
           if (noTime) {
-            const day = dayKey(cell(row, 'startDate')); if (!day) throw new Error('Invalid start date');
-            const duration = csvDuration(cell(row, 'duration')); if (duration === null) throw new Error('Invalid duration');
+            const day = dayKey(cell(row, 'startDate'));
+            if (!day) throw new Error('Invalid start date');
+            const duration = csvDuration(cell(row, 'duration'));
+            if (duration === null) throw new Error('Invalid duration');
             noTimeEntry = { day, duration };
             ({ start, stop } = noTimeSpan(1, user, day, duration, { exact: true }));
           } else {
             start = instant(cell(row, 'startDate'), cell(row, 'startTime'), user.timezone);
             if (!start) throw new Error('Invalid start date or time');
-            if (cell(row, 'endDate') && cell(row, 'endTime')) stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
+            if (cell(row, 'endDate') && cell(row, 'endTime'))
+              stop = instant(cell(row, 'endDate'), cell(row, 'endTime'), user.timezone);
             else if (cell(row, 'duration')) {
               const seconds = csvDuration(cell(row, 'duration'));
               if (seconds !== null) stop = new Date(start.getTime() + seconds * 1000);
             }
             if (!stop) throw new Error('Invalid end time or duration');
           }
-          const pid = await projectId(cell(row, 'project'), cell(row, 'client')), description = cell(row, 'description');
-          if (await ctx.entries.findDuplicate({ userId, start: start.toISOString(), stop: stop.toISOString(), description, projectId: pid })) { result.skipped_duplicates++; return; }
+          const pid = await projectId(cell(row, 'project'), cell(row, 'client')),
+            description = cell(row, 'description');
+          if (
+            await ctx.entries.findDuplicate({
+              userId,
+              start: start.toISOString(),
+              stop: stop.toISOString(),
+              description,
+              projectId: pid,
+            })
+          ) {
+            result.skipped_duplicates++;
+            return;
+          }
           const taskName = cell(row, 'task');
           let taskId: number | null = null;
           if (taskName && pid !== null) {
             const key = JSON.stringify([pid, taskName]);
-            taskId = tasks.get(key) ?? remember(tasks, key, (await ctx.tasks.findByName(wid, pid, taskName) ?? await createTask(ctx, wid, pid, { name: taskName })).id);
+            taskId =
+              tasks.get(key) ??
+              remember(
+                tasks,
+                key,
+                (
+                  (await ctx.tasks.findByName(wid, pid, taskName)) ??
+                  (await createTask(ctx, wid, pid, { name: taskName }))
+                ).id,
+              );
           }
-          await writer.create({ description,
-            ...(noTimeEntry ? { all_day: true, start_date: noTimeEntry.day, duration: noTimeEntry.duration } : { start: start.toISOString(), stop: stop.toISOString() }),
-            project_id: pid, task_id: taskId, billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
-            tags: cell(row, 'tags').split(',').map(t => t.trim()).filter(Boolean), created_with: 'tokkl-csv-import',
+          await writer.create({
+            description,
+            ...(noTimeEntry
+              ? { all_day: true, start_date: noTimeEntry.day, duration: noTimeEntry.duration }
+              : { start: start.toISOString(), stop: stop.toISOString() }),
+            project_id: pid,
+            task_id: taskId,
+            billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
+            tags: cell(row, 'tags')
+              .split(',')
+              .map(t => t.trim())
+              .filter(Boolean),
+            created_with: 'tokkl-csv-import',
           });
           result.created++;
         });
       } catch (error) {
-        clients.clear(); projects.clear(); tasks.clear();
+        clients.clear();
+        projects.clear();
+        tasks.clear();
         const message = importError(error, 'Invalid row');
-        result.created_projects.length = projectsBefore; result.created_clients.length = clientsBefore;
+        result.created_projects.length = projectsBefore;
+        result.created_clients.length = clientsBefore;
         if (result.errors.length < MAX_ERRORS) result.errors.push({ row: index + 2, message });
       }
     }

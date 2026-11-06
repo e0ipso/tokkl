@@ -80,7 +80,12 @@ export class EntityApi {
     await body(await this.page.request.post(this.ws(`/clients/${id}/archive`), { headers: CSRF }));
   }
 
-  async createProject(project: { name: string; client_id?: number; billable?: boolean; active?: boolean }): Promise<Project> {
+  async createProject(project: {
+    name: string;
+    client_id?: number;
+    billable?: boolean;
+    active?: boolean;
+  }): Promise<Project> {
     return body(await this.page.request.post(this.ws('/projects'), { headers: CSRF, data: project }));
   }
 
@@ -90,7 +95,9 @@ export class EntityApi {
   }
 
   async createTask(projectId: number, name: string): Promise<Task> {
-    return body(await this.page.request.post(this.ws(`/projects/${projectId}/tasks`), { headers: CSRF, data: { name } }));
+    return body(
+      await this.page.request.post(this.ws(`/projects/${projectId}/tasks`), { headers: CSRF, data: { name } }),
+    );
   }
 
   async createTag(name: string): Promise<{ id: number; name: string }> {
@@ -98,7 +105,12 @@ export class EntityApi {
   }
 
   async createEntry(entry: EntrySeed): Promise<Entry> {
-    return body(await this.page.request.post(this.ws('/time_entries'), { headers: CSRF, data: { ...entry, created_with: 'e2e' } }));
+    return body(
+      await this.page.request.post(this.ws('/time_entries'), {
+        headers: CSRF,
+        data: { ...entry, created_with: 'e2e' },
+      }),
+    );
   }
 
   async entry(id: number): Promise<Entry> {
@@ -152,7 +164,7 @@ export function entryRow(page: Page, description: string): Locator {
 /** Counts the page's requests that match `method` and `path`, for "saved once" checks. */
 export function countRequests(page: Page, method: string, path: RegExp): () => number {
   let count = 0;
-  page.on('request', (request) => {
+  page.on('request', request => {
     if (request.method() === method && path.test(new URL(request.url()).pathname)) count++;
   });
   return () => count;
@@ -186,7 +198,7 @@ export async function timerPickerProjects(page: Page): Promise<string[]> {
   const names = await picker.locator('.picker-item:not(.picker-subitem):not(.picker-create)').allTextContents();
   await page.keyboard.press('Escape');
   await expect(picker).toBeHidden();
-  return names.map((name) => name.trim());
+  return names.map(name => name.trim());
 }
 
 /**
@@ -194,7 +206,9 @@ export async function timerPickerProjects(page: Page): Promise<string[]> {
  * kept its query cache, so a refreshed view came from invalidation and not from a full reload.
  */
 export async function markDocument(page: Page): Promise<void> {
-  await page.evaluate(() => { (window as unknown as { entityTestsMark?: boolean }).entityTestsMark = true; });
+  await page.evaluate(() => {
+    (window as unknown as { entityTestsMark?: boolean }).entityTestsMark = true;
+  });
 }
 
 export async function expectSameDocument(page: Page): Promise<void> {

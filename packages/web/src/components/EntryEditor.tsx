@@ -9,7 +9,14 @@ import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryT
 import { noTimeSeconds } from '../lib/noTimeDuration.ts';
 import { noTimeFields } from '../lib/noTimeEdit.ts';
 import {
-  entrySeconds, formatTime, minutesOfDay, snappedSeconds, snappedSplit, useNow, useSettings, type SplitHalves,
+  entrySeconds,
+  formatTime,
+  minutesOfDay,
+  snappedSeconds,
+  snappedSplit,
+  useNow,
+  useSettings,
+  type SplitHalves,
 } from '../lib/settings.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
@@ -43,13 +50,21 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const [startText, setStartText] = useState(entry.all_day ? '' : formatTime(entry.start, settings));
   const [endText, setEndText] = useState(entry.stop && !entry.all_day ? formatTime(entry.stop, settings) : '');
   // Saving snaps the entry to the time resolution, so the duration shows the snapped length.
-  const [durationText, setDurationText] = useState(entry.all_day ? '' : formatDuration(
-    entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : entrySeconds(entry, now),
-  ));
+  const [durationText, setDurationText] = useState(
+    entry.all_day
+      ? ''
+      : formatDuration(
+          entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : entrySeconds(entry, now),
+        ),
+  );
   // The duration a no-time entry is stored with, which a no-time save sends when it changes.
-  const [storedNoTimeLength] = useState(() => entry.all_day
-    ? snapDuration(entrySeconds(entry, now), settings.timeResolution)
-    : entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : 0);
+  const [storedNoTimeLength] = useState(() =>
+    entry.all_day
+      ? snapDuration(entrySeconds(entry, now), settings.timeResolution)
+      : entry.stop
+        ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings)
+        : 0,
+  );
   const [noTimeLength, setNoTimeLength] = useState(storedNoTimeLength);
   // What the fields showed when the editor opened, and the duration last derived from start/end.
   // Times are typed to the minute, so unchanged fields must not be sent back: that would drop the
@@ -72,7 +87,11 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const toast = useToast();
   const fields = useFieldErrors<'start' | 'end' | 'duration' | 'split'>();
 
-  const timeOptions = { timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(now, settings.timeZone) };
+  const timeOptions = {
+    timeZone: settings.timeZone,
+    twelveHour: settings.twelveHour,
+    nowMinutes: minutesOfDay(now, settings.timeZone),
+  };
   const range = useMemo(() => {
     if (noTimes) return null;
     if (running) {
@@ -119,7 +138,13 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     if (!fields.validate([['duration', send.all_day && problem]])) return;
     try {
       await update.mutateAsync({
-        id: entry.id, description, project_id: projectId, task_id: taskId, tags, billable, ...send,
+        id: entry.id,
+        description,
+        project_id: projectId,
+        task_id: taskId,
+        tags,
+        billable,
+        ...send,
       });
       onClose();
     } catch (error) {
@@ -149,7 +174,13 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     }
     try {
       await update.mutateAsync({
-        id: entry.id, description, project_id: projectId, task_id: taskId, tags, billable, ...times,
+        id: entry.id,
+        description,
+        project_id: projectId,
+        task_id: taskId,
+        tags,
+        billable,
+        ...times,
       });
       onClose();
     } catch (error) {
@@ -164,8 +195,12 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
       : { start: entry.start, stop: entry.stop };
     try {
       await create.mutateAsync({
-        description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-        billable: entry.billable, ...when,
+        description: entry.description,
+        project_id: entry.project_id,
+        task_id: entry.task_id,
+        tags: entry.tags,
+        billable: entry.billable,
+        ...when,
       });
       toast.show('Entry duplicated');
       onClose();
@@ -180,7 +215,10 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
    * keep it as their shared boundary when the server snaps them.
    */
   const splitHalves = (text: string, stop: string): SplitHalves | 'unreadable' | 'outside' => {
-    const minutes = parseTimeOfDay(text, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
+    const minutes = parseTimeOfDay(text, {
+      twelveHour: settings.twelveHour,
+      reference: minutesOfDay(entry.start, settings.timeZone),
+    });
     if (minutes === null) return 'unreadable';
     const startDay = localDay(entry.start, settings.timeZone);
     let at = instantAt(startDay, minutes, settings.timeZone);
@@ -200,8 +238,13 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     try {
       // Create the second half first: if that fails, the original entry is untouched.
       const created = await create.mutateAsync({
-        description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-        billable: entry.billable, start: second.start.toISOString(), stop: second.stop.toISOString(),
+        description: entry.description,
+        project_id: entry.project_id,
+        task_id: entry.task_id,
+        tags: entry.tags,
+        billable: entry.billable,
+        start: second.start.toISOString(),
+        stop: second.stop.toISOString(),
       });
       try {
         await update.mutateAsync({ id: entry.id, start: first.start.toISOString(), stop: first.stop.toISOString() });
@@ -226,12 +269,12 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     }
   };
 
-  const project = projects.find((p) => p.id === projectId);
+  const project = projects.find(p => p.id === projectId);
   return (
     <Modal
       title={running ? 'Edit running entry' : 'Edit entry'}
       onClose={onClose}
-      footer={(
+      footer={
         <>
           <button type="button" className="button button-danger-ghost" onClick={() => void destroy()}>
             <Icon name="trash" size={16} /> Delete
@@ -242,21 +285,36 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
               <Icon name="copy" size={16} /> Duplicate
             </button>
           ) : null}
-          <button type="button" className="button button-primary" onClick={() => void save()} disabled={update.isPending}>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={() => void save()}
+            disabled={update.isPending}
+          >
             Save
           </button>
         </>
-      )}
+      }
     >
-      <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <form
+        className="form-grid"
+        onSubmit={event => {
+          event.preventDefault();
+          void save();
+        }}
+      >
         <label className="field field-full">
           <span>Description</span>
-          <input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={3000} />
+          <input value={description} onChange={event => setDescription(event.target.value)} maxLength={3000} />
         </label>
         <div className="field">
           <span>Project</span>
           <button ref={projectButton} type="button" className="select-button" onClick={() => setPicker('project')}>
-            {projectId ? <ProjectLabel projectId={projectId} taskId={taskId} /> : <span className="muted">No project</span>}
+            {projectId ? (
+              <ProjectLabel projectId={projectId} taskId={taskId} />
+            ) : (
+              <span className="muted">No project</span>
+            )}
           </button>
         </div>
         <div className="field">
@@ -266,18 +324,23 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           </button>
         </div>
         <label className="field checkbox-field">
-          <input type="checkbox" checked={billable} onChange={(event) => setBillable(event.target.checked)} />
+          <input type="checkbox" checked={billable} onChange={event => setBillable(event.target.checked)} />
           <span>Billable{project?.billable ? ' (project default)' : ''}</span>
         </label>
         {!running ? (
           <label className="manual-switch field-full">
-            <input type="checkbox" role="switch" checked={noTimes} onChange={(event) => toggleNoTimes(event.target.checked)} />
+            <input
+              type="checkbox"
+              role="switch"
+              checked={noTimes}
+              onChange={event => toggleNoTimes(event.target.checked)}
+            />
             No times
           </label>
         ) : null}
         <label className="field">
           <span>Date</span>
-          <input type="date" value={day} onChange={(event) => event.target.value && setDay(event.target.value)} />
+          <input type="date" value={day} onChange={event => event.target.value && setDay(event.target.value)} />
         </label>
         {noTimes ? (
           <div className="field">
@@ -285,7 +348,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
             <DurationField
               format={settings.durationFormat}
               seconds={noTimeLength}
-              onCommit={(seconds) => setNoTimeLength(snapDuration(seconds, settings.timeResolution))}
+              onCommit={seconds => setNoTimeLength(snapDuration(seconds, settings.timeResolution))}
               inputProps={fields.field('duration')}
             />
             {fields.message('duration')}
@@ -293,7 +356,12 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
         ) : (
           <div className="field">
             <label htmlFor={fields.id('start')}>Start</label>
-            <input {...fields.field('start')} value={startText} onChange={(event) => setStartText(event.target.value)} onBlur={() => syncDuration(range)} />
+            <input
+              {...fields.field('start')}
+              value={startText}
+              onChange={event => setStartText(event.target.value)}
+              onBlur={() => syncDuration(range)}
+            />
             {fields.message('start')}
           </div>
         )}
@@ -301,12 +369,22 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           <>
             <div className="field">
               <label htmlFor={fields.id('end')}>End</label>
-              <input {...fields.field('end')} value={endText} onChange={(event) => setEndText(event.target.value)} onBlur={() => syncDuration(range)} />
+              <input
+                {...fields.field('end')}
+                value={endText}
+                onChange={event => setEndText(event.target.value)}
+                onBlur={() => syncDuration(range)}
+              />
               {fields.message('end')}
             </div>
             <div className="field">
               <label htmlFor={fields.id('duration')}>Duration</label>
-              <input {...fields.field('duration')} value={durationText} onChange={(event) => setDurationText(event.target.value)} onBlur={applyDuration} />
+              <input
+                {...fields.field('duration')}
+                value={durationText}
+                onChange={event => setDurationText(event.target.value)}
+                onBlur={applyDuration}
+              />
               {fields.message('duration')}
             </div>
           </>
@@ -318,14 +396,20 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           <div className="field field-full">
             <label htmlFor={fields.id('split')}>Split at</label>
             <div className="inline-controls">
-              <input {...fields.field('split')} value={splitText} placeholder="e.g. 10:30" onChange={(event) => setSplitText(event.target.value)} />
+              <input
+                {...fields.field('split')}
+                value={splitText}
+                placeholder="e.g. 10:30"
+                onChange={event => setSplitText(event.target.value)}
+              />
               <button type="button" className="button button-ghost" onClick={() => void split()}>
                 <Icon name="split" size={16} /> Split
               </button>
             </div>
             {halves !== null && typeof halves !== 'string' ? (
               <p className="hint">
-                Splits into {formatDuration(spanSeconds(halves.first))} and {formatDuration(spanSeconds(halves.second))}.
+                Splits into {formatDuration(spanSeconds(halves.first))} and {formatDuration(spanSeconds(halves.second))}
+                .
               </p>
             ) : null}
             {fields.message('split')}
@@ -341,7 +425,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           onChange={(pid, tid) => {
             setProjectId(pid);
             setTaskId(tid);
-            const picked = projects.find((p) => p.id === pid);
+            const picked = projects.find(p => p.id === pid);
             if (picked?.billable) setBillable(true);
           }}
           onClose={() => setPicker(null)}

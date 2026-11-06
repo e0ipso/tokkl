@@ -10,7 +10,7 @@ import { PHONE } from './mobile-tests-helpers.ts';
 
 const FONT = '/fonts/anybody-wdth-wght.woff2';
 
-const fontFamily = (target: Locator) => target.evaluate((el) => getComputedStyle(el).fontFamily);
+const fontFamily = (target: Locator) => target.evaluate(el => getComputedStyle(el).fontFamily);
 
 /**
  * The brand is the wordmark alone. A small extra image could slip past the visual baselines'
@@ -51,7 +51,7 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
 
   const fetches: string[] = [];
-  page.on('request', (request) => {
+  page.on('request', request => {
     if (new URL(request.url()).pathname === FONT) fetches.push(request.url());
   });
   const response = await page.reload();
@@ -62,12 +62,16 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
   await expect(preload).toHaveAttribute('crossorigin', '');
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
 
-  await expect.poll(() => page.evaluate(async () => {
-    await document.fonts.ready;
-    return [...document.fonts]
-      .filter((face) => face.family.replace(/["']/g, '') === 'Anybody')
-      .map((face) => face.status);
-  })).toEqual(['loaded']);
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        await document.fonts.ready;
+        return [...document.fonts]
+          .filter(face => face.family.replace(/["']/g, '') === 'Anybody')
+          .map(face => face.status);
+      }),
+    )
+    .toEqual(['loaded']);
   expect(fetches).toHaveLength(1);
 
   for (const target of [
@@ -86,10 +90,12 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
   await expect(wordmark).toHaveJSProperty('tagName', 'IMG');
   await expect(wordmark).toHaveAttribute('src', /^\/brand\/wordmark-\d+\.png$/);
   // Loaded and decoded, not a broken image with only its alt text showing.
-  expect(await wordmark.evaluate(async (img: HTMLImageElement) => {
-    await img.decode();
-    return img.naturalWidth;
-  })).toBeGreaterThan(0);
+  expect(
+    await wordmark.evaluate(async (img: HTMLImageElement) => {
+      await img.decode();
+      return img.naturalWidth;
+    }),
+  ).toBeGreaterThan(0);
   await expect(page.locator('.sidebar .brand-md')).toBeVisible();
   await expectWordmarkAlone(page);
 });
@@ -141,7 +147,10 @@ test('the wordmark has no added halo in either theme', async ({ page }) => {
 
 test('the logo is centered in the desktop sidebar and phone header', async ({ page }) => {
   await login(page);
-  for (const [width, container] of [[1280, '.sidebar'], [390, '.phone-header']] as const) {
+  for (const [width, container] of [
+    [1280, '.sidebar'],
+    [390, '.phone-header'],
+  ] as const) {
     await page.setViewportSize({ width, height: 900 });
     const header = page.locator(container);
     const logo = header.getByRole('img', { name: 'Tokkl' });
@@ -153,7 +162,10 @@ test('the logo is centered in the desktop sidebar and phone header', async ({ pa
 });
 
 // lg is drawn 260 wide, so a 1x screen takes the 260 file and a 2x screen the 520 one.
-for (const [scale, lgFile] of [[1, '/brand/wordmark-260.png'], [2, '/brand/wordmark-520.png']] as const) {
+for (const [scale, lgFile] of [
+  [1, '/brand/wordmark-260.png'],
+  [2, '/brand/wordmark-520.png'],
+] as const) {
   test.describe(`at ${scale}x`, () => {
     test.use({ deviceScaleFactor: scale });
 

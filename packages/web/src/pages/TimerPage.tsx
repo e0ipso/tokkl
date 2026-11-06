@@ -25,7 +25,14 @@ export function TimerPage() {
   const setView = (next: 'list' | 'calendar') => savePrefs.mutate({ timerView: next });
   const todayKey = today(settings.timeZone);
   const startDate = addDays(todayKey, -days + 1);
-  const { data: entries = [], isLoading, isFetching, isPlaceholderData, error, refetch } = useEntries(startDate, addDays(todayKey, 2));
+  const {
+    data: entries = [],
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    refetch,
+  } = useEntries(startDate, addDays(todayKey, 2));
   const { data: bounds } = useEntryBounds();
   const hasOlderEntries = Boolean(bounds?.first_date && bounds.first_date < startDate);
   const { data: projects = [] } = useProjects();
@@ -45,9 +52,14 @@ export function TimerPage() {
     return { todaySeconds, weekSeconds };
   }, [entries, now, todayKey, weekStart, settings.timeZone]);
 
-  const continueEntry = (entry: TimeEntry) => timer.current?.startFrom({
-    description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags, billable: entry.billable,
-  });
+  const continueEntry = (entry: TimeEntry) =>
+    timer.current?.startFrom({
+      description: entry.description,
+      project_id: entry.project_id,
+      task_id: entry.task_id,
+      tags: entry.tags,
+      billable: entry.billable,
+    });
   const startFavorite = (favorite: Favorite) => timer.current?.startFrom({ ...favorite });
 
   const handlers = useMemo(() => {
@@ -57,7 +69,7 @@ export function TimerPage() {
       m: () => timer.current?.toggleManual(),
       // Like the Continue button: a running timer is stopped at the new entry's start.
       c: () => {
-        const last = entries.find((entry) => entry.stop);
+        const last = entries.find(entry => entry.stop);
         if (last) continueEntry(last);
       },
       '?': () => setHelp(true),
@@ -88,13 +100,27 @@ export function TimerPage() {
     <div className="page">
       <TimerBar ref={timer} recentEntries={entries} />
       <div className="timer-summary">
-        <span>Today <strong>{duration(totals.todaySeconds, settings)}</strong></span>
-        <span>This week <strong>{duration(totals.weekSeconds, settings)}</strong></span>
+        <span>
+          Today <strong>{duration(totals.todaySeconds, settings)}</strong>
+        </span>
+        <span>
+          This week <strong>{duration(totals.weekSeconds, settings)}</strong>
+        </span>
         <div className="segmented view-switch" role="group" aria-label="View">
-          <button type="button" className={view === 'list' ? 'active' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')}>
+          <button
+            type="button"
+            className={view === 'list' ? 'active' : ''}
+            aria-pressed={view === 'list'}
+            onClick={() => setView('list')}
+          >
             List
           </button>
-          <button type="button" className={view === 'calendar' ? 'active' : ''} aria-pressed={view === 'calendar'} onClick={() => setView('calendar')}>
+          <button
+            type="button"
+            className={view === 'calendar' ? 'active' : ''}
+            aria-pressed={view === 'calendar'}
+            onClick={() => setView('calendar')}
+          >
             Calendar
           </button>
         </div>
@@ -105,7 +131,7 @@ export function TimerPage() {
       {favorites.length > 0 ? (
         <div className="favorites" aria-label="Favorites">
           {favorites.map((favorite, index) => {
-            const project = projects.find((p) => p.id === favorite.project_id);
+            const project = projects.find(p => p.id === favorite.project_id);
             const name = favorite.description || project?.name || 'Untitled';
             const projectName = favorite.description ? project?.name : undefined;
             return (
@@ -122,7 +148,12 @@ export function TimerPage() {
                   <span className="favorite-name">{name}</span>
                   {projectName ? <span className="favorite-project">{projectName}</span> : null}
                 </button>
-                <button type="button" className="icon-button" aria-label="Remove favorite" onClick={() => removeFavorite(index)}>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Remove favorite"
+                  onClick={() => removeFavorite(index)}
+                >
                   <Icon name="x" size={12} />
                 </button>
               </div>
@@ -130,9 +161,13 @@ export function TimerPage() {
           })}
         </div>
       ) : null}
-      {view === 'calendar' ? <WeekCalendar /> : (
+      {view === 'calendar' ? (
+        <WeekCalendar />
+      ) : (
         <>
-          {isLoading ? <Loading label="Loading entries…" /> : error && !entries.length ? (
+          {isLoading ? (
+            <Loading label="Loading entries…" />
+          ) : error && !entries.length ? (
             <LoadError message={`Could not load time entries: ${error.message}`} onRetry={() => void refetch()} />
           ) : (
             <BusyRegion busy={isFetching}>
@@ -146,7 +181,12 @@ export function TimerPage() {
           )}
           {hasOlderEntries || isPlaceholderData ? (
             <div className="load-more">
-              <button type="button" className="button button-ghost" disabled={isFetching} onClick={() => setDays(days + PAGE_DAYS)}>
+              <button
+                type="button"
+                className="button button-ghost"
+                disabled={isFetching}
+                onClick={() => setDays(days + PAGE_DAYS)}
+              >
                 {isFetching ? 'Loading…' : `Show ${PAGE_DAYS} more days`}
               </button>
             </div>

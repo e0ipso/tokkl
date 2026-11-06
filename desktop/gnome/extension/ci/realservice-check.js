@@ -10,209 +10,253 @@
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {exit, programArgs} from 'system';
-import {call, panelButton, shell, steps, waitFor, waitForEnabled} from './shell-driver.js';
-import {countdown, formatElapsed} from '../timer1.js';
+import { exit, programArgs } from 'system';
+import { call, panelButton, shell, steps, waitFor, waitForEnabled } from './shell-driver.js';
+import { countdown, formatElapsed } from '../timer1.js';
 
 const [uuid, timerd] = programArgs;
 const fixture = JSON.parse(GLib.getenv('TOKKL_GNOME_FIXTURE') ?? 'null');
 if (!fixture?.url || !fixture?.token || !fixture?.project) {
-    printerr('error: TOKKL_GNOME_FIXTURE needs url, token and project');
-    exit(2);
+  printerr('error: TOKKL_GNOME_FIXTURE needs url, token and project');
+  exit(2);
 }
 
 const checks = steps();
-const {step} = checks;
-const {button, label, sensitive, pointAtButton, click} = panelButton(uuid);
+const { step } = checks;
+const { button, label, sensitive, pointAtButton, click } = panelButton(uuid);
 const statusText = () => shell(`${button}._statusItem.label.text`);
 const projectTitle = () => shell(`${button}._projectMenu.label.text`);
 
-const timer = (method, params = null, replyType = null) => call('org.tokkl.Timer1', '/org/tokkl/Timer1',
-    'org.tokkl.Timer1', method, params, replyType);
-const property = name => call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.freedesktop.DBus.Properties', 'Get',
-    new GLib.Variant('(ss)', ['org.tokkl.Timer1', name]), '(v)')[0];
+const timer = (method, params = null, replyType = null) =>
+  call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1', method, params, replyType);
+const property = name =>
+  call(
+    'org.tokkl.Timer1',
+    '/org/tokkl/Timer1',
+    'org.freedesktop.DBus.Properties',
+    'Get',
+    new GLib.Variant('(ss)', ['org.tokkl.Timer1', name]),
+    '(v)',
+  )[0];
 
 // What another device does: a call to the app API with the account's token.
 function otherDevice(method, path, body = null) {
-    const argv = ['curl', '-sS', '--fail-with-body', '-X', method, '-u', `${fixture.token}:api_token`,
-        '-H', 'Content-Type: application/json', ...(body ? ['-d', JSON.stringify(body)] : []),
-        `${fixture.url}/api/app${path}`];
-    const process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE);
-    const [, output] = process.communicate_utf8(null, null);
-    if (!process.get_successful())
-        throw new Error(`${method} ${path}: ${output}`);
-    return JSON.parse(output);
+  const argv = [
+    'curl',
+    '-sS',
+    '--fail-with-body',
+    '-X',
+    method,
+    '-u',
+    `${fixture.token}:api_token`,
+    '-H',
+    'Content-Type: application/json',
+    ...(body ? ['-d', JSON.stringify(body)] : []),
+    `${fixture.url}/api/app${path}`,
+  ];
+  const process = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE);
+  const [, output] = process.communicate_utf8(null, null);
+  if (!process.get_successful()) throw new Error(`${method} ${path}: ${output}`);
+  return JSON.parse(output);
 }
 
 // Which of the menu's start, stop and session items show.
-const items = () => shell(`(() => {
+const items = () =>
+  shell(`(() => {
     const button = ${button};
     return {toggle: button._toggleItem.visible, startSession: button._startSessionItem.visible,
         nextPhase: button._nextPhaseItem.visible, endSession: button._endSessionItem.visible};
 })()`);
-const itemsAre = (what, expected) => waitFor(what, () => {
+const itemsAre = (what, expected) =>
+  waitFor(what, () => {
     const shown = items();
     return JSON.stringify(shown) === JSON.stringify(expected) || shown;
-});
+  });
 
 let service = null;
 
 await step('the extension is enabled without errors', () => waitForEnabled(uuid));
 
 await step('an unconfigured service marks the button and says so', async () => {
-    service = Gio.Subprocess.new([timerd], Gio.SubprocessFlags.NONE);
-    await waitFor('Status unconfigured', () => property('Status') === 'unconfigured' || property('Status'));
-    await waitFor('the mark', () => label() === '0:00!' || label());
-    await waitFor('the status', () => statusText() === 'Not configured' || statusText());
-    if (sensitive('_toggleItem'))
-        throw new Error('Start is sensitive before the service is configured');
+  service = Gio.Subprocess.new([timerd], Gio.SubprocessFlags.NONE);
+  await waitFor('Status unconfigured', () => property('Status') === 'unconfigured' || property('Status'));
+  await waitFor('the mark', () => label() === '0:00!' || label());
+  await waitFor('the status', () => statusText() === 'Not configured' || statusText());
+  if (sensitive('_toggleItem')) throw new Error('Start is sensitive before the service is configured');
 });
 
 await step('Configure connects the service and the button follows to ready', async () => {
-    timer('Configure', new GLib.Variant('(ssss)', [fixture.url, 'token', '', fixture.token]));
-    await waitFor('Status ready', () => property('Status') === 'ready' || [property('Status'), property('ErrorString')], 30_000);
-    await waitFor('no mark', () => label() === '0:00' || label());
-    await waitFor('the status', () => statusText() === 'Connected' || statusText());
-    if (!sensitive('_toggleItem'))
-        throw new Error('Start stayed insensitive');
+  timer('Configure', new GLib.Variant('(ssss)', [fixture.url, 'token', '', fixture.token]));
+  await waitFor(
+    'Status ready',
+    () => property('Status') === 'ready' || [property('Status'), property('ErrorString')],
+    30_000,
+  );
+  await waitFor('no mark', () => label() === '0:00' || label());
+  await waitFor('the status', () => statusText() === 'Connected' || statusText());
+  if (!sensitive('_toggleItem')) throw new Error('Start stayed insensitive');
 });
 
-await step('the server\'s projects reach the project menu', async () => {
-    // The projects are read next to the state, so Ready can come first.
-    await waitFor('Projects', () => {
-        const ids = property('Projects').map(project => project.id);
-        return ids.includes(fixture.project.id) || `Projects: ${JSON.stringify(ids)}`;
-    }, 30_000);
-    await waitFor('the project item', () => {
-        const items = shell(`${button}._projectMenu.menu._getMenuItems().map(item => item.label.text)`);
-        return items.includes(fixture.project.name) || items;
-    });
+await step("the server's projects reach the project menu", async () => {
+  // The projects are read next to the state, so Ready can come first.
+  await waitFor(
+    'Projects',
+    () => {
+      const ids = property('Projects').map(project => project.id);
+      return ids.includes(fixture.project.id) || `Projects: ${JSON.stringify(ids)}`;
+    },
+    30_000,
+  );
+  await waitFor('the project item', () => {
+    const items = shell(`${button}._projectMenu.menu._getMenuItems().map(item => item.label.text)`);
+    return items.includes(fixture.project.name) || items;
+  });
 });
 
 await step('choosing a project in the menu sets it on the service', async () => {
-    shell(`${button}._projectMenu.menu._getMenuItems()
+  shell(`${button}._projectMenu.menu._getMenuItems()
         .find(item => item.label.text === ${JSON.stringify(fixture.project.name)}).activate(null)`);
-    await waitFor('ChosenProject', () => property('ChosenProject') === fixture.project.id || property('ChosenProject'));
-    await waitFor('the title', () => projectTitle() === `Project: ${fixture.project.name}` || projectTitle());
-    await waitFor('the indicator', () => property('IndicatorState') === 'project' &&
-        property('IndicatorColor') === fixture.project.color || [property('IndicatorState'), property('IndicatorColor')]);
+  await waitFor('ChosenProject', () => property('ChosenProject') === fixture.project.id || property('ChosenProject'));
+  await waitFor('the title', () => projectTitle() === `Project: ${fixture.project.name}` || projectTitle());
+  await waitFor(
+    'the indicator',
+    () =>
+      (property('IndicatorState') === 'project' && property('IndicatorColor') === fixture.project.color) || [
+        property('IndicatorState'),
+        property('IndicatorColor'),
+      ],
+  );
 });
 
 await step('a primary click starts an entry on the server', async () => {
-    await pointAtButton();
-    const before = Math.floor(Date.now() / 1000);
-    click(1);
-    await waitFor('Running', () => property('Running') === true, 30_000);
-    const start = property('StartTime');
-    if (Math.abs(start - before) > 60)
-        throw new Error(`StartTime ${start} is not near ${before}`);
-    // Whole minutes: the entry has just started.
-    await waitFor('the running time', () => label() === '0:00' && property('Status') === 'ready' || label());
-    await waitFor('the locked project', () => sensitive('_projectMenu') === false);
+  await pointAtButton();
+  const before = Math.floor(Date.now() / 1000);
+  click(1);
+  await waitFor('Running', () => property('Running') === true, 30_000);
+  const start = property('StartTime');
+  if (Math.abs(start - before) > 60) throw new Error(`StartTime ${start} is not near ${before}`);
+  // Whole minutes: the entry has just started.
+  await waitFor('the running time', () => (label() === '0:00' && property('Status') === 'ready') || label());
+  await waitFor('the locked project', () => sensitive('_projectMenu') === false);
 });
 
 await step('billable switched on while running edits the running entry', async () => {
-    shell(`${button}._billableItem.toggle()`);
-    await waitFor('Billable', () => property('Billable') === true, 30_000);
-    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    await waitFor('the switch', () => shell(`${button}._billableItem.state`) === true);
+  shell(`${button}._billableItem.toggle()`);
+  await waitFor('Billable', () => property('Billable') === true, 30_000);
+  await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+  await waitFor('the switch', () => shell(`${button}._billableItem.state`) === true);
 });
 
 let chain = 0;
 
 await step('a second primary click pauses: the server stops the entry and the time holds its seconds', async () => {
-    click(1);
-    await waitFor('Paused', () => property('Paused') === true && property('Running') === false &&
-        property('StartTime') === 0, 30_000);
-    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    // The entry ran seconds, under half a step of the time resolution, so the server sent it to the
-    // trash at zero length and the chain adds nothing.
-    chain = property('ChainSeconds');
-    if (chain !== 0)
-        throw new Error(`ChainSeconds ${chain}`);
-    await waitFor('the chain total', () => label() === formatElapsed(chain) || label());
-    if (!shell(`${button}.accessible_name`).startsWith(`Paused ${formatElapsed(chain)} · `))
-        throw new Error(`button name: ${shell(`${button}.accessible_name`)}`);
-    if (shell(`${button}._toggleItem.label.text`) !== 'Stop')
-        throw new Error('the menu does not offer Stop while paused');
-    if (sensitive('_projectMenu') || sensitive('_billableItem'))
-        throw new Error('the project or billable stayed sensitive while paused');
+  click(1);
+  await waitFor(
+    'Paused',
+    () => property('Paused') === true && property('Running') === false && property('StartTime') === 0,
+    30_000,
+  );
+  await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+  // The entry ran seconds, under half a step of the time resolution, so the server sent it to the
+  // trash at zero length and the chain adds nothing.
+  chain = property('ChainSeconds');
+  if (chain !== 0) throw new Error(`ChainSeconds ${chain}`);
+  await waitFor('the chain total', () => label() === formatElapsed(chain) || label());
+  if (!shell(`${button}.accessible_name`).startsWith(`Paused ${formatElapsed(chain)} · `))
+    throw new Error(`button name: ${shell(`${button}.accessible_name`)}`);
+  if (shell(`${button}._toggleItem.label.text`) !== 'Stop')
+    throw new Error('the menu does not offer Stop while paused');
+  if (sensitive('_projectMenu') || sensitive('_billableItem'))
+    throw new Error('the project or billable stayed sensitive while paused');
 });
 
 await step('a primary click resumes: the server starts a clone and the time counts on', async () => {
-    click(1);
-    await waitFor('Running', () => property('Running') === true && property('Paused') === false, 30_000);
-    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    if (property('ChainSeconds') !== chain)
-        throw new Error(`ChainSeconds ${property('ChainSeconds')}, not ${chain}`);
-    if (property('ChosenProject') !== fixture.project.id || property('Billable') !== true)
-        throw new Error(`the clone has project ${property('ChosenProject')}, billable ${property('Billable')}`);
-    const now = Math.floor(Date.now() / 1000);
-    const total = [0, 60].map(slack => formatElapsed(chain + Math.max(0, now - property('StartTime')) + slack));
-    await waitFor('the chain total', () => total.includes(label()) || [label(), total]);
+  click(1);
+  await waitFor('Running', () => property('Running') === true && property('Paused') === false, 30_000);
+  await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+  if (property('ChainSeconds') !== chain) throw new Error(`ChainSeconds ${property('ChainSeconds')}, not ${chain}`);
+  if (property('ChosenProject') !== fixture.project.id || property('Billable') !== true)
+    throw new Error(`the clone has project ${property('ChosenProject')}, billable ${property('Billable')}`);
+  const now = Math.floor(Date.now() / 1000);
+  const total = [0, 60].map(slack => formatElapsed(chain + Math.max(0, now - property('StartTime')) + slack));
+  await waitFor('the chain total', () => total.includes(label()) || [label(), total]);
 });
 
 await step('Stop in the menu stops the clone on the server and ends the chain', async () => {
-    shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('stopped', () => property('Running') === false && property('Paused') === false &&
-        property('StartTime') === 0 && property('ChainSeconds') === 0, 30_000);
-    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    await waitFor('0:00', () => label() === '0:00' || label());
-    await waitFor('Start', () => shell(`${button}._toggleItem.label.text`) === 'Start');
-    await waitFor('the unlocked project', () => sensitive('_projectMenu') === true);
+  shell(`${button}._toggleItem.activate(null)`);
+  await waitFor(
+    'stopped',
+    () =>
+      property('Running') === false &&
+      property('Paused') === false &&
+      property('StartTime') === 0 &&
+      property('ChainSeconds') === 0,
+    30_000,
+  );
+  await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+  await waitFor('0:00', () => label() === '0:00' || label());
+  await waitFor('Start', () => shell(`${button}._toggleItem.label.text`) === 'Start');
+  await waitFor('the unlocked project', () => sensitive('_projectMenu') === true);
 });
 
 await step('a primary click in Pomodoro mode starts a session on the server', async () => {
-    timer('SetPomodoroMode', new GLib.Variant('(b)', [true]), '(b)');
-    await waitFor('CanStartSession', () => property('CanStartSession') === true || property('CanStartSession'));
-    click(1);
-    await waitFor('SessionActive', () => property('SessionActive') === true, 30_000);
-    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    if (property('Running') || property('Phase') !== 'work' || property('PomodoroNumber') !== 1 || !property('ModeLocked'))
-        throw new Error(`the session: ${property('Running')}, ${property('Phase')}, ${property('PomodoroNumber')}`);
-    await itemsAre('the session items', {toggle: false, startSession: false, nextPhase: true, endSession: true});
+  timer('SetPomodoroMode', new GLib.Variant('(b)', [true]), '(b)');
+  await waitFor('CanStartSession', () => property('CanStartSession') === true || property('CanStartSession'));
+  click(1);
+  await waitFor('SessionActive', () => property('SessionActive') === true, 30_000);
+  await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+  if (
+    property('Running') ||
+    property('Phase') !== 'work' ||
+    property('PomodoroNumber') !== 1 ||
+    !property('ModeLocked')
+  )
+    throw new Error(`the session: ${property('Running')}, ${property('Phase')}, ${property('PomodoroNumber')}`);
+  await itemsAre('the session items', { toggle: false, startSession: false, nextPhase: true, endSession: true });
 });
 
 await step('a session ended on another device clears the panel', async () => {
-    const {revision} = otherDevice('GET', '/timer');
-    otherDevice('POST', '/pomodoro/end', {revision});
-    await waitFor('no session', () => property('SessionActive') === false, 30_000);
-    await waitFor('unlocked', () => property('ModeLocked') === false);
-    await itemsAre('Start session', {toggle: false, startSession: true, nextPhase: false, endSession: false});
+  const { revision } = otherDevice('GET', '/timer');
+  otherDevice('POST', '/pomodoro/end', { revision });
+  await waitFor('no session', () => property('SessionActive') === false, 30_000);
+  await waitFor('unlocked', () => property('ModeLocked') === false);
+  await itemsAre('Start session', { toggle: false, startSession: true, nextPhase: false, endSession: false });
 });
 
 await step('a session started on another device shows in Timer mode and answers the menu', async () => {
-    timer('SetPomodoroMode', new GLib.Variant('(b)', [false]), '(b)');
-    await waitFor('Timer mode', () => property('PomodoroMode') === false);
-    otherDevice('POST', '/pomodoro', {created_with: 'fixture'});
-    await waitFor('SessionActive', () => property('SessionActive') === true, 30_000);
-    if (property('PomodoroMode') || property('Running') || property('Phase') !== 'work')
-        throw new Error(`the session: ${property('PomodoroMode')}, ${property('Running')}, ${property('Phase')}`);
-    await itemsAre('the session items without Start', {toggle: false, startSession: false, nextPhase: true,
-        endSession: true});
-    await waitFor('the countdown', () => {
-        const end = property('PlannedEnd');
-        const now = Date.now() / 1000;
-        return [countdown(end, now).text, countdown(end, now - 1.5).text].includes(label()) || [label(), end];
-    });
-    if (sensitive('_modeItem'))
-        throw new Error('the mode switch stayed sensitive during the session');
+  timer('SetPomodoroMode', new GLib.Variant('(b)', [false]), '(b)');
+  await waitFor('Timer mode', () => property('PomodoroMode') === false);
+  otherDevice('POST', '/pomodoro', { created_with: 'fixture' });
+  await waitFor('SessionActive', () => property('SessionActive') === true, 30_000);
+  if (property('PomodoroMode') || property('Running') || property('Phase') !== 'work')
+    throw new Error(`the session: ${property('PomodoroMode')}, ${property('Running')}, ${property('Phase')}`);
+  await itemsAre('the session items without Start', {
+    toggle: false,
+    startSession: false,
+    nextPhase: true,
+    endSession: true,
+  });
+  await waitFor('the countdown', () => {
+    const end = property('PlannedEnd');
+    const now = Date.now() / 1000;
+    return [countdown(end, now).text, countdown(end, now - 1.5).text].includes(label()) || [label(), end];
+  });
+  if (sensitive('_modeItem')) throw new Error('the mode switch stayed sensitive during the session');
 
-    shell(`${button}._nextPhaseItem.activate(null)`);
-    await waitFor('the rest', () => property('Phase') === 'shortRest', 30_000);
-    shell(`${button}._endSessionItem.activate(null)`);
-    await waitFor('no session', () => property('SessionActive') === false, 30_000);
-    await itemsAre('Start', {toggle: true, startSession: false, nextPhase: false, endSession: false});
-    await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
+  shell(`${button}._nextPhaseItem.activate(null)`);
+  await waitFor('the rest', () => property('Phase') === 'shortRest', 30_000);
+  shell(`${button}._endSessionItem.activate(null)`);
+  await waitFor('no session', () => property('SessionActive') === false, 30_000);
+  await itemsAre('Start', { toggle: true, startSession: false, nextPhase: false, endSession: false });
+  await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
 });
 
 await step('the button says so when the service goes away', async () => {
-    service.force_exit();
-    service.wait(null);
-    service = null;
-    await waitFor('the mark', () => label() === '0:00!' || label());
-    if (statusText() !== 'Timer service not running')
-        throw new Error(`status: ${statusText()}`);
+  service.force_exit();
+  service.wait(null);
+  service = null;
+  await waitFor('the mark', () => label() === '0:00!' || label());
+  if (statusText() !== 'Timer service not running') throw new Error(`status: ${statusText()}`);
 });
 
 service?.force_exit();

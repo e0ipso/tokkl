@@ -19,8 +19,9 @@ export async function expectBrowserTimeZone(page: Page, timeZone: string): Promi
 
 /** Switches the timer page to the calendar and waits until the choice is saved, so a reload keeps it. */
 export async function openCalendar(page: Page): Promise<void> {
-  const saved = page.waitForResponse((response) =>
-    response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v9/me/preferences');
+  const saved = page.waitForResponse(
+    response => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v9/me/preferences',
+  );
   await page.getByRole('button', { name: 'Calendar' }).click();
   await saved;
   await expect(page.locator('.calendar-column.today')).toBeVisible();
@@ -50,7 +51,7 @@ export async function dragBy(page: Page, target: Locator, hours: number): Promis
 /** The time-entry saves the page sends, in order: POST for a create, PUT for an edit. */
 export function entryWrites(page: Page): string[] {
   const writes: string[] = [];
-  page.on('request', (request) => {
+  page.on('request', request => {
     const path = new URL(request.url()).pathname;
     if (['POST', 'PUT'].includes(request.method()) && /^\/api\/v9\/workspaces\/\d+\/time_entries(\/\d+)?$/.test(path)) {
       writes.push(request.method());
@@ -61,7 +62,10 @@ export function entryWrites(page: Page): string[] {
 
 /** The start and stop the server has stored for an entry. */
 export async function savedTimes(page: Page, id: number): Promise<{ start: string; stop: string | null }> {
-  const saved = await (await page.request.get(`/api/v9/me/time_entries/${id}`)).json() as { start: string; stop: string | null };
+  const saved = (await (await page.request.get(`/api/v9/me/time_entries/${id}`)).json()) as {
+    start: string;
+    stop: string | null;
+  };
   return { start: saved.start, stop: saved.stop };
 }
 
@@ -82,13 +86,18 @@ async function touch(page: Page, type: 'touchStart' | 'touchMove' | 'touchEnd', 
     touchSessions.set(page, session);
   }
   // A lifted finger leaves no touch points.
-  await (await session).send('Input.dispatchTouchEvent', { type, touchPoints: point ? [{ x: point.x, y: point.y }] : [] });
+  await (
+    await session
+  ).send('Input.dispatchTouchEvent', { type, touchPoints: point ? [{ x: point.x, y: point.y }] : [] });
 }
 
 /** Slides a held finger from `from` to `to` in even moves about a frame apart. */
 async function touchMoves(page: Page, from: Point, to: Point, steps: number): Promise<void> {
   for (let step = 1; step <= steps; step++) {
-    await touch(page, 'touchMove', { x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps });
+    await touch(page, 'touchMove', {
+      x: from.x + ((to.x - from.x) * step) / steps,
+      y: from.y + ((to.y - from.y) * step) / steps,
+    });
     await page.waitForTimeout(16);
   }
 }
@@ -109,7 +118,7 @@ async function lift(page: Page): Promise<void> {
  */
 export async function calendarBodyBox(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
   const body = page.locator('.calendar-body');
-  await body.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  await body.evaluate(element => element.scrollIntoView({ block: 'center' }));
   return (await body.boundingBox())!;
 }
 
@@ -118,7 +127,12 @@ export async function calendarBodyBox(page: Page): Promise<{ x: number; y: numbe
  * Sideways it is a swipe; up or down it scrolls a `touch-action: pan-y` element like a real finger.
  * The resting finger starts no fling, so the next gesture can follow at once.
  */
-export async function touchSwipe(page: Page, from: Point, to: Point, { steps = 10 }: { steps?: number } = {}): Promise<void> {
+export async function touchSwipe(
+  page: Page,
+  from: Point,
+  to: Point,
+  { steps = 10 }: { steps?: number } = {},
+): Promise<void> {
   await touch(page, 'touchStart', from);
   await touchMoves(page, from, to, steps);
   await lift(page);

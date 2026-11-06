@@ -57,9 +57,16 @@ export class OtherDevice {
   }
 
   async createEntry(entry: {
-    description: string; start: string; stop?: string; project_id?: number; tags?: string[]; billable?: boolean;
+    description: string;
+    start: string;
+    stop?: string;
+    project_id?: number;
+    tags?: string[];
+    billable?: boolean;
   }): Promise<StoredEntry> {
-    return json(this.api.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, created_with: 'e2e other device' } }));
+    return json(
+      this.api.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, created_with: 'e2e other device' } }),
+    );
   }
 
   /**
@@ -67,10 +74,17 @@ export class OtherDevice {
    * seconds after it started would round to zero at the time resolution and go to the trash.
    */
   async startTimer(description: string): Promise<StoredEntry> {
-    return json(this.api.post(`${this.ws}/time_entries`, {
-      headers: CSRF,
-      data: { description, start: new Date(Date.now() - 10 * 60_000).toISOString(), duration: -1, created_with: 'e2e other device' },
-    }));
+    return json(
+      this.api.post(`${this.ws}/time_entries`, {
+        headers: CSRF,
+        data: {
+          description,
+          start: new Date(Date.now() - 10 * 60_000).toISOString(),
+          duration: -1,
+          created_with: 'e2e other device',
+        },
+      }),
+    );
   }
 
   async stopTimer(id: number): Promise<StoredEntry> {
@@ -95,14 +109,16 @@ export class OtherDevice {
 
   /** Live (not deleted) entries by id. */
   async entries(): Promise<Map<number, StoredEntry>> {
-    const list = await json<StoredEntry[]>(this.api.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
-    return new Map(list.map((entry) => [entry.id, entry]));
+    const list = await json<StoredEntry[]>(
+      this.api.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'),
+    );
+    return new Map(list.map(entry => [entry.id, entry]));
   }
 
   /** Ids of entries in the trash. */
   async trashIds(): Promise<number[]> {
     const list = await json<Array<{ id: number }>>(this.api.get('/api/app/trash'));
-    return list.map((entry) => entry.id).sort((a, b) => a - b);
+    return list.map(entry => entry.id).sort((a, b) => a - b);
   }
 
   /** The editable fields of every live entry, keyed by id, for comparing before and after an edit. */
@@ -119,7 +135,12 @@ export class OtherDevice {
 }
 
 export function stateOf(entry: StoredEntry): EntryState {
-  return { description: entry.description, project_id: entry.project_id, tags: [...entry.tags].sort(), billable: entry.billable };
+  return {
+    description: entry.description,
+    project_id: entry.project_id,
+    tags: [...entry.tags].sort(),
+    billable: entry.billable,
+  };
 }
 
 /** `days` calendar days before today in UTC, as YYYY-MM-DD; 10:00-13:00 UTC stays on that day in Europe/Madrid. */
@@ -135,7 +156,7 @@ export function entryRow(page: Page, description: string) {
 }
 /** Reports the page as hidden or visible and fires visibilitychange, as switching tabs or apps does. */
 export async function setVisibility(page: Page, state: 'hidden' | 'visible'): Promise<void> {
-  await page.evaluate((next) => {
+  await page.evaluate(next => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => next });
     Object.defineProperty(document, 'hidden', { configurable: true, get: () => next === 'hidden' });
     // The browser's event bubbles to window, where TanStack Query listens.
@@ -146,7 +167,7 @@ export async function setVisibility(page: Page, state: 'hidden' | 'visible'): Pr
 /** Counts the GET requests the page sends for the running timer and for the history list. */
 export function countPolls(page: Page): { current: number; history: number } {
   const counts = { current: 0, history: 0 };
-  page.on('request', (req) => {
+  page.on('request', req => {
     if (req.method() !== 'GET') return;
     const path = new URL(req.url()).pathname;
     if (path === '/api/v9/me/time_entries/current') counts.current++;

@@ -6,7 +6,10 @@ import { beginSqliteTransaction } from './sqliteBridge.ts';
 
 /** Internal only: construct ALL repositories using this exact connection-bound db. */
 export type RepositoryFactory<D, R extends object> = (db: Kysely<D>) => R;
-export interface TransactionOptions { maxAttempts?: number; dryRun?: boolean }
+export interface TransactionOptions {
+  maxAttempts?: number;
+  dryRun?: boolean;
+}
 export interface TransactionRunner<R extends object> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>, options?: TransactionOptions): Promise<T>;
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
@@ -16,7 +19,11 @@ export interface TransactionRunnerOptions {
   publicationFailed?: () => void | Promise<void>;
 }
 
-export function createTransactionRunner<D, R extends object>(connection: StorageConnection<D>, factory: RepositoryFactory<D, R>, options: TransactionRunnerOptions = {}): TransactionRunner<R> {
+export function createTransactionRunner<D, R extends object>(
+  connection: StorageConnection<D>,
+  factory: RepositoryFactory<D, R>,
+  options: TransactionRunnerOptions = {},
+): TransactionRunner<R> {
   const backend = connection.backend;
   function scoped(db: Kysely<D>, isActive: () => boolean): Kysely<D> {
     return db.withPlugin({
@@ -24,7 +31,9 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
         if (!isActive()) throw new Error('Operation context is closed');
         return args.node;
       },
-      async transformResult(args) { return args.result; },
+      async transformResult(args) {
+        return args.result;
+      },
     });
   }
   const execute = (db: Kysely<D>, command: string) => sql.raw(command).execute(db);
@@ -32,7 +41,10 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
     if (backend === 'sqlite') {
       await db.getExecutor().provideConnection(c => beginSqliteTransaction(c, snapshot));
     } else if (backend === 'postgres') {
-      await execute(db, snapshot ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN ISOLATION LEVEL READ COMMITTED');
+      await execute(
+        db,
+        snapshot ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN ISOLATION LEVEL READ COMMITTED',
+      );
     } else {
       await execute(db, `SET TRANSACTION ISOLATION LEVEL ${snapshot ? 'REPEATABLE READ' : 'READ COMMITTED'}`);
       await execute(db, snapshot ? 'START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY' : 'START TRANSACTION');
@@ -42,7 +54,8 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
     async transaction(work, settings = {}) {
       if (connection.readOnly) throw new Error('Write transaction requires a writable connection');
       const attempts = settings.maxAttempts ?? 3;
-      if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 5) throw new Error('Invalid transaction attempt limit');
+      if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 5)
+        throw new Error('Invalid transaction attempt limit');
       for (let attempt = 1; ; attempt++) {
         let rolledBack = false;
         let commitStarted = false;
@@ -57,7 +70,9 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
             let before = new Map<string, () => Promise<void>>();
             let held = new Set<string>();
             let lastRank = '';
-            function check() { if (!active) throw new Error('Transaction context is closed'); }
+            function check() {
+              if (!active) throw new Error('Transaction context is closed');
+            }
             let lockQueue: Promise<void> = Promise.resolve();
             function serializeLock(work: () => Promise<void>): Promise<void> {
               const next = lockQueue.then(work);
@@ -74,14 +89,21 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
                   const key = `${rank}:${String(id).padStart(16, '0')}`;
                   if (held.has(key)) continue;
                   if (key < lastRank) throw new Error('Storage lock order violation');
-                  const result = await sql`select id from ${sql.table(table)} where id = ${id} ${backend === 'sqlite' ? sql`` : sql`for update`}`.execute(db);
+                  const result =
+                    await sql`select id from ${sql.table(table)} where id = ${id} ${backend === 'sqlite' ? sql`` : sql`for update`}`.execute(
+                      db,
+                    );
                   if (result.rows.length !== 1) throw new Error('Storage lock target does not exist');
-                  held.add(key); lastRank = key;
+                  held.add(key);
+                  lastRank = key;
                 }
               });
             }
             const scope: TransactionScope<R> = {
-              async transaction(nested) { check(); return nested(context); },
+              async transaction(nested) {
+                check();
+                return nested(context);
+              },
               async savepoint(unit) {
                 check();
                 // A connection has a stack of savepoints. Concurrent sibling units cannot share it.
@@ -98,19 +120,30 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
                   await execute(db, `RELEASE SAVEPOINT ${name}`);
                   return result;
                 } catch (error) {
-                  before = savedBefore; after.length = savedAfter;
+                  before = savedBefore;
+                  after.length = savedAfter;
                   held = savedHeld;
                   // InnoDB can retain locks acquired after a savepoint. Keep the high-water order
                   // on every engine; PostgreSQL must reacquire rows released by rollback.
                   try {
                     await execute(db, `ROLLBACK TO SAVEPOINT ${name}`);
                     await execute(db, `RELEASE SAVEPOINT ${name}`);
-                  } catch { rollbackOnly = true; }
+                  } catch {
+                    rollbackOnly = true;
+                  }
                   throw classifyConflict(error) ?? error;
-                } finally { savepointActive = false; }
+                } finally {
+                  savepointActive = false;
+                }
               },
-              beforeCommit(key, callback) { check(); before.set(key, callback); },
-              afterCommit(callback) { check(); after.push(callback); },
+              beforeCommit(key, callback) {
+                check();
+                before.set(key, callback);
+              },
+              afterCommit(callback) {
+                check();
+                after.push(callback);
+              },
               lockUserTimer: id => locks('users', [id]),
               lockUsers: ids => locks('users', ids),
               lockWorkspaces: ids => locks('workspaces', ids),
@@ -120,15 +153,21 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
                   if (held.has('0')) return;
                   if (lastRank && lastRank !== '0') throw new Error('Storage lock order violation');
                   // Every initialized database has this immutable parent, even before the first user.
-                  const result = await sql`select version from storage_migrations where version = 1 ${backend === 'sqlite' ? sql`` : sql`for update`}`.execute(db);
+                  const result =
+                    await sql`select version from storage_migrations where version = 1 ${backend === 'sqlite' ? sql`` : sql`for update`}`.execute(
+                      db,
+                    );
                   if (result.rows.length !== 1) throw new Error('Storage guard is missing');
-                  held.add('0'); lastRank = '0';
+                  held.add('0');
+                  lastRank = '0';
                 });
               },
             };
             const context: OperationContext<R> = Object.assign(factory(scoped(db, () => active)), scope);
             try {
-              began = true; await begin(db, false); bodyStarted = true;
+              began = true;
+              await begin(db, false);
+              bodyStarted = true;
               const result = await work(context);
               let drained = 0;
               while (before.size) {
@@ -139,7 +178,9 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
               }
               if (rollbackOnly || savepointActive) throw new Error('Transaction cannot commit');
               if (settings.dryRun) {
-                await execute(db, 'ROLLBACK'); rolledBack = true; after.length = 0;
+                await execute(db, 'ROLLBACK');
+                rolledBack = true;
+                after.length = 0;
               } else {
                 commitStarted = true;
                 await execute(db, 'COMMIT');
@@ -149,24 +190,45 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
               after.length = 0;
               // SQLite's synchronous BEGIN reports BUSY before it opens a transaction.
               // Rolling back here would replace the useful conflict with 'no transaction'.
-              if (backend === 'sqlite' && !bodyStarted && classifyConflict(error)?.kind === 'busy') throw classifyConflict(error)!;
+              if (backend === 'sqlite' && !bodyStarted && classifyConflict(error)?.kind === 'busy')
+                throw classifyConflict(error)!;
               if (began) {
-                try { await execute(db, 'ROLLBACK'); rolledBack = true; }
-                catch { throw new StorageTransactionError('unknown'); }
+                try {
+                  await execute(db, 'ROLLBACK');
+                  rolledBack = true;
+                } catch {
+                  throw new StorageTransactionError('unknown');
+                }
               }
               if (commitStarted) throw new StorageTransactionError('unknown');
               throw classifyConflict(error) ?? error;
-            } finally { active = false; }
+            } finally {
+              active = false;
+            }
           });
           // connection().execute has released the checkout before any callback can read storage.
           for (const publish of after) {
-            try { await publish(); }
-            catch { try { await options.publicationFailed?.(); } catch { /* committed writes remain successful */ } }
+            try {
+              await publish();
+            } catch {
+              try {
+                await options.publicationFailed?.();
+              } catch {
+                /* committed writes remain successful */
+              }
+            }
           }
           return value;
         } catch (error) {
           const conflict = classifyConflict(error);
-          if (!commitStarted && rolledBack && conflict && ['deadlock', 'serialization'].includes(conflict.kind) && attempt < attempts) continue;
+          if (
+            !commitStarted &&
+            rolledBack &&
+            conflict &&
+            ['deadlock', 'serialization'].includes(conflict.kind) &&
+            attempt < attempts
+          )
+            continue;
           throw error;
         }
       }
@@ -185,7 +247,11 @@ export function createTransactionRunner<D, R extends object>(connection: Storage
           await execute(db, 'COMMIT');
           return result;
         } catch (error) {
-          try { await execute(db, 'ROLLBACK'); } catch { throw new StorageTransactionError('unknown'); }
+          try {
+            await execute(db, 'ROLLBACK');
+          } catch {
+            throw new StorageTransactionError('unknown');
+          }
           throw classifyConflict(error) ?? error;
         } finally {
           active = false;

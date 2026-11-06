@@ -4,8 +4,16 @@
  * previous one keeps its rows, so the list never shows entries from outside the range it is
  * loading.
  */
-export function coversPreviousRange(previousKey: readonly unknown[] | undefined, startDate: string, endDate: string): boolean {
+export function coversPreviousRange(
+  previousKey: readonly unknown[] | undefined,
+  startDate: string,
+  endDate: string,
+): boolean {
   const [, previousStart, previousEnd] = previousKey ?? [];
-  return typeof previousStart === 'string' && typeof previousEnd === 'string'
-    && startDate <= previousStart && endDate >= previousEnd;
+  return (
+    typeof previousStart === 'string' &&
+    typeof previousEnd === 'string' &&
+    startDate <= previousStart &&
+    endDate >= previousEnd
+  );
 }

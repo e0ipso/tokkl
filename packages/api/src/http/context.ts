@@ -34,9 +34,17 @@ declare module 'express-serve-static-core' {
 }
 
 /** Authenticate and collect a JSON response in one snapshot; send only after releasing it. */
-export function jsonRead(deps: Deps, work: (req: Request, res: Response, repositories: Repositories) => unknown | Promise<unknown>, administrative = false): RequestHandler {
+export function jsonRead(
+  deps: Deps,
+  work: (req: Request, res: Response, repositories: Repositories) => unknown | Promise<unknown>,
+  administrative = false,
+): RequestHandler {
   return async (req, res) => {
-    const body = await deps.readFor(res.locals.auth, repositories => Promise.resolve(work(req, res, repositories)), administrative);
+    const body = await deps.readFor(
+      res.locals.auth,
+      repositories => Promise.resolve(work(req, res, repositories)),
+      administrative,
+    );
     res.json(body);
   };
 }

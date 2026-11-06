@@ -21,7 +21,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
     try {
       if (mode === 'setup') {
         await api.post('/api/app/setup', {
-          setup_code: setupCode, email, password, fullname,
+          setup_code: setupCode,
+          email,
+          password,
+          fullname,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         });
       } else {
@@ -43,29 +46,44 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
           <>
             <h1>Create the first admin</h1>
             <p className="muted">
-              This creates the server's first administrator. You can invite more people afterwards.
-              The setup code is printed in the server log.
+              This creates the server's first administrator. You can invite more people afterwards. The setup code is
+              printed in the server log.
             </p>
             <label className="field">
               <span>Setup code</span>
-              <input value={setupCode} onChange={(e) => setSetupCode(e.target.value)} required autoComplete="off" autoFocus />
+              <input
+                value={setupCode}
+                onChange={e => setSetupCode(e.target.value)}
+                required
+                autoComplete="off"
+                autoFocus
+              />
             </label>
             <label className="field">
               <span>Name</span>
-              <input value={fullname} onChange={(e) => setFullname(e.target.value)} autoComplete="name" />
+              <input value={fullname} onChange={e => setFullname(e.target.value)} autoComplete="name" />
             </label>
           </>
-        ) : <h1>Log in</h1>}
+        ) : (
+          <h1>Log in</h1>
+        )}
         <label className="field">
           <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" autoFocus={mode === 'login'} />
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            autoComplete="username"
+            autoFocus={mode === 'login'}
+          />
         </label>
         <label className="field">
           <span>Password</span>
           <input
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
             minLength={mode === 'setup' ? 8 : undefined}
             autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}

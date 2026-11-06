@@ -56,7 +56,14 @@ export function contrast(a: string, b: string): number {
 }
 
 /** The hue token in styles.css that each section, as App.tsx names it in data-section, fills with. */
-const SECTION_HUES = { timer: '--hue-orange', pomodoro: '--hue-cyan', reports: '--hue-sky', projects: '--hue-violet', settings: '--hue-yellow', more: '--hue-pink' } as const;
+const SECTION_HUES = {
+  timer: '--hue-orange',
+  pomodoro: '--hue-cyan',
+  reports: '--hue-sky',
+  projects: '--hue-violet',
+  settings: '--hue-yellow',
+  more: '--hue-pink',
+} as const;
 
 export type Section = keyof typeof SECTION_HUES;
 
@@ -65,7 +72,7 @@ export type Section = keyof typeof SECTION_HUES;
  * bold, and the page's main element carries the same section.
  */
 export async function expectSectionHue(page: Page, item: Locator, section: Section): Promise<void> {
-  const hue = await page.evaluate((token) => {
+  const hue = await page.evaluate(token => {
     const probe = document.createElement('div');
     probe.style.backgroundColor = `var(${token})`;
     document.body.append(probe);

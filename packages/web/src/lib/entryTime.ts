@@ -14,7 +14,10 @@ export function instantAt(key: string, minutes: number, timeZone: string): Date 
  * explicit "9am" stays 9 AM.
  */
 export function resolveRange(
-  day: string, startText: string, endText: string, options: { timeZone: string; twelveHour: boolean; nowMinutes: number },
+  day: string,
+  startText: string,
+  endText: string,
+  options: { timeZone: string; twelveHour: boolean; nowMinutes: number },
 ): { start: Date; stop: Date } | null {
   const startMinutes = parseTimeOfDay(startText, { twelveHour: options.twelveHour, reference: options.nowMinutes });
   if (startMinutes === null) return null;
@@ -26,8 +29,13 @@ export function resolveRange(
 }
 
 /** The field to fix when resolveRange returns null: the start if it cannot be read, otherwise the end. */
-export function unreadableTime(startText: string, options: { twelveHour: boolean; nowMinutes: number }): 'start' | 'end' {
-  return parseTimeOfDay(startText, { twelveHour: options.twelveHour, reference: options.nowMinutes }) === null ? 'start' : 'end';
+export function unreadableTime(
+  startText: string,
+  options: { twelveHour: boolean; nowMinutes: number },
+): 'start' | 'end' {
+  return parseTimeOfDay(startText, { twelveHour: options.twelveHour, reference: options.nowMinutes }) === null
+    ? 'start'
+    : 'end';
 }
 
 export function localDay(iso: string | Date, timeZone: string): string {

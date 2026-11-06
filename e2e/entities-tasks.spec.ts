@@ -22,12 +22,19 @@ async function expectPickerTasks(page: Page, names: string[]): Promise<void> {
   await expect(picker).toBeHidden();
 }
 
-test('a project task is created, renamed, assigned, completed and deleted without losing its entry', async ({ page }) => {
+test('a project task is created, renamed, assigned, completed and deleted without losing its entry', async ({
+  page,
+}) => {
   await login(page);
   const api = await EntityApi.open(page);
   const day = yesterday();
   const project = await api.createProject({ name: 'Platform' });
-  const entry = await api.createEntry({ description: 'Schema work', start: `${day}T08:00:00Z`, stop: `${day}T09:30:00Z`, project_id: project.id });
+  const entry = await api.createEntry({
+    description: 'Schema work',
+    start: `${day}T08:00:00Z`,
+    stop: `${day}T09:30:00Z`,
+    project_id: project.id,
+  });
 
   let { editor, tasks } = await openTasks(page, 'Platform');
   await tasks.getByRole('textbox', { name: 'New task name' }).fill('Design');
@@ -38,7 +45,7 @@ test('a project task is created, renamed, assigned, completed and deleted withou
 
   await tasks.getByRole('textbox', { name: 'Task name', exact: true }).fill('Design review');
   await tasks.getByRole('textbox', { name: 'Task name', exact: true }).press('Enter');
-  await expect.poll(async () => (await api.tasks(project.id)).map((t) => t.name)).toEqual(['Design review']);
+  await expect.poll(async () => (await api.tasks(project.id)).map(t => t.name)).toEqual(['Design review']);
   await editor.getByRole('button', { name: 'Cancel' }).click();
   await page.reload();
   ({ editor, tasks } = await openTasks(page, 'Platform'));
@@ -58,7 +65,9 @@ test('a project task is created, renamed, assigned, completed and deleted withou
 
   // The task counts the entry's hour and a half.
   ({ editor, tasks } = await openTasks(page, 'Platform'));
-  const taskRow = tasks.getByRole('listitem').filter({ has: page.getByRole('textbox', { name: 'Task name', exact: true }) });
+  const taskRow = tasks
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('textbox', { name: 'Task name', exact: true }) });
   await expect(taskRow.locator('.task-tracked')).toHaveText('1:30:00');
 
   await tasks.getByRole('checkbox', { name: 'Design review is done' }).check();
@@ -85,7 +94,13 @@ test('a project task is created, renamed, assigned, completed and deleted withou
 
   const after = await api.entry(entry.id);
   expect(after).toMatchObject({
-    id: entry.id, description: 'Schema work', project_id: project.id, task_id: null, start: assigned.start, stop: assigned.stop, duration: 5400,
+    id: entry.id,
+    description: 'Schema work',
+    project_id: project.id,
+    task_id: null,
+    start: assigned.start,
+    stop: assigned.stop,
+    duration: 5400,
   });
   await page.getByRole('link', { name: 'Timer' }).click();
   await expect(row.locator('.project-label')).toHaveText('Platform');

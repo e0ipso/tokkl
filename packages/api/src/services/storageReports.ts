@@ -59,8 +59,13 @@ const MAX_RANGE_DAYS = 3660;
 /** Rounding steps Toggl accepts, in minutes. 0 turns rounding off. */
 export const ROUNDING_MINUTES = [0, 1, 5, 6, 10, 12, 15, 30, 60, 240];
 
-export function validateRange(startDate: unknown, endDate: unknown, maxDays = MAX_RANGE_DAYS): { startDate: string; endDate: string } {
-  if (typeof startDate !== 'string' || !parseDateKey(startDate)) throw badRequest('Invalid start_date: expected YYYY-MM-DD');
+export function validateRange(
+  startDate: unknown,
+  endDate: unknown,
+  maxDays = MAX_RANGE_DAYS,
+): { startDate: string; endDate: string } {
+  if (typeof startDate !== 'string' || !parseDateKey(startDate))
+    throw badRequest('Invalid start_date: expected YYYY-MM-DD');
   if (typeof endDate !== 'string' || !parseDateKey(endDate)) throw badRequest('Invalid end_date: expected YYYY-MM-DD');
   const days = daysBetween(startDate, endDate);
   if (days < 0) throw badRequest('end_date must not be earlier than start_date');
@@ -82,13 +87,25 @@ export interface ReportSource {
 }
 export type ReportUser = Pick<User, 'id' | 'fullName' | 'email' | 'timezone' | 'beginningOfWeek'>;
 export type ReportWorkspace = Pick<Workspace, 'id' | 'defaultCurrency' | 'defaultHourlyRate'>;
-export interface ReportData { user: ReportUser; workspace: ReportWorkspace; entries: ReportEntryProjection[] }
+export interface ReportData {
+  user: ReportUser;
+  workspace: ReportWorkspace;
+  entries: ReportEntryProjection[];
+}
 
 /** Read all related values on one checkout; release it before grouping or constructing CSV. */
-export function collectReport(source: ReportSource, userId: number, workspaceId: number, filter: ReportFilter, authentication?: StorageAuthentication): Promise<ReportData> {
+export function collectReport(
+  source: ReportSource,
+  userId: number,
+  workspaceId: number,
+  filter: ReportFilter,
+  authentication?: StorageAuthentication,
+): Promise<ReportData> {
   return source.readSnapshot(async repositories => {
     const user = authentication
-      ? authentication.user.id === userId ? await currentCredentialUser(repositories, authentication) : undefined
+      ? authentication.user.id === userId
+        ? await currentCredentialUser(repositories, authentication)
+        : undefined
       : await repositories.users.get(userId);
     if (!user) throw forbidden();
     const workspace = await repositories.workspaces.forMember(userId, workspaceId);
@@ -96,23 +113,59 @@ export function collectReport(source: ReportSource, userId: number, workspaceId:
     const from = startOfDay(filter.startDate, user.timezone).toISOString();
     const to = startOfDay(addDays(filter.endDate, 1), user.timezone).toISOString();
     const entries = await repositories.reports.collect(userId, workspaceId, { ...filter, from, to });
-    return { user: { id: user.id, fullName: user.fullName, email: user.email, timezone: user.timezone, beginningOfWeek: user.beginningOfWeek },
-      workspace: { id: workspace.id, defaultCurrency: workspace.defaultCurrency, defaultHourlyRate: workspace.defaultHourlyRate }, entries };
+    return {
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        timezone: user.timezone,
+        beginningOfWeek: user.beginningOfWeek,
+      },
+      workspace: {
+        id: workspace.id,
+        defaultCurrency: workspace.defaultCurrency,
+        defaultHourlyRate: workspace.defaultHourlyRate,
+      },
+      entries,
+    };
   });
 }
 
-export function formatReportEntries(rows: ReportEntryProjection[], user: ReportUser, workspace: ReportWorkspace, filter: ReportFilter): ReportEntry[] {
+export function formatReportEntries(
+  rows: ReportEntryProjection[],
+  user: ReportUser,
+  workspace: ReportWorkspace,
+  filter: ReportFilter,
+): ReportEntry[] {
   return rows.map(row => {
     const raw = Math.floor((Date.parse(row.stop) - Date.parse(row.start)) / 1000);
     const seconds = roundSeconds(raw, filter.rounding ?? 0, filter.roundingMinutes ?? 0);
     const rate = row.projectRate ?? workspace.defaultHourlyRate;
-    const currency = row.projectRate !== null ? (row.projectCurrency ?? workspace.defaultCurrency) : workspace.defaultCurrency;
+    const currency =
+      row.projectRate !== null ? (row.projectCurrency ?? workspace.defaultCurrency) : workspace.defaultCurrency;
     const hourlyRateCents = row.billable && rate !== null ? Math.round(rate * 100) : null;
-    return { id: row.id, description: row.description, start: row.start, stop: row.stop, at: row.updatedAt,
-      date: dateKey(new Date(row.start), user.timezone), seconds, billable: row.billable, projectId: row.projectId,
-      projectName: row.projectName, projectColor: row.projectColor, clientId: row.clientId, clientName: row.clientName,
-      taskId: row.taskId, taskName: row.taskName, tags: row.tags, hourlyRateCents, currency,
-      amountCents: hourlyRateCents === null ? null : Math.round((seconds / 3600) * hourlyRateCents), allDay: row.allDay };
+    return {
+      id: row.id,
+      description: row.description,
+      start: row.start,
+      stop: row.stop,
+      at: row.updatedAt,
+      date: dateKey(new Date(row.start), user.timezone),
+      seconds,
+      billable: row.billable,
+      projectId: row.projectId,
+      projectName: row.projectName,
+      projectColor: row.projectColor,
+      clientId: row.clientId,
+      clientName: row.clientName,
+      taskId: row.taskId,
+      taskName: row.taskName,
+      tags: row.tags,
+      hourlyRateCents,
+      currency,
+      amountCents: hourlyRateCents === null ? null : Math.round((seconds / 3600) * hourlyRateCents),
+      allDay: row.allDay,
+    };
   });
 }
 
@@ -150,7 +203,11 @@ export function resolutionFor(startDate: string, endDate: string): Resolution {
 }
 
 export function timeSeries(
-  entries: ReportEntry[], startDate: string, endDate: string, resolution: Resolution, beginningOfWeek: number,
+  entries: ReportEntry[],
+  startDate: string,
+  endDate: string,
+  resolution: Resolution,
+  beginningOfWeek: number,
 ): Array<{ start: string; seconds: number; billableSeconds: number }> {
   const bucketOf = (key: string): string => {
     if (resolution === 'day') return key;
@@ -193,7 +250,11 @@ export interface WeeklyGrid {
  * start on `beginningOfWeek`; the first and last are clipped to the range.
  */
 export function weeklyGrid(
-  entries: ReportEntry[], startDate: string, endDate: string, by: WeeklyRows, beginningOfWeek: number,
+  entries: ReportEntry[],
+  startDate: string,
+  endDate: string,
+  by: WeeklyRows,
+  beginningOfWeek: number,
 ): WeeklyGrid {
   const mode = daysBetween(startDate, endDate) + 1 <= 7 ? 'days' : 'weeks';
   const columnOf = (key: string): string => (mode === 'days' ? key : startOfWeek(key, beginningOfWeek));
@@ -213,9 +274,10 @@ export function weeklyGrid(
     const id = by === 'projects' ? entry.projectId : entry.clientId;
     let row = rows.get(String(id));
     if (!row) {
-      row = by === 'projects'
-        ? { id, title: entry.projectName ?? '', color: entry.projectColor, cells: columns.map(() => 0), total: 0 }
-        : { id, title: entry.clientName ?? '', color: null, cells: columns.map(() => 0), total: 0 };
+      row =
+        by === 'projects'
+          ? { id, title: entry.projectName ?? '', color: entry.projectColor, cells: columns.map(() => 0), total: 0 }
+          : { id, title: entry.clientName ?? '', color: null, cells: columns.map(() => 0), total: 0 };
       rows.set(String(id), row);
     }
     row.cells[column]! += entry.seconds;
@@ -224,8 +286,9 @@ export function weeklyGrid(
     total += entry.seconds;
   }
   // The "without project/client" row goes last; the rest by total, then title.
-  const sorted = [...rows.values()].sort((a, b) =>
-    Number(a.id === null) - Number(b.id === null) || b.total - a.total || a.title.localeCompare(b.title));
+  const sorted = [...rows.values()].sort(
+    (a, b) => Number(a.id === null) - Number(b.id === null) || b.total - a.total || a.title.localeCompare(b.title),
+  );
   return { mode, columns, rows: sorted, columnTotals, total };
 }
 
@@ -247,7 +310,9 @@ export function keysFor(entry: ReportEntry, dimension: Dimension): GroupKey[] {
     case 'task':
       return [{ id: entry.taskId, title: entry.taskName ?? '', color: null }];
     case 'tag':
-      return entry.tags.length ? entry.tags.map((tag) => ({ id: tag.id, title: tag.name, color: null })) : [{ id: null, title: '', color: null }];
+      return entry.tags.length
+        ? entry.tags.map(tag => ({ id: tag.id, title: tag.name, color: null }))
+        : [{ id: null, title: '', color: null }];
     case 'description':
       return [{ id: null, title: entry.description, color: null }];
     case 'none':
@@ -285,7 +350,7 @@ export function groupEntries(entries: ReportEntry[], dimension: Dimension, subDi
         seconds: totals.seconds,
         billableSeconds: totals.billableSeconds,
         amountCents: totals.amounts.reduce((sum, amount) => sum + amount.cents, 0),
-        entryIds: members.map((member) => member.id),
+        entryIds: members.map(member => member.id),
         subGroups: subDimension === 'none' ? [] : groupEntries(members, subDimension),
       };
     })
@@ -296,7 +361,7 @@ export function parseIdFilter(value: unknown, field: string): IdFilter | undefin
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value)) throw badRequest(`Invalid '${field}' value: expected an array`);
   if (value.length > 1000) throw badRequest(`'${field}' accepts at most 1000 ids`);
-  return value.map((item) => {
+  return value.map(item => {
     if (item === null) return null;
     if (typeof item === 'number' && Number.isSafeInteger(item) && item > 0) return item;
     throw badRequest(`Invalid '${field}' value`);
@@ -313,12 +378,17 @@ export function filterFromBody(body: Record<string, unknown>, workspace: Workspa
   const durationBound = (field: string): number | undefined => {
     const value = body[field];
     if (value === undefined || value === null) return undefined;
-    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw badRequest(`Invalid '${field}' value`);
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+      throw badRequest(`Invalid '${field}' value`);
     return value;
   };
   const minDurationSeconds = durationBound('min_duration_seconds');
   const maxDurationSeconds = durationBound('max_duration_seconds');
-  if (minDurationSeconds !== undefined && maxDurationSeconds !== undefined && minDurationSeconds >= maxDurationSeconds) {
+  if (
+    minDurationSeconds !== undefined &&
+    maxDurationSeconds !== undefined &&
+    minDurationSeconds >= maxDurationSeconds
+  ) {
     throw badRequest('max_duration_seconds must be greater than min_duration_seconds');
   }
   const rounding = body.rounding === undefined ? undefined : Number(body.rounding);

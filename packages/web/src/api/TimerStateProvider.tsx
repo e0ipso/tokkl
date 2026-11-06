@@ -23,23 +23,24 @@ function AccountTimerState({ children }: { children: ReactNode }) {
   const [streaming, setStreaming] = useState(false);
   const wasDown = useRef(false);
 
-  useEffect(() => connectTimerStream(
-    () => new EventSource(EVENTS_PATH),
-    {
-      onState: (state) => acceptTimerState(qc, state),
-      onStatus: (up) => {
-        setStreaming(up);
-        if (!up) {
-          wasDown.current = true;
-          // A stream the server ended is followed by a read: a 403 there means signed out.
-          void qc.refetchQueries({ queryKey: keys.timer });
-        } else if (wasDown.current) {
-          wasDown.current = false;
-          void qc.refetchQueries({ queryKey: keys.timer });
-        }
-      },
-    },
-  ), [qc]);
+  useEffect(
+    () =>
+      connectTimerStream(() => new EventSource(EVENTS_PATH), {
+        onState: state => acceptTimerState(qc, state),
+        onStatus: up => {
+          setStreaming(up);
+          if (!up) {
+            wasDown.current = true;
+            // A stream the server ended is followed by a read: a 403 there means signed out.
+            void qc.refetchQueries({ queryKey: keys.timer });
+          } else if (wasDown.current) {
+            wasDown.current = false;
+            void qc.refetchQueries({ queryKey: keys.timer });
+          }
+        },
+      }),
+    [qc],
+  );
 
   return (
     <TimerStreamingContext.Provider value={streaming}>

@@ -10,7 +10,7 @@ export const V9 = '/api/v9';
 export function useInvalidate(): (...queryKeys: readonly QueryKey[]) => Promise<void> {
   const qc = useQueryClient();
   return async (...queryKeys) => {
-    await Promise.all(queryKeys.map((queryKey) => qc.invalidateQueries({ queryKey })));
+    await Promise.all(queryKeys.map(queryKey => qc.invalidateQueries({ queryKey })));
   };
 }
 

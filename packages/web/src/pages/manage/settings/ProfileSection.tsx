@@ -35,7 +35,7 @@ export function ProfileSection({ me }: { me: Me }) {
   const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const save = useAction<ProfileBody, Me>({
-    mutationFn: (body) => api.put<Me>(`${V9}/me`, body),
+    mutationFn: body => api.put<Me>(`${V9}/me`, body),
     // Day boundaries depend on the timezone and week start, so entry lists and reports refetch too.
     invalidate: [keys.me, keys.entries, keys.current, keys.report],
     success: 'Profile saved',
@@ -51,32 +51,55 @@ export function ProfileSection({ me }: { me: Me }) {
       <div className="form-grid">
         <label className="field">
           <span>Full name</span>
-          <input value={fullname} maxLength={255} autoComplete="name" onChange={(event) => setFullname(event.target.value)} />
+          <input
+            value={fullname}
+            maxLength={255}
+            autoComplete="name"
+            onChange={event => setFullname(event.target.value)}
+          />
         </label>
         <div className="field">
           <label htmlFor={fields.id('email')}>Email</label>
-          <input {...fields.field('email')} type="email" value={email} maxLength={255} autoComplete="email" required onChange={(event) => setEmail(event.target.value)} />
+          <input
+            {...fields.field('email')}
+            type="email"
+            value={email}
+            maxLength={255}
+            autoComplete="email"
+            required
+            onChange={event => setEmail(event.target.value)}
+          />
           {fields.message('email')}
         </div>
         <label className="field">
           <span>Timezone</span>
-          <select value={timezone} onChange={(event) => setTimezone(event.target.value)}>
-            {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll('_', ' ')}</option>)}
+          <select value={timezone} onChange={event => setTimezone(event.target.value)}>
+            {zones.map(zone => (
+              <option key={zone} value={zone}>
+                {zone.replaceAll('_', ' ')}
+              </option>
+            ))}
           </select>
         </label>
         <label className="field">
           <span>First day of the week</span>
-          <select value={weekStart} onChange={(event) => setWeekStart(Number(event.target.value))}>
-            {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
+          <select value={weekStart} onChange={event => setWeekStart(Number(event.target.value))}>
+            {WEEKDAYS.map((day, index) => (
+              <option key={day} value={index}>
+                {day}
+              </option>
+            ))}
           </select>
         </label>
         <p className="hint field-full">
-          The account timezone decides which day an entry belongs to in lists, reports and imports. You use the email to log in.
+          The account timezone decides which day an entry belongs to in lists, reports and imports. You use the email to
+          log in.
         </p>
         {browserZone && !sameZone(browserZone, me.timezone) ? (
           <div className="settings-notice field-full" role="note">
             <span>
-              This browser is set to <strong>{browserZone}</strong>, but the account uses <strong>{me.timezone}</strong>.
+              This browser is set to <strong>{browserZone}</strong>, but the account uses <strong>{me.timezone}</strong>
+              .
             </span>
             {timezone !== browserZone ? (
               <button type="button" className="button button-ghost" onClick={() => setTimezone(browserZone)}>

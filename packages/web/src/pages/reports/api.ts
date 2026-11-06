@@ -25,7 +25,7 @@ export function useDetailedEntries(filters: ReportFilterBody, sort: SortKey, dir
   return useQuery({
     queryKey: [...keys.report, 'entries', body],
     queryFn: () => api.post<DetailedPage>('/api/app/report/entries', body),
-    placeholderData: (previous) => previous,
+    placeholderData: previous => previous,
   });
 }
 
@@ -45,6 +45,6 @@ export function useWeeklyReport(filters: ReportFilterBody, rows: WeeklyRows) {
   return useQuery({
     queryKey: [...keys.report, 'weekly', body],
     queryFn: () => api.post<WeeklyReport>('/api/app/report/weekly', body),
-    placeholderData: (previous) => previous,
+    placeholderData: previous => previous,
   });
 }

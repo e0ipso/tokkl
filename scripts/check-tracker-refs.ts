@@ -12,20 +12,12 @@ const TICKET = /\bTT-\d+\b/;
 const PLANS_PATH = ['.ai', 'strikethroo', 'plans'].join('/');
 
 /** Tracked paths the check skips: agent tooling and the knowledge base, not published content. */
-const EXCLUDED = [
-  '.ai/',
-  '.agents/',
-  '.claude/',
-  '.cursor/',
-  '.codex/',
-  'skills-lock.json',
-  '.kkignore',
-];
+const EXCLUDED = ['.ai/', '.agents/', '.claude/', '.cursor/', '.codex/', 'skills-lock.json', '.kkignore'];
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 const isExcluded = (path: string) =>
-  EXCLUDED.some((entry) => (entry.endsWith('/') ? path.startsWith(entry) : path === entry));
+  EXCLUDED.some(entry => (entry.endsWith('/') ? path.startsWith(entry) : path === entry));
 
 function trackedFiles(): string[] {
   const out = execFileSync('git', ['ls-files', '-z'], {
@@ -33,7 +25,7 @@ function trackedFiles(): string[] {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
-  return out.split('\0').filter((path) => path && !isExcluded(path));
+  return out.split('\0').filter(path => path && !isExcluded(path));
 }
 
 /** The file's text, or null for a path that is not a readable regular text file. */
@@ -59,9 +51,7 @@ for (const path of trackedFiles()) {
 }
 
 if (hits.length > 0) {
-  console.error(
-    `${hits.length} tracked line${hits.length === 1 ? '' : 's'} cite a ticket ID or a plan path:`,
-  );
+  console.error(`${hits.length} tracked line${hits.length === 1 ? '' : 's'} cite a ticket ID or a plan path:`);
   for (const hit of hits) console.error(hit);
   console.error('Remove the reference, or add the path to EXCLUDED in scripts/check-tracker-refs.ts.');
   process.exit(1);

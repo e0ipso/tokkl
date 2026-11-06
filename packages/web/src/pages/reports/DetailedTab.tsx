@@ -13,7 +13,14 @@ import { money } from './format.ts';
 import type { ReportFilterBody } from './query.ts';
 import type { ReportPatch, SortDir, SortKey } from './urlState.ts';
 
-function SortHeader({ label, name, sort, dir, update, numeric = false }: {
+function SortHeader({
+  label,
+  name,
+  sort,
+  dir,
+  update,
+  numeric = false,
+}: {
   label: string;
   name: SortKey;
   sort: SortKey;
@@ -24,16 +31,34 @@ function SortHeader({ label, name, sort, dir, update, numeric = false }: {
   const active = sort === name;
   const next: SortDir = active ? (dir === 'asc' ? 'desc' : 'asc') : name === 'description' ? 'asc' : 'desc';
   return (
-    <th scope="col" className={numeric ? 'num' : undefined} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className={`sort-button${active ? ' active' : ''}`} onClick={() => update({ sort: name, dir: next })}>
+    <th
+      scope="col"
+      className={numeric ? 'num' : undefined}
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button
+        type="button"
+        className={`sort-button${active ? ' active' : ''}`}
+        onClick={() => update({ sort: name, dir: next })}
+      >
         {label}
-        <span className="sort-arrow" aria-hidden="true">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
+        <span className="sort-arrow" aria-hidden="true">
+          {active ? (dir === 'asc' ? '▲' : '▼') : ''}
+        </span>
       </button>
     </th>
   );
 }
 
-export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update }: {
+export function DetailedTab({
+  filters,
+  sort,
+  dir,
+  page,
+  settings,
+  dimmed,
+  update,
+}: {
   filters: ReportFilterBody;
   sort: SortKey;
   dir: SortDir;
@@ -63,7 +88,13 @@ export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update
 
   if (detailed.isPending) return <Loading label="Loading report…" />;
   if (!data) {
-    return <LoadError className="report-error" message={`Couldn't load the detailed report: ${detailed.error?.message}`} onRetry={() => void detailed.refetch()} />;
+    return (
+      <LoadError
+        className="report-error"
+        message={`Couldn't load the detailed report: ${detailed.error?.message}`}
+        onRetry={() => void detailed.refetch()}
+      />
+    );
   }
   const current = data.page;
   const first = (current - 1) * data.page_size;
@@ -81,17 +112,21 @@ export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update
               <th scope="col">Tags</th>
               <th scope="col">Time</th>
               <SortHeader label="Duration" name="duration" sort={sort} dir={dir} update={update} numeric />
-              {data.has_amounts ? <th scope="col" className="num">Amount</th> : null}
+              {data.has_amounts ? (
+                <th scope="col" className="num">
+                  Amount
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
-            {data.entries.map((entry) => (
+            {data.entries.map(entry => (
               <tr
                 key={entry.id}
                 className={`entry-row${opening === entry.id ? ' is-loading' : ''}`}
                 tabIndex={0}
                 onClick={() => void open(entry.id)}
-                onKeyDown={(event) => {
+                onKeyDown={event => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     void open(entry.id);
@@ -101,23 +136,43 @@ export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update
                 <td className="nowrap">{formatDate(localDay(entry.start, settings.timeZone), settings.dateFormat)}</td>
                 <td className="detailed-description">
                   {entry.description ? entry.description : <span className="muted">No description</span>}
-                  {entry.billable ? <span className="billable-mark" title="Billable"><Icon name="dollar" size={13} title="Billable" /></span> : null}
+                  {entry.billable ? (
+                    <span className="billable-mark" title="Billable">
+                      <Icon name="dollar" size={13} title="Billable" />
+                    </span>
+                  ) : null}
                 </td>
                 <td>
                   {entry.project_name ? (
                     <span className="project-label">
                       <ProjectDot color={entry.project_color} />
-                      <span className="project-label-name" title={entry.task_name ? `${entry.project_name}: ${entry.task_name}` : entry.project_name}>{entry.project_name}{entry.task_name ? `: ${entry.task_name}` : ''}</span>
+                      <span
+                        className="project-label-name"
+                        title={entry.task_name ? `${entry.project_name}: ${entry.task_name}` : entry.project_name}
+                      >
+                        {entry.project_name}
+                        {entry.task_name ? `: ${entry.task_name}` : ''}
+                      </span>
                     </span>
-                  ) : <span className="muted">Without project</span>}
+                  ) : (
+                    <span className="muted">Without project</span>
+                  )}
                 </td>
-                <td className="detailed-client" title={entry.client_name ?? undefined}>{entry.client_name ?? ''}</td>
+                <td className="detailed-client" title={entry.client_name ?? undefined}>
+                  {entry.client_name ?? ''}
+                </td>
                 <td className="detailed-tags">
                   <span className="tag-list">
-                    {entry.tags.map((tag) => <span key={tag} className="tag-chip">{tag}</span>)}
+                    {entry.tags.map(tag => (
+                      <span key={tag} className="tag-chip">
+                        {tag}
+                      </span>
+                    ))}
                   </span>
                 </td>
-                <td className="nowrap muted">{entry.all_day ? '' : `${formatTime(entry.start, settings)} – ${formatTime(entry.stop, settings)}`}</td>
+                <td className="nowrap muted">
+                  {entry.all_day ? '' : `${formatTime(entry.start, settings)} – ${formatTime(entry.stop, settings)}`}
+                </td>
                 <td className="num">{duration(entry.seconds, settings)}</td>
                 {data.has_amounts ? <td className="num">{money(entry.amount_cents, entry.currency)}</td> : null}
               </tr>
@@ -127,13 +182,24 @@ export function DetailedTab({ filters, sort, dir, page, settings, dimmed, update
       </div>
       {data.pages > 1 ? (
         <nav className="pager" aria-label="Pages">
-          <button type="button" className="button button-ghost" disabled={current <= 1} onClick={() => update({ page: current - 1 })}>
+          <button
+            type="button"
+            className="button button-ghost"
+            disabled={current <= 1}
+            onClick={() => update({ page: current - 1 })}
+          >
             <Icon name="chevronLeft" size={16} /> Previous
           </button>
           <span className="muted">
-            {(first + 1).toLocaleString()} to {(first + data.entries.length).toLocaleString()} of {data.total.toLocaleString()}
+            {(first + 1).toLocaleString()} to {(first + data.entries.length).toLocaleString()} of{' '}
+            {data.total.toLocaleString()}
           </span>
-          <button type="button" className="button button-ghost" disabled={current >= data.pages} onClick={() => update({ page: current + 1 })}>
+          <button
+            type="button"
+            className="button button-ghost"
+            disabled={current >= data.pages}
+            onClick={() => update({ page: current + 1 })}
+          >
             Next <Icon name="chevronRight" size={16} />
           </button>
         </nav>
