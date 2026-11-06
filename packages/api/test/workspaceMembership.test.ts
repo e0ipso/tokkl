@@ -1,7 +1,6 @@
 import { insertAccount } from './fixtures/domain.ts';
 import { removeWorkspaceMember, completedMigrations } from './fixtures/physical.ts';
 import { memberships } from './fixtures/observations.ts';
-import { transaction } from './fixtures/database.ts';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,19 +8,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { storageFor, setServices } from './fixtures/database.ts';
+import { storageFor } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
-import { generateApiToken, hashPassword } from '../src/auth/crypto.ts';
-import { createSession, listWorkspacesForUser } from './fixtures/domain.ts';
+import { listWorkspacesForUser } from './fixtures/domain.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
 import { createFirstAdmin, getUser } from './fixtures/domain.ts';
 import { addWorkspaceMember, createWorkspace, isWorkspaceMember } from './fixtures/domain.ts';
 import { addUser, CSRF, PASSWORD, sessionCookie, setup, testConfig, testServer, type TestContext } from './helpers.ts';
-
-/** The schema version shipped before roles and workspace membership. */
-const PREVIOUS_VERSION = 2;
-const NOW = '2026-10-01T08:00:00.000Z';
 
 test('SQLite legacy schema version 2 is refused without modifying its data', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));

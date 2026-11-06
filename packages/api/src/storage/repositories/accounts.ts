@@ -229,21 +229,19 @@ export function createAccountRepositories(db: Kysely<PhysicalDatabase>, backend:
     async createAccount(input: NewAccount) {
       const ws = await workspaces.create(`${input.fullName || 'My'} workspace`.trim());
       const at = now();
-      const query = db
-        .insertInto('users')
-        .values({
-          email: input.email,
-          fullname: input.fullName,
-          password_hash: input.passwordHash,
-          api_token: input.apiToken,
-          timezone: input.timezone,
-          default_workspace_id: ws.id,
-          preferences: JSON.stringify(jsonObject(input.preferences)),
-          role: input.role,
-          disabled_at: null,
-          created_at: at,
-          updated_at: at,
-        });
+      const query = db.insertInto('users').values({
+        email: input.email,
+        fullname: input.fullName,
+        password_hash: input.passwordHash,
+        api_token: input.apiToken,
+        timezone: input.timezone,
+        default_workspace_id: ws.id,
+        preferences: JSON.stringify(jsonObject(input.preferences)),
+        role: input.role,
+        disabled_at: null,
+        created_at: at,
+        updated_at: at,
+      });
       const id =
         backend === 'postgres'
           ? entityId((await query.returning('id').executeTakeFirstOrThrow()).id)
@@ -343,19 +341,17 @@ export function createAccountRepositories(db: Kysely<PhysicalDatabase>, backend:
     },
     tokens: {
       async create(input) {
-        const query = db
-          .insertInto('account_tokens')
-          .values({
-            token_hash: input.tokenHash,
-            kind: input.kind,
-            role: input.role,
-            note: input.note,
-            user_id: input.userId,
-            created_by: input.createdBy,
-            created_at: utcInstant(input.createdAt),
-            expires_at: utcInstant(input.expiresAt),
-            used_at: nullableInstant(input.usedAt),
-          });
+        const query = db.insertInto('account_tokens').values({
+          token_hash: input.tokenHash,
+          kind: input.kind,
+          role: input.role,
+          note: input.note,
+          user_id: input.userId,
+          created_by: input.createdBy,
+          created_at: utcInstant(input.createdAt),
+          expires_at: utcInstant(input.expiresAt),
+          used_at: nullableInstant(input.usedAt),
+        });
         const id =
           backend === 'postgres'
             ? entityId((await query.returning('id').executeTakeFirstOrThrow()).id)

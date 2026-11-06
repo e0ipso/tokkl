@@ -155,24 +155,22 @@ export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: B
     async insert(input) {
       return write(async () => {
         const at = new Date().toISOString();
-        const q = db
-          .insertInto('time_entries')
-          .values({
-            workspace_id: input.workspaceId,
-            user_id: input.userId,
-            project_id: input.projectId,
-            task_id: input.taskId,
-            description: input.description,
-            start: input.start,
-            stop: input.stop,
-            billable: Number(input.billable),
-            duronly: Number(input.durationOnly),
-            all_day: Number(input.allDay),
-            created_with: input.createdWith,
-            deleted_at: input.deletedAt,
-            created_at: at,
-            updated_at: at,
-          });
+        const q = db.insertInto('time_entries').values({
+          workspace_id: input.workspaceId,
+          user_id: input.userId,
+          project_id: input.projectId,
+          task_id: input.taskId,
+          description: input.description,
+          start: input.start,
+          stop: input.stop,
+          billable: Number(input.billable),
+          duronly: Number(input.durationOnly),
+          all_day: Number(input.allDay),
+          created_with: input.createdWith,
+          deleted_at: input.deletedAt,
+          created_at: at,
+          updated_at: at,
+        });
         const id =
           backend === 'sqlite' || backend === 'postgres'
             ? entityId((await q.returning('id').executeTakeFirstOrThrow()).id)

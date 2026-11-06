@@ -6,9 +6,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { storageFor, setServices } from './fixtures/database.ts';
+import { storageFor } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
-import { hashPassword, generateApiToken, MAX_PASSWORD_LENGTH, sha256 } from '../src/auth/crypto.ts';
+import { hashPassword, MAX_PASSWORD_LENGTH, sha256 } from '../src/auth/crypto.ts';
 import {
   ACCOUNT_ADDRESS_LIMIT,
   accountCounters,

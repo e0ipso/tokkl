@@ -395,7 +395,7 @@ export function togglV9Routes(deps: Deps): Router {
     const body = readJson(req);
     return res.json(
       serializeProject(
-        await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) => createProject(ctx, ws.id, body)),
+        await deps.catalogWrite(res.locals.auth, ws.id, ctx => createProject(ctx, ws.id, body)),
         ws.defaultCurrency,
       ),
     );
@@ -477,7 +477,7 @@ export function togglV9Routes(deps: Deps): Router {
     const ws = await workspaceFor(db, req, res);
     return res.json(
       serializeTask(
-        await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) =>
+        await deps.catalogWrite(res.locals.auth, ws.id, ctx =>
           createTask(ctx, ws.id, parseId(req.params.pid), readJson(req)),
         ),
       ),
@@ -524,9 +524,7 @@ export function togglV9Routes(deps: Deps): Router {
   api.post('/workspaces/:wid/clients', async (req, res) => {
     const ws = await workspaceFor(db, req, res);
     return res.json(
-      serializeClient(
-        await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) => createClient(ctx, ws.id, readJson(req))),
-      ),
+      serializeClient(await deps.catalogWrite(res.locals.auth, ws.id, ctx => createClient(ctx, ws.id, readJson(req)))),
     );
   });
   api.put('/workspaces/:wid/clients/:cid', async (req, res) => {
@@ -577,9 +575,7 @@ export function togglV9Routes(deps: Deps): Router {
   api.post('/workspaces/:wid/tags', async (req, res) => {
     const ws = await workspaceFor(db, req, res);
     return res.json(
-      serializeTag(
-        await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) => createTag(ctx, ws.id, readJson(req))),
-      ),
+      serializeTag(await deps.catalogWrite(res.locals.auth, ws.id, ctx => createTag(ctx, ws.id, readJson(req)))),
     );
   });
   api.put('/workspaces/:wid/tags/:tid', async (req, res) => {

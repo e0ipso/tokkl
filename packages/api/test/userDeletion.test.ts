@@ -28,8 +28,6 @@ async function seed(ctx: TestContext): Promise<void> {
   });
 }
 
-const TABLES = ['workspaces', 'clients', 'projects', 'tasks', 'tags', 'time_entries'] as const;
-
 /** Rows per table that belong to `userId`'s workspaces or to the account itself. */
 async function owned(db: FixtureDatabase, userId: number, wid: number): Promise<Record<string, number>> {
   const storage = storageFor(db);

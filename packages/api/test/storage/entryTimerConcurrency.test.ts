@@ -7,13 +7,7 @@ import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { StorageConflict } from '../../src/storage/errors.ts';
 import * as entries from '../../src/domain/timeEntries.ts';
-import * as catalog from '../../src/domain/catalogs.ts';
-import {
-  createTimerOperations,
-  createTimerPublication,
-  createCatalogTimerEffects,
-  touchTimer,
-} from '../../src/domain/timers.ts';
+import { createTimerOperations, createTimerPublication } from '../../src/domain/timers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
 function gate() {
