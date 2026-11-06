@@ -18,7 +18,7 @@ import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
 import { ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
-import { DurationField } from './TimeFields.tsx';
+import { DurationField } from './DurationField.tsx';
 import { useToast } from './Toast.tsx';
 
 interface Row {

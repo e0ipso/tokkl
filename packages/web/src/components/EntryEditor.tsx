@@ -22,7 +22,7 @@ import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { Modal } from './Overlay.tsx';
 import { ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
-import { DurationField } from './TimeFields.tsx';
+import { DurationField } from './DurationField.tsx';
 import { useToast } from './Toast.tsx';
 
 const SPLIT_PROBLEMS = {
