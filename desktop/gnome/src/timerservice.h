@@ -53,6 +53,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QString IndicatorState READ indicatorState)
     Q_PROPERTY(QString IndicatorColor READ indicatorColor)
     Q_PROPERTY(QList<QVariantMap> Projects READ projects)
+    Q_PROPERTY(bool ProjectsIncomplete READ projectsIncomplete)
     Q_PROPERTY(qint64 ChosenProject READ chosenProject)
     Q_PROPERTY(QString ChosenProjectName READ chosenProjectName)
     Q_PROPERTY(bool Billable READ billable)
@@ -111,16 +112,17 @@ public:
     void setAlarm(PomodoroAlarm *alarm);
 
     bool running() const;
-    qint64 startTime() const;
     // The server's start, which StartTime has always published.
-    bool paused() const;
+    qint64 startTime() const;
     // The start on this machine's clock, corrected by the state client's
     // server offset, so elapsed time matches the other apps.
     qint64 localStartTime() const;
+    bool paused() const;
     qint64 chainSeconds() const;
     QString indicatorState() const;
     QString indicatorColor() const;
     QList<QVariantMap> projects() const;
+    bool projectsIncomplete() const;
     qint64 chosenProject() const;
     QString chosenProjectName() const;
     bool billable() const;

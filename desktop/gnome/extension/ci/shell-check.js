@@ -312,6 +312,21 @@ await step('a stopped timer lets the menu choose the project', async () => {
     );
 });
 
+await step('a cut-short project list says so before the projects', async () => {
+    const items = `${button}._projectMenu.menu._getMenuItems()`;
+    mockSet('ProjectsIncomplete', new GLib.Variant('b', true));
+    const note = 'Project list cut short. Use Open Tokkl for the others.';
+    await waitFor('the note', () => shell(`${items}[1].label.text`) === note || shell(`${items}[1].label.text`));
+    if (shell(`${items}[1].reactive`)) throw new Error('the note can be chosen');
+    if (shell(`${items}[2].label.text`) !== 'Website (Acme)')
+        throw new Error(`after the note: ${shell(`${items}[2].label.text`)}`);
+    mockSet('ProjectsIncomplete', new GLib.Variant('b', false));
+    await waitFor(
+        'no note',
+        () => shell(`${items}[1].label.text`) === 'Website (Acme)' || shell(`${items}[1].label.text`),
+    );
+});
+
 await step('a chosen project fills a still square with its colour', async () => {
     await indicatorIs('a filled square', {
         kind: 'filled',

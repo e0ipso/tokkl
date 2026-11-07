@@ -98,6 +98,19 @@ test('the session message shows while there is one', () => {
     });
 });
 
+test('a cut-short project list says so before the projects, as KDE and macOS do', () => {
+    const choices = projectChoices([{ id: 7, name: 'Alpha' }], 7, projectLabel, identity, true);
+    assert.deepEqual(choices, [
+        { id: 0, label: 'No project', checked: false },
+        { id: null, label: 'Project list cut short. Use Open Tokkl for the others.', checked: false, note: true },
+        { id: 7, label: 'Alpha', checked: true },
+    ]);
+    assert.equal(
+        projectChoices([{ id: 7, name: 'Alpha' }], 0, projectLabel, identity, false).some(choice => choice.note),
+        false,
+    );
+});
+
 test('a failed call shows its message, ahead of the session message', () => {
     assert.deepEqual(menuFor({ actionError: 'The timer service did not answer.' }).message, {
         text: 'The timer service did not answer.',

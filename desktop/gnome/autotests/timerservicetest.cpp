@@ -645,6 +645,7 @@ private Q_SLOTS:
             {QStringLiteral("IndicatorState"), QStringLiteral("s read")},
             {QStringLiteral("IndicatorColor"), QStringLiteral("s read")},
             {QStringLiteral("Projects"), QStringLiteral("aa{sv} read")},
+            {QStringLiteral("ProjectsIncomplete"), QStringLiteral("b read")},
             {QStringLiteral("ChosenProject"), QStringLiteral("x read")},
             {QStringLiteral("ChosenProjectName"), QStringLiteral("s read")},
             {QStringLiteral("Billable"), QStringLiteral("b read")},
@@ -857,6 +858,38 @@ private Q_SLOTS:
         QTRY_COMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("LocalStartTime")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
+    }
+
+    // A project list cut short at the paging limit is published as such.
+    void projectsIncompleteIsPublished()
+    {
+        Fixture f;
+        QJsonArray page;
+        for (int id = 1; id <= Connection::projectPageSize; ++id) {
+            page.append(QJsonObject{{QStringLiteral("id"), id},
+                                    {QStringLiteral("workspace_id"), 7},
+                                    {QStringLiteral("name"), QStringLiteral("P%1").arg(id)},
+                                    {QStringLiteral("active"), true}});
+        }
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), false);
+
+        // Every page up to the limit is full and new.
+        f.service->m_timer->refresh();
+        for (int number = 1; number <= Connection::maxProjectPages; ++number) {
+            QJsonArray shifted;
+            for (const QJsonValue &value : std::as_const(page)) {
+                QJsonObject project = value.toObject();
+                project.insert(QStringLiteral("id"), project.value(QStringLiteral("id")).toInteger() + (number - 1) * Connection::projectPageSize);
+                shifted.append(project);
+            }
+            QVERIFY(f.answer("GET", "/projects", json(shifted)));
+        }
+        QTRY_COMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), true);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ProjectsIncomplete")).contains(true));
+        // The projects read stay offered.
+        QCOMPARE(f.service->projects().size(), Connection::maxProjectPages * Connection::projectPageSize);
     }
 
     // A running entry on an archived project: Projects lacks it, but the

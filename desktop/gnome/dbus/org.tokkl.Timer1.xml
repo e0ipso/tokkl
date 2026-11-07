@@ -44,6 +44,10 @@
     <property name="Projects" type="aa{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
     </property>
+    <!-- The workspace has more active projects than the service could read,
+         so Projects is only the first of them. A project menu says so, as
+         the KDE and macOS menus do. -->
+    <property name="ProjectsIncomplete" type="b" access="read"/>
     <!-- The running or paused entry's project, or the project of the next
          start while stopped; 0 for no project. A session started on another
          device does not change it. -->

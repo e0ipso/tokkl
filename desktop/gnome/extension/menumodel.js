@@ -20,6 +20,7 @@ import {
  * @property {boolean} running
  * @property {boolean} paused
  * @property {Array<{id: number, name: string, clientName?: string}>} projects
+ * @property {boolean} [projectsIncomplete]
  * @property {number} chosenProject
  * @property {string} chosenProjectName
  * @property {boolean} billable
@@ -91,18 +92,31 @@ export function describeMenu(state, words, _) {
 
 /**
  * The project submenu: No project, then one item per project, the chosen
- * one checked.
+ * one checked. When ProjectsIncomplete says the list is cut short, a note
+ * that cannot be chosen comes before the projects, as in the KDE and macOS
+ * menus, so a long list does not bury it.
  *
  * @param {Array<{id: number, name: string, clientName?: string}>} projects
  * @param {number} chosenProject
  * @param {(project: {name: string, clientName?: string}) => string} label
  * @param {(text: string) => string} _ gettext
- * @returns {Array<{id: number, label: string, checked: boolean}>}
+ * @param {boolean} [incomplete] the ProjectsIncomplete property
+ * @returns {Array<{id: number, label: string, checked: boolean, note?: boolean}>}
  */
-export function projectChoices(projects, chosenProject, label, _) {
-    const choices = [{ id: 0, label: _('No project') }];
-    for (const project of projects) choices.push({ id: project.id, label: label(project) });
-    return choices.map(choice => ({ ...choice, checked: choice.id === chosenProject }));
+export function projectChoices(projects, chosenProject, label, _, incomplete = false) {
+    const choices = [{ id: 0, label: _('No project'), checked: chosenProject === 0 }];
+    if (incomplete) {
+        choices.push({
+            id: null,
+            label: _('Project list cut short. Use Open Tokkl for the others.'),
+            checked: false,
+            note: true,
+        });
+    }
+    for (const project of projects) {
+        choices.push({ id: project.id, label: label(project), checked: project.id === chosenProject });
+    }
+    return choices;
 }
 
 /**

@@ -20,6 +20,7 @@ export const TIMER1_INTERFACE = `<node>
     <property name="IndicatorState" type="s" access="read"/>
     <property name="IndicatorColor" type="s" access="read"/>
     <property name="Projects" type="aa{sv}" access="read"/>
+    <property name="ProjectsIncomplete" type="b" access="read"/>
     <property name="ChosenProject" type="x" access="read"/>
     <property name="ChosenProjectName" type="s" access="read"/>
     <property name="Billable" type="b" access="read"/>

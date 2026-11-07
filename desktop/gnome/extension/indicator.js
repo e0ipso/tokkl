@@ -21,7 +21,7 @@ import { cachedProperty, serviceRunning } from './timer1proxy.js';
 
 // The properties the project submenu's items show. A change to any other
 // property leaves the items as they are.
-const PROJECT_ITEM_PROPERTIES = ['Projects', 'ChosenProject'];
+const PROJECT_ITEM_PROPERTIES = ['Projects', 'ProjectsIncomplete', 'ChosenProject'];
 
 export const TokklIndicator = GObject.registerClass(
     class TokklIndicator extends PanelMenu.Button {
@@ -202,6 +202,7 @@ export const TokklIndicator = GObject.registerClass(
                 indicatorState: this._property('IndicatorState', ''),
                 indicatorColor: this._property('IndicatorColor', ''),
                 projects: this._property('Projects', []),
+                projectsIncomplete: this._property('ProjectsIncomplete', false),
                 chosenProject: this._property('ChosenProject', 0),
                 chosenProjectName: this._property('ChosenProjectName', ''),
                 billable: this._property('Billable', false),
@@ -271,7 +272,20 @@ export const TokklIndicator = GObject.registerClass(
         _syncProjectItems(state) {
             const section = this._projectMenu.menu;
             section.removeAll();
-            for (const choice of projectChoices(state.projects, state.chosenProject, projectLabel, _)) {
+            const choices = projectChoices(
+                state.projects,
+                state.chosenProject,
+                projectLabel,
+                _,
+                state.projectsIncomplete,
+            );
+            for (const choice of choices) {
+                if (choice.note) {
+                    const note = new PopupMenu.PopupMenuItem(choice.label, { reactive: false, can_focus: false });
+                    note.label.clutter_text.line_wrap = true;
+                    section.addMenuItem(note);
+                    continue;
+                }
                 const item = new PopupMenu.PopupMenuItem(choice.label);
                 item.setOrnament(choice.checked ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
                 item.connect('activate', () => this._call('SetProject', [choice.id]));
