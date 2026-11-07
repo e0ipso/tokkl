@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ApiError, api } from '../api/client.ts';
+import { authRequests } from '../api/auth.ts';
+import { isApiError } from '../api/client.ts';
 import { Brand } from '../components/Brand.tsx';
 import { FieldError, useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -11,8 +12,7 @@ import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
  * to the login form.
  */
 export function ResetPasswordPage({ token }: { token: string }) {
-  const path = `/api/app/password-resets/${encodeURIComponent(token)}`;
-  const [check, retry] = useLinkCheck<{ email: string }>(path);
+  const [check, retry] = useLinkCheck(token, authRequests.checkReset);
   const fields = useFieldErrors<'password'>();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -24,12 +24,12 @@ export function ResetPasswordPage({ token }: { token: string }) {
     setBusy(true);
     setError(null);
     try {
-      await api.post(path, { password });
+      await authRequests.resetPassword(token, password);
       setDone(true);
     } catch (err) {
       // The link was checked on load, so a 400 is the server's password rules; anything else, such
       // as a spent link or too many attempts, is about the page.
-      if (err instanceof ApiError && err.status === 400) fields.validate([['password', err.message]]);
+      if (isApiError(err, 400)) fields.validate([['password', err.message]]);
       else setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }

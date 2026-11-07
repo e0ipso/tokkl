@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { formatDuration } from '@tokkl/common/duration';
-import { useCreateEntry } from '../api/hooks.ts';
+import { useCreateEntry } from '../api/entries.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { noTimeDuration } from '../lib/noTimeDuration.ts';
 import { useSettings } from '../api/settings.ts';

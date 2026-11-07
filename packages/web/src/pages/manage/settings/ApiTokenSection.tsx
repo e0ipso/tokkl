@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { api } from '../../../api/client.ts';
-import { keys } from '../../../api/hooks.ts';
+import { accountRequests } from '../../../api/account.ts';
+import { stale } from '../../../api/keys.ts';
 import type { Me } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { copyText } from '../../../lib/clipboard.ts';
 import { ConfirmModal } from '../ui.tsx';
-import { useAction, V9 } from '../queries.ts';
+import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
 export function ApiTokenSection({ me }: { me: Me }) {
@@ -16,8 +16,8 @@ export function ApiTokenSection({ me }: { me: Me }) {
   const origin = window.location.origin;
 
   const reset = useAction<void, string>({
-    mutationFn: () => api.post<string>(`${V9}/me/reset_token`),
-    invalidate: [keys.me],
+    mutationFn: accountRequests.resetApiToken,
+    invalidate: stale.credentials,
     success: 'New API token created. Update the tools that use it.',
     onSuccess: () => {
       setConfirmReset(false);

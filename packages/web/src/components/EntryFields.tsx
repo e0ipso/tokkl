@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { useProjects } from '../api/hooks.ts';
+import { useProjects } from '../api/projects.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { Icon } from './Icon.tsx';
 import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';

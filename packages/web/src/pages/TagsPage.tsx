@@ -1,17 +1,17 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useTags, useWid } from '../api/hooks.ts';
+import { useWid } from '../api/account.ts';
+import { stale } from '../api/keys.ts';
+import { tagRequests, useTags } from '../api/tags.ts';
 import type { Tag } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { useAction } from '../components/useAction.ts';
+import { includesText } from './manage/values.ts';
 import { focusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, SearchBox } from './manage/ui.tsx';
 import './manage/manage.css';
-
-const TAG_KEYS = [keys.tags, keys.entries, keys.current, keys.report] as const;
 
 function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
   const wid = useWid();
@@ -19,8 +19,8 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
   const cancelled = useRef(false);
 
   const rename = useAction<string, Tag>({
-    mutationFn: name => api.put<Tag>(wsPath(wid, 'tags', tag.id), { name }),
-    invalidate: TAG_KEYS,
+    mutationFn: name => tagRequests.rename(wid, tag.id, name),
+    invalidate: stale.tags,
     success: saved => `Renamed to ${saved.name}`,
     onSuccess: () => setDraft(null),
   });
@@ -98,14 +98,14 @@ export function TagsPage() {
   const heading = useRef<HTMLHeadingElement>(null);
 
   const create = useAction<string, Tag>({
-    mutationFn: name => api.post<Tag>(wsPath(wid, 'tags'), { name }),
-    invalidate: [keys.tags],
+    mutationFn: name => tagRequests.create(wid, name),
+    invalidate: stale.tagCreated,
     success: tag => `Created ${tag.name}`,
     onSuccess: () => setNewName(''),
   });
   const remove = useAction<Tag>({
-    mutationFn: tag => api.delete(wsPath(wid, 'tags', tag.id)),
-    invalidate: TAG_KEYS,
+    mutationFn: tag => tagRequests.remove(wid, tag.id),
+    invalidate: stale.tags,
     success: (_result, tag) => `Deleted ${tag.name}`,
     onSuccess: (_result, tag) => {
       // The dialog had focus and would give it back to the row's Delete button, which goes away.

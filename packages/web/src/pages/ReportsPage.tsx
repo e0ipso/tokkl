@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { useEntryBounds, useReport } from '../api/hooks.ts';
+import { useEntryBounds } from '../api/entries.ts';
+import { useReport } from '../api/reports.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';

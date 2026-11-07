@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { settingsFrom, type Settings } from '../lib/settings.ts';
-import { useMe, usePreferences } from './hooks.ts';
+import { useMe, usePreferences } from './account.ts';
 
 /**
  * The signed-in account's settings. The object stays the same until /me or the preferences change,

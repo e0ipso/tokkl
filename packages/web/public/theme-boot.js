@@ -18,7 +18,7 @@
       storage.removeItem('timetrack.theme');
     }
     if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
-  } catch (error) {
+  } catch {
     // Storage can be blocked. The system decides until the server preference loads.
   }
 })();

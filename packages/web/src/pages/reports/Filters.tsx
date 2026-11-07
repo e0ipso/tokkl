@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useClients, useProjects, useTags } from '../../api/hooks.ts';
+import { useClients } from '../../api/clients.ts';
+import { useProjects } from '../../api/projects.ts';
+import { useTags } from '../../api/tags.ts';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';

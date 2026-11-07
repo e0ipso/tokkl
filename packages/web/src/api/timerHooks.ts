@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import { keys } from './hooks.ts';
+import { keys } from './keys.ts';
 import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
   TIMER_ACTION_KEY,

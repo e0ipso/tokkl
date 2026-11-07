@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { keys, useSavePreferences } from '../../../api/hooks.ts';
+import { useSavePreferences } from '../../../api/account.ts';
+import { keys } from '../../../api/keys.ts';
 import type { DurationFormat, Preferences } from '../../../api/types.ts';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { LengthStepper, LengthStepperGrid } from '../../../components/LengthStepper.tsx';

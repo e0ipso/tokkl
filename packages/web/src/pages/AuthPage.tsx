@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '../api/client.ts';
+import { authRequests } from '../api/auth.ts';
 import { Brand } from '../components/Brand.tsx';
 import { FieldError } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -21,7 +21,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
     setError(null);
     try {
       if (mode === 'setup') {
-        await api.post('/api/app/setup', {
+        await authRequests.setup({
           setup_code: setupCode,
           email,
           password,
@@ -29,7 +29,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
           timezone: browserTimeZone(),
         });
       } else {
-        await api.post('/api/app/login', { email, password });
+        await authRequests.login({ email, password });
       }
       await qc.resetQueries();
     } catch (err) {

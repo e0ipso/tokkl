@@ -1,8 +1,22 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../api/client.ts';
-import { keys, useMe } from '../api/hooks.ts';
-import type { AdminAccount, InstanceSettings, Invite, PasswordResetLink, UserRole } from '../api/types.ts';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  adminRequests,
+  useAdminInvites,
+  useAdminUsers,
+  useInstanceSettings,
+  type AccountChange,
+} from '../api/admin.ts';
+import { useMe } from '../api/account.ts';
+import { keys, stale } from '../api/keys.ts';
+import type {
+  AdminAccount,
+  CreatedInvite,
+  InstanceSettings,
+  Invite,
+  PasswordResetLink,
+  UserRole,
+} from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -12,7 +26,7 @@ import { copyText } from '../lib/clipboard.ts';
 import { useSettings } from '../api/settings.ts';
 import { formatDateTime, formatDay } from '../lib/format.ts';
 import { type Settings } from '../lib/settings.ts';
-import { useAction } from './manage/queries.ts';
+import { useAction } from '../components/useAction.ts';
 import { focusPastRow, keepFocusPastRow, rowAction } from './manage/rowFocus.ts';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
 import { ConfirmModal, StatusBadge } from './manage/ui.tsx';
@@ -23,14 +37,6 @@ import './manage/manage.css';
  * entry, but the server's 403 on /api/app/admin/* is what protects the page; anyone else who opens
  * /admin gets that message.
  */
-
-const ADMIN = '/api/app/admin';
-
-const adminKeys = {
-  users: ['admin', 'users'] as const,
-  invites: ['admin', 'invites'] as const,
-  settings: ['admin', 'settings'] as const,
-};
 
 const ROLES: ReadonlyArray<{ value: UserRole; label: string }> = [
   { value: 'user', label: 'User' },
@@ -72,9 +78,9 @@ function UserRow({
   const disabled = user.disabled_at !== null;
 
   // A refusal, such as the last-admin 400, shows under the control that sent the change.
-  const update = useAction<{ role: UserRole } | { disabled: boolean }, AdminAccount>({
-    mutationFn: body => api.patch<AdminAccount>(`${ADMIN}/users/${user.id}`, body),
-    invalidate: [adminKeys.users, keys.me],
+  const update = useAction<AccountChange, AdminAccount>({
+    mutationFn: change => adminRequests.updateUser(user.id, change),
+    invalidate: stale.adminUser,
     success: (updated, body) =>
       'role' in body
         ? `${updated.email} is now ${roleLabel(updated.role)}`
@@ -82,17 +88,17 @@ function UserRow({
     onError: (error, body) => fields.validate([['role' in body ? 'role' : 'status', error.message]]),
   });
   const revoke = useAction({
-    mutationFn: () => api.post(`${ADMIN}/users/${user.id}/sessions/revoke`),
+    mutationFn: () => adminRequests.revokeSessions(user.id),
     success: `Signed ${user.email} out of every browser. Their API token still works.`,
   });
   const reset = useAction<void, PasswordResetLink>({
-    mutationFn: () => api.post<PasswordResetLink>(`${ADMIN}/users/${user.id}/password-reset`),
+    mutationFn: () => adminRequests.createPasswordReset(user.id),
     onSuccess: created => onResetLink(user, absoluteLink(created.url)),
   });
 
   // The controls stay enabled while a change is pending, so the one that failed keeps focus and
   // its error can take it; a second change waits for the first.
-  const change = (body: { role: UserRole } | { disabled: boolean }) => {
+  const change = (body: AccountChange) => {
     if (update.isPending) return;
     fields.clear('role' in body ? 'role' : 'status');
     update.mutate(body);
@@ -192,8 +198,8 @@ function DeleteUserModal({
   const fields = useFieldErrors<'email'>();
   const [email, setEmail] = useState('');
   const remove = useAction<string>({
-    mutationFn: typed => api.delete(`${ADMIN}/users/${user.id}`, { email: typed }),
-    invalidate: [adminKeys.users],
+    mutationFn: typed => adminRequests.deleteUser(user.id, typed),
+    invalidate: stale.adminUsers,
     success: `Deleted ${user.email}`,
     onSuccess: onDeleted,
     onError: error => fields.validate([['email', error.message]]),
@@ -369,8 +375,8 @@ function NewLink({
 
 function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: Settings; onRevoked: () => void }) {
   const revoke = useAction({
-    mutationFn: () => api.delete(`${ADMIN}/invites/${invite.id}`),
-    invalidate: [adminKeys.invites],
+    mutationFn: () => adminRequests.revokeInvite(invite.id),
+    invalidate: stale.adminInvites,
     success: 'Invite revoked. Its link no longer works.',
     onSuccess: onRevoked,
   });
@@ -400,7 +406,7 @@ function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: 
 }
 
 function InvitesSection({ settings }: { settings: Settings }) {
-  const invites = useQuery({ queryKey: adminKeys.invites, queryFn: () => api.get<Invite[]>(`${ADMIN}/invites`) });
+  const invites = useAdminInvites();
   const fields = useFieldErrors<'role' | 'note'>();
   const [role, setRole] = useState<UserRole>('user');
   const [note, setNote] = useState('');
@@ -411,9 +417,9 @@ function InvitesSection({ settings }: { settings: Settings }) {
 
   const revoked = (id: number) => keepFocusPastRow(tbody.current, id, 'revoke', heading.current);
 
-  const create = useAction<{ role: UserRole; note: string }, Invite & { url: string }>({
-    mutationFn: body => api.post<Invite & { url: string }>(`${ADMIN}/invites`, body),
-    invalidate: [adminKeys.invites],
+  const create = useAction<{ role: UserRole; note: string }, CreatedInvite>({
+    mutationFn: adminRequests.createInvite,
+    invalidate: stale.adminInvites,
     onSuccess: invite => {
       setLink(absoluteLink(invite.url));
       setNote('');
@@ -572,15 +578,15 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
     );
 
   const save = useAction<Partial<InstanceSettings>, InstanceSettings>({
-    mutationFn: body => api.put<InstanceSettings>(`${ADMIN}/settings`, body),
-    invalidate: [adminKeys.settings],
+    mutationFn: adminRequests.saveSettings,
+    invalidate: stale.adminSettings,
     success: 'Instance settings saved',
     onSuccess: saved => {
-      queryClient.setQueryData(adminKeys.settings, saved);
+      queryClient.setQueryData(keys.adminSettings, saved);
       dropEditsEqualTo(saved);
     },
     onError: error => {
-      const current = queryClient.getQueryData<InstanceSettings>(adminKeys.settings);
+      const current = queryClient.getQueryData<InstanceSettings>(keys.adminSettings);
       if (current) dropEditsEqualTo(current);
       // The server names the setting it refused, as in "Invalid invite_days: ...".
       const field = SETTING_FIELDS.find(({ key }) => error.message.includes(key));
@@ -646,13 +652,9 @@ function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
 export function AdminPage() {
   const { data: me } = useMe();
   const settings = useSettings();
-  const users = useQuery({ queryKey: adminKeys.users, queryFn: () => api.get<AdminAccount[]>(`${ADMIN}/users`) });
+  const users = useAdminUsers();
   // Wait for the users list, so a non-admin sends one refused request, not three.
-  const instance = useQuery({
-    queryKey: adminKeys.settings,
-    queryFn: () => api.get<InstanceSettings>(`${ADMIN}/settings`),
-    enabled: users.isSuccess,
-  });
+  const instance = useInstanceSettings(users.isSuccess);
 
   const header = (
     <header className="page-header">

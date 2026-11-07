@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { keys, useMe } from './hooks.ts';
+import { useMe } from './account.ts';
+import { keys } from './keys.ts';
 import { acceptTimerState, useTimerState } from './timerHooks.ts';
 import { connectTimerStream } from './timerStream.ts';
 import { TimerStreamingContext } from './timerStreaming.ts';

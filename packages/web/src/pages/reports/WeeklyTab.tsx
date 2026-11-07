@@ -3,8 +3,8 @@ import { ProjectDot } from '../../components/Pickers.tsx';
 import { duration, shortDate, weekdayName } from '../../lib/format.ts';
 import { type Settings } from '../../lib/settings.ts';
 import { Segmented } from '../manage/ui.tsx';
-import { useWeeklyReport, type WeeklyReport } from './api.ts';
-import type { ReportFilterBody } from './query.ts';
+import { useWeeklyReport, type ReportFilterBody } from '../../api/reports.ts';
+import type { WeeklyReport } from '../../api/types.ts';
 import type { ReportPatch, WeeklyRows } from './urlState.ts';
 
 const ROW_OPTIONS: ReadonlyArray<{ value: WeeklyRows; label: string }> = [

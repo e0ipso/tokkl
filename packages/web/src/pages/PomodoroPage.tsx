@@ -5,7 +5,8 @@ import {
   POMODORO_SESSION_CONFIG_RANGES,
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
-import { useCurrentEntry, useEntries, usePreferences, useUpdateEntry } from '../api/hooks.ts';
+import { usePreferences } from '../api/account.ts';
+import { useCurrentEntry, useEntries, useUpdateEntry } from '../api/entries.ts';
 import type { Preferences, TimeEntry, TimeEntryInput } from '../api/types.ts';
 import { EntryFields, type EntryFieldsHandle } from '../components/EntryFields.tsx';
 import { LengthStepper, LengthStepperGrid } from '../components/LengthStepper.tsx';

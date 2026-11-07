@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { useCreateEntry, useEntries, useUpdateEntry } from '../api/hooks.ts';
+import { useCreateEntry, useEntries, useUpdateEntry } from '../api/entries.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
 import { instantAt, localDay } from '../lib/entryTime.ts';

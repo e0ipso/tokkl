@@ -10,7 +10,8 @@ import {
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
-import { keys, useMe } from '../api/hooks.ts';
+import { useMe } from '../api/account.ts';
+import { keys } from '../api/keys.ts';
 import { getClockOffset } from '../api/serverClock.ts';
 import { useEndPomodoro, useNextPhase, useServerNow, useStartPomodoro, useTimerState } from '../api/timerHooks.ts';
 import type { PomodoroTransition, TimerPomodoro, TimerPomodoroPhase, TimerState } from '../api/types.ts';

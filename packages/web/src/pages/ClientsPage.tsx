@@ -1,13 +1,16 @@
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useClients, useProjects, useWid } from '../api/hooks.ts';
+import { useWid } from '../api/account.ts';
+import { clientRequests, useClients, type ClientBody } from '../api/clients.ts';
+import { stale } from '../api/keys.ts';
+import { useProjects } from '../api/projects.ts';
 import type { Client } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Modal } from '../components/Overlay.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { useAction } from '../components/useAction.ts';
+import { includesText } from './manage/values.ts';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import {
   ConfirmModal,
@@ -22,8 +25,6 @@ import {
 } from './manage/ui.tsx';
 import './manage/manage.css';
 
-const CLIENT_KEYS = [keys.clients, keys.projects, keys.entries, keys.current, keys.report] as const;
-
 function ClientEditor({ client, onClose }: { client: Client | null; onClose: () => void }) {
   const wid = useWid();
   const formId = useId();
@@ -31,12 +32,9 @@ function ClientEditor({ client, onClose }: { client: Client | null; onClose: () 
   const [name, setName] = useState(client?.name ?? '');
   const [notes, setNotes] = useState(client?.notes ?? '');
 
-  const save = useAction<{ name: string; notes: string | null }, Client>({
-    mutationFn: body =>
-      client
-        ? api.put<Client>(wsPath(wid, 'clients', client.id), body)
-        : api.post<Client>(wsPath(wid, 'clients'), body),
-    invalidate: CLIENT_KEYS,
+  const save = useAction<ClientBody, Client>({
+    mutationFn: body => (client ? clientRequests.update(wid, client.id, body) : clientRequests.create(wid, body)),
+    invalidate: stale.clients,
     success: saved => (client ? `Saved ${saved.name}` : `Created ${saved.name}`),
     onSuccess: onClose,
   });
@@ -112,8 +110,8 @@ export function ClientsPage() {
   );
 
   const archive = useAction<Client>({
-    mutationFn: client => api.post(wsPath(wid, 'clients', client.id, 'archive')),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.archive(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Archived ${client.name} and its projects`,
     onSuccess: (_result, client) => {
       // The dialog had focus and would give it back to the row's menu button. When the row leaves
@@ -123,8 +121,8 @@ export function ClientsPage() {
     },
   });
   const restore = useAction<Client>({
-    mutationFn: client => api.post(wsPath(wid, 'clients', client.id, 'restore'), { restore_all_projects: true }),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.restore(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Restored ${client.name} and its projects`,
     // The menu button that ran the action had focus; keep it in the list unless the user has moved on.
     onSuccess: (_result, client) => {
@@ -132,8 +130,8 @@ export function ClientsPage() {
     },
   });
   const remove = useAction<Client>({
-    mutationFn: client => api.delete(wsPath(wid, 'clients', client.id)),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.remove(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Deleted ${client.name}`,
     onSuccess: (_result, client) => {
       focusPastRow(tbody.current, client.id, 'menu', heading.current);

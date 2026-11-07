@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Switch, useLocation, useRoute } from 'wouter';
 import { version } from '../../../package.json';
-import { ApiError, api } from './api/client.ts';
-import { useCurrentEntry, useMe, usePreferences } from './api/hooks.ts';
+import { useAppStatus } from './api/auth.ts';
+import { isApiError } from './api/client.ts';
+import { useMe, usePreferences } from './api/account.ts';
+import { useCurrentEntry } from './api/entries.ts';
 import { TimerStateProvider } from './api/TimerStateProvider.tsx';
 import { Brand } from './components/Brand.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
@@ -332,13 +334,9 @@ function useEndSessionOnForbidden(forbidden: boolean, signedIn: boolean) {
 }
 
 export function App() {
-  const status = useQuery({
-    queryKey: ['status'],
-    queryFn: () => api.get<{ setup_required: boolean }>('/api/app/status'),
-    staleTime: Infinity,
-  });
+  const status = useAppStatus();
   const me = useMe();
-  const forbidden = me.error instanceof ApiError && me.error.status === 403;
+  const forbidden = isApiError(me.error, 403);
   useEndSessionOnForbidden(forbidden, me.isSuccess);
   const [isInvite, invite] = useRoute('/invite/:token');
   const [isReset, reset] = useRoute('/reset/:token');

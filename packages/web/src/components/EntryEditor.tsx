@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { useCreateEntry, useDeleteEntry, useProjects, useRestoreEntry, useUpdateEntry } from '../api/hooks.ts';
+import { useCreateEntry, useDeleteEntry, useRestoreEntry, useUpdateEntry } from '../api/entries.ts';
+import { useProjects } from '../api/projects.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { snapDuration } from '@tokkl/common/snap';

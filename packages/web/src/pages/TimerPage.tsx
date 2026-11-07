@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useEntries, useEntryBounds, usePreferences, useSavePreferences, useProjects } from '../api/hooks.ts';
+import { usePreferences, useSavePreferences } from '../api/account.ts';
+import { useEntries, useEntryBounds } from '../api/entries.ts';
+import { useProjects } from '../api/projects.ts';
 import type { Favorite, TimeEntry } from '../api/types.ts';
 import { addDays, startOfWeek } from '@tokkl/common/time';
 import { EntryList } from '../components/EntryList.tsx';

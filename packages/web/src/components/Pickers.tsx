@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
-import { useCreateProject, useCreateTag, useProjects, useTags, useTasks } from '../api/hooks.ts';
+import { useCreateProject, useProjects, useTasks } from '../api/projects.ts';
+import { useCreateTag, useTags } from '../api/tags.ts';
 import type { Project } from '../api/types.ts';
 import { arrowTarget } from './arrowKeys.ts';
 import { Icon } from './Icon.tsx';

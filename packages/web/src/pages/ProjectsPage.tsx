@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useClients, useProjects, useWid, useWorkspace } from '../api/hooks.ts';
+import { useWid, useWorkspace } from '../api/account.ts';
+import { useClients } from '../api/clients.ts';
+import { stale } from '../api/keys.ts';
+import { projectRequests, useProjects, type ProjectDeletionMode } from '../api/projects.ts';
 import type { Project } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
@@ -10,7 +12,8 @@ import { useSettings } from '../api/settings.ts';
 import { duration, formatMoney } from '../lib/format.ts';
 import { type Settings } from '../lib/settings.ts';
 import { ProjectEditor } from './manage/ProjectEditor.tsx';
-import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { useAction } from '../components/useAction.ts';
+import { includesText } from './manage/values.ts';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import {
   ConfirmModal,
@@ -25,9 +28,6 @@ import {
 import './manage/manage.css';
 
 type ClientFilter = 'any' | 'none' | number;
-type DeletionMode = 'unassign' | 'delete';
-
-const PROJECT_KEYS = [keys.projects, keys.tasks, keys.entries, keys.current, keys.report] as const;
 
 function EstimateBar({ project, settings }: { project: Project; settings: Settings }) {
   if (project.estimated_hours === null || project.estimated_hours <= 0) return <span className="muted">None</span>;
@@ -85,8 +85,8 @@ export function ProjectsPage() {
   );
 
   const setActive = useAction<{ project: Project; active: boolean }, Project>({
-    mutationFn: ({ project, active }) => api.put<Project>(wsPath(wid, 'projects', project.id), { active }),
-    invalidate: PROJECT_KEYS,
+    mutationFn: ({ project, active }) => projectRequests.update(wid, project.id, { active }),
+    invalidate: stale.projects,
     success: saved => (saved.active ? `Restored ${saved.name}` : `Archived ${saved.name}`),
     // The row leaves the list when the status filter no longer matches. The menu button that ran the
     // action had focus; keep it in the list unless the user has moved on.
@@ -95,9 +95,9 @@ export function ProjectsPage() {
     },
   });
 
-  const remove = useAction<{ project: Project; mode: DeletionMode }>({
-    mutationFn: ({ project, mode }) => api.delete(`${wsPath(wid, 'projects', project.id)}?teDeletionMode=${mode}`),
-    invalidate: [...PROJECT_KEYS, keys.trash],
+  const remove = useAction<{ project: Project; mode: ProjectDeletionMode }>({
+    mutationFn: ({ project, mode }) => projectRequests.remove(wid, project.id, mode),
+    invalidate: stale.projectDeleted,
     success: (_result, { project, mode }) =>
       mode === 'delete'
         ? `Deleted ${project.name} and moved its entries to the trash`

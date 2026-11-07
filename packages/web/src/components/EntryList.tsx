@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  useBulkPatch,
-  useCreateEntry,
-  useDeleteEntry,
-  usePreferences,
-  useRestoreEntry,
-  useSavePreferences,
-  useUpdateEntry,
-  type PatchOperation,
-} from '../api/hooks.ts';
+import { usePreferences, useSavePreferences } from '../api/account.ts';
+import { useBulkPatch, useCreateEntry, useDeleteEntry, useRestoreEntry, useUpdateEntry } from '../api/entries.ts';
+import { type PatchOperation } from '../api/types.ts';
 import type { Favorite, TimeEntry } from '../api/types.ts';
 import { overlappingIds } from '../lib/entryOverlap.ts';
 import { localDay } from '../lib/entryTime.ts';
