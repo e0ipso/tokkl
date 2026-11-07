@@ -60,6 +60,7 @@ const types = {
     RingingTransition: 's',
     SessionMessage: 's',
     CanStartSession: 'b',
+    Actions: 'a{sa{sv}}',
 };
 
 const state = {
@@ -108,6 +109,7 @@ const state = {
     Ringing: false,
     RingingTransition: '',
     SessionMessage: '',
+    Actions: {},
 };
 
 // The lengths on the Tokkl server behind the service. RefreshPreferences
@@ -139,7 +141,45 @@ function variant(name) {
             })),
         );
     }
+    if (name === 'Actions') {
+        return new GLib.Variant(
+            'a{sa{sv}}',
+            Object.fromEntries(
+                Object.entries(state.Actions).map(([key, action]) => [
+                    key,
+                    {
+                        visible: new GLib.Variant('b', action.visible),
+                        enabled: new GLib.Variant('b', action.enabled),
+                        label: new GLib.Variant('s', action.label),
+                    },
+                ]),
+            ),
+        );
+    }
     return new GLib.Variant(types[name], state[name]);
+}
+
+// The menu actions as the service publishes them from the core's rules with
+// the GNOME policy: writes wait for Status ready, and a session leaves
+// Project and Billable to the timer.
+function actionsOf() {
+    const ready = state.Status === 'ready';
+    const held = state.Running || state.Paused;
+    const active = state.SessionActive;
+    const idle = state.PomodoroMode && !held;
+    const shown = (visible, enabled, label) => ({ visible, enabled: visible && enabled, label });
+    let project = 'project';
+    if (state.Running) project = 'projectRunning';
+    else if (state.Paused) project = 'projectPaused';
+    return {
+        run: shown(!idle && !active, ready, held ? 'stop' : 'start'),
+        startSession: shown(idle && !active, state.CanStartSession, 'startSession'),
+        nextPhase: shown(active, true, active ? state.UpcomingPhase : ''),
+        endSession: shown(active, true, 'endSession'),
+        project: shown(true, ready && !held, project),
+        billable: shown(true, ready && !state.Paused, 'billable'),
+        mode: shown(true, !state.ModeLocked, state.ModeLocked ? 'pomodoroModeLocked' : 'pomodoroMode'),
+    };
 }
 
 function set(values) {
@@ -160,7 +200,12 @@ function set(values) {
     if (state.ModeLocked !== locked) derived.ModeLocked = locked;
     const canStart = state.PomodoroMode && !locked && state.Status === 'ready';
     if (state.CanStartSession !== canStart) derived.CanStartSession = canStart;
-    if (Object.keys(derived).length > 0) set(derived);
+    if (Object.keys(derived).length > 0) {
+        set(derived);
+        return;
+    }
+    const actions = actionsOf();
+    if (JSON.stringify(actions) !== JSON.stringify(state.Actions)) set({ Actions: actions });
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -351,6 +396,7 @@ class Timer1 {
     }
 }
 
+state.Actions = actionsOf();
 const implementation = new Timer1();
 for (const name of Object.keys(types))
     Object.defineProperty(implementation, name, { get: () => variant(name).deepUnpack() });

@@ -72,6 +72,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(bool Ringing READ ringing)
     Q_PROPERTY(QString RingingTransition READ ringingTransition)
     Q_PROPERTY(QString SessionMessage READ sessionMessage)
+    Q_PROPERTY(QMap<QString, QVariantMap> Actions READ actions)
     Q_PROPERTY(QMap<QString, int> PomodoroLengths READ pomodoroLengths)
     Q_PROPERTY(bool PomodoroLengthsEditable READ pomodoroLengthsEditable)
     Q_PROPERTY(QMap<QString, QString> PomodoroLengthErrors READ pomodoroLengthErrors)
@@ -141,6 +142,8 @@ public:
     bool ringing() const;
     QString ringingTransition() const;
     QString sessionMessage() const;
+    // MenuActionStates with the GNOME policy, as the menu reads them.
+    QMap<QString, QVariantMap> actions() const;
     QMap<QString, int> pomodoroLengths() const;
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;

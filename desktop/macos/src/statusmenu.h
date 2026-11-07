@@ -1,5 +1,6 @@
 #pragma once
 
+#include "menuactions.h"
 #include "projectchoices.h"
 
 #include <QObject>
@@ -24,7 +25,9 @@ class TimerModel;
 
 // The menu of the menu bar item: state, the session's message, Start Timer or
 // Stop Timer, Start session, Next phase, End session, Pomodoro mode, Project,
-// Billable, Reconnect, Open Tokkl, Settings and Quit.
+// Billable, Reconnect, Open Tokkl, Settings and Quit. Which timer and session
+// actions show and can be chosen comes from the core's MenuActionStates, with
+// the macOS policy.
 //
 // The timer and the session are the server's, so a timer or session started
 // on another device shows here too. Start Timer starts a new entry while the
@@ -72,19 +75,19 @@ private:
     // The app's tests trigger and read the actions.
     friend class ::MenuBarAppTest;
 
-    void rebuildProjects();
+    void rebuildProjects(const MenuActionStates &actions);
     void fillProjectMenu(const ProjectChoices &choices);
     // A checkable item that chooses projectId, null for no project.
     QAction *addProjectChoice(const QString &label, const QVariant &projectId, bool checked, bool enabled);
     void refresh();
     void refreshState();
-    void refreshSession();
+    void refreshSession(const MenuActionStates &actions);
     void onGenerationChanged();
     void watchConnection();
-    // A session is active, started on any device.
-    bool sessionActive() const;
-    // Pomodoro mode is on and no timer runs or is paused.
-    bool pomodoroIdle() const;
+    // The core's rules for which actions show and can be chosen, with the
+    // macOS policy.
+    MenuActionStates actions() const;
+    static void show(QAction *action, const ActionState &state);
 
     QPointer<TimerModel> m_timer;
     QPointer<TimerCoordinator> m_actions;

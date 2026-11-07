@@ -36,6 +36,8 @@ add_library(tokklcore STATIC
     instanceurl.h
     logging.cpp
     logging.h
+    menuactions.cpp
+    menuactions.h
     mutationgate.cpp
     mutationgate.h
     nextstartdefaults.h

@@ -664,6 +664,7 @@ private Q_SLOTS:
             {QStringLiteral("Ringing"), QStringLiteral("b read")},
             {QStringLiteral("RingingTransition"), QStringLiteral("s read")},
             {QStringLiteral("SessionMessage"), QStringLiteral("s read")},
+            {QStringLiteral("Actions"), QStringLiteral("a{sa{sv}} read")},
             {QStringLiteral("PomodoroLengths"), QStringLiteral("a{si} read")},
             {QStringLiteral("PomodoroLengthsEditable"), QStringLiteral("b read")},
             {QStringLiteral("PomodoroLengthErrors"), QStringLiteral("a{ss} read")},
@@ -1463,6 +1464,51 @@ private Q_SLOTS:
         QVERIFY(QTest::qWaitFor([&f, &message] {
             return f.recorder.valuesOf(QStringLiteral("SessionMessage")).contains(message);
         }));
+    }
+
+    // Actions carries the core's menu rules with the GNOME policy, and its
+    // changes reach the bus like any other property's.
+    void actionsFollowTheCore()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        const auto action = [&f](const QString &name) {
+            return f.service->actions().value(name);
+        };
+        QCOMPARE(f.service->actions().keys(),
+                 (QStringList{QStringLiteral("billable"),
+                              QStringLiteral("endSession"),
+                              QStringLiteral("mode"),
+                              QStringLiteral("nextPhase"),
+                              QStringLiteral("project"),
+                              QStringLiteral("run"),
+                              QStringLiteral("startSession")}));
+        QCOMPARE(action(QStringLiteral("run")).value(QStringLiteral("visible")).toBool(), true);
+        QCOMPARE(action(QStringLiteral("run")).value(QStringLiteral("enabled")).toBool(), false);
+        QCOMPARE(action(QStringLiteral("run")).value(QStringLiteral("label")).toString(), QStringLiteral("start"));
+        QCOMPARE(action(QStringLiteral("mode")).value(QStringLiteral("enabled")).toBool(), true);
+
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("ready"));
+        QCOMPARE(action(QStringLiteral("run")).value(QStringLiteral("enabled")).toBool(), true);
+        QCOMPARE(action(QStringLiteral("project")).value(QStringLiteral("enabled")).toBool(), true);
+        QCOMPARE(action(QStringLiteral("project")).value(QStringLiteral("label")).toString(), QStringLiteral("project"));
+        QVERIFY(QTest::qWaitFor([&f] {
+            return !f.recorder.valuesOf(QStringLiteral("Actions")).isEmpty();
+        }));
+
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QCOMPARE(action(QStringLiteral("run")).value(QStringLiteral("visible")).toBool(), false);
+        QCOMPARE(action(QStringLiteral("startSession")).value(QStringLiteral("visible")).toBool(), true);
+        QCOMPARE(action(QStringLiteral("startSession")).value(QStringLiteral("enabled")).toBool(), true);
+        // The last Actions the bus saw shows Start session.
+        QVERIFY(QTest::qWaitFor([&f] {
+            const QVariantList published = f.recorder.valuesOf(QStringLiteral("Actions"));
+            return !published.isEmpty()
+                && qdbus_cast<QMap<QString, QVariantMap>>(published.last()).value(QStringLiteral("startSession")).value(QStringLiteral("visible")).toBool();
+        }));
+        const auto last = qdbus_cast<QMap<QString, QVariantMap>>(f.recorder.valuesOf(QStringLiteral("Actions")).last());
+        QCOMPARE(last.value(QStringLiteral("startSession")).value(QStringLiteral("visible")).toBool(), true);
     }
 
     // Activate: in Timer mode, and while an entry runs or a chain is

@@ -4,6 +4,7 @@
 
 #include "clock.h"
 #include "connection.h"
+#include "menuactions.h"
 #include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
@@ -75,6 +76,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     qDBusRegisterMetaType<QList<QVariantMap>>();
     qDBusRegisterMetaType<QMap<QString, int>>();
     qDBusRegisterMetaType<QMap<QString, QString>>();
+    qDBusRegisterMetaType<QMap<QString, QVariantMap>>();
     new Timer1Adaptor(this);
 
     m_timer->setStateClient(m_client);
@@ -342,6 +344,19 @@ QString TimerService::ringingTransition() const
 QString TimerService::sessionMessage() const
 {
     return m_session->message();
+}
+
+QMap<QString, QVariantMap> TimerService::actions() const
+{
+    // GNOME's menu has always waited for Status ready before it offered a
+    // write, and has left Project and Billable to the timer during a
+    // session; the policy keeps both.
+    const QVariantMap states = MenuActionStates::of(*m_timer, m_session, MenuActionPolicy::gnome()).toVariantMap();
+    QMap<QString, QVariantMap> actions;
+    for (auto it = states.cbegin(); it != states.cend(); ++it) {
+        actions.insert(it.key(), it.value().toMap());
+    }
+    return actions;
 }
 
 QMap<QString, int> TimerService::pomodoroLengths() const

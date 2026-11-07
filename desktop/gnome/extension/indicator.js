@@ -216,6 +216,9 @@ export const TokklIndicator = GObject.registerClass(
                 longRestEvery: this._property('LongRestEvery', 0),
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
+                // Which items show and can be chosen; a service from before
+                // Actions publishes none.
+                actions: this._property('Actions', null),
                 actionError: this._actionError,
             };
         }

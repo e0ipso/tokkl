@@ -12,23 +12,20 @@ import com.canpicasoft.tokkl.backend
 // Return or Space triggers and Escape closes. A hidden entry is disabled too,
 // so the arrow keys skip it.
 //
-// The session is the server's, so Next phase and End session show whenever
-// one is active, in either mode and whichever device started it, and the
-// state line then names the phase. Start or Stop is hidden then, as the
-// session owns its pomodoro. Without a session it shows in Timer mode, and
-// in Pomodoro mode while a timer runs or is paused, so Pomodoro mode starts
-// no timer. In Pomodoro mode Start session shows while no session is active
-// and no timer runs or is paused. Pomodoro mode is locked while a timer
-// runs or is paused, or a session is active.
+// Which of Start or Stop, Start session, Next phase, End session, Project,
+// Billable and Pomodoro mode show and can be chosen comes from the core's
+// rules (TokklMenuActions, MenuActionStates in desktop/core), with the KDE
+// policy: writes wait for canWrite, and a session disables Project and
+// Billable, as neither reaches the open pomodoro. The session is the
+// server's, so Next phase and End session show whenever one is active, in
+// either mode and whichever device started it, and the state line then names
+// the phase.
 //
 // Stop ends the timer and its pause chain; while paused it asks the server
-// to discard the chain. Project sets only the project of the next start and
-// is locked while an entry runs or is paused: changing it means stopping and
-// starting a new entry. Billable sets the next start too and, while an entry
-// runs, edits that entry in place; while paused the timer refuses it. Both
-// are disabled whenever the timer cannot write, so nothing is sent for an
-// account that is not connected. During a session both are disabled, as
-// neither reaches the open pomodoro.
+// to discard the chain. Project sets only the project of the next start;
+// changing the project of a running entry means stopping and starting a new
+// entry. Billable sets the next start too and, while an entry runs, edits
+// that entry in place.
 PlasmaComponents.Menu {
     id: menu
 
@@ -37,9 +34,13 @@ PlasmaComponents.Menu {
     property TokklPomodoroSession session: null
     required property StatusText words
 
-    // Pomodoro mode is on and no timer runs or is paused.
-    readonly property bool pomodoroIdle: menu.words.pomodoroMode && !menu.timer.running && !menu.timer.paused
-    readonly property bool sessionActive: menu.session !== null && menu.session.active
+    // The core's states of the timer and session actions: visible, enabled
+    // and label for each.
+    readonly property TokklMenuActions menuActions: TokklMenuActions {
+        timer: menu.timer
+        session: menu.session
+    }
+    readonly property var actionStates: menu.menuActions.states
 
     property alias stateItem: stateItem
     property alias messageItem: messageItem
@@ -84,6 +85,14 @@ PlasmaComponents.Menu {
         height: shown ? implicitHeight : 0
     }
 
+    // An action as the core's state describes it.
+    component ActionItem: OptionalItem {
+        required property var actionState
+
+        shown: actionState.visible
+        available: actionState.enabled
+    }
+
     // Another instance, account or secret: close, so no choice made for the
     // previous context can be triggered.
     Connections {
@@ -111,43 +120,39 @@ PlasmaComponents.Menu {
         text: menu.words.messageText
     }
 
-    OptionalItem {
+    ActionItem {
         id: startSessionItem
-        shown: menu.pomodoroIdle && !menu.sessionActive
-        available: menu.session !== null && menu.session.canStartSession
+        actionState: menu.actionStates.startSession
         text: i18nc("@action:inmenu", "Start session")
         icon.name: "media-playback-start"
         onTriggered: menu.session.startSession()
     }
 
-    OptionalItem {
+    ActionItem {
         id: nextPhaseItem
-        shown: menu.sessionActive
+        actionState: menu.actionStates.nextPhase
         text: menu.words.nextPhaseText
         icon.name: "media-skip-forward"
         onTriggered: menu.session.confirmNextPhase()
     }
 
-    OptionalItem {
+    ActionItem {
         id: endSessionItem
-        shown: menu.sessionActive
+        actionState: menu.actionStates.endSession
         text: i18nc("@action:inmenu", "End session")
         icon.name: "media-playback-stop"
         onTriggered: menu.session.endSession()
     }
 
-    OptionalItem {
+    ActionItem {
         id: runItem
 
         // Running or paused: the chain is open until Stop.
-        readonly property bool stops: menu.timer.running || menu.timer.paused
+        readonly property bool stops: runItem.actionState.label === "stop"
 
-        shown: !menu.pomodoroIdle && !menu.sessionActive
+        actionState: menu.actionStates.run
         text: runItem.stops ? i18nc("@action:inmenu", "Stop") : i18nc("@action:inmenu", "Start")
         icon.name: runItem.stops ? "media-playback-stop" : "media-playback-start"
-        // Stop while paused discards the chain on the server, so it needs a
-        // connection too.
-        available: menu.timer.canWrite
         onTriggered: runItem.stops ? menu.timer.stop() : menu.timer.start()
     }
 
@@ -161,7 +166,7 @@ PlasmaComponents.Menu {
 
         // A choice is possible: the timer can write, nothing runs, no chain
         // is paused and no session is active.
-        readonly property bool choosable: menu.timer.canWrite && !menu.timer.running && !menu.timer.paused && !menu.sessionActive
+        readonly property bool choosable: menu.actionStates.project.enabled
 
         popupType: T.Popup.Window
         delegate: PlasmaComponents.MenuItem {}
@@ -207,7 +212,7 @@ PlasmaComponents.Menu {
         id: billableItem
         text: i18nc("@option:check", "Billable")
         selected: menu.timer.chosenBillable
-        enabled: menu.timer.canWrite && !menu.timer.paused && !menu.sessionActive
+        enabled: menu.actionStates.billable.enabled
         onTriggered: menu.timer.chooseBillable(!menu.timer.chosenBillable)
     }
 
@@ -215,7 +220,7 @@ PlasmaComponents.Menu {
         id: modeItem
         text: menu.words.modeText
         selected: menu.words.pomodoroMode
-        enabled: menu.session !== null && !menu.session.modeLocked
+        enabled: menu.actionStates.mode.enabled
         onTriggered: menu.session.setPomodoroMode(!menu.session.pomodoroMode)
     }
 

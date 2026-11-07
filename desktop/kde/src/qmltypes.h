@@ -12,6 +12,7 @@
 #include "kdeconnection.h"
 #include "kdepomodoro.h"
 #include "kdetimerstate.h"
+#include "menuactions.h"
 #include "pomodorolengthsclient.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
@@ -59,10 +60,26 @@ struct TokklTimerStateForeign {
     QML_NAMED_ELEMENT(TokklTimerState)
 };
 
+// What TokklTimer is: the model the panel reads. It has no QML name of its
+// own.
+struct TokklTimerModelForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::TimerModel)
+    QML_ANONYMOUS
+};
+
 struct TokklTimerForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::TimerController)
     QML_NAMED_ELEMENT(TokklTimer)
+};
+
+// Which of the menu's timer and session actions show and can be chosen, from
+// the core's rules with the KDE panel's policy.
+struct TokklMenuActionsForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::MenuActions)
+    QML_NAMED_ELEMENT(TokklMenuActions)
 };
 
 // Pomodoro mode. TokklPomodoro builds the session and the preferences
