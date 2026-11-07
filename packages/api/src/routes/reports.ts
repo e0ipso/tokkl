@@ -7,7 +7,15 @@ import { parseId } from '../lib/values.ts';
 import { addDays } from '@tokkl/common/time';
 import type { Workspace } from '../storage/domain.ts';
 import { filterFromBody, resolutionFor, type Dimension } from '../services/storageReports.ts';
-import { checkOrderBy, v3WeeklyFilter, type JobResult, type ReportJob } from '../services/storageReportJobs.ts';
+import {
+  readDurationFormat,
+  readOrderBy,
+  readSortDirection,
+  v3WeeklyFilter,
+  type JobResult,
+  type ReportJob,
+} from '../services/storageReportJobs.ts';
+import { lenientNumber } from '../http/params.ts';
 
 /** Toggl's Reports API v3 rejects ranges longer than a year. */
 const TOGGL_MAX_DAYS = 366;
@@ -65,14 +73,14 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/search/time_entries', async (req, res) => {
     const { ws, body, filter } = await v3Filter(req, res);
-    checkOrderBy(body.order_by);
-    const pageSize = Math.min(Math.max(Number(body.page_size ?? 50) || 50, 1), 1000);
-    const firstRow = Math.max(Number(body.first_row_number ?? 1) || 1, 1);
+    const orderBy = readOrderBy(body.order_by);
+    const pageSize = Math.min(Math.max(lenientNumber(body.page_size, 50), 1), 1000);
+    const firstRow = Math.max(lenientNumber(body.first_row_number, 1), 1);
     await send(deps, res, ws, {
       kind: 'v3-search',
       filter,
-      orderBy: body.order_by,
-      orderDir: body.order_dir,
+      orderBy,
+      orderDir: readSortDirection(body.order_dir),
       pageSize,
       firstRow,
     });
@@ -95,13 +103,13 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/search/time_entries.csv', async (req, res) => {
     const { ws, body, filter } = await v3Filter(req, res);
-    checkOrderBy(body.order_by);
+    const orderBy = readOrderBy(body.order_by);
     await send(deps, res, ws, {
       kind: 'v3-csv',
       filter,
-      orderBy: body.order_by,
-      orderDir: body.order_dir,
-      durationFormat: body.duration_format,
+      orderBy,
+      orderDir: readSortDirection(body.order_dir),
+      durationFormat: readDurationFormat(body.duration_format),
     });
   });
 
@@ -130,7 +138,13 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/summary/time_entries.csv', async (req, res) => {
     const { ws, body, filter, grouping, sub } = await summary(req, res);
-    await send(deps, res, ws, { kind: 'v3-summary-csv', filter, grouping, sub, durationFormat: body.duration_format });
+    await send(deps, res, ws, {
+      kind: 'v3-summary-csv',
+      filter,
+      grouping,
+      sub,
+      durationFormat: readDurationFormat(body.duration_format),
+    });
   });
 
   api.post('/workspace/:wid/weekly/time_entries', async (req, res) => {
@@ -213,14 +227,26 @@ export function appReportRoutes(deps: Deps): Router {
   api.post('/report/detailed.csv', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
     const { sort, dir } = detailedOrder(body);
-    await send(deps, res, ws, { kind: 'app-detailed-csv', filter, sort, dir, durationFormat: body.duration_format });
+    await send(deps, res, ws, {
+      kind: 'app-detailed-csv',
+      filter,
+      sort,
+      dir,
+      durationFormat: readDurationFormat(body.duration_format),
+    });
   });
 
   api.post('/report/summary.csv', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
     const [, grouping] = dimension(body.grouping, 'projects', 'grouping');
     const [, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
-    await send(deps, res, ws, { kind: 'app-summary-csv', filter, grouping, sub, durationFormat: body.duration_format });
+    await send(deps, res, ws, {
+      kind: 'app-summary-csv',
+      filter,
+      grouping,
+      sub,
+      durationFormat: readDurationFormat(body.duration_format),
+    });
   });
 
   return api;
