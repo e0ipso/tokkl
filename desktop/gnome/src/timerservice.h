@@ -42,7 +42,9 @@ class TimerService : public QObject, protected QDBusContext
 {
     Q_OBJECT
 
-    // The org.tokkl.Timer1 properties, read by the generated adaptor.
+    // The org.tokkl.Timer1 properties, read by the generated adaptor. They
+    // have no NOTIFY: publishChanges() sends their changes to the bus as
+    // PropertiesChanged.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
     Q_PROPERTY(bool Paused READ paused)

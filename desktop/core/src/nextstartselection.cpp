@@ -1,0 +1,188 @@
+#include "nextstartselection.h"
+
+#include "connection.h"
+#include "projectcatalog.h"
+
+#include <utility>
+
+namespace Tokkl
+{
+
+std::optional<NextStartSelection::Choice> NextStartSelection::forProject(const QVariant &projectId, const QList<Project> &projects)
+{
+    if (projectId.isNull() || !projectId.isValid()) {
+        return Choice();
+    }
+    bool ok = false;
+    const qint64 id = projectId.toLongLong(&ok);
+    if (!ok || id < 0) {
+        return std::nullopt;
+    }
+    if (id == 0) {
+        return Choice();
+    }
+    // Only an active project of this workspace is a choice; an archived one
+    // stays on its entry until another is chosen.
+    const std::optional<Project> found = ProjectCatalog::findActive(projects, id);
+    if (!found) {
+        return std::nullopt;
+    }
+    return Choice{id, found->billable};
+}
+
+NextStartSelection::Choice NextStartSelection::afterStop(std::optional<qint64> projectId, const QList<Project> &projects)
+{
+    const std::optional<Project> found = projectId ? ProjectCatalog::findActive(projects, *projectId) : std::nullopt;
+    return found ? Choice{found->id, found->billable} : Choice();
+}
+
+NextStartSelection::Choice NextStartSelection::fromRecentEntries(const QList<ListedEntry> &entries, qint64 workspaceId)
+{
+    if (entries.isEmpty()) {
+        return Choice();
+    }
+    const ListedEntry &last = entries.first();
+    if (last.entry.workspaceId != workspaceId || !last.entry.projectId || !last.projectActive) {
+        return Choice();
+    }
+    return Choice{last.entry.projectId, last.projectBillable};
+}
+
+NextStartSelection::NextStartSelection(const ProjectCatalog *catalog, QObject *parent)
+    : QObject(parent)
+    , m_catalog(catalog)
+{
+}
+
+void NextStartSelection::setConnection(Connection *connection)
+{
+    m_connection = connection;
+}
+
+std::optional<qint64> NextStartSelection::projectId() const
+{
+    return m_connection ? m_connection->nextProjectId() : std::nullopt;
+}
+
+QVariant NextStartSelection::projectIdVariant() const
+{
+    return m_connection ? m_connection->nextProjectIdVariant() : QVariant::fromValue(nullptr);
+}
+
+bool NextStartSelection::billable() const
+{
+    return m_connection && m_connection->nextBillable();
+}
+
+void NextStartSelection::pick(const Choice &choice)
+{
+    m_defaults.pick();
+    apply(choice);
+}
+
+void NextStartSelection::pickProjectId(const QVariant &projectId)
+{
+    if (m_connection) {
+        m_defaults.pick();
+        m_connection->setNextProjectIdVariant(projectId);
+    }
+}
+
+void NextStartSelection::pickBillable(bool billable)
+{
+    if (m_connection) {
+        m_defaults.pick();
+        m_connection->setNextBillable(billable);
+    }
+}
+
+void NextStartSelection::started()
+{
+    m_defaults.clear();
+}
+
+void NextStartSelection::entryRunning()
+{
+    m_defaults.cancelLastEntryRead();
+}
+
+void NextStartSelection::stopped(std::optional<qint64> projectId)
+{
+    // A pick made before this stop no longer applies.
+    m_defaults.stopped();
+    if (projectId && !m_catalog->listKnown()) {
+        m_defaults.waitForList(*projectId);
+    } else {
+        apply(afterStop(projectId, m_catalog->projects()));
+    }
+}
+
+void NextStartSelection::listLoaded()
+{
+    // Cleared by a pick, a start or a newer default since the stop.
+    if (const std::optional<qint64> projectId = m_defaults.takeStopDefault()) {
+        apply(afterStop(projectId, m_catalog->projects()));
+    }
+}
+
+void NextStartSelection::forget()
+{
+    m_defaults.clear();
+    apply(Choice());
+}
+
+void NextStartSelection::reset()
+{
+    m_epoch.advance();
+    m_defaults.reset();
+}
+
+void NextStartSelection::wantLastEntry()
+{
+    m_defaults.wantLastEntry();
+}
+
+bool NextStartSelection::takeLastEntryWanted()
+{
+    return m_defaults.takeLastEntryWanted();
+}
+
+void NextStartSelection::readLastEntry(std::function<bool()> stillWanted)
+{
+    if (m_defaults.picked() || !m_connection) {
+        return;
+    }
+    const quint64 number = m_defaults.beginLastEntryRead();
+
+    // Known limit: the API lists only the entries of the last 9 days, so
+    // after a longer break there is no last entry and the next start has no
+    // project.
+    m_connection->fetchRecentEntries(m_epoch.guard(this, [this, number, stillWanted = std::move(stillWanted)](const ApiResult<QList<ListedEntry>> &result) {
+        if (!m_defaults.takeLastEntryRead(number)) {
+            return; // a choice or start since it was sent
+        }
+        if (m_defaults.picked() || !stillWanted()) {
+            return;
+        }
+        if (!result.ok()) {
+            // Try again after the next state.
+            m_defaults.wantLastEntry();
+            return;
+        }
+        m_defaults.takeStopDefault();
+        apply(fromRecentEntries(*result.value, m_connection ? m_connection->workspaceId() : 0));
+    }));
+}
+
+void NextStartSelection::apply(const Choice &choice)
+{
+    if (!m_connection) {
+        return;
+    }
+    // A last-entry read still in flight is older than this choice.
+    m_defaults.cancelLastEntryRead();
+    m_connection->setNextProjectId(choice.projectId);
+    m_connection->setNextBillable(choice.billable);
+}
+
+}

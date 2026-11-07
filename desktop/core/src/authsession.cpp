@@ -28,70 +28,53 @@ bool refusesCredentials(const ApiError &error)
 
 AuthSession::AuthSession(Transport *transport, CredentialStore *store, QObject *parent)
     : QObject(parent)
-    , m_store(store)
+    , m_credentials(store)
     , m_api(transport, *this)
 {
+    connect(&m_credentials, &SessionCredentials::instanceTextChanged, this, &AuthSession::instanceTextChanged);
+    connect(&m_credentials, &SessionCredentials::authModeChanged, this, &AuthSession::authModeChanged);
+    connect(&m_credentials, &SessionCredentials::emailChanged, this, &AuthSession::emailChanged);
+    connect(&m_credentials, &SessionCredentials::changed, this, &AuthSession::settingsChanged);
+    connect(&m_credentials, &SessionCredentials::secretRead, this, &AuthSession::onSecretRead);
+    connect(&m_credentials, &SessionCredentials::writeFailed, this, &AuthSession::showFailedWrite);
     connect(&m_cooldown, &Cooldown::ended, this, &AuthSession::onCooldownEnded);
     m_retryTimer.setSingleShot(true);
     connect(&m_retryTimer, &QTimer::timeout, this, &AuthSession::refreshAccount);
-    if (m_store) {
-        connect(m_store, &CredentialStore::secretChanged, this, &AuthSession::onSecretChanged);
-        connect(m_store, &CredentialStore::secretWriteFailed, this, &AuthSession::onSecretWriteFailed);
-    }
 }
 
 QString AuthSession::instanceText() const
 {
-    return m_instanceText;
+    return m_credentials.instanceText();
 }
 
 void AuthSession::setInstanceText(const QString &text)
 {
-    if (text == m_instanceText) {
-        return;
-    }
-    m_instanceText = text;
-    Q_EMIT instanceTextChanged();
-    settingsChanged();
+    m_credentials.setInstanceText(text);
 }
 
 AuthMode AuthSession::authMode() const
 {
-    return m_authMode;
+    return m_credentials.authMode();
 }
 
 void AuthSession::setAuthMode(AuthMode mode)
 {
-    if (mode == m_authMode) {
-        return;
-    }
-    m_authMode = mode;
-    Q_EMIT authModeChanged();
-    settingsChanged();
+    m_credentials.setAuthMode(mode);
 }
 
 QString AuthSession::email() const
 {
-    return m_email;
+    return m_credentials.email();
 }
 
 void AuthSession::setEmail(const QString &email)
 {
-    if (email == m_email) {
-        return;
-    }
-    // The email only identifies the account in password mode.
-    const bool contextChanges = m_authMode == AuthMode::Password;
-    m_email = email;
-    Q_EMIT emailChanged();
-    if (contextChanges) {
-        settingsChanged();
-    }
+    m_credentials.setEmail(email);
 }
 
 const InstanceUrl &AuthSession::instance() const
 {
-    return m_instance;
+    return m_credentials.instance();
 }
 
 AuthSession::State AuthSession::state() const
@@ -139,12 +122,12 @@ void AuthSession::settingsChanged()
     // Another instance or account: nothing from the old one may stay visible,
     // and its secret, pause and cooldown do not carry over.
     resetAccount();
-    forgetSecret();
+    m_credentials.forgetSecret();
     m_authPaused = false;
     m_cooldown.clear();
     m_retryTimer.stop();
-    m_instance = InstanceUrl();
-    setState(m_instanceText.trimmed().isEmpty() ? Unconfigured : LoadingCredentials);
+    m_credentials.clearInstance();
+    setState(m_credentials.instanceText().trimmed().isEmpty() ? Unconfigured : LoadingCredentials);
     scheduleReload();
 }
 
@@ -158,43 +141,25 @@ void AuthSession::scheduleReload()
     QMetaObject::invokeMethod(this, &AuthSession::reload, Qt::QueuedConnection);
 }
 
-QString AuthSession::currentCredentialKey() const
-{
-    return credentialKey(m_instance, m_authMode, m_email);
-}
-
-// The store's own wording, or the platform-neutral text once the store is gone.
-QString AuthSession::credentialMessage(const CredentialResult &result) const
-{
-    return m_store ? m_store->message(result) : result.message();
-}
-
-void AuthSession::forgetSecret()
-{
-    m_hasSecret = false;
-    m_secret.clear();
-    m_authorization.clear();
-}
-
 void AuthSession::reload()
 {
     m_reloadScheduled = false;
     m_retryTimer.stop();
 
-    if (m_instanceText.trimmed().isEmpty()) {
+    if (m_credentials.instanceText().trimmed().isEmpty()) {
         setState(Unconfigured);
         return;
     }
-    m_instance = parseInstanceUrl(m_instanceText);
-    if (!m_instance.isValid()) {
-        setState(InvalidSettings, m_instance.error);
+    const InstanceUrl &instance = m_credentials.parseInstance();
+    if (!instance.isValid()) {
+        setState(InvalidSettings, instance.error);
         return;
     }
-    if (m_authMode == AuthMode::Password && m_email.trimmed().isEmpty()) {
+    if (m_credentials.lacksEmail()) {
         setState(InvalidSettings, tr("Enter the email address of your Tokkl account."));
         return;
     }
-    if (!m_store) {
+    if (!m_credentials.hasStore()) {
         setState(WalletError, CredentialResult{CredentialResult::Status::Unavailable, {}}.message());
         return;
     }
@@ -202,18 +167,7 @@ void AuthSession::reload()
     if (!hasAccount()) {
         setState(LoadingCredentials);
     }
-    const quint64 generation = m_generation;
-    const QString key = currentCredentialKey();
-    const std::optional<FailedWrite> failedWrite = std::exchange(m_failedWrite, std::nullopt);
-    if (failedWrite && failedWrite->key == key) {
-        showFailedWrite(failedWrite->status);
-        return;
-    }
-    m_store->read(key, this, [this, generation, key](const CredentialResult &result) {
-        if (generation == m_generation && key == currentCredentialKey()) {
-            onSecretRead(result);
-        }
-    });
+    m_credentials.read();
 }
 
 void AuthSession::onSecretRead(const CredentialResult &result)
@@ -224,39 +178,15 @@ void AuthSession::onSecretRead(const CredentialResult &result)
         if (hasAccount()) {
             resetAccount();
         }
-        forgetSecret();
-        setState(result.status == CredentialResult::Status::NotFound ? CredentialsMissing : WalletError, credentialMessage(result));
+        m_credentials.forgetSecret();
+        setState(result.status == CredentialResult::Status::NotFound ? CredentialsMissing : WalletError, m_credentials.message(result));
         return;
     }
-    if (m_hasSecret && result.secret != m_secret) {
+    if (m_credentials.differs(result.secret)) {
         resetAccount();
     }
-    m_hasSecret = true;
-    m_secret = result.secret;
-    m_authorization = basicAuthorization(m_authMode, m_email, m_secret);
+    m_credentials.setSecret(result.secret);
     authenticate(true);
-}
-
-void AuthSession::onSecretChanged(const QString &key)
-{
-    if (m_failedWrite && m_failedWrite->key == key) {
-        m_failedWrite.reset();
-    }
-    if (m_instance.isValid() && key == currentCredentialKey()) {
-        settingsChanged();
-    }
-}
-
-void AuthSession::onSecretWriteFailed(const QString &key, const CredentialResult &result)
-{
-    if (m_instance.isValid() && key == currentCredentialKey()) {
-        m_failedWrite.reset();
-        showFailedWrite(result.status);
-        return;
-    }
-    // The settings for that key may still be on their way, as when a
-    // settings page saves the secret before the settings.
-    m_failedWrite = FailedWrite{key, result.status};
 }
 
 void AuthSession::showFailedWrite(CredentialResult::Status status)
@@ -267,13 +197,13 @@ void AuthSession::showFailedWrite(CredentialResult::Status status)
     // entered, so nothing is validated or written with it.
     resetAccount();
     m_retryTimer.stop();
-    forgetSecret();
-    setState(WalletError, tr("The new credentials were not saved. %1").arg(credentialMessage(CredentialResult{status, {}})));
+    m_credentials.forgetSecret();
+    setState(WalletError, tr("The new credentials were not saved. %1").arg(m_credentials.message(CredentialResult{status, {}})));
 }
 
 void AuthSession::reconnect()
 {
-    m_failedWrite.reset();
+    m_credentials.forgetFailedWrite();
     m_authPaused = false;
     if (m_reloadScheduled) {
         return;
@@ -283,7 +213,7 @@ void AuthSession::reconnect()
 
 void AuthSession::refreshAccount()
 {
-    if (m_authPaused || m_authorization.isEmpty()) {
+    if (m_authPaused || m_credentials.authorization().isEmpty()) {
         return;
     }
     authenticate(false);
@@ -304,7 +234,7 @@ void AuthSession::authenticate(bool explicitRequest)
     if (!hasAccount()) {
         setState(Connecting);
     }
-    m_api.send("GET", m_instance.api(QStringLiteral("/me")), QByteArray(), [this](const HttpResponse &response) {
+    m_api.send("GET", instance().api(QStringLiteral("/me")), QByteArray(), [this](const HttpResponse &response) {
         handleMe(response);
     });
 }
@@ -344,7 +274,7 @@ void AuthSession::handleMe(const HttpResponse &response)
 
 void AuthSession::fetchMe(ApiClient::Callback<Me> done)
 {
-    m_api.call<Me>("GET", m_instance.api(QStringLiteral("/me")), QByteArray(), ApiAccess::Account, &decodeMe, [this, done](const ApiResult<Me> &result) {
+    m_api.call<Me>("GET", instance().api(QStringLiteral("/me")), QByteArray(), ApiAccess::Account, &decodeMe, [this, done](const ApiResult<Me> &result) {
         if (result.ok()) {
             bind(*result.value);
         }
@@ -387,6 +317,8 @@ void AuthSession::resetAccount()
 {
     ++m_generation;
     qCDebug(lcAuth) << "Generation" << m_generation;
+    // A secret read sent before belongs to the old generation.
+    m_credentials.dropReads();
     m_api.abortAll();
     clearAccount();
     Q_EMIT generationChanged();
@@ -431,7 +363,7 @@ void AuthSession::onCooldownEnded()
     }
     if (hasAccount()) {
         setState(Connected);
-    } else if (!m_authPaused && !m_authorization.isEmpty()) {
+    } else if (!m_authPaused && !m_credentials.authorization().isEmpty()) {
         authenticate(false);
     } else {
         Q_EMIT stateChanged();
@@ -447,7 +379,7 @@ quint64 AuthSession::generation() const
 
 QByteArray AuthSession::authorization() const
 {
-    return m_authorization;
+    return m_credentials.authorization();
 }
 
 std::optional<ApiError> AuthSession::refusal(ApiAccess access) const

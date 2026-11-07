@@ -5,8 +5,6 @@
 #include "connection.h"
 #include "epoch.h"
 #include "mutationgate.h"
-#include "nextstartdefaults.h"
-#include "projectcatalog.h"
 #include "timerstateclient.h"
 #include "timerview.h"
 
@@ -18,6 +16,10 @@
 
 namespace Tokkl
 {
+
+class ChosenProject;
+class NextStartSelection;
+class ProjectCatalog;
 
 // The timer for QML: the running entry of the connection's validated
 // account and workspace, its elapsed time, the project and billable choices
@@ -58,8 +60,9 @@ namespace Tokkl
 // that stopped (as the stop reply names it, when the panel stopped it), and
 // of the newest entry the API lists when a connection starts or reconnect()
 // runs with nothing running. Only an active project of the workspace counts.
-// NextStartDefaults holds when a default may apply, and ProjectCatalog what
-// is known of the projects.
+// NextStartSelection keeps the choice and its defaults, ProjectCatalog what
+// is known of the projects, and ChosenProject what the menu and indicator
+// show of the chosen one.
 //
 // The panel menu edits the choices through chooseProject() and
 // chooseBillable(). chooseProject() sets only the project of the next start
@@ -285,7 +288,6 @@ private:
     void reset();
     void beginMutation();
     void fetchProjects();
-    void fetchLastEntry();
     // Shows the reply of a v9 write sent at revision as the running entry,
     // ending the chain and the session it leaves no place for, unless a
     // newer state has come since. A state no newer than the one shown then
@@ -295,16 +297,11 @@ private:
     // stoppedReply is the server's answer to a stop or edit that ended the
     // entry; its project wins over the one last shown.
     void applyView(const std::optional<TimeEntry> &stoppedReply = std::nullopt);
-    void applyStopDefault();
-    void setStopDefault(std::optional<qint64> projectId);
-    void setNextStart(std::optional<qint64> projectId, bool billable);
-    void pickNextStart();
     bool updateEntry(const TimeEntryUpdate &update);
     std::optional<qint64> chosenProject() const;
     // Reads the chosen project when projects lacks it, then updates
     // entryProject and the indicator.
     void resolveProject();
-    void setEntryProject(const std::optional<Project> &project);
     // start is true for a start or resume, and entryReply for a v9 write,
     // whose reply is an entry rather than the whole state.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
@@ -337,8 +334,7 @@ private:
     bool m_sessionActive = false;
     // The workspace's projects and the one read on its own.
     ProjectCatalog *m_catalog;
-    std::optional<Project> m_entryProject;
-    ProjectCatalog::Indicator m_indicator;
+    ChosenProject *m_chosen;
     qint64 m_elapsed = 0;
     QString m_error;
 
@@ -350,7 +346,7 @@ private:
     bool m_workspaceLost = false;
     bool m_rediscoveryUsed = false;
 
-    NextStartDefaults m_defaults;
+    NextStartSelection *m_next;
 };
 
 }

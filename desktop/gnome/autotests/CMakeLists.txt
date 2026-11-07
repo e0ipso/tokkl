@@ -1,7 +1,7 @@
 # The core unit tests (api, connection, networktransport and timer) come
 # from desktop/core, added with it in the top-level CMakeLists.txt.
 #
-# Every test here starts its own dbus-daemon (privatebus.h) with no service
+# Every bus test here starts its own dbus-daemon (privatebus.h) with no service
 # files of the user's, so the user's session bus, keyring and services are
 # never reached.
 #
@@ -26,6 +26,13 @@ target_compile_definitions(timerservicetest PRIVATE
     TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
 add_test(NAME timerservice COMMAND timerservicetest)
 
+# servicesettings checks Configure's settings and secret handling apart from
+# the bus, against the core's fake transport and credential store and a
+# temporary settings file.
+add_executable(servicesettingstest servicesettingstest.cpp)
+target_link_libraries(servicesettingstest PRIVATE tokklgnome tokklcorefakes Qt6::Test)
+add_test(NAME servicesettings COMMAND servicesettingstest)
+
 # wavfile checks the WAV reader against the bundled sounds, with no audio
 # server.
 add_executable(wavfiletest wavfiletest.cpp)
@@ -33,7 +40,7 @@ target_link_libraries(wavfiletest PRIVATE tokklgnome Qt6::Test)
 target_compile_definitions(wavfiletest PRIVATE TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
 add_test(NAME wavfile COMMAND wavfiletest)
 
-set_tests_properties(timerservice wavfile PROPERTIES ENVIRONMENT "${_gnome_env}")
+set_tests_properties(timerservice servicesettings wavfile PROPERTIES ENVIRONMENT "${_gnome_env}")
 
 if(TOKKL_GNOME_DAEMON)
     # keychainstore runs the QtKeychain store against a GNOME Keyring daemon
