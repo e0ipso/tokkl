@@ -9,7 +9,7 @@ import { isActiveAdmin, isActiveUser } from '../domain/accounts.ts';
 import type { User } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
-import { forbidden, tooManyRequests } from '../lib/errors.ts';
+import { forbidden, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual, sha256, verifyAgainstDummy, verifyPassword } from './crypto.ts';
 import { passwordCounters, type FailureLimiter } from './rateLimit.ts';
 
@@ -69,7 +69,7 @@ export async function authenticatePassword<R extends AccountRepositories>(
     if (!seen) return verifyAgainstDummy(password);
     return (await verifyPassword(password, seen.passwordHash)) && isActiveUser(seen);
   });
-  if (result.refused) throw tooManyRequests('Too many failed login attempts, try again later', result.retryAfter);
+  if (result.refused) throw tooManyAttempts('Too many failed login attempts, try again later', result.retryAfter);
   if (!seen || !result.valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }

@@ -9,7 +9,7 @@ import {
 import type { TimerState, TimeEntry as HttpTimeEntry } from '@tokkl/types';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, TimerSnapshot, User } from '../storage/domain.ts';
-import { badRequest, ConflictWithBody } from '../lib/errors.ts';
+import { calendarInput, invalidInput, StateConflict } from '../lib/errors.ts';
 import { optionalId } from '../lib/values.ts';
 import { getPomodoroSessionConfig } from './accountValues.ts';
 import type { AccountEntryEffects, AccountRepositories } from './accounts.ts';
@@ -305,18 +305,18 @@ function readConfig(body: Record<string, unknown>, user: User): PomodoroSessionC
     if (value == null) continue;
     const { min, max } = POMODORO_SESSION_CONFIG_RANGES[key];
     if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
-      throw badRequest(`Invalid ${field}: expected an integer from ${min} to ${max}`);
+      throw invalidInput(`Invalid ${field}: expected an integer from ${min} to ${max}`);
     config[key] = value;
   }
   return config;
 }
 function readRevision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value))
-    throw badRequest('Invalid revision: expected an integer');
+    throw invalidInput('Invalid revision: expected an integer');
   return value;
 }
 async function refusal(ctx: EntryContext, user: User, now: Date, message: string): Promise<never> {
-  throw new ConflictWithBody(message, await buildTimerState(ctx, user, now));
+  throw new StateConflict(message, await buildTimerState(ctx, user, now));
 }
 async function checkRevision(ctx: EntryContext, user: User, seen: number, now: Date) {
   const current = (await ctx.timers.getRevision(user.id))?.revision ?? 0;
@@ -409,10 +409,12 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       const seen = readRevision(revision);
       return action(userId, now, async (ctx, user) => {
         const s = await sessionAt(ctx, user, seen, now);
-        const { next } = nextPhase(
-          { kind: s.phase.kind, startedAt: new Date(s.phase.startedAt), completed: s.phase.completed },
-          now,
-          s.config,
+        const { next } = calendarInput(() =>
+          nextPhase(
+            { kind: s.phase.kind, startedAt: new Date(s.phase.startedAt), completed: s.phase.completed },
+            now,
+            s.config,
+          ),
         );
         let entryId = s.entryId;
         if (next.kind === 'work') {

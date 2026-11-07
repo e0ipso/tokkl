@@ -4,7 +4,8 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createAccountRepositories } from '../../src/storage/repositories/accounts.ts';
-import { HttpError } from '../../src/lib/errors.ts';
+import { ApplicationError } from '../../src/lib/errors.ts';
+import { errorReply } from '../../src/http/errors.ts';
 import { sha256, verifyPassword } from '../../src/auth/crypto.ts';
 import {
   getPreferences,
@@ -66,7 +67,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const bob = await add('bob@example.test');
       const carol = await add('carol@example.test');
       const error = (status: number, message: string) => (e: unknown) =>
-        e instanceof HttpError && e.status === status && e.message === message;
+        e instanceof ApplicationError && errorReply(e).status === status && e.message === message;
       const calls: string[] = [];
       const effects = {
         async reanchorTimezone(_ctx: unknown, _id: number, oldZone: string, newZone: string) {
@@ -372,8 +373,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             },
           ),
           e =>
-            error(429, 'Too many failed attempts, try again later')(e) &&
-            (e as HttpError).headers['Retry-After'] === '17',
+            error(429, 'Too many failed attempts, try again later')(e) && errorReply(e).headers['Retry-After'] === '17',
         );
       });
       await t.test('reset, revocation, rotation and deletion during password verification prevent writes', async () => {

@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 
 const scryptAsync = promisify(scrypt) as (
   password: string,
@@ -27,9 +27,9 @@ export const MAX_PASSWORD_LENGTH = 1024;
 export function readNewPassword(value: unknown): string {
   const password = typeof value === 'string' ? value : '';
   if (password.length < MIN_PASSWORD_LENGTH)
-    throw badRequest(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+    throw invalidInput(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   if (password.length > MAX_PASSWORD_LENGTH)
-    throw badRequest(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+    throw invalidInput(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
   return password;
 }
 

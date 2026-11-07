@@ -1,7 +1,7 @@
 import express, { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
 import { jsonRead, query, readText } from '../http/context.ts';
-import { badRequest, notFound } from '../lib/errors.ts';
+import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
 import { createStorageSessions } from '../auth/storageSessions.ts';
@@ -102,10 +102,10 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
   app.post('/import/toggl-csv', auth, async (req, res) => {
     const text = readText(req);
-    if (!text.trim()) throw badRequest('The file is empty');
+    if (!text.trim()) throw invalidInput('The file is empty');
     const selected = req.query.user,
       users = selected === undefined ? undefined : [selected].flat().filter(key => typeof key === 'string');
-    if (users?.length === 0) throw badRequest('Invalid user selection');
+    if (users?.length === 0) throw invalidInput('Invalid user selection');
     return res.json(
       await deps
         .importsFor(res.locals.auth)
@@ -117,7 +117,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     try {
       data = JSON.parse(readText(req));
     } catch {
-      throw badRequest('The file is not valid JSON');
+      throw invalidInput('The file is not valid JSON');
     }
     return res.json(
       await deps

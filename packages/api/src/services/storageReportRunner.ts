@@ -1,7 +1,7 @@
 import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
-import { HttpError } from '../lib/errors.ts';
+import { ApplicationError, type FailureKind } from '../lib/errors.ts';
 import { collectReport, type ReportSource } from './storageReports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
@@ -33,7 +33,8 @@ interface Reply {
   ready?: boolean;
   phase?: 'reading' | 'formatting';
   result?: JobResult;
-  error?: { status?: number; message: string };
+  /** An application failure keeps its kind and message; anything else arrives without a kind. */
+  error?: { kind?: FailureKind; message: string; retryAfterSeconds?: number };
 }
 
 /** One runner per app, one worker/reader, a bounded parent queue and one job in flight. */
@@ -144,7 +145,7 @@ export class StorageReportRunner {
     this.worker!.postMessage({ id: p.id, work: p.work });
   }
   private safeError(error: unknown): Error {
-    return error instanceof HttpError ? error : new Error('Report failed');
+    return error instanceof ApplicationError ? error : new Error('Report failed');
   }
   private finish(p: Pending, result?: JobResult, error?: Error): void {
     this.active = undefined;
@@ -198,9 +199,9 @@ export class StorageReportRunner {
         p,
         message.result,
         message.error
-          ? message.error.status === undefined
+          ? message.error.kind === undefined
             ? new Error('Report failed')
-            : new HttpError(message.error.status, message.error.message)
+            : new ApplicationError(message.error.kind, message.error.message, message.error.retryAfterSeconds)
           : undefined,
       );
     });

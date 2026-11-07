@@ -1,5 +1,5 @@
 import { canonicalTimeZone, dateKey } from '@tokkl/common/time';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 import { parseInstant } from '../lib/values.ts';
 import {
   createClient,
@@ -28,7 +28,7 @@ export interface JsonImportResult {
 type Item = Record<string, unknown>;
 function list(value: unknown, field: string): Item[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) throw badRequest(`Invalid export file: "${field}" must be an array`);
+  if (!Array.isArray(value)) throw invalidInput(`Invalid export file: "${field}" must be an array`);
   return value.filter((item): item is Item => typeof item === 'object' && item !== null);
 }
 /** Joins the supplied operation. The outer runner controls dry-run rollback and retries. */
@@ -40,7 +40,8 @@ export async function importJsonExport(
   publish: TimerPublication,
 ): Promise<JsonImportResult> {
   const format = typeof data === 'object' && data !== null ? (data as Item).format : undefined;
-  if (format !== EXPORT_FORMAT && format !== LEGACY_EXPORT_FORMAT) throw badRequest('This is not a Tokkl JSON export');
+  if (format !== EXPORT_FORMAT && format !== LEGACY_EXPORT_FORMAT)
+    throw invalidInput('This is not a Tokkl JSON export');
   const file = data as Item,
     user = await protectImport(ctx, userId),
     wid = user.defaultWorkspaceId;

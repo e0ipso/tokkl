@@ -5,7 +5,7 @@ import {
 } from '@tokkl/common/pomodoroSession';
 import { canonicalTimeZone } from '@tokkl/common/time';
 import { readNewPassword } from '../auth/crypto.ts';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 import { togglTime, optionalString, optionalId } from '../lib/values.ts';
 import type { JsonObject, User, Workspace, MembershipRole, AccountToken } from '../storage/domain.ts';
 import type { AccountChanges } from '../storage/contracts.ts';
@@ -108,7 +108,7 @@ const isUsable = (key: string, value: unknown) => PREFERENCE_RULES[key]?.valid(v
 /** Throws 400 for a known preference with a value the app cannot use. */
 export function validatePreferenceChanges(changes: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(changes)) {
-    if (!isUsable(key, value)) throw badRequest(`Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`);
+    if (!isUsable(key, value)) throw invalidInput(`Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`);
   }
 }
 
@@ -226,23 +226,23 @@ export interface NewAccountInput {
 export function readNewAccount(body: Record<string, unknown>): NewAccountInput {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
-  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
+  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw invalidInput('Enter a valid email address');
   const timezone =
     body.timezone === undefined || body.timezone === ''
       ? 'UTC'
       : typeof body.timezone === 'string'
         ? canonicalTimeZone(body.timezone)
         : null;
-  if (!timezone) throw badRequest('Invalid timezone');
+  if (!timezone) throw invalidInput('Invalid timezone');
   return { email, fullname, timezone, password: readNewPassword(body.password) };
 }
 export function readProfileChanges(body: Record<string, unknown>): AccountChanges {
   const email = optionalString(body.email, 'email', 255)?.trim();
-  if (email !== undefined && !/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Invalid email');
+  if (email !== undefined && !/^[^@\s]+@[^@\s]+$/.test(email)) throw invalidInput('Invalid email');
   const fullName = optionalString(body.fullname, 'fullname', 255);
   const requestedZone = optionalString(body.timezone, 'timezone', 64);
   const timezone = requestedZone === undefined ? undefined : canonicalTimeZone(requestedZone);
-  if (timezone === null) throw badRequest('Invalid timezone');
+  if (timezone === null) throw invalidInput('Invalid timezone');
   const beginningOfWeek = body.beginning_of_week;
   if (
     beginningOfWeek !== undefined &&
@@ -251,7 +251,7 @@ export function readProfileChanges(body: Record<string, unknown>): AccountChange
       beginningOfWeek < 0 ||
       beginningOfWeek > 6)
   )
-    throw badRequest('Invalid beginning_of_week');
+    throw invalidInput('Invalid beginning_of_week');
   const defaultWorkspaceId = optionalId(body.default_workspace_id, 'default_workspace_id');
   return {
     email,

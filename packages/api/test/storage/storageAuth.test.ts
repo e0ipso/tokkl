@@ -33,7 +33,8 @@ const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, a
   await import('../../src/auth/rateLimit.ts');
 const { createStorageAuth, credentialCheck } = await import('../../src/auth/storageMiddleware.ts');
 const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
-const { HttpError } = await import('../../src/lib/errors.ts');
+const { ApplicationError } = await import('../../src/lib/errors.ts');
+const { errorReply } = await import('../../src/http/errors.ts');
 const { sha256, verifyPassword, hashPassword } = await import('../../src/auth/crypto.ts');
 const { disposableBackend } = await import('./support/disposableBackend.ts');
 const basic = (email: string, password: string) => ({
@@ -123,7 +124,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const mapped: unknown[] = [];
       const errors: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
         mapped.push(error);
-        if (error instanceof HttpError) return res.status(error.status).set(error.headers).json(error.message);
+        if (error instanceof ApplicationError) {
+          const reply = errorReply(error);
+          return res.status(reply.status).set(reply.headers).json(reply.body);
+        }
         return res.status(500).json('Internal server error');
       };
       app.use(errors);

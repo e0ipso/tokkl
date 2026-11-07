@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
-import { ConflictWithBody, HttpError } from '../src/lib/errors.ts';
+import { ApplicationError, StateConflict } from '../src/lib/errors.ts';
+import { errorReply } from '../src/http/errors.ts';
 import { listDeletedEntries, listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
 import { getUser } from './fixtures/domain.ts';
 import { addWorkspaceMember } from './fixtures/domain.ts';
@@ -390,9 +391,9 @@ async function assertRefused(
   await assert.rejects(
     () => action(now),
     (error: unknown) => {
-      assert.ok(error instanceof ConflictWithBody, `${label}: ${String(error)}`);
-      assert.equal(error.status, 409, label);
-      assert.deepEqual(error.body, current, label);
+      assert.ok(error instanceof StateConflict, `${label}: ${String(error)}`);
+      assert.equal(errorReply(error).status, 409, label);
+      assert.deepEqual(errorReply(error).body, current, label);
       return true;
     },
   );
@@ -423,9 +424,9 @@ test('a refused action gets a 409 with the current state and changes nothing', a
       await assert.rejects(
         () => action(db, user, revision, idle),
         (error: unknown) =>
-          error instanceof HttpError &&
-          !(error instanceof ConflictWithBody) &&
-          error.status === 400 &&
+          error instanceof ApplicationError &&
+          !(error instanceof StateConflict) &&
+          errorReply(error).status === 400 &&
           error.message === 'Invalid revision: expected an integer',
         `${action.name}(${String(revision)})`,
       );
@@ -546,7 +547,7 @@ test('starting a session stops the running timer at the session start and ends a
   const before = await getTimerState(db, user, at('12:00:00'));
   await assert.rejects(
     async () => await startPomodoro(db, user, { workspace_id: bob.wid }, at('12:00:00')),
-    (error: unknown) => error instanceof HttpError && error.status === 403,
+    (error: unknown) => error instanceof ApplicationError && errorReply(error).status === 403,
   );
   assert.deepEqual(await getTimerState(db, user, at('12:00:00')), before);
   await addWorkspaceMember(db, bob.wid, user.id, 'member');
@@ -601,7 +602,8 @@ test('a session takes each length from the start body, or else from the preferen
   for (const [body, message] of invalid) {
     await assert.rejects(
       async () => await startPomodoro(db, user, body, at('11:00:00')),
-      (error: unknown) => error instanceof HttpError && error.status === 400 && error.message === message,
+      (error: unknown) =>
+        error instanceof ApplicationError && errorReply(error).status === 400 && error.message === message,
       JSON.stringify(body),
     );
   }

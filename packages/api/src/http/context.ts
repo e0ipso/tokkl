@@ -5,7 +5,7 @@ import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import type { TimerStreams } from '../services/timerStreams.ts';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 
 /** Shared by every router; created once in createApp. */
 export interface Deps extends ApplicationServices {
@@ -55,19 +55,19 @@ function parseBody(req: Request): unknown {
   try {
     return JSON.parse(text);
   } catch {
-    throw badRequest('Invalid JSON input');
+    throw invalidInput('Invalid JSON input');
   }
 }
 
 export function readJson(req: Request): Record<string, unknown> {
   const body = parseBody(req);
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) throw badRequest('Invalid JSON input');
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) throw invalidInput('Invalid JSON input');
   return body as Record<string, unknown>;
 }
 
 export function readJsonArray(req: Request): unknown[] {
   const body = parseBody(req);
-  if (!Array.isArray(body)) throw badRequest('Invalid JSON input: expected an array');
+  if (!Array.isArray(body)) throw invalidInput('Invalid JSON input: expected an array');
   return body;
 }
 

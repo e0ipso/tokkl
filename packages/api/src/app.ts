@@ -1,4 +1,4 @@
-import express, { type ErrorRequestHandler, type Express, type RequestHandler } from 'express';
+import express, { type Express, type RequestHandler } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Config } from './config.ts';
@@ -7,7 +7,8 @@ import { createApplicationServices } from './services/application.ts';
 import { createLocalTimerBus, type TimerBus } from './domain/timerBus.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
-import { ConflictWithBody, HttpError } from './lib/errors.ts';
+import { errorHandler } from './http/errors.ts';
+import { createLogger, type Logger } from './lib/logger.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
@@ -22,6 +23,8 @@ export interface AppOptions {
   /** Signals timer revisions to other API processes. Defaults to the single-process bus. The
    * caller owns its lifetime; the app never closes it. */
   timerBus?: TimerBus;
+  /** Where request failures and background errors are logged. Defaults to JSON lines on stdout/stderr. */
+  logger?: Logger;
 }
 
 const CONTENT_SECURITY_POLICY = [
@@ -57,28 +60,13 @@ const securityHeaders: RequestHandler = (req, res, next) => {
  */
 const textBody = (limit: string) => express.text({ type: () => true, limit });
 
-const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
-  if (res.headersSent) return next(error);
-  if (error instanceof ConflictWithBody) return res.status(409).json(error.body);
-  if (error instanceof HttpError) return res.status(error.status).set(error.headers).json(error.message);
-  // Date helpers throw RangeError on impossible input; that is the caller's mistake, not ours.
-  if (error instanceof RangeError) return res.status(400).json(error.message);
-  const type = (error as { type?: string }).type;
-  if (type === 'entity.too.large') return res.status(413).json('Request body too large');
-  if (type?.startsWith('entity.') || type?.startsWith('request.')) return res.status(400).json('Invalid request body');
-  // http-errors from Express itself, e.g. a missing file under /assets.
-  const status = (error as { status?: number }).status;
-  if (typeof status === 'number' && status >= 400 && status < 500) return res.status(status).json(error.message);
-  console.error('Request failed');
-  return res.status(500).json('Internal Server Error');
-};
-
 export function createApp({
   storage,
   config,
   setup,
   timerStreamOptions,
   timerBus = createLocalTimerBus(),
+  logger = createLogger(),
 }: AppOptions): Express {
   const app = express();
   const loginLimiter = new FailureLimiter(storage.rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
@@ -165,6 +153,6 @@ export function createApp({
     });
   }
 
-  app.use(errorHandler);
+  app.use(errorHandler(logger));
   return app;
 }

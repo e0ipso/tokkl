@@ -2,7 +2,7 @@ import express, { type Request, type Response, type Router } from 'express';
 import type { Deps } from '../http/context.ts';
 import { clientAddress, jsonRead, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
 import { passwordAttempt } from '../auth/storageMiddleware.ts';
-import { badRequest } from '../lib/errors.ts';
+import { calendarInput, invalidInput } from '../lib/errors.ts';
 import { parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/values.ts';
 import { startOfDay } from '@tokkl/common/time';
 import type { EntryFilter, ProjectFilter } from '../storage/contracts.ts';
@@ -48,7 +48,7 @@ function changedSince(req: Request): string | undefined {
   if (since === undefined) return undefined;
   const date = new Date(Number(since) * 1000);
   if (!/^\d+$/.test(since) || Number.isNaN(date.getTime()))
-    throw badRequest('Since is expected to be an unix timestamp, integer value');
+    throw invalidInput('Since is expected to be an unix timestamp, integer value');
   return date.toISOString();
 }
 function modifiedSince<
@@ -60,7 +60,9 @@ function modifiedSince<
 }
 function boundary(value: string, field: string, user: User): string {
   const parsed = parseDateOrInstant(value, field);
-  return ('instant' in parsed ? parsed.instant : startOfDay(parsed.date, user.timezone)).toISOString();
+  return (
+    'instant' in parsed ? parsed.instant : calendarInput(() => startOfDay(parsed.date, user.timezone))
+  ).toISOString();
 }
 function timeEntryFilter(req: Request, user: User): EntryFilter {
   const filter: EntryFilter = {};
@@ -69,11 +71,12 @@ function timeEntryFilter(req: Request, user: User): EntryFilter {
     start = query(req, 'start_date'),
     end = query(req, 'end_date');
   if (since !== undefined) filter.changedSince = since;
-  if ((start === undefined) !== (end === undefined)) throw badRequest('start_date and end_date must be used together');
+  if ((start === undefined) !== (end === undefined))
+    throw invalidInput('start_date and end_date must be used together');
   if (start !== undefined && end !== undefined) {
     filter.from = boundary(start, 'start_date', user);
     filter.to = boundary(end, 'end_date', user);
-    if (filter.to < filter.from) throw badRequest('end_date must not be earlier than start_date');
+    if (filter.to < filter.from) throw invalidInput('end_date must not be earlier than start_date');
   }
   if (before !== undefined) filter.to = boundary(before, 'before', user);
   if (!filter.changedSince && !filter.from && !filter.to)
@@ -433,8 +436,8 @@ export function togglV9Routes(deps: Deps): Router {
       if (search) tasks = tasks.filter(task => task.name.toLowerCase().includes(search));
       const sortField = query(req, 'sort_field') ?? 'name';
       const sortOrder = (query(req, 'sort_order') ?? 'ASC').toUpperCase();
-      if (sortField !== 'name' && sortField !== 'created_at') throw badRequest('Invalid sort_field');
-      if (sortOrder !== 'ASC' && sortOrder !== 'DESC') throw badRequest('Invalid sort_order');
+      if (sortField !== 'name' && sortField !== 'created_at') throw invalidInput('Invalid sort_field');
+      if (sortOrder !== 'ASC' && sortOrder !== 'DESC') throw invalidInput('Invalid sort_order');
       const direction = sortOrder === 'ASC' ? 1 : -1;
       tasks.sort(
         (a, b) =>
@@ -504,7 +507,7 @@ export function togglV9Routes(deps: Deps): Router {
       const ws = await workspaceFor(db, req, res);
       const status = query(req, 'status');
       if (status !== undefined && status !== 'active' && status !== 'archived' && status !== 'both') {
-        throw badRequest('Client status is invalid');
+        throw invalidInput('Client status is invalid');
       }
       return (
         await db.clients.list(ws.id, {

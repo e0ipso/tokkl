@@ -7,7 +7,7 @@ import { serializeClient, serializeProject, serializeTag, serializeTask } from '
 import { getPreferences, serializeUser, serializeWorkspace } from '../domain/accountValues.ts';
 import { serializeTimeEntry } from '../domain/timeEntries.ts';
 import { toCsv } from '../lib/csv.ts';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 
 export const EXPORT_FORMAT = 'tokkl-export';
 export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
@@ -113,11 +113,11 @@ export function assembleCsvExport(
 ): string {
   let from: string | undefined, to: string | undefined;
   if (range.from) {
-    if (!parseDateKey(range.from)) throw badRequest('Invalid start_date: expected YYYY-MM-DD');
+    if (!parseDateKey(range.from)) throw invalidInput('Invalid start_date: expected YYYY-MM-DD');
     from = startOfDay(range.from, data.user.timezone).toISOString();
   }
   if (range.to) {
-    if (!parseDateKey(range.to)) throw badRequest('Invalid end_date: expected YYYY-MM-DD');
+    if (!parseDateKey(range.to)) throw invalidInput('Invalid end_date: expected YYYY-MM-DD');
     to = startOfDay(addDays(range.to, 1), data.user.timezone).toISOString();
   }
   const items: CsvItem[] = [];

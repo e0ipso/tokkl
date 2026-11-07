@@ -8,7 +8,7 @@ import type {
 import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accounts.ts';
 import type { User } from '../storage/domain.ts';
 import { clientAddress, readJson } from '../http/context.ts';
-import { forbidden, notFound, tooManyRequests } from '../lib/errors.ts';
+import { forbidden, notFound, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual } from './crypto.ts';
 import { accountCounters, addressCounter, type FailureLimiter } from './rateLimit.ts';
 import {
@@ -58,7 +58,7 @@ export function createStorageSessions<R extends AccountRepositories>(
       addressCounter(clientAddress(req)),
       async () => (found = await find(token)) !== undefined,
     );
-    if (result.refused) throw tooManyRequests('Too many failed attempts, try again later', result.retryAfter);
+    if (result.refused) throw tooManyAttempts('Too many failed attempts, try again later', result.retryAfter);
     if (found === undefined) throw notFound(missing);
     return { token, found };
   };
@@ -103,7 +103,7 @@ export function createStorageSessions<R extends AccountRepositories>(
       body = readJson(req);
       return typeof body.setup_code === 'string' && safeEqual(body.setup_code.trim(), code);
     });
-    if (result.refused) throw tooManyRequests('Too many failed attempts, try again later', result.retryAfter);
+    if (result.refused) throw tooManyAttempts('Too many failed attempts, try again later', result.retryAfter);
     if (!result.valid) throw forbidden('Invalid setup code. It is printed in the server log on startup.');
     const user = await operations.createFirstAdmin(body);
     setup.code = null;

@@ -2,7 +2,7 @@ import express, { type Request, type Response, type Router } from 'express';
 import type { Repositories } from '../storage/contracts.ts';
 import type { Deps } from '../http/context.ts';
 import { readJson } from '../http/context.ts';
-import { badRequest } from '../lib/errors.ts';
+import { calendarInput, invalidInput } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { addDays } from '@tokkl/common/time';
 import { memberWorkspace } from '../domain/accounts.ts';
@@ -30,7 +30,7 @@ const GROUPINGS: Record<string, Dimension> = {
 function dimension(value: unknown, fallback: string, field: string): [string, Dimension] {
   const name = value === undefined || value === null || value === '' ? fallback : String(value);
   const dim = GROUPINGS[name];
-  if (!dim) throw badRequest(`Invalid '${field}' value, allowed values are: '${Object.keys(GROUPINGS).join(', ')}'`);
+  if (!dim) throw invalidInput(`Invalid '${field}' value, allowed values are: '${Object.keys(GROUPINGS).join(', ')}'`);
   return [name, dim];
 }
 
@@ -88,7 +88,7 @@ export function reportsV3Routes(deps: Deps): Router {
       requestedResolution !== 'week' &&
       requestedResolution !== 'month'
     ) {
-      throw badRequest("Invalid granularity or resolution: expected 'day', 'week' or 'month'");
+      throw invalidInput("Invalid granularity or resolution: expected 'day', 'week' or 'month'");
     }
     const granularity = requestedResolution ?? resolutionFor(filter.startDate, filter.endDate);
     await send(deps, res, ws, { kind: 'v3-totals', filter, granularity, withGraph: Boolean(body.with_graph) });
@@ -110,7 +110,7 @@ export function reportsV3Routes(deps: Deps): Router {
     const { ws, body, filter } = await v3Filter(req, res);
     const [groupingName, grouping] = dimension(body.grouping, 'projects', 'grouping');
     const [subName, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
-    if (grouping === sub) throw badRequest('grouping and sub_grouping must differ');
+    if (grouping === sub) throw invalidInput('grouping and sub_grouping must differ');
     res.set('X-Range-Start', filter.startDate);
     res.set('X-Range-End', filter.endDate);
     res.set('X-Grouping', groupingName);
@@ -139,7 +139,7 @@ export function reportsV3Routes(deps: Deps): Router {
     const body = readJson(req);
     const start = typeof body.start_date === 'string' ? body.start_date : '';
     const range = filterFromBody(
-      { ...body, end_date: body.end_date ?? (start ? addDays(start, 6) : undefined) },
+      { ...body, end_date: body.end_date ?? (start ? calendarInput(() => addDays(start, 6)) : undefined) },
       ws,
       TOGGL_MAX_DAYS,
     );
@@ -156,7 +156,7 @@ const APP_MAX_PAGE_SIZE = 500;
 function positiveInt(value: unknown, fallback: number, field: string): number {
   if (value === undefined || value === null) return fallback;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
-    throw badRequest(`Invalid '${field}' value`);
+    throw invalidInput(`Invalid '${field}' value`);
   return value;
 }
 
@@ -179,7 +179,7 @@ export function appReportRoutes(deps: Deps): Router {
     const { ws, body, filter } = await appFilter(req, res);
     const rows = body.rows ?? 'projects';
     if (rows !== 'projects' && rows !== 'clients')
-      throw badRequest("Invalid 'rows' value, allowed values are: 'projects, clients'");
+      throw invalidInput("Invalid 'rows' value, allowed values are: 'projects, clients'");
     await send(deps, res, ws, { kind: 'app-weekly', filter, rows });
   });
 
@@ -194,10 +194,10 @@ export function appReportRoutes(deps: Deps): Router {
   const detailedOrder = (body: Record<string, unknown>) => {
     const sort = body.sort ?? 'date';
     if (sort !== 'date' && sort !== 'duration' && sort !== 'description') {
-      throw badRequest("Invalid 'sort' value, allowed values are: 'date, duration, description'");
+      throw invalidInput("Invalid 'sort' value, allowed values are: 'date, duration, description'");
     }
     const dir = body.dir ?? 'desc';
-    if (dir !== 'asc' && dir !== 'desc') throw badRequest("Invalid 'dir' value, allowed values are: 'asc, desc'");
+    if (dir !== 'asc' && dir !== 'desc') throw invalidInput("Invalid 'dir' value, allowed values are: 'asc, desc'");
     return { sort, dir } as const;
   };
 
@@ -205,7 +205,7 @@ export function appReportRoutes(deps: Deps): Router {
     const { ws, body, filter } = await appFilter(req, res);
     const { sort, dir } = detailedOrder(body);
     const pageSize = positiveInt(body.page_size, 100, 'page_size');
-    if (pageSize > APP_MAX_PAGE_SIZE) throw badRequest(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
+    if (pageSize > APP_MAX_PAGE_SIZE) throw invalidInput(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
     const page = positiveInt(body.page, 1, 'page');
     await send(deps, res, ws, { kind: 'app-entries', filter, sort, dir, pageSize, page });
   });

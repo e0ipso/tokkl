@@ -1,5 +1,5 @@
 import { parseCsv } from '../lib/csv.ts';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 import { parseDuration } from '@tokkl/common/duration';
 import { pad2, zonedToUtc } from '@tokkl/common/time';
 import type { ImportResult, ImportUser } from '@tokkl/types';
@@ -127,15 +127,15 @@ export async function importTogglCsv(
 ): Promise<ImportResult> {
   const rows = parseCsv(text),
     header = rows.shift();
-  if (!header) throw badRequest('The file is empty');
-  if (rows.length > MAX_ROWS) throw badRequest(`At most ${MAX_ROWS} rows per import`);
+  if (!header) throw invalidInput('The file is empty');
+  if (rows.length > MAX_ROWS) throw invalidInput(`At most ${MAX_ROWS} rows per import`);
   const col = columnIndex(header);
   if (col.startDate === undefined || col.startTime === undefined)
-    throw badRequest(
+    throw invalidInput(
       'Missing "Start date" and "Start time" columns. Export a Detailed report as CSV from Toggl Track.',
     );
   if (col.duration === undefined && (col.endDate === undefined || col.endTime === undefined))
-    throw badRequest('Missing "End date"/"End time" or "Duration" columns.');
+    throw invalidInput('Missing "End date"/"End time" or "Duration" columns.');
   const cell = (row: string[], key: string): string =>
     col[key] === undefined ? '' : unescapeCell((row[col[key]!] ?? '').trim());
   const hasUsers = col.user !== undefined || col.email !== undefined;
@@ -149,11 +149,11 @@ export async function importTogglCsv(
       else users.set(key, { key, user: cell(row, 'user'), email: cell(row, 'email'), rows: 1 });
     });
   const selected = options.users ? new Set(options.users) : null;
-  if (selected && !selected.size) throw badRequest('Choose whose rows to import.');
+  if (selected && !selected.size) throw invalidInput('Choose whose rows to import.');
   for (const key of selected ?? [])
-    if (!users.has(key)) throw badRequest(`No rows in the file belong to the Toggl user key ${key}`);
+    if (!users.has(key)) throw invalidInput(`No rows in the file belong to the Toggl user key ${key}`);
   if (!selected && users.size > 1 && !options.dryRun)
-    throw badRequest(`The file has rows from ${users.size} Toggl users. Choose whose rows to import.`);
+    throw invalidInput(`The file has rows from ${users.size} Toggl users. Choose whose rows to import.`);
   const user = await protectImport(ctx, userId),
     wid = user.defaultWorkspaceId;
   const result: ImportResult = {

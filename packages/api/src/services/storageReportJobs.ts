@@ -1,5 +1,5 @@
 import { toCsv } from '../lib/csv.ts';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 import { togglTime } from '../lib/values.ts';
 import { formatDuration } from '@tokkl/common/duration';
 import type { DurationFormat } from '@tokkl/types';
@@ -68,7 +68,9 @@ const ORDER_BY = ['date', 'user', 'duration', 'description', 'last_update'];
 /** Throws the Toggl error for an unknown order_by, before any entry is read. */
 export function checkOrderBy(orderBy: unknown): void {
   if (!(ORDER_BY as unknown[]).includes(orderBy ?? 'date')) {
-    throw badRequest("Invalid 'order_by' value, allowed values are: 'date, user, duration, description, last_update'");
+    throw invalidInput(
+      "Invalid 'order_by' value, allowed values are: 'date, user, duration, description, last_update'",
+    );
   }
 }
 
