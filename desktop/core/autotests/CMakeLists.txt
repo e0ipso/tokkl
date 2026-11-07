@@ -28,6 +28,7 @@ endfunction()
 tokkl_core_test(api apitest.cpp)
 tokkl_core_test(apiclient apiclienttest.cpp tokklcorefakes)
 tokkl_core_test(connection connectiontest.cpp tokklcorefakes)
+tokkl_core_test(sessioncredentials sessioncredentialstest.cpp tokklcorefakes)
 tokkl_core_test(networktransport networktransporttest.cpp)
 # The User-Agent check needs the version the transport sends.
 target_compile_definitions(networktransporttest PRIVATE
@@ -56,5 +57,5 @@ target_compile_definitions(hourglassglyphtest PRIVATE
     TOKKL_DESKTOP_DIR="${_desktop_dir}")
 
 set(_unit_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-unit")
-set_tests_properties(api apiclient connection networktransport timer nextstartselection chosenproject timerstateclient pomodorostore pomodoropreferences pomodorosession PROPERTIES
+set_tests_properties(api apiclient connection sessioncredentials networktransport timer nextstartselection chosenproject timerstateclient pomodorostore pomodoropreferences pomodorosession PROPERTIES
     ENVIRONMENT "XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")

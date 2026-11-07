@@ -5,10 +5,10 @@
 #include "cooldown.h"
 #include "credentialstore.h"
 #include "instanceurl.h"
+#include "sessioncredentials.h"
 
 #include <QDateTime>
 #include <QObject>
-#include <QPointer>
 #include <QTimer>
 
 #include <optional>
@@ -19,9 +19,9 @@ namespace Tokkl
 // The authentication state of one configured instance and account.
 //
 // The settings name the instance, the sign-in mode and, for passwords, the
-// email; the secret comes from the credential store. GET /api/v9/me
-// validates them and binds the account and its default workspace to the
-// current generation.
+// email; the secret comes from the credential store. SessionCredentials
+// holds both. GET /api/v9/me validates them and binds the account and its
+// default workspace to the current generation.
 //
 // Changing a setting or the stored secret starts a new generation: the
 // account is cleared at once, requests in flight are aborted, and replies
@@ -116,21 +116,12 @@ private:
         quint64 generation = 0;
         Me me;
     };
-    // A write the store refused, kept until the next reload so a failure that
-    // arrives before the matching settings is still shown. No secret.
-    struct FailedWrite {
-        QString key;
-        CredentialResult::Status status;
-    };
 
     void settingsChanged();
     void scheduleReload();
     void reload();
     void onSecretRead(const CredentialResult &result);
-    void onSecretChanged(const QString &key);
-    void onSecretWriteFailed(const QString &key, const CredentialResult &result);
     void showFailedWrite(CredentialResult::Status status);
-    void forgetSecret();
     void authenticate(bool explicitRequest);
     void handleMe(const HttpResponse &response);
     void refuseCredentials(const ApiError &error);
@@ -141,23 +132,12 @@ private:
     void setState(State state, const QString &error = QString());
     void startCooldown(const QByteArray &retryAfter, const QString &message);
     void onCooldownEnded();
-    QString currentCredentialKey() const;
-    QString credentialMessage(const CredentialResult &result) const;
 
-    QPointer<CredentialStore> m_store;
-
-    QString m_instanceText;
-    AuthMode m_authMode = AuthMode::Token;
-    QString m_email;
-    InstanceUrl m_instance;
+    SessionCredentials m_credentials;
 
     quint64 m_generation = 1;
-    bool m_hasSecret = false;
-    QString m_secret;
-    QByteArray m_authorization;
     bool m_authPaused = false;
     bool m_reloadScheduled = false;
-    std::optional<FailedWrite> m_failedWrite;
 
     State m_state = Unconfigured;
     QString m_error;

@@ -53,6 +53,8 @@ add_library(tokklcore STATIC
     pomodorostore.h
     projectcatalog.cpp
     projectcatalog.h
+    sessioncredentials.cpp
+    sessioncredentials.h
     soundchoices.cpp
     soundchoices.h
     timercontroller.cpp
