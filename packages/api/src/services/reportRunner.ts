@@ -49,13 +49,33 @@ interface Reply {
   startupFailed?: ErrorDiagnostic;
 }
 
+/**
+ * What the application needs from a report runner: queue a report or an export assembly, and shut
+ * down. The composition root builds the runner and hands this to the application services.
+ */
+export interface ReportExecutor {
+  run(
+    userId: number,
+    workspaceId: number,
+    job: ReportJob,
+    options?: { signal?: AbortSignal; authentication?: Authentication },
+  ): Promise<JobResult>;
+  assembleExport(
+    data: AccountExportProjection,
+    assembly: ExportAssemblyJob,
+    options?: { signal?: AbortSignal },
+  ): Promise<JobResult>;
+  /** Fails every queued job and stops the worker. */
+  close(): Promise<void>;
+}
+
 /** The job's kind and the runner's id for it: what a log line may say about a job. */
 function jobFields(p: Pending) {
   return { jobId: p.id, jobKind: 'assembly' in p.work ? p.work.assembly.kind : p.work.job.kind };
 }
 
 /** One runner per app, one worker/reader, a bounded parent queue and one job in flight. */
-export class ReportRunner {
+export class ReportRunner implements ReportExecutor {
   private readonly config: StorageConfig;
   private readonly inline: ReportSource;
   private readonly options: ReportRunnerOptions;

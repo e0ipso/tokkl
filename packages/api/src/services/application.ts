@@ -1,11 +1,10 @@
 /**
  * The application services the HTTP layer calls: domain operations bound to storage, the signed-in
- * credential checks around them, timer delivery and the report runner. Each operation opens its
- * own transaction and binds what it publishes, so a route parses, calls one operation and presents
- * the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
+ * credential checks around them, timer delivery and the report executor `app.ts` builds. Each
+ * operation opens its own transaction and binds what it publishes, so a route parses, calls one
+ * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
 import type { Repositories, Storage } from '../storage/contracts.ts';
-import type { StorageConfig } from '../storage/config.ts';
 import type { Id, User } from '../storage/domain.ts';
 import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
 import type { InviteRequest, ProfileUpdate, SettingChanges } from '../domain/accountCommands.ts';
@@ -29,7 +28,7 @@ import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { createImportOperations } from './importJson.ts';
 import type { ExportAssemblyJob, JobResult } from './reportJobs.ts';
-import { ReportRunner } from './reportRunner.ts';
+import type { ReportExecutor } from './reportRunner.ts';
 import { createCatalogOperations } from './catalogOperations.ts';
 import { createEntryOperations } from './entryOperations.ts';
 import { credentialCheck } from './streamCredentials.ts';
@@ -39,7 +38,8 @@ import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts'
 
 export interface ApplicationServiceOptions {
   storage: Storage;
-  storageConfig: StorageConfig;
+  /** Runs reports and export assemblies. The services close it when they close. */
+  reports: ReportExecutor;
   streamOptions?: TimerStreamOptions;
   /** Signals timer revisions to other processes. Defaults to the single-process bus. */
   bus?: TimerBus;
@@ -98,7 +98,7 @@ export type SignedInAccountOperations = ReturnType<typeof boundAccountOperations
 
 export function createApplicationServices({
   storage,
-  storageConfig,
+  reports,
   streamOptions,
   bus = createLocalTimerBus(),
   logger = silentLogger,
@@ -107,7 +107,6 @@ export function createApplicationServices({
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
-  const reports = new ReportRunner(storageConfig, storage, { logger });
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
