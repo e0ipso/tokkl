@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QJsonValue>
+#include <QObject>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -306,12 +307,16 @@ struct ApiResult {
 
 // How a timer action ended.
 struct TimerActionResult {
+    Q_GADGET
+
+public:
     enum class Outcome {
         Applied, // the server made the change; state is the result
         Conflict, // a 409: the server refused it, and state is its current state
         Refused, // nothing changed: refused before sending, or an answer without a state
         Unknown, // no answer, a timeout, a 5xx or an unreadable answer; it may have happened
     };
+    Q_ENUM(Outcome)
 
     Outcome outcome = Outcome::Unknown;
     std::optional<TimerState> state; // for Applied and Conflict

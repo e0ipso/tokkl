@@ -1,5 +1,7 @@
 #include "connection.h"
 
+#include "logging.h"
+
 #include <QCoreApplication>
 #include <QUrlQuery>
 
@@ -359,6 +361,7 @@ void Connection::reload()
             return;
         }
         if (!result.ok()) {
+            qCWarning(lcCredentials) << "Reading the secret failed:" << result.status;
             // Without the secret nothing can be validated or written.
             if (hasContext()) {
                 resetAccount();
@@ -403,6 +406,7 @@ void Connection::onSecretWriteFailed(const QString &key, const CredentialResult 
 
 void Connection::showFailedWrite(CredentialResult::Status status)
 {
+    qCWarning(lcCredentials) << "The store did not save the secret:" << status;
     // A new generation, so a read issued before the failure cannot replace
     // this error. What the store now holds for the key is not what the user
     // entered, so nothing is validated or written with it.
@@ -514,6 +518,7 @@ void Connection::bind(const Me &me)
 void Connection::resetAccount()
 {
     ++m_generation;
+    qCDebug(lcAuth) << "Generation" << m_generation;
     const QSet<PendingReply *> pending = std::exchange(m_pending, {});
     for (PendingReply *reply : pending) {
         // The reply still finishes; its generation no longer matches.
@@ -561,6 +566,8 @@ void Connection::setState(State state, const QString &error)
     }
     m_state = state;
     m_error = error;
+    // Error texts are for the user and never carry a secret.
+    qCInfo(lcAuth).nospace() << "Connection state " << state << (error.isEmpty() ? QString() : QStringLiteral(": ") + error);
     Q_EMIT stateChanged();
 }
 
@@ -574,6 +581,7 @@ bool Connection::hasContext() const
 void Connection::startCooldown(const QByteArray &retryAfter)
 {
     const qint64 ms = retryAfterMs(retryAfter);
+    qCWarning(lcNet) << "Rate limited; waiting" << ms << "ms";
     m_cooldownUntil = QDateTime::currentDateTimeUtc().addMSecs(ms);
     m_cooldownTimer.start(int(ms));
 }
@@ -698,11 +706,12 @@ void Connection::call(const QByteArray &method,
         return;
     }
 
-    send(method, url, body, [this, access, decode, apply, done](const HttpResponse &response) {
+    send(method, url, body, [this, method, path = url.path(), access, decode, apply, done](const HttpResponse &response) {
         if (isSuccess(response)) {
             const std::optional<QJsonValue> json = parseJsonBody(response.body);
             std::optional<T> value = json ? decode(*json) : std::nullopt;
             if (!value) {
+                qCWarning(lcNet) << method << path << "answered with a body Tokkl could not read";
                 if (done) {
                     done(ApiResult<T>::failure(localError(ApiError::Kind::InvalidResponse, tr("The instance sent a response Tokkl could not read."))));
                 }
@@ -946,7 +955,7 @@ void Connection::timerAction(const QString &path, const QByteArray &body, Action
         return;
     }
 
-    send("POST", m_instance.app(path), body, [this, done](const HttpResponse &response) {
+    send("POST", m_instance.app(path), body, [this, path, done](const HttpResponse &response) {
         TimerActionResult result;
         if (isSuccess(response)) {
             const std::optional<QJsonValue> json = parseJsonBody(response.body);
@@ -957,6 +966,7 @@ void Connection::timerAction(const QString &path, const QByteArray &body, Action
                     setState(Connected);
                 }
             } else {
+                qCWarning(lcNet) << "POST" << path << "answered with a body Tokkl could not read";
                 // The server answered, so it may well have made the change.
                 result.outcome = TimerActionResult::Outcome::Unknown;
                 result.error = localError(ApiError::Kind::InvalidResponse, tr("The instance sent a response Tokkl could not read."));

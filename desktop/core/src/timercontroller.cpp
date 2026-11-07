@@ -1,5 +1,7 @@
 #include "timercontroller.h"
 
+#include "logging.h"
+
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -505,6 +507,9 @@ void TimerController::beginMutation()
 void TimerController::finishMutation(Outcome outcome, const ApiError &error, bool start, bool entryReply)
 {
     m_mutating = false;
+    if (outcome != Outcome::Applied) {
+        qCInfo(lcTimer) << "Timer change ended with" << outcome << error.message;
+    }
     if (outcome == Outcome::Unknown) {
         // The server may have acted. Busy until a read sent from now on
         // shows its state; never send the write again. The timer actions
@@ -565,6 +570,7 @@ void TimerController::finishMutation(Outcome outcome, const ApiError &error, boo
 
 void TimerController::loseWorkspace(const ApiError &error)
 {
+    qCWarning(lcTimer) << "Workspace refused (403); writes blocked until reconnect:" << error.message;
     m_workspaceLost = true;
     // A write in flight keeps its lock until it answers, and the server
     // state stays unknown until a read after that answer.

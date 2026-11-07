@@ -18,6 +18,8 @@ add_library(tokklcore STATIC
     epoch.h
     instanceurl.cpp
     instanceurl.h
+    logging.cpp
+    logging.h
     pomodoropreferences.cpp
     pomodoropreferences.h
     pomodorosession.cpp
