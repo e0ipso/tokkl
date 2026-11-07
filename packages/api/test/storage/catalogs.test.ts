@@ -10,8 +10,8 @@ import {
   catalogTaskQuery,
   catalogProjectRefQuery,
   catalogTaskRefQuery,
-  createCatalogRepositories,
-} from '../../src/storage/repositories/catalogs.ts';
+} from '../../src/storage/repositories/catalog-queries.ts';
+import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {

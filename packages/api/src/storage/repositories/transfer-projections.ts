@@ -2,7 +2,7 @@ import type { Selectable } from 'kysely';
 import type { ClientsRow, ProjectsRow, TasksRow, TagsRow } from '../physical.ts';
 import type { Client, Project, Task, Tag, ProjectSummary, TaskSummary } from '../domain.ts';
 import { booleanValue, entityId, finiteNumber, safeInteger, utcInstant } from '../conversion.ts';
-import { catalogProjectQuery, catalogTaskQuery } from './catalogs.ts';
+import { catalogProjectQuery, catalogTaskQuery } from './catalog-queries.ts';
 const nullable = <T>(value: T | null, convert: (v: T) => number): number | null =>
   value === null ? null : convert(value);
 const times = (r: { created_at: string; updated_at: string }) => ({
