@@ -59,6 +59,7 @@ add_library(tokklcore STATIC
     sessioncredentials.h
     soundchoices.cpp
     soundchoices.h
+    timeractions.h
     timercontroller.cpp
     timercontroller.h
     timercoordinator.cpp

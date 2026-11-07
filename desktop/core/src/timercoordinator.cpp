@@ -32,7 +32,7 @@ QString tr(const char *text)
 }
 
 TimerCoordinator::TimerCoordinator(TimerModel *model, Clock *clock, QObject *parent)
-    : QObject(parent)
+    : TimerActions(parent)
     , m_model(model)
     , m_fixedClock(clock)
     , m_clientClock(clock == nullptr)
@@ -50,6 +50,14 @@ TimerCoordinator::TimerCoordinator(TimerModel *model, Clock *clock, QObject *par
         }
     });
     m_model->bind(nullptr, m_fixedClock);
+    for (auto signal : {&TimerModel::contextChanged,
+                        &TimerModel::statusChanged,
+                        &TimerModel::currentEntryChanged,
+                        &TimerModel::chainChanged,
+                        &TimerModel::sessionActiveChanged,
+                        &TimerModel::choiceChanged}) {
+        connect(m_model, signal, this, &TimerActions::changed);
+    }
 }
 
 TimerCoordinator::~TimerCoordinator() = default;
@@ -57,6 +65,31 @@ TimerCoordinator::~TimerCoordinator() = default;
 TimerModel *TimerCoordinator::model() const
 {
     return m_model;
+}
+
+TimerStateClient *TimerCoordinator::stateClient() const
+{
+    return m_model->stateClient();
+}
+
+bool TimerCoordinator::holdsEntry() const
+{
+    return m_model->isRunning() || m_model->isPaused();
+}
+
+bool TimerCoordinator::isBusy() const
+{
+    return m_model->isBusy();
+}
+
+bool TimerCoordinator::canStartNew() const
+{
+    return m_model->canStartNew();
+}
+
+TimerActions::Selection TimerCoordinator::selection() const
+{
+    return {m_model->chosenProject(), m_model->chosenBillable()};
 }
 
 bool TimerCoordinator::writing() const

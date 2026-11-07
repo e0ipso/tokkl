@@ -5,6 +5,7 @@
 #include "connection.h"
 #include "epoch.h"
 #include "mutationgate.h"
+#include "timeractions.h"
 #include "timermodel.h"
 #include "timerstateclient.h"
 
@@ -21,7 +22,8 @@ namespace Tokkl
 // and the project and billable choices, the connection they act on, the
 // settling of each write, the recovery from a lost workspace, and the
 // next-start defaults. It drives a TimerModel, which shows the result; the
-// model's canWrite() is what every action asks first.
+// model's canWrite() is what every action asks first. A Pomodoro session
+// works with it through TimerActions.
 //
 // The timer state is the server's, from a TimerStateClient, and the
 // connection is the client's. The client reads the state, follows its event
@@ -77,7 +79,7 @@ namespace Tokkl
 // or secret clears the entry, projects, busy state and errors at once, and
 // replies from the earlier generation never reach this object, even when the
 // two accounts use the same numeric ids.
-class TimerCoordinator : public QObject, public TimerActivity
+class TimerCoordinator : public TimerActions, public TimerActivity
 {
     Q_OBJECT
 
@@ -91,6 +93,13 @@ public:
 
     // Not owned. Null leaves the timer without a connection.
     void setStateClient(TimerStateClient *client);
+    TimerStateClient *stateClient() const override;
+
+    bool holdsEntry() const override;
+    bool isBusy() const override;
+    bool canStartNew() const override;
+    // The project and billable flag the model shows as chosen.
+    Selection selection() const override;
 
     bool writing() const override;
     QString message() const override;
@@ -109,7 +118,7 @@ public:
     // Starts a clone of the paused entry.
     bool resume();
     // Pauses a running entry, resumes a paused chain, otherwise starts.
-    bool toggle();
+    bool toggle() override;
     // Null, 0 or an active project's id. Returns false when refused: no
     // write possible now, an entry runs or a chain is paused, or not an
     // active project.

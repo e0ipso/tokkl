@@ -69,7 +69,6 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     , m_pomodoroStore(new SettingsPomodoroStore(m_settings, this))
     , m_sounds(new SoundChoices(m_settings, &TimerService::soundKey, this))
     , m_preferences(new PomodoroPreferences(m_connection, this))
-    , m_session(new PomodoroSession(m_clock, m_timer, m_client, m_pomodoroStore, this))
     , m_connectionSettings(new ServiceSettings(m_settings, m_connection, store, this))
     , m_bus(QString())
 {
@@ -79,6 +78,8 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     new Timer1Adaptor(this);
 
     m_timer->setStateClient(m_client);
+    // The session reads and acts through the timer's state client.
+    m_session = new PomodoroSession(m_clock, m_timer->coordinator(), m_pomodoroStore, this);
     // Each property follows the core signal that announces its change. The
     // countdown is left out: clients count down to PlannedEnd themselves.
     const auto publish = [this] {

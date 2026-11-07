@@ -128,6 +128,54 @@ QJsonObject pomodoroJson(const Phase &phase, qint64 entryId)
 }
 }
 
+// A timer that is only TimerActions, as a session sees it: the client it
+// reads, and answers the test sets.
+class StandInTimer : public TimerActions
+{
+    Q_OBJECT
+
+public:
+    explicit StandInTimer(TimerStateClient *client)
+        : m_client(client)
+    {
+    }
+
+    TimerStateClient *stateClient() const override
+    {
+        return m_client;
+    }
+    bool holdsEntry() const override
+    {
+        return held;
+    }
+    bool isBusy() const override
+    {
+        return false;
+    }
+    bool canStartNew() const override
+    {
+        return startable;
+    }
+    Selection selection() const override
+    {
+        return chosen;
+    }
+    bool toggle() override
+    {
+        ++toggles;
+        return toggleSends;
+    }
+
+    bool held = false;
+    bool startable = true;
+    bool toggleSends = true;
+    Selection chosen;
+    int toggles = 0;
+
+private:
+    TimerStateClient *m_client;
+};
+
 class PomodoroSessionTest : public QObject
 {
     Q_OBJECT
@@ -159,7 +207,7 @@ class PomodoroSessionTest : public QObject
 
         void createSession()
         {
-            session = std::make_unique<PomodoroSession>(&clock, &timer, &client, &store);
+            session = std::make_unique<PomodoroSession>(&clock, timer.coordinator(), &store);
         }
 
         QDateTime serverNow() const
@@ -265,6 +313,43 @@ class PomodoroSessionTest : public QObject
     }
 
 private Q_SLOTS:
+    // The session needs nothing of the timer but TimerActions: it reads and
+    // acts through the timer's client, starts with the typed selection, and
+    // a click in Timer mode is the timer's toggle and reports what it did.
+    void worksThroughTimerActions()
+    {
+        Fixture f(false);
+        QVERIFY(connectAccount(f));
+        StandInTimer timer(&f.client);
+        timer.chosen = {11, true};
+        PomodoroSession session(&f.clock, &timer, &f.store);
+
+        QCOMPARE(session.activate(), PomodoroSession::Activation::Handled);
+        QCOMPARE(timer.toggles, 1);
+        timer.toggleSends = false;
+        QCOMPARE(session.activate(), PomodoroSession::Activation::Ignored);
+        QCOMPARE(timer.toggles, 2);
+
+        QVERIFY(session.setPomodoroMode(true));
+        QVERIFY(session.canStartSession());
+        timer.startable = false;
+        Q_EMIT timer.changed();
+        QVERIFY(!session.canStartSession());
+        timer.startable = true;
+        Q_EMIT timer.changed();
+        QVERIFY(session.startSession());
+        const qsizetype start = f.last("POST", startPath);
+        QVERIFY(start >= 0);
+        QCOMPARE(f.body(start).value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(f.body(start).value(QStringLiteral("billable")).toBool(), true);
+
+        // A held timer locks the mode, as the timer says.
+        f.respond(start, f.state(std::nullopt));
+        timer.held = true;
+        Q_EMIT timer.changed();
+        QVERIFY(session.modeLocked());
+    }
+
     void followsASessionStartedElsewhere()
     {
         Fixture f;

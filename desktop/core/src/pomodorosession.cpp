@@ -5,11 +5,11 @@
 namespace Tokkl
 {
 
-PomodoroSession::PomodoroSession(Clock *clock, TimerController *timer, TimerStateClient *client, PomodoroStore *store, QObject *parent)
+PomodoroSession::PomodoroSession(Clock *clock, TimerActions *timer, PomodoroStore *store, QObject *parent)
     : QObject(parent)
     , m_clock(clock)
     , m_timer(timer)
-    , m_client(client)
+    , m_client(timer ? timer->stateClient() : nullptr)
     , m_store(store)
 {
     if (m_store) {
@@ -26,11 +26,7 @@ PomodoroSession::PomodoroSession(Clock *clock, TimerController *timer, TimerStat
         }
     }
     if (m_timer) {
-        connect(m_timer, &TimerController::contextChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::statusChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::currentEntryChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::chainChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::sessionActiveChanged, this, &PomodoroSession::update);
+        connect(m_timer, &TimerActions::changed, this, &PomodoroSession::update);
     }
     onStateChanged();
 }
@@ -160,14 +156,10 @@ bool PomodoroSession::startSession()
     if (!m_canStart) {
         return false;
     }
+    const TimerActions::Selection selection = m_timer->selection();
     PomodoroStart start;
-    const QVariant project = m_timer->chosenProjectId();
-    bool ok = false;
-    const qint64 id = project.isValid() && !project.isNull() ? project.toLongLong(&ok) : 0;
-    if (ok && id > 0) {
-        start.projectId = id;
-    }
-    start.billable = m_timer->chosenBillable();
+    start.projectId = selection.projectId;
+    start.billable = selection.billable;
     clearMessage();
     m_pending = true;
     update();
@@ -244,7 +236,7 @@ const TimerPomodoro *PomodoroSession::pomodoro() const
 
 bool PomodoroSession::timerHeld() const
 {
-    return m_timer && (m_timer->isRunning() || m_timer->isPaused());
+    return m_timer && m_timer->holdsEntry();
 }
 
 bool PomodoroSession::busy() const
@@ -278,7 +270,9 @@ void PomodoroSession::update()
         view.nextPhase = phaseKindName(session->upcomingPhase);
     }
 
-    const bool sessionActive = session || (m_timer && m_timer->isSessionActive());
+    // The timer reads the same client, so it sees a session exactly when
+    // this does.
+    const bool sessionActive = session != nullptr;
     const bool locked = timerHeld() || sessionActive;
     // The timer says whether anything new may start; a session adds the
     // mode, its own action and its own view of the state.
