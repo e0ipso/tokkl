@@ -333,7 +333,7 @@ test('no-time entries count in totals, carry all_day in report rows and leave th
   const csvRows = async (path: string, init: { method: string; body?: Record<string, unknown> }) => {
     const res = await ctx.request(init.method, path, init.body);
     assert.equal(res.status, 200);
-    return parseCsv(await res.text()).slice(1);
+    return (await parseCsv(await res.text())).slice(1);
   };
   // Description, start date, start time, end date, end time and duration.
   const cells = (rows: string[][]): string[][] =>

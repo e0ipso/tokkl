@@ -20,7 +20,7 @@ import type { OperationContext } from '../storage/contracts.ts';
 import type { User } from '../storage/domain.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './exports.ts';
 import { MAX_IMPORT_ERRORS, protectImport, importError, type ImportRunner } from './importGuards.ts';
-import { importTogglCsv } from './importCsv.ts';
+import { importTogglCsv, readTogglCsv } from './importCsv.ts';
 export interface JsonImportResult {
   dry_run: boolean;
   clients: number;
@@ -263,7 +263,12 @@ export function createImportOperations<R extends EntryRepositories>(
   return {
     importJsonExport: (userId: number, data: unknown, options: { dryRun: boolean }) =>
       runner.transaction(ctx => importJsonExport(ctx, userId, data, options, publish), { dryRun: options.dryRun }),
-    importTogglCsv: (userId: number, text: string, options: { dryRun: boolean; users?: string[] }) =>
-      runner.transaction(ctx => importTogglCsv(ctx, userId, text, options, publish), { dryRun: options.dryRun }),
+    /** The file is parsed before the transaction opens. */
+    async importTogglCsv(userId: number, text: string, options: { dryRun: boolean; users?: string[] }) {
+      const table = await readTogglCsv(text);
+      return runner.transaction(ctx => importTogglCsv(ctx, userId, table, options, publish), {
+        dryRun: options.dryRun,
+      });
+    },
   };
 }
