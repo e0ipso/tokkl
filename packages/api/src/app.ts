@@ -1,6 +1,4 @@
-import express, { type Express, type RequestHandler } from 'express';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import express, { type Express } from 'express';
 import type { Config } from './config.ts';
 import type { Storage } from './storage/contracts.ts';
 import { createApplicationServices } from './services/application.ts';
@@ -9,6 +7,8 @@ import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { errorHandler } from './http/errors.ts';
 import { requestLog } from './http/requestLog.ts';
+import { noStore, securityHeaders } from './http/security.ts';
+import { webRootRoutes } from './http/webRoot.ts';
 import { createLogger, type Logger } from './lib/logger.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
@@ -27,33 +27,6 @@ export interface AppOptions {
   /** Where request failures and background errors are logged. Defaults to JSON lines on stdout/stderr. */
   logger?: Logger;
 }
-
-const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "connect-src 'self'",
-  "font-src 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
-
-const securityHeaders: RequestHandler = (req, res, next) => {
-  res.set({
-    'Content-Security-Policy': CONTENT_SECURITY_POLICY,
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'no-referrer',
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Resource-Policy': 'same-origin',
-  });
-  // Only meaningful over HTTPS, which here means "the reverse proxy said so".
-  if (req.secure) res.set('Strict-Transport-Security', 'max-age=31536000');
-  next();
-};
 
 /**
  * Bodies are read as text whatever the Content-Type, then parsed by the route. Toggl clients do
@@ -127,42 +100,17 @@ export function createApp({
   });
 
   app.use('/api/app/import', textBody('50mb'));
-  app.use(['/api', '/reports/api'], textBody('1mb'), (req, res, next) => {
-    res.set('Cache-Control', 'no-store');
-    next();
-  });
+  app.use(['/api', '/reports/api'], textBody('1mb'), noStore);
 
   app.use('/api/v9', togglV9Routes(deps));
   app.use('/reports/api/v3', reportsV3Routes(deps));
   app.use('/api/app/admin', adminRoutes(deps));
   app.use('/api/app', appRoutes(deps, setup), appReportRoutes(deps), timerRoutes(deps));
-  app.use(['/api', '/reports/api'], (req, res) => {
+  app.use(['/api', '/reports/api'], (_req, res) => {
     res.status(404).json('Not found');
   });
 
-  const indexPath = join(config.webRoot, 'index.html');
-  if (existsSync(indexPath)) {
-    // Hashed assets never change, so they can be cached for good. A miss must not fall through to
-    // index.html, or a browser would cache HTML under a script URL for a year.
-    app.use(
-      '/assets',
-      express.static(join(config.webRoot, 'assets'), {
-        immutable: true,
-        maxAge: '365d',
-        fallthrough: false,
-      }),
-    );
-    app.use(express.static(config.webRoot, { index: false }));
-    // Read on every request (it is under 1 KB) so a rebuild never leaves the server pointing at
-    // asset files that no longer exist.
-    app.get('/{*path}', (req, res) => {
-      res.set('Cache-Control', 'no-cache').type('html').send(readFileSync(indexPath, 'utf8'));
-    });
-  } else {
-    app.get('/', (req, res) => {
-      res.type('text').send('Web UI not built. Run "npm run build" or use the dev server on port 5173.');
-    });
-  }
+  app.use(webRootRoutes(config.webRoot));
 
   app.use(errorHandler(logger));
   return app;

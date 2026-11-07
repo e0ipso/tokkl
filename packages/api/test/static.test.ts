@@ -87,3 +87,22 @@ test('the Pomodoro transition sounds are served from the app origin as WAV audio
     assert.deepEqual(Buffer.from(await response.arrayBuffer()), readFileSync(join(sounds, file)), file);
   }
 });
+
+test('the app shell follows a rebuilt index.html without a restart', async () => {
+  const db = await openDatabase();
+  const webRoot = makeWebRoot();
+  const index = join(webRoot, 'index.html');
+  writeFileSync(index, '<!doctype html><script src="/assets/app-old.js"></script>');
+  const app = testServer(
+    createApp({ storage: storageFor(db), config: { ...testConfig(db), webRoot }, setup: { code: null } }),
+  );
+  const shell = async () => {
+    const response = await app.request('/timer');
+    assert.equal(response.headers.get('cache-control'), 'no-cache');
+    return response.text();
+  };
+  assert.match(await shell(), /app-old/);
+  assert.match(await shell(), /app-old/);
+  writeFileSync(index, '<!doctype html><script src="/assets/app-new-and-longer.js"></script>');
+  assert.match(await shell(), /app-new-and-longer/);
+});
