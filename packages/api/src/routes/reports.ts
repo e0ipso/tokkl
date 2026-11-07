@@ -1,5 +1,5 @@
 import { type Request, type Response, type Router } from 'express';
-import type { Deps } from '../http/context.ts';
+import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/request.ts';
 import { calendarInput, invalidInput } from '../lib/errors.ts';

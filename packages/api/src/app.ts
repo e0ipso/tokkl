@@ -4,7 +4,7 @@ import type { Storage } from './storage/contracts.ts';
 import { standaloneRateLimits } from './storage/index.ts';
 import { createApplicationServices } from './services/application.ts';
 import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
-import type { Deps } from './http/context.ts';
+import type { Deps } from './routes/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { createStorageAuth } from './auth/middleware.ts';
 import { errorHandler } from './http/errors.ts';

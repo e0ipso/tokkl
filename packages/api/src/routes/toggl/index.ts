@@ -1,5 +1,5 @@
 import type { Router } from 'express';
-import type { Deps } from '../../http/context.ts';
+import type { Deps } from '../context.ts';
 import { createRouter } from '../../http/router.ts';
 import { catalogRoutes } from './catalog.ts';
 import { meRoutes } from './me.ts';

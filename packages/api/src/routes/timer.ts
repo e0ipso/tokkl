@@ -1,5 +1,5 @@
 import type { Response, Router } from 'express';
-import type { Deps } from '../http/context.ts';
+import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/request.ts';
 import { parseRevision, parseStartPomodoro } from '../commands/timers.ts';

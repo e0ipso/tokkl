@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { startOfDay } from '@tokkl/common/time';
-import type { Deps } from '../../http/context.ts';
+import type { Deps } from '../context.ts';
 import { changedSince, query, queryFlag } from '../../http/params.ts';
 import { calendarInput, invalidInput } from '../../lib/errors.ts';
 import { parseDateOrInstant, parseId } from '../../lib/values.ts';

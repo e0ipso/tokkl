@@ -25,6 +25,12 @@ export type StorageAuthentication = Authentication;
 export interface StorageAuthLocals {
   auth: StorageAuthentication;
 }
+declare module 'express-serve-static-core' {
+  interface Locals {
+    /** Set by `requireAuth` for every route behind it. */
+    auth: StorageAuthentication;
+  }
+}
 export type StorageAuthHandler = RequestHandler<
   Record<string, string>,
   unknown,

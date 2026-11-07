@@ -1,12 +1,11 @@
 import type { Request, Response, RequestHandler } from 'express';
 import type { Storage } from '../storage/contracts.ts';
 import type { ReadQueries } from '../domain/queries.ts';
-import type { StorageAuth, StorageAuthentication } from '../auth/middleware.ts';
+import type { StorageAuth } from '../auth/middleware.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import type { TimerStreams } from '../services/timerStreams.ts';
-import type { Logger } from '../lib/logger.ts';
 
 /** Shared by every router; created once in createApp. */
 export interface Deps extends ApplicationServices {
@@ -31,12 +30,8 @@ export interface Deps extends ApplicationServices {
 
 declare module 'express-serve-static-core' {
   interface Locals {
-    auth: StorageAuthentication;
+    /** Aborted when the client goes away or the server shuts down; set in createApp. */
     workSignal: AbortSignal;
-    /** The request's logger; every line it writes carries the request id. */
-    log: Logger;
-    /** Where the innermost router that saw the request is mounted; see createRouter. */
-    mountPath?: string;
   }
 }
 
