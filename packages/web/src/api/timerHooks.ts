@@ -6,6 +6,7 @@ import {
   TIMER_ACTION_KEY,
   TimerActionError,
   explainTimerActionError,
+  timerStateOf,
   planTimerUpdate,
   revisionToSend,
   settleOtherWrites,
@@ -40,7 +41,7 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
 }
 
 async function readTimerState(qc: QueryClient): Promise<TimerState> {
-  return acceptTimerState(qc, await api.get<TimerState>(timerPath));
+  return acceptTimerState(qc, await api.get(timerPath, { decode: timerStateOf }));
 }
 
 /**
@@ -56,6 +57,8 @@ export function useTimerState() {
     refetchInterval: streaming ? false : POLL_MS,
     // Views mounting together share one read; focus still refetches once a second has passed.
     staleTime: 1000,
+    // A 403 here means the credential is gone; /me decides what the app shows then.
+    meta: { sessionProbe: true },
   });
 }
 

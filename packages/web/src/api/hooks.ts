@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { coversPreviousRange } from './entriesPlaceholder.ts';
+import { keys } from './keys.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type {
   Client,
@@ -18,20 +19,7 @@ import type {
 
 const v9 = '/api/v9';
 
-export const keys = {
-  me: ['me'] as const,
-  preferences: ['preferences'] as const,
-  workspace: ['workspace'] as const,
-  projects: ['projects'] as const,
-  clients: ['clients'] as const,
-  tags: ['tags'] as const,
-  tasks: ['tasks'] as const,
-  entries: ['entries'] as const,
-  current: ['current'] as const,
-  timer: ['timer'] as const,
-  report: ['report'] as const,
-  trash: ['trash'] as const,
-};
+export { keys };
 
 export function useMe() {
   return useQuery({ queryKey: keys.me, queryFn: () => api.get<Me>(`${v9}/me`), staleTime: 60_000 });

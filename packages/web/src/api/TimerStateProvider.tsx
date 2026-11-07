@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ApiError } from './client.ts';
 import { keys, useMe } from './hooks.ts';
 import { acceptTimerState, useTimerState } from './timerHooks.ts';
 import { connectTimerStream } from './timerStream.ts';
@@ -55,12 +54,6 @@ function AccountTimerState({ children }: { children: ReactNode }) {
  * are on screen. It sits below the provider because the query reads whether the stream is up.
  */
 function TimerStateReader() {
-  const qc = useQueryClient();
-  const timer = useTimerState();
-  // A 403 on the timer read means the credential is gone. /me decides what the app shows then.
-  const forbidden = timer.error instanceof ApiError && timer.error.status === 403;
-  useEffect(() => {
-    if (forbidden) void qc.invalidateQueries({ queryKey: keys.me });
-  }, [forbidden, qc]);
+  useTimerState();
   return null;
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import { api, download } from '../../../api/client.ts';
+import { api, download, rawBody } from '../../../api/client.ts';
 import { keys } from '../../../api/hooks.ts';
 import type { ImportResult } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
@@ -130,7 +130,10 @@ function RestoreJson() {
   const [result, setResult] = useState<RestoreResult | null>(null);
   const run = useAction<{ text: string; dryRun: boolean }, RestoreResult>({
     mutationFn: ({ text, dryRun }) =>
-      api.post<RestoreResult>(`/api/app/import/json${dryRun ? '?dry_run=true' : ''}`, text),
+      api.post<RestoreResult>(
+        `/api/app/import/json${dryRun ? '?dry_run=true' : ''}`,
+        rawBody(text, 'application/json'),
+      ),
     onSuccess: (restored, { dryRun }) => {
       setResult(restored);
       if (!dryRun) {
@@ -232,7 +235,7 @@ export function DataSection({ timeZone }: { timeZone: string }) {
 
   const runImport = useAction<{ text: string; dryRun: boolean; users: string[]; request: number }, ImportResult>({
     mutationFn: ({ text, dryRun, users }) =>
-      api.post<ImportResult>(`${IMPORT_PATH}${importQuery(dryRun, users)}`, text),
+      api.post<ImportResult>(`${IMPORT_PATH}${importQuery(dryRun, users)}`, rawBody(text, 'text/csv')),
     onSuccess: (imported, { dryRun, request }) => {
       if (!dryRun) {
         void invalidate(...IMPORT_KEYS);

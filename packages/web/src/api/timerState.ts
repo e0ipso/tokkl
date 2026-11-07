@@ -28,6 +28,12 @@ export function isTimerState(value: unknown): value is TimerState {
   return typeof candidate.revision === 'number' && typeof candidate.server_time === 'string';
 }
 
+/** Decodes a timer state reply, failing when the server sent something else. */
+export function timerStateOf(value: unknown): TimerState {
+  if (!isTimerState(value)) throw new Error('The server sent an unreadable timer state.');
+  return value;
+}
+
 /** What to write into the caches for an arriving state. */
 export interface TimerUpdate {
   state: TimerState;
