@@ -2,7 +2,9 @@ import { forwardRef, useId, useImperativeHandle, useRef, useState, type Keyboard
 import { useProjects } from '../api/projects.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { Icon } from './Icon.tsx';
-import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
+import { ProjectDot, ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
+import { ProjectPicker } from './ProjectPicker.tsx';
+import { TagPicker } from './TagPicker.tsx';
 import { suggestedDraft, useEntryFields, type EntryDraft, type Suggestion } from './useEntryFields.ts';
 
 export interface EntryFieldsHandle {
@@ -107,8 +109,9 @@ export const EntryFields = forwardRef<
               setHighlight(h => (h <= 0 ? suggestions.length - 1 : h - 1));
             } else if (event.key === 'Enter') {
               event.preventDefault();
-              if (highlight >= 0 && suggestions[highlight]) {
-                pickSuggestion(suggestions[highlight]!);
+              const suggestion = highlight >= 0 ? suggestions[highlight] : undefined;
+              if (suggestion) {
+                pickSuggestion(suggestion);
               } else {
                 onEnter(event);
               }

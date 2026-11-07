@@ -135,7 +135,7 @@ function EntryRow({
 }) {
   const settings = useSettings();
   const [expanded, setExpanded] = useState(false);
-  const entry = row.entries[0]!;
+  const [entry] = row.entries;
   const ids = row.entries.map(e => e.id);
   const grouped = row.entries.length > 1;
   const format = (iso: string) => formatTime(iso, settings);

@@ -1,0 +1,222 @@
+/* Forms */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+/* Grid and flex children shrink to the track, so long values and wide inputs fit a phone. */
+.form-grid > *,
+.field > * {
+  min-width: 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+/* A label that wraps its own .field (the Client select in the project editor) is not a caption. */
+.field > span:first-child,
+.field > label:first-child:not(.field) {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: 700;
+}
+.field-full {
+  grid-column: 1 / -1;
+}
+.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  align-self: end;
+  padding-bottom: 8px;
+}
+.checkbox-field > span:first-child {
+  font-size: inherit;
+  color: inherit;
+}
+.select-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  min-height: 37px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.select-button:hover {
+  background: var(--surface-2);
+}
+/* SearchBox in pages/manage/ui.tsx: a pill. The ring sits on the wrapper, so the input drops its own. */
+.search-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-width: 2px;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+}
+.search-box:focus-within {
+  border-color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.search-box input {
+  border: none;
+  padding: 7px 0;
+  width: 200px;
+  background: transparent;
+  color: var(--text);
+}
+.search-box input:focus-visible {
+  outline: none;
+}
+@media (max-width: 560px) {
+  /* Below 160px the field moves to its own line rather than cutting off its placeholder. */
+  .search-box {
+    flex: 1 1 160px;
+  }
+  .search-box input {
+    width: 100%;
+  }
+}
+.inline-controls {
+  display: flex;
+  gap: 8px;
+}
+/* Inline validation (components/FieldError.tsx): an invalid field gets a danger border and its
+   message sits under it. */
+input[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.field-error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+.manual-fields .field-error {
+  flex-basis: 100%;
+}
+.timer-controls .field-error {
+  flex-basis: 100%;
+  text-align: right;
+}
+/* The tag form sits in a toolbar; keep the toolbar's other controls level with the field, not centred on the taller form. */
+.toolbar:has(> form .field-error) {
+  align-items: flex-start;
+}
+@media (max-width: 560px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* Stepper cards (components/LengthStepper.tsx) for the Pomodoro lengths. Each column is at least
+   half the grid and 136px, so the grid keeps two columns from 284px of its own width, which a card
+   on a 360px-wide phone has, and drops to one below; 136px still holds both steps side by side.
+   Once four 136px columns fit (580px), the cards sit in one row, so a desktop card doesn't stretch
+   two cards across its whole width. auto-fit alone would pass through three columns with the
+   fourth card on its own row; the container query on the wrapper jumps straight from two to four.
+   A card has the 2px frame and 16px corner without the panel's shadow, since it sits inside a
+   card. Out of range, empty or not whole, the frame, value and unit line turn danger; the field
+   keeps its transparent border, so the frame is the only outline. The steps are 48px wide and
+   44px tall, the phone button height. Positioned for the .visually-hidden description. */
+.length-stepper-grid {
+  container-type: inline-size;
+}
+.length-stepper-cards {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(max(136px, calc((100% - var(--space-3)) / 2)), 1fr));
+}
+@container (min-width: 580px) {
+  .length-stepper-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.length-stepper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.length-stepper-label {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  text-align: center;
+}
+.length-stepper-value {
+  width: 100%;
+  padding: 0;
+  text-align: center;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  font-weight: 900;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.length-stepper-value:is(:hover, :focus) {
+  border-color: var(--border);
+}
+.length-stepper-value[aria-invalid='true'] {
+  border-color: transparent;
+}
+.length-stepper-value[aria-invalid='true']:is(:hover, :focus) {
+  border-color: var(--danger);
+}
+.length-stepper-unit {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  text-align: center;
+}
+.length-stepper-steps {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+.length-stepper-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 44px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.length-stepper-step:hover:not([aria-disabled='true']) {
+  background: var(--surface-2);
+}
+.length-stepper-step[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: default;
+}
+.length-stepper .field-error {
+  text-align: center;
+}
+.length-stepper[data-invalid] {
+  border-color: var(--danger);
+}
+.length-stepper[data-invalid] :is(.length-stepper-value, .length-stepper-unit) {
+  color: var(--danger);
+}
+.length-stepper[data-invalid] .length-stepper-unit {
+  font-weight: 700;
+}

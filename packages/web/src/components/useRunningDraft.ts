@@ -3,7 +3,8 @@ import { useUpdateEntry } from '../api/entries.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import type { EntryFieldsHandle } from './EntryFields.tsx';
 import { useToast } from './Toast.tsx';
-import { EMPTY_DRAFT, draftOf, draftSignature, editsSince, type EntryDraft } from './useEntryFields.ts';
+import { followRunningEntry, type OwnStart } from './runningDraftSync.ts';
+import { EMPTY_DRAFT, draftSignature, type EntryDraft } from './useEntryFields.ts';
 
 /**
  * The timer bar's draft. While a timer runs, the draft mirrors that entry; when it stops (here or
@@ -21,31 +22,40 @@ export function useRunningDraft(current: TimeEntry | null, fields: RefObject<Ent
   const toast = useToast();
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT);
   const shownEntryId = useRef<number | null>(null);
-  const ownStart = useRef<{ startMs: number; base: EntryDraft } | null>(null);
+  const ownStart = useRef<OwnStart | null>(null);
 
   const follow = useEffectEvent(() => {
-    if (!current) {
-      if (shownEntryId.current === null) return;
-      shownEntryId.current = null;
-      ownStart.current = null;
-      setDraft(EMPTY_DRAFT);
-      return;
-    }
-    const own = ownStart.current;
-    if (own && current.id !== shownEntryId.current) {
-      ownStart.current = null;
-      if (Date.parse(current.start) === own.startMs) {
-        shownEntryId.current = current.id;
-        const edits = editsSince(own.base, draft);
-        setDraft({ ...draftOf(current), ...edits });
-        if (Object.keys(edits).length > 0) update.mutate({ id: current.id, ...edits }, { onError: toast.error });
+    const step = followRunningEntry({
+      current,
+      shownEntryId: shownEntryId.current,
+      ownStart: ownStart.current,
+      draft,
+      typing: fields.current?.hasFocus() ?? false,
+    });
+    switch (step.kind) {
+      case 'idle':
         return;
-      }
+      case 'clear':
+        shownEntryId.current = null;
+        ownStart.current = null;
+        setDraft(EMPTY_DRAFT);
+        return;
+      case 'adopt':
+        shownEntryId.current = step.entryId;
+        ownStart.current = null;
+        setDraft(step.draft);
+        if (Object.keys(step.edits).length > 0)
+          update.mutate({ id: step.entryId, ...step.edits }, { onError: toast.error });
+        return;
+      case 'mirror':
+        shownEntryId.current = step.entryId;
+        if (step.forgetOwnStart) ownStart.current = null;
+        // A refetch of the same entry must not wipe a description that is still being typed.
+        setDraft(previous =>
+          step.keepDescription ? { ...step.draft, description: previous.description } : step.draft,
+        );
+        return;
     }
-    // A refetch of the same entry must not wipe a description that is still being typed.
-    const typing = shownEntryId.current === current.id && (fields.current?.hasFocus() ?? false);
-    shownEntryId.current = current.id;
-    setDraft(previous => ({ ...draftOf(current), description: typing ? previous.description : current.description }));
   });
   const signature = current ? `${current.id}\u0002${current.at}\u0002${draftSignature(current)}` : null;
   useEffect(() => follow(), [signature]);

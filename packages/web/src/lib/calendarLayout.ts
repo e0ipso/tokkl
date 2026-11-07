@@ -5,7 +5,7 @@ import { localDay } from './entryTime.ts';
 import { entrySeconds } from './snapping.ts';
 
 /**
- * Pixels per hour in the week calendar. The hour lines in styles.css (`background-size: 100% 48px`)
+ * Pixels per hour in the week calendar. The hour lines in styles/calendar.css (`background-size: 100% 48px`)
  * and `HOUR` in e2e/history-calendar-tests-helpers.ts must change with it.
  */
 export const HOUR_HEIGHT = 48;

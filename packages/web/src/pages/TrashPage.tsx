@@ -5,14 +5,15 @@ import type { TimeEntry } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { ProjectDot } from '../components/Pickers.tsx';
+import { ProjectDot } from '../components/ProjectLabel.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { useSettings } from '../api/settings.ts';
 import { duration, formatDateTime } from '../lib/format.ts';
 import { type Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { useAction } from '../components/useAction.ts';
-import { ConfirmModal, plural } from './manage/ui.tsx';
+import { ConfirmModal } from './manage/ui.tsx';
+import { plural } from '../lib/format.ts';
 import './manage/manage.css';
 
 function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings }) {

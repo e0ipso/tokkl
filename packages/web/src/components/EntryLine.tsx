@@ -1,39 +1,23 @@
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useCreateEntry, useUpdateEntry } from '../api/entries.ts';
 import { useSettings } from '../api/settings.ts';
 import type { PatchOperation } from '../api/types.ts';
 import { duplicateInput } from '../lib/duplicateEntry.ts';
-import type { StoppedEntry } from '../lib/entryRows.ts';
+import { MAX_FAVORITES, entryPatch, withFavorite } from '../lib/entryPatches.ts';
+import type { NonEmpty, StoppedEntry } from '../lib/entryRows.ts';
 import { duration } from '../lib/format.ts';
 import { DurationField } from './DurationField.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
-import { Popover } from './Overlay.tsx';
-import { ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
+import { EntryLineMenu } from './EntryLineMenu.tsx';
+import { ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
+import { ProjectPicker } from './ProjectPicker.tsx';
+import { TagPicker } from './TagPicker.tsx';
 import { useToast } from './Toast.tsx';
 import { draftOf } from './useEntryFields.ts';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
-
-/** Favorites the timer page can show, each with its number key. */
-const MAX_FAVORITES = 9;
-
-/**
- * The description of a row. It follows the stored description, unless the user is typing a change
- * of their own: a refresh must not throw that away. Committing it then saves the typed text.
- */
-function useRowDescription(stored: string) {
-  const [description, setDescription] = useState(stored);
-  const input = useRef<HTMLInputElement>(null);
-  const lastStored = useRef(stored);
-  const follow = useEffectEvent((next: string) => {
-    const typing = document.activeElement === input.current && description !== lastStored.current;
-    lastStored.current = next;
-    if (!typing) setDescription(next);
-  });
-  useEffect(() => follow(stored), [stored]);
-  return { description, setDescription, input };
-}
+import { useRowDescription } from './useRowDescription.ts';
 
 /** One line in the list. With several entries it edits all of them at once through the bulk API. */
 export function EntryLine({
@@ -46,7 +30,7 @@ export function EntryLine({
   countBadge,
   onContinue,
 }: {
-  entries: StoppedEntry[];
+  entries: NonEmpty<StoppedEntry>;
   selected: boolean;
   onSelect: (on: boolean) => void;
   seconds: number;
@@ -56,7 +40,7 @@ export function EntryLine({
   onContinue: () => void;
 }) {
   const settings = useSettings();
-  const entry = entries[0]!;
+  const [entry] = entries;
   const single = entries.length === 1;
   const { description, setDescription, input } = useRowDescription(entry.description);
   const [picker, setPicker] = useState<'project' | 'tags' | 'menu' | null>(null);
@@ -79,7 +63,7 @@ export function EntryLine({
     );
 
   const commitDescription = () => {
-    if (description !== entry.description) patch([{ op: 'replace', path: '/description', value: description }]);
+    if (description !== entry.description) patch(entryPatch.description(description));
   };
 
   const duplicate = async () => {
@@ -92,22 +76,13 @@ export function EntryLine({
   };
 
   const pin = () => {
-    const favorites = prefs?.favorites ?? [];
-    if (favorites.length >= MAX_FAVORITES) {
+    const favorites = withFavorite(prefs?.favorites ?? [], draftOf(entry));
+    if (!favorites) {
       toast.show(`You can pin up to ${MAX_FAVORITES} favorites`, { kind: 'error' });
       return;
     }
     // The favorite shows at once; the toast waits for the server, and a failed save rolls it back.
-    savePrefs.mutate(
-      { favorites: [...favorites, draftOf(entry)] },
-      { onSuccess: () => toast.show('Pinned to favorites'), onError: toast.error },
-    );
-  };
-
-  /** Closes the menu, then runs the item. */
-  const fromMenu = (action: () => void) => () => {
-    setPicker(null);
-    action();
+    savePrefs.mutate({ favorites }, { onSuccess: () => toast.show('Pinned to favorites'), onError: toast.error });
   };
 
   return (
@@ -179,7 +154,7 @@ export function EntryLine({
         aria-pressed={entry.billable}
         aria-label="Billable"
         title="Billable"
-        onClick={() => patch([{ op: 'replace', path: '/billable', value: !entry.billable }])}
+        onClick={() => patch(entryPatch.billable(!entry.billable))}
       >
         <Icon name="dollar" size={16} />
       </button>
@@ -232,12 +207,7 @@ export function EntryLine({
           anchor={projectRef}
           projectId={entry.project_id}
           taskId={entry.task_id}
-          onChange={(pid, tid) =>
-            patch([
-              { op: 'replace', path: '/project_id', value: pid },
-              { op: 'replace', path: '/task_id', value: tid },
-            ])
-          }
+          onChange={(pid, tid) => patch(entryPatch.project(pid, tid))}
           onClose={() => setPicker(null)}
         />
       ) : null}
@@ -245,35 +215,20 @@ export function EntryLine({
         <TagPicker
           anchor={tagRef}
           value={entry.tags}
-          onChange={tags => patch([{ op: 'replace', path: '/tags', value: tags }])}
+          onChange={tags => patch(entryPatch.tags(tags))}
           onClose={() => setPicker(null)}
         />
       ) : null}
       {picker === 'menu' ? (
-        <Popover anchor={menuRef} label="Entry actions" onClose={() => setPicker(null)} width={200} align="right">
-          <div className="menu">
-            {single ? (
-              <button type="button" onClick={fromMenu(() => setEditing(true))}>
-                <Icon name="edit" size={16} /> Edit
-              </button>
-            ) : null}
-            {single ? (
-              <button type="button" onClick={fromMenu(() => void duplicate())}>
-                <Icon name="copy" size={16} /> Duplicate
-              </button>
-            ) : null}
-            <button type="button" onClick={fromMenu(pin)}>
-              <Icon name="star" size={16} /> Pin as favorite
-            </button>
-            <button
-              type="button"
-              className="danger"
-              onClick={fromMenu(() => void deleteEntries(entries.map(e => e.id)))}
-            >
-              <Icon name="trash" size={16} /> Delete{entries.length > 1 ? ` ${entries.length} entries` : ''}
-            </button>
-          </div>
-        </Popover>
+        <EntryLineMenu
+          anchor={menuRef}
+          count={entries.length}
+          onClose={() => setPicker(null)}
+          onEdit={() => setEditing(true)}
+          onDuplicate={() => void duplicate()}
+          onPin={pin}
+          onDelete={() => void deleteEntries(entries.map(e => e.id))}
+        />
       ) : null}
       {editing ? <EntryEditor entry={entry} onClose={() => setEditing(false)} /> : null}
     </div>

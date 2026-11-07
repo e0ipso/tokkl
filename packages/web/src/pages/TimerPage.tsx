@@ -7,7 +7,7 @@ import { addDays, startOfWeek } from '@tokkl/common/time';
 import { EntryList } from '../components/EntryList.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { BusyRegion, LoadError, Loading } from '../components/PageState.tsx';
-import { ProjectDot } from '../components/Pickers.tsx';
+import { ProjectDot } from '../components/ProjectLabel.tsx';
 import { ShortcutHelp, useShortcuts } from '../components/Shortcuts.tsx';
 import { TimerBar, type TimerBarHandle } from '../components/TimerBar.tsx';
 import { WeekCalendar } from '../components/WeekCalendar.tsx';

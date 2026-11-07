@@ -1,0 +1,121 @@
+/* Cards and tables shared by management pages. Tables and cards are data surfaces: no texture. */
+.card {
+  padding: var(--space-5);
+  border-width: 2px;
+  border-radius: var(--radius-lg);
+}
+.card + .card {
+  margin-top: var(--space-4);
+}
+.card h2 {
+  margin-bottom: 12px;
+}
+/* Positioned so absolutely positioned content, like .visually-hidden headers, scrolls with the table
+   instead of widening the page. The overflow also clips the rows to the rounded corners. */
+.table-wrap {
+  position: relative;
+  overflow-x: auto;
+  border-width: 2px;
+  border-radius: var(--radius-lg);
+}
+table.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table th {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+.table tbody th,
+.table tfoot th {
+  color: var(--muted);
+}
+/* The header band: display capitals in text colour on surface-2 over a 2px rule. The colour is
+   inherited from thead, so a report table's own band colour on its th still wins. Row headers (the
+   weekly report's project column) keep plain type, since their text is data. */
+.table thead {
+  color: var(--text);
+}
+.table thead th {
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom-width: 2px;
+}
+.table tbody tr {
+  transition: background-color var(--duration-fast) var(--ease);
+}
+.table tbody tr:hover {
+  background: var(--row-hover);
+}
+.table tr:last-child td {
+  border-bottom: none;
+}
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Archived rows read in muted text at full opacity; the status chip says the same by its shape. */
+.table tr.archived td {
+  color: var(--muted);
+}
+.toolbar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+/* Toolbar fields are pills like the search box. The search input sits inside .search-box. */
+.toolbar select,
+.toolbar input:not([type='search'], [type='checkbox']) {
+  min-height: 40px;
+  padding: 6px 14px;
+  border-width: 2px;
+  border-radius: var(--radius-pill);
+}
+/* Segmented control: a pill frame around pill buttons. The active one is in the shared rules. */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.segmented button {
+  min-height: 32px;
+  padding: 4px 14px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 600;
+}
+.segmented button:hover:not(.active) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+@media (max-width: 760px) {
+  .segmented button {
+    min-height: 36px;
+  }
+  .search-box,
+  .toolbar select,
+  .toolbar input:not([type='search'], [type='checkbox']) {
+    min-height: 44px;
+  }
+}

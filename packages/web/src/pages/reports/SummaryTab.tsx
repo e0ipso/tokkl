@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Grouping, Report, ReportGroup } from '../../api/types.ts';
 import { Icon } from '../../components/Icon.tsx';
-import { ProjectDot, projectColorStyle } from '../../components/Pickers.tsx';
+import { ProjectDot, projectColorStyle } from '../../components/ProjectLabel.tsx';
 import { duration, formatMoney } from '../../lib/format.ts';
 import { type Settings } from '../../lib/settings.ts';
 import { GROUPING_LABELS, formatPercent, groupTitle, money, percent, reportCurrency } from './format.ts';

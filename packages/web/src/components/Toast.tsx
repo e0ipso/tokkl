@@ -54,18 +54,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               {toast.kind === 'error' ? <span className="visually-hidden">Error: </span> : null}
               {toast.message}
             </span>
-            {toast.action ? (
-              <button
-                type="button"
-                className="link-button"
-                onClick={() => {
-                  toast.action!.run();
-                  dismiss(toast.id);
-                }}
-              >
-                {toast.action.label}
-              </button>
-            ) : null}
+            {toast.action ? <ToastAction action={toast.action} onDone={() => dismiss(toast.id)} /> : null}
             <button type="button" className="icon-button" aria-label="Dismiss" onClick={() => dismiss(toast.id)}>
               ×
             </button>
@@ -73,6 +62,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         ))}
       </div>
     </ToastContext.Provider>
+  );
+}
+
+/** A toast's action button, such as Undo: it runs the action, then dismisses the toast. */
+function ToastAction({ action, onDone }: { action: NonNullable<Toast['action']>; onDone: () => void }) {
+  return (
+    <button
+      type="button"
+      className="link-button"
+      onClick={() => {
+        action.run();
+        onDone();
+      }}
+    >
+      {action.label}
+    </button>
   );
 }
 

@@ -1,0 +1,337 @@
+/* Projects & tags */
+/* Project colour. Each site sets --project-color to the project's hex from packages/common/colors.ts and
+   the CSS derives every mark from it. Text never takes the project colour; it stays --text.
+   - Dot and border (the same colour): the hex mixed 60% with --project-mix (the ink in light,
+     white in dark), in srgb, so every palette entry reaches 3:1 as a non-text mark:
+     color-mix(in srgb, var(--project-color) 60%, var(--project-mix)).
+   - Tint (calendar blocks): the raw hex at 18% over --surface.
+
+   Contrast of the dot and border colour (WCAG 2 ratio, rounded down; needs 3:1). "selected" is
+   --state-selected, the background of a selected picker item or entry row, and "tint" is the
+   18% calendar tint the border sits on. In light --bg falls between surface and surface-2; in
+   dark it is darker than surface, and the dots, mixed with white, contrast more on it. A dot with
+   no project is --muted; a calendar block with no project uses --primary for its tint and bar.
+
+                          light                         dark
+   colour                surface surf-2 selected tint   surface surf-2 selected tint
+   #0b83d9                 8.11  7.18  7.47  6.48     8.20  7.09  6.29  6.68
+   #9e5bd9                 8.39  7.42  7.72  6.70     8.14  7.05  6.24  6.66
+   #d94182                 8.52  7.54  7.85  6.70     7.74  6.70  5.94  6.46
+   #e36a00                 7.28  6.44  6.70  5.92     8.94  7.74  6.86  7.24
+   #bf7000                 7.91  7.00  7.28  6.38     8.54  7.39  6.55  7.02
+   #c7af14                 5.30  4.69  4.88  4.65    11.52  9.97  8.83  8.52
+   #d92b2b                 9.58  8.47  8.82  7.26     6.81  5.89  5.22  5.95
+   #2da608                 7.08  6.26  6.52  5.81     9.21  7.97  7.07  7.40
+   #06a893                 6.69  5.92  6.16  5.51     9.48  8.20  7.27  7.47
+   #c9806b                 6.81  6.02  6.27  5.69     9.68  8.38  7.43  7.54
+   #465bb3                10.67  9.44  9.82  8.20     6.89  5.97  5.29  5.97
+   #990099                12.38 10.96 11.40  8.81     5.19  4.49  3.98  4.79
+   #566614                11.00  9.73 10.12  8.45     6.83  5.91  5.24  6.04
+   #525266                12.09 10.70 11.13  9.18     6.32  5.47  4.85  5.63
+   --muted (no project)   12.95 11.46 11.92  9.67    12.43 10.76  9.53  8.67
+   --primary (no project)  7.46  6.60  6.87  5.98     9.29  8.04  7.13  7.42
+
+   Text on the 18% tint, worst of the 14 colours: text 14.14 light, 13.51 dark; muted 6.10 light,
+   6.85 dark (AA). A block with no project is --primary at 18%: text 15.93 light, 14.58 dark; muted
+   6.87 light, 7.39 dark. A stronger tint lowers the muted and border rows, so 18% stays.
+   Recompute this table whenever the palette, the mix or a surface colour changes. */
+.project-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--project-color, var(--muted)) 60%, var(--project-mix));
+}
+.share-fill.project-fill {
+  background: color-mix(in srgb, var(--project-color, var(--muted)) 60%, var(--project-mix));
+}
+.project-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text);
+}
+.project-label-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-label-client {
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.project-label-client::before {
+  content: '• ';
+}
+.tag-chip {
+  display: inline-block;
+  font-size: var(--text-sm);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+/* Entry list. Each day is a surface panel headed by a day sticker: a pill in the section's hue
+   with the day and its total in display type, in on-section-hue, and the sticker outline. Rows are
+   data, so nothing textured sits behind them.
+   Day stickers (here and the week calendar's day heads) take the section's hue rather than cycling
+   through the hues: a hue then means one thing, where you are, and a different hue per day would
+   suggest the days differ in kind. The week view already names each day, and a page then has one
+   text pair on its stickers, not five. */
+.entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.day-group {
+  overflow: visible;
+  border-width: 2px;
+  border-radius: var(--radius-lg);
+}
+.day-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
+  background: var(--section-hue);
+  color: var(--on-section-hue);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 2px var(--sticker-outline);
+}
+.day-header h3 {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.day-total {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1;
+}
+.day-select {
+  display: inline-flex;
+}
+/* The select-all box on the sticker: checked it fills with on-section-hue, and a ring in the same
+   colour draws its edge against the hue (the on-hue rows in the table). */
+.day-select input {
+  accent-color: var(--on-section-hue);
+  box-shadow: 0 0 0 2px var(--on-section-hue);
+}
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.entries.nested {
+  background: var(--surface-2);
+}
+.entries.nested .entry-line {
+  padding-left: 40px;
+}
+.entry-row-wrap + .entry-row-wrap {
+  border-top: 1px solid var(--border);
+}
+/* An expanded group: a line between the summary row and the entries it stands for. */
+.entry-row-wrap.grouped > .entries.nested {
+  border-top: 1px solid var(--border);
+}
+/* The last row follows the panel's rounded corners, so a selected or nested row does not poke out. */
+.day-group > .entries > li:last-child > :last-child {
+  border-radius: 0 0 calc(var(--radius-lg) - 2px) calc(var(--radius-lg) - 2px);
+}
+.entry-line {
+  display: grid;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  grid-template-columns: auto auto minmax(120px, 1fr) minmax(0, auto) auto auto auto auto auto auto;
+}
+.entry-line:not(:has(.count-badge)) {
+  grid-template-columns: auto minmax(120px, 1fr) minmax(0, auto) auto auto auto auto auto auto;
+}
+/* Long descriptions, project names and tag lists shrink inside their track instead of widening the row. */
+.entry-line > * {
+  min-width: 0;
+}
+.entry-description {
+  padding: 6px;
+  font-weight: 500;
+}
+.entry-project,
+.entry-tags,
+.entry-times {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 260px;
+}
+/* A set project is a pill outlined in the project colour mix; see the table at .project-dot. It
+   hugs its text, and the 100% cap keeps a long name inside its grid area. */
+.entry-project.has-project {
+  justify-self: start;
+  max-width: min(260px, 100%);
+  padding: 2px var(--space-3) 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 2px solid color-mix(in srgb, var(--project-color, var(--muted)) 60%, var(--project-mix));
+}
+.entry-project:hover,
+.entry-tags:hover,
+.entry-times:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.entry-times:disabled {
+  cursor: default;
+}
+.add-project {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--muted);
+  opacity: 0;
+}
+/* The placeholder shows at full opacity: muted is AA on its own (see the table in tokens.css), but
+   faded to 0.6 it fell to 2.52:1 on surface-2. */
+.entry-line:hover .add-project,
+.entry-project:focus-visible .add-project {
+  opacity: 1;
+}
+.entry-tags {
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+/* Tags in a row: outlined pills in text colour, bolder than the plain chip used elsewhere. */
+.entry-tags .tag-chip {
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 600;
+  padding: 0 var(--space-2);
+}
+.entry-times {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: var(--text-md);
+}
+.entry-duration {
+  width: 84px;
+  text-align: right;
+  padding: 4px 6px;
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+.entry-continue {
+  opacity: 0;
+}
+.entry-line:hover .entry-continue,
+.entry-continue:focus-visible {
+  opacity: 1;
+}
+/* The number of entries a grouped row stands for: a primary pill with primary-text figures, filled
+   while the group is open. */
+.count-badge {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--primary);
+  background: var(--surface);
+  color: var(--primary-text);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-size: var(--text-base);
+  font-weight: 900;
+}
+.count-badge[aria-expanded='true'] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 18px;
+}
+/* TimerBar writes its own height to --timer-bar-height on <html>, so the bulk bar sticks flush
+   under the timer bar however tall it wraps. */
+.bulk-bar {
+  position: sticky;
+  top: var(--timer-bar-height, 0px);
+  z-index: 9;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  border-width: 2px;
+  border-color: var(--primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+  box-shadow: var(--shadow);
+}
+.bulk-bar > strong {
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-size: var(--text-lg);
+  font-weight: 900;
+  margin-right: var(--space-2);
+}
+
+@media (max-width: 760px) {
+  .timer-bar {
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  }
+  .timer-button {
+    width: 56px;
+    padding: 0;
+  }
+  .timer-button-label {
+    display: none;
+  }
+  .entry-line,
+  .entry-line:not(:has(.count-badge)) {
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-areas: none;
+  }
+  .entry-line .entry-select {
+    display: none;
+  }
+  /* The phone timer bar takes too much of the screen to keep both bars stuck. While entries are
+     selected the timer bar scrolls away and the bulk bar sticks to the top instead. */
+  .page:has(.bulk-bar) {
+    --timer-bar-height: 0px;
+  }
+  .page:has(.bulk-bar) .timer-bar {
+    position: relative;
+  }
+  .entry-line .entry-description {
+    grid-column: 1 / -2;
+  }
+  .entry-line .entry-project {
+    grid-column: 1 / 3;
+  }
+  .entry-times {
+    display: none;
+  }
+  .entry-continue {
+    opacity: 1;
+  }
+  .add-project {
+    opacity: 1;
+  }
+}

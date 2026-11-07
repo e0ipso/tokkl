@@ -1,0 +1,242 @@
+/* Shared rules. A component takes one by having its class listed here, or by adding the shared
+   class in markup. Its own rule, in a later file of styles.css, sets only what differs, such as a
+   larger radius. */
+/* Surface: a panel on --surface with the standard border and radius. */
+.surface,
+.timer-bar,
+.suggestions,
+.favorite,
+.day-group,
+.bulk-bar,
+.popover,
+.modal,
+.auth-card,
+.calendar-head,
+.calendar-strip,
+.calendar-body,
+.card,
+.table-wrap,
+.search-box,
+.select-button,
+.splash .page-state,
+.error-page .page-state {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+/* Panel: a surface drawn as a sticker, with a 2px border and the hard offset shadow (the ink in
+   light, border in dark; see --shadow). Fields and select buttons keep the plain 1px border. */
+.surface,
+.timer-bar,
+.suggestions,
+.day-group,
+.bulk-bar,
+.popover,
+.modal,
+.auth-card,
+.calendar-head,
+.calendar-strip,
+.calendar-body,
+.card,
+.table-wrap,
+.splash .page-state,
+.error-page .page-state {
+  border-width: 2px;
+  box-shadow: var(--shadow);
+}
+/* Row button: a borderless, full-width row in a list or menu, --surface-2 on hover. */
+.row-button,
+.nav-link,
+.suggestion,
+.picker-item,
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.row-button:hover,
+.nav-link:hover,
+.suggestion:hover,
+.picker-item:hover,
+.picker-item.highlighted,
+.menu button:hover {
+  background: var(--surface-2);
+}
+/* Selected: the --state-selected tint. After the hover rule, so it stays on hover. */
+.entry-line.selected,
+.picker-item.selected,
+.suggestion.highlighted {
+  background: var(--state-selected);
+}
+/* Selected rows, picker items and the keyboard-highlighted suggestion also get a primary bar on the
+   left edge, so the tint is not the only sign. */
+.entry-line.selected,
+.picker-item.selected,
+.suggestion.highlighted {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+/* The project picker option the arrow keys made active: the hover background plus a 2px primary
+   outline drawn inside the row, like the focus ring. Focus stays in the search field, so this is
+   the only visible sign of what Enter will pick. A selected row that is also active keeps its tint
+   and bar under the outline. */
+.picker-item.highlighted {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+/* The active segment: the selected fill with on-selected text in bold, inside a primary ring. */
+.segmented button.active {
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: 800;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+/* Figures: the running clock, durations and day totals. Table cells use .num, which only aligns. */
+.timer-clock,
+.manual-duration,
+.day-total,
+.entry-duration {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+/* Inline edit: a field that reads as plain text until hovered or focused. A running entry's
+   .entry-duration is a span; the transparent border keeps it aligned with the input. */
+.inline-input,
+.timer-clock-input,
+.entry-description,
+.entry-duration {
+  border: 1px solid transparent;
+  background: transparent;
+}
+.inline-input:is(:hover, :focus),
+.timer-clock-input:is(:hover, :focus),
+.entry-description:is(:hover, :focus),
+input.entry-duration:is(:hover, :focus) {
+  border-color: var(--border);
+}
+
+/* Buttons: pills with a 2px frame. Primary and danger are solid fills that lift on hover; ghost
+   variants are outlines. Phones raise every button to 44px (see the max-width: 760px block). */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: 5px 16px;
+  cursor: pointer;
+  background: var(--surface-2);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    transform var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
+}
+.button:hover:not(:disabled) {
+  border-color: var(--border);
+}
+.button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.button-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 800;
+}
+.button-danger {
+  background: var(--danger);
+  color: var(--on-danger);
+  font-weight: 800;
+}
+.button-primary:hover:not(:disabled),
+.button-danger:hover:not(:disabled) {
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+.button-ghost {
+  background: transparent;
+  border-color: var(--border);
+}
+.button-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.button-danger-ghost {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--border);
+}
+.button-danger-ghost:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+.button-block {
+  width: 100%;
+  justify-content: center;
+}
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.icon-button.active {
+  color: var(--primary);
+}
+.icon-button.billable {
+  color: var(--state-billable);
+}
+/* Billable toggle in the timer bar and entry rows: an outline when off and a filled circle when on,
+   so the state shows in the shape and not only the colour. aria-pressed tells screen readers. */
+.billable-toggle {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+}
+.billable-toggle.billable,
+.billable-toggle.billable:hover {
+  background: var(--state-billable);
+  border-color: var(--state-billable);
+  color: var(--surface);
+}
+.link-button {
+  background: none;
+  border: none;
+  color: var(--primary-text);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.badge {
+  font-size: var(--text-xs);
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: var(--radius-pill);
+  padding: 0 5px;
+}

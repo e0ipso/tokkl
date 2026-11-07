@@ -80,7 +80,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
             aria-label={COLOR_NAMES[color] ?? `Color ${index + 1}`}
             title={COLOR_NAMES[color]}
             className={`color-swatch${color === current ? ' selected' : ''}`}
-            style={{ background: color, ['--swatch-check' as string]: checkColor(color) }}
+            style={{ background: color, '--swatch-check': checkColor(color) }}
             onClick={() => onChange(color)}
             onFocus={() => setFocused(index)}
             onKeyDown={event => onKeyDown(event, index)}

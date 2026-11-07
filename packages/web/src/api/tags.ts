@@ -4,11 +4,16 @@ import { api } from './client.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { wsPath } from './paths.ts';
+import { tagListReply } from './replies.ts';
 import type { Tag } from './types.ts';
 
 export function useTags() {
   const wid = useWid();
-  return useQuery({ queryKey: keys.tags, queryFn: () => api.get<Tag[]>(wsPath(wid, 'tags')), enabled: wid > 0 });
+  return useQuery({
+    queryKey: keys.tags,
+    queryFn: () => api.get(wsPath(wid, 'tags'), { decode: tagListReply }),
+    enabled: wid > 0,
+  });
 }
 
 /** Tag writes. Pass them to a mutation together with `stale.tags` or `stale.tagCreated`. */

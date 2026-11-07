@@ -1,5 +1,5 @@
 /* Reports page. Colours, including the chart, tooltip and report table tokens, come from the token
-   block in styles.css, and their contrast is in the table there. */
+   block in styles/tokens.css, and their contrast is in the table there. */
 
 .reports .is-dimmed {
   opacity: 0.55;
@@ -528,7 +528,7 @@
 .subgroup-row .share-track {
   background: var(--surface);
 }
-/* Primary unless the row passes a project colour (.share-fill.project-fill in styles.css). The
+/* Primary unless the row passes a project colour (.share-fill.project-fill in styles/entries.css). The
    percent beside the bar stays as text. */
 .share-fill {
   display: block;

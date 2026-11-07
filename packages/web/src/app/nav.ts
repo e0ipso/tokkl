@@ -1,6 +1,6 @@
 import type { IconName } from '../components/Icon.tsx';
 
-/** A section's hue: styles.css maps each to a fill and the text colour on it (data-section). */
+/** A section's hue: styles/shell.css maps each to a fill and the text colour on it (data-section). */
 export type Section = 'timer' | 'pomodoro' | 'reports' | 'projects' | 'settings' | 'more';
 
 export interface NavItem {
@@ -29,7 +29,7 @@ export const NAV: readonly NavItem[] = [
   { href: '/settings', label: 'Settings', icon: 'settings', section: 'settings' },
 ];
 
-/** The phone breakpoint; styles.css uses the same max-width for the bottom bar. */
+/** The phone breakpoint; styles/shell.css uses the same max-width for the bottom bar. */
 export const PHONE_QUERY = '(max-width: 760px)';
 
 /** Whether `href` is the open page: the timer only at "/", every other page with its subpaths. */

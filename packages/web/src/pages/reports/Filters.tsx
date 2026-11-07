@@ -5,7 +5,7 @@ import { useTags } from '../../api/tags.ts';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
-import { ProjectDot } from '../../components/Pickers.tsx';
+import { ProjectDot } from '../../components/ProjectLabel.tsx';
 import { SearchBox, Segmented } from '../manage/ui.tsx';
 import { BILLABLE_FILTERS, isOneOf, type IdFilter, type ReportPatch, type ReportState } from './urlState.ts';
 

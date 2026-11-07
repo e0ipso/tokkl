@@ -1,5 +1,5 @@
 import { LoadError, Loading } from '../../components/PageState.tsx';
-import { ProjectDot } from '../../components/Pickers.tsx';
+import { ProjectDot } from '../../components/ProjectLabel.tsx';
 import { duration, shortDate, weekdayName } from '../../lib/format.ts';
 import { type Settings } from '../../lib/settings.ts';
 import { Segmented } from '../manage/ui.tsx';

@@ -3,7 +3,7 @@ import type { TimeEntry } from '../../api/types.ts';
 import { EntryEditor } from '../../components/EntryEditor.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';
-import { ProjectDot } from '../../components/Pickers.tsx';
+import { ProjectDot } from '../../components/ProjectLabel.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { localDay } from '../../lib/entryTime.ts';
 import { duration, formatDate, formatTime } from '../../lib/format.ts';

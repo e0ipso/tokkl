@@ -23,9 +23,14 @@ export class TimerActionError extends Error {
 }
 
 export function isTimerState(value: unknown): value is TimerState {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.revision === 'number' && typeof candidate.server_time === 'string';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'revision' in value &&
+    typeof value.revision === 'number' &&
+    'server_time' in value &&
+    typeof value.server_time === 'string'
+  );
 }
 
 /** Decodes a timer state reply, failing when the server sent something else. */

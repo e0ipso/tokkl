@@ -18,9 +18,9 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-The page stylesheets (`pages/manage/manage.css`, `pages/reports/reports.css`) are imported by the page components, which `App.tsx` pulls in before `packages/web/src/main.tsx` imports `./styles.css`. So `styles.css` comes later in the bundle and wins every tie of equal specificity. A page rule that overrides a `styles.css` class adds a second class to win, for example `.hint.manage-intro`. Reordering the imports in `main.tsx` changes which rules win across the app.
+The page stylesheets (`pages/manage/manage.css`, `pages/reports/reports.css`) are imported by the page components, which `app/Shell.tsx` pulls in before `packages/web/src/main.tsx` imports `./styles.css`. So `styles.css` comes later in the bundle and wins every tie of equal specificity. A page rule that overrides a `styles.css` class adds a second class to win, for example `.hint.manage-intro`. Reordering the imports in `main.tsx` changes which rules win across the app.
 
-Colours belong in the token block of `styles.css`, where each pair gets a row in the contrast table. The page stylesheets only reference tokens and contain no colour literals. The report table tokens live there too: `--report-zebra` (an alias of `--chart-band`), `--report-head-bg` and `--report-head-text`.
+Colours belong in the token block of `styles.css` (`styles/tokens.css`), where each pair gets a row in the contrast table. The page stylesheets only reference tokens and contain no colour literals. The report table tokens live there too: `--report-zebra` (an alias of `--chart-band`), `--report-head-bg` and `--report-head-text`.
 
 <!-- kk:related:start -->
 # Related

@@ -5,7 +5,7 @@ import type { Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { arrowTarget } from './arrowKeys.ts';
 import { Icon } from './Icon.tsx';
-import { projectColorStyle } from './Pickers.tsx';
+import { projectColorStyle } from './ProjectLabel.tsx';
 
 /** The parts of the week calendar above the hour grid. */
 

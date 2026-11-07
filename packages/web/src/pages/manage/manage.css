@@ -1,4 +1,4 @@
-/* Projects, clients, tags, trash and settings pages. Colours come from the tokens in styles.css,
+/* Projects, clients, tags, trash and settings pages. Colours come from the tokens in styles/tokens.css,
    whose contrast table covers the pairs used here. main.tsx imports styles.css after the pages, so
    a rule here that overrides a styles.css class (.hint, .card) adds that class to win. */
 
@@ -54,7 +54,7 @@
   white-space: nowrap;
   color: var(--muted);
 }
-/* Rename fields for tags and tasks. The look comes from .inline-input in styles.css. */
+/* Rename fields for tags and tasks. The look comes from .inline-input in styles/shared.css. */
 .inline-input {
   flex: 1;
   min-width: 0;
@@ -318,7 +318,7 @@
   padding-top: 0;
 }
 /* The header strip: the sidebar's texture tokens over surface, drawn with gradients. The glow ends
-   at 60% and the stripes take the right 30%, so they never overlap (see the table in styles.css).
+   at 60% and the stripes take the right 30%, so they never overlap (see the table in styles/tokens.css).
    Only the title sits on it; the intro, inputs and the token value are below on plain surface. */
 .settings-card-head {
   margin: 0 calc(-1 * var(--space-5)) var(--space-4);

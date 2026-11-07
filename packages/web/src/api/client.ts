@@ -4,6 +4,8 @@
  * decoding live in one place.
  */
 
+import type { Decoder } from './decode.ts';
+
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** A failed request: the reply's status, its decoded body and the request it answered. */
@@ -42,16 +44,14 @@ function isRawBody(body: unknown): body is RawBody {
   return typeof body === 'object' && body !== null && 'raw' in body && 'contentType' in body;
 }
 
-/** Turns the decoded JSON of a reply into `T`, throwing when it does not fit. */
-export type Decoder<T> = (value: unknown) => T;
-
 export interface RequestOptions<T> {
   /** JSON-encoded unless it is a `RawBody`. */
   body?: unknown;
   signal?: AbortSignal;
   /**
-   * Checks the reply. Without one the reply is trusted to match `T`: the server is this app's own
-   * same-origin API and both sides compile against @tokkl/types.
+   * Checks the reply (see decode.ts). Without one the reply is trusted to match `T`, as for write
+   * replies the views only refresh from: the server is this app's own same-origin API and both
+   * sides compile against @tokkl/types.
    */
   decode?: Decoder<T>;
 }

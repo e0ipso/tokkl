@@ -1,9 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import {
-  notificationAccess,
-  requestNotificationAccess,
-  type NotificationAccess,
-} from '../../../components/phaseNotification.ts';
+import { notificationAccess, requestNotificationAccess, type NotificationAccess } from './phaseNotification.ts';
 
 const STATUS: Record<NotificationAccess, string> = {
   default:
