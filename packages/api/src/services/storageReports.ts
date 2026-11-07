@@ -4,7 +4,7 @@ import { invalidInput, forbidden } from '../lib/errors.ts';
 import { addDays, dateKey, daysBetween, parseDateKey, startOfDay, startOfWeek } from '@tokkl/common/time';
 import type { User, Workspace, ReportEntryProjection } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
-import { currentCredentialUser, type StorageAuthentication } from '../auth/storageMiddleware.ts';
+import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 
 export type IdFilter = Array<number | null>;
 
@@ -98,12 +98,12 @@ export function collectReport(
   userId: number,
   workspaceId: number,
   filter: ReportFilter,
-  authentication?: StorageAuthentication,
+  authentication?: Authentication,
 ): Promise<ReportData> {
   return source.readSnapshot(async repositories => {
     const user = authentication
       ? authentication.user.id === userId
-        ? await currentCredentialUser(repositories, authentication)
+        ? await authenticatedUser(repositories, authentication)
         : undefined
       : await repositories.users.get(userId);
     if (!user) throw forbidden();

@@ -1,8 +1,21 @@
 import pg from 'pg';
-import { createLocalTimerBus, type TimerBus, type TimerSignal } from '../domain/timerBus.ts';
 import type { ServerConfig, StorageConfig } from './config.ts';
 import { postgresOptions } from './connections.ts';
-import { silentLogger, type Logger } from '../lib/logger.ts';
+import { createLogger, type Logger } from '../lib/logger.ts';
+
+/** A hint that a user's committed timer revision changed. It never carries state. */
+export type TimerSignal = { userId: number; revision: number };
+/** Carries timer signals between API processes. A receiver rebuilds state from its own database read. */
+export interface TimerBus {
+  send(signal: TimerSignal): void;
+  /** Registers the single receiver. */
+  receive(handler: (signal: TimerSignal) => void): void;
+  close(): Promise<void>;
+}
+/** One process: local commits already deliver their own state, so nothing is sent or received. */
+export function createLocalTimerBus(): TimerBus {
+  return { send() {}, receive() {}, async close() {} };
+}
 
 /** Fixed lowercase identifier, so it is safe as a literal in LISTEN. */
 export const TIMER_BUS_CHANNEL = 'tokkl_timer_signal';
@@ -36,7 +49,7 @@ function parseSignal(payload: string | undefined): TimerSignal | undefined {
 }
 
 /** PostgreSQL carries signals between processes. The other engines run one process's local bus. */
-export function startTimerBus(config: StorageConfig, logger: Logger = silentLogger): Promise<TimerBus> {
+export function startTimerBus(config: StorageConfig, logger: Logger = createLogger()): Promise<TimerBus> {
   return config.backend === 'postgres' ? startPostgresTimerBus(config, logger) : Promise.resolve(createLocalTimerBus());
 }
 

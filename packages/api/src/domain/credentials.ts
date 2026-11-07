@@ -10,6 +10,13 @@ import { safeEqual, sha256 } from '../lib/crypto.ts';
 export type AccountCredential =
   { kind: 'session'; token: string } | { kind: 'api-token'; token: string } | { kind: 'password' };
 
+/** A signed-in request: the account as it was read, and the credential it presented. */
+export interface Authentication {
+  user: User;
+  credential: AccountCredential;
+  authMethod: 'session' | 'basic';
+}
+
 export const isActiveUser = (user: User | undefined): user is User => !!user && user.disabledAt === null;
 export const isActiveAdmin = (user: User): boolean => isActiveUser(user) && user.role === 'admin';
 
@@ -58,4 +65,12 @@ export async function currentCredentialUser(
   credential: AccountCredential,
 ): Promise<User | undefined> {
   return credentialHolds(ctx, seen, credential, await ctx.users.get(seen.id));
+}
+
+/** `currentCredentialUser` for a signed-in request. */
+export function authenticatedUser(
+  ctx: { sessions: SessionsRepository; users: UsersRepository },
+  auth: Authentication,
+): Promise<User | undefined> {
+  return currentCredentialUser(ctx, auth.user, auth.credential);
 }

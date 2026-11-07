@@ -10,7 +10,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
-import type { TimerBus, TimerSignal } from '../../src/domain/timerBus.ts';
+import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
 import { createTimerPublication } from '../../src/domain/timers.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -293,9 +293,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       }
       assert.equal(await revision(u), before + 1);
       await onA.until(() => onA.states.some(s => s.revision === before + 1));
+      // One structured line on stderr, naming the failure.
       assert.deepEqual(
-        logged.mock.calls.map(call => call.arguments),
-        [['Timer bus send failed']],
+        logged.mock.calls.map(call => (JSON.parse(String(call.arguments[0])) as { msg: string }).msg),
+        ['Timer bus send failed'],
       );
       assert.equal(buses[0]!.sent.length, sent);
     });

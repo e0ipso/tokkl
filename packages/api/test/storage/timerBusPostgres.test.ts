@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
 import pg from 'pg';
-import type { TimerBus, TimerSignal } from '../../src/domain/timerBus.ts';
+import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
 import { parseStorageConfig } from '../../src/storage/config.ts';
 import { postgresOptions } from '../../src/storage/connections.ts';
 import { startTimerBus, TIMER_BUS_APPLICATION, TIMER_BUS_CHANNEL } from '../../src/storage/timerBus.ts';

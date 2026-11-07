@@ -2,12 +2,12 @@ import type { Request, RequestHandler } from 'express';
 import type { AccountPasswordAttempt, AccountRepositories, AccountRunner } from '../domain/accounts.ts';
 import {
   credentialHolds,
-  currentCredentialUser as credentialUser,
+  authenticatedUser,
+  type Authentication,
   findActiveSession,
   isActiveAdmin,
   isActiveUser,
   unchangedActive,
-  type AccountCredential,
 } from '../domain/credentials.ts';
 import type { User } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
@@ -15,6 +15,7 @@ import { clientAddress, getCookie } from '../http/context.ts';
 import { forbidden, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from '../lib/crypto.ts';
 import { passwordCounters, type FailureLimiter } from './rateLimit.ts';
+import type { StreamCredentialResult } from '../services/timerStreams.ts';
 
 export const SESSION_COOKIE = 'tokkl_session';
 export const LEGACY_SESSION_COOKIE = 'tt_session';
@@ -22,11 +23,7 @@ export const CSRF_HEADER = 'x-tokkl-csrf';
 export const LEGACY_CSRF_HEADER = 'x-timetrack-csrf';
 
 /** Keep the normalized user and the credential observed by this request together. */
-export interface StorageAuthentication {
-  user: User;
-  credential: AccountCredential;
-  authMethod: 'session' | 'basic';
-}
+export type StorageAuthentication = Authentication;
 export interface StorageAuthLocals {
   auth: StorageAuthentication;
 }
@@ -81,14 +78,8 @@ export async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: 
   return unchangedActive(current, seen) ? current : undefined;
 }
 /** Check credentials in the data snapshot for reads, or under the operation's guards for writes. */
-export function currentCredentialUser(
-  ctx: Pick<Repositories, 'users' | 'sessions'>,
-  auth: StorageAuthentication,
-): Promise<User | undefined> {
-  return credentialUser(ctx, auth.user, auth.credential);
-}
-/** A passing stream check carries the user's timer revision, read by the same user statement. */
-export type StreamCredentialResult = { valid: false } | { valid: true; revision: number };
+export const currentCredentialUser = authenticatedUser;
+export type { StreamCredentialResult };
 async function currentCredentialRevision(
   ctx: Pick<Repositories, 'users' | 'sessions'>,
   auth: StorageAuthentication,

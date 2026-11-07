@@ -1,13 +1,14 @@
 import type { Repositories, Storage, TransactionContext } from '../storage/contracts.ts';
 import type { StorageConfig } from '../storage/config.ts';
-import { createStorageAuth, currentCredentialUser, type StorageAuthentication } from '../auth/storageMiddleware.ts';
+// The composition root: it also builds the HTTP auth adapter, whose stream check the timer streams use.
+import { createStorageAuth } from '../auth/storageMiddleware.ts';
+import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import { createAccountOperations } from '../domain/accounts.ts';
 import { isActiveAdmin } from '../domain/credentials.ts';
 import type { TimerState } from '@tokkl/types';
-import type { Response } from 'express';
 import type { Id } from '../storage/domain.ts';
-import { createLocalTimerBus, type TimerBus } from '../domain/timerBus.ts';
+import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
 import {
   buildTimerState,
   createAccountEntryEffects,
@@ -18,7 +19,7 @@ import {
 } from '../domain/timers.ts';
 import { createStorageImports } from './storageImportJson.ts';
 import { StorageReportRunner } from './storageReportRunner.ts';
-import { TimerStreams, type TimerStreamOptions } from './timerStreams.ts';
+import { TimerStreams, type EventStreamResponse, type TimerStreamOptions } from './timerStreams.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { forbidden } from '../lib/errors.ts';
 import { noWorkspaceAccess } from '../domain/membership.ts';
@@ -99,20 +100,18 @@ export function createApplicationServices({
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
   const auth = createStorageAuth(storage, limiter);
   const reports = new StorageReportRunner(config, storage);
-  function protectedStorage(authentication: StorageAuthentication, administrative = false): Storage {
+  function protectedStorage(authentication: Authentication, administrative = false): Storage {
     return {
       ...storage,
       transaction: (work, options) =>
         storage.transaction(async ctx => {
           if (administrative) await ctx.lockInstanceAdministration();
-          if (!(await currentCredentialUser(ctx, authentication)))
-            throw forbidden('Incorrect username and/or password');
+          if (!(await authenticatedUser(ctx, authentication))) throw forbidden('Incorrect username and/or password');
           const result = await work(ctx);
           if (administrative) return result;
           // Domain work holds the actor's user guard, or the instance guard for account operations.
           // Recheck after lock acquisition so a credential changed while waiting rolls back the write.
-          if (!(await currentCredentialUser(ctx, authentication)))
-            throw forbidden('Incorrect username and/or password');
+          if (!(await authenticatedUser(ctx, authentication))) throw forbidden('Incorrect username and/or password');
           return result;
         }, options),
     };
@@ -125,34 +124,32 @@ export function createApplicationServices({
     publish,
     reports,
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
-    openTimerStream(authentication: StorageAuthentication, res: Response): Promise<void> {
+    openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
       publish.claim(authentication.user.id, authentication.user.createdAt);
       return timerStreams.open(authentication.user.id, res, auth.credentialCheck(authentication));
     },
     /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
     readFor<T>(
-      authentication: StorageAuthentication,
+      authentication: Authentication,
       work: (queries: ReadQueries) => Promise<T>,
       administrative = false,
     ): Promise<T> {
       return storage.readSnapshot(async repositories => {
-        const user = await currentCredentialUser(repositories, authentication);
+        const user = await authenticatedUser(repositories, authentication);
         if (!user) throw forbidden('Incorrect username and/or password');
         if (administrative && !isActiveAdmin(user)) throw forbidden('Admin access required');
         return work(createReadQueries(repositories, sessionDays));
       });
     },
-    accountsFor: (authentication: StorageAuthentication) =>
+    accountsFor: (authentication: Authentication) =>
       createAccountOperations(protectedStorage(authentication, true), security),
-    timersFor: (authentication: StorageAuthentication) =>
-      createTimerOperations(protectedStorage(authentication), publish),
-    importsFor: (authentication: StorageAuthentication) =>
-      createStorageImports(protectedStorage(authentication), publish),
-    async entryWrite<T>(authentication: StorageAuthentication, work: (ctx: TransactionContext) => Promise<T>) {
+    timersFor: (authentication: Authentication) => createTimerOperations(protectedStorage(authentication), publish),
+    importsFor: (authentication: Authentication) => createStorageImports(protectedStorage(authentication), publish),
+    async entryWrite<T>(authentication: Authentication, work: (ctx: TransactionContext) => Promise<T>) {
       return protectedStorage(authentication).transaction(work);
     },
     async catalogWrite<T>(
-      authentication: StorageAuthentication,
+      authentication: Authentication,
       wid: number,
       work: (ctx: TransactionContext, effects: ReturnType<typeof createCatalogTimerEffects>) => Promise<T>,
     ) {

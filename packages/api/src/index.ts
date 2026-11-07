@@ -6,7 +6,7 @@ import { ConfigurationError, loadConfig, type Config } from './config.ts';
 import { initializeDatabase } from './storage/migrations.ts';
 import { createStorage } from './storage/index.ts';
 import { startTimerBus } from './storage/timerBus.ts';
-import type { TimerBus } from './domain/timerBus.ts';
+import type { TimerBus } from './storage/timerBus.ts';
 import type { Storage } from './storage/contracts.ts';
 import { safeDestination } from './storage/config.ts';
 import { createLogger, type Logger } from './lib/logger.ts';

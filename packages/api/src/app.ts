@@ -3,7 +3,7 @@ import type { Config } from './config.ts';
 import type { Storage } from './storage/contracts.ts';
 import { standaloneRateLimits } from './storage/index.ts';
 import { createApplicationServices } from './services/application.ts';
-import { createLocalTimerBus, type TimerBus } from './domain/timerBus.ts';
+import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { errorHandler } from './http/errors.ts';

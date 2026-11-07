@@ -4,7 +4,7 @@ import { reportRunsInline } from '../storage/repositories/report-reader.ts';
 import { ApplicationError, type FailureKind } from '../lib/errors.ts';
 import { collectReport, type ReportSource } from './storageReports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
-import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
+import type { Authentication } from '../domain/credentials.ts';
 import {
   formatExportJob,
   formatReportJob,
@@ -26,7 +26,7 @@ interface Pending {
   dispose(): void;
 }
 export type ReportWork =
-  | { userId: number; workspaceId: number; job: ReportJob; authentication?: StorageAuthentication }
+  | { userId: number; workspaceId: number; job: ReportJob; authentication?: Authentication }
   | { data: AccountExportProjection; assembly: ExportAssemblyJob };
 interface Reply {
   id?: number;
@@ -66,7 +66,7 @@ export class StorageReportRunner {
     userId: number,
     workspaceId: number,
     job: ReportJob,
-    options: { signal?: AbortSignal; authentication?: StorageAuthentication } = {},
+    options: { signal?: AbortSignal; authentication?: Authentication } = {},
   ): Promise<JobResult> {
     return this.enqueue({ userId, workspaceId, job, authentication: options.authentication }, options);
   }
