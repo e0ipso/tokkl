@@ -1,7 +1,8 @@
 import { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
 import { createRouter } from '../http/router.ts';
-import { jsonRead, readText } from '../http/context.ts';
+import { jsonRead } from '../http/context.ts';
+import { readText } from '../http/request.ts';
 import { query, queryList } from '../http/params.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';

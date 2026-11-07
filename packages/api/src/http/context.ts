@@ -6,7 +6,6 @@ import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import type { TimerStreams } from '../services/timerStreams.ts';
-import { invalidInput } from '../lib/errors.ts';
 import type { Logger } from '../lib/logger.ts';
 
 /** Shared by every router; created once in createApp. */
@@ -51,52 +50,4 @@ export function jsonRead(
     const body = await deps.readFor(res.locals.auth, async queries => work(req, res, queries), administrative);
     res.json(body);
   };
-}
-
-/** Bodies arrive as raw text (see createApp), so a missing or wrong Content-Type is not an error. */
-function parseBody(req: Request): unknown {
-  const text = typeof req.body === 'string' ? req.body : '';
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw invalidInput('Invalid JSON input');
-  }
-}
-
-export function readJson(req: Request): Record<string, unknown> {
-  const body = parseBody(req);
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) throw invalidInput('Invalid JSON input');
-  return body as Record<string, unknown>;
-}
-
-export function readJsonArray(req: Request): unknown[] {
-  const body = parseBody(req);
-  if (!Array.isArray(body)) throw invalidInput('Invalid JSON input: expected an array');
-  return body;
-}
-
-export function readText(req: Request): string {
-  return typeof req.body === 'string' ? req.body : '';
-}
-
-/**
- * The client address used for rate limiting. With TOKKL_TRUST_PROXY, Express takes it from the
- * X-Forwarded-For entry the outermost trusted proxy appended, which the client cannot forge.
- */
-export function clientAddress(req: Request): string {
-  return req.ip ?? req.socket.remoteAddress ?? 'unknown';
-}
-
-export function getCookie(req: Request, name: string): string | undefined {
-  for (const part of (req.headers.cookie ?? '').split(';')) {
-    const index = part.indexOf('=');
-    if (index > 0 && part.slice(0, index).trim() === name) {
-      try {
-        return decodeURIComponent(part.slice(index + 1).trim());
-      } catch {
-        return undefined;
-      }
-    }
-  }
-  return undefined;
 }

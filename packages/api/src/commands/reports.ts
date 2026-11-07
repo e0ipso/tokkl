@@ -7,8 +7,7 @@ import type { DurationFormat } from '@tokkl/types';
 import { isRoundingMinutes, ROUNDING_MINUTES } from '../domain/workspaceValues.ts';
 import { invalidInput } from '../lib/errors.ts';
 import type { JsonBody } from '../lib/values.ts';
-import type { Dimension } from '../services/reportAggregates.ts';
-import type { IdFilter, ReportFilter } from '../services/reports.ts';
+import type { Dimension, IdFilter, OrderBy, ReportFilter, SortDirection } from '../domain/reportCommands.ts';
 import type { Workspace } from '../storage/domain.ts';
 
 const MAX_RANGE_DAYS = 3660;
@@ -95,9 +94,7 @@ export function parseDurationFormat(value: unknown): DurationFormat {
   return value === 'classic' || value === 'decimal' ? value : 'improved';
 }
 
-const ORDER_BY = ['date', 'user', 'duration', 'description', 'last_update'] as const;
-export type OrderBy = (typeof ORDER_BY)[number];
-export type SortDirection = 'ASC' | 'DESC';
+const ORDER_BY = ['date', 'user', 'duration', 'description', 'last_update'] as const satisfies readonly OrderBy[];
 
 /** A request's `order_by`, `date` when absent; the Toggl error otherwise. */
 export function parseOrderBy(value: unknown): OrderBy {

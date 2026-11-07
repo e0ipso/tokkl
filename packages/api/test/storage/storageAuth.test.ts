@@ -33,7 +33,7 @@ const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, a
   await import('../../src/auth/rateLimit.ts');
 const { createStorageAuth, passwordAttempt } = await import('../../src/auth/middleware.ts');
 const { credentialCheck } = await import('../../src/services/streamCredentials.ts');
-const { clientAddress } = await import('../../src/http/context.ts');
+const { clientAddress } = await import('../../src/http/request.ts');
 const { createStorageSessions } = await import('../../src/auth/sessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');
 const { errorReply } = await import('../../src/http/errors.ts');

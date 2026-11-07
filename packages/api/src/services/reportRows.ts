@@ -2,10 +2,10 @@
 import { formatDuration } from '@tokkl/common/duration';
 import { daysBetween } from '@tokkl/common/time';
 import type { DurationFormat } from '@tokkl/types';
-import type { OrderBy, SortDirection } from '../commands/reports.ts';
+import type { Dimension, OrderBy, SortDirection } from '../domain/reportCommands.ts';
 import { toCsv } from '../lib/csv.ts';
 import { togglTime } from '../lib/values.ts';
-import type { Dimension, Group } from './reportAggregates.ts';
+import type { Group } from './reportAggregates.ts';
 import { toTogglCsv } from './exports.ts';
 /** A finished response: a JSON or CSV body plus any extra headers. */
 export interface JobResult {

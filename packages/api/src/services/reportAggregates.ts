@@ -1,5 +1,6 @@
 /** Numbers a report shows: totals, a time series, the weekly grid and the groupings of entries. */
 import { addDays, daysBetween, startOfWeek } from '@tokkl/common/time';
+import type { Dimension } from '../domain/reportCommands.ts';
 import type { ReportEntry } from './reports.ts';
 
 export interface Totals {
@@ -124,8 +125,6 @@ export function weeklyGrid(
   );
   return { mode, columns, rows: sorted, columnTotals, total };
 }
-
-export type Dimension = 'project' | 'client' | 'tag' | 'description' | 'task' | 'none';
 
 export interface GroupKey {
   id: number | null;

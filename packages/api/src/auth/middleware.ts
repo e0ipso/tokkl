@@ -9,7 +9,7 @@ import {
 } from '../domain/credentials.ts';
 import type { User } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
-import { clientAddress, getCookie } from '../http/context.ts';
+import { clientAddress, getCookie } from '../http/request.ts';
 import { forbidden, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from '../lib/crypto.ts';
 import { passwordCounters, type FailureLimiter } from './rateLimit.ts';

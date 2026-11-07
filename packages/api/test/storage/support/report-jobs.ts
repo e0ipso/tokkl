@@ -1,4 +1,4 @@
-import type { ReportFilter } from '../../../src/services/reports.ts';
+import type { ReportFilter } from '../../../src/domain/reportCommands.ts';
 import type { ReportJob } from '../../../src/services/reportJobs.ts';
 
 export const range: ReportFilter = { startDate: '2026-10-01', endDate: '2026-10-31' };
