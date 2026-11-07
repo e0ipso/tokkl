@@ -14,6 +14,7 @@ import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { logOut, takeLogoutFailure } from '../lib/session.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
+import { t } from '../i18n/messages.ts';
 // The page imports bring in manage.css, reports.css and PomodoroPage.css. Their order here is the
 // order of those sheets in the bundle, before styles.css (main.tsx), so it decides the cascade:
 // keep it unless the CSS is checked for the new order.
@@ -53,9 +54,9 @@ function useLogoutFailureNotice(retry: () => void) {
   const toast = useToast();
   const notice = useEffectEvent(() => {
     if (!takeLogoutFailure()) return;
-    toast.show('Log out failed. You are still signed in.', {
+    toast.show(t('shell.logOutFailed'), {
       kind: 'error',
-      action: { label: 'Try again', run: retry },
+      action: { label: t('common.tryAgain'), run: retry },
       durationMs: 60_000,
     });
   });
@@ -113,7 +114,7 @@ export function Shell() {
   const logoutButton = (
     <button type="button" className="nav-link" onClick={logout}>
       <Icon name="logout" className="nav-icon" />
-      <span>Log out</span>
+      <span>{t('shell.logOut')}</span>
     </button>
   );
 
@@ -125,7 +126,7 @@ export function Shell() {
   return (
     <div className="shell">
       <RunningTitle />
-      <nav className="sidebar" aria-label="Main">
+      <nav className="sidebar" aria-label={t('shell.navLabel')}>
         {phone ? (
           <>
             {nav
@@ -143,7 +144,7 @@ export function Shell() {
               onClick={() => setMoreOpen(open => !open)}
             >
               <Icon name="more" className="nav-icon" />
-              <span>More</span>
+              <span>{t('shell.more')}</span>
             </button>
             {moreOpen ? (
               <MoreSheet onClose={closeMore}>
@@ -152,7 +153,7 @@ export function Shell() {
                 ))}
                 <SignedInUser />
                 {logoutButton}
-                <div className="app-version">Version {version}</div>
+                <div className="app-version">{t('shell.version', { version })}</div>
               </MoreSheet>
             ) : null}
           </>
@@ -165,7 +166,7 @@ export function Shell() {
             <span className="spacer" />
             <SignedInUser />
             {logoutButton}
-            <div className="app-version">Version {version}</div>
+            <div className="app-version">{t('shell.version', { version })}</div>
           </>
         )}
       </nav>

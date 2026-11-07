@@ -113,7 +113,7 @@ export function formatMoney(cents: number, currency: string): string {
   try {
     return new Intl.NumberFormat(NUMBER_LOCALE, { style: 'currency', currency }).format(cents / 100);
   } catch {
-    return `${(cents / 100).toFixed(2)} ${currency}`;
+    return t('common.moneyFallback', { amount: (cents / 100).toFixed(2), currency });
   }
 }
 

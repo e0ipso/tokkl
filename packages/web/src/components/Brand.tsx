@@ -5,6 +5,8 @@
  *
  * The images are derived from the artwork in docs/brand by `npm run icons`.
  */
+import { t } from '../i18n/messages.ts';
+
 /** The md width fits the sidebar; sm keeps the phone header strip short. */
 const WORDMARK_WIDTH = { sm: 84, md: 130, lg: 260 } as const;
 /** Height over width of the cropped wordmark in scripts/icons.ts (2059x769). */
@@ -20,7 +22,7 @@ export function Brand({ size = 'md' }: { size?: keyof typeof WORDMARK_WIDTH }) {
         src="/brand/wordmark-260.png"
         srcSet={WORDMARK_SRCSET}
         sizes={`${width}px`}
-        alt="Tokkl"
+        alt={t('shell.appName')}
         width={width}
         height={Math.round(width * WORDMARK_RATIO)}
       />

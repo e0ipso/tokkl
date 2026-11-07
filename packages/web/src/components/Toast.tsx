@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { t } from '../i18n/messages.ts';
 import { INERT_EXEMPT } from './inertOutside.ts';
 
 interface Toast {
@@ -52,11 +53,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           >
             {toast.kind === 'error' ? <ErrorIcon /> : null}
             <span>
-              {toast.kind === 'error' ? <span className="visually-hidden">Error: </span> : null}
+              {toast.kind === 'error' ? <span className="visually-hidden">{t('common.errorPrefix')}</span> : null}
               {toast.message}
             </span>
             {toast.action ? <ToastAction action={toast.action} onDone={() => dismiss(toast.id)} /> : null}
-            <button type="button" className="icon-button" aria-label="Dismiss" onClick={() => dismiss(toast.id)}>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t('common.dismiss')}
+              onClick={() => dismiss(toast.id)}
+            >
               ×
             </button>
           </div>

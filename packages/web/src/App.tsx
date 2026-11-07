@@ -9,6 +9,7 @@ import { Shell } from './app/Shell.tsx';
 import { Brand } from './components/Brand.tsx';
 import { LoadError, Loading } from './components/PageState.tsx';
 import { PomodoroSessionProvider } from './components/PomodoroSessionProvider.tsx';
+import { t } from './i18n/messages.ts';
 import { endSession } from './lib/session.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { InvitePage } from './pages/InvitePage.tsx';
@@ -75,7 +76,7 @@ export function App() {
     };
     return (
       <Splash>
-        <LoadError message={`Can't reach the server: ${me.error.message}`} onRetry={retry} />
+        <LoadError message={t('shell.serverUnreachable', { message: me.error.message })} onRetry={retry} />
       </Splash>
     );
   }

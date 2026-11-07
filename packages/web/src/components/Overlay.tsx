@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal, flushSync } from 'react-dom';
+import { t } from '../i18n/messages.ts';
 import { INERT_EXEMPT, inertOutside } from './inertOutside.ts';
 import { useOverlayLayer } from './overlayStack.tsx';
 import { useFocusTrap } from './useFocusTrap.ts';
@@ -181,7 +182,7 @@ export function Modal({
       >
         <header className="modal-header">
           <h2>{title}</h2>
-          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label="Close">
+          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label={t('common.close')}>
             ×
           </button>
         </header>

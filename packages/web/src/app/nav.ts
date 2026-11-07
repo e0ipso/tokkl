@@ -1,11 +1,13 @@
 import type { IconName } from '../components/Icon.tsx';
+import type { MessageKey } from '../i18n/messages.ts';
 
 /** A section's hue: styles/shell.css maps each to a fill and the text colour on it (data-section). */
 export type Section = 'timer' | 'pomodoro' | 'reports' | 'projects' | 'settings' | 'more';
 
 export interface NavItem {
   href: string;
-  label: string;
+  /** The catalog key of the link text. */
+  label: MessageKey;
   icon: IconName;
   section: Section;
   inMore?: true;
@@ -18,15 +20,15 @@ export interface NavItem {
  * only to admins; the server still refuses everyone else.
  */
 export const NAV: readonly NavItem[] = [
-  { href: '/', label: 'Timer', icon: 'timer', section: 'timer' },
-  { href: '/pomodoro', label: 'Pomodoro', icon: 'tomato', section: 'pomodoro' },
-  { href: '/reports', label: 'Reports', icon: 'chart', section: 'reports', inMore: true },
-  { href: '/projects', label: 'Projects', icon: 'folder', section: 'projects' },
-  { href: '/clients', label: 'Clients', icon: 'users', section: 'more', inMore: true },
-  { href: '/tags', label: 'Tags', icon: 'tag', section: 'more', inMore: true },
-  { href: '/trash', label: 'Trash', icon: 'trash', section: 'more', inMore: true },
-  { href: '/admin', label: 'Admin', icon: 'shield', section: 'more', inMore: true, adminOnly: true },
-  { href: '/settings', label: 'Settings', icon: 'settings', section: 'settings' },
+  { href: '/', label: 'shell.navTimer', icon: 'timer', section: 'timer' },
+  { href: '/pomodoro', label: 'shell.navPomodoro', icon: 'tomato', section: 'pomodoro' },
+  { href: '/reports', label: 'shell.navReports', icon: 'chart', section: 'reports', inMore: true },
+  { href: '/projects', label: 'shell.navProjects', icon: 'folder', section: 'projects' },
+  { href: '/clients', label: 'shell.navClients', icon: 'users', section: 'more', inMore: true },
+  { href: '/tags', label: 'shell.navTags', icon: 'tag', section: 'more', inMore: true },
+  { href: '/trash', label: 'shell.navTrash', icon: 'trash', section: 'more', inMore: true },
+  { href: '/admin', label: 'shell.navAdmin', icon: 'shield', section: 'more', inMore: true, adminOnly: true },
+  { href: '/settings', label: 'shell.navSettings', icon: 'settings', section: 'settings' },
 ];
 
 /** The phone breakpoint; styles/shell.css uses the same max-width for the bottom bar. */

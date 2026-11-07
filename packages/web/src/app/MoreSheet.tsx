@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { Icon } from '../components/Icon.tsx';
 import { INERT_EXEMPT, inertOutside } from '../components/inertOutside.ts';
+import { t } from '../i18n/messages.ts';
 import { useFocusTrap } from '../components/useFocusTrap.ts';
 
 /**
@@ -31,10 +32,17 @@ export function MoreSheet({ onClose, children }: { onClose: () => void; children
   return (
     <>
       <div ref={backdrop} className="more-backdrop" onClick={onClose} />
-      <div ref={ref} className="more-sheet" role="dialog" aria-modal="true" aria-label="More" onKeyDown={onKeyDown}>
+      <div
+        ref={ref}
+        className="more-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('shell.more')}
+        onKeyDown={onKeyDown}
+      >
         <div className="more-sheet-head">
-          <h2>More</h2>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+          <h2>{t('shell.more')}</h2>
+          <button type="button" className="icon-button" onClick={onClose} aria-label={t('common.close')}>
             <Icon name="x" />
           </button>
         </div>

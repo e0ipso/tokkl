@@ -7,7 +7,9 @@ import {
   type ParamsOf,
   type PluralMessage,
 } from './catalog.ts';
+import { common } from './en/common.ts';
 import { dates } from './en/dates.ts';
+import { shell } from './en/shell.ts';
 import { LOCALE } from './locale.ts';
 
 /**
@@ -15,7 +17,9 @@ import { LOCALE } from './locale.ts';
  * under `en/`, and a key names the feature and the message: `t('timer.start')`.
  */
 export const en = {
+  common,
   dates,
+  shell,
 } as const;
 
 export type Catalog = typeof en;
