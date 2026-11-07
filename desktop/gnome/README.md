@@ -102,6 +102,19 @@ When a phase reaches its planned end, `tokkl-timerd` plays the sound chosen for 
 
 Three Shell differences matter to the button. From 50 on, the panel button opens its menu from a click gesture; before 50, from its event handler. The extension handles primary clicks in both. From 51 on, the menu takes Space, Return and Down from a key controller on the button. The extension adds a key controller of its own that runs first and takes Space and Return. Before 51 it takes them in its event handler, before the menu sees them. From 50 on, setting the Billable switch from code also reports it as toggled, so the extension ignores toggles it caused itself.
 
+## Translations
+
+The extension's strings use gettext under the domain `tokkl-gnome-extension`.
+The service's messages, which reach the extension as they are
+(`ErrorString`, `SessionMessage`, the errors of method calls), use Qt's
+`tr()`: the core's catalogue `tokklcore_qt` and the service's own
+`tokkl_timerd_qt`. The service loads both at start for the session's locale,
+from
+`share/locale/<lang>/LC_MESSAGES/<catalogue>.qm` in the XDG data dirs, the
+layout KDE uses for the same core catalogue. No translations ship yet, so
+everything shows in English. `desktop/core/src/translations.h` has the
+details.
+
 ## Check it
 
 `extension/timer1.js` and `extension/projectindicator.js` hold the parts that need no GNOME Shell: the interface the extension expects, elapsed time, the status words and what the project indicator draws. Node runs its tests, and `npm test` includes them:

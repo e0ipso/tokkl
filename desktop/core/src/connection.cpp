@@ -1,81 +1,39 @@
 #include "connection.h"
 
-#include "logging.h"
+#include <QSet>
 
-#include <QCoreApplication>
-#include <QRandomGenerator>
-
-#include <algorithm>
 #include <utility>
 
 namespace Tokkl
 {
 
-namespace
-{
-ApiError localError(ApiError::Kind kind, const QString &message)
-{
-    ApiError error;
-    error.kind = kind;
-    error.message = message;
-    return error;
-}
-
-bool isSuccess(const HttpResponse &response)
-{
-    return response.outcome == HttpResponse::Outcome::Finished && response.status >= 200 && response.status < 300;
-}
-
-}
-
 Connection::Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent)
     : QObject(parent)
-    , m_transport(transport)
-    , m_store(store)
     , m_clientName(clientName)
+    , m_session(transport, store)
 {
-    connect(&m_cooldown, &Cooldown::ended, this, &Connection::onCooldownEnded);
-    m_retryTimer.setSingleShot(true);
-    connect(&m_retryTimer, &QTimer::timeout, this, &Connection::refreshAccount);
-    if (m_store) {
-        connect(m_store, &CredentialStore::secretChanged, this, &Connection::onSecretChanged);
-        connect(m_store, &CredentialStore::secretWriteFailed, this, &Connection::onSecretWriteFailed);
-    }
-}
-
-Connection::~Connection()
-{
-    // Replies belong to the transport; stop them reaching this object.
-    for (PendingReply *reply : std::as_const(m_pending)) {
-        disconnect(reply, nullptr, this, nullptr);
-        reply->abort();
-        reply->deleteLater();
-    }
-    for (PendingStream *stream : std::as_const(m_streams)) {
-        disconnect(stream, nullptr, this, nullptr);
-        stream->abort();
-        stream->deleteLater();
-    }
+    connect(&m_session, &AuthSession::instanceTextChanged, this, &Connection::instanceUrlChanged);
+    connect(&m_session, &AuthSession::authModeChanged, this, &Connection::authModeChanged);
+    connect(&m_session, &AuthSession::emailChanged, this, &Connection::emailChanged);
+    connect(&m_session, &AuthSession::stateChanged, this, &Connection::stateChanged);
+    connect(&m_session, &AuthSession::accountChanged, this, &Connection::accountChanged);
+    connect(&m_session, &AuthSession::accountCleared, this, &Connection::clearNextStart);
+    connect(&m_session, &AuthSession::generationChanged, this, &Connection::generationChanged);
 }
 
 QString Connection::instanceUrl() const
 {
-    return m_instanceText;
+    return m_session.instanceText();
 }
 
 void Connection::setInstanceUrl(const QString &url)
 {
-    if (url == m_instanceText) {
-        return;
-    }
-    m_instanceText = url;
-    Q_EMIT instanceUrlChanged();
-    settingsChanged();
+    m_session.setInstanceText(url);
 }
 
 QUrl Connection::webUrl() const
 {
-    const InstanceUrl instance = parseInstanceUrl(m_instanceText);
+    const InstanceUrl instance = parseInstanceUrl(m_session.instanceText());
     if (!instance.isValid()) {
         return QUrl();
     }
@@ -89,107 +47,93 @@ QUrl Connection::webUrl() const
 
 AuthMode Connection::authMode() const
 {
-    return m_authMode;
+    return m_session.authMode();
 }
 
 void Connection::setAuthMode(AuthMode mode)
 {
-    if (mode == m_authMode) {
-        return;
-    }
-    m_authMode = mode;
-    Q_EMIT authModeChanged();
-    settingsChanged();
+    m_session.setAuthMode(mode);
 }
 
 QString Connection::authModeString() const
 {
-    return authModeToString(m_authMode);
+    return authModeToString(m_session.authMode());
 }
 
 void Connection::setAuthModeString(const QString &mode)
 {
-    setAuthMode(authModeFromString(mode));
+    m_session.setAuthMode(authModeFromString(mode));
 }
 
 QString Connection::email() const
 {
-    return m_email;
+    return m_session.email();
 }
 
 void Connection::setEmail(const QString &email)
 {
-    if (email == m_email) {
-        return;
-    }
-    // The email only identifies the account in password mode.
-    const bool contextChanges = m_authMode == AuthMode::Password;
-    m_email = email;
-    Q_EMIT emailChanged();
-    if (contextChanges) {
-        settingsChanged();
-    }
+    m_session.setEmail(email);
 }
 
 Connection::State Connection::state() const
 {
-    return m_state;
+    return m_session.state();
 }
 
 QString Connection::errorString() const
 {
-    return m_error;
+    return m_session.errorString();
 }
 
 bool Connection::isConnected() const
 {
-    return hasContext();
+    return m_session.hasAccount();
 }
 
 bool Connection::isStale() const
 {
-    return hasContext() && m_state == Disconnected;
+    return m_session.hasAccount() && m_session.state() == Disconnected;
 }
 
 bool Connection::canWrite() const
 {
-    return hasContext() && !m_authPaused && !coolingDown();
+    return m_session.canWrite();
 }
 
 QDateTime Connection::rateLimitedUntil() const
 {
-    return m_cooldown.until();
+    return m_session.rateLimitedUntil();
 }
 
 quint64 Connection::generation() const
 {
-    return m_generation;
+    return m_session.generation();
 }
 
 std::optional<Me> Connection::account() const
 {
-    if (!hasContext()) {
-        return std::nullopt;
-    }
-    return m_context->me;
+    return m_session.account();
 }
 
 QVariantMap Connection::accountMap() const
 {
-    return hasContext() ? m_context->me.toVariantMap() : QVariantMap();
+    const std::optional<Me> me = m_session.account();
+    return me ? me->toVariantMap() : QVariantMap();
 }
 
 qint64 Connection::workspaceId() const
 {
-    return hasContext() ? m_context->me.defaultWorkspaceId : 0;
+    const std::optional<Me> me = m_session.account();
+    return me ? me->defaultWorkspaceId : 0;
 }
 
 QString Connection::owner() const
 {
-    if (!hasContext()) {
+    const std::optional<Me> me = m_session.account();
+    if (!me) {
         return QString();
     }
-    return QStringLiteral("%1 %2 %3").arg(webUrl().toString(QUrl::FullyEncoded)).arg(m_context->me.id).arg(m_context->me.defaultWorkspaceId);
+    return QStringLiteral("%1 %2 %3").arg(webUrl().toString(QUrl::FullyEncoded)).arg(me->id).arg(me->defaultWorkspaceId);
 }
 
 std::optional<qint64> Connection::nextProjectId() const
@@ -232,463 +176,41 @@ void Connection::setNextBillable(bool billable)
     Q_EMIT nextStartChanged();
 }
 
-// ----- configuration and credentials ---------------------------------------
-
-void Connection::settingsChanged()
+void Connection::clearNextStart()
 {
-    // Another instance or account: nothing from the old one may stay visible,
-    // and its secret, pause and cooldown do not carry over.
-    resetAccount();
-    m_hasSecret = false;
-    m_secret.clear();
-    m_authorization.clear();
-    m_authPaused = false;
-    m_cooldown.clear();
-    m_retryTimer.stop();
-    m_instance = InstanceUrl();
-    setState(m_instanceText.trimmed().isEmpty() ? Unconfigured : LoadingCredentials);
-    scheduleReload();
-}
-
-void Connection::scheduleReload()
-{
-    // QML sets the three settings one after another; read the wallet once.
-    if (m_reloadScheduled) {
-        return;
-    }
-    m_reloadScheduled = true;
-    QMetaObject::invokeMethod(this, &Connection::reload, Qt::QueuedConnection);
-}
-
-QString Connection::currentCredentialKey() const
-{
-    return credentialKey(m_instance, m_authMode, m_email);
-}
-
-// The store's own wording, or the platform-neutral text once the store is gone.
-QString Connection::credentialMessage(const CredentialResult &result) const
-{
-    return m_store ? m_store->message(result) : result.message();
-}
-
-void Connection::reload()
-{
-    m_reloadScheduled = false;
-    m_retryTimer.stop();
-
-    if (m_instanceText.trimmed().isEmpty()) {
-        setState(Unconfigured);
-        return;
-    }
-    m_instance = parseInstanceUrl(m_instanceText);
-    if (!m_instance.isValid()) {
-        setState(InvalidSettings, m_instance.error);
-        return;
-    }
-    if (m_authMode == AuthMode::Password && m_email.trimmed().isEmpty()) {
-        setState(InvalidSettings, tr("Enter the email address of your Tokkl account."));
-        return;
-    }
-    if (!m_store) {
-        setState(WalletError, CredentialResult{CredentialResult::Status::Unavailable, {}}.message());
-        return;
-    }
-
-    if (!hasContext()) {
-        setState(LoadingCredentials);
-    }
-    const quint64 generation = m_generation;
-    const QString key = currentCredentialKey();
-    const std::optional<FailedWrite> failedWrite = std::exchange(m_failedWrite, std::nullopt);
-    if (failedWrite && failedWrite->key == key) {
-        showFailedWrite(failedWrite->status);
-        return;
-    }
-    m_store->read(key, this, [this, generation, key](const CredentialResult &result) {
-        if (generation != m_generation || key != currentCredentialKey()) {
-            return;
-        }
-        if (!result.ok()) {
-            qCWarning(lcCredentials) << "Reading the secret failed:" << result.status;
-            // Without the secret nothing can be validated or written.
-            if (hasContext()) {
-                resetAccount();
-            }
-            m_hasSecret = false;
-            m_secret.clear();
-            m_authorization.clear();
-            setState(result.status == CredentialResult::Status::NotFound ? CredentialsMissing : WalletError, credentialMessage(result));
-            return;
-        }
-        if (m_hasSecret && result.secret != m_secret) {
-            resetAccount();
-        }
-        m_hasSecret = true;
-        m_secret = result.secret;
-        m_authorization = basicAuthorization(m_authMode, m_email, m_secret);
-        authenticate(true);
-    });
-}
-
-void Connection::onSecretChanged(const QString &key)
-{
-    if (m_failedWrite && m_failedWrite->key == key) {
-        m_failedWrite.reset();
-    }
-    if (m_instance.isValid() && key == currentCredentialKey()) {
-        settingsChanged();
-    }
-}
-
-void Connection::onSecretWriteFailed(const QString &key, const CredentialResult &result)
-{
-    if (m_instance.isValid() && key == currentCredentialKey()) {
-        m_failedWrite.reset();
-        showFailedWrite(result.status);
-        return;
-    }
-    // The settings for that key may still be on their way, as when a
-    // settings page saves the secret before the settings.
-    m_failedWrite = FailedWrite{key, result.status};
-}
-
-void Connection::showFailedWrite(CredentialResult::Status status)
-{
-    qCWarning(lcCredentials) << "The store did not save the secret:" << status;
-    // A new generation, so a read issued before the failure cannot replace
-    // this error. What the store now holds for the key is not what the user
-    // entered, so nothing is validated or written with it.
-    resetAccount();
-    m_retryTimer.stop();
-    m_hasSecret = false;
-    m_secret.clear();
-    m_authorization.clear();
-    setState(WalletError, tr("The new credentials were not saved. %1").arg(credentialMessage(CredentialResult{status, {}})));
-}
-
-void Connection::reconnect()
-{
-    m_failedWrite.reset();
-    m_authPaused = false;
-    if (m_reloadScheduled) {
-        return;
-    }
-    reload();
-}
-
-void Connection::refreshAccount()
-{
-    if (m_authPaused || m_authorization.isEmpty()) {
-        return;
-    }
-    authenticate(false);
-}
-
-// ----- authentication ------------------------------------------------------
-
-void Connection::authenticate(bool explicitRequest)
-{
-    m_retryTimer.stop();
-    if (m_authPaused && !explicitRequest) {
-        return;
-    }
-    if (coolingDown()) {
-        setState(RateLimited, m_error);
-        return;
-    }
-    if (!hasContext()) {
-        setState(Connecting);
-    }
-    send("GET", QStringLiteral("/me"), QByteArray(), [this](const HttpResponse &response) {
-        handleMe(response);
-    });
-}
-
-void Connection::handleMe(const HttpResponse &response)
-{
-    const ApiResult<Me> me = meFromResponse(response);
-    if (me.ok()) {
-        bind(*me.value);
-        return;
-    }
-
-    const ApiError &error = me.error;
-    switch (error.kind) {
-    case ApiError::Kind::Forbidden:
-    case ApiError::Kind::Unauthorized:
-        refuseCredentials(error);
-        return;
-    case ApiError::Kind::RateLimited:
-        m_cooldown.start(response.retryAfter);
-        setState(RateLimited, error.message);
-        return;
-    case ApiError::Kind::Network:
-    case ApiError::Kind::Timeout:
-    case ApiError::Kind::Server:
-        // Not an authentication failure. A bound account stays, marked stale.
-        setState(Disconnected, error.message);
-        if (!hasContext()) {
-            m_retryTimer.start(retryDelayMs + int(QRandomGenerator::global()->bounded(retryJitterMs)));
-        }
-        return;
-    default:
-        resetAccount();
-        setState(Error, error.message);
-        return;
-    }
-}
-
-// The credentials were refused. A 403 alone does not say why, so the message
-// does not claim the account is disabled. Wallet values stay so the user can
-// correct them.
-void Connection::refuseCredentials(const ApiError &error)
-{
-    resetAccount();
-    m_authPaused = true;
-    setState(AuthenticationFailed,
-             tr("The instance refused these credentials (%1). Check them in the widget settings, then reconnect.").arg(error.message));
-}
-
-void Connection::bind(const Me &me)
-{
-    if (hasContext() && (m_context->me.id != me.id || m_context->me.defaultWorkspaceId != me.defaultWorkspaceId)) {
-        // The same credentials now name another account or workspace.
-        resetAccount();
-    }
-    const bool changed = !hasContext() || m_context->me != me;
-    m_context = Context{m_generation, m_instance.key(), me};
-    setState(Connected);
-    if (changed) {
-        Q_EMIT accountChanged();
-    }
-}
-
-void Connection::resetAccount()
-{
-    ++m_generation;
-    qCDebug(lcAuth) << "Generation" << m_generation;
-    const QSet<PendingReply *> pending = std::exchange(m_pending, {});
-    for (PendingReply *reply : pending) {
-        // The reply still finishes; its generation no longer matches.
-        reply->abort();
-    }
-    const QSet<PendingStream *> streams = std::exchange(m_streams, {});
-    for (PendingStream *stream : streams) {
-        stream->abort();
-    }
-    clearAccountData();
-    Q_EMIT generationChanged();
-}
-
-void Connection::clearAccountData()
-{
-    const bool hadAccount = m_context.has_value();
     const bool hadChoices = m_nextProjectId.has_value() || m_nextBillable;
-    m_context.reset();
     m_nextProjectId.reset();
     m_nextBillable = false;
-    if (hadAccount) {
-        Q_EMIT accountChanged();
-        Q_EMIT stateChanged();
-    }
     if (hadChoices) {
         Q_EMIT nextStartChanged();
     }
 }
 
-void Connection::setState(State state, const QString &error)
+void Connection::reconnect()
 {
-    if (state == m_state && error == m_error) {
-        return;
-    }
-    m_state = state;
-    m_error = error;
-    // Error texts are for the user and never carry a secret.
-    qCInfo(lcAuth).nospace().noquote() << "Connection state " << state << (error.isEmpty() ? QString() : QStringLiteral(": ") + error);
-    Q_EMIT stateChanged();
+    m_session.reconnect();
 }
 
-bool Connection::hasContext() const
+void Connection::refreshAccount()
 {
-    return m_context.has_value() && m_context->generation == m_generation;
+    m_session.refreshAccount();
 }
 
-// ----- rate limiting -------------------------------------------------------
+// ----- operations ----------------------------------------------------------
 
-bool Connection::coolingDown() const
+QUrl Connection::api(const QString &path) const
 {
-    return m_cooldown.active();
+    return m_session.instance().api(path);
 }
 
-void Connection::onCooldownEnded()
+QUrl Connection::app(const QString &path) const
 {
-    if (m_state != RateLimited) {
-        Q_EMIT stateChanged();
-        return;
-    }
-    if (hasContext()) {
-        setState(Connected);
-    } else if (!m_authPaused && !m_authorization.isEmpty()) {
-        authenticate(false);
-    } else {
-        Q_EMIT stateChanged();
-    }
-}
-
-// ----- requests ------------------------------------------------------------
-
-void Connection::send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler)
-{
-    send(method, m_instance.api(path), body, std::move(handler));
-}
-
-void Connection::send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler)
-{
-    if (!m_transport) {
-        // The transport went first, as at shutdown. The request fails like
-        // one that found no network.
-        HttpResponse response;
-        response.errorString = tr("Tokkl has no network access.");
-        deliverLater<HttpResponse>(std::move(handler), response);
-        return;
-    }
-    const quint64 generation = m_generation;
-    PendingReply *reply = m_transport->send(HttpRequest{method, url, m_authorization, body});
-    m_pending.insert(reply);
-    connect(reply, &PendingReply::finished, this, [this, reply, generation, handler](const HttpResponse &response) {
-        m_pending.remove(reply);
-        reply->deleteLater();
-        if (generation != m_generation) {
-            return; // issued for an earlier instance, account or credential
-        }
-        handler(response);
-    });
-}
-
-template<typename Result>
-void Connection::deliverLater(std::function<void(const Result &)> done, Result result)
-{
-    if (!done) {
-        return;
-    }
-    const quint64 generation = m_generation;
-    QMetaObject::invokeMethod(
-        this,
-        [this, generation, done = std::move(done), result = std::move(result)] {
-            if (generation == m_generation) {
-                done(result);
-            }
-        },
-        Qt::QueuedConnection);
-}
-
-std::optional<ApiError> Connection::refusal(Access access) const
-{
-    if (!hasContext()) {
-        return m_authPaused ? localError(ApiError::Kind::AuthenticationPaused, m_error)
-                            : localError(ApiError::Kind::NotConnected, tr("Not connected to a Tokkl account."));
-    }
-    if (coolingDown()) {
-        return localError(ApiError::Kind::RateLimited, tr("Too many attempts. Wait until %1.").arg(m_cooldown.until().toLocalTime().toString(Qt::TextDate)));
-    }
-    if (access == Access::Write && !canWrite()) {
-        return localError(ApiError::Kind::NotConnected, tr("Changes are not possible right now."));
-    }
-    return std::nullopt;
-}
-
-bool Connection::absorbFailure(const HttpResponse &response, const ApiError &error, Access access)
-{
-    if (error.kind == ApiError::Kind::RateLimited) {
-        m_cooldown.start(response.retryAfter);
-        setState(RateLimited, error.message);
-    } else if (access == Access::Account && (error.kind == ApiError::Kind::Forbidden || error.kind == ApiError::Kind::Unauthorized)) {
-        refuseCredentials(error);
-        return false;
-    } else if (error.kind == ApiError::Kind::Unauthorized) {
-        resetAccount();
-        m_authPaused = true;
-        setState(AuthenticationFailed, error.message);
-        return false;
-    } else if (error.isTransient()) {
-        setState(Disconnected, error.message);
-    }
-    return true;
-}
-
-template<typename T>
-void Connection::call(const QByteArray &method,
-                      const QString &path,
-                      const QByteArray &body,
-                      Access access,
-                      std::function<std::optional<T>(const QJsonValue &)> decode,
-                      std::function<void(const T &)> apply,
-                      Callback<T> done)
-{
-    call<T>(method, m_instance.api(path), body, access, std::move(decode), std::move(apply), std::move(done));
-}
-
-template<typename T>
-void Connection::call(const QByteArray &method,
-                      const QUrl &url,
-                      const QByteArray &body,
-                      Access access,
-                      std::function<std::optional<T>(const QJsonValue &)> decode,
-                      std::function<void(const T &)> apply,
-                      Callback<T> done)
-{
-    if (const std::optional<ApiError> refused = refusal(access)) {
-        deliverLater<ApiResult<T>>(std::move(done), ApiResult<T>::failure(*refused));
-        return;
-    }
-
-    send(method, url, body, [this, method, path = url.path(), access, decode, apply, done](const HttpResponse &response) {
-        if (isSuccess(response)) {
-            const std::optional<QJsonValue> json = parseJsonBody(response.body);
-            std::optional<T> value = json ? decode(*json) : std::nullopt;
-            if (!value) {
-                qCWarning(lcNet) << method << path << "answered with a body Tokkl could not read";
-                if (done) {
-                    done(ApiResult<T>::failure(localError(ApiError::Kind::InvalidResponse, tr("The instance sent a response Tokkl could not read."))));
-                }
-                return;
-            }
-            if (m_state == Disconnected) {
-                setState(Connected);
-            }
-            if (apply) {
-                apply(*value);
-            }
-            if (done) {
-                done(ApiResult<T>::success(std::move(*value)));
-            }
-            return;
-        }
-
-        const ApiError error = errorFromResponse(response);
-        if (!absorbFailure(response, error, access)) {
-            return; // the generation changed; the caller's state is gone too
-        }
-        // A 403 from a workspace operation can mean many things; the caller
-        // decides, for example by calling refreshAccount().
-        if (done) {
-            done(ApiResult<T>::failure(error));
-        }
-    });
+    return m_session.instance().app(path);
 }
 
 void Connection::fetchMe(Callback<Me> done)
 {
-    call<Me>(
-        "GET",
-        QStringLiteral("/me"),
-        QByteArray(),
-        Access::Account,
-        &decodeMe,
-        [this](const Me &me) {
-            bind(me);
-        },
-        std::move(done));
+    m_session.fetchMe(std::move(done));
 }
 
 struct Connection::ProjectPages {
@@ -711,13 +233,12 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
 {
     // The reply arrives only within this generation, so the workspace and
     // the pages read so far still belong to the bound account.
-    call<QList<Project>>(
+    m_session.api().call<QList<Project>>(
         "GET",
-        QStringLiteral("/workspaces/%1/projects?active=true&page=%2&per_page=%3").arg(pages->workspace).arg(pages->page).arg(projectPageSize),
+        api(QStringLiteral("/workspaces/%1/projects?active=true&page=%2&per_page=%3").arg(pages->workspace).arg(pages->page).arg(projectPageSize)),
         QByteArray(),
-        Access::Read,
+        ApiAccess::Read,
         &decodeProjects,
-        {},
         [this, pages](const ApiResult<QList<Project>> &result) {
             if (!result.ok()) {
                 if (pages->done) {
@@ -755,11 +276,11 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
 void Connection::fetchProject(qint64 projectId, Callback<Project> done)
 {
     const qint64 workspace = workspaceId();
-    call<Project>(
+    m_session.api().call<Project>(
         "GET",
-        QStringLiteral("/workspaces/%1/projects/%2").arg(workspace).arg(projectId),
+        api(QStringLiteral("/workspaces/%1/projects/%2").arg(workspace).arg(projectId)),
         QByteArray(),
-        Access::Read,
+        ApiAccess::Read,
         [workspace, projectId](const QJsonValue &value) -> std::optional<Project> {
             std::optional<Project> project = decodeProject(value);
             if (project && (project->id != projectId || project->workspaceId != workspace)) {
@@ -767,7 +288,6 @@ void Connection::fetchProject(qint64 projectId, Callback<Project> done)
             }
             return project;
         },
-        {},
         std::move(done));
 }
 
@@ -775,159 +295,93 @@ void Connection::fetchRecentEntries(Callback<QList<ListedEntry>> done)
 {
     // Without dates the API answers with the entries started in the last 9
     // days.
-    call<QList<ListedEntry>>("GET", QStringLiteral("/me/time_entries?meta=true"), QByteArray(), Access::Read, &decodeListedEntries, {}, std::move(done));
+    m_session.api().call<QList<ListedEntry>>("GET", api(QStringLiteral("/me/time_entries?meta=true")), QByteArray(), ApiAccess::Read, &decodeListedEntries, std::move(done));
 }
 
 void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
 {
     const qint64 workspace = workspaceId();
-    call<TimeEntry>("POST",
-                    QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
-                    encodeStartEntry(entry, workspace, m_clientName),
-                    Access::Write,
-                    &decodeTimeEntry,
-                    {},
-                    std::move(done));
+    m_session.api().call<TimeEntry>("POST",
+                                    api(QStringLiteral("/workspaces/%1/time_entries").arg(workspace)),
+                                    encodeStartEntry(entry, workspace, m_clientName),
+                                    ApiAccess::Write,
+                                    &decodeTimeEntry,
+                                    std::move(done));
 }
 
 void Connection::stopEntry(qint64 entryId, Callback<TimeEntry> done)
 {
-    call<TimeEntry>("PATCH",
-                    QStringLiteral("/workspaces/%1/time_entries/%2/stop").arg(workspaceId()).arg(entryId),
-                    QByteArray(),
-                    Access::Write,
-                    &decodeTimeEntry,
-                    {},
-                    std::move(done));
+    m_session.api().call<TimeEntry>("PATCH",
+                                    api(QStringLiteral("/workspaces/%1/time_entries/%2/stop").arg(workspaceId()).arg(entryId)),
+                                    QByteArray(),
+                                    ApiAccess::Write,
+                                    &decodeTimeEntry,
+                                    std::move(done));
 }
 
 void Connection::updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done)
 {
-    call<TimeEntry>("PUT",
-                    QStringLiteral("/workspaces/%1/time_entries/%2").arg(workspaceId()).arg(entryId),
-                    encodeTimeEntryUpdate(update),
-                    Access::Write,
-                    &decodeTimeEntry,
-                    {},
-                    std::move(done));
+    m_session.api().call<TimeEntry>("PUT",
+                                    api(QStringLiteral("/workspaces/%1/time_entries/%2").arg(workspaceId()).arg(entryId)),
+                                    encodeTimeEntryUpdate(update),
+                                    ApiAccess::Write,
+                                    &decodeTimeEntry,
+                                    std::move(done));
 }
 
 void Connection::fetchPreferences(Callback<PomodoroConfig> done)
 {
-    call<PomodoroConfig>("GET", QStringLiteral("/me/preferences"), QByteArray(), Access::Read, &decodePomodoroPreferences, {}, std::move(done));
+    m_session.api().call<PomodoroConfig>("GET", api(QStringLiteral("/me/preferences")), QByteArray(), ApiAccess::Read, &decodePomodoroPreferences, std::move(done));
 }
 
 void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done)
 {
-    call<PomodoroConfig>("POST",
-                         QStringLiteral("/me/preferences"),
-                         encodePomodoroConfigUpdate(update),
-                         Access::Write,
-                         &decodePomodoroPreferences,
-                         {},
-                         std::move(done));
+    m_session.api().call<PomodoroConfig>("POST",
+                                         api(QStringLiteral("/me/preferences")),
+                                         encodePomodoroConfigUpdate(update),
+                                         ApiAccess::Write,
+                                         &decodePomodoroPreferences,
+                                         std::move(done));
 }
 
 void Connection::fetchTimerState(Callback<TimerState> done)
 {
-    call<TimerState>("GET", m_instance.app(QStringLiteral("/timer")), QByteArray(), Access::Account, &decodeTimerState, {}, std::move(done));
-}
-
-void Connection::timerAction(const QString &path, const QByteArray &body, ActionCallback done)
-{
-    if (const std::optional<ApiError> refused = refusal(Access::Write)) {
-        deliverLater<TimerActionResult>(std::move(done), TimerActionResult{TimerActionResult::Outcome::Refused, std::nullopt, *refused});
-        return;
-    }
-
-    send("POST", m_instance.app(path), body, [this, path, done](const HttpResponse &response) {
-        TimerActionResult result;
-        if (isSuccess(response)) {
-            const std::optional<QJsonValue> json = parseJsonBody(response.body);
-            result.state = json ? decodeTimerState(*json) : std::nullopt;
-            if (result.state) {
-                result.outcome = TimerActionResult::Outcome::Applied;
-                if (m_state == Disconnected) {
-                    setState(Connected);
-                }
-            } else {
-                qCWarning(lcNet) << "POST" << path << "answered with a body Tokkl could not read";
-                // The server answered, so it may well have made the change.
-                result.outcome = TimerActionResult::Outcome::Unknown;
-                result.error = localError(ApiError::Kind::InvalidResponse, tr("The instance sent a response Tokkl could not read."));
-            }
-        } else {
-            result.error = errorFromResponse(response);
-            if (response.outcome == HttpResponse::Outcome::Finished && response.status == 409) {
-                // Refused; the body is the state that refused it.
-                const std::optional<QJsonValue> json = parseJsonBody(response.body);
-                result.state = json ? decodeTimerState(*json) : std::nullopt;
-                result.outcome = result.state ? TimerActionResult::Outcome::Conflict : TimerActionResult::Outcome::Refused;
-            } else if (!absorbFailure(response, result.error, Access::Write)) {
-                return; // the generation changed; the caller's state is gone too
-            } else {
-                result.outcome = result.error.outcomeUnknown() ? TimerActionResult::Outcome::Unknown : TimerActionResult::Outcome::Refused;
-            }
-        }
-        if (done) {
-            done(result);
-        }
-    });
+    m_session.api().call<TimerState>("GET", app(QStringLiteral("/timer")), QByteArray(), ApiAccess::Account, &decodeTimerState, std::move(done));
 }
 
 void Connection::pauseTimer(ActionCallback done)
 {
-    timerAction(QStringLiteral("/timer/pause"), QByteArrayLiteral("{}"), std::move(done));
+    m_session.api().action(app(QStringLiteral("/timer/pause")), QByteArrayLiteral("{}"), std::move(done));
 }
 
 void Connection::resumeTimer(qint64 revision, ActionCallback done)
 {
-    timerAction(QStringLiteral("/timer/resume"), encodeRevision(revision), std::move(done));
+    m_session.api().action(app(QStringLiteral("/timer/resume")), encodeRevision(revision), std::move(done));
 }
 
 void Connection::discardPause(qint64 revision, ActionCallback done)
 {
-    timerAction(QStringLiteral("/timer/discard"), encodeRevision(revision), std::move(done));
+    m_session.api().action(app(QStringLiteral("/timer/discard")), encodeRevision(revision), std::move(done));
 }
 
 void Connection::startPomodoro(const PomodoroStart &start, ActionCallback done)
 {
-    timerAction(QStringLiteral("/pomodoro"), encodePomodoroStart(start, workspaceId(), m_clientName), std::move(done));
+    m_session.api().action(app(QStringLiteral("/pomodoro")), encodePomodoroStart(start, workspaceId(), m_clientName), std::move(done));
 }
 
 void Connection::nextPomodoroPhase(qint64 revision, ActionCallback done)
 {
-    timerAction(QStringLiteral("/pomodoro/next"), encodeRevision(revision), std::move(done));
+    m_session.api().action(app(QStringLiteral("/pomodoro/next")), encodeRevision(revision), std::move(done));
 }
 
 void Connection::endPomodoro(qint64 revision, ActionCallback done)
 {
-    timerAction(QStringLiteral("/pomodoro/end"), encodeRevision(revision), std::move(done));
+    m_session.api().action(app(QStringLiteral("/pomodoro/end")), encodeRevision(revision), std::move(done));
 }
 
 PendingStream *Connection::openTimerEvents()
 {
-    if (refusal(Access::Read) || !m_transport) {
-        return nullptr;
-    }
-    const quint64 generation = m_generation;
-    PendingStream *stream = m_transport->openStream(HttpRequest{"GET", m_instance.app(QStringLiteral("/timer/events")), m_authorization, QByteArray()});
-    m_streams.insert(stream);
-    // Connected before the caller gets the stream, so this runs first.
-    connect(stream, &PendingStream::finished, this, [this, stream, generation](const HttpResponse &response) {
-        m_streams.remove(stream);
-        stream->deleteLater();
-        if (generation != m_generation || response.outcome != HttpResponse::Outcome::Finished) {
-            return;
-        }
-        // Streams end for many reasons, and the caller reads the state after
-        // one. Only a refusal says something about the connection.
-        const ApiError error = errorFromResponse(response);
-        if (error.kind == ApiError::Kind::RateLimited || error.kind == ApiError::Kind::Forbidden || error.kind == ApiError::Kind::Unauthorized) {
-            absorbFailure(response, error, Access::Account);
-        }
-    });
-    return stream;
+    return m_session.api().openStream(app(QStringLiteral("/timer/events")));
 }
 
 }

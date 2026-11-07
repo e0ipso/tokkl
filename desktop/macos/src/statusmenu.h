@@ -11,6 +11,7 @@
 
 class QAction;
 class QMenu;
+class MenuBarAppTest;
 
 namespace Tokkl
 {
@@ -57,19 +58,6 @@ public:
     ~StatusMenu() override;
 
     QMenu *menu() const;
-    QMenu *projectMenu() const;
-    QAction *stateAction() const;
-    QAction *messageAction() const;
-    QAction *startStopAction() const;
-    QAction *startSessionAction() const;
-    QAction *nextPhaseAction() const;
-    QAction *endSessionAction() const;
-    QAction *pomodoroModeAction() const;
-    QAction *billableAction() const;
-    QAction *reconnectAction() const;
-    QAction *openAction() const;
-    QAction *settingsAction() const;
-    QAction *quitAction() const;
 
 Q_SIGNALS:
     void openRequested(const QUrl &url);
@@ -77,6 +65,9 @@ Q_SIGNALS:
     void quitRequested();
 
 private:
+    // The app's tests trigger and read the actions.
+    friend class ::MenuBarAppTest;
+
     void rebuildProjects();
     void refresh();
     void refreshState();

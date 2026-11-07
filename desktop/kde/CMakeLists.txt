@@ -53,6 +53,7 @@ include(KDECMakeSettings)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 include(ECMQmlModule)
 include(ECMFindQmlModule)
+include(ECMPoQmTools)
 include(FeatureSummary)
 
 # Multimedia plays the Pomodoro alarm; only tokklkde and the backend module
@@ -75,6 +76,11 @@ message(STATUS "Tokkl KDE companion version: ${TOKKL_RESOLVED_VERSION}")
 add_subdirectory("${TOKKL_CORE_DIR}" core)
 add_subdirectory(src)
 add_subdirectory(package)
+# The translations of the core's messages, when the source carries them: KDE's
+# translation tooling puts Qt catalogs in poqm/<lang>/tokklcore_qt.po.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/poqm")
+    ecm_install_po_files_as_qm(poqm)
+endif()
 
 if(BUILD_TESTING)
     find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS DBus Test QuickTest)

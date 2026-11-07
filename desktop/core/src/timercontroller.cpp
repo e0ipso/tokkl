@@ -19,18 +19,6 @@ Outcome outcomeOf(const ApiError &error, bool succeeded)
     }
     return error.outcomeUnknown() ? Outcome::Unknown : Outcome::Refused;
 }
-
-// What the panel shows of a chain: whether it is paused, its seconds, the
-// clone, and the project and billable flag of the menu.
-bool sameChain(const std::optional<TimerPause> &a, const std::optional<TimerPause> &b)
-{
-    if (a.has_value() != b.has_value()) {
-        return false;
-    }
-    return !a
-        || (a->paused == b->paused && a->seconds == b->seconds && a->cloneEntryId == b->cloneEntryId && a->projectId == b->projectId
-            && a->billable == b->billable);
-}
 }
 
 TimerController::TimerController(QObject *parent)
@@ -171,12 +159,12 @@ bool TimerController::workspaceAccessLost() const
 
 bool TimerController::isBusy() const
 {
-    return m_mutating || (m_state && m_state->settling());
+    return m_gate.running() || (m_state && m_state->settling());
 }
 
 bool TimerController::canWrite() const
 {
-    return m_connection && m_connection->canWrite() && m_clock && m_state && !m_workspaceLost && m_view && !isBusy();
+    return m_connection && m_connection->canWrite() && m_clock && m_state && !m_workspaceLost && m_view.state() && !isBusy();
 }
 
 QString TimerController::errorString() const
@@ -227,7 +215,7 @@ TimerController::Status TimerController::status() const
     if (isStale()) {
         return Stale;
     }
-    return m_view ? Ready : Loading;
+    return m_view.state() ? Ready : Loading;
 }
 
 std::optional<TimeEntry> TimerController::currentEntry() const
@@ -393,7 +381,7 @@ bool TimerController::start()
     entry.start = m_clock->now().toUTC();
     entry.projectId = m_connection->nextProjectId();
     entry.billable = m_connection->nextBillable();
-    const qint64 revision = m_view->revision;
+    const qint64 revision = m_view.state()->revision;
     beginMutation();
 
     m_connection->startEntry(entry, m_epoch.guard(this, [this, revision](const ApiResult<TimeEntry> &result) {
@@ -424,7 +412,7 @@ bool TimerController::stop()
         return false;
     }
     const qint64 entryId = m_entry->id;
-    const qint64 revision = m_view->revision;
+    const qint64 revision = m_view.state()->revision;
     beginMutation();
 
     m_connection->stopEntry(entryId, m_epoch.guard(this, [this, entryId, revision](const ApiResult<TimeEntry> &result) {
@@ -531,7 +519,7 @@ bool TimerController::updateEntry(const TimeEntryUpdate &update)
     // Only the fields in the update travel; the server keeps the entry's
     // start, description, tags and the rest, and it keeps running.
     const qint64 entryId = m_entry->id;
-    const qint64 revision = m_view->revision;
+    const qint64 revision = m_view.state()->revision;
     beginMutation();
 
     m_connection->updateEntry(entryId, update, m_epoch.guard(this, [this, entryId, revision](const ApiResult<TimeEntry> &result) {
@@ -545,27 +533,20 @@ bool TimerController::updateEntry(const TimeEntryUpdate &update)
 
 void TimerController::beginMutation()
 {
-    m_mutating = true;
+    m_gate.begin();
     setError(QString());
     Q_EMIT statusChanged();
 }
 
 void TimerController::finishMutation(Outcome outcome, const ApiError &error, bool start, bool entryReply)
 {
-    m_mutating = false;
     if (outcome != Outcome::Applied) {
         qCInfo(lcTimer) << "Timer change ended with" << outcome << error.message;
     }
-    if (outcome == Outcome::Unknown) {
-        // The server may have acted. Busy until a read sent from now on
-        // shows its state; never send the write again. The timer actions
-        // have asked for it already.
-        m_settleWhenDone = true;
-    }
-    if (std::exchange(m_settleWhenDone, false) && m_state && !m_state->settling()) {
+    const MutationGate::Ending ending = m_gate.finish(outcome, error, start, entryReply);
+    if (ending.settle && m_state && !m_state->settling()) {
         m_state->settle();
-    } else if (outcome == Outcome::Applied && entryReply && m_state) {
-        // The reply shows only the entry; read the rest.
+    } else if (ending.readRest && m_state) {
         m_state->refresh();
     }
     if (m_workspaceLost) {
@@ -573,43 +554,28 @@ void TimerController::finishMutation(Outcome outcome, const ApiError &error, boo
         return;
     }
 
-    switch (outcome) {
-    case Outcome::Applied:
+    switch (ending.message) {
+    case MutationGate::Message::Clear:
         setError(QString());
         break;
-    case Outcome::Conflict:
+    case MutationGate::Message::Show:
+        setError(error.message);
+        break;
+    case MutationGate::Message::Keep:
+        setError(error.message);
+        m_keepError = true;
+        break;
+    case MutationGate::Message::Conflict:
         // The state the server sent instead is shown already.
         setError(tr("The timer changed on another device first."));
         m_keepError = true;
         break;
-    case Outcome::Unknown:
-        setError(error.message);
-        break;
-    case Outcome::Refused:
-        switch (error.kind) {
-        case ApiError::Kind::Forbidden:
-            loseWorkspace(error);
-            return;
-        case ApiError::Kind::RateLimited:
-        case ApiError::Kind::NotConnected:
-        case ApiError::Kind::AuthenticationPaused:
-            // Refused before the server acted. Reconnection or the end of the
-            // cooldown reads the state again.
-            setError(error.message);
-            break;
-        default:
-            // Answered and refused, for example a 409 for an entry that was
-            // already stopped. Read what the server has now. A refused start
-            // or resume created nothing, so the read cannot answer it: its
-            // message stays until the next action.
-            setError(error.message);
-            m_keepError = start;
-            if (m_state) {
-                m_state->refresh();
-            }
-            break;
-        }
-        break;
+    case MutationGate::Message::LoseWorkspace:
+        loseWorkspace(error);
+        return;
+    }
+    if (ending.refresh && m_state) {
+        m_state->refresh();
     }
     Q_EMIT statusChanged();
 }
@@ -620,9 +586,7 @@ void TimerController::loseWorkspace(const ApiError &error)
     m_workspaceLost = true;
     // A write in flight keeps its lock until it answers, and the server
     // state stays unknown until a read after that answer.
-    if (m_mutating) {
-        m_settleWhenDone = true;
-    }
+    m_gate.settleWhenDone();
     m_error = tr("Tokkl cannot use this workspace any more (%1). Check your membership, then reconnect.").arg(error.message);
     m_catalog->forget();
     applyView();
@@ -692,19 +656,16 @@ void TimerController::onStateChanged()
     const std::optional<TimerState> state = m_state ? m_state->state() : std::nullopt;
     if (!state) {
         // A new generation, or no client.
-        if (m_view) {
-            m_view.reset();
-            m_viewPatched = false;
+        if (m_view.state()) {
+            m_view.clear();
             applyView();
             Q_EMIT statusChanged();
         }
         return;
     }
-    if (m_view && m_viewPatched && state->revision <= m_view->revision) {
+    if (!m_view.adopt(*state)) {
         return; // from before the write whose reply is shown
     }
-    m_view = state;
-    m_viewPatched = false;
     applyView();
     if (!isBusy() && !m_keepError && !m_workspaceLost) {
         setError(QString());
@@ -772,60 +733,32 @@ void TimerController::fetchProjects()
 
 void TimerController::showReply(qint64 revision, const std::optional<TimeEntry> &running, const std::optional<TimeEntry> &stoppedReply)
 {
-    if (!m_view || m_view->revision > revision) {
-        return; // a newer state came, with this write or after it
+    if (m_view.patch(revision, running)) {
+        applyView(stoppedReply);
     }
-    m_view->runningEntry = running;
-    const std::optional<qint64> runningId = running ? std::optional<qint64>(running->id) : std::nullopt;
-    // As the server settles them: a chain stays only while its clone runs,
-    // or paused while nothing runs, and a session only while its pomodoro
-    // runs.
-    if (m_view->pause && !(running ? m_view->pause->cloneEntryId == runningId : m_view->pause->paused)) {
-        m_view->pause.reset();
-    }
-    if (m_view->pomodoro && m_view->pomodoro->entryId != runningId) {
-        m_view->pomodoro.reset();
-    }
-    m_viewPatched = true;
-    applyView(stoppedReply);
 }
 
 void TimerController::applyView(const std::optional<TimeEntry> &stoppedReply)
 {
-    std::optional<TimeEntry> next;
-    std::optional<TimerPause> chain;
-    const bool session = m_view && m_view->pomodoro;
-    // A lost workspace hides what runs in it; the session's pomodoro is the
-    // session's.
-    if (m_view && !m_workspaceLost && !session) {
-        next = m_view->runningEntry;
-        if (next && next->workspaceId != workspaceId()) {
-            // Running in another workspace: not shown in this context.
-            next.reset();
-        }
-        chain = m_view->pause;
-        if (chain && (chain->workspaceId != workspaceId() || !(next ? chain->cloneEntryId == next->id : chain->paused))) {
-            chain.reset();
-        }
-    }
-    const bool entryChanged = next != m_entry;
-    const bool chainChanged = !sameChain(chain, m_chain);
-    const bool sessionChanged = session != m_sessionActive;
+    const TimerView::Shown shown = m_view.shown(workspaceId(), m_workspaceLost);
+    const bool entryChanged = shown.entry != m_entry;
+    const bool chainChanged = !TimerView::sameChain(shown.chain, m_chain);
+    const bool sessionChanged = shown.session != m_sessionActive;
     // A stop the state shows, not a context that went away.
-    const bool stopped = m_entry.has_value() && !next.has_value() && m_view && !m_workspaceLost && !session;
+    const bool stopped = m_entry.has_value() && !shown.entry.has_value() && m_view.state() && !m_workspaceLost && !shown.session;
     std::optional<qint64> stoppedProject;
     if (stopped) {
         if (stoppedReply && stoppedReply->id == m_entry->id) {
             stoppedProject = stoppedReply->projectId;
         } else {
             // A pause names the project the server stopped.
-            stoppedProject = chain && chain->paused ? chain->projectId : m_entry->projectId;
+            stoppedProject = shown.chain && shown.chain->paused ? shown.chain->projectId : m_entry->projectId;
         }
     }
-    m_entry = next;
-    m_chain = chain;
-    m_sessionActive = session;
-    if (next) {
+    m_entry = shown.entry;
+    m_chain = shown.chain;
+    m_sessionActive = shown.session;
+    if (m_entry) {
         m_defaults.cancelLastEntryRead();
     }
     if (stopped) {
@@ -960,8 +893,7 @@ void TimerController::reset()
 {
     // Another generation, account or client: nothing carries over.
     m_epoch.advance();
-    m_mutating = false;
-    m_settleWhenDone = false;
+    m_gate.reset();
     m_workspaceLost = false;
     m_rediscoveryUsed = false;
     m_loaded = false;
@@ -969,8 +901,7 @@ void TimerController::reset()
     m_defaults.reset();
     setError(QString());
     m_lastState = connectionState();
-    m_view.reset();
-    m_viewPatched = false;
+    m_view.clear();
     applyView();
     m_catalog->clearList();
     resolveProject();

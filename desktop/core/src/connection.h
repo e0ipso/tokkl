@@ -1,38 +1,32 @@
 #pragma once
 
+#include "apiclient.h"
 #include "apitypes.h"
+#include "authsession.h"
 #include "cooldown.h"
 #include "credentialstore.h"
-#include "instanceurl.h"
 #include "transport.h"
 
 #include <QDateTime>
 #include <QObject>
-#include <QPointer>
-#include <QSet>
-#include <QTimer>
+#include <QUrl>
 #include <QVariant>
 
-#include <functional>
 #include <memory>
+#include <optional>
 
 namespace Tokkl
 {
 
-// The authenticated API client for one configured instance and account.
+// The API of one configured instance and account, for QML and the
+// companions.
 //
-// Settings come from the widget configuration (instanceUrl, authMode, email);
-// the secret comes from the credential store. GET /api/v9/me validates them
-// and binds the account and its default workspace to the current generation.
-// Every operation uses that workspace.
-//
-// Changing a setting or the stored secret starts a new generation: account
-// data and next-start choices are cleared at once, requests in flight are
-// aborted, and replies issued under an older generation are dropped.
-//
-// When the store refuses to write a secret for this account, also after the
-// settings page that asked for it is gone, the connection drops the account
-// and reports WalletError, so the user learns that the secret was not saved.
+// Settings come from the widget configuration (instanceUrl, authMode, email).
+// AuthSession reads the secret, validates the account, keeps the connection
+// state and starts a new generation whenever a setting or the stored secret
+// changes; ApiClient sends the requests. Connection adds the typed
+// operations, which all use the bound account's default workspace, and the
+// choices for the next start, which go with the account.
 class Connection : public QObject
 {
     Q_OBJECT
@@ -46,7 +40,7 @@ class Connection : public QObject
     // not usable. It never carries credentials.
     Q_PROPERTY(QUrl webUrl READ webUrl NOTIFY instanceUrlChanged)
 
-    Q_PROPERTY(State state READ state NOTIFY stateChanged)
+    Q_PROPERTY(Tokkl::AuthSession::State state READ state NOTIFY stateChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY stateChanged)
     // A validated account is bound. It stays bound through transient
     // failures (then stale is true) and cooldowns.
@@ -63,29 +57,20 @@ class Connection : public QObject
     Q_PROPERTY(bool nextBillable READ nextBillable WRITE setNextBillable NOTIFY nextStartChanged)
 
 public:
-    enum State {
-        Unconfigured, // no instance URL
-        InvalidSettings, // the URL or email is not usable; see errorString
-        LoadingCredentials,
-        CredentialsMissing,
-        WalletError, // locked, denied or disabled wallet; nothing is stored elsewhere
-        Connecting,
-        Connected,
-        AuthenticationFailed, // /me answered 401 or 403; retries pause until reconnect()
-        RateLimited, // waiting out a 429 cooldown
-        Disconnected, // connectivity failure, timeout or 5xx
-        Error, // redirect or unexpected response
-    };
-    Q_ENUM(State)
+    // The states are AuthSession's; Connection::Connected names the same
+    // value as AuthSession::Connected.
+    using State = AuthSession::State;
+#ifndef Q_MOC_RUN
+    using enum AuthSession::State;
+#endif
 
     template<typename T>
-    using Callback = std::function<void(const ApiResult<T> &)>;
-    using ActionCallback = std::function<void(const TimerActionResult &)>;
+    using Callback = ApiClient::Callback<T>;
+    using ActionCallback = ApiClient::ActionCallback;
 
     // Uses the given transport and store; the connection does not own them.
     // clientName goes into the created_with field of the entries it starts.
     Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent = nullptr);
-    ~Connection() override;
 
     QString instanceUrl() const;
     void setInstanceUrl(const QString &url);
@@ -166,8 +151,8 @@ public:
     // Delay before an automatic retry after a connectivity failure, plus up
     // to retryJitterMs more at random, and the cooldown after a 429 without
     // Retry-After.
-    static constexpr int retryDelayMs = 30000;
-    static constexpr int retryJitterMs = 10000;
+    static constexpr int retryDelayMs = AuthSession::retryDelayMs;
+    static constexpr int retryJitterMs = AuthSession::retryJitterMs;
     static constexpr int defaultCooldownMs = Cooldown::defaultMs;
     // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;
@@ -191,103 +176,16 @@ Q_SIGNALS:
     void nextStartChanged();
 
 private:
-    struct Context {
-        quint64 generation = 0;
-        QString instanceKey;
-        Me me;
-    };
-    // A write the store refused, kept until the next reload so a failure that
-    // arrives before the matching settings is still shown. No secret.
-    struct FailedWrite {
-        QString key;
-        CredentialResult::Status status;
-    };
-
-    void settingsChanged();
-    void scheduleReload();
-    void reload();
-    void onSecretChanged(const QString &key);
-    void onSecretWriteFailed(const QString &key, const CredentialResult &result);
-    void showFailedWrite(CredentialResult::Status status);
-    void authenticate(bool explicitRequest);
-    void handleMe(const HttpResponse &response);
-    void refuseCredentials(const ApiError &error);
-    void bind(const Me &me);
-    void resetAccount();
-    void clearAccountData();
-    void setState(State state, const QString &error = QString());
-    void onCooldownEnded();
-    bool coolingDown() const;
-    bool hasContext() const;
-    QString currentCredentialKey() const;
-    QString credentialMessage(const CredentialResult &result) const;
-
-    using ResponseHandler = std::function<void(const HttpResponse &)>;
-    void send(const QByteArray &method, const QString &path, const QByteArray &body, ResponseHandler handler);
-    void send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler);
-    enum class Access {
-        Read,
-        Write, // needs canWrite()
-        Account, // validates the credentials, like refreshAccount(); /me and the timer state
-    };
-    template<typename T>
-    void call(const QByteArray &method,
-              const QString &path,
-              const QByteArray &body,
-              Access access,
-              std::function<std::optional<T>(const QJsonValue &)> decode,
-              std::function<void(const T &)> apply,
-              Callback<T> done);
-    template<typename T>
-    void call(const QByteArray &method,
-              const QUrl &url,
-              const QByteArray &body,
-              Access access,
-              std::function<std::optional<T>(const QJsonValue &)> decode,
-              std::function<void(const T &)> apply,
-              Callback<T> done);
-    // Runs done with result from the event loop, unless the generation
-    // changes first.
-    template<typename Result>
-    void deliverLater(std::function<void(const Result &)> done, Result result);
-    // The refusal a request got before it was sent, or nullopt when access
-    // allows it.
-    std::optional<ApiError> refusal(Access access) const;
-    // What a failed answer means for the connection: a cooldown, refused
-    // credentials or stale data. False when the credentials were refused,
-    // which starts a new generation, so the caller's state is gone too.
-    bool absorbFailure(const HttpResponse &response, const ApiError &error, Access access);
-    void timerAction(const QString &path, const QByteArray &body, ActionCallback done);
     struct ProjectPages;
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
+    void clearNextStart();
+    QUrl api(const QString &path) const;
+    QUrl app(const QString &path) const;
 
-    QPointer<Transport> m_transport;
-    QPointer<CredentialStore> m_store;
     const QString m_clientName;
-
-    QString m_instanceText;
-    AuthMode m_authMode = AuthMode::Token;
-    QString m_email;
-    InstanceUrl m_instance;
-
-    quint64 m_generation = 1;
-    bool m_hasSecret = false;
-    QString m_secret;
-    QByteArray m_authorization;
-    bool m_authPaused = false;
-    bool m_reloadScheduled = false;
-    std::optional<FailedWrite> m_failedWrite;
-
-    State m_state = Unconfigured;
-    QString m_error;
-    std::optional<Context> m_context;
+    AuthSession m_session;
     std::optional<qint64> m_nextProjectId;
     bool m_nextBillable = false;
-
-    Cooldown m_cooldown;
-    QTimer m_retryTimer;
-    QSet<PendingReply *> m_pending;
-    QSet<PendingStream *> m_streams;
 };
 
 }

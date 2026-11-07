@@ -1,7 +1,7 @@
 # tokklgnome: org.tokkl.Timer1 on tokklcore, with the adaptor generated from
-# the interface description in dbus/, and the WAV reader of the sound
-# server backend. Qt Core, Network and DBus only, so the tests build without
-# QtKeychain or libpulse.
+# the interface description in dbus/, the service's connection settings, and
+# the WAV reader of the sound server backend. Qt Core, Network and DBus only,
+# so the tests build without QtKeychain or libpulse.
 
 set(_tokkl_adaptor_sources)
 qt_add_dbus_adaptor(_tokkl_adaptor_sources
@@ -12,6 +12,8 @@ qt_add_dbus_adaptor(_tokkl_adaptor_sources
     Timer1Adaptor)
 
 add_library(tokklgnome STATIC
+    servicesettings.cpp
+    servicesettings.h
     timerservice.cpp
     timerservice.h
     wavfile.cpp

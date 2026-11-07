@@ -1,6 +1,6 @@
 // The top bar button and its menu. Everything shown comes from the
-// org.tokkl.Timer1 proxy; every action is one method call on it, and the
-// service decides whether it happens.
+// org.tokkl.Timer1 proxy, through menumodel.js; every action is one method
+// call on it, and the service decides whether it happens.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -13,123 +13,15 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import { captureActivateKeys, replaceClickGesture } from './compat.js';
-import { describeIndicator, fillColor, pulseOpacity, PULSE_PERIOD_MS, shapeGeometry } from './projectindicator.js';
-import {
-    chosenProjectLabel,
-    countdown,
-    describeStatus,
-    elapsedSeconds,
-    fill,
-    formatElapsed,
-    nextPhaseLabel,
-    pomodoroModeLabel,
-    projectLabel,
-    sessionLine,
-} from './timer1.js';
+import { describeMenu, describeTime, projectChoices } from './menumodel.js';
+import { describeIndicator } from './projectindicator.js';
+import { TokklProjectIndicator } from './projectindicatorview.js';
+import { describeStatus, formatElapsed, projectLabel } from './timer1.js';
 import { cachedProperty, serviceRunning } from './timer1proxy.js';
 
 // The properties the project submenu's items show. A change to any other
 // property leaves the items as they are.
 const PROJECT_ITEM_PROPERTIES = ['Projects', 'ChosenProject'];
-
-// The project indicator in a slot of its own; projectindicator.js decides
-// what it shows. Two drawing areas share the slot, so the fill can pulse
-// while the ring or outline above it keeps full opacity.
-const TokklProjectIndicator = GObject.registerClass(
-    class TokklProjectIndicator extends St.Widget {
-        _init() {
-            super._init({
-                style_class: 'tokkl-project-indicator',
-                layout_manager: new Clutter.BinLayout(),
-                y_align: Clutter.ActorAlign.CENTER,
-            });
-            this._shape = { kind: 'empty', round: false, color: '', pulsing: false, label: '' };
-            this._pulse = null;
-
-            this._fill = new St.DrawingArea({ x_expand: true, y_expand: true, visible: false });
-            this._fill.connect('repaint', area => this._paint(area, true));
-            this.add_child(this._fill);
-            this._edge = new St.DrawingArea({ x_expand: true, y_expand: true, visible: false });
-            this._edge.connect('repaint', area => this._paint(area, false));
-            this.add_child(this._edge);
-
-            this.connect('style-changed', () => this._repaint());
-            this.connect('destroy', () => this._stopPulse());
-        }
-
-        get shape() {
-            return this._shape;
-        }
-
-        /**
-         * @param {ReturnType<typeof describeIndicator>} shape
-         */
-        setShape(shape) {
-            this._shape = shape;
-            this.accessible_name = shape.label;
-            this._fill.visible = shape.kind === 'filled';
-            this._edge.visible = shape.kind !== 'empty';
-            this._repaint();
-            if (shape.pulsing && !this._pulse) this._startPulse();
-            else if (!shape.pulsing) this._stopPulse();
-        }
-
-        _repaint() {
-            this._fill.queue_repaint();
-            this._edge.queue_repaint();
-        }
-
-        // The timeline follows the fill's frame clock, so it does not advance
-        // while the top bar is not on screen.
-        _startPulse() {
-            this._pulse = new Clutter.Timeline({ actor: this._fill, duration: PULSE_PERIOD_MS, repeat_count: -1 });
-            this._pulse.connect('new-frame', (timeline, elapsedMs) => {
-                this._fill.opacity = Math.round(255 * pulseOpacity(elapsedMs));
-            });
-            this._pulse.start();
-        }
-
-        _stopPulse() {
-            this._pulse?.stop();
-            this._pulse = null;
-            this._fill.opacity = 255;
-        }
-
-        // The ring, the outline and a fill without a project colour take the
-        // top bar's text colour.
-        _paint(area, fill) {
-            const cr = area.get_context();
-            const [width, height] = area.get_surface_size();
-            const scale = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-            const { x, y, size, radius, line, dash } = shapeGeometry(width, height, this._shape.round, scale);
-            const ink = area.get_theme_node().get_foreground_color();
-
-            if (fill) {
-                const { red, green, blue } = fillColor(this._shape.color, ink);
-                cr.setSourceRGB(red / 255, green / 255, blue / 255);
-                shapePath(cr, x, y, size, radius);
-                cr.fill();
-            } else {
-                cr.setSourceRGBA(ink.red / 255, ink.green / 255, ink.blue / 255, ink.alpha / 255);
-                cr.setLineWidth(line);
-                if (this._shape.kind === 'outline') cr.setDash([dash, dash], 0);
-                // The stroke stays inside the shape, as a border would.
-                shapePath(cr, x + line / 2, y + line / 2, size - line, Math.max(0, radius - line / 2));
-                cr.stroke();
-            }
-            cr.$dispose();
-        }
-    },
-);
-
-function shapePath(cr, x, y, size, radius) {
-    cr.newSubPath();
-    cr.arc(x + size - radius, y + radius, radius, -Math.PI / 2, 0);
-    cr.arc(x + size - radius, y + size - radius, radius, 0, Math.PI / 2);
-    cr.arc(x + radius, y + size - radius, radius, Math.PI / 2, Math.PI);
-    cr.arc(x + radius, y + radius, radius, Math.PI, (3 * Math.PI) / 2);
-    cr.closePath();
-}
 
 export const TokklIndicator = GObject.registerClass(
     class TokklIndicator extends PanelMenu.Button {
@@ -329,131 +221,63 @@ export const TokklIndicator = GObject.registerClass(
         _sync(changed) {
             const state = this._state();
             const words = describeStatus(state.status, state.errorString, _);
-            const ready = state.status === 'ready';
-            const timerHeld = state.running || state.paused;
 
             this._words = words;
-            this._running = state.running;
-            this._paused = state.paused;
-            this._startTime = state.startTime;
-            this._chainSeconds = state.chainSeconds;
-            this._pomodoroMode = state.pomodoroMode;
-            // The panel counts the phase down while a session is active, in
-            // either mode.
-            this._session = state.sessionActive ? state : null;
+            this._time = {
+                running: state.running,
+                paused: state.paused,
+                startTime: state.startTime,
+                chainSeconds: state.chainSeconds,
+                pomodoroMode: state.pomodoroMode,
+                // The panel counts the phase down while a session is active, in
+                // either mode.
+                session: state.sessionActive ? state : null,
+            };
             this._ticking = state.running || state.sessionActive;
             this._hourglass.visible = state.pomodoroMode;
             this._projectIndicator.setShape(describeIndicator(state, this._settings.enable_animations, _));
             this._updateTime();
             this._syncTick();
 
-            this._messageItem.label.text = state.sessionMessage;
-            this._messageItem.visible = state.sessionMessage.length > 0;
-            this._detailItem.label.text = words.detail;
-            this._detailItem.visible = words.detail.length > 0;
-
-            this._toggleItem.label.text = timerHeld ? _('Stop') : _('Start');
-            this._toggleItem.setSensitive(ready);
-            this._toggleItem.visible = !state.sessionActive && (!state.pomodoroMode || timerHeld);
-
-            this._syncSession(state, timerHeld);
-            this._syncProjectLabel(state, ready);
+            const menu = describeMenu(state, words, _);
+            showItem(this._messageItem, menu.message);
+            showItem(this._detailItem, menu.detail);
+            showItem(this._toggleItem, menu.toggle);
+            showItem(this._startSessionItem, menu.startSession);
+            showItem(this._nextPhaseItem, menu.nextPhase);
+            showItem(this._endSessionItem, menu.endSession);
+            showItem(this._projectMenu, menu.project);
             if (!changed || changed.some(name => PROJECT_ITEM_PROPERTIES.includes(name))) this._syncProjectItems(state);
+            this._syncSwitch(this._modeItem, menu.mode);
+            this._syncSwitch(this._billableItem, menu.billable);
+        }
 
-            // Billable stays editable while an entry runs: the service then
-            // edits that entry. While paused it shows the paused entry's flag,
-            // which the service refuses to change.
+        // Sets a switch without sending the value back to the service.
+        _syncSwitch(item, shown) {
             this._syncing = true;
-            this._billableItem.setToggleState(state.billable);
+            if (shown.text !== undefined) item.label.text = shown.text;
+            item.setToggleState(shown.checked);
             this._syncing = false;
-            this._billableItem.setSensitive(ready && !state.paused);
+            item.setSensitive(shown.sensitive);
         }
 
-        // The session's items and the mode switch. Which actions apply is the
-        // service's call: it refuses the others, and the menu only follows the
-        // published state. A session started on another device shows the same
-        // items, in either mode.
-        _syncSession(state, timerHeld) {
-            this._startSessionItem.visible = state.pomodoroMode && !state.sessionActive && !timerHeld;
-            // The service says when a session can start: not before it has read
-            // the server's state, and not while an action waits for its answer.
-            this._startSessionItem.setSensitive(state.canStartSession);
-            this._nextPhaseItem.label.text = nextPhaseLabel(state.upcomingPhase, _);
-            this._nextPhaseItem.visible = state.sessionActive;
-            this._endSessionItem.visible = state.sessionActive;
-
-            this._modeItem.label.text = pomodoroModeLabel(state.modeLocked, _);
-            this._syncing = true;
-            this._modeItem.setToggleState(state.pomodoroMode);
-            this._syncing = false;
-            this._modeItem.setSensitive(state.status !== null && !state.modeLocked);
-        }
-
-        // Project chooses the project of the next start. The service refuses it
-        // while an entry runs or a chain is paused, so the submenu is locked then.
-        _syncProjectLabel(state, ready) {
-            const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
-            if (state.running) this._projectMenu.label.text = fill(_('Project: %s (locked while running)'), chosen);
-            else if (state.paused) this._projectMenu.label.text = fill(_('Project: %s (locked while paused)'), chosen);
-            else this._projectMenu.label.text = fill(_('Project: %s'), chosen);
-            this._projectMenu.setSensitive(ready && !state.running && !state.paused);
-        }
-
-        // One item per project and No project, the chosen one checked.
         _syncProjectItems(state) {
             const section = this._projectMenu.menu;
             section.removeAll();
-            const choices = [{ id: 0, label: _('No project') }];
-            for (const project of state.projects) choices.push({ id: project.id, label: projectLabel(project) });
-            for (const choice of choices) {
+            for (const choice of projectChoices(state.projects, state.chosenProject, projectLabel, _)) {
                 const item = new PopupMenu.PopupMenuItem(choice.label);
-                item.setOrnament(
-                    choice.id === state.chosenProject ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE,
-                );
+                item.setOrnament(choice.checked ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
                 item.connect('activate', () => this._call('SetProject', [choice.id]));
                 section.addMenuItem(item);
             }
         }
 
-        // The chain total: what the chain's paused entries stored plus the
-        // running entry's own time, frozen while paused.
-        _chainTotal() {
-            const now = GLib.get_real_time() / 1_000_000;
-            const running = this._running ? elapsedSeconds(this._startTime, now) : 0;
-            return formatElapsed(this._chainSeconds + running);
-        }
-
-        // The time on the button, the menu's status line and the button's
-        // accessible name. During a session they show the phase's countdown
-        // instead of the timer.
         _updateTime() {
-            let timer, status;
-            if (this._session) {
-                const now = GLib.get_real_time() / 1_000_000;
-                this._label.text = `${countdown(this._session.plannedEnd, now).text}${this._words.mark}`;
-                timer = status = sessionLine(this._session, now, _);
-            } else {
-                const elapsed = this._chainTotal();
-                this._label.text = `${elapsed}${this._words.mark}`;
-                timer = _('Stopped');
-                status = this._words.text;
-                if (this._running) {
-                    timer = fill(_('Running %s'), elapsed);
-                } else if (this._paused) {
-                    timer = fill(_('Paused %s'), elapsed);
-                    // While paused the line leads with the chain total, then the
-                    // connection state, as the KDE and macOS menus do.
-                    status = fill(_('Paused %s · %s'), elapsed, this._words.text);
-                }
-            }
-            this._statusItem.label.text = status;
-
-            const parts = [timer];
-            if (this._projectIndicator.shape.label) parts.push(this._projectIndicator.shape.label);
-            parts.push(this._words.text);
-            if (this._words.detail) parts.push(this._words.detail);
-            if (this._pomodoroMode && !this._session) parts.push(_('Pomodoro mode'));
-            this.accessible_name = parts.join(' · ');
+            const now = GLib.get_real_time() / 1_000_000;
+            const shown = describeTime(this._time, this._words, this._projectIndicator.shape.label, now, _);
+            this._label.text = shown.button;
+            this._statusItem.label.text = shown.status;
+            this.accessible_name = shown.accessibleName;
         }
 
         // Ticks once a second while an entry runs or a session is active, and
@@ -483,7 +307,7 @@ export const TokklIndicator = GObject.registerClass(
         }
 
         _startOrStop() {
-            this._call(this._running || this._paused ? 'Stop' : 'Start', []);
+            this._call(this._time.running || this._time.paused ? 'Stop' : 'Start', []);
         }
 
         // The service answers false when it refused a choice, and then announces
@@ -572,3 +396,11 @@ export const TokklIndicator = GObject.registerClass(
         }
     },
 );
+
+// Puts what describeMenu() says on a menu item: its text, if it has one, and
+// whether it shows and can be chosen.
+function showItem(item, shown) {
+    if (shown.text !== undefined) item.label.text = shown.text;
+    if (shown.visible !== undefined) item.visible = shown.visible;
+    if (shown.sensitive !== undefined) item.setSensitive(shown.sensitive);
+}

@@ -6,8 +6,17 @@
 
 add_library(tokklcore STATIC
     alarmoutput.h
+    apiclient.cpp
+    apiclient.h
+    apierrors.cpp
+    apijson.cpp
+    apijson.h
+    apipreferences.cpp
+    apitimer.cpp
     apitypes.cpp
     apitypes.h
+    authsession.cpp
+    authsession.h
     clock.cpp
     clock.h
     connection.cpp
@@ -25,6 +34,8 @@ add_library(tokklcore STATIC
     instanceurl.h
     logging.cpp
     logging.h
+    mutationgate.cpp
+    mutationgate.h
     nextstartdefaults.h
     pomodoroalarm.cpp
     pomodoroalarm.h
@@ -44,8 +55,12 @@ add_library(tokklcore STATIC
     timercontroller.h
     timerstateclient.cpp
     timerstateclient.h
+    timerview.cpp
+    timerview.h
     transport.cpp
     transport.h
+    translations.cpp
+    translations.h
 )
 set_target_properties(tokklcore PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_features(tokklcore PUBLIC cxx_std_20)

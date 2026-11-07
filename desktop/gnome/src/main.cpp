@@ -7,6 +7,7 @@
 #include "pomodoroalarm.h"
 #include "pulsealarmbackend.h"
 #include "timerservice.h"
+#include "translations.h"
 #include "transport.h"
 
 #include <QCoreApplication>
@@ -68,6 +69,11 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("tokkl-timerd"));
     QCoreApplication::setApplicationVersion(QStringLiteral(TOKKL_VERSION_STRING));
+    // The core's messages and the service's own reach the extension as they
+    // are, so they are translated here, in the session's locale.
+    const QStringList localeDirs = Tokkl::systemLocaleDirs();
+    Tokkl::installTranslations(Tokkl::coreCatalog, localeDirs);
+    Tokkl::installTranslations(QStringLiteral("tokkl_timerd_qt"), localeDirs);
     if (!quitOnTerminate(app)) {
         qCWarning(lcTimerd) << "cannot catch SIGTERM; the service will exit without leaving the bus";
     }

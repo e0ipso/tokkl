@@ -16,6 +16,7 @@ class QPushButton;
 class QRadioButton;
 class QSettings;
 class QSpinBox;
+class MenuBarAppTest;
 
 namespace Tokkl
 {
@@ -83,36 +84,14 @@ public:
     // waiting.
     bool save();
 
-    ConnectionSetup *setup() const;
-    QLineEdit *urlField() const;
-    QRadioButton *tokenButton() const;
-    QRadioButton *passwordButton() const;
-    QLineEdit *emailField() const;
-    QLineEdit *secretField() const;
-    QLabel *urlNote() const;
-    QLabel *storeError() const;
-    QPushButton *testButton() const;
-    QLabel *testResult() const;
-    QCheckBox *loginToggle() const;
-    QCheckBox *monochromeToggle() const;
-    QLabel *loginNote() const;
-    QPushButton *saveButton() const;
-
-    QSpinBox *lengthBox(PomodoroField field) const;
-    // The server's message for the field's refused value.
-    QLabel *lengthError(PomodoroField field) const;
-    // Why the lengths cannot be edited.
-    QLabel *lengthsNote() const;
-    // A failed read, or a refused save that names no field.
-    QLabel *pomodoroError() const;
-    QComboBox *soundBox(TransitionKind kind) const;
-    QPushButton *previewButton(TransitionKind kind) const;
-
 Q_SIGNALS:
     // The settings were saved.
     void saved();
 
 private:
+    // The app's tests fill and read the fields.
+    friend class ::MenuBarAppTest;
+
     QString authMode() const;
     void onSaveFinished(bool close);
     void onAccountChanged();
@@ -151,8 +130,11 @@ private:
     QPushButton *m_saveButton;
 
     std::array<QSpinBox *, 4> m_lengthBoxes;
+    // The server's message for each field's refused value.
     std::array<QLabel *, 4> m_lengthErrors;
+    // Why the lengths cannot be edited.
     QLabel *m_lengthsNote;
+    // A failed read, or a refused save that names no field.
     QLabel *m_pomodoroError;
     std::array<QComboBox *, 4> m_soundBoxes;
     std::array<QPushButton *, 4> m_previewButtons;
