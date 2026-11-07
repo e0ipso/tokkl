@@ -17,4 +17,6 @@ export const dates = {
   time12: '{hour}:{minute} {period}',
   /** A date and a time, such as "2026-03-10 09:30". */
   dateTime: '{date} {time}',
+  /** A span of clock times, such as "09:00 – 10:30". */
+  timeRange: '{start} – {end}',
 } as const satisfies MessageGroup;

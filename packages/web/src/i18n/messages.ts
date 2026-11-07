@@ -7,6 +7,7 @@ import {
   type ParamsOf,
   type PluralMessage,
 } from './catalog.ts';
+import { calendar } from './en/calendar.ts';
 import { common } from './en/common.ts';
 import { dates } from './en/dates.ts';
 import { entries } from './en/entries.ts';
@@ -24,6 +25,7 @@ export const en = {
   shell,
   timer,
   entries,
+  calendar,
 } as const;
 
 export type Catalog = typeof en;
