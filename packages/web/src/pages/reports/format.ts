@@ -1,4 +1,5 @@
 import type { Grouping, Report } from '../../api/types.ts';
+import { NUMBER_LOCALE } from '../../i18n/locale.ts';
 import { formatMoney } from '../../lib/format.ts';
 
 export const GROUPING_LABELS: Record<Grouping, string> = {
@@ -38,7 +39,7 @@ export function percent(part: number, whole: number): number {
   return whole > 0 ? (part / whole) * 100 : 0;
 }
 
-const percentFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const percentFormat = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 
 export function formatPercent(value: number): string {
   return `${percentFormat.format(value)}%`;

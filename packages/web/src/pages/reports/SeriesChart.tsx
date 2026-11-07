@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { Report } from '../../api/types.ts';
+import { NUMBER_LOCALE } from '../../i18n/locale.ts';
 import { duration } from '../../lib/format.ts';
 import type { Settings } from '../../lib/settings.ts';
 import { ChartDataTable, ChartTooltip, StripePattern, Swatch } from './SeriesChartParts.tsx';
@@ -15,7 +16,7 @@ import {
 } from './seriesChartLayout.ts';
 import { useGeometry, useWidth } from './useChartSize.ts';
 
-const hoursFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const hoursFormat = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 2 });
 
 const UNIT: Record<Resolution, string> = { day: 'day', week: 'week', month: 'month' };
 
