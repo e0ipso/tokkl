@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import type { PatchOperation } from '../api/types.ts';
+import { entryPatch } from '../lib/entryPatches.ts';
 import { Icon } from './Icon.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { TagPicker } from './TagPicker.tsx';
@@ -32,14 +33,14 @@ export function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) 
       <button
         type="button"
         className="button button-ghost"
-        onClick={() => patch([{ op: 'replace', path: '/billable', value: true }], 'Marked billable')}
+        onClick={() => patch(entryPatch.billable(true), 'Marked billable')}
       >
         Billable
       </button>
       <button
         type="button"
         className="button button-ghost"
-        onClick={() => patch([{ op: 'replace', path: '/billable', value: false }], 'Marked non-billable')}
+        onClick={() => patch(entryPatch.billable(false), 'Marked non-billable')}
       >
         Non-billable
       </button>
@@ -55,15 +56,7 @@ export function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) 
           anchor={projectRef}
           projectId={null}
           taskId={null}
-          onChange={(pid, tid) =>
-            patch(
-              [
-                { op: 'replace', path: '/project_id', value: pid },
-                { op: 'replace', path: '/task_id', value: tid },
-              ],
-              'Project updated',
-            )
-          }
+          onChange={(pid, tid) => patch(entryPatch.project(pid, tid), 'Project updated')}
           onClose={() => setPicker(null)}
         />
       ) : null}
@@ -73,7 +66,7 @@ export function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) 
           value={[]}
           onChange={tags => {
             setPicker(null);
-            patch([{ op: 'add', path: '/tags', value: tags }], 'Tags added');
+            patch(entryPatch.addTags(tags), 'Tags added');
           }}
           onClose={() => setPicker(null)}
         />

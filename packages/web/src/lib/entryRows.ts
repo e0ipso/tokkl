@@ -35,9 +35,12 @@ export function entriesByDay(entries: readonly TimeEntry[], timeZone: string): E
   return [...byDay].sort(([a], [b]) => b.localeCompare(a)).map(([day, list]) => ({ day, entries: list }));
 }
 
+/** A list with at least one item. */
+export type NonEmpty<T> = [T, ...T[]];
+
 export interface EntryRowGroup {
   key: string;
-  entries: StoppedEntry[];
+  entries: NonEmpty<StoppedEntry>;
 }
 
 function similarityKey(entry: TimeEntry): string {
@@ -54,10 +57,12 @@ function similarityKey(entry: TimeEntry): string {
  */
 export function rowsForDay(entries: readonly StoppedEntry[], collapse: boolean): EntryRowGroup[] {
   if (!collapse) return entries.map(entry => ({ key: String(entry.id), entries: [entry] }));
-  const groups = new Map<string, StoppedEntry[]>();
+  const groups = new Map<string, NonEmpty<StoppedEntry>>();
   for (const entry of entries) {
     const similar = similarityKey(entry);
-    groups.set(similar, [...(groups.get(similar) ?? []), entry]);
+    const group = groups.get(similar);
+    if (group) group.push(entry);
+    else groups.set(similar, [entry]);
   }
   return [...groups.values()].map(members => ({ key: String(Math.min(...members.map(e => e.id))), entries: members }));
 }
