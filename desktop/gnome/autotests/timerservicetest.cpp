@@ -721,7 +721,7 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.at(me.first()).authorization, basicAuthorization(AuthMode::Token, QString(), QStringLiteral("tok-1")));
 
         // The next start defaults to the project of the last entry.
-        TimerController *core = f.service->timer();
+        TimerController *core = f.service->m_timer;
         QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("ready"));
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 11);
         QCOMPARE(core->chosenProjectId().toLongLong(), 11);
@@ -1048,7 +1048,7 @@ private Q_SLOTS:
         QVERIFY(!reply.errorMessage().contains(QStringLiteral("secret")));
         QCOMPARE(f.store.writes, 0);
         QVERIFY(!QFile::exists(f.settingsFile()));
-        QCOMPARE(f.service->connection()->instanceUrl(), QString());
+        QCOMPARE(f.service->m_connection->instanceUrl(), QString());
     }
 
     // A refused secret leaves the settings as they were.
@@ -1062,7 +1062,7 @@ private Q_SLOTS:
         QCOMPARE(reply.errorName(), TimerService::credentialStoreError);
         QCOMPARE(reply.errorMessage(), f.store.message(CredentialResult{CredentialResult::Status::Unavailable, QString()}));
         QVERIFY(!QFile::exists(f.settingsFile()));
-        QCOMPARE(f.service->connection()->instanceUrl(), QString());
+        QCOMPARE(f.service->m_connection->instanceUrl(), QString());
         QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("unconfigured"));
     }
 
@@ -1079,7 +1079,7 @@ private Q_SLOTS:
         }
         f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceUrl), AuthMode::Token, QString()), QStringLiteral("tok-saved"));
         QVERIFY(f.start());
-        QCOMPARE(f.service->connection()->instanceUrl(), instanceUrl);
+        QCOMPARE(f.service->m_connection->instanceUrl(), instanceUrl);
         QVERIFY(f.serve());
         QCOMPARE(f.transport.requests.at(f.find("GET", "/me").first()).authorization,
                  basicAuthorization(AuthMode::Token, QString(), QStringLiteral("tok-saved")));
@@ -1107,9 +1107,9 @@ private Q_SLOTS:
         const QString expected = parseInstanceUrl(other).base.toString();
 
         store.finish(1);
-        QCOMPARE(service.connection()->instanceUrl(), expected);
+        QCOMPARE(service.m_connection->instanceUrl(), expected);
         store.finish(0);
-        QCOMPARE(service.connection()->instanceUrl(), expected);
+        QCOMPARE(service.m_connection->instanceUrl(), expected);
         const QSettings settings(file, QSettings::IniFormat);
         QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
     }

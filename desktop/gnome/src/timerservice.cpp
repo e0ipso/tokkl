@@ -143,16 +143,6 @@ bool TimerService::registerOn(QDBusConnection bus)
     return true;
 }
 
-Connection *TimerService::connection() const
-{
-    return m_connection;
-}
-
-TimerController *TimerService::timer() const
-{
-    return m_timer;
-}
-
 PomodoroSession *TimerService::session() const
 {
     return m_session;

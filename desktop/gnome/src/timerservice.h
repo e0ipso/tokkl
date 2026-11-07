@@ -22,6 +22,7 @@
 #include "connectionsettings.h"
 
 class QSettings;
+class TimerServiceTest;
 
 namespace Tokkl
 {
@@ -100,8 +101,6 @@ public:
     // name.
     bool registerOn(QDBusConnection bus);
 
-    Connection *connection() const;
-    TimerController *timer() const;
     PomodoroSession *session() const;
     SoundChoices *soundChoices() const;
     // The alarm PreviewSound plays on, which the service does not own.
@@ -159,6 +158,9 @@ public Q_SLOTS:
     bool PreviewSound(const QString &soundId);
 
 private:
+    // The tests check what reaches the core.
+    friend class ::TimerServiceTest;
+
     void loadSettings();
     // Saves the settings and gives them to the connection. False, and
     // nothing changes, when the settings file cannot be written.
