@@ -20,9 +20,9 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`importJsonExport` in `packages/api/src/services/storageImportJson.ts` restores a JSON export whose `format` is `tokkl-export` or the pre-rename `timetrack-export` (`EXPORT_FORMAT` and `LEGACY_EXPORT_FORMAT` in `packages/api/src/services/storageExport.ts`). Restoring the same file twice changes nothing: clients, projects, tasks and tags are matched by name, and entries with the same start, stop, description and project are skipped.
+`importJsonExport` in `packages/api/src/services/importJson.ts` restores a JSON export whose `format` is `tokkl-export` or the pre-rename `timetrack-export` (`EXPORT_FORMAT` and `LEGACY_EXPORT_FORMAT` in `packages/api/src/services/exports.ts`). Restoring the same file twice changes nothing: clients, projects, tasks and tags are matched by name, and entries with the same start, stop, description and project are skipped.
 
-- Records go into the user's `default_workspace_id`, resolved through `memberWorkspace`, so a user who is no longer a member of that workspace gets a 403 and nothing is written. `buildJsonExport` likewise exports only the workspaces the user belongs to (`listWorkspacesForUser`).
+- Records go into the user's `default_workspace_id`, resolved through `memberWorkspace`, so a user who is no longer a member of that workspace gets a 403 and nothing is written. `assembleJsonExport` likewise exports only the workspaces the user belongs to (`transfers.exportAccount`).
 - Projects are created through `createProject` with their stored fields, including `start_date` and `is_private`.
 - A record that points at a non-null project, task or other entity that was not imported is skipped with the reason `Its <entity> <id> was not imported`.
 - A running entry is skipped and reported while another timer runs here. Stopping that timer and restoring again imports it.
