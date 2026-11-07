@@ -307,6 +307,8 @@ export interface TransactionScope<R extends object> {
   savepoint<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   beforeCommit(key: string, callback: () => Promise<void>): void;
   afterCommit(callback: () => Promise<void>): void;
+  /** Values that live exactly as long as this transaction, created on first use under `key`. */
+  local<T>(key: string, create: () => T): T;
   lockUserTimer(userId: Id): Promise<void>;
   lockInstanceAdministration(): Promise<void>;
   /** Acquire instance, then ascending workspaces, then ascending users, across all calls. */

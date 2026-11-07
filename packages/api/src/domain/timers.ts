@@ -266,7 +266,16 @@ export async function settleTimer(ctx: EntryContext, userId: Id, publish: TimerP
     const state = await buildTimerState(ctx, user, new Date(), data);
     ctx.afterCommit(() => publish(userId, state, user.createdAt));
   }
+  for (const reply of pendingReplies(ctx, userId))
+    Object.assign(reply.state, await buildTimerState(ctx, user, reply.now, data));
   return changed;
+}
+/** Replies this transaction has handed out for a user; settlement keeps them current until commit. */
+function pendingReplies(ctx: EntryContext, userId: Id): Array<{ state: TimerState; now: Date }> {
+  const replies = ctx.local('timer-replies', () => new Map<Id, Array<{ state: TimerState; now: Date }>>());
+  let list = replies.get(userId);
+  if (!list) replies.set(userId, (list = []));
+  return list;
 }
 export function touchTimer(ctx: EntryContext, userId: Id, publish: TimerPublication): void {
   ctx.beforeCommit(`timer:${userId}`, async () => {
@@ -329,10 +338,9 @@ export interface TimerRunner<R extends EntryRepositories> {
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }
 export function createTimerOperations<R extends EntryRepositories>(runner: TimerRunner<R>, publish: TimerPublication) {
-  let replies = 0;
   /**
-   * Runs `work` on the settled state and answers with the state as committed: the reply is built
-   * again after the final settlement, which runs just before commit.
+   * Runs `work` on the settled state and answers with the state as committed: every later
+   * settlement in the same transaction, before-commit hooks included, updates the reply.
    */
   async function action(
     userId: Id,
@@ -346,12 +354,8 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       await settleTimer(ctx, userId, publish);
       await work(ctx, user);
       const reply = await buildTimerState(ctx, user, now);
-      // Registered after the user's settlement hook, so it runs after it. Each action gets its own
-      // key, because several actions can share one operation.
+      pendingReplies(ctx, user.id).push({ state: reply, now });
       touchTimer(ctx, user.id, publish);
-      ctx.beforeCommit(`timer-reply:${user.id}:${++replies}`, async () => {
-        Object.assign(reply, await buildTimerState(ctx, user, now));
-      });
       return reply;
     });
   }
