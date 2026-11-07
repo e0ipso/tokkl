@@ -33,10 +33,15 @@ bool ProjectCatalog::listKnown() const
 
 std::optional<Project> ProjectCatalog::activeProject(qint64 id) const
 {
-    const auto found = std::find_if(m_projects.cbegin(), m_projects.cend(), [id](const Project &candidate) {
+    return findActive(m_projects, id);
+}
+
+std::optional<Project> ProjectCatalog::findActive(const QList<Project> &projects, qint64 id)
+{
+    const auto found = std::find_if(projects.cbegin(), projects.cend(), [id](const Project &candidate) {
         return candidate.id == id;
     });
-    if (found == m_projects.cend() || !found->active) {
+    if (found == projects.cend() || !found->active) {
         return std::nullopt;
     }
     return *found;

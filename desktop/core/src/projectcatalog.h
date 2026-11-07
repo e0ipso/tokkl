@@ -62,6 +62,8 @@ public:
     bool listKnown() const;
     // The active project with this id, or nullopt.
     std::optional<Project> activeProject(qint64 id) const;
+    // The active project with this id in projects, or nullopt.
+    static std::optional<Project> findActive(const QList<Project> &projects, qint64 id);
     // The project from the list, else from its own read. gone is set when
     // that read answered 404.
     std::optional<Project> knownProject(qint64 id, bool *gone = nullptr) const;

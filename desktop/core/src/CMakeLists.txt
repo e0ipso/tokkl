@@ -17,6 +17,8 @@ add_library(tokklcore STATIC
     apitypes.h
     authsession.cpp
     authsession.h
+    chosenproject.cpp
+    chosenproject.h
     clock.cpp
     clock.h
     connection.cpp
@@ -37,6 +39,8 @@ add_library(tokklcore STATIC
     mutationgate.cpp
     mutationgate.h
     nextstartdefaults.h
+    nextstartselection.cpp
+    nextstartselection.h
     pomodoroalarm.cpp
     pomodoroalarm.h
     pomodoropreferences.cpp

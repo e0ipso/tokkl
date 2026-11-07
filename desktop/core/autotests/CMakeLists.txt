@@ -34,6 +34,8 @@ target_compile_definitions(networktransporttest PRIVATE
     TOKKL_VERSION_STRING="${TOKKL_CORE_VERSION}")
 tokkl_core_test(timer timercontrollertest.cpp tokklcorefakes)
 tokkl_core_test(timerparts timerpartstest.cpp)
+tokkl_core_test(nextstartselection nextstartselectiontest.cpp tokklcorefakes)
+tokkl_core_test(chosenproject chosenprojecttest.cpp tokklcorefakes)
 tokkl_core_test(timerstateclient timerstateclienttest.cpp tokklcorefakes)
 tokkl_core_test(pomodorostore pomodorostoretest.cpp)
 tokkl_core_test(translations translationstest.cpp)
@@ -54,5 +56,5 @@ target_compile_definitions(hourglassglyphtest PRIVATE
     TOKKL_DESKTOP_DIR="${_desktop_dir}")
 
 set(_unit_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-unit")
-set_tests_properties(api apiclient connection networktransport timer timerstateclient pomodorostore pomodoropreferences pomodorosession PROPERTIES
+set_tests_properties(api apiclient connection networktransport timer nextstartselection chosenproject timerstateclient pomodorostore pomodoropreferences pomodorosession PROPERTIES
     ENVIRONMENT "XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")
