@@ -7,13 +7,14 @@ import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
 import type { Deps } from './routes/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { createAuthMiddleware } from './auth/middleware.ts';
+import { createSessionHandlers, type SetupState } from './auth/sessions.ts';
 import { errorHandler } from './http/errors.ts';
 import { requestLog } from './http/requestLog.ts';
 import { noStore, securityHeaders } from './http/security.ts';
 import { webRootRoutes } from './http/webRoot.ts';
 import { createLogger, type Logger } from './lib/logger.ts';
 import { adminRoutes } from './routes/admin.ts';
-import { appRoutes, type SetupState } from './routes/app.ts';
+import { appRoutes } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/toggl/index.ts';
@@ -48,19 +49,23 @@ export function createApp({
   const rateLimits = standaloneRateLimits(storage);
   const loginLimiter = new FailureLimiter(rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   // The composition root: framework-free services plus the HTTP adapters the routers share.
-  const deps: Deps = {
+  const services = createApplicationServices({
     storage,
-    config,
+    storageConfig: config.storage,
+    streamOptions: timerStreamOptions,
+    bus: timerBus,
+    logger,
+    sessionDays: config.sessionDays,
+  });
+  const deps: Deps = {
+    ...services,
     loginLimiter,
-    setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
     auth: createAuthMiddleware(storage, loginLimiter),
-    ...createApplicationServices({
-      storage,
-      storageConfig: config.storage,
-      streamOptions: timerStreamOptions,
-      bus: timerBus,
-      logger,
+    sessions: createSessionHandlers(storage, services.accounts, {
+      loginLimiter,
+      setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
       sessionDays: config.sessionDays,
+      setup,
     }),
   };
   timerBus.receive(signal => {
@@ -110,7 +115,7 @@ export function createApp({
   app.use('/api/v9', togglV9Routes(deps));
   app.use('/reports/api/v3', reportsV3Routes(deps));
   app.use('/api/app/admin', adminRoutes(deps));
-  app.use('/api/app', appRoutes(deps, setup), appReportRoutes(deps), timerRoutes(deps));
+  app.use('/api/app', appRoutes(deps), appReportRoutes(deps), timerRoutes(deps));
   app.use(['/api', '/reports/api'], (_req, res) => {
     res.status(404).json('Not found');
   });

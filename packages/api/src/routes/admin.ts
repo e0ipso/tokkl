@@ -11,8 +11,7 @@ import {
   parseSettingChanges,
 } from '../commands/accounts.ts';
 import { serializeAccount, serializeInvite, serializeSettings } from '../presenters/toggl.ts';
-export function adminRoutes(deps: Deps): Router {
-  const { config } = deps;
+export function adminRoutes(deps: Pick<Deps, 'auth' | 'readFor' | 'accountsFor'>): Router {
   const api = createRouter();
   api.use(deps.auth.requireAuth, deps.auth.requireAdmin);
   api.get(
@@ -31,7 +30,7 @@ export function adminRoutes(deps: Deps): Router {
   api.delete('/users/:id', async (req, res) => {
     const id = parseId(req.params.id);
     const email = parseDeletionConfirmation(readJson(req));
-    await deps.accountsFor(res.locals.auth).deleteAccount(res.locals.auth.user.id, id, email, deps.entryEffects);
+    await deps.accountsFor(res.locals.auth).deleteAccount(res.locals.auth.user.id, id, email);
     return res.json({ ok: true });
   });
   api.post('/users/:id/sessions/revoke', async (req, res) => {
@@ -46,9 +45,7 @@ export function adminRoutes(deps: Deps): Router {
   });
   api.post('/invites', async (req, res) => {
     const request = parseInvite(readJson(req));
-    const { token, invite } = await deps
-      .accountsFor(res.locals.auth)
-      .createInvite(res.locals.auth.user.id, request, config.sessionDays);
+    const { token, invite } = await deps.accountsFor(res.locals.auth).createInvite(res.locals.auth.user.id, request);
     return res.json({ ...serializeInvite(invite), url: `/invite/${token}` });
   });
   api.get(
@@ -68,7 +65,7 @@ export function adminRoutes(deps: Deps): Router {
       serializeSettings(
         await deps
           .accountsFor(res.locals.auth)
-          .updateSettings(res.locals.auth.user.id, parseSettingChanges(readJson(req)), config.sessionDays),
+          .updateSettings(res.locals.auth.user.id, parseSettingChanges(readJson(req))),
       ),
     ),
   );

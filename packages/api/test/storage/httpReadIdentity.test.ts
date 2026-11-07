@@ -6,6 +6,7 @@ import type { Backend } from '../../src/storage/config.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
+import { createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -103,7 +104,12 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
         body = await response.text();
       assert.equal(response.status, 403, body);
       assert.ok(!body.includes('private replacement entry'));
-      await accounts.deleteAccount(admin.id, replacement.id, replacement.email, services.entryEffects);
+      await accounts.deleteAccount(
+        admin.id,
+        replacement.id,
+        replacement.email,
+        createAccountEntryEffects(services.publish),
+      );
     });
 });
 
@@ -263,7 +269,12 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
         body = await response.text();
       assert.equal(response.status, 403, body);
       assert.ok(!body.includes('private replacement entry'));
-      await accounts.deleteAccount(admin.id, replacement.id, replacement.email, services.entryEffects);
+      await accounts.deleteAccount(
+        admin.id,
+        replacement.id,
+        replacement.email,
+        createAccountEntryEffects(services.publish),
+      );
     });
   }
 });

@@ -126,22 +126,20 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
         assert.equal(result.status, 200);
         seeded.push(((await result.json()) as { id: number }).id);
       }
-      const held = app.locals.services.entryWrite(
-        { user: owner, credential: { kind: 'api-token', token: owner.apiToken }, authMethod: 'basic' },
-        async (ctx: import('../../src/storage/contracts.ts').TransactionContext) => {
-          ownerEntry = (
-            await createTimeEntry(
-              ctx,
-              owner,
-              owner.defaultWorkspaceId,
-              { start: '2026-10-30T12:00:00Z' },
-              app.locals.services.publish,
-            )
-          ).id;
-          entered.resolve();
-          await release.promise;
-        },
-      );
+      // An entry write that holds the owner's guards until released.
+      const held = storage.transaction(async ctx => {
+        ownerEntry = (
+          await createTimeEntry(
+            ctx,
+            owner,
+            owner.defaultWorkspaceId,
+            { start: '2026-10-30T12:00:00Z' },
+            app.locals.services.publish,
+          )
+        ).id;
+        entered.resolve();
+        await release.promise;
+      });
       try {
         await entered.promise;
         const response = start(other, '2026-10-30T12:00:00Z');

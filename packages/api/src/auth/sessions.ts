@@ -17,11 +17,15 @@ import {
   sessionTokens,
 } from './middleware.ts';
 
+/** The one-time setup code; `null` once the first admin exists or none was printed. */
+export interface SetupState {
+  code: string | null;
+}
 export interface SessionOptions {
   loginLimiter: FailureLimiter;
   setupLimiter: FailureLimiter;
   sessionDays: number;
-  setup: { code: string | null };
+  setup: SetupState;
 }
 /** Session HTTP adapters over the guarded account operations. */
 export function createSessionHandlers<R extends AccountRepositories>(
@@ -142,3 +146,4 @@ export function createSessionHandlers<R extends AccountRepositories>(
     logout,
   };
 }
+export type SessionHandlers = ReturnType<typeof createSessionHandlers>;

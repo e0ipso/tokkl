@@ -19,6 +19,8 @@ import {
 import { v3WeeklyFilter, type JobResult, type ReportJob } from '../services/reportJobs.ts';
 import { lenientNumber } from '../http/params.ts';
 
+type ReportRouteDeps = Pick<Deps, 'auth' | 'readFor' | 'reports'>;
+
 /** Toggl's Reports API v3 rejects ranges longer than a year. */
 const TOGGL_MAX_DAYS = 366;
 /** The detailed search's page size when none is sent, and the largest it clamps to. */
@@ -26,12 +28,12 @@ const TOGGL_DEFAULT_PAGE_SIZE = 50;
 const TOGGL_MAX_PAGE_SIZE = 1000;
 
 /** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
-function workspaceFor(deps: Deps, req: Request, res: Response): Promise<Workspace> {
+function workspaceFor(deps: ReportRouteDeps, req: Request, res: Response): Promise<Workspace> {
   return deps.readFor(res.locals.auth, queries => queries.workspace(res.locals.auth.user.id, parseId(req.params.wid)));
 }
 
 /** Builds the response in the report runner and sends it. */
-async function send(deps: Deps, res: Response, ws: Workspace, job: ReportJob): Promise<void> {
+async function send(deps: ReportRouteDeps, res: Response, ws: Workspace, job: ReportJob): Promise<void> {
   const result: JobResult = await deps.reports.run(res.locals.auth.user.id, ws.id, job, {
     signal: res.locals.workSignal,
     authentication: res.locals.auth,
@@ -50,7 +52,7 @@ async function send(deps: Deps, res: Response, ws: Workspace, job: ReportJob): P
  * The parts of Toggl's Reports API v3 that make sense for one person: detailed (with paging),
  * totals, summary, weekly, and CSV exports.
  */
-export function reportsV3Routes(deps: Deps): Router {
+export function reportsV3Routes(deps: ReportRouteDeps): Router {
   const api = createRouter();
   api.use(deps.auth.requireAuth);
 
@@ -157,7 +159,7 @@ const APP_DEFAULT_PAGE_SIZE = 100;
 const APP_MAX_PAGE_SIZE = 500;
 
 /** Report endpoint for the web app: totals, a time series and groupings in one response. */
-export function appReportRoutes(deps: Deps): Router {
+export function appReportRoutes(deps: ReportRouteDeps): Router {
   const api = createRouter();
 
   /** The account's workspace, the request body and its filter, with the app's range allowance. */
