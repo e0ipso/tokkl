@@ -4,6 +4,7 @@ import { setTimeout } from 'node:timers/promises';
 import { dirname } from 'node:path';
 import { CompiledQuery, SqliteDialect, SqliteDriver, type DatabaseConnection, type SqliteDatabase } from 'kysely';
 import { safeInteger } from './conversion.ts';
+import { BoundedCache } from '../lib/boundedCache.ts';
 import type { SqliteConfig } from './config.ts';
 
 function parameters(values: readonly unknown[]): SQLInputValue[] {
@@ -22,7 +23,8 @@ function normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
 
 /** Parameter-array and statement metadata bridge; no native SQLite addon is needed. */
 function bridge(database: DatabaseSync): SqliteDatabase {
-  const prepared = new Map<string, ReturnType<SqliteDatabase['prepare']>>();
+  // Savepoint names and variable IN lists must not create an unbounded native cache.
+  const prepared = new BoundedCache<string, ReturnType<SqliteDatabase['prepare']>>(256);
   return {
     close: () => {
       prepared.clear();
@@ -30,11 +32,7 @@ function bridge(database: DatabaseSync): SqliteDatabase {
     },
     prepare: query => {
       const cached = prepared.get(query);
-      if (cached) {
-        prepared.delete(query);
-        prepared.set(query, cached);
-        return cached;
-      }
+      if (cached) return cached;
       const statement = database.prepare(query);
       statement.setReadBigInts(true);
       const result = {
@@ -51,10 +49,7 @@ function bridge(database: DatabaseSync): SqliteDatabase {
           for (const row of cursor.iterate(...parameters(values))) yield normalizeRow(row);
         },
       };
-      prepared.set(query, result);
-      // Savepoint names and variable IN lists must not create an unbounded native cache.
-      if (prepared.size > 256) prepared.delete(prepared.keys().next().value!);
-      return result;
+      return prepared.set(query, result);
     },
   };
 }

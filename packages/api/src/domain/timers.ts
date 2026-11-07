@@ -113,9 +113,6 @@ export function createTimerPublication(
     },
   );
 }
-// Returned objects are updated by every settlement in their operation, including later hooks.
-// Only response holders live here. Hooks and publication decisions remain rollback-owned by ctx.
-const responses = new WeakMap<EntryContext, Map<Id, Array<{ state: TimerState; now: Date }>>>();
 const upcoming = {
   workToShortRest: 'shortRest',
   workToLongRest: 'longRest',
@@ -269,27 +266,12 @@ export async function settleTimer(ctx: EntryContext, userId: Id, publish: TimerP
     const state = await buildTimerState(ctx, user, new Date(), data);
     ctx.afterCommit(() => publish(userId, state, user.createdAt));
   }
-  for (const response of responses.get(ctx)?.get(userId) ?? [])
-    Object.assign(response.state, await buildTimerState(ctx, user, response.now, data));
   return changed;
 }
 export function touchTimer(ctx: EntryContext, userId: Id, publish: TimerPublication): void {
   ctx.beforeCommit(`timer:${userId}`, async () => {
     await settleTimer(ctx, userId, publish);
   });
-}
-async function responseState(ctx: EntryContext, user: User, now: Date, publish: TimerPublication): Promise<TimerState> {
-  const state = await buildTimerState(ctx, user, now);
-  let users = responses.get(ctx);
-  if (!users) {
-    users = new Map();
-    responses.set(ctx, users);
-  }
-  const holders = users.get(user.id) ?? [];
-  holders.push({ state, now });
-  users.set(user.id, holders);
-  touchTimer(ctx, user.id, publish);
-  return state;
 }
 const lengthFields = {
   workMinutes: 'work_minutes',
@@ -347,6 +329,11 @@ export interface TimerRunner<R extends EntryRepositories> {
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }
 export function createTimerOperations<R extends EntryRepositories>(runner: TimerRunner<R>, publish: TimerPublication) {
+  let replies = 0;
+  /**
+   * Runs `work` on the settled state and answers with the state as committed: the reply is built
+   * again after the final settlement, which runs just before commit.
+   */
   async function action(
     userId: Id,
     now: Date,
@@ -358,7 +345,14 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       const user = await protectEntryOperation(ctx, userId, wids, includeDefault);
       await settleTimer(ctx, userId, publish);
       await work(ctx, user);
-      return responseState(ctx, user, now, publish);
+      const reply = await buildTimerState(ctx, user, now);
+      // Registered after the user's settlement hook, so it runs after it. Each action gets its own
+      // key, because several actions can share one operation.
+      touchTimer(ctx, user.id, publish);
+      ctx.beforeCommit(`timer-reply:${user.id}:${++replies}`, async () => {
+        Object.assign(reply, await buildTimerState(ctx, user, now));
+      });
+      return reply;
     });
   }
   return {

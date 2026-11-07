@@ -1,4 +1,5 @@
 import { parseCsv } from '../lib/csv.ts';
+import { BoundedCache } from '../lib/boundedCache.ts';
 import { invalidInput } from '../lib/errors.ts';
 import { parseDuration } from '@tokkl/common/duration';
 import { pad2, zonedToUtc } from '@tokkl/common/time';
@@ -26,6 +27,8 @@ const HEADER_ALIASES: Record<string, string[]> = {
 
 const MAX_ROWS = 100_000;
 const MAX_ERRORS = 100;
+/** Catalog names an import remembers; a failed row clears them. */
+const NAME_CACHE = 256;
 
 function columnIndex(header: string[]): Record<string, number> {
   const normalized = header.map(name => name.trim().toLowerCase());
@@ -170,14 +173,9 @@ export async function importTogglCsv(
       .map(u => ({ rows: u.rows, reason: skippedReason(u) })),
   };
   // Reuse successful name lookups only while workspace/user guards remain held.
-  const clients = new Map<string, number>(),
-    projects = new Map<string, number>(),
-    tasks = new Map<string, number>();
-  function remember<K, V>(cache: Map<K, V>, key: K, value: V): V {
-    if (cache.size >= 256) cache.delete(cache.keys().next().value!);
-    cache.set(key, value);
-    return value;
-  }
+  const clients = new BoundedCache<string, number>(NAME_CACHE),
+    projects = new BoundedCache<string, number>(NAME_CACHE),
+    tasks = new BoundedCache<string, number>(NAME_CACHE);
   async function projectId(name: string, client: string): Promise<number | null> {
     if (!name) return null;
     const key = JSON.stringify([name, client]);
@@ -191,7 +189,7 @@ export async function importTogglCsv(
           c = await createClient(ctx, wid, { name: client });
           result.created_clients.push(client);
         }
-        cid = remember(clients, client, c.id);
+        cid = clients.set(client, c.id);
       }
     }
     let p = await ctx.projects.findByName(wid, cid, name);
@@ -199,7 +197,7 @@ export async function importTogglCsv(
       p = await createProject(ctx, wid, { name, client_id: cid });
       result.created_projects.push(client ? `${name} (${client})` : name);
     }
-    return remember(projects, key, p.id);
+    return projects.set(key, p.id);
   }
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {
     for (const [index, row] of rows.entries()) {
@@ -250,8 +248,7 @@ export async function importTogglCsv(
             const key = JSON.stringify([pid, taskName]);
             taskId =
               tasks.get(key) ??
-              remember(
-                tasks,
+              tasks.set(
                 key,
                 (
                   (await ctx.tasks.findByName(wid, pid, taskName)) ??
