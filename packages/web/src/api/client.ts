@@ -5,6 +5,7 @@
  */
 
 import type { Decoder } from './decode.ts';
+import { t } from '../i18n/messages.ts';
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -69,7 +70,7 @@ async function apiError(response: Response, method: Method, path: string): Promi
   }
   return new ApiError(
     response.status,
-    text || response.statusText || `Request failed (${response.status})`,
+    text || response.statusText || t('api.requestFailed', { status: response.status }),
     body,
     request,
   );

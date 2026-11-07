@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { isApiError } from '../api/client.ts';
 import { Brand } from '../components/Brand.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
+import { t } from '../i18n/messages.ts';
 
 /** The answer to checking a one-time link, such as an invite or a password reset link. */
 export type LinkCheck<T> =
@@ -66,11 +67,13 @@ export function LinkCheckSplash({
       <Brand size="lg" />
       <LoadError
         title={check.invalid ? invalidTitle : undefined}
-        message={check.invalid ? check.message : `${failurePrefix}: ${check.message}`}
+        message={
+          check.invalid ? check.message : t('auth.checkFailed', { prefix: failurePrefix, message: check.message })
+        }
         onRetry={check.invalid ? undefined : retry}
       />
       <a className="button button-ghost" href="/">
-        Go to log in
+        {t('auth.goToLogIn')}
       </a>
     </div>
   );

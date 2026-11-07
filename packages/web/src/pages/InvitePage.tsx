@@ -6,6 +6,7 @@ import { Brand } from '../components/Brand.tsx';
 import { FormError, errorMessage } from '../components/FormError.tsx';
 import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 import { browserTimeZone } from '../lib/browserTimeZone.ts';
+import { t } from '../i18n/messages.ts';
 
 /** /invite/:token, reachable while logged out. Creates the invited account and lands on the timer. */
 export function InvitePage({ token }: { token: string }) {
@@ -38,9 +39,9 @@ export function InvitePage({ token }: { token: string }) {
       <LinkCheckSplash
         check={check}
         retry={retry}
-        loadingLabel="Checking your invite…"
-        invalidTitle="Invite link not valid"
-        failurePrefix="Can't check this invite"
+        loadingLabel={t('auth.checkingInvite')}
+        invalidTitle={t('auth.inviteInvalid')}
+        failurePrefix={t('auth.inviteCheckFailed')}
       />
     );
   }
@@ -49,23 +50,18 @@ export function InvitePage({ token }: { token: string }) {
     <div className="auth-page">
       <Brand size="lg" />
       <form className="auth-card" onSubmit={submit}>
-        <h1>Create your account</h1>
-        <p className="muted">
-          {check.data.role === 'admin'
-            ? 'You are invited as an administrator of this Tokkl server.'
-            : 'You are invited to track time on this Tokkl server.'}{' '}
-          Your entries stay private to your account.
-        </p>
+        <h1>{t('auth.createYourAccount')}</h1>
+        <p className="muted">{check.data.role === 'admin' ? t('auth.invitedAdmin') : t('auth.invitedUser')}</p>
         <label className="field">
-          <span>Name</span>
+          <span>{t('auth.name')}</span>
           <input value={fullname} onChange={e => setFullname(e.target.value)} autoComplete="name" autoFocus />
         </label>
         <label className="field">
-          <span>Email</span>
+          <span>{t('auth.email')}</span>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" />
         </label>
         <label className="field">
-          <span>Password</span>
+          <span>{t('auth.password')}</span>
           <input
             type="password"
             value={password}
@@ -77,7 +73,7 @@ export function InvitePage({ token }: { token: string }) {
         </label>
         <FormError message={error} />
         <button type="submit" className="button button-primary button-block" disabled={busy}>
-          Create account
+          {t('auth.createAccount')}
         </button>
       </form>
     </div>

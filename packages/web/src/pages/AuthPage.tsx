@@ -4,6 +4,7 @@ import { authRequests } from '../api/auth.ts';
 import { Brand } from '../components/Brand.tsx';
 import { FormError, errorMessage } from '../components/FormError.tsx';
 import { browserTimeZone } from '../lib/browserTimeZone.ts';
+import { t } from '../i18n/messages.ts';
 
 export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
   const qc = useQueryClient();
@@ -44,13 +45,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
       <form className="auth-card" onSubmit={submit}>
         {mode === 'setup' ? (
           <>
-            <h1>Create the first admin</h1>
-            <p className="muted">
-              This creates the server's first administrator. You can invite more people afterwards. The setup code is
-              printed in the server log.
-            </p>
+            <h1>{t('auth.setupTitle')}</h1>
+            <p className="muted">{t('auth.setupIntro')}</p>
             <label className="field">
-              <span>Setup code</span>
+              <span>{t('auth.setupCode')}</span>
               <input
                 value={setupCode}
                 onChange={e => setSetupCode(e.target.value)}
@@ -60,15 +58,15 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
               />
             </label>
             <label className="field">
-              <span>Name</span>
+              <span>{t('auth.name')}</span>
               <input value={fullname} onChange={e => setFullname(e.target.value)} autoComplete="name" />
             </label>
           </>
         ) : (
-          <h1>Log in</h1>
+          <h1>{t('auth.logIn')}</h1>
         )}
         <label className="field">
-          <span>Email</span>
+          <span>{t('auth.email')}</span>
           <input
             type="email"
             value={email}
@@ -79,7 +77,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
           />
         </label>
         <label className="field">
-          <span>Password</span>
+          <span>{t('auth.password')}</span>
           <input
             type="password"
             value={password}
@@ -91,7 +89,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
         </label>
         <FormError message={error} />
         <button type="submit" className="button button-primary button-block" disabled={busy}>
-          {mode === 'setup' ? 'Create admin account' : 'Log in'}
+          {mode === 'setup' ? t('auth.createAdmin') : t('auth.logIn')}
         </button>
       </form>
     </div>

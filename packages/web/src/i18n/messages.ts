@@ -8,6 +8,8 @@ import {
   type PluralMessage,
 } from './catalog.ts';
 import { admin } from './en/admin.ts';
+import { api } from './en/api.ts';
+import { auth } from './en/auth.ts';
 import { calendar } from './en/calendar.ts';
 import { common } from './en/common.ts';
 import { dates } from './en/dates.ts';
@@ -36,6 +38,8 @@ export const en = {
   manage,
   settings,
   admin,
+  auth,
+  api,
 } as const;
 
 export type Catalog = typeof en;
