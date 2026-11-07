@@ -52,8 +52,11 @@ export function describeMenu(state, words, _) {
     const ready = state.status === 'ready';
     const timerHeld = state.running || state.paused;
     const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
+    // Translators: %s is the project's name, or No project.
     let projectText = fill(_('Project: %s'), chosen);
+    // Translators: %s is the project's name, or No project.
     if (state.running) projectText = fill(_('Project: %s (locked while running)'), chosen);
+    // Translators: %s is the project's name, or No project.
     else if (state.paused) projectText = fill(_('Project: %s (locked while paused)'), chosen);
     return {
         message: { text: state.sessionMessage, visible: state.sessionMessage.length > 0 },
@@ -129,12 +132,16 @@ export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
         timer = _('Stopped');
         status = words.text;
         if (time.running) {
+            // Translators: %s is the elapsed time as H:MM.
             timer = fill(_('Running %s'), elapsed);
         } else if (time.paused) {
+            // Translators: %s is the paused total as H:MM.
             timer = fill(_('Paused %s'), elapsed);
             // While paused the line leads with the chain total, then the
             // connection state, as the KDE and macOS menus do.
-            status = fill(_('Paused %s · %s'), elapsed, words.text);
+            // Translators: %1$s is the paused total as H:MM, %2$s the
+            // connection state, such as Connected.
+            status = fill(_('Paused %1$s · %2$s'), elapsed, words.text);
         }
     }
 

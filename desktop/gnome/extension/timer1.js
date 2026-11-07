@@ -140,9 +140,11 @@ function minutesAndSeconds(seconds) {
 }
 
 /**
- * Fills each %s or %d of a translated template with the next value, in
- * order. The extension and its preferences use it rather than
- * String.prototype.format, which exists only inside GNOME Shell.
+ * Fills the placeholders of a translated template. %1$s or %2$d takes the
+ * value at that position, from 1, so a translation can put the values in
+ * another order; a plain %s or %d takes the next value in order. The
+ * extension and its preferences use it rather than String.prototype.format,
+ * which exists only inside GNOME Shell and has no positions.
  *
  * @param {string} template
  * @param {...any} values
@@ -150,7 +152,9 @@ function minutesAndSeconds(seconds) {
  */
 export function fill(template, ...values) {
     let next = 0;
-    return template.replace(/%[sd]/g, () => String(values[next++]));
+    return template.replace(/%(?:([1-9][0-9]*)\$)?[sd]/g, (_match, position) =>
+        String(position ? values[Number(position) - 1] : values[next++]),
+    );
 }
 
 /**
@@ -202,9 +206,13 @@ export function phaseName(phase, _) {
  */
 export function sessionLine(session, nowSeconds, _) {
     const { text, overtime } = countdown(session.plannedEnd, nowSeconds);
+    // Translators: %s is the countdown, such as 1:02.
     const time = fill(overtime ? _('%s overtime') : _('%s left'), text);
     return fill(
-        _('%s · %s · Pomodoro %d of %d'),
+        // Translators: %1$s is the phase (Work, Short rest or Long rest), %2$s
+        // the time left or over, such as "4:10 left", %3$d the pomodoro's
+        // place in the round and %4$d the pomodoros per round.
+        _('%1$s · %2$s · Pomodoro %3$d of %4$d'),
         phaseName(session.phase, _),
         time,
         session.pomodoroNumber,
@@ -221,6 +229,7 @@ export function sessionLine(session, nowSeconds, _) {
  * @returns {string}
  */
 export function nextPhaseLabel(upcomingPhase, _) {
+    // Translators: %s is the phase NextPhase starts: Work, Short rest or Long rest.
     return fill(_('Next phase: %s'), phaseName(upcomingPhase, _));
 }
 

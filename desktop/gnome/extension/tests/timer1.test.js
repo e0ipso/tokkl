@@ -132,3 +132,20 @@ test('fill puts the values into %s and %d in order', () => {
     assert.equal(fill('%s · %s · Pomodoro %d of %d', 'Work', '4:10 left', 2, 4), 'Work · 4:10 left · Pomodoro 2 of 4');
     assert.equal(fill('No values'), 'No values');
 });
+
+test('fill puts a value at %1$s or %2$d where the translation places it', () => {
+    assert.equal(
+        fill('%1$s · %2$s · Pomodoro %3$d of %4$d', 'Work', '4:10 left', 2, 4),
+        'Work · 4:10 left · Pomodoro 2 of 4',
+    );
+    assert.equal(fill('%2$s, %1$s', 'Connected', '1:01'), '1:01, Connected');
+    assert.equal(fill('Pomodoro %3$d of %4$d · %1$s', 'Work', '4:10 left', 2, 4), 'Pomodoro 2 of 4 · Work');
+    assert.equal(fill('%1$s %1$s', 'Twice'), 'Twice Twice');
+});
+
+test('a translation that reorders the session line shows the same values', () => {
+    const session = { phase: 'shortRest', plannedEnd: 1_700_000_250, pomodoroNumber: 2, longRestEvery: 4 };
+    const reordered = text =>
+        text === '%1$s · %2$s · Pomodoro %3$d of %4$d' ? 'Pomodoro %3$d/%4$d: %1$s (%2$s)' : text;
+    assert.equal(sessionLine(session, 1_700_000_000, reordered), 'Pomodoro 2/4: Short rest (4:10 left)');
+});
