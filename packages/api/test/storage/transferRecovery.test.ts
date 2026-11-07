@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
-import { createStorageImports } from '../../src/services/storageImportJson.ts';
+import { createStorageImports } from '../../src/services/importJson.ts';
 import { buildJsonExport } from '../fixtures/exports.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { createTimeEntry, stopTimeEntry } from '../fixtures/entryBodies.ts';

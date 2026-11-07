@@ -8,7 +8,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import { bodyWriter, withExactEntryImport } from '../fixtures/entryBodies.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
-import { createStorageImports } from '../../src/services/storageImportJson.ts';
+import { createStorageImports } from '../../src/services/importJson.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 

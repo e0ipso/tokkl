@@ -5,7 +5,7 @@ import { ApplicationError, unavailable, type FailureKind } from '../lib/errors.t
 
 /** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
 const QUEUE_FULL_RETRY_SECONDS = 2;
-import { collectReport, type ReportSource } from './storageReports.ts';
+import { collectReport, type ReportSource } from './reports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
 import {
@@ -14,7 +14,7 @@ import {
   type ExportAssemblyJob,
   type JobResult,
   type ReportJob,
-} from './storageReportJobs.ts';
+} from './reportJobs.ts';
 
 export interface ReportRunnerOptions {
   /** Includes the active job; overload fails immediately. Default 16, maximum 100. */
@@ -159,7 +159,7 @@ export class StorageReportRunner {
     this.pump();
   }
   private startWorker(): void {
-    const worker = new Worker(new URL('./storageReportWorker.ts', import.meta.url), { workerData: this.config });
+    const worker = new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: this.config });
     this.worker = worker;
     const fail = () => {
       if (this.worker !== worker) return;

@@ -14,7 +14,7 @@ import {
   requireCsrfHeader,
   SESSION_COOKIE,
   sessionTokens,
-} from './storageMiddleware.ts';
+} from './middleware.ts';
 
 export interface StorageSessionOptions {
   loginLimiter: FailureLimiter;

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { setImmediate } from 'node:timers/promises';
-import type { ReportRepositories } from '../../src/services/storageReports.ts';
+import type { ReportRepositories } from '../../src/services/reports.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -18,15 +18,15 @@ import { openReportReader } from '../../src/storage/repositories/report-reader.t
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
-import { StorageReportRunner } from '../../src/services/storageReportRunner.ts';
+import { StorageReportRunner } from '../../src/services/reportRunner.ts';
 import { errorReply } from '../../src/http/errors.ts';
-import { collectReport } from '../../src/services/storageReports.ts';
+import { collectReport } from '../../src/services/reports.ts';
 import {
   formatReportJob,
   formatExportJob,
   type ReportJob,
   type ExportAssemblyJob,
-} from '../../src/services/storageReportJobs.ts';
+} from '../../src/services/reportJobs.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { presentTimerOperations } from '../../src/services/timerReplies.ts';

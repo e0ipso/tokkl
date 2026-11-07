@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { syncBuiltinESMExports } from 'node:module';
 import express, { type ErrorRequestHandler } from 'express';
 import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
-import type { StorageAuthentication } from '../../src/auth/storageMiddleware.ts';
+import type { StorageAuthentication } from '../../src/auth/middleware.ts';
 import type { RateLimitsRepository } from '../../src/storage/contracts.ts';
 import type { FailureLimiter as Limiter, Keys } from '../../src/auth/rateLimit.ts';
 
@@ -31,10 +31,10 @@ const { createAccountRepositories } = await import('../../src/storage/repositori
 const { createAccountOperations, createDomainAccountOperations } = await import('../fixtures/accountBodies.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
-const { createStorageAuth, passwordAttempt } = await import('../../src/auth/storageMiddleware.ts');
+const { createStorageAuth, passwordAttempt } = await import('../../src/auth/middleware.ts');
 const { credentialCheck } = await import('../../src/services/streamCredentials.ts');
 const { clientAddress } = await import('../../src/http/context.ts');
-const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
+const { createStorageSessions } = await import('../../src/auth/sessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');
 const { errorReply } = await import('../../src/http/errors.ts');
 const { sha256, verifyPassword, hashPassword } = await import('../../src/lib/crypto.ts');

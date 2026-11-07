@@ -1,9 +1,9 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { openReportReader } from '../storage/repositories/report-reader.ts';
-import { collectReport } from './storageReports.ts';
-import type { ReportWork } from './storageReportRunner.ts';
-import { formatExportJob, formatReportJob } from './storageReportJobs.ts';
+import { collectReport } from './reports.ts';
+import type { ReportWork } from './reportRunner.ts';
+import { formatExportJob, formatReportJob } from './reportJobs.ts';
 import { ApplicationError } from '../lib/errors.ts';
 
 export interface ReportRequest {

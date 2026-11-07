@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { StorageAuthentication } from '../../src/auth/storageMiddleware.ts';
+import type { StorageAuthentication } from '../../src/auth/middleware.ts';
 import { credentialCheck } from '../../src/services/streamCredentials.ts';
 import { sha256 } from '../../src/lib/crypto.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';

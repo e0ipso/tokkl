@@ -1,7 +1,7 @@
 import type { Request, Response, RequestHandler } from 'express';
 import type { Storage } from '../storage/contracts.ts';
 import type { ReadQueries } from '../domain/queries.ts';
-import type { StorageAuth, StorageAuthentication } from '../auth/storageMiddleware.ts';
+import type { StorageAuth, StorageAuthentication } from '../auth/middleware.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';

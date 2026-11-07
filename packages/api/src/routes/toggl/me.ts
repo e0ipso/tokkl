@@ -3,7 +3,7 @@ import type { Deps } from '../../http/context.ts';
 import { clientAddress, jsonRead, readJson } from '../../http/context.ts';
 import { changedSince, lenientNumber, query, queryFlag } from '../../http/params.ts';
 import { createRouter } from '../../http/router.ts';
-import { passwordAttempt } from '../../auth/storageMiddleware.ts';
+import { passwordAttempt } from '../../auth/middleware.ts';
 import { getPreferences } from '../../domain/accountValues.ts';
 import { parsePreferenceChanges, parseProfileUpdate } from '../../commands/accounts.ts';
 import type { RelatedData, WorkspaceProject } from '../../domain/queries.ts';

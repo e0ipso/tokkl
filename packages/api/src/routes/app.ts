@@ -6,7 +6,7 @@ import { query, queryList } from '../http/params.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
-import { createStorageSessions } from '../auth/storageSessions.ts';
+import { createStorageSessions } from '../auth/sessions.ts';
 import { restoreTimeEntry, purgeDeletedEntries } from '../domain/timeEntries.ts';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
 export interface SetupState {

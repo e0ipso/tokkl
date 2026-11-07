@@ -6,7 +6,7 @@ import { calendarInput, invalidInput } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { addDays } from '@tokkl/common/time';
 import type { Workspace } from '../storage/domain.ts';
-import { filterFromBody, resolutionFor, type Dimension } from '../services/storageReports.ts';
+import { filterFromBody, resolutionFor, type Dimension } from '../services/reports.ts';
 import {
   readDurationFormat,
   readOrderBy,
@@ -14,7 +14,7 @@ import {
   v3WeeklyFilter,
   type JobResult,
   type ReportJob,
-} from '../services/storageReportJobs.ts';
+} from '../services/reportJobs.ts';
 import { lenientNumber } from '../http/params.ts';
 
 /** Toggl's Reports API v3 rejects ranges longer than a year. */
