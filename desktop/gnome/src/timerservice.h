@@ -179,6 +179,9 @@ private:
     QPointer<PomodoroAlarm> m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
+    // Counts Configure calls. A keyring write that answers after a later
+    // call leaves that call's settings in place.
+    quint64 m_configureSerial = 0;
     // The property values the bus last saw.
     QVariantMap m_published;
 };

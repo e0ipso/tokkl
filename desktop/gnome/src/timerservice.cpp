@@ -452,6 +452,7 @@ void TimerService::Configure(const QString &instanceUrl, const QString &authMode
     // surrounding whitespace, passwords are used exactly as typed.
     const QString cleaned = mode == AuthMode::Token ? secret.trimmed() : secret;
     const ConnectionSettings settings{instance.base.toString(), authMode, email.trimmed()};
+    const quint64 serial = ++m_configureSerial;
     if (cleaned.isEmpty()) {
         if (!applySettings(settings) && calledFromDBus()) {
             sendErrorReply(QDBusError::Failed, tr("The settings could not be saved to %1.").arg(m_settings->fileName()));
@@ -466,10 +467,15 @@ void TimerService::Configure(const QString &instanceUrl, const QString &authMode
         call = message();
         bus = QDBusContext::connection();
     }
-    m_store->write(credentialKey(instance, mode, settings.email), cleaned, this, [this, call, bus, settings](const CredentialResult &result) {
+    m_store->write(credentialKey(instance, mode, settings.email), cleaned, this, [this, call, bus, settings, serial](const CredentialResult &result) {
         QDBusMessage reply;
         if (!result.ok()) {
             reply = call ? call->createErrorReply(credentialStoreError, m_store->message(result)) : QDBusMessage();
+        } else if (serial != m_configureSerial) {
+            // A later Configure came while the keyring wrote; its settings
+            // win, whichever write ends last.
+            qCInfo(lcCredentials) << "A later Configure call replaced this one's settings";
+            reply = call ? call->createReply() : QDBusMessage();
         } else if (!applySettings(settings)) {
             reply = call ? call->createErrorReply(QDBusError::Failed, tr("The settings could not be saved to %1.").arg(m_settings->fileName()))
                          : QDBusMessage();

@@ -330,6 +330,50 @@ public:
     }
 };
 
+// A keyring whose writes wait until the test finishes them, in any order.
+// Reads find nothing.
+class HeldStore : public CredentialStore
+{
+    Q_OBJECT
+
+public:
+    struct Write {
+        QString key;
+        QPointer<QObject> context;
+        Callback done;
+    };
+
+    void read(const QString &, QObject *context, Callback done) override
+    {
+        QPointer<QObject> guard(context);
+        QMetaObject::invokeMethod(
+            context,
+            [guard, done] {
+                if (guard) {
+                    done(CredentialResult{CredentialResult::Status::NotFound, QString()});
+                }
+            },
+            Qt::QueuedConnection);
+    }
+
+    void write(const QString &key, const QString &, QObject *context, Callback done) override
+    {
+        held.append(Write{key, context, done});
+    }
+
+    void finish(qsizetype index)
+    {
+        const Write write = held.at(index);
+        const CredentialResult result{CredentialResult::Status::Ok, QString()};
+        reportWrite(write.key, result);
+        if (write.context) {
+            write.done(result);
+        }
+    }
+
+    QList<Write> held;
+};
+
 // The bundled sounds, from the core's sounds/ directory.
 QString bundledSoundsDir()
 {
@@ -1043,6 +1087,31 @@ private Q_SLOTS:
         const QDBusMessage reply = f.timer(QStringLiteral("Configure"), {instanceUrl, QStringLiteral("token"), QString(), QString()});
         QCOMPARE(reply.type(), QDBusMessage::ReplyMessage);
         QCOMPARE(f.store.writes, 0);
+    }
+
+    // Two Configure calls whose keyring writes end in the other order: the
+    // later call's settings stay, whichever write ends last.
+    void laterConfigureWins()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        FakeTransport transport;
+        HeldStore store;
+        FakeClock clock;
+        const QString file = dir.filePath(QStringLiteral("tokkl-timerd.conf"));
+        TimerService service(&transport, &store, file, &clock);
+        const QString other = QStringLiteral("https://b.example.test");
+        service.Configure(instanceUrl, QStringLiteral("token"), QString(), QStringLiteral("tok-a"));
+        service.Configure(other, QStringLiteral("token"), QString(), QStringLiteral("tok-b"));
+        QCOMPARE(store.held.size(), 2);
+        const QString expected = parseInstanceUrl(other).base.toString();
+
+        store.finish(1);
+        QCOMPARE(service.connection()->instanceUrl(), expected);
+        store.finish(0);
+        QCOMPARE(service.connection()->instanceUrl(), expected);
+        const QSettings settings(file, QSettings::IniFormat);
+        QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
     }
 
     // A second instance cannot take the name, as tokkl-timerd then exits.
