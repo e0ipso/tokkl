@@ -11,7 +11,9 @@ namespace Tokkl
 // A write whose outcome is unknown (no answer, timeout, 5xx, unreadable
 // answer) leaves the state to settle: the controller stays busy until a read
 // sent after the failure brings a state, and never sends the write again.
-// The same holds for a write that was in flight when the workspace was lost.
+// The same holds for a write that was in flight when the workspace was lost,
+// and for an applied v9 write, whose reply is an entry rather than the
+// state: the state a read sent after it brings is what the panel shows.
 class MutationGate
 {
 public:
@@ -28,9 +30,6 @@ public:
         // Read until a state from after the write shows. A read already
         // settling does as well.
         bool settle = false;
-        // The write was applied and its reply holds only the entry: read
-        // the rest of the state.
-        bool readRest = false;
         Message message = Message::Clear;
         // Read the state again: the server answered and refused.
         bool refresh = false;

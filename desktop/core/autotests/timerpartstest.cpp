@@ -1,5 +1,5 @@
-// TimerView and MutationGate on their own: which state the controller shows
-// and what the end of a write asks of it. timercontrollertest covers them
+// TimerView and MutationGate on their own: what the controller shows of a
+// state and what the end of a write asks of it. timercontrollertest covers them
 // through the controller.
 
 #include "mutationgate.h"
@@ -56,104 +56,70 @@ class TimerPartsTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void aPatchStaysUntilANewerRevision()
+    void noStateShowsNothing()
     {
-        TimerView view;
-        QVERIFY(view.adopt(state(5)));
-        QVERIFY(view.patch(5, running(1)));
-        // A read answered before the write cannot undo its reply.
-        QVERIFY(!view.adopt(state(5)));
-        QCOMPARE(view.state()->runningEntry->id, 1);
-        QVERIFY(view.adopt(state(6)));
-        QVERIFY(!view.state()->runningEntry);
+        const TimerView view = TimerView::of(std::nullopt, workspace, false);
+        QVERIFY(!view.entry);
+        QVERIFY(!view.chain);
+        QVERIFY(!view.session);
+        QVERIFY(!view.paused());
     }
 
-    void anUnpatchedStateTakesAnyRevision()
+    void theStateShowsItsEntryAndChain()
     {
-        TimerView view;
-        QVERIFY(view.adopt(state(5)));
-        QVERIFY(view.adopt(state(4)));
-        QCOMPARE(view.state()->revision, 4);
-    }
-
-    void aPatchSentBeforeANewerStateDoesNothing()
-    {
-        TimerView view;
-        QVERIFY(!view.patch(1, running(1)));
-        view.adopt(state(7));
-        QVERIFY(!view.patch(6, running(1)));
-        QVERIFY(!view.state()->runningEntry);
-    }
-
-    void aPatchEndsTheChainAndSessionItLeavesNoPlaceFor()
-    {
-        TimerState held = state(3);
+        TimerState held = state(1);
         held.runningEntry = running(1);
         held.pause = chain(false, 1);
-        held.pomodoro = TimerPomodoro();
-        held.pomodoro->entryId = 1;
-        TimerView view;
-        view.adopt(held);
-        // A stop: no clone runs, and the chain was not paused.
-        QVERIFY(view.patch(3, std::nullopt));
-        QVERIFY(!view.state()->pause);
-        QVERIFY(!view.state()->pomodoro);
+        const TimerView view = TimerView::of(held, workspace, false);
+        QCOMPARE(view.entry->id, 1);
+        QCOMPARE(view.chain->cloneEntryId, std::optional<qint64>(1));
+        QVERIFY(!view.paused());
+
+        TimerState paused = state(2);
+        paused.pause = chain(true);
+        QVERIFY(TimerView::of(paused, workspace, false).paused());
     }
 
-    void aPatchKeepsAPausedChainWhileNothingRuns()
-    {
-        TimerState held = state(3);
-        held.pause = chain(true);
-        TimerView view;
-        view.adopt(held);
-        QVERIFY(view.patch(3, std::nullopt));
-        QVERIFY(view.state()->pause);
-    }
-
-    void shownLeavesOutAnotherWorkspace()
+    void anotherWorkspaceIsLeftOut()
     {
         TimerState held = state(1);
         held.runningEntry = running(1, workspace + 1);
-        TimerView view;
-        view.adopt(held);
-        QVERIFY(!view.shown(workspace, false).entry);
-        QVERIFY(view.shown(workspace + 1, false).entry);
+        QVERIFY(!TimerView::of(held, workspace, false).entry);
+        QVERIFY(TimerView::of(held, workspace + 1, false).entry);
     }
 
-    void shownHidesEverythingOfAHiddenWorkspace()
+    void aHiddenWorkspaceShowsNothing()
     {
         TimerState held = state(1);
         held.runningEntry = running(1);
         held.pause = chain(false, 1);
-        TimerView view;
-        view.adopt(held);
-        const TimerView::Shown shown = view.shown(workspace, true);
-        QVERIFY(!shown.entry);
-        QVERIFY(!shown.chain);
+        const TimerView view = TimerView::of(held, workspace, true);
+        QVERIFY(!view.entry);
+        QVERIFY(!view.chain);
     }
 
-    void shownGivesASessionsPomodoroToTheSession()
+    void aSessionsPomodoroIsTheSessions()
     {
         TimerState held = state(1);
         held.runningEntry = running(1);
         held.pomodoro = TimerPomodoro();
         held.pomodoro->entryId = 1;
-        TimerView view;
-        view.adopt(held);
-        const TimerView::Shown shown = view.shown(workspace, false);
-        QVERIFY(shown.session);
-        QVERIFY(!shown.entry);
+        const TimerView view = TimerView::of(held, workspace, false);
+        QVERIFY(view.session);
+        QVERIFY(!view.entry);
     }
 
-    void shownDropsAChainWhoseCloneIsNotTheEntry()
+    void aChainWhoseCloneIsNotTheEntryIsDropped()
     {
         TimerState held = state(1);
         held.runningEntry = running(1);
         held.pause = chain(false, 2);
-        TimerView view;
-        view.adopt(held);
-        QVERIFY(view.shown(workspace, false).entry);
-        QVERIFY(!view.shown(workspace, false).chain);
+        QVERIFY(TimerView::of(held, workspace, false).entry);
+        QVERIFY(!TimerView::of(held, workspace, false).chain);
+        // Nor is a chain that is neither paused nor has a clone running.
+        TimerState stopped = state(2);
+        stopped.pause = chain(false, 2);
+        QVERIFY(!TimerView::of(stopped, workspace, false).chain);
     }
 
     void sameChainComparesWhatThePanelShows()
@@ -168,16 +134,28 @@ private Q_SLOTS:
         QVERIFY(TimerView::sameChain(std::nullopt, std::nullopt));
     }
 
-    void anAppliedEntryWriteReadsTheRest()
+    // A v9 reply holds only the entry: the state a read sent after it
+    // brings shows the change.
+    void anAppliedEntryWriteSettles()
     {
         MutationGate gate;
         gate.begin();
         QVERIFY(gate.running());
         const MutationGate::Ending ending = gate.finish(Outcome::Applied, ApiError(), false, true);
         QVERIFY(!gate.running());
-        QVERIFY(ending.readRest);
-        QVERIFY(!ending.settle);
+        QVERIFY(ending.settle);
+        QVERIFY(!ending.refresh);
         QCOMPARE(ending.message, Message::Clear);
+    }
+
+    // A timer action's reply is the state, which the client adopted.
+    void anAppliedTimerActionReadsNothing()
+    {
+        MutationGate gate;
+        gate.begin();
+        const MutationGate::Ending ending = gate.finish(Outcome::Applied, ApiError(), true, false);
+        QVERIFY(!ending.settle);
+        QVERIFY(!ending.refresh);
     }
 
     void anUnknownOutcomeSettles()
@@ -186,7 +164,7 @@ private Q_SLOTS:
         gate.begin();
         const MutationGate::Ending ending = gate.finish(Outcome::Unknown, error(ApiError::Kind::Timeout), false, true);
         QVERIFY(ending.settle);
-        QVERIFY(!ending.readRest);
+        QVERIFY(!ending.refresh);
         QCOMPARE(ending.message, Message::Show);
     }
 
@@ -236,7 +214,7 @@ private Q_SLOTS:
         MutationGate::Ending ending = gate.finish(Outcome::Refused, error(ApiError::Kind::Client), true, true);
         QCOMPARE(ending.message, Message::Keep);
         QVERIFY(ending.refresh);
-        QVERIFY(!ending.readRest);
+        QVERIFY(!ending.settle);
         gate.begin();
         ending = gate.finish(Outcome::Refused, error(ApiError::Kind::Client), false, true);
         QCOMPARE(ending.message, Message::Show);

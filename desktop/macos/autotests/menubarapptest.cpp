@@ -848,7 +848,11 @@ private Q_SLOTS:
         QCOMPARE(stop.method, QByteArray("PATCH"));
         QCOMPARE(stop.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5/stop"));
 
+        // The reply is an entry; the state read after it shows the stop.
         f.respond(before, 200, stoppedEntryBody());
+        QVERIFY(f.app.m_timer.get()->isBusy());
+        QVERIFY(f.waitFor("GET", "/app/timer", before));
+        f.respond(f.last("GET", "/app/timer"), 200, f.state());
         QTRY_VERIFY(!f.app.m_timer.get()->isRunning());
         QVERIFY(!f.app.m_timer.get()->isPaused());
         QTRY_COMPARE(f.item.title, QStringLiteral("0:00"));
@@ -974,7 +978,10 @@ private Q_SLOTS:
         QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
 
         f.app.m_menu.get()->m_startStopAction->trigger();
-        f.respond(f.last("PATCH", "/stop"), 200, stoppedEntryBody(qint64(11)));
+        const qsizetype stop = f.last("PATCH", "/stop");
+        f.respond(stop, 200, stoppedEntryBody(qint64(11)));
+        QVERIFY(f.waitFor("GET", "/app/timer", stop));
+        f.respond(f.last("GET", "/app/timer"), 200, f.state());
         QTRY_VERIFY(!f.app.m_timer.get()->isRunning());
         QVERIFY(!f.app.m_timer.get()->isPaused());
         QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
@@ -1100,7 +1107,10 @@ private Q_SLOTS:
         }
 
         f.app.m_menu.get()->m_startStopAction->trigger();
-        f.respond(f.last("PATCH", "/stop"), 200, stoppedEntryBody(qint64(11)));
+        const qsizetype stop = f.last("PATCH", "/stop");
+        f.respond(stop, 200, stoppedEntryBody(qint64(11)));
+        QVERIFY(f.waitFor("GET", "/app/timer", stop));
+        f.respond(f.last("GET", "/app/timer"), 200, f.state());
         QTRY_VERIFY(!f.app.m_timer.get()->isRunning());
         QVERIFY(f.item.image.indicator != running.indicator);
         QCOMPARE(f.item.image.indicator, f.item.indicator);

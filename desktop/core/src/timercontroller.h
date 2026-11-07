@@ -34,15 +34,19 @@ class ProjectCatalog;
 // client's server time, so a sleep, a late tick or a skewed clock loses
 // nothing.
 //
+// What the controller shows is derived from one timer state, the one the
+// client accepted, and from nothing else.
+//
 // One mutation runs at a time; clicks while it runs are ignored. Start, stop
-// and the billable edit are v9 calls. Their reply shows at once, and a state
-// no newer than the one held when the call went out cannot replace it.
-// Pause, resume and stop while paused are the server's timer actions, and
-// the state they return is adopted. A 409 adopts the server's state, ends the
-// action and leaves a message until the next user action. A failure that
+// and the billable edit are v9 calls whose reply is an entry, not the state:
+// once one is applied the controller stays busy while the client settles,
+// until a read sent after the reply brings the state that shows it. Pause,
+// resume and stop while paused are the server's timer actions, and the
+// client adopts the state they return. A 409 adopts the server's state, ends
+// the action and leaves a message until the next user action. A failure that
 // leaves the outcome unknown (no answer, timeout, 5xx, unreadable answer)
-// keeps the controller busy while the client settles it: until a read sent
-// after the failure brings a state. No write is ever sent again.
+// keeps the controller busy while the client settles it the same way. No
+// write is ever sent again.
 //
 // While the state holds a Pomodoro session, its open pomodoro is the running
 // entry and belongs to the session: running and paused are false,
@@ -288,22 +292,18 @@ private:
     void reset();
     void beginMutation();
     void fetchProjects();
-    // Shows the reply of a v9 write sent at revision as the running entry,
-    // ending the chain and the session it leaves no place for, unless a
-    // newer state has come since. A state no newer than the one shown then
-    // cannot replace it.
-    void showReply(qint64 revision, const std::optional<TimeEntry> &running, const std::optional<TimeEntry> &stoppedReply = std::nullopt);
+    // The state the client accepted; none without a client.
+    const std::optional<TimerState> &heldState() const;
     // Derives the entry, chain and session shown from the state held.
-    // stoppedReply is the server's answer to a stop or edit that ended the
-    // entry; its project wins over the one last shown.
-    void applyView(const std::optional<TimeEntry> &stoppedReply = std::nullopt);
+    void applyView();
     bool updateEntry(const TimeEntryUpdate &update);
     std::optional<qint64> chosenProject() const;
     // Reads the chosen project when projects lacks it, then updates
     // entryProject and the indicator.
     void resolveProject();
     // start is true for a start or resume, and entryReply for a v9 write,
-    // whose reply is an entry rather than the whole state.
+    // whose reply is an entry rather than the whole state, so the state
+    // that shows it comes from a read.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
@@ -325,13 +325,13 @@ private:
     // The data of the current context was requested once.
     bool m_loaded = false;
 
-    // The state shown: the client's latest, or a v9 reply on top of an
-    // older one.
-    TimerView m_view;
-    std::optional<TimeEntry> m_entry;
-    // The pause chain shown: paused, or with m_entry as its clone.
-    std::optional<TimerPause> m_chain;
-    bool m_sessionActive = false;
+    // The client's state as shown for the workspace.
+    TimerView m_shown;
+    // The server's reply to a stop or edit from here that ended the entry
+    // shown. It names the project the server stopped, which another device
+    // may have changed since the last state; the state that shows the stop
+    // uses it for the next-start default.
+    std::optional<TimeEntry> m_stopReply;
     // The workspace's projects and the one read on its own.
     ProjectCatalog *m_catalog;
     ChosenProject *m_chosen;
