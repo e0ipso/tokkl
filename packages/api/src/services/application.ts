@@ -15,8 +15,8 @@ import type { CatalogTimerEffects } from '../domain/catalogs.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
-import { createStorageImports } from './importJson.ts';
-import { StorageReportRunner } from './reportRunner.ts';
+import { createImportOperations } from './importJson.ts';
+import { ReportRunner } from './reportRunner.ts';
 import { credentialCheck } from './streamCredentials.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations } from './timerReplies.ts';
@@ -67,7 +67,7 @@ export function createApplicationServices({
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
-  const reports = new StorageReportRunner(storageConfig, storage);
+  const reports = new ReportRunner(storageConfig, storage);
   return {
     accounts: createAccountOperations(storage, security),
     entryEffects: createAccountEntryEffects<Repositories>(publish),
@@ -98,7 +98,7 @@ export function createApplicationServices({
     timersFor: (authentication: Authentication) =>
       presentTimerOperations(createTimerOperations(guardedStorage(storage, authentication), publish)),
     importsFor: (authentication: Authentication) =>
-      createStorageImports(guardedStorage(storage, authentication), publish),
+      createImportOperations(guardedStorage(storage, authentication), publish),
     entryWrite<T>(authentication: Authentication, work: (ctx: TransactionContext) => Promise<T>) {
       return guardedStorage(storage, authentication).transaction(work);
     },

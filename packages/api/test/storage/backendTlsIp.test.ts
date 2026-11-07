@@ -4,7 +4,7 @@ import { sql } from 'kysely';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openReadConnection } from '../../src/storage/connections.ts';
-import { StorageReportRunner } from '../../src/services/reportRunner.ts';
+import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { collectReport } from '../../src/services/reports.ts';
 import { formatReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -40,7 +40,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
         grouping: 'tag',
         sub: 'description',
       };
-      const runner = new StorageReportRunner(fixture.config, storage);
+      const runner = new ReportRunner(fixture.config, storage);
       try {
         assert.deepEqual(
           await runner.run(user.id, user.defaultWorkspaceId, job),

@@ -6,7 +6,7 @@ import { createApplicationServices } from './services/application.ts';
 import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
 import type { Deps } from './routes/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
-import { createStorageAuth } from './auth/middleware.ts';
+import { createAuthMiddleware } from './auth/middleware.ts';
 import { errorHandler } from './http/errors.ts';
 import { requestLog } from './http/requestLog.ts';
 import { noStore, securityHeaders } from './http/security.ts';
@@ -53,7 +53,7 @@ export function createApp({
     config,
     loginLimiter,
     setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
-    auth: createStorageAuth(storage, loginLimiter),
+    auth: createAuthMiddleware(storage, loginLimiter),
     ...createApplicationServices({
       storage,
       storageConfig: config.storage,

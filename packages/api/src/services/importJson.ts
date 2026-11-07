@@ -258,7 +258,10 @@ export async function importJsonExport(
   return restore.result;
 }
 /** Construct once with the application's shared ordered publication callback. */
-export function createStorageImports<R extends EntryRepositories>(runner: ImportRunner<R>, publish: TimerPublication) {
+export function createImportOperations<R extends EntryRepositories>(
+  runner: ImportRunner<R>,
+  publish: TimerPublication,
+) {
   return {
     importJsonExport: (userId: number, data: unknown, options: { dryRun: boolean }) =>
       runner.transaction(ctx => importJsonExport(ctx, userId, data, options, publish), { dryRun: options.dryRun }),

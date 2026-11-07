@@ -41,7 +41,7 @@ interface Reply {
 }
 
 /** One runner per app, one worker/reader, a bounded parent queue and one job in flight. */
-export class StorageReportRunner {
+export class ReportRunner {
   private readonly config: StorageConfig;
   private readonly inline: ReportSource;
   private readonly options: ReportRunnerOptions;

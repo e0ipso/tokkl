@@ -17,17 +17,17 @@ import {
   sessionTokens,
 } from './middleware.ts';
 
-export interface StorageSessionOptions {
+export interface SessionOptions {
   loginLimiter: FailureLimiter;
   setupLimiter: FailureLimiter;
   sessionDays: number;
   setup: { code: string | null };
 }
 /** Session HTTP adapters over the guarded account operations. */
-export function createStorageSessions<R extends AccountRepositories>(
+export function createSessionHandlers<R extends AccountRepositories>(
   runner: AccountRunner<R>,
   operations: ReturnType<typeof createAccountOperations<R>>,
-  options: StorageSessionOptions,
+  options: SessionOptions,
 ) {
   const { loginLimiter, setupLimiter, setup } = options;
   const startSession = async (req: Request, res: Response, user: User) => {

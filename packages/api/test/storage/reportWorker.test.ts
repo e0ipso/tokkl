@@ -18,7 +18,7 @@ import { openReportReader } from '../../src/storage/repositories/report-reader.t
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
-import { StorageReportRunner } from '../../src/services/reportRunner.ts';
+import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { collectReport } from '../../src/services/reports.ts';
 import {
@@ -72,7 +72,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       } finally {
         await reader.close();
       }
-      const runner = new StorageReportRunner(fixture.config, operations, { maxQueue: 2 });
+      const runner = new ReportRunner(fixture.config, operations, { maxQueue: 2 });
       t.after(() => runner.close());
       const expected = formatReportJob(await collectReport(operations, user.id, wid, job.filter), job);
       assert.deepEqual(await runner.run(user.id, wid, job), expected);
@@ -147,7 +147,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       const formatting = new Promise<void>(resolve => {
         formatted = resolve;
       });
-      const heavy = new StorageReportRunner(fixture.config, operations, {
+      const heavy = new ReportRunner(fixture.config, operations, {
         onPhase: phase => {
           if (phase === 'formatting') formatted();
         },
@@ -229,7 +229,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
     ...createTransferRepositories(db, 'sqlite'),
   }));
   const user = await operations.transaction(r => r.users.createAccount(entryAccount('inline')));
-  const runner = new StorageReportRunner(config, operations);
+  const runner = new ReportRunner(config, operations);
   t.after(() => runner.close());
   assert.deepEqual(
     await runner.run(user.id, user.defaultWorkspaceId, job),
@@ -259,14 +259,14 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-report-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'missing', 'db.sqlite');
-  const missing = new StorageReportRunner({ ...config, filename }, operations);
+  const missing = new ReportRunner({ ...config, filename }, operations);
   t.after(() => missing.close());
   await assert.rejects(missing.run(user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
   assert.equal(existsSync(join(dir, 'missing')), false);
   const empty = join(dir, 'empty.sqlite');
   writeFileSync(empty, '');
   const before = readFileSync(empty);
-  const unmigrated = new StorageReportRunner({ ...config, filename: empty }, operations);
+  const unmigrated = new ReportRunner({ ...config, filename: empty }, operations);
   t.after(() => unmigrated.close());
   await assert.rejects(unmigrated.run(user.id, user.defaultWorkspaceId, job), /Report failed/);
   await unmigrated.close();
@@ -308,7 +308,7 @@ test('inline cancellation and shutdown await the actual memory snapshot release'
       });
     },
   };
-  const runner = new StorageReportRunner(config, source);
+  const runner = new ReportRunner(config, source);
   const controller = new AbortController();
   const cancelled = assert.rejects(
     runner.run(user.id, user.defaultWorkspaceId, job, { signal: controller.signal }),

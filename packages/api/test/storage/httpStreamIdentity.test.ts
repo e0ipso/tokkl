@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TimerState } from '@tokkl/types';
-import type { StorageAuthentication } from '../../src/auth/middleware.ts';
+import type { Authentication } from '../../src/domain/credentials.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
@@ -27,7 +27,7 @@ for (const delayed of [false, true])
         publicationEntered = gate();
       let holdPublicationCheck = false;
       const credentialCheck = services.streamCredentials.check.bind(services.streamCredentials);
-      t.mock.method(services.streamCredentials, 'check', (authentication: StorageAuthentication) => {
+      t.mock.method(services.streamCredentials, 'check', (authentication: Authentication) => {
         const check = credentialCheck(authentication);
         return async () => {
           if (holdPublicationCheck) {

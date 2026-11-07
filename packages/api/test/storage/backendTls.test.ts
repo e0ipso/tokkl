@@ -12,7 +12,7 @@ import { initializeDatabase, validateEngine } from '../../src/storage/migrations
 import { openConnection } from '../../src/storage/connections.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
-import { StorageReportRunner } from '../../src/services/reportRunner.ts';
+import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { collectReport } from '../../src/services/reports.ts';
 import { formatReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -118,7 +118,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
       } finally {
         await reader.close();
       }
-      const runner = new StorageReportRunner(config, storage);
+      const runner = new ReportRunner(config, storage);
       try {
         assert.deepEqual(await runner.run(user.id, user.defaultWorkspaceId, job), expected);
         assert.ok(
@@ -154,7 +154,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
                 return true;
               },
             );
-          const broken = new StorageReportRunner({ ...invalid, connectTimeoutMs: 1000 }, storage);
+          const broken = new ReportRunner({ ...invalid, connectTimeoutMs: 1000 }, storage);
           try {
             await assert.rejects(broken.run(user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
           } finally {

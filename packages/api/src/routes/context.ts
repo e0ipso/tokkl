@@ -1,7 +1,7 @@
 import type { Request, Response, RequestHandler } from 'express';
 import type { Storage } from '../storage/contracts.ts';
 import type { ReadQueries } from '../domain/queries.ts';
-import type { StorageAuth } from '../auth/middleware.ts';
+import type { AuthMiddleware } from '../auth/middleware.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
@@ -20,7 +20,7 @@ export interface Deps extends ApplicationServices {
   /** Wrong setup codes per client address, counted apart from passwords. */
   setupLimiter: FailureLimiter;
   /** Request authentication: Basic auth, API tokens and session cookies. */
-  auth: StorageAuth;
+  auth: AuthMiddleware;
   /**
    * Open timer event streams. Anything that may end a credential (logout, token rotation, a
    * password change or reset, suspension, deletion) calls `recheck` for the account after it commits.

@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { syncBuiltinESMExports } from 'node:module';
 import express, { type ErrorRequestHandler } from 'express';
 import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
-import type { StorageAuthentication } from '../../src/auth/middleware.ts';
+import type { Authentication } from '../../src/domain/credentials.ts';
 import type { RateLimitsRepository } from '../../src/storage/contracts.ts';
 import type { FailureLimiter as Limiter, Keys } from '../../src/auth/rateLimit.ts';
 
@@ -31,10 +31,10 @@ const { createAccountRepositories } = await import('../../src/storage/repositori
 const { createAccountOperations, createDomainAccountOperations } = await import('../fixtures/accountBodies.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
-const { createStorageAuth, passwordAttempt } = await import('../../src/auth/middleware.ts');
+const { createAuthMiddleware, passwordAttempt } = await import('../../src/auth/middleware.ts');
 const { credentialCheck } = await import('../../src/services/streamCredentials.ts');
 const { clientAddress } = await import('../../src/http/request.ts');
-const { createStorageSessions } = await import('../../src/auth/sessions.ts');
+const { createSessionHandlers } = await import('../../src/auth/sessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');
 const { errorReply } = await import('../../src/http/errors.ts');
 const { sha256, verifyPassword, hashPassword } = await import('../../src/lib/crypto.ts');
@@ -84,13 +84,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const blocked = async (limiter: Limiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
       const fail = (keys: Keys) => loginLimiter.attempt(keys, async () => false);
       const setup = { code: 'setup-code' as string | null };
-      const sessions = createStorageSessions(runner, createDomainAccountOperations(runner, security), {
+      const sessions = createSessionHandlers(runner, createDomainAccountOperations(runner, security), {
         loginLimiter,
         setupLimiter,
         sessionDays: 30,
         setup,
       });
-      const auth = createStorageAuth(runner, loginLimiter);
+      const auth = createAuthMiddleware(runner, loginLimiter);
       const app = express();
       app.set('trust proxy', true);
       app.use(express.text({ type: () => true }));
@@ -102,7 +102,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       app.post('/invites/:token', sessions.acceptInvite);
       app.get('/resets/:token', sessions.resetInfo);
       app.post('/resets/:token', sessions.resetPassword);
-      let observed: StorageAuthentication | undefined;
+      let observed: Authentication | undefined;
       app.all('/me', auth.requireAuth, (_req, res) => {
         observed = res.locals.auth;
         return res.json({
@@ -291,7 +291,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           for (const mode of ['session', 'api-token', 'password'] as const) {
             const member = await add(`recheck-${mode}`),
               session = await operations.createSession(member, 'check', 30);
-            const state: StorageAuthentication = {
+            const state: Authentication = {
               user: member,
               authMethod: mode === 'session' ? 'session' : 'basic',
               credential:
