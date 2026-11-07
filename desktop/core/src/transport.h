@@ -21,7 +21,7 @@ struct HttpRequest {
 struct HttpResponse {
     enum class Outcome {
         Finished, // the server answered; status holds the HTTP status
-        NetworkError, // no HTTP answer (refused, unreachable, DNS or TLS failure), or a 2xx whose body broke off
+        NetworkError, // no HTTP answer (refused, unreachable, DNS or TLS failure), a 2xx whose body broke off, or a body over the size limit
         Timeout,
         Aborted,
     };
@@ -105,6 +105,19 @@ public:
     // than twice the 25 seconds between the server's keep-alive events.
     int streamIdleTimeout() const;
     void setStreamIdleTimeout(int ms);
+    // The most bytes an answer's body may have: the whole body of a reply,
+    // and the body of a stream that answers anything but a 2xx. An answer
+    // that announces or sends more is aborted while it arrives and finishes
+    // as a NetworkError without a body. A 2xx stream's data is not counted
+    // here; the stream's reader bounds each of its events. 16 MiB by
+    // default. A page of 200 projects takes tens of kilobytes. The largest
+    // answer the companions read is the last nine days of entries with their
+    // metadata, which the API does not page; at under a kilobyte an entry,
+    // the limit holds well over ten thousand of them, and it still bounds
+    // what a broken or hostile server can make the client hold.
+    qint64 maxResponseBytes() const;
+    void setMaxResponseBytes(qint64 bytes);
+    static constexpr qint64 defaultMaxResponseBytes = 16 * 1024 * 1024;
 
 private:
     QNetworkRequest networkRequest(const HttpRequest &request, const QByteArray &accept) const;
@@ -113,6 +126,7 @@ private:
     QByteArray m_userAgent;
     int m_timeoutMs = 15000;
     int m_streamIdleTimeoutMs = 60000;
+    qint64 m_maxResponseBytes = defaultMaxResponseBytes;
 };
 
 }

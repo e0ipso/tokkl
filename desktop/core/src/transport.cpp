@@ -7,6 +7,8 @@
 #include <QNetworkRequest>
 #include <QTimer>
 
+#include <utility>
+
 namespace Tokkl
 {
 
@@ -36,15 +38,68 @@ void logResponse(const QByteArray &method, const QUrl &url, const HttpResponse &
     }
 }
 
+// Reads a body as it arrives and stops at a size limit, so an answer larger
+// than the limit is never held whole.
+class BoundedBody
+{
+public:
+    explicit BoundedBody(qint64 limit)
+        : m_limit(limit)
+    {
+    }
+
+    // Reads what the reply has. False once the body, or the length the
+    // answer announced, is over the limit; the caller aborts the reply.
+    bool read(QNetworkReply *reply)
+    {
+        if (m_tooLarge) {
+            return false;
+        }
+        const QVariant announced = reply->header(QNetworkRequest::ContentLengthHeader);
+        if (announced.isValid() && announced.toLongLong() > m_limit) {
+            return fail();
+        }
+        const qint64 room = m_limit - m_body.size();
+        if (reply->bytesAvailable() > room) {
+            return fail();
+        }
+        m_body += reply->readAll();
+        return true;
+    }
+
+    QByteArray take()
+    {
+        return std::exchange(m_body, QByteArray());
+    }
+
+    QString errorString() const
+    {
+        return QStringLiteral("the answer is larger than %1 bytes").arg(m_limit);
+    }
+
+private:
+    bool fail()
+    {
+        m_tooLarge = true;
+        m_body.clear();
+        return false;
+    }
+
+    qint64 m_limit;
+    QByteArray m_body;
+    bool m_tooLarge = false;
+};
+
 class NetworkReply : public PendingReply
 {
     Q_OBJECT
 
 public:
-    NetworkReply(const QByteArray &method, QNetworkReply *reply, int timeoutMs, QObject *parent)
+    NetworkReply(const QByteArray &method, QNetworkReply *reply, int timeoutMs, qint64 maxBytes, QObject *parent)
         : PendingReply(parent)
         , m_method(method)
         , m_reply(reply)
+        , m_body(maxBytes)
     {
         reply->setParent(this);
         m_timer.setSingleShot(true);
@@ -52,6 +107,8 @@ public:
             m_timedOut = true;
             m_reply->abort();
         });
+        connect(reply, &QNetworkReply::metaDataChanged, this, &NetworkReply::onReadyRead);
+        connect(reply, &QNetworkReply::readyRead, this, &NetworkReply::onReadyRead);
         connect(reply, &QNetworkReply::finished, this, &NetworkReply::onFinished);
         m_timer.start(timeoutMs);
     }
@@ -63,15 +120,29 @@ public:
     }
 
 private:
+    void onReadyRead()
+    {
+        if (!m_body.read(m_reply)) {
+            m_reply->abort();
+        }
+    }
+
     void onFinished()
     {
         m_timer.stop();
+        // The rest of the body, unless the limit stopped it already.
+        const bool fits = m_body.read(m_reply);
         HttpResponse response;
         const QVariant status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
         if (m_aborted) {
             response.outcome = HttpResponse::Outcome::Aborted;
         } else if (m_timedOut) {
             response.outcome = HttpResponse::Outcome::Timeout;
+        } else if (!fits) {
+            // Not an answer Tokkl reads. For a write the outcome is unknown,
+            // as for a body that broke off.
+            response.outcome = HttpResponse::Outcome::NetworkError;
+            response.errorString = m_body.errorString();
         } else if (status.isValid() && status.toInt() >= 200 && status.toInt() < 300 && m_reply->error() != QNetworkReply::NoError) {
             // A success whose body broke off: what arrived may be a prefix
             // that still decodes. An error status keeps its HTTP meaning,
@@ -81,7 +152,7 @@ private:
         } else if (status.isValid() && status.toInt() > 0) {
             response.outcome = HttpResponse::Outcome::Finished;
             response.status = status.toInt();
-            response.body = m_reply->readAll();
+            response.body = m_body.take();
             response.retryAfter = m_reply->rawHeader("Retry-After");
             response.location = m_reply->rawHeader("Location");
         } else {
@@ -94,6 +165,7 @@ private:
 
     QByteArray m_method;
     QNetworkReply *m_reply;
+    BoundedBody m_body;
     QTimer m_timer;
     bool m_timedOut = false;
     bool m_aborted = false;
@@ -104,9 +176,10 @@ class NetworkStream : public PendingStream
     Q_OBJECT
 
 public:
-    NetworkStream(QNetworkReply *reply, int idleTimeoutMs, QObject *parent)
+    NetworkStream(QNetworkReply *reply, int idleTimeoutMs, qint64 maxBytes, QObject *parent)
         : PendingStream(parent)
         , m_reply(reply)
+        , m_body(maxBytes)
     {
         reply->setParent(this);
         m_idle.setSingleShot(true);
@@ -142,23 +215,29 @@ private:
     void onReadyRead()
     {
         m_idle.start();
-        // Any other answer keeps its body for finished().
+        // Any other answer keeps its body, within the limit, for finished().
         if (streaming()) {
             const QByteArray data = m_reply->readAll();
             if (!data.isEmpty()) {
                 Q_EMIT dataReceived(data);
             }
+        } else if (status() > 0 && !m_body.read(m_reply)) {
+            m_reply->abort();
         }
     }
 
     void onFinished()
     {
         m_idle.stop();
+        const bool fits = streaming() || status() <= 0 || m_body.read(m_reply);
         HttpResponse response;
         if (m_aborted) {
             response.outcome = HttpResponse::Outcome::Aborted;
         } else if (m_timedOut) {
             response.outcome = HttpResponse::Outcome::Timeout;
+        } else if (!fits) {
+            response.outcome = HttpResponse::Outcome::NetworkError;
+            response.errorString = m_body.errorString();
         } else if (streaming() && m_reply->error() != QNetworkReply::NoError) {
             // The connection broke in the middle of the body.
             response.outcome = HttpResponse::Outcome::NetworkError;
@@ -167,7 +246,7 @@ private:
             if (streaming()) {
                 onReadyRead();
             } else {
-                response.body = m_reply->readAll();
+                response.body = m_body.take();
             }
             response.outcome = HttpResponse::Outcome::Finished;
             response.status = status();
@@ -182,6 +261,7 @@ private:
     }
 
     QNetworkReply *m_reply;
+    BoundedBody m_body;
     QTimer m_idle;
     bool m_timedOut = false;
     bool m_aborted = false;
@@ -218,7 +298,7 @@ QNetworkRequest NetworkTransport::networkRequest(const HttpRequest &request, con
 PendingReply *NetworkTransport::send(const HttpRequest &request)
 {
     QNetworkReply *reply = m_manager->sendCustomRequest(networkRequest(request, "application/json"), request.method, request.body);
-    return new NetworkReply(request.method, reply, m_timeoutMs, this);
+    return new NetworkReply(request.method, reply, m_timeoutMs, m_maxResponseBytes, this);
 }
 
 PendingStream *NetworkTransport::openStream(const HttpRequest &request)
@@ -227,7 +307,7 @@ PendingStream *NetworkTransport::openStream(const HttpRequest &request)
     // The idle timer of the stream stands in for Qt's transfer timeout.
     streamRequest.setTransferTimeout(0);
     QNetworkReply *reply = m_manager->get(streamRequest);
-    return new NetworkStream(reply, m_streamIdleTimeoutMs, this);
+    return new NetworkStream(reply, m_streamIdleTimeoutMs, m_maxResponseBytes, this);
 }
 
 int NetworkTransport::timeout() const
@@ -248,6 +328,16 @@ int NetworkTransport::streamIdleTimeout() const
 void NetworkTransport::setStreamIdleTimeout(int ms)
 {
     m_streamIdleTimeoutMs = ms;
+}
+
+qint64 NetworkTransport::maxResponseBytes() const
+{
+    return m_maxResponseBytes;
+}
+
+void NetworkTransport::setMaxResponseBytes(qint64 bytes)
+{
+    m_maxResponseBytes = bytes;
 }
 
 }

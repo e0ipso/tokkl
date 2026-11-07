@@ -302,6 +302,13 @@ void TimerStateClient::onStreamData(const QByteArray &data)
     QByteArray buffer = std::exchange(m_buffer, QByteArray()) + data;
     qsizetype start = 0;
     for (qsizetype end = buffer.indexOf('\n'); end >= 0 && serial == m_streamSerial; end = buffer.indexOf('\n', start)) {
+        // Counted before the line is read, so an event over the limit never
+        // reaches the parser, even when it arrives whole.
+        m_event.bytes += end + 1 - start;
+        if (m_event.bytes > maxEventBytes) {
+            dropOversizedStream();
+            return;
+        }
         QByteArrayView line(buffer.constData() + start, end - start);
         if (line.endsWith('\r')) {
             line.chop(1);
@@ -313,12 +320,17 @@ void TimerStateClient::onStreamData(const QByteArray &data)
         return;
     }
     m_buffer = buffer.mid(start);
-    if (m_buffer.size() + m_event.data.size() > maxEventBytes) {
-        // Not a stream of timer states.
-        qCWarning(lcNet) << "Event stream sent more than" << maxEventBytes << "bytes without an event end; dropped";
-        closeStream();
-        scheduleReconnect();
+    if (m_event.bytes + m_buffer.size() > maxEventBytes) {
+        dropOversizedStream();
     }
+}
+
+void TimerStateClient::dropOversizedStream()
+{
+    // Not a stream of timer states.
+    qCWarning(lcNet) << "Event stream sent more than" << maxEventBytes << "bytes for one event; dropped";
+    closeStream();
+    scheduleReconnect();
 }
 
 void TimerStateClient::readLine(QByteArrayView line)
