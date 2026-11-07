@@ -4,7 +4,7 @@ import { createTimerOperations } from '../../src/domain/timers.ts';
 import { settleTimer as settle } from '../../src/domain/timerSettlement.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { presentTimerOperations } from '../../src/services/timerReplies.ts';
-import * as entries from '../../src/domain/timeEntries.ts';
+import * as entries from './entryBodies.ts';
 import type { User } from '../../src/storage/domain.ts';
 import { storageFor, servicesFor, transaction, currentContext, type FixtureDatabase } from './database.ts';
 export type { UserRole, User } from '../../src/storage/domain.ts';
@@ -55,10 +55,12 @@ export const settleTimer = (db: FixtureDatabase, uid: number) =>
   });
 function timers(db: FixtureDatabase) {
   const ctx = currentContext(db);
-  return presentTimerOperations(
-    createTimerOperations(
-      ctx ? { transaction: ctx.transaction, readSnapshot: storageFor(db).readSnapshot } : storageFor(db),
-      publication(db),
+  return entries.bodyTimers(
+    presentTimerOperations(
+      createTimerOperations(
+        ctx ? { transaction: ctx.transaction, readSnapshot: storageFor(db).readSnapshot } : storageFor(db),
+        publication(db),
+      ),
     ),
   );
 }

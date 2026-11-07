@@ -105,7 +105,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
       });
       const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
       t.after(() => app.locals.close());
-      const { createTimeEntry } = await import('../../src/domain/timeEntries.ts');
+      const { createTimeEntry } = await import('../fixtures/entryBodies.ts');
       const entered = gate(),
         release = gate();
       const owner = users[0]!,

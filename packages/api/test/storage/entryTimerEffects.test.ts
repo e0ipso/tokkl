@@ -4,7 +4,7 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
 import * as catalog from '../../src/domain/catalogs.ts';
-import * as entries from '../../src/domain/timeEntries.ts';
+import * as entries from '../fixtures/entryBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { createCatalogTimerEffects, createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';

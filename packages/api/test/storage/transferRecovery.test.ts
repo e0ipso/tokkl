@@ -6,7 +6,7 @@ import { createTransferRepositories } from '../../src/storage/repositories/trans
 import { createStorageImports } from '../../src/services/storageImportJson.ts';
 import { buildJsonExport } from '../fixtures/exports.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
-import { createTimeEntry, stopTimeEntry } from '../../src/domain/timeEntries.ts';
+import { createTimeEntry, stopTimeEntry } from '../fixtures/entryBodies.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';

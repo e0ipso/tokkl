@@ -9,12 +9,10 @@ import {
   createTask,
   resolveTagNames,
 } from '../domain/catalogs.ts';
-import {
-  withExactEntryImport,
-  noTimeSpan,
-  type EntryRepositories,
-  type ExactEntryImport,
-} from '../domain/timeEntries.ts';
+import { parseNewEntry } from '../commands/timeEntries.ts';
+import type { EntryRepositories } from '../domain/entryAccess.ts';
+import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImport.ts';
+import { noTimeSpan } from '../domain/entrySpans.ts';
 import { createCatalogTimerEffects } from '../domain/timerEffects.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
 import type { OperationContext } from '../storage/contracts.ts';
@@ -181,17 +179,19 @@ async function restoreEntry(restore: Restore, writer: ExactEntryImport, zone: st
   }
   if (!stop && (await ctx.entries.running(userId)))
     throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
-  await writer.create({
-    description,
-    ...(noTime
-      ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
-      : { start: start.toISOString(), ...(stop ? { stop: stop.toISOString() } : { duration: -1 }) }),
-    project_id: projectId,
-    task_id: taskId,
-    billable: item.billable === true,
-    tag_ids: tagIds,
-    created_with: typeof item.created_with === 'string' ? item.created_with : 'tokkl-json-import',
-  });
+  await writer.create(
+    parseNewEntry({
+      description,
+      ...(noTime
+        ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
+        : { start: start.toISOString(), ...(stop ? { stop: stop.toISOString() } : { duration: -1 }) }),
+      project_id: projectId,
+      task_id: taskId,
+      billable: item.billable === true,
+      tag_ids: tagIds,
+      created_with: typeof item.created_with === 'string' ? item.created_with : 'tokkl-json-import',
+    }),
+  );
   restore.result.time_entries++;
 }
 

@@ -2,54 +2,27 @@
  * Timer actions: pause, resume and discard a pause chain, and run a Pomodoro session. Each action
  * checks the revision the client saw and answers with the view as committed.
  */
-import {
-  nextPhase,
-  POMODORO_SESSION_CONFIG_RANGES,
-  startSession,
-  type PomodoroSessionConfig,
-} from '@tokkl/common/pomodoroSession';
+import { nextPhase, startSession, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, User } from '../storage/domain.ts';
-import { calendarInput, invalidInput, StateConflict } from '../lib/errors.ts';
-import { optionalId } from '../lib/values.ts';
+import { calendarInput, StateConflict } from '../lib/errors.ts';
 import { getPomodoroSessionConfig } from './accountValues.ts';
-import {
-  createTimeEntry,
-  entryDurationSeconds,
-  getTimeEntry,
-  protectEntryOperation,
-  stopEntryAt,
-  type EntryContext,
-  type EntryRepositories,
-} from './timeEntries.ts';
+import { getTimeEntry, protectEntryOperation, type EntryContext, type EntryRepositories } from './entryAccess.ts';
+import type { NewEntry } from './entryCommands.ts';
+import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
 import { memberWorkspace } from './membership.ts';
+import { createTimeEntry, stopEntryAt } from './timeEntries.ts';
 import { holdReply, settleTimer, touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
-const lengthFields = {
-  workMinutes: 'work_minutes',
-  shortRestMinutes: 'short_rest_minutes',
-  longRestMinutes: 'long_rest_minutes',
-  longRestEvery: 'long_rest_every',
-} as const;
-function readConfig(body: Record<string, unknown>, user: User): PomodoroSessionConfig {
-  const config = getPomodoroSessionConfig(user);
-  for (const key of Object.keys(lengthFields) as Array<keyof PomodoroSessionConfig>) {
-    const field = lengthFields[key],
-      value = body[field];
-    if (value == null) continue;
-    const { min, max } = POMODORO_SESSION_CONFIG_RANGES[key];
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
-      throw invalidInput(`Invalid ${field}: expected an integer from ${min} to ${max}`);
-    config[key] = value;
-  }
-  return config;
+export interface StartPomodoro {
+  /** The workspace of the session's entry; the default workspace when absent or null. */
+  workspaceId?: Id | null;
+  /** The lengths the client sent; the others come from the user's preferences. */
+  lengths: Partial<PomodoroSessionConfig>;
+  entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
 }
-function readRevision(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value))
-    throw invalidInput('Invalid revision: expected an integer');
-  return value;
-}
+
 /** A refused timer action. It carries the current view, so the client can catch up without another read. */
 export class TimerRefusal extends StateConflict<TimerView> {}
 async function refusal(ctx: EntryContext, user: User, now: Date, message: string): Promise<never> {
@@ -71,13 +44,19 @@ async function pausedAt(ctx: EntryContext, user: User, revision: number, now: Da
   if (!c || c.cloneEntryId !== null) return refusal(ctx, user, now, 'The timer is not paused');
   return c;
 }
-const copiedFields = (e: EntryDetails) => ({
+/** A running entry that starts `now`, in whole seconds. */
+const runningFrom = (now: Date, labels: StartPomodoro['entry']): NewEntry => ({
+  ...labels,
+  allDay: false,
+  times: { start: wholeSeconds(now) },
+});
+const copiedLabels = (e: EntryDetails): StartPomodoro['entry'] => ({
   description: e.description,
-  project_id: e.projectId,
-  task_id: e.taskId,
-  tag_ids: e.tags.map(t => t.id),
+  projectId: e.projectId,
+  taskId: e.taskId,
+  tagIds: e.tags.map(t => t.id),
   billable: e.billable,
-  created_with: e.createdWith,
+  createdWith: e.createdWith,
 });
 export interface TimerRunner<R extends EntryRepositories> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
@@ -101,27 +80,12 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       return reply;
     });
   }
-  async function startPomodoroWork(ctx: EntryContext, user: User, body: Record<string, unknown>, wid: Id, now: Date) {
-    const config = readConfig(body, user);
+  async function startPomodoroWork(ctx: EntryContext, user: User, start: StartPomodoro, wid: Id, now: Date) {
+    const config = { ...getPomodoroSessionConfig(user), ...start.lengths };
     if (await ctx.timers.getSession(user.id)) return refusal(ctx, user, now, 'A Pomodoro session is already running');
     await memberWorkspace(ctx, user.id, wid);
     await ctx.timers.deletePauseChain(user.id);
-    const entry = await createTimeEntry(
-      ctx,
-      user,
-      wid,
-      {
-        description: body.description,
-        project_id: body.project_id,
-        task_id: body.task_id,
-        tag_ids: body.tag_ids,
-        tags: body.tags,
-        billable: body.billable,
-        created_with: body.created_with,
-        start: now.toISOString(),
-      },
-      publish,
-    );
+    const entry = await createTimeEntry(ctx, user, wid, runningFrom(now, start.entry), publish);
     const phase = startSession(now);
     await ctx.timers.saveSession({
       userId: user.id,
@@ -144,8 +108,8 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     if (next.kind === 'work') {
       const ended = await getTimeEntry(ctx, user.id, s.entryId);
       await stopEntryAt(ctx, user, ended, now);
-      const copy = { ...copiedFields(ended), start: now.toISOString() };
-      entryId = (await createTimeEntry(ctx, user, ended.workspaceId, copy, publish)).id;
+      entryId = (await createTimeEntry(ctx, user, ended.workspaceId, runningFrom(now, copiedLabels(ended)), publish))
+        .id;
     }
     await ctx.timers.saveSession({
       ...s,
@@ -177,44 +141,36 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
   async function resumeWork(ctx: EntryContext, user: User, seen: number, now: Date) {
     const c = await pausedAt(ctx, user, seen, now),
       tags = await ctx.tags.findByIds(c.workspaceId, c.tagIds);
-    const clone = await createTimeEntry(
-      ctx,
-      user,
-      c.workspaceId,
-      {
-        description: c.description,
-        project_id: c.projectId,
-        task_id: c.taskId,
-        tag_ids: tags.map(t => t.id),
-        billable: c.billable,
-        start: now.toISOString(),
-      },
-      publish,
-    );
+    const labels = {
+      description: c.description,
+      projectId: c.projectId,
+      taskId: c.taskId,
+      tagIds: tags.map(t => t.id),
+      billable: c.billable,
+    };
+    const clone = await createTimeEntry(ctx, user, c.workspaceId, runningFrom(now, labels), publish);
     await ctx.timers.savePauseChain({ ...c, cloneEntryId: clone.id });
   }
   return {
     async getTimerState(userId: Id, now = new Date()): Promise<TimerView> {
       return action(userId, now, async () => {});
     },
-    async startPomodoro(userId: Id, body: Record<string, unknown>, now = new Date()): Promise<TimerView> {
-      const explicit = optionalId(body.workspace_id, 'workspace_id');
+    async startPomodoro(userId: Id, start: StartPomodoro, now = new Date()): Promise<TimerView> {
+      const explicit = start.workspaceId;
       return action(
         userId,
         now,
-        (ctx, user) => startPomodoroWork(ctx, user, body, explicit ?? user.defaultWorkspaceId, now),
+        (ctx, user) => startPomodoroWork(ctx, user, start, explicit ?? user.defaultWorkspaceId, now),
         explicit ? [explicit] : [],
         !explicit,
       );
     },
-    async nextPomodoroPhase(userId: Id, revision: unknown, now = new Date()): Promise<TimerView> {
-      const seen = readRevision(revision);
-      return action(userId, now, (ctx, user) => nextPhaseWork(ctx, user, seen, now));
+    async nextPomodoroPhase(userId: Id, revision: number, now = new Date()): Promise<TimerView> {
+      return action(userId, now, (ctx, user) => nextPhaseWork(ctx, user, revision, now));
     },
-    async endPomodoro(userId: Id, revision: unknown, now = new Date()): Promise<TimerView> {
-      const seen = readRevision(revision);
+    async endPomodoro(userId: Id, revision: number, now = new Date()): Promise<TimerView> {
       return action(userId, now, async (ctx, user) => {
-        const s = await sessionAt(ctx, user, seen, now);
+        const s = await sessionAt(ctx, user, revision, now);
         await stopEntryAt(ctx, user, await getTimeEntry(ctx, user.id, s.entryId), now);
         await ctx.timers.deleteSession(user.id);
       });
@@ -222,14 +178,12 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     async pauseTimer(userId: Id, now = new Date()): Promise<TimerView> {
       return action(userId, now, (ctx, user) => pauseWork(ctx, user, now));
     },
-    async resumeTimer(userId: Id, revision: unknown, now = new Date()): Promise<TimerView> {
-      const seen = readRevision(revision);
-      return action(userId, now, (ctx, user) => resumeWork(ctx, user, seen, now));
+    async resumeTimer(userId: Id, revision: number, now = new Date()): Promise<TimerView> {
+      return action(userId, now, (ctx, user) => resumeWork(ctx, user, revision, now));
     },
-    async discardPause(userId: Id, revision: unknown, now = new Date()): Promise<TimerView> {
-      const seen = readRevision(revision);
+    async discardPause(userId: Id, revision: number, now = new Date()): Promise<TimerView> {
       return action(userId, now, async (ctx, user) => {
-        await pausedAt(ctx, user, seen, now);
+        await pausedAt(ctx, user, revision, now);
         await ctx.timers.deletePauseChain(user.id);
       });
     },

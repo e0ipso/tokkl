@@ -22,7 +22,7 @@ import type {
 import { memberWorkspace } from './membership.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
 import { getClient, getProject, getTask } from './catalogs.ts';
-import { getTimeEntry } from './timeEntries.ts';
+import { getTimeEntry } from './entryAccess.ts';
 
 export type ReadRepositories = Omit<Repositories, 'rateLimits'>;
 

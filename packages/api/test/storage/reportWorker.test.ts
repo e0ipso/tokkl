@@ -30,7 +30,7 @@ import {
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { presentTimerOperations } from '../../src/services/timerReplies.ts';
-import { createTimeEntry } from '../../src/domain/timeEntries.ts';
+import { createTimeEntry } from '../fixtures/entryBodies.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import type { Backend } from '../../src/storage/config.ts';

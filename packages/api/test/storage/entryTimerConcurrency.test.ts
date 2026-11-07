@@ -7,7 +7,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { StorageConflict } from '../../src/storage/errors.ts';
-import * as entries from '../../src/domain/timeEntries.ts';
+import * as entries from '../fixtures/entryBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { presentTimerOperations } from '../../src/services/timerReplies.ts';
@@ -47,7 +47,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.ok(stored && stored.revision >= state.revision);
           revisions.push(state.revision);
         });
-        const timers = [runner, second].map(r => presentTimerOperations(createTimerOperations(r, publish)));
+        const timers = [runner, second].map(r =>
+          entries.bodyTimers(presentTimerOperations(createTimerOperations(r, publish))),
+        );
         await t.test('absent state races on separate connections produce one session and a 409', async () => {
           assert.equal(await runner.readSnapshot(ctx => ctx.timers.getRevision(user.id)), undefined);
           const held = gate(),
@@ -107,7 +109,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               });
             },
           };
-          const late = presentTimerOperations(createTimerOperations(wrapper, publish));
+          const late = entries.bodyTimers(presentTimerOperations(createTimerOperations(wrapper, publish)));
           const state = await late.getTimerState(user.id, at('09:06:00'));
           assert.equal(state.running_entry?.description, 'late committed edit');
           assert.deepEqual(state, await timers[0]!.getTimerState(user.id, at('09:06:00')));
@@ -120,7 +122,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               assert.equal((await runner.readSnapshot(ctx => ctx.timers.getRevision(id)))?.revision, state.revision);
               throw new Error('subscriber failure');
             });
-            const timer = presentTimerOperations(createTimerOperations(runner, broken));
+            const timer = entries.bodyTimers(presentTimerOperations(createTimerOperations(runner, broken)));
             const state = await timer.endPomodoro(user.id, before.revision, at('09:10:00'));
             assert.equal(failed, 1);
             assert.equal(state.running_entry, null);

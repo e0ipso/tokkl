@@ -5,7 +5,7 @@ import type { CompiledQuery, QueryResult, AbortableOperationOptions } from 'kyse
 import type { EntryInput } from '../../src/storage/contracts.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { openConnection } from '../../src/storage/connections.ts';
-import { withExactEntryImport, type ExactEntryImport } from '../../src/domain/timeEntries.ts';
+import { bodyWriter, withExactEntryImport } from '../fixtures/entryBodies.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createStorageImports } from '../../src/services/storageImportJson.ts';
@@ -201,9 +201,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.deepEqual(stored[0]?.tags, [{ id: localTag.id, name: 'Local' }]);
         });
         await t.test('scoped writer rejects escaped use and rolls back cached row-created tags', async () => {
-          let escaped: ExactEntryImport | undefined;
+          let escaped: ReturnType<typeof bodyWriter> | undefined;
           await runner.transaction(ctx =>
-            withExactEntryImport(ctx, user.id, wid, publish, async writer => {
+            withExactEntryImport(ctx, user.id, wid, publish, async scoped => {
+              const writer = bodyWriter(scoped);
               escaped = writer;
               await assert.rejects(writer.create({}), /requires a row savepoint/);
               await assert.rejects(

@@ -6,12 +6,10 @@ import { pad2, zonedToUtc } from '@tokkl/common/time';
 import type { ImportResult, ImportUser } from '@tokkl/types';
 import type { OperationContext } from '../storage/contracts.ts';
 import { createClient, createProject, createTask } from '../domain/catalogs.ts';
-import {
-  withExactEntryImport,
-  noTimeSpan,
-  type EntryRepositories,
-  type ExactEntryImport,
-} from '../domain/timeEntries.ts';
+import { parseNewEntry } from '../commands/timeEntries.ts';
+import type { EntryRepositories } from '../domain/entryAccess.ts';
+import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImport.ts';
+import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../storage/domain.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
 import { protectImport, importError } from './storageImportContext.ts';
@@ -288,20 +286,22 @@ export async function importTogglCsv(
       result.skipped_duplicates++;
       return;
     }
-    await writer.create({
-      description,
-      ...(noTime
-        ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
-        : { start: start.toISOString(), stop: stop.toISOString() }),
-      project_id: pid,
-      task_id: await names.taskId(pid, cell(row, 'task')),
-      billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
-      tags: cell(row, 'tags')
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean),
-      created_with: 'tokkl-csv-import',
-    });
+    await writer.create(
+      parseNewEntry({
+        description,
+        ...(noTime
+          ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
+          : { start: start.toISOString(), stop: stop.toISOString() }),
+        project_id: pid,
+        task_id: await names.taskId(pid, cell(row, 'task')),
+        billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
+        tags: cell(row, 'tags')
+          .split(',')
+          .map(t => t.trim())
+          .filter(Boolean),
+        created_with: 'tokkl-csv-import',
+      }),
+    );
     result.created++;
   }
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {

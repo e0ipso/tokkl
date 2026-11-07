@@ -5,7 +5,7 @@
 import type { Id } from '../storage/domain.ts';
 import type { AccountEntryEffects, AccountRepositories } from './accounts.ts';
 import type { CatalogTimerEffects } from './catalogs.ts';
-import type { EntryContext, EntryRepositories } from './timeEntries.ts';
+import type { EntryContext, EntryRepositories } from './entryAccess.ts';
 import { reanchorNoTimeEntries } from './timeEntries.ts';
 import { settleTimer, touchTimer, type LocalTimerPublication, type TimerPublication } from './timerSettlement.ts';
 import type { TimerView } from './timerView.ts';

@@ -1,6 +1,5 @@
 import type { OperationContext } from '../storage/contracts.ts';
-import type { EntryRepositories } from '../domain/timeEntries.ts';
-import { protectEntryOperation } from '../domain/timeEntries.ts';
+import { protectEntryOperation, type EntryRepositories } from '../domain/entryAccess.ts';
 import { memberWorkspace, noWorkspaceAccess } from '../domain/membership.ts';
 import { StorageConflict } from '../storage/errors.ts';
 
