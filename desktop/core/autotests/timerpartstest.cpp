@@ -1,8 +1,10 @@
-// TimerView and MutationGate on their own: what the controller shows of a
-// state and what the end of a write asks of it. timercontrollertest covers them
+// TimerView, MutationGate and ProjectChoices on their own: what the
+// controller shows of a state, what the end of a write asks of it, and the
+// project submenu every panel builds. timercontrollertest covers them
 // through the controller.
 
 #include "mutationgate.h"
+#include "projectchoices.h"
 #include "timerview.h"
 
 #include <QTest>
@@ -230,6 +232,54 @@ private Q_SLOTS:
         QVERIFY(!gate.running());
         gate.begin();
         QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false, false).settle);
+    }
+
+    void projectChoicesOrderTheMenu()
+    {
+        Project alpha;
+        alpha.id = 11;
+        alpha.name = QStringLiteral("Alpha");
+        Project beta = alpha;
+        beta.id = 12;
+        beta.name = QStringLiteral("Beta");
+        Project legacy = alpha;
+        legacy.id = 33;
+        legacy.active = false;
+        using Kind = ProjectChoices::Row::Kind;
+
+        // Stopped with Beta chosen: the active projects, Beta checked, all
+        // offered.
+        ProjectChoices choices = ProjectChoices::build({alpha, beta}, false, 12, std::nullopt, true);
+        QVERIFY(choices.choosable);
+        QVERIFY(!choices.noProjectChecked);
+        QVERIFY(!choices.incomplete());
+        QCOMPARE(choices.rows.size(), 2);
+        QVERIFY(choices.rows.at(0).kind == Kind::Project && !choices.rows.at(0).checked && choices.rows.at(0).enabled);
+        QVERIFY(choices.rows.at(1).checked);
+
+        // Running on an archived project of a cut-short list: the archived
+        // project, then the note, then the projects, none offered.
+        choices = ProjectChoices::build({alpha, beta}, true, 33, legacy, false);
+        QCOMPARE(choices.rows.size(), 4);
+        QVERIFY(choices.rows.at(0).kind == Kind::Archived && choices.rows.at(0).checked && !choices.rows.at(0).enabled);
+        QCOMPARE(choices.rows.at(0).project.id, 33);
+        QVERIFY(choices.rows.at(1).kind == Kind::Incomplete && !choices.rows.at(1).enabled);
+        QVERIFY(choices.incomplete());
+        QVERIFY(!choices.rows.at(2).enabled && !choices.rows.at(3).enabled);
+
+        // An active held project gets no row of its own; no project checks
+        // No project.
+        choices = ProjectChoices::build({alpha}, false, std::nullopt, alpha, false);
+        QCOMPARE(choices.rows.size(), 1);
+        QVERIFY(choices.noProjectChecked);
+
+        const QVariantList rows = ProjectChoices::build({alpha}, true, 11, legacy, true).toVariantList();
+        QCOMPARE(rows.size(), 3);
+        QCOMPARE(rows.at(0).toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("archived"));
+        QCOMPARE(rows.at(1).toMap().value(QStringLiteral("kind")).toString(), QStringLiteral("incomplete"));
+        QVERIFY(rows.at(1).toMap().value(QStringLiteral("project")).toMap().isEmpty());
+        QCOMPARE(rows.at(2).toMap().value(QStringLiteral("project")).toMap().value(QStringLiteral("id")).toLongLong(), 11);
+        QVERIFY(!rows.at(2).toMap().contains(QStringLiteral("checked")));
     }
 };
 

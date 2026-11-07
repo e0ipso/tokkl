@@ -154,23 +154,10 @@ PlasmaComponents.Menu {
     PlasmaComponents.Menu {
         id: projectMenu
 
-        readonly property bool hasArchived: (menu.timer.running || menu.timer.paused) && menu.timer.entryProject !== null && !menu.timer.entryProject.active
-        // The rows after No project, in order: the current entry's archived
-        // project, a note when the list is cut short, then the active
-        // projects. Row i is item 1 + i of the menu.
-        readonly property var rows: {
-            const rows = [];
-            if (projectMenu.hasArchived) {
-                rows.push({ kind: "archived", project: menu.timer.entryProject });
-            }
-            if (menu.timer.projectsIncomplete) {
-                rows.push({ kind: "incomplete" });
-            }
-            for (const project of menu.timer.projects) {
-                rows.push({ kind: "project", project: project });
-            }
-            return rows;
-        }
+        // The rows after No project, in the order the core gives them: the
+        // current entry's archived project, a note when the list is cut
+        // short, then the active projects. Row i is item 1 + i of the menu.
+        readonly property var rows: menu.timer.projectChoices
 
         // A choice is possible: the timer can write, nothing runs, no chain
         // is paused and no session is active.

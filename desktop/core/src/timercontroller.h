@@ -5,6 +5,7 @@
 #include "connection.h"
 #include "epoch.h"
 #include "mutationgate.h"
+#include "projectchoices.h"
 #include "timerstateclient.h"
 #include "timerview.h"
 
@@ -162,6 +163,14 @@ public:
     // The connection could not read every active project: projects is a
     // prefix of them. Cleared with the projects.
     Q_PROPERTY(bool projectsIncomplete READ projectsIncomplete NOTIFY projectsChanged)
+    // The rows of the project submenu after No project, as
+    // ProjectChoices::toVariantList() gives them: the held entry's archived
+    // project, the note for a cut-short list, then the active projects.
+    // Whether a row is checked or can be chosen is left out, so the list
+    // changes only with the projects and the held entry's project; a
+    // project row is checked when it is chosenProjectId, and offered while
+    // canWrite allows a choice.
+    Q_PROPERTY(QVariantList projectChoices READ projectChoicesVariant NOTIFY projectChoicesChanged)
     // Choices for the next start, for the connection's account: null or a
     // project id, and the billable flag.
     Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId WRITE setSelectedProjectId NOTIFY selectionChanged)
@@ -228,6 +237,9 @@ public:
 
     QVariantList projects() const;
     bool projectsIncomplete() const;
+    // The project submenu every panel shows; see ProjectChoices.
+    ProjectChoices projectChoices() const;
+    QVariantList projectChoicesVariant() const;
     QVariant selectedProjectId() const;
     void setSelectedProjectId(const QVariant &projectId);
     bool billable() const;
@@ -281,6 +293,7 @@ Q_SIGNALS:
     void chainChanged();
     void sessionActiveChanged();
     void projectsChanged();
+    void projectChoicesChanged();
     void selectionChanged();
     void choiceChanged();
     void entryProjectChanged();
@@ -316,6 +329,7 @@ private:
     // user action.
     void clearKeptError();
     void updateElapsed();
+    void updateProjectChoices();
     bool readable() const;
 
     QPointer<Clock> m_clock;
@@ -342,6 +356,8 @@ private:
     ChosenProject *m_chosen;
     qint64 m_elapsed = 0;
     QString m_error;
+    // What projectChoices last announced.
+    QVariantList m_projectChoices;
 
     // The write that runs, and the settling a lost workspace asks of it.
     MutationGate m_gate;

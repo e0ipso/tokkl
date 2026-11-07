@@ -2339,6 +2339,28 @@ private Q_SLOTS:
         QVERIFY(f.timer.currentEntryVariant().isNull());
     }
 
+    // The menu's project rows change with the projects, not with a choice,
+    // so a menu that is open keeps its items while the user picks.
+    void projectChoicesFollowTheProjects()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QSignalSpy changed(&f.timer, &TimerController::projectChoicesChanged);
+        QCOMPARE(f.timer.projectChoicesVariant().size(), 1);
+        QVERIFY(f.timer.projectChoices().choosable);
+        QVERIFY(f.timer.projectChoices().noProjectChecked);
+
+        QVERIFY(f.timer.chooseProject(11));
+        QVERIFY(f.timer.projectChoices().rows.at(0).checked);
+        QVERIFY(!f.timer.projectChoices().noProjectChecked);
+        QCOMPARE(changed.count(), 0);
+
+        f.timer.refresh();
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]"));
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(f.timer.projectChoicesVariant().size(), 2);
+    }
+
     void stateClientCanBeReplaced()
     {
         Fixture f;

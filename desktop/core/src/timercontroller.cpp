@@ -70,6 +70,9 @@ TimerController::TimerController(Clock *clock, QObject *parent)
     }
     // A new next-start project may need its details read.
     connect(this, &TimerController::selectionChanged, this, &TimerController::resolveProject);
+    for (auto signal : {&TimerController::choiceChanged, &TimerController::entryProjectChanged, &TimerController::projectsChanged}) {
+        connect(this, signal, this, &TimerController::updateProjectChoices);
+    }
     if (m_clock) {
         connect(m_clock, &Clock::ticked, this, &TimerController::onTick);
     }
@@ -289,6 +292,26 @@ QVariantList TimerController::projects() const
 bool TimerController::projectsIncomplete() const
 {
     return m_catalog->incomplete();
+}
+
+ProjectChoices TimerController::projectChoices() const
+{
+    const bool held = isRunning() || isPaused();
+    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_chosen->entryProject() : std::nullopt, canWrite() && !held);
+}
+
+QVariantList TimerController::projectChoicesVariant() const
+{
+    return m_projectChoices;
+}
+
+void TimerController::updateProjectChoices()
+{
+    const QVariantList choices = projectChoices().toVariantList();
+    if (choices != m_projectChoices) {
+        m_projectChoices = choices;
+        Q_EMIT projectChoicesChanged();
+    }
 }
 
 QVariant TimerController::selectedProjectId() const
