@@ -4,20 +4,19 @@
 
 #include "clock.h"
 #include "connection.h"
-#include "credentialstore.h"
-#include "instanceurl.h"
-#include "logging.h"
 #include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
 #include "pomodorostore.h"
+#include "servicesettings.h"
 #include "soundchoices.h"
 #include "timercontroller.h"
 #include "timerstateclient.h"
 
 #include <QDBusMessage>
 #include <QDBusMetaType>
+#include <QMetaProperty>
 #include <QSettings>
 
 #include <optional>
@@ -47,21 +46,6 @@ qint64 unixSeconds(const QDateTime &time)
 {
     return time.isValid() ? time.toSecsSinceEpoch() : 0;
 }
-
-// Why Configure cannot use the settings, or empty when it can.
-QString configureError(const InstanceUrl &instance, const QString &authMode, const QString &email)
-{
-    if (!instance.isValid()) {
-        return instance.error;
-    }
-    if (authMode != QLatin1String("token") && authMode != QLatin1String("password")) {
-        return TimerService::tr("The sign-in method must be \"token\" or \"password\".");
-    }
-    if (authMode == QLatin1String("password") && email.trimmed().isEmpty()) {
-        return TimerService::tr("Enter the email address of your Tokkl account.");
-    }
-    return QString();
-}
 }
 
 QString TimerService::soundKey(TransitionKind kind)
@@ -85,7 +69,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     , m_sounds(new SoundChoices(m_settings, &TimerService::soundKey, this))
     , m_preferences(new PomodoroPreferences(m_connection, this))
     , m_session(new PomodoroSession(m_clock, m_timer, m_client, m_pomodoroStore, this))
-    , m_store(store)
+    , m_connectionSettings(new ServiceSettings(m_settings, m_connection, store, this))
     , m_bus(QString())
 {
     qDBusRegisterMetaType<QList<QVariantMap>>();
@@ -116,7 +100,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     connect(m_preferences, &PomodoroPreferences::stateChanged, this, publish);
     connect(m_sounds, &SoundChoices::changed, this, publish);
 
-    loadSettings();
+    m_connectionSettings->load();
     m_published = snapshot();
 }
 
@@ -428,28 +412,6 @@ bool TimerService::SetBillable(bool billable)
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
 {
-    const InstanceUrl instance = parseInstanceUrl(instanceUrl);
-    const QString invalid = configureError(instance, authMode, email);
-    if (!invalid.isEmpty()) {
-        if (calledFromDBus()) {
-            sendErrorReply(QDBusError::InvalidArgs, invalid);
-        }
-        return;
-    }
-
-    const AuthMode mode = authModeFromString(authMode);
-    // The same cleaning as the KDE Configure page: tokens never carry
-    // surrounding whitespace, passwords are used exactly as typed.
-    const QString cleaned = mode == AuthMode::Token ? secret.trimmed() : secret;
-    const ConnectionSettings settings{instance.base.toString(), authMode, email.trimmed()};
-    const quint64 serial = ++m_configureSerial;
-    if (cleaned.isEmpty()) {
-        if (!applySettings(settings) && calledFromDBus()) {
-            sendErrorReply(QDBusError::Failed, tr("The settings could not be saved to %1.").arg(m_settings->fileName()));
-        }
-        return;
-    }
-
     std::optional<QDBusMessage> call;
     QDBusConnection bus(QString{});
     if (calledFromDBus()) {
@@ -457,23 +419,23 @@ void TimerService::Configure(const QString &instanceUrl, const QString &authMode
         call = message();
         bus = QDBusContext::connection();
     }
-    m_store->write(credentialKey(instance, mode, settings.email), cleaned, this, [this, call, bus, settings, serial](const CredentialResult &result) {
-        QDBusMessage reply;
-        if (!result.ok()) {
-            reply = call ? call->createErrorReply(credentialStoreError, m_store->message(result)) : QDBusMessage();
-        } else if (serial != m_configureSerial) {
-            // A later Configure came while the keyring wrote; its settings
-            // win, whichever write ends last.
-            qCInfo(lcCredentials) << "A later Configure call replaced this one's settings";
-            reply = call ? call->createReply() : QDBusMessage();
-        } else if (!applySettings(settings)) {
-            reply = call ? call->createErrorReply(QDBusError::Failed, tr("The settings could not be saved to %1.").arg(m_settings->fileName()))
-                         : QDBusMessage();
-        } else {
-            reply = call ? call->createReply() : QDBusMessage();
+    m_connectionSettings->configure(instanceUrl, authMode, email, secret, [call, bus](const ServiceSettings::Outcome &outcome) {
+        if (!call) {
+            return;
         }
-        if (call) {
-            bus.send(reply);
+        switch (outcome.kind) {
+        case ServiceSettings::Outcome::Kind::Saved:
+            bus.send(call->createReply());
+            break;
+        case ServiceSettings::Outcome::Kind::Invalid:
+            bus.send(call->createErrorReply(QDBusError::InvalidArgs, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::StoreRefused:
+            bus.send(call->createErrorReply(credentialStoreError, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::NotWritten:
+            bus.send(call->createErrorReply(QDBusError::Failed, outcome.message));
+            break;
         }
     });
 }
@@ -557,57 +519,16 @@ bool TimerService::PreviewSound(const QString &soundId)
     return true;
 }
 
-void TimerService::loadSettings()
-{
-    const ConnectionSettings settings = ConnectionSettings::read(*m_settings);
-    if (!settings.instanceUrl.isEmpty()) {
-        settings.applyTo(*m_connection);
-    }
-}
-
-bool TimerService::applySettings(const ConnectionSettings &settings)
-{
-    if (!settings.write(*m_settings)) {
-        return false;
-    }
-    settings.applyTo(*m_connection);
-    return true;
-}
-
+// Every org.tokkl.Timer1 property, read as the adaptor reads it.
 QVariantMap TimerService::snapshot() const
 {
-    return {
-        {QStringLiteral("Running"), running()},
-        {QStringLiteral("StartTime"), startTime()},
-        {QStringLiteral("Paused"), paused()},
-        {QStringLiteral("ChainSeconds"), chainSeconds()},
-        {QStringLiteral("IndicatorState"), indicatorState()},
-        {QStringLiteral("IndicatorColor"), indicatorColor()},
-        {QStringLiteral("Projects"), QVariant::fromValue(projects())},
-        {QStringLiteral("ChosenProject"), chosenProject()},
-        {QStringLiteral("ChosenProjectName"), chosenProjectName()},
-        {QStringLiteral("Billable"), billable()},
-        {QStringLiteral("Status"), status()},
-        {QStringLiteral("ErrorString"), errorString()},
-        {QStringLiteral("PomodoroMode"), pomodoroMode()},
-        {QStringLiteral("ModeLocked"), modeLocked()},
-        {QStringLiteral("SessionActive"), sessionActive()},
-        {QStringLiteral("CanStartSession"), canStartSession()},
-        {QStringLiteral("Phase"), phase()},
-        {QStringLiteral("PhaseStart"), phaseStart()},
-        {QStringLiteral("PlannedEnd"), plannedEnd()},
-        {QStringLiteral("PomodoroNumber"), pomodoroNumber()},
-        {QStringLiteral("LongRestEvery"), longRestEvery()},
-        {QStringLiteral("UpcomingPhase"), upcomingPhase()},
-        {QStringLiteral("Ringing"), ringing()},
-        {QStringLiteral("RingingTransition"), ringingTransition()},
-        {QStringLiteral("SessionMessage"), sessionMessage()},
-        {QStringLiteral("PomodoroLengths"), QVariant::fromValue(pomodoroLengths())},
-        {QStringLiteral("PomodoroLengthsEditable"), pomodoroLengthsEditable()},
-        {QStringLiteral("PomodoroLengthErrors"), QVariant::fromValue(pomodoroLengthErrors())},
-        {QStringLiteral("Sounds"), QVariant::fromValue(sounds())},
-        {QStringLiteral("SoundChoices"), QVariant::fromValue(soundCatalogue())},
-    };
+    QVariantMap values;
+    const QMetaObject &meta = staticMetaObject;
+    for (int i = meta.propertyOffset(); i < meta.propertyCount(); ++i) {
+        const QMetaProperty property = meta.property(i);
+        values.insert(QString::fromLatin1(property.name()), property.read(this));
+    }
+    return values;
 }
 
 // Sends PropertiesChanged with the properties whose value differs from what

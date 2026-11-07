@@ -19,7 +19,6 @@
 #include <QVariantMap>
 
 #include "apitypes.h"
-#include "connectionsettings.h"
 
 class QSettings;
 class TimerServiceTest;
@@ -32,6 +31,7 @@ class CredentialStore;
 class PomodoroAlarm;
 class PomodoroPreferences;
 class PomodoroSession;
+class ServiceSettings;
 class SettingsPomodoroStore;
 class SoundChoices;
 class TimerController;
@@ -161,10 +161,6 @@ private:
     // The tests check what reaches the core.
     friend class ::TimerServiceTest;
 
-    void loadSettings();
-    // Saves the settings and gives them to the connection. False, and
-    // nothing changes, when the settings file cannot be written.
-    bool applySettings(const ConnectionSettings &settings);
     QVariantMap snapshot() const;
     void publishChanges();
 
@@ -177,13 +173,10 @@ private:
     SoundChoices *m_sounds;
     PomodoroPreferences *m_preferences;
     PomodoroSession *m_session;
-    CredentialStore *m_store;
+    ServiceSettings *m_connectionSettings;
     QPointer<PomodoroAlarm> m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
-    // Counts Configure calls. A keyring write that answers after a later
-    // call leaves that call's settings in place.
-    quint64 m_configureSerial = 0;
     // The property values the bus last saw.
     QVariantMap m_published;
 };
