@@ -46,15 +46,15 @@ KCM.SimpleKCM {
     property bool lengthsRead: false
     readonly property bool lengthsEditable: lengthsRead && preferences.editable && !preferences.saving
     readonly property var lengthFields: [workField, shortRestField, longRestField, everyField]
-    // A save was sent and has not been answered yet.
-    property bool saveSent: false
 
     // Plasma calls this on Apply, once it has saved the cfg_ properties. The
-    // preferences client posts the lengths that differ from the server's.
-    // The answer comes after Plasma has treated the page as saved, so a
-    // refused save asks for Apply again, with the typed values and the
-    // server's reason still on the page. OK closes the dialog before the
-    // answer; Plasma gives a page no way to stop that.
+    // lengths client posts the lengths that differ from the server's. The
+    // answer comes after Plasma has treated the page as saved, so a refused
+    // save asks for Apply again, with the typed values and the server's
+    // reason still on the page. OK closes the dialog before the answer;
+    // Plasma gives a page no way to stop that, so the save outlives the page
+    // (see pomodorolengthssaves.h) and the panel's menu and tooltip show a
+    // refusal.
     function saveConfig() {
         if (!lengthFields.some(field => field.edited)) {
             return;
@@ -63,9 +63,7 @@ KCM.SimpleKCM {
             // Nothing can be sent now. The typed values stay, and the page
             // asks for Apply again once Plasma has turned Apply off.
             Qt.callLater(page.configurationChanged);
-        } else if (preferences.save(workField.value, shortRestField.value, longRestField.value, everyField.value)) {
-            saveSent = true;
-        } else {
+        } else if (!lengths.save(workField.value, shortRestField.value, longRestField.value, everyField.value)) {
             // The server already holds every typed value.
             lengthFields.forEach(field => field.reset());
         }
@@ -73,7 +71,6 @@ KCM.SimpleKCM {
 
     // Saved when the server now holds every value on the page.
     function finishSave() {
-        saveSent = false;
         if (lengthFields.every(field => field.value === field.savedValue)) {
             lengthFields.forEach(field => field.reset());
         } else {
@@ -82,12 +79,14 @@ KCM.SimpleKCM {
     }
 
     Connections {
-        target: page.preferences
-        function onStateChanged() {
-            if (page.saveSent && !page.preferences.saving) {
-                page.finishSave();
-            }
+        target: lengths
+        function onSaveAnswered() {
+            page.finishSave();
         }
+    }
+
+    Connections {
+        target: page.preferences
         function onRefreshed(ok) {
             if (ok) {
                 page.lengthsRead = true;

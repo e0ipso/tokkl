@@ -14,6 +14,7 @@
 #include "connectionsetup.h"
 #include "fakes.h"
 #include "menuactions.h"
+#include "pomodorolengthssaves.h"
 #include "pomodorolengthsclient.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
@@ -374,6 +375,7 @@ public Q_SLOTS:
         qmlRegisterType<FakeConnectionSetup>(uri, 1, 0, "TokklConnectionSetup");
         qmlRegisterUncreatableType<PomodoroPreferences>(uri, 1, 0, "TokklPomodoroPreferences", QStringLiteral("Created by TokklPomodoroLengths"));
         qmlRegisterType<FakePomodoroLengths>(uri, 1, 0, "TokklPomodoroLengths");
+        qmlRegisterType<PomodoroLengthsSaveStatus>(uri, 1, 0, "TokklLengthsSaveStatus");
         qmlRegisterType<FakeAlarm>(uri, 1, 0, "TokklAlarm");
         qmlRegisterSingletonType<PomodoroSoundCatalogue>(uri, 1, 0, "TokklPomodoroSounds", [](QQmlEngine *, QJSEngine *) -> QObject * {
             return new PomodoroSoundCatalogue;

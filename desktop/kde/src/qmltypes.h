@@ -14,6 +14,7 @@
 #include "kdetimerstate.h"
 #include "menuactions.h"
 #include "pomodorolengthsclient.h"
+#include "pomodorolengthssaves.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosoundcatalogue.h"
@@ -125,6 +126,15 @@ struct TokklPomodoroLengthsForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::PomodoroLengthsClient)
     QML_NAMED_ELEMENT(TokklPomodoroLengths)
+};
+
+// The panel's word on the last Pomodoro lengths save of its account, which
+// the Configure page hands to a process-wide owner so it outlives the
+// dialog.
+struct TokklLengthsSaveStatusForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::PomodoroLengthsSaveStatus)
+    QML_NAMED_ELEMENT(TokklLengthsSaveStatus)
 };
 
 struct TokklAlarmForeign {

@@ -65,9 +65,16 @@ PlasmoidItem {
             })
     }
 
+    // A Pomodoro lengths save the settings page sent, whose refusal may
+    // come after the dialog has closed.
+    readonly property TokklLengthsSaveStatus lengthsSave: TokklLengthsSaveStatus {
+        connection: root.connection
+    }
+
     readonly property StatusText words: StatusText {
         timer: root.timer
         session: root.pomodoro.session
+        lengthsSave: root.lengthsSave
     }
 
     // Keep the timer inline in the panel. Plasma does not select a compact
