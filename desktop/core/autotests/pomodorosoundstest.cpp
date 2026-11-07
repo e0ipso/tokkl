@@ -4,6 +4,7 @@
 
 #include "apitypes.h"
 #include "pomodorosounds.h"
+#include "soundchoices.h"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -11,6 +12,9 @@
 #include <QHash>
 #include <QRegularExpression>
 #include <QSet>
+#include <QSettings>
+#include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace Tokkl;
@@ -110,6 +114,56 @@ private Q_SLOTS:
         QCOMPARE(ids.size(), 4);
         QVERIFY(!isSoundId(QString()));
         QVERIFY(!pomodoroSound(QStringLiteral("pomodoro-work-to-short-rest")));
+    }
+
+    // A stored choice counts only when the catalogue has it.
+    void chosenFallsBackToTheDefault()
+    {
+        QCOMPARE(chosenSound(u"long-rest-to-work", TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
+        QCOMPARE(chosenSound(u"gong", TransitionKind::WorkToShortRest), defaultSound(TransitionKind::WorkToShortRest));
+        QCOMPARE(chosenSound(QStringView(), TransitionKind::LongRestToWork), defaultSound(TransitionKind::LongRestToWork));
+    }
+
+    // A sound's file in a directory, only for a catalogue id whose file is
+    // there.
+    void locatesFiles()
+    {
+        const QString dir = QFileInfo(soundFiles().first()).absolutePath();
+        QCOMPARE(soundFile(dir, u"work-to-short-rest"), dir + QStringLiteral("/pomodoro-work-to-short-rest.wav"));
+        QCOMPARE(soundFile(dir + QLatin1Char('/'), u"long-rest-to-work"), dir + QStringLiteral("/pomodoro-long-rest-to-work.wav"));
+        QCOMPARE(soundFile(dir, u"gong"), QString());
+        QTemporaryDir empty;
+        QVERIFY(empty.isValid());
+        QCOMPARE(soundFile(empty.path(), u"work-to-short-rest"), QString());
+    }
+
+    // Choices go under the companion's own keys and survive a new
+    // QSettings on the same file; an unknown id is refused.
+    void choicesUseTheGivenKeys()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.filePath(QStringLiteral("choices.conf"));
+        const auto key = [](TransitionKind kind) {
+            return QStringLiteral("Sounds/") + transitionKindName(kind);
+        };
+        {
+            QSettings settings(file, QSettings::IniFormat);
+            SoundChoices choices(&settings, key);
+            QSignalSpy changed(&choices, &SoundChoices::changed);
+            QCOMPARE(choices.chosen(TransitionKind::WorkToShortRest), defaultSound(TransitionKind::WorkToShortRest));
+            QVERIFY(choices.choose(TransitionKind::WorkToShortRest, QStringLiteral("long-rest-to-work")));
+            QCOMPARE(changed.size(), 1);
+            QVERIFY(choices.choose(TransitionKind::WorkToShortRest, QStringLiteral("long-rest-to-work")));
+            QCOMPARE(changed.size(), 1);
+            QVERIFY(!choices.choose(TransitionKind::WorkToShortRest, QStringLiteral("gong")));
+            QCOMPARE(choices.chosen(TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
+        }
+        QSettings reread(file, QSettings::IniFormat);
+        QCOMPARE(reread.value(QStringLiteral("Sounds/workToShortRest")).toString(), QStringLiteral("long-rest-to-work"));
+        SoundChoices none(nullptr, key);
+        QVERIFY(!none.choose(TransitionKind::WorkToShortRest, QStringLiteral("long-rest-to-work")));
+        QCOMPARE(none.chosen(TransitionKind::WorkToShortRest), defaultSound(TransitionKind::WorkToShortRest));
     }
 
 private:

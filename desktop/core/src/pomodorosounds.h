@@ -37,4 +37,13 @@ bool isSoundId(QStringView id);
 // The id of the sound named after kind.
 QString defaultSound(TransitionKind kind);
 
+// The sound a transition plays: stored when it is a catalogue id, else the
+// default for kind. Every platform stores the user's choice under its own
+// key and reads it through this.
+QString chosenSound(QStringView stored, TransitionKind kind);
+
+// The file of a catalogue sound in directory, or empty for an id the
+// catalogue does not have or a file that is not there.
+QString soundFile(const QString &directory, QStringView soundId);
+
 }

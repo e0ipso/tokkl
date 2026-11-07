@@ -17,4 +17,6 @@ Q_DECLARE_LOGGING_CATEGORY(lcAuth)
 Q_DECLARE_LOGGING_CATEGORY(lcCredentials)
 // Timer and Pomodoro actions and their outcomes.
 Q_DECLARE_LOGGING_CATEGORY(lcTimer)
+// The Pomodoro alarm: sound files and choices.
+Q_DECLARE_LOGGING_CATEGORY(lcAlarm)
 }

@@ -2,6 +2,7 @@
 // a scripted transport and credential store.
 
 #include "connection.h"
+#include "connectionsettings.h"
 #include "connectionsetup.h"
 #include "fakes.h"
 
@@ -9,6 +10,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace Tokkl;
@@ -319,6 +322,32 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, R"({"id":33,"workspace_id":42,"name":"Old","active":false})"));
         QVERIFY(archived);
         QVERIFY(!archived->active);
+    }
+
+    // The three settings round-trip through a settings file and reach the
+    // connection; a file without a method reads as token sign-in.
+    void settingsRoundTrip()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.filePath(QStringLiteral("tokkl.conf"));
+        {
+            QSettings settings(file, QSettings::IniFormat);
+            QCOMPARE(ConnectionSettings::read(settings), ConnectionSettings{});
+            QVERIFY((ConnectionSettings{instance, QStringLiteral("password"), QStringLiteral("bea@example.test")}.write(settings)));
+        }
+        QSettings settings(file, QSettings::IniFormat);
+        QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), instance);
+        QCOMPARE(settings.value(QStringLiteral("authMode")).toString(), QStringLiteral("password"));
+        QCOMPARE(settings.value(QStringLiteral("email")).toString(), QStringLiteral("bea@example.test"));
+        const ConnectionSettings read = ConnectionSettings::read(settings);
+        QCOMPARE(read.instanceUrl, instance);
+
+        Fixture f;
+        read.applyTo(f.connection);
+        QCOMPARE(f.connection.instanceUrl(), instance);
+        QCOMPARE(f.connection.authMode(), AuthMode::Password);
+        QCOMPARE(f.connection.email(), QStringLiteral("bea@example.test"));
     }
 
     void webUrlCarriesNoCredentials()

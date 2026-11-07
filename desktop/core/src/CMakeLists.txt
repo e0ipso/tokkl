@@ -5,12 +5,15 @@
 # supplies its own credential store and client name.
 
 add_library(tokklcore STATIC
+    alarmoutput.h
     apitypes.cpp
     apitypes.h
     clock.cpp
     clock.h
     connection.cpp
     connection.h
+    connectionsettings.cpp
+    connectionsettings.h
     connectionsetup.cpp
     connectionsetup.h
     cooldown.cpp
@@ -23,6 +26,8 @@ add_library(tokklcore STATIC
     logging.cpp
     logging.h
     nextstartdefaults.h
+    pomodoroalarm.cpp
+    pomodoroalarm.h
     pomodoropreferences.cpp
     pomodoropreferences.h
     pomodorosession.cpp
@@ -33,6 +38,8 @@ add_library(tokklcore STATIC
     pomodorostore.h
     projectcatalog.cpp
     projectcatalog.h
+    soundchoices.cpp
+    soundchoices.h
     timercontroller.cpp
     timercontroller.h
     timerstateclient.cpp
