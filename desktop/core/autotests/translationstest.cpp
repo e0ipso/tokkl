@@ -14,11 +14,16 @@ using namespace Tokkl;
 
 namespace
 {
-// A .qm file with no messages: the magic number alone, which QTranslator
-// accepts.
-const QByteArray emptyCatalog = QByteArray::fromHex("3cb86418caef9c95cd211cbf60a1bddd");
+// A catalog with one message, which lrelease built from a .ts file that
+// translates "source text" in the context TranslationsTest as
+// "translated text". Qt 6.8 refuses a catalog without messages.
+const QByteArray testCatalog = QByteArray::fromHex(
+    "3cb86418caef9c95cd211cbf60a1bddd4200000008090dc0740000000069"
+    "0000004e030000001e007400720061006e0073006c006100740065006400"
+    "2000740065007800740800000000060000000b736f757263652074657874"
+    "07000000105472616e736c6174696f6e735465737401");
 
-void writeCatalog(const QString &localeDir, const QString &language, const QByteArray &content = emptyCatalog)
+void writeCatalog(const QString &localeDir, const QString &language, const QByteArray &content = testCatalog)
 {
     const QString dir = localeDir + QLatin1Char('/') + language + QStringLiteral("/LC_MESSAGES");
     QVERIFY(QDir().mkpath(dir));
@@ -52,6 +57,7 @@ private Q_SLOTS:
         QCOMPARE(installedTranslators(), 1);
         QCOMPARE(QCoreApplication::instance()->findChild<QTranslator *>()->filePath(),
                  dir.path() + QStringLiteral("/pt_BR/LC_MESSAGES/tokklcore_qt.qm"));
+        QCOMPARE(QCoreApplication::translate("TranslationsTest", "source text"), QStringLiteral("translated text"));
     }
 
     void theLanguageAloneIsTheLastTry()
@@ -78,6 +84,7 @@ private Q_SLOTS:
         QVERIFY(!installTranslations(coreCatalog, {dir.path()}, QLocale(QStringLiteral("fr_FR"))));
         QVERIFY(!installTranslations(QStringLiteral("tokkl_other_qt"), {dir.path()}, QLocale(QStringLiteral("de"))));
         QCOMPARE(installedTranslators(), 0);
+        QCOMPARE(QCoreApplication::translate("TranslationsTest", "source text"), QStringLiteral("source text"));
     }
 
     void aBrokenCatalogInstallsNothing()
