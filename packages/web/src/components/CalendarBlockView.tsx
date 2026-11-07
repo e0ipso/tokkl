@@ -4,7 +4,7 @@ import { MIN_BLOCK_HEIGHT, minuteToPx, type CalendarBlock } from '../lib/calenda
 import { duration, formatTime } from '../lib/format.ts';
 import type { Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
-import { projectColorStyle } from './Pickers.tsx';
+import { projectColorStyle } from './ProjectLabel.tsx';
 import type { CalendarDrag } from './useCalendarDrag.ts';
 
 /** One entry's part of a day column, drawn where a move or resize in progress would drop it. */

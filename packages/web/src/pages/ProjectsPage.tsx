@@ -5,7 +5,7 @@ import { stale } from '../api/keys.ts';
 import { projectRequests, useProjects, type ProjectDeletionMode } from '../api/projects.ts';
 import type { Project } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
-import { ProjectDot } from '../components/Pickers.tsx';
+import { ProjectDot } from '../components/ProjectLabel.tsx';
 import { useSettings } from '../api/settings.ts';
 import { duration, formatMoney } from '../lib/format.ts';
 import { type Settings } from '../lib/settings.ts';

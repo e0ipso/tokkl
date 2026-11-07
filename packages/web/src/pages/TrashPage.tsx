@@ -5,7 +5,7 @@ import type { TimeEntry } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { ProjectDot } from '../components/Pickers.tsx';
+import { ProjectDot } from '../components/ProjectLabel.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { useSettings } from '../api/settings.ts';
 import { duration, formatDateTime } from '../lib/format.ts';

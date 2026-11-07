@@ -2,7 +2,9 @@ import { forwardRef, useId, useImperativeHandle, useRef, useState, type Keyboard
 import { useProjects } from '../api/projects.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { Icon } from './Icon.tsx';
-import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
+import { ProjectDot, ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
+import { ProjectPicker } from './ProjectPicker.tsx';
+import { TagPicker } from './TagPicker.tsx';
 import { suggestedDraft, useEntryFields, type EntryDraft, type Suggestion } from './useEntryFields.ts';
 
 export interface EntryFieldsHandle {

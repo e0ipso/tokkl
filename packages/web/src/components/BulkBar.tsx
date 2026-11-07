@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import type { PatchOperation } from '../api/types.ts';
 import { Icon } from './Icon.tsx';
-import { ProjectPicker, TagPicker } from './Pickers.tsx';
+import { ProjectPicker } from './ProjectPicker.tsx';
+import { TagPicker } from './TagPicker.tsx';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
 
 /** Actions on the selected entries. Every action ends the selection once the server answers. */
