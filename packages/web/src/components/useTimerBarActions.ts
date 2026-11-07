@@ -17,8 +17,9 @@ import { t } from '../i18n/messages.ts';
  * The server owns the running entry, the pause chain and the Pomodoro session: every action goes
  * through a v9 write or a timer action. Pause, Resume and Stop while paused wait for the server's
  * answer, and nothing else starts or stops an entry until it arrives, so two writes never race.
- * Every write is tried at once, online or not. A Start, Continue or Stop that got no reply leaves
- * the timer unknown, and the next start reads the timer state before it takes its start time.
+ * Start, Continue and Stop are tried at once, online or not, like the timer actions. One that got
+ * no reply leaves the timer unknown, and the next start reads the timer state before it takes its
+ * start time.
  */
 export function useTimerBarActions({
   current,
