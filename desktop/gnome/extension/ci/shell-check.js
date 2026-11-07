@@ -42,7 +42,7 @@ const timerProperty = name =>
     )[0];
 // The chain total the label should show now.
 const chainTotal = () => {
-    const start = timerProperty('StartTime');
+    const start = timerProperty('LocalStartTime');
     const running = timerProperty('Running') && start > 0 ? Math.floor(Date.now() / 1000) - start : 0;
     return formatElapsed(timerProperty('ChainSeconds') + running);
 };
@@ -202,6 +202,16 @@ await step('the panel shows the elapsed time from StartTime', async () => {
     await waitFor('the next minute', () => label() === '1:03' || label(), 8000);
 });
 
+await step('the panel counts from LocalStartTime, the start on this clock', async () => {
+    // The server's clock runs two minutes ahead: its start is two minutes
+    // later than the start on this machine's clock.
+    const start = timerProperty('StartTime');
+    mockSet('LocalStartTime', new GLib.Variant('x', start - 120));
+    await waitFor('1:04 or 1:05', () => /^1:0[45]$/.test(label()) || label());
+    mockSet('LocalStartTime', new GLib.Variant('x', start));
+    await waitFor('1:02 or 1:03', () => /^1:0[23]$/.test(label()) || label());
+});
+
 await step('a running entry without a project is a round outline that does not pulse', async () => {
     await indicatorIs('a round outline', {
         kind: 'outline',
@@ -299,6 +309,21 @@ await step('a stopped timer lets the menu choose the project', async () => {
         () =>
             shell(`${button}._projectMenu.label.text`) === 'Project: Website (Acme)' ||
             shell(`${button}._projectMenu.label.text`),
+    );
+});
+
+await step('a cut-short project list says so before the projects', async () => {
+    const items = `${button}._projectMenu.menu._getMenuItems()`;
+    mockSet('ProjectsIncomplete', new GLib.Variant('b', true));
+    const note = 'Project list cut short. Use Open Tokkl for the others.';
+    await waitFor('the note', () => shell(`${items}[1].label.text`) === note || shell(`${items}[1].label.text`));
+    if (shell(`${items}[1].reactive`)) throw new Error('the note can be chosen');
+    if (shell(`${items}[2].label.text`) !== 'Website (Acme)')
+        throw new Error(`after the note: ${shell(`${items}[2].label.text`)}`);
+    mockSet('ProjectsIncomplete', new GLib.Variant('b', false));
+    await waitFor(
+        'no note',
+        () => shell(`${items}[1].label.text`) === 'Website (Acme)' || shell(`${items}[1].label.text`),
     );
 });
 

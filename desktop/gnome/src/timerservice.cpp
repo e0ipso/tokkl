@@ -9,6 +9,7 @@
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
 #include "pomodorostore.h"
+#include "projectchoices.h"
 #include "servicesettings.h"
 #include "soundchoices.h"
 #include "timercontroller.h"
@@ -153,6 +154,17 @@ qint64 TimerService::startTime() const
     return entry && entry->isRunning() ? entry->start.toSecsSinceEpoch() : 0;
 }
 
+qint64 TimerService::localStartTime() const
+{
+    const std::optional<TimeEntry> entry = m_timer->currentEntry();
+    if (!entry || !entry->isRunning()) {
+        return 0;
+    }
+    // serverNow() is this machine's clock plus the offset, so the start on
+    // this clock is the server's start minus it.
+    return entry->start.addMSecs(-m_client->serverOffsetMs()).toSecsSinceEpoch();
+}
+
 bool TimerService::paused() const
 {
     return m_timer->isPaused();
@@ -183,20 +195,28 @@ QString TimerService::indicatorColor() const
 
 QList<QVariantMap> TimerService::projects() const
 {
-    // Only the fields the interface names, so no null value reaches the bus.
+    // The active projects of the core's project choices, with only the
+    // fields the interface names, so no null value reaches the bus.
     QList<QVariantMap> list;
-    const QVariantList projects = m_timer->projects();
-    for (const QVariant &value : projects) {
-        const QVariantMap project = value.toMap();
+    const ProjectChoices choices = m_timer->projectChoices();
+    for (const ProjectChoices::Row &row : choices.rows) {
+        if (row.kind != ProjectChoices::Row::Kind::Project) {
+            continue;
+        }
         list.append({
-            {QStringLiteral("id"), project.value(QStringLiteral("id")).toLongLong()},
-            {QStringLiteral("name"), project.value(QStringLiteral("name")).toString()},
-            {QStringLiteral("clientName"), project.value(QStringLiteral("clientName")).toString()},
-            {QStringLiteral("color"), project.value(QStringLiteral("color")).toString()},
-            {QStringLiteral("billable"), project.value(QStringLiteral("billable")).toBool()},
+            {QStringLiteral("id"), row.project.id},
+            {QStringLiteral("name"), row.project.name},
+            {QStringLiteral("clientName"), row.project.clientName},
+            {QStringLiteral("color"), row.project.color},
+            {QStringLiteral("billable"), row.project.billable},
         });
     }
     return list;
+}
+
+bool TimerService::projectsIncomplete() const
+{
+    return m_timer->projectChoices().incomplete();
 }
 
 qint64 TimerService::chosenProject() const

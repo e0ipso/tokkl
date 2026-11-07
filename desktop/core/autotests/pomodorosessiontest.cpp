@@ -207,6 +207,21 @@ class PomodoroSessionTest : public QObject
             return QJsonDocument(body).toJson(QJsonDocument::Compact);
         }
 
+        // The state at the next revision with the entry running outside a
+        // session.
+        QByteArray runningState(const QJsonObject &entry)
+        {
+            const QJsonObject body{
+                {QStringLiteral("revision"), ++revision},
+                {QStringLiteral("server_time"), iso(serverNow())},
+                {QStringLiteral("running_entry"), entry},
+                {QStringLiteral("pause"), QJsonValue::Null},
+                {QStringLiteral("pomodoro"), QJsonValue::Null},
+                {QStringLiteral("discarded_pomodoro"), QJsonValue::Null},
+            };
+            return QJsonDocument(body).toJson(QJsonDocument::Compact);
+        }
+
         // A state from the event stream, as another device's change sends it.
         void push(const QByteArray &state)
         {
@@ -371,6 +386,40 @@ private Q_SLOTS:
         QVERIFY(!f.session->isActive());
     }
 
+    // A session starts only when the timer could start anything: not during
+    // a 429 cooldown, and not once the workspace is lost, although an
+    // account is bound and a state has been read in both cases.
+    void startSessionWaitsLikeTheTimer_data()
+    {
+        QTest::addColumn<QByteArray>("trigger");
+        QTest::newRow("cooldown") << QByteArray("cooldown");
+        QTest::newRow("lost workspace") << QByteArray("workspace");
+    }
+
+    void startSessionWaitsLikeTheTimer()
+    {
+        QFETCH(QByteArray, trigger);
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.session->setPomodoroMode(true));
+        QVERIFY(f.session->canStartSession());
+
+        f.timer.refresh();
+        if (trigger == "cooldown") {
+            f.transport.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "60"));
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+        } else {
+            f.transport.respond(f.last("GET", "/projects"), FakeTransport::answer(403, "\"User does not have access to this resource.\""));
+            QVERIFY(f.timer.workspaceAccessLost());
+        }
+        QVERIFY(f.timer.isConnected());
+        QVERIFY(f.client.state().has_value());
+        QVERIFY(!f.timer.canStartNew());
+        QVERIFY(!f.session->canStartSession());
+        QVERIFY(!f.session->startSession());
+        QCOMPARE(f.find("POST", startPath).size(), 0);
+    }
+
     void startsAndEndsOnTheServer()
     {
         Fixture f;
@@ -382,7 +431,11 @@ private Q_SLOTS:
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
         const qsizetype timerStart = f.last("POST", entriesPath);
         QVERIFY(timerStart >= 0);
-        f.transport.respond(timerStart, FakeTransport::answer(200, QJsonDocument(runningEntry(30, f.serverNow())).toJson(QJsonDocument::Compact)));
+        const QJsonObject started = runningEntry(30, f.serverNow());
+        f.transport.respond(timerStart, FakeTransport::answer(200, QJsonDocument(started).toJson(QJsonDocument::Compact)));
+        // The read after the start shows it.
+        QVERIFY(!f.session->canStartSession());
+        f.respond(f.last("GET", statePath), f.runningState(started));
         QVERIFY(f.timer.isRunning());
         QVERIFY(f.session->modeLocked());
         QVERIFY(!f.session->setPomodoroMode(true));

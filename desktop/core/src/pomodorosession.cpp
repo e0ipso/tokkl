@@ -283,8 +283,9 @@ void PomodoroSession::update()
 
     const bool sessionActive = session || (m_timer && m_timer->isSessionActive());
     const bool locked = timerHeld() || sessionActive;
-    const bool canStart = m_pomodoroMode && !sessionActive && !timerHeld() && !busy() && m_clock && m_timer && m_timer->isConnected() && m_client
-        && m_client->state().has_value();
+    // The timer says whether anything new may start; a session adds the
+    // mode, its own action and its own view of the state.
+    const bool canStart = m_pomodoroMode && !sessionActive && !busy() && m_clock && m_timer && m_timer->canStartNew();
     if (locked != m_modeLocked) {
         m_modeLocked = locked;
         Q_EMIT modeLockedChanged();

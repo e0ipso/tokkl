@@ -90,9 +90,10 @@ public:
     void nextPhase(ActionCallback done = {});
     void endPomodoro(ActionCallback done = {});
 
-    // A write made elsewhere, such as a v9 start, had an unknown outcome:
-    // read the state and stay settling until a read sent from now on
-    // answers. The actions above do this themselves.
+    // A write made elsewhere, such as a v9 start, had an unknown outcome or
+    // answered with less than the state: read the state and stay settling
+    // until a read sent from now on answers. The actions above do this
+    // themselves for an unknown outcome.
     void settle();
 
 public Q_SLOTS:

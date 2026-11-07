@@ -14,9 +14,17 @@
     <!-- An entry is running. The open pomodoro of a session is not a
          timer: it leaves Running false and SessionActive true. -->
     <property name="Running" type="b" access="read"/>
-    <!-- Start of the running entry as Unix time in seconds, or 0. The
-         running entry's own time is the current time minus this. -->
+    <!-- Start of the running entry as the server recorded it, as Unix time
+         in seconds, or 0. On a machine whose clock differs from the
+         server's, the current time minus this is off by the difference:
+         use LocalStartTime for elapsed time. Kept for older clients. -->
     <property name="StartTime" type="x" access="read"/>
+    <!-- StartTime on this machine's clock: the server's start minus how far
+         the server's clock is ahead of this one, as the server_time of the
+         last state read gives it. Unix time in seconds, or 0. The running
+         entry's own time is the current time minus this, the same as the
+         other Tokkl apps show. -->
+    <property name="LocalStartTime" type="x" access="read"/>
     <!-- A chain is paused: nothing runs, so Running is false and StartTime
          is 0, and Resume would continue it. -->
     <property name="Paused" type="b" access="read"/>
@@ -36,6 +44,10 @@
     <property name="Projects" type="aa{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
     </property>
+    <!-- The workspace has more active projects than the service could read,
+         so Projects is only the first of them. A project menu says so, as
+         the KDE and macOS menus do. -->
+    <property name="ProjectsIncomplete" type="b" access="read"/>
     <!-- The running or paused entry's project, or the project of the next
          start while stopped; 0 for no project. A session started on another
          device does not change it. -->
@@ -67,9 +79,10 @@
          started it and in either mode. A restart reads it again. -->
     <property name="SessionActive" type="b" access="read"/>
     <!-- StartSession can send now: Pomodoro mode is on, nothing runs, no
-         session is active, an account is connected, and a state has been
-         read from the server. False while an action waits for its answer
-         or its outcome is not known yet. -->
+         session is active, an account is connected and may write (no 429
+         cooldown, workspace not lost), and a state has been read from the
+         server. False while an action waits for its answer or its outcome
+         is not known yet. Start follows the same rule. -->
     <property name="CanStartSession" type="b" access="read"/>
     <!-- The phase that runs: "work", "shortRest" or "longRest"; empty
          without a session. -->

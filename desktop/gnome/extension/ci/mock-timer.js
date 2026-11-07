@@ -30,11 +30,13 @@ const mockXml = `<node>
 const types = {
     Running: 'b',
     StartTime: 'x',
+    LocalStartTime: 'x',
     Paused: 'b',
     ChainSeconds: 'x',
     IndicatorState: 's',
     IndicatorColor: 's',
     Projects: 'aa{sv}',
+    ProjectsIncomplete: 'b',
     ChosenProject: 'x',
     ChosenProjectName: 's',
     Billable: 'b',
@@ -63,6 +65,7 @@ const types = {
 const state = {
     Running: false,
     StartTime: 0,
+    LocalStartTime: 0,
     Paused: false,
     ChainSeconds: 0,
     IndicatorState: 'none',
@@ -71,6 +74,7 @@ const state = {
         { id: 7, name: 'Website', clientName: 'Acme', color: '#3366cc', billable: true },
         { id: 9, name: 'Internal', clientName: '', color: '#cc6633', billable: false },
     ],
+    ProjectsIncomplete: false,
     ChosenProject: 0,
     ChosenProjectName: '',
     Billable: false,
@@ -148,6 +152,10 @@ function set(values) {
     // chain is paused or a session is active, and a session can start in
     // Pomodoro mode when nothing runs and the account is ready.
     const derived = {};
+    // This machine's clock is the server's here, so the local start is the
+    // server's start whenever that changes. A check sets LocalStartTime on
+    // its own to stand for a skewed clock.
+    if ('StartTime' in values && state.LocalStartTime !== state.StartTime) derived.LocalStartTime = state.StartTime;
     const locked = state.Running || state.Paused || state.SessionActive;
     if (state.ModeLocked !== locked) derived.ModeLocked = locked;
     const canStart = state.PomodoroMode && !locked && state.Status === 'ready';

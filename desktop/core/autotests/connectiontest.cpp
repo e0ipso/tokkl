@@ -124,15 +124,6 @@ class ConnectionTest : public QObject
         return f.connection.state() == Connection::Connected;
     }
 
-    // Set the next-start choices, the only data the connection keeps
-    // besides the account.
-    static bool populate(Fixture &f)
-    {
-        f.connection.setNextProjectId(11);
-        f.connection.setNextBillable(true);
-        return f.connection.nextProjectId() == 11 && f.connection.nextBillable();
-    }
-
     static void verifyCleared(const Connection &connection)
     {
         QVERIFY(!connection.isConnected());
@@ -140,8 +131,6 @@ class ConnectionTest : public QObject
         QVERIFY(!connection.account().has_value());
         QCOMPARE(connection.workspaceId(), 0);
         QVERIFY(connection.accountMap().isEmpty());
-        QVERIFY(!connection.nextProjectId().has_value());
-        QVERIFY(!connection.nextBillable());
     }
 
 private Q_SLOTS:
@@ -502,7 +491,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         f.store.failure = CredentialResult::Status::Unavailable;
         f.connection.reconnect();
         QTRY_COMPARE(f.connection.state(), Connection::WalletError);
@@ -557,7 +545,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         const qsizetype requests = f.transport.requests.size();
 
         f.store.failure = CredentialResult::Status::Unavailable;
@@ -691,7 +678,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         QSignalSpy accountChanged(&f.connection, &Connection::accountChanged);
 
         f.connection.refreshAccount();
@@ -747,7 +733,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         std::optional<ApiResult<ProjectList>> result;
         f.connection.fetchProjects([&](const auto &r) {
             result = r;
@@ -764,7 +749,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
 
         std::optional<ApiResult<ProjectList>> projects;
         f.connection.fetchProjects([&](const auto &r) {
@@ -830,7 +814,6 @@ private Q_SLOTS:
         QFETCH(QByteArray, body);
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         QSignalSpy accountChanged(&f.connection, &Connection::accountChanged);
 
         bool answered = false;
@@ -897,7 +880,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         std::optional<ApiResult<ProjectList>> limited;
         f.connection.fetchProjects([&](const auto &r) {
             limited = r;
@@ -956,14 +938,12 @@ private Q_SLOTS:
         {
             Fixture f;
             QVERIFY(connectAccount(f));
-            QVERIFY(populate(f));
             f.connection.fetchTimerState();
             f.transport.respondLast(response);
             QCOMPARE(f.connection.state(), Connection::Disconnected);
             QVERIFY(f.connection.isStale());
             QVERIFY(f.connection.isConnected());
             QVERIFY(f.connection.canWrite());
-            QCOMPARE(f.connection.nextProjectId(), std::optional<qint64>(11));
 
             f.connection.fetchTimerState();
             f.transport.respondLast(FakeTransport::answer(200, stateBody()));
@@ -990,7 +970,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         const quint64 generation = f.connection.generation();
 
         // A request is in flight when the address changes.
@@ -1027,7 +1006,6 @@ private Q_SLOTS:
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
-        QVERIFY(populate(f));
 
         f.connection.fetchProjects();
         QPointer<FakeReply> pending = f.transport.replies.last();
@@ -1093,14 +1071,12 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f, 3, 7));
-        QVERIFY(populate(f));
         const quint64 generation = f.connection.generation();
         f.connection.refreshAccount();
         // Same credentials, another account and workspace: nothing carries over.
         f.transport.respondLast(FakeTransport::answer(200, meBody(4, 8)));
         QVERIFY(f.connection.generation() > generation);
         QCOMPARE(f.connection.workspaceId(), 8);
-        QVERIFY(!f.connection.nextProjectId().has_value());
     }
 
     void nonTokklAnswer()

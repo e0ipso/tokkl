@@ -406,6 +406,8 @@ class TimerServiceTest : public QObject
         QJsonValue session = QJsonValue::Null;
         QJsonValue dropped = QJsonValue::Null;
         qint64 revision = 1;
+        // How far the server's clock runs ahead of this machine's.
+        qint64 serverAheadMs = 0;
 
         QString settingsFile() const
         {
@@ -495,7 +497,7 @@ class TimerServiceTest : public QObject
         {
             return json(QJsonObject{
                 {QStringLiteral("revision"), revision},
-                {QStringLiteral("server_time"), iso(clock.now())},
+                {QStringLiteral("server_time"), iso(clock.now().addMSecs(serverAheadMs))},
                 {QStringLiteral("running_entry"), running},
                 {QStringLiteral("pause"), chain},
                 {QStringLiteral("pomodoro"), session},
@@ -637,11 +639,13 @@ private Q_SLOTS:
         const StringMap properties{
             {QStringLiteral("Running"), QStringLiteral("b read")},
             {QStringLiteral("StartTime"), QStringLiteral("x read")},
+            {QStringLiteral("LocalStartTime"), QStringLiteral("x read")},
             {QStringLiteral("Paused"), QStringLiteral("b read")},
             {QStringLiteral("ChainSeconds"), QStringLiteral("x read")},
             {QStringLiteral("IndicatorState"), QStringLiteral("s read")},
             {QStringLiteral("IndicatorColor"), QStringLiteral("s read")},
             {QStringLiteral("Projects"), QStringLiteral("aa{sv} read")},
+            {QStringLiteral("ProjectsIncomplete"), QStringLiteral("b read")},
             {QStringLiteral("ChosenProject"), QStringLiteral("x read")},
             {QStringLiteral("ChosenProjectName"), QStringLiteral("s read")},
             {QStringLiteral("Billable"), QStringLiteral("b read")},
@@ -829,6 +833,63 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("IndicatorState")).toString(), QStringLiteral("none"));
+    }
+
+    // The server's clock runs 90 s ahead of this machine's. StartTime keeps
+    // the server's start; LocalStartTime is on this machine's clock, so the
+    // extension's elapsed time, its clock minus LocalStartTime, is the
+    // core's.
+    void localStartTimeFollowsTheServerClock()
+    {
+        Fixture f;
+        f.serverAheadMs = 90000;
+        f.running = entryObject(5, 12, true);
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        const qint64 start = QDateTime::fromString(startedAt, Qt::ISODate).toSecsSinceEpoch();
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), start);
+        const qint64 local = f.get(QStringLiteral("LocalStartTime")).toLongLong();
+        QCOMPARE(local, start - 90);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 90));
+        QCOMPARE(f.clock.now().toSecsSinceEpoch() - local, f.service->m_timer->elapsedSeconds());
+
+        // Stopped elsewhere: both are 0.
+        QVERIFY(f.push(f.change(QJsonValue::Null)));
+        QTRY_COMPARE(f.get(QStringLiteral("Running")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("LocalStartTime")).toLongLong(), 0);
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
+    }
+
+    // A project list cut short at the paging limit is published as such.
+    void projectsIncompleteIsPublished()
+    {
+        Fixture f;
+        QJsonArray page;
+        for (int id = 1; id <= Connection::projectPageSize; ++id) {
+            page.append(QJsonObject{{QStringLiteral("id"), id},
+                                    {QStringLiteral("workspace_id"), 7},
+                                    {QStringLiteral("name"), QStringLiteral("P%1").arg(id)},
+                                    {QStringLiteral("active"), true}});
+        }
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QCOMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), false);
+
+        // Every page up to the limit is full and new.
+        f.service->m_timer->refresh();
+        for (int number = 1; number <= Connection::maxProjectPages; ++number) {
+            QJsonArray shifted;
+            for (const QJsonValue &value : std::as_const(page)) {
+                QJsonObject project = value.toObject();
+                project.insert(QStringLiteral("id"), project.value(QStringLiteral("id")).toInteger() + (number - 1) * Connection::projectPageSize);
+                shifted.append(project);
+            }
+            QVERIFY(f.answer("GET", "/projects", json(shifted)));
+        }
+        QTRY_COMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), true);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ProjectsIncomplete")).contains(true));
+        // The projects read stay offered.
+        QCOMPARE(f.service->projects().size(), Connection::maxProjectPages * Connection::projectPageSize);
     }
 
     // A running entry on an archived project: Projects lacks it, but the

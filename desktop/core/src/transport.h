@@ -21,7 +21,7 @@ struct HttpRequest {
 struct HttpResponse {
     enum class Outcome {
         Finished, // the server answered; status holds the HTTP status
-        NetworkError, // no HTTP answer: refused, unreachable, DNS or TLS failure
+        NetworkError, // no HTTP answer (refused, unreachable, DNS or TLS failure), or a 2xx whose body broke off
         Timeout,
         Aborted,
     };

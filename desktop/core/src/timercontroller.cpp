@@ -46,6 +46,7 @@ TimerController::TimerController(Clock *clock, QObject *parent)
           this))
     , m_next(new NextStartSelection(m_catalog, this))
 {
+    connect(m_next, &NextStartSelection::changed, this, &TimerController::selectionChanged);
     connect(m_catalog, &ProjectCatalog::listChanged, this, &TimerController::projectsChanged);
     connect(m_catalog, &ProjectCatalog::listLoaded, this, [this] {
         m_next->listLoaded();
@@ -69,6 +70,9 @@ TimerController::TimerController(Clock *clock, QObject *parent)
     }
     // A new next-start project may need its details read.
     connect(this, &TimerController::selectionChanged, this, &TimerController::resolveProject);
+    for (auto signal : {&TimerController::choiceChanged, &TimerController::entryProjectChanged, &TimerController::projectsChanged}) {
+        connect(this, signal, this, &TimerController::updateProjectChoices);
+    }
     if (m_clock) {
         connect(m_clock, &Clock::ticked, this, &TimerController::onTick);
     }
@@ -112,7 +116,6 @@ void TimerController::setStateClient(TimerStateClient *client)
         connect(m_connection, &Connection::generationChanged, this, &TimerController::onGenerationChanged);
         connect(m_connection, &Connection::stateChanged, this, &TimerController::onConnectionChanged);
         connect(m_connection, &Connection::accountChanged, this, &TimerController::onConnectionChanged);
-        connect(m_connection, &Connection::nextStartChanged, this, &TimerController::selectionChanged);
         connect(m_connection, &QObject::destroyed, this, &TimerController::reset);
     }
     reset();
@@ -178,7 +181,12 @@ bool TimerController::isBusy() const
 
 bool TimerController::canWrite() const
 {
-    return m_connection && m_connection->canWrite() && m_clock && m_state && !m_workspaceLost && m_view.state() && !isBusy();
+    return m_connection && m_connection->canWrite() && m_clock && m_state && !m_workspaceLost && heldState() && !isBusy();
+}
+
+bool TimerController::canStartNew() const
+{
+    return canWrite() && !isRunning() && !isPaused() && !isSessionActive();
 }
 
 QString TimerController::errorString() const
@@ -229,22 +237,22 @@ TimerController::Status TimerController::status() const
     if (isStale()) {
         return Stale;
     }
-    return m_view.state() ? Ready : Loading;
+    return heldState() ? Ready : Loading;
 }
 
 std::optional<TimeEntry> TimerController::currentEntry() const
 {
-    return m_entry;
+    return m_shown.entry;
 }
 
 QVariant TimerController::currentEntryVariant() const
 {
-    return m_entry ? QVariant(m_entry->toVariantMap()) : QVariant::fromValue(nullptr);
+    return m_shown.entry ? QVariant(m_shown.entry->toVariantMap()) : QVariant::fromValue(nullptr);
 }
 
 bool TimerController::isRunning() const
 {
-    return m_entry.has_value();
+    return m_shown.entry.has_value();
 }
 
 qint64 TimerController::elapsedSeconds() const
@@ -259,17 +267,17 @@ QString TimerController::elapsedText() const
 
 bool TimerController::isPaused() const
 {
-    return m_chain && m_chain->paused;
+    return m_shown.paused();
 }
 
 qint64 TimerController::chainSeconds() const
 {
-    return m_chain ? m_chain->seconds : 0;
+    return m_shown.chain ? m_shown.chain->seconds : 0;
 }
 
 bool TimerController::isSessionActive() const
 {
-    return m_sessionActive;
+    return m_shown.session;
 }
 
 QVariantList TimerController::projects() const
@@ -284,6 +292,26 @@ QVariantList TimerController::projects() const
 bool TimerController::projectsIncomplete() const
 {
     return m_catalog->incomplete();
+}
+
+ProjectChoices TimerController::projectChoices() const
+{
+    const bool held = isRunning() || isPaused();
+    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_chosen->entryProject() : std::nullopt, canWrite() && !held);
+}
+
+QVariantList TimerController::projectChoicesVariant() const
+{
+    return m_projectChoices;
+}
+
+void TimerController::updateProjectChoices()
+{
+    const QVariantList choices = projectChoices().toVariantList();
+    if (choices != m_projectChoices) {
+        m_projectChoices = choices;
+        Q_EMIT projectChoicesChanged();
+    }
 }
 
 QVariant TimerController::selectedProjectId() const
@@ -308,7 +336,7 @@ void TimerController::setBillable(bool billable)
 
 QVariant TimerController::chosenProjectId() const
 {
-    if (m_entry || isPaused()) {
+    if (isRunning() || isPaused()) {
         const std::optional<qint64> project = chosenProject();
         return project ? QVariant(*project) : QVariant::fromValue(nullptr);
     }
@@ -317,10 +345,10 @@ QVariant TimerController::chosenProjectId() const
 
 bool TimerController::chosenBillable() const
 {
-    if (m_entry) {
-        return m_entry->billable;
+    if (m_shown.entry) {
+        return m_shown.entry->billable;
     }
-    return isPaused() ? m_chain->billable : billable();
+    return isPaused() ? m_shown.chain->billable : billable();
 }
 
 std::optional<Project> TimerController::entryProject() const
@@ -336,7 +364,7 @@ QVariant TimerController::entryProjectVariant() const
 
 QVariant TimerController::chosenProjectDetails() const
 {
-    const std::optional<Project> project = m_chosen->details(chosenProject(), m_entry || isPaused());
+    const std::optional<Project> project = m_chosen->details(chosenProject(), isRunning() || isPaused());
     return project ? QVariant(project->toVariantMap()) : QVariant::fromValue(nullptr);
 }
 
@@ -369,21 +397,17 @@ QString TimerController::formatElapsed(qint64 seconds)
 
 bool TimerController::start()
 {
-    if (!canWrite() || m_entry || isPaused() || m_sessionActive) {
+    if (!canStartNew()) {
         return false;
     }
     m_next->started();
     StartEntry entry;
     entry.start = m_clock->now().toUTC();
-    entry.projectId = m_connection->nextProjectId();
-    entry.billable = m_connection->nextBillable();
-    const qint64 revision = m_view.state()->revision;
+    entry.projectId = m_next->projectId();
+    entry.billable = m_next->billable();
     beginMutation();
 
-    m_connection->startEntry(entry, m_epoch.guard(this, [this, revision](const ApiResult<TimeEntry> &result) {
-        if (result.ok() && !m_workspaceLost) {
-            showReply(revision, result.value->isRunning() ? result.value : std::nullopt);
-        }
+    m_connection->startEntry(entry, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
         finishMutation(outcomeOf(result.error, result.ok()), result.error, true, true);
     }));
     return true;
@@ -391,7 +415,7 @@ bool TimerController::start()
 
 bool TimerController::stop()
 {
-    if (m_sessionActive) {
+    if (isSessionActive()) {
         return false;
     }
     if (isPaused()) {
@@ -404,18 +428,15 @@ bool TimerController::stop()
         }));
         return true;
     }
-    if (!canWrite() || !m_entry) {
+    if (!canWrite() || !isRunning()) {
         return false;
     }
-    const qint64 entryId = m_entry->id;
-    const qint64 revision = m_view.state()->revision;
+    const qint64 entryId = m_shown.entry->id;
     beginMutation();
 
-    m_connection->stopEntry(entryId, m_epoch.guard(this, [this, entryId, revision](const ApiResult<TimeEntry> &result) {
-        if (result.ok() && !m_workspaceLost && m_entry && m_entry->id == entryId) {
-            // The reply names the project the server stopped, which another
-            // client may have changed since the last state.
-            showReply(revision, std::nullopt, result.value);
+    m_connection->stopEntry(entryId, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
+        if (result.ok()) {
+            m_stopReply = result.value;
         }
         finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
     }));
@@ -424,7 +445,7 @@ bool TimerController::stop()
 
 bool TimerController::pause()
 {
-    if (!canWrite() || !m_entry) {
+    if (!canWrite() || !isRunning()) {
         return false;
     }
     beginMutation();
@@ -437,7 +458,7 @@ bool TimerController::pause()
 
 bool TimerController::resume()
 {
-    if (!canWrite() || m_entry || !isPaused()) {
+    if (!canWrite() || isRunning() || !isPaused()) {
         return false;
     }
     m_next->started();
@@ -451,10 +472,10 @@ bool TimerController::resume()
 
 bool TimerController::toggle()
 {
-    if (m_sessionActive) {
+    if (isSessionActive()) {
         return false;
     }
-    if (m_entry) {
+    if (isRunning()) {
         return pause();
     }
     return isPaused() ? resume() : start();
@@ -463,7 +484,7 @@ bool TimerController::toggle()
 bool TimerController::chooseProject(const QVariant &projectId)
 {
     // The project of a running or paused entry is fixed until it stops.
-    if (!canWrite() || m_entry || isPaused()) {
+    if (!canWrite() || isRunning() || isPaused()) {
         return false;
     }
     const std::optional<NextStartSelection::Choice> choice = NextStartSelection::forProject(projectId, m_catalog->projects());
@@ -483,7 +504,7 @@ bool TimerController::chooseBillable(bool billable)
     }
     clearKeptError();
     m_next->pickBillable(billable);
-    if (!m_entry || m_entry->billable == billable) {
+    if (!isRunning() || m_shown.entry->billable == billable) {
         return true;
     }
     TimeEntryUpdate update;
@@ -495,13 +516,13 @@ bool TimerController::updateEntry(const TimeEntryUpdate &update)
 {
     // Only the fields in the update travel; the server keeps the entry's
     // start, description, tags and the rest, and it keeps running.
-    const qint64 entryId = m_entry->id;
-    const qint64 revision = m_view.state()->revision;
+    const qint64 entryId = m_shown.entry->id;
     beginMutation();
 
-    m_connection->updateEntry(entryId, update, m_epoch.guard(this, [this, entryId, revision](const ApiResult<TimeEntry> &result) {
-        if (result.ok() && !m_workspaceLost && m_entry && m_entry->id == entryId) {
-            showReply(revision, result.value->isRunning() ? result.value : std::nullopt, result.value);
+    m_connection->updateEntry(entryId, update, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
+        // Stopped elsewhere before the edit: the reply names its project.
+        if (result.ok() && !result.value->isRunning()) {
+            m_stopReply = result.value;
         }
         finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
     }));
@@ -523,8 +544,6 @@ void TimerController::finishMutation(Outcome outcome, const ApiError &error, boo
     const MutationGate::Ending ending = m_gate.finish(outcome, error, start, entryReply);
     if (ending.settle && m_state && !m_state->settling()) {
         m_state->settle();
-    } else if (ending.readRest && m_state) {
-        m_state->refresh();
     }
     if (m_workspaceLost) {
         Q_EMIT statusChanged();
@@ -626,28 +645,20 @@ bool TimerController::readable() const
 
 void TimerController::onStateChanged()
 {
-    const std::optional<TimerState> state = m_state ? m_state->state() : std::nullopt;
-    if (!state) {
+    applyView();
+    if (!heldState()) {
         // A new generation, or no client.
-        if (m_view.state()) {
-            m_view.clear();
-            applyView();
-            Q_EMIT statusChanged();
-        }
+        Q_EMIT statusChanged();
         return;
     }
-    if (!m_view.adopt(*state)) {
-        return; // from before the write whose reply is shown
-    }
-    applyView();
     if (!isBusy() && !m_keepError && !m_workspaceLost) {
         setError(QString());
     }
     // The first state of a connection. A running entry sets the default
     // when it stops; otherwise ask for the last one.
-    if (!m_sessionActive && m_next->takeLastEntryWanted() && !m_entry && readable()) {
+    if (!isSessionActive() && m_next->takeLastEntryWanted() && !isRunning() && readable()) {
         m_next->readLastEntry([this] {
-            return !m_workspaceLost && !m_entry;
+            return !m_workspaceLost && !isRunning();
         });
     }
     Q_EMIT statusChanged();
@@ -670,34 +681,36 @@ void TimerController::fetchProjects()
     }
 }
 
-void TimerController::showReply(qint64 revision, const std::optional<TimeEntry> &running, const std::optional<TimeEntry> &stoppedReply)
+const std::optional<TimerState> &TimerController::heldState() const
 {
-    if (m_view.patch(revision, running)) {
-        applyView(stoppedReply);
-    }
+    static const std::optional<TimerState> none;
+    return m_state ? m_state->state() : none;
 }
 
-void TimerController::applyView(const std::optional<TimeEntry> &stoppedReply)
+void TimerController::applyView()
 {
-    const TimerView::Shown shown = m_view.shown(workspaceId(), m_workspaceLost);
-    const bool entryChanged = shown.entry != m_entry;
-    const bool chainChanged = !TimerView::sameChain(shown.chain, m_chain);
-    const bool sessionChanged = shown.session != m_sessionActive;
+    const TimerView shown = TimerView::of(heldState(), workspaceId(), m_workspaceLost);
+    const std::optional<TimeEntry> &was = m_shown.entry;
+    const bool entryChanged = shown.entry != was;
+    const bool chainChanged = !TimerView::sameChain(shown.chain, m_shown.chain);
+    const bool sessionChanged = shown.session != m_shown.session;
     // A stop the state shows, not a context that went away.
-    const bool stopped = m_entry.has_value() && !shown.entry.has_value() && m_view.state() && !m_workspaceLost && !shown.session;
+    const bool stopped = was.has_value() && !shown.entry.has_value() && heldState() && !m_workspaceLost && !shown.session;
     std::optional<qint64> stoppedProject;
     if (stopped) {
-        if (stoppedReply && stoppedReply->id == m_entry->id) {
-            stoppedProject = stoppedReply->projectId;
+        if (m_stopReply && m_stopReply->id == was->id) {
+            stoppedProject = m_stopReply->projectId;
         } else {
             // A pause names the project the server stopped.
-            stoppedProject = shown.chain && shown.chain->paused ? shown.chain->projectId : m_entry->projectId;
+            stoppedProject = shown.paused() ? shown.chain->projectId : was->projectId;
         }
     }
-    m_entry = shown.entry;
-    m_chain = shown.chain;
-    m_sessionActive = shown.session;
-    if (m_entry) {
+    // A stop reply counts only for the stop of the entry it names.
+    if (m_stopReply && (stopped || !shown.entry || m_stopReply->id != shown.entry->id)) {
+        m_stopReply.reset();
+    }
+    m_shown = shown;
+    if (m_shown.entry) {
         m_next->entryRunning();
     }
     if (stopped) {
@@ -718,18 +731,18 @@ void TimerController::applyView(const std::optional<TimeEntry> &stoppedReply)
 
 std::optional<qint64> TimerController::chosenProject() const
 {
-    if (m_entry) {
-        return m_entry->projectId;
+    if (m_shown.entry) {
+        return m_shown.entry->projectId;
     }
     if (isPaused()) {
-        return m_chain->projectId;
+        return m_shown.chain->projectId;
     }
     return m_next->projectId();
 }
 
 void TimerController::resolveProject()
 {
-    m_chosen->update(chosenProject(), m_entry || isPaused(), readable() ? m_connection.data() : nullptr, workspaceId());
+    m_chosen->update(chosenProject(), isRunning() || isPaused(), readable() ? m_connection.data() : nullptr, workspaceId());
 }
 
 // ----- clock and connection ------------------------------------------------
@@ -774,7 +787,7 @@ void TimerController::reset()
     m_next->reset();
     setError(QString());
     m_lastState = connectionState();
-    m_view.clear();
+    m_stopReply.reset();
     applyView();
     m_catalog->clearList();
     resolveProject();
@@ -800,10 +813,10 @@ void TimerController::updateElapsed()
 {
     qint64 elapsed = 0;
     if (isPaused()) {
-        elapsed = m_chain->seconds;
-    } else if (m_entry && m_state) {
-        // m_chain is set only with this entry as its clone.
-        elapsed = std::max<qint64>(0, m_entry->start.secsTo(m_state->serverNow())) + chainSeconds();
+        elapsed = m_shown.chain->seconds;
+    } else if (m_shown.entry && m_state) {
+        // The chain is shown only with this entry as its clone.
+        elapsed = std::max<qint64>(0, m_shown.entry->start.secsTo(m_state->serverNow())) + chainSeconds();
     }
     if (elapsed != m_elapsed) {
         m_elapsed = elapsed;

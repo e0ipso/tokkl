@@ -21,7 +21,7 @@ import { cachedProperty, serviceRunning } from './timer1proxy.js';
 
 // The properties the project submenu's items show. A change to any other
 // property leaves the items as they are.
-const PROJECT_ITEM_PROPERTIES = ['Projects', 'ChosenProject'];
+const PROJECT_ITEM_PROPERTIES = ['Projects', 'ProjectsIncomplete', 'ChosenProject'];
 
 export const TokklIndicator = GObject.registerClass(
     class TokklIndicator extends PanelMenu.Button {
@@ -38,6 +38,9 @@ export const TokklIndicator = GObject.registerClass(
             this._ownGesture = null;
             this._syncing = false;
             this._tickId = 0;
+            // Set when a method call fails, so the menu says so; the next call
+            // clears it.
+            this._actionError = '';
 
             // The button lays out one child: the logo, the hourglass of Pomodoro
             // mode, the project indicator and the time, in that order. The logo
@@ -190,12 +193,16 @@ export const TokklIndicator = GObject.registerClass(
                 status: owned ? this._property('Status', 'error') : null,
                 errorString: this._property('ErrorString', ''),
                 running: this._property('Running', false),
-                startTime: this._property('StartTime', 0),
+                // The start on this machine's clock, so elapsed time matches the
+                // other apps when the clocks differ. A service from before
+                // LocalStartTime only has StartTime.
+                startTime: this._property('LocalStartTime', this._property('StartTime', 0)),
                 paused: this._property('Paused', false),
                 chainSeconds: this._property('ChainSeconds', 0),
                 indicatorState: this._property('IndicatorState', ''),
                 indicatorColor: this._property('IndicatorColor', ''),
                 projects: this._property('Projects', []),
+                projectsIncomplete: this._property('ProjectsIncomplete', false),
                 chosenProject: this._property('ChosenProject', 0),
                 chosenProjectName: this._property('ChosenProjectName', ''),
                 billable: this._property('Billable', false),
@@ -209,6 +216,7 @@ export const TokklIndicator = GObject.registerClass(
                 longRestEvery: this._property('LongRestEvery', 0),
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
+                actionError: this._actionError,
             };
         }
 
@@ -264,7 +272,20 @@ export const TokklIndicator = GObject.registerClass(
         _syncProjectItems(state) {
             const section = this._projectMenu.menu;
             section.removeAll();
-            for (const choice of projectChoices(state.projects, state.chosenProject, projectLabel, _)) {
+            const choices = projectChoices(
+                state.projects,
+                state.chosenProject,
+                projectLabel,
+                _,
+                state.projectsIncomplete,
+            );
+            for (const choice of choices) {
+                if (choice.note) {
+                    const note = new PopupMenu.PopupMenuItem(choice.label, { reactive: false, can_focus: false });
+                    note.label.clutter_text.line_wrap = true;
+                    section.addMenuItem(note);
+                    continue;
+                }
                 const item = new PopupMenu.PopupMenuItem(choice.label);
                 item.setOrnament(choice.checked ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
                 item.connect('activate', () => this._call('SetProject', [choice.id]));
@@ -322,7 +343,9 @@ export const TokklIndicator = GObject.registerClass(
         }
 
         /**
-         * Calls a Timer1 method.
+         * Calls a Timer1 method. A failed call, such as one the service never
+         * answered, shows a short message in the menu until the next call,
+         * and the menu shows the service's last known state again.
          *
          * @param {string} method
          * @param {Array} args
@@ -331,9 +354,19 @@ export const TokklIndicator = GObject.registerClass(
          */
         _call(method, args, onReply) {
             if (!this._proxy) return;
+            if (this._actionError) {
+                this._actionError = '';
+                // Leaves the project items alone: this may run in one's activate.
+                this._sync([]);
+            }
             this._proxy[`${method}Remote`](...args, (result, error) => {
                 if (error) console.warn(`Tokkl: ${method} failed: ${error.message}`);
-                if (onReply && this._proxy) onReply(error ? null : result[0]);
+                if (!this._proxy) return;
+                if (error) {
+                    this._actionError = _('The timer service did not answer.');
+                    this._sync([]);
+                }
+                if (onReply) onReply(error ? null : result[0]);
             });
         }
 

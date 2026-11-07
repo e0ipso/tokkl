@@ -57,21 +57,22 @@ NextStartSelection::NextStartSelection(const ProjectCatalog *catalog, QObject *p
 void NextStartSelection::setConnection(Connection *connection)
 {
     m_connection = connection;
+    set(Choice());
 }
 
 std::optional<qint64> NextStartSelection::projectId() const
 {
-    return m_connection ? m_connection->nextProjectId() : std::nullopt;
+    return m_choice.projectId;
 }
 
 QVariant NextStartSelection::projectIdVariant() const
 {
-    return m_connection ? m_connection->nextProjectIdVariant() : QVariant::fromValue(nullptr);
+    return m_choice.projectId ? QVariant(*m_choice.projectId) : QVariant::fromValue(nullptr);
 }
 
 bool NextStartSelection::billable() const
 {
-    return m_connection && m_connection->nextBillable();
+    return m_choice.billable;
 }
 
 void NextStartSelection::pick(const Choice &choice)
@@ -84,7 +85,9 @@ void NextStartSelection::pickProjectId(const QVariant &projectId)
 {
     if (m_connection) {
         m_defaults.pick();
-        m_connection->setNextProjectIdVariant(projectId);
+        bool ok = false;
+        const qint64 id = projectId.toLongLong(&ok);
+        set(Choice{ok && id > 0 ? std::optional<qint64>(id) : std::nullopt, m_choice.billable});
     }
 }
 
@@ -92,7 +95,7 @@ void NextStartSelection::pickBillable(bool billable)
 {
     if (m_connection) {
         m_defaults.pick();
-        m_connection->setNextBillable(billable);
+        set(Choice{m_choice.projectId, billable});
     }
 }
 
@@ -135,6 +138,7 @@ void NextStartSelection::reset()
 {
     m_epoch.advance();
     m_defaults.reset();
+    set(Choice());
 }
 
 void NextStartSelection::wantLastEntry()
@@ -181,8 +185,16 @@ void NextStartSelection::apply(const Choice &choice)
     }
     // A last-entry read still in flight is older than this choice.
     m_defaults.cancelLastEntryRead();
-    m_connection->setNextProjectId(choice.projectId);
-    m_connection->setNextBillable(choice.billable);
+    set(choice);
+}
+
+void NextStartSelection::set(const Choice &choice)
+{
+    if (choice == m_choice) {
+        return;
+    }
+    m_choice = choice;
+    Q_EMIT changed();
 }
 
 }

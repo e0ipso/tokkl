@@ -422,8 +422,6 @@ private Q_SLOTS:
 
         f.timer.setSelectedProjectId(11);
         f.timer.setBillable(true);
-        QCOMPARE(f.connection.nextProjectId(), std::optional<qint64>(11));
-        QVERIFY(f.connection.nextBillable());
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
     }
 
@@ -631,14 +629,19 @@ private Q_SLOTS:
         QCOMPARE(body.value(QStringLiteral("billable")).toBool(), true);
         QCOMPARE(body.value(QStringLiteral("workspace_id")).toInteger(), 7);
 
-        // Nonbillable and no project are sent explicitly too.
+        // The reply is an entry, not the state: the controller stays busy
+        // until a read sent after it brings the state that shows the start.
         f.respond(post, FakeTransport::answer(200, entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"))));
+        QVERIFY(!f.timer.isRunning());
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.toggle());
+        QVERIFY(f.unanswered(f.last("GET", statePath)));
+        QVERIFY(f.answerState(entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"))));
         QVERIFY(f.timer.isRunning());
         QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.currentEntry()->id, 21);
-        // The action is followed by a read.
-        QVERIFY(f.unanswered(f.last("GET", statePath)));
-        QVERIFY(f.answerState(entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"))));
+
+        // Nonbillable and no project are sent explicitly too.
 
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(21, 7, QStringLiteral("2026-10-16T07:15:30Z"), false)));
@@ -653,7 +656,7 @@ private Q_SLOTS:
         QCOMPARE(plain.value(QStringLiteral("billable")).toBool(true), false);
     }
 
-    void stopPatchesTheRunningEntry()
+    void stopShowsTheStateAfterTheReply()
     {
         Fixture f;
         QVERIFY(connectAccount(f));
@@ -666,10 +669,14 @@ private Q_SLOTS:
         QVERIFY(request.body.isEmpty());
 
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false)));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.canWrite());
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
-        QVERIFY(f.unanswered(f.last("GET", statePath)));
+        // One read followed the stop, and nothing else.
+        QCOMPARE(f.find("PATCH", "/stop").size(), 1);
     }
 
     void pauseAndResumeKeepTheChainTotal()
@@ -730,17 +737,16 @@ private Q_SLOTS:
         }
         QCOMPARE(f.timer.elapsedSeconds(), 72);
 
-        // Stop is a v9 stop of the clone, and the chain ends with it at once.
+        // Stop is a v9 stop of the clone, and the state after it has no chain.
         const QString cloneStart = clockText(f.clock.now().addSecs(-3));
         QVERIFY(f.timer.stop());
         QCOMPARE(f.transport.requests.at(f.last("PATCH", "/stop")).url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/7/stop"));
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, detailedEntry(7, cloneStart, 3)));
+        QVERIFY(f.answerState());
         QVERIFY(!f.timer.isPaused());
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.chainSeconds(), 0);
         QCOMPARE(f.timer.elapsedSeconds(), 0);
-        QVERIFY(f.answerState());
-        QCOMPARE(f.timer.chainSeconds(), 0);
 
         // The next click starts a fresh entry with the stop's default: the
         // project and its billable default.
@@ -1211,6 +1217,37 @@ private Q_SLOTS:
         QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
     }
 
+    // The billable edit's reply is an entry. What the menu shows comes from
+    // the state a read sent after the reply brings, never from the reply.
+    void billableEditShowsTheStateAfterIt()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(!f.timer.chosenBillable());
+        QVERIFY(f.timer.chooseBillable(true));
+        const qsizetype put = f.last("PUT", "/time_entries/5");
+        const qsizetype readsBefore = f.stateReads();
+
+        QJsonObject edited = entryObject(5, 7, startedAt);
+        edited.insert(QStringLiteral("billable"), true);
+        f.respond(put, FakeTransport::answer(200, json(edited)));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.chosenBillable());
+        QCOMPARE(f.stateReads(), readsBefore + 1);
+
+        // An event from the stream shows the edit but does not end the wait:
+        // only a read sent after the reply does.
+        QVERIFY(f.push(json(edited)));
+        QVERIFY(f.timer.chosenBillable());
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(f.answerState(json(edited)));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.chosenBillable());
+        QVERIFY(f.timer.canWrite());
+        QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
+        QCOMPARE(f.stateReads(), readsBefore + 1);
+    }
+
     void panelStopDefaultsToTheEntryProject()
     {
         Fixture f;
@@ -1220,14 +1257,13 @@ private Q_SLOTS:
 
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
+        // The read after the stop shows it, and the next start sends the
+        // stopped entry's project.
+        QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
         QVERIFY(f.timer.billable());
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
-
-        // The read after the stop changes nothing, and the next start sends it.
-        QVERIFY(f.answerState("null"));
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
         QVERIFY(f.find("GET", listPath).isEmpty());
         QVERIFY(f.timer.start());
         const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", "/time_entries")).body).object();
@@ -1454,9 +1490,11 @@ private Q_SLOTS:
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projects));
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
 
-        // The web moved the entry to project 12 since the last read.
+        // The web moved the entry to project 12 since the last read. The
+        // state after the stop shows no entry, and the reply names 12.
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 12)));
+        QVERIFY(f.answerState("null"));
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 12);
         QVERIFY(!f.timer.billable());
     }
@@ -1590,19 +1628,24 @@ private Q_SLOTS:
         const qint64 before = f.revision;
         QVERIFY(f.timer.start());
         f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(40, 7, QStringLiteral("2026-10-16T09:01:01Z"))));
-        QCOMPARE(f.timer.currentEntry()->id, 40);
+        QVERIFY(f.timer.isBusy());
 
         // The poll answers late, with the state the start was sent against.
+        // It was sent before the reply, so the start is not settled yet and
+        // nothing can be written on top of the old state.
         f.respond(stalePoll, FakeTransport::answer(200, stateJson(before, f.clock.now(), "null", QJsonValue::Null, QJsonValue::Null)));
-        QVERIFY(f.timer.isRunning());
-        QCOMPARE(f.timer.currentEntry()->id, 40);
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.canWrite());
+        QVERIFY(!f.timer.start());
+        QCOMPARE(f.find("POST", "/time_entries").size(), 1);
 
-        // The read after the start shows the newer state, and a later one
-        // replaces it.
+        // The read after the start shows the newer state and ends the
+        // wait, and a later one replaces it.
         const qsizetype fresh = f.last("GET", statePath);
         QVERIFY(fresh != stalePoll);
         QVERIFY(f.unanswered(fresh));
         f.respond(fresh, f.stateAnswer(entryBody(40, 7, QStringLiteral("2026-10-16T09:01:01Z"))));
+        QVERIFY(!f.timer.isBusy());
         QCOMPARE(f.timer.currentEntry()->id, 40);
         poll(f);
         QVERIFY(f.answerState());
@@ -2216,9 +2259,9 @@ private Q_SLOTS:
         // A start: the running entry's project counts, here none.
         QVERIFY(f.timer.start());
         f.respond(f.last("POST", "/time_entries"), FakeTransport::answer(200, entryBody(21, 7, startedAt)));
-        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
-        QCOMPARE(indicator.count(), 2);
+        QCOMPARE(indicator.count(), 1);
         QVERIFY(f.answerState(entryBody(21, 7, startedAt)));
+        QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         QCOMPARE(indicator.count(), 2);
 
         // A stop of an entry on a project: the next start takes it.
@@ -2227,9 +2270,9 @@ private Q_SLOTS:
         QCOMPARE(indicator.count(), 3);
         QVERIFY(f.timer.stop());
         f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(22, 7, startedAt, false, 11)));
+        QVERIFY(f.answerState("null"));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
         QCOMPARE(indicator.count(), 3);
-        QVERIFY(f.answerState("null"));
 
         // A projects reload with a new colour.
         f.timer.refresh();
@@ -2294,6 +2337,28 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 99, startedAt)));
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.currentEntryVariant().isNull());
+    }
+
+    // The menu's project rows change with the projects, not with a choice,
+    // so a menu that is open keeps its items while the user picks.
+    void projectChoicesFollowTheProjects()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QSignalSpy changed(&f.timer, &TimerController::projectChoicesChanged);
+        QCOMPARE(f.timer.projectChoicesVariant().size(), 1);
+        QVERIFY(f.timer.projectChoices().choosable);
+        QVERIFY(f.timer.projectChoices().noProjectChecked);
+
+        QVERIFY(f.timer.chooseProject(11));
+        QVERIFY(f.timer.projectChoices().rows.at(0).checked);
+        QVERIFY(!f.timer.projectChoices().noProjectChecked);
+        QCOMPARE(changed.count(), 0);
+
+        f.timer.refresh();
+        f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]"));
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(f.timer.projectChoicesVariant().size(), 2);
     }
 
     void stateClientCanBeReplaced()
