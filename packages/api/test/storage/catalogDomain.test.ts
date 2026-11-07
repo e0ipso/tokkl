@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
-import * as catalog from '../../src/domain/catalogs.ts';
+import * as catalog from '../fixtures/catalogBodies.ts';
 import * as presenters from '../../src/presenters/toggl.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { failsWith } from '../fixtures/errors.ts';

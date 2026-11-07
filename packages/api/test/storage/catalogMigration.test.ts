@@ -8,7 +8,7 @@ import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
-import * as catalog from '../../src/domain/catalogs.ts';
+import * as catalog from '../fixtures/catalogBodies.ts';
 import * as presenters from '../../src/presenters/toggl.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {

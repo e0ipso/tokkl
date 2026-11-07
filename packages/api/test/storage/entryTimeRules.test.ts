@@ -5,7 +5,7 @@ import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import * as entries from '../fixtures/entryBodies.ts';
-import * as catalog from '../../src/domain/catalogs.ts';
+import * as catalog from '../fixtures/catalogBodies.ts';
 import { serializeTimeEntry } from '../../src/presenters/toggl.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { disposableBackend } from './support/disposableBackend.ts';

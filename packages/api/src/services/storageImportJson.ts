@@ -9,6 +9,7 @@ import {
   createTask,
   resolveTagNames,
 } from '../domain/catalogs.ts';
+import { parseNewClient, parseNewProject, parseNewTask } from '../commands/catalogs.ts';
 import { parseNewEntry } from '../commands/timeEntries.ts';
 import type { EntryRepositories } from '../domain/entryAccess.ts';
 import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImport.ts';
@@ -83,7 +84,7 @@ async function restoreClient(restore: Restore, item: Item): Promise<void> {
   const { ctx, wid } = restore;
   let found = await ctx.clients.findByName(wid, nameOf(item));
   if (!found) {
-    found = await createClient(ctx, wid, { name: nameOf(item), notes: item.notes ?? null });
+    found = await createClient(ctx, wid, parseNewClient({ name: nameOf(item), notes: item.notes ?? null }));
     if (item.archived === true)
       await setClientArchived(ctx, wid, found.id, true, createCatalogTimerEffects(ctx, restore.publish));
     restore.result.clients++;
@@ -97,21 +98,25 @@ async function restoreProject(restore: Restore, item: Item): Promise<void> {
     clientId = mapped(restore, 'client', item.client_id);
   let found = await ctx.projects.findByName(wid, clientId, name);
   if (!found) {
-    found = await createProject(ctx, wid, {
-      name,
-      client_id: clientId,
-      color: item.color,
-      active: item.active,
-      billable: item.billable,
-      estimated_hours: item.estimated_hours,
-      rate: item.rate,
-      currency: item.currency,
-      fixed_fee: item.fixed_fee,
-      start_date: item.start_date,
-      end_date: item.end_date,
-      is_private: item.is_private,
-      template: item.template,
-    });
+    found = await createProject(
+      ctx,
+      wid,
+      parseNewProject({
+        name,
+        client_id: clientId,
+        color: item.color,
+        active: item.active,
+        billable: item.billable,
+        estimated_hours: item.estimated_hours,
+        rate: item.rate,
+        currency: item.currency,
+        fixed_fee: item.fixed_fee,
+        start_date: item.start_date,
+        end_date: item.end_date,
+        is_private: item.is_private,
+        template: item.template,
+      }),
+    );
     restore.result.projects++;
   }
   restore.ids.project.set(Number(item.id), found.id);
@@ -127,11 +132,12 @@ async function restoreTask(restore: Restore, item: Item): Promise<void> {
     const archived = !(await ctx.projects.getRef(wid, pid))!.active;
     const effects = createCatalogTimerEffects(ctx, restore.publish);
     if (archived) await updateProject(ctx, wid, pid, { active: true }, effects);
-    found = await createTask(ctx, wid, pid, {
-      name: nameOf(item),
-      active: item.active,
-      estimated_seconds: item.estimated_seconds,
-    });
+    found = await createTask(
+      ctx,
+      wid,
+      pid,
+      parseNewTask({ name: nameOf(item), active: item.active, estimated_seconds: item.estimated_seconds }),
+    );
     if (archived) await updateProject(ctx, wid, pid, { active: false }, effects);
     restore.result.tasks++;
   }

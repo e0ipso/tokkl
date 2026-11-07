@@ -6,6 +6,7 @@ import { pad2, zonedToUtc } from '@tokkl/common/time';
 import type { ImportResult, ImportUser } from '@tokkl/types';
 import type { OperationContext } from '../storage/contracts.ts';
 import { createClient, createProject, createTask } from '../domain/catalogs.ts';
+import { parseNewClient, parseNewProject, parseNewTask } from '../commands/catalogs.ts';
 import { parseNewEntry } from '../commands/timeEntries.ts';
 import type { EntryRepositories } from '../domain/entryAccess.ts';
 import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImport.ts';
@@ -210,7 +211,7 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
     if (known !== undefined) return known;
     let client = await ctx.clients.findByName(wid, name);
     if (!client) {
-      client = await createClient(ctx, wid, { name });
+      client = await createClient(ctx, wid, parseNewClient({ name }));
       result.created_clients.push(name);
     }
     return clients.set(name, client.id);
@@ -223,7 +224,7 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
       const cid = client ? await clientId(client) : null;
       let project = await ctx.projects.findByName(wid, cid, name);
       if (!project) {
-        project = await createProject(ctx, wid, { name, client_id: cid });
+        project = await createProject(ctx, wid, parseNewProject({ name, client_id: cid }));
         result.created_projects.push(client ? `${name} (${client})` : name);
       }
       return projects.set(key, project.id);
@@ -235,7 +236,10 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
         tasks.get(key) ??
         tasks.set(
           key,
-          ((await ctx.tasks.findByName(wid, projectId, name)) ?? (await createTask(ctx, wid, projectId, { name }))).id,
+          (
+            (await ctx.tasks.findByName(wid, projectId, name)) ??
+            (await createTask(ctx, wid, projectId, parseNewTask({ name })))
+          ).id,
         )
       );
     },
