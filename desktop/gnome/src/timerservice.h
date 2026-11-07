@@ -3,11 +3,13 @@
 // The timer and the Pomodoro session of the shared core on D-Bus, as
 // org.tokkl.Timer1 (described in dbus/org.tokkl.Timer1.xml). The service
 // maps the core's properties onto the interface and forwards the methods;
-// the rules stay in the core. The one thing it adds is where the core's
-// per-device state lives: the connection settings, the mode and the sound
-// choices go to its settings file. The timer and the session are the
-// server's, read through one TimerStateClient. The alarm plays through a
-// PomodoroAlarm that main.cpp builds on session() and soundChoices().
+// the rules stay in the core. It builds none of the objects it serves:
+// main.cpp, the daemon's composition root, makes the connection, the timer
+// and its state client, the session, the preferences client, the sound
+// choices and the settings file they keep the per-device state in, and the
+// ConfigurationAdapter that answers Configure, then hands them over. The
+// alarm plays through a PomodoroAlarm that main.cpp builds on the same
+// session and sound choices.
 
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -20,23 +22,15 @@
 
 #include "apitypes.h"
 
-class QSettings;
-class TimerServiceTest;
-
 namespace Tokkl
 {
-class Clock;
-class Connection;
-class CredentialStore;
+class ConfigurationAdapter;
 class PomodoroAlarm;
 class PomodoroPreferences;
 class PomodoroSession;
-class ServiceSettings;
-class SettingsPomodoroStore;
 class SoundChoices;
-class TimerController;
-class TimerStateClient;
-class Transport;
+class TimerCoordinator;
+class TimerModel;
 
 class TimerService : public QObject, protected QDBusContext
 {
@@ -83,8 +77,6 @@ public:
     static const QString serviceName;
     static const QString objectPath;
     static const QString interfaceName;
-    // The error of a Configure call whose secret the credential store refused.
-    static const QString credentialStoreError;
     // The settings key of a transition's sound: "Sounds/workToShortRest" and
     // so on.
     static QString soundKey(TransitionKind kind);
@@ -94,11 +86,19 @@ public:
     // User-Agent product too.
     static QString clientName();
 
-    // Runs the core on the given transport and credential store, which the
-    // service does not own. Settings (address, sign-in method and email;
-    // never the secret), the Pomodoro mode and the sound choices are read
-    // from and saved to settingsFile. A null clock means the system clock.
-    TimerService(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock = nullptr, QObject *parent = nullptr);
+    // What the service serves, none of it owned. The session must be built
+    // on the timer's coordinator, and the alarm on the same session and
+    // sound choices.
+    struct Parts {
+        TimerModel *timer = nullptr;
+        TimerCoordinator *actions = nullptr;
+        PomodoroSession *session = nullptr;
+        PomodoroPreferences *preferences = nullptr;
+        SoundChoices *sounds = nullptr;
+        ConfigurationAdapter *configuration = nullptr;
+    };
+
+    explicit TimerService(const Parts &parts, QObject *parent = nullptr);
     ~TimerService() override;
 
     // Exports the interface on the bus and takes the service name. False when
@@ -106,8 +106,6 @@ public:
     // name.
     bool registerOn(QDBusConnection bus);
 
-    PomodoroSession *session() const;
-    SoundChoices *soundChoices() const;
     // The alarm PreviewSound plays on, which the service does not own.
     // Without one, PreviewSound is refused.
     void setAlarm(PomodoroAlarm *alarm);
@@ -170,22 +168,15 @@ public Q_SLOTS:
     bool PreviewSound(const QString &soundId);
 
 private:
-    // The tests check what reaches the core.
-    friend class ::TimerServiceTest;
-
     QVariantMap snapshot() const;
     void publishChanges();
 
-    QSettings *m_settings;
-    Clock *m_clock;
-    Connection *m_connection;
-    TimerController *m_timer;
-    TimerStateClient *m_client;
-    SettingsPomodoroStore *m_pomodoroStore;
-    SoundChoices *m_sounds;
-    PomodoroPreferences *m_preferences;
+    TimerModel *m_timer;
+    TimerCoordinator *m_actions;
     PomodoroSession *m_session;
-    ServiceSettings *m_connectionSettings;
+    PomodoroPreferences *m_preferences;
+    SoundChoices *m_sounds;
+    ConfigurationAdapter *m_configuration;
     QPointer<PomodoroAlarm> m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;

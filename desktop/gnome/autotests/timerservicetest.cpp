@@ -4,14 +4,20 @@
 #include "alarmoutput.h"
 #include "pomodoroalarm.h"
 #include "apitypes.h"
+#include "configurationadapter.h"
 #include "connection.h"
 #include "fakes.h"
 #include "instanceurl.h"
+#include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
+#include "pomodorostore.h"
 #include "privatebus.h"
+#include "servicesettings.h"
+#include "soundchoices.h"
 #include "timercontroller.h"
 #include "timerservice.h"
+#include "timerstateclient.h"
 
 #include <QDBusArgument>
 #include <QDBusConnection>
@@ -387,6 +393,45 @@ QString bundled(const QString &soundId)
 }
 }
 
+// The object graph main.cpp builds for tokkl-timerd, on the test's
+// transport, credential store and clock, in the same order.
+struct Daemon {
+    Daemon(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock)
+        : settings(settingsFile, QSettings::IniFormat)
+        , connection(transport, store, TimerService::clientName())
+        , timer(clock)
+        , client(&connection, clock)
+        , pomodoroStore(&settings)
+        , sounds(&settings, &TimerService::soundKey)
+        , preferences(&connection)
+        , session(clock, bound(timer, client), &pomodoroStore)
+        , connectionSettings(&settings, &connection, store)
+        , configuration(&connectionSettings)
+        , service({&timer, timer.coordinator(), &session, &preferences, &sounds, &configuration})
+    {
+        connectionSettings.load();
+    }
+
+    // main.cpp gives the timer its client before it builds the session.
+    static TimerCoordinator *bound(TimerController &timer, TimerStateClient &client)
+    {
+        timer.setStateClient(&client);
+        return timer.coordinator();
+    }
+
+    QSettings settings;
+    Connection connection;
+    TimerController timer;
+    TimerStateClient client;
+    SettingsPomodoroStore pomodoroStore;
+    SoundChoices sounds;
+    PomodoroPreferences preferences;
+    PomodoroSession session;
+    ServiceSettings connectionSettings;
+    ConfigurationAdapter configuration;
+    TimerService service;
+};
+
 class TimerServiceTest : public QObject
 {
     Q_OBJECT
@@ -396,7 +441,8 @@ class TimerServiceTest : public QObject
         FakeTransport transport;
         FakeCredentialStore store;
         FakeClock clock;
-        std::unique_ptr<TimerService> service;
+        std::unique_ptr<Daemon> daemon;
+        TimerService *service = nullptr;
         ChangeRecorder recorder;
         QSet<qsizetype> answered;
         // What the server holds for the account, at its revision. serve()
@@ -416,7 +462,8 @@ class TimerServiceTest : public QObject
 
         bool start()
         {
-            service = std::make_unique<TimerService>(&transport, &store, settingsFile(), &clock);
+            daemon = std::make_unique<Daemon>(&transport, &store, settingsFile(), &clock);
+            service = &daemon->service;
             if (!service->registerOn(QDBusConnection(serviceBus))) {
                 return false;
             }
@@ -442,8 +489,10 @@ class TimerServiceTest : public QObject
         // a restart of tokkl-timerd. The recorder stays connected.
         bool restart()
         {
-            service.reset();
-            service = std::make_unique<TimerService>(&transport, &store, settingsFile(), &clock);
+            service = nullptr;
+            daemon.reset();
+            daemon = std::make_unique<Daemon>(&transport, &store, settingsFile(), &clock);
+            service = &daemon->service;
             return service->registerOn(QDBusConnection(serviceBus)) && ping();
         }
 
@@ -726,7 +775,7 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.at(me.first()).authorization, basicAuthorization(AuthMode::Token, QString(), QStringLiteral("tok-1")));
 
         // The next start defaults to the project of the last entry.
-        TimerController *core = f.service->m_timer;
+        TimerController *core = &f.daemon->timer;
         QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("ready"));
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 11);
         QCOMPARE(core->chosenProjectId().toLongLong(), 11);
@@ -852,7 +901,7 @@ private Q_SLOTS:
         const qint64 local = f.get(QStringLiteral("LocalStartTime")).toLongLong();
         QCOMPARE(local, start - 90);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 90));
-        QCOMPARE(f.clock.now().toSecsSinceEpoch() - local, f.service->m_timer->elapsedSeconds());
+        QCOMPARE(f.clock.now().toSecsSinceEpoch() - local, f.daemon->timer.elapsedSeconds());
 
         // Stopped elsewhere: both are 0.
         QVERIFY(f.push(f.change(QJsonValue::Null)));
@@ -877,7 +926,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), false);
 
         // Every page up to the limit is full and new.
-        f.service->m_timer->refresh();
+        f.daemon->timer.refresh();
         for (int number = 1; number <= Connection::maxProjectPages; ++number) {
             QJsonArray shifted;
             for (const QJsonValue &value : std::as_const(page)) {
@@ -1110,7 +1159,7 @@ private Q_SLOTS:
         QVERIFY(!reply.errorMessage().contains(QStringLiteral("secret")));
         QCOMPARE(f.store.writes, 0);
         QVERIFY(!QFile::exists(f.settingsFile()));
-        QCOMPARE(f.service->m_connection->instanceUrl(), QString());
+        QCOMPARE(f.daemon->connection.instanceUrl(), QString());
     }
 
     // A refused secret leaves the settings as they were.
@@ -1121,10 +1170,10 @@ private Q_SLOTS:
         f.store.failure = CredentialResult::Status::Unavailable;
         const QDBusMessage reply = f.timer(QStringLiteral("Configure"), {instanceUrl, QStringLiteral("token"), QString(), QStringLiteral("tok-1")});
         QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
-        QCOMPARE(reply.errorName(), TimerService::credentialStoreError);
+        QCOMPARE(reply.errorName(), ConfigurationAdapter::credentialStoreError);
         QCOMPARE(reply.errorMessage(), f.store.message(CredentialResult{CredentialResult::Status::Unavailable, QString()}));
         QVERIFY(!QFile::exists(f.settingsFile()));
-        QCOMPARE(f.service->m_connection->instanceUrl(), QString());
+        QCOMPARE(f.daemon->connection.instanceUrl(), QString());
         QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("unconfigured"));
     }
 
@@ -1141,7 +1190,7 @@ private Q_SLOTS:
         }
         f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceUrl), AuthMode::Token, QString()), QStringLiteral("tok-saved"));
         QVERIFY(f.start());
-        QCOMPARE(f.service->m_connection->instanceUrl(), instanceUrl);
+        QCOMPARE(f.daemon->connection.instanceUrl(), instanceUrl);
         QVERIFY(f.serve());
         QCOMPARE(f.transport.requests.at(f.find("GET", "/me").first()).authorization,
                  basicAuthorization(AuthMode::Token, QString(), QStringLiteral("tok-saved")));
@@ -1161,7 +1210,8 @@ private Q_SLOTS:
         HeldStore store;
         FakeClock clock;
         const QString file = dir.filePath(QStringLiteral("tokkl-timerd.conf"));
-        TimerService service(&transport, &store, file, &clock);
+        Daemon daemon(&transport, &store, file, &clock);
+        TimerService &service = daemon.service;
         const QString other = QStringLiteral("https://b.example.test");
         service.Configure(instanceUrl, QStringLiteral("token"), QString(), QStringLiteral("tok-a"));
         service.Configure(other, QStringLiteral("token"), QString(), QStringLiteral("tok-b"));
@@ -1169,9 +1219,9 @@ private Q_SLOTS:
         const QString expected = parseInstanceUrl(other).base.toString();
 
         store.finish(1);
-        QCOMPARE(service.m_connection->instanceUrl(), expected);
+        QCOMPARE(daemon.connection.instanceUrl(), expected);
         store.finish(0);
-        QCOMPARE(service.m_connection->instanceUrl(), expected);
+        QCOMPARE(daemon.connection.instanceUrl(), expected);
         const QSettings settings(file, QSettings::IniFormat);
         QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
     }
@@ -1183,8 +1233,9 @@ private Q_SLOTS:
         QVERIFY(f.start());
         FakeTransport transport;
         FakeCredentialStore store;
-        TimerService second(&transport, &store, f.dir.filePath(QStringLiteral("second.conf")));
-        QVERIFY(!second.registerOn(QDBusConnection(clientBus)));
+        SystemClock clock;
+        Daemon second(&transport, &store, f.dir.filePath(QStringLiteral("second.conf")), &clock);
+        QVERIFY(!second.service.registerOn(QDBusConnection(clientBus)));
         QCOMPARE(QDBusConnection(clientBus).interface()->serviceOwner(TimerService::serviceName).value(), QDBusConnection(serviceBus).baseService());
     }
 
@@ -1303,7 +1354,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QString());
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
         FakeAlarmOutput output;
-        PomodoroAlarm alarm(f.service->session(), &output, f.service->soundChoices(), bundledSoundsDir());
+        PomodoroAlarm alarm(&f.daemon->session, &output, &f.daemon->sounds, bundledSoundsDir());
 
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
@@ -1687,7 +1738,7 @@ private Q_SLOTS:
 
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
         FakeAlarmOutput output;
-        PomodoroAlarm alarm(f.service->session(), &output, f.service->soundChoices(), bundledSoundsDir());
+        PomodoroAlarm alarm(&f.daemon->session, &output, &f.daemon->sounds, bundledSoundsDir());
         f.service->setAlarm(&alarm);
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
         QCOMPARE(output.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
@@ -1713,7 +1764,7 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
         FakeAlarmOutput backend;
-        PomodoroAlarm player(f.service->session(), &backend, f.service->soundChoices(), bundledSoundsDir());
+        PomodoroAlarm player(&f.daemon->session, &backend, &f.daemon->sounds, bundledSoundsDir());
         f.service->setAlarm(&player);
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
         QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
@@ -1739,7 +1790,7 @@ private Q_SLOTS:
         QVERIFY(backend.calls.isEmpty());
         // A second player hears the alarm that already rings.
         FakeAlarmOutput late;
-        PomodoroAlarm latePlayer(f.service->session(), &late, f.service->soundChoices(), bundledSoundsDir());
+        PomodoroAlarm latePlayer(&f.daemon->session, &late, &f.daemon->sounds, bundledSoundsDir());
         QCOMPARE(late.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest"))});
 
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
