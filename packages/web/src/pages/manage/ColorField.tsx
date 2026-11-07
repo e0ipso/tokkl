@@ -3,24 +3,31 @@ import { PROJECT_COLORS } from '@tokkl/common/colors';
 import { arrowTarget } from '../../components/arrowKeys.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { checkColor } from './swatchCheck.ts';
+import { t, type MessageKey } from '../../i18n/messages.ts';
 
 /** Spoken names for the palette swatches; a colour missing here is read as "Color n". */
-const COLOR_NAMES: Record<string, string> = {
-  '#0b83d9': 'Blue',
-  '#9e5bd9': 'Purple',
-  '#d94182': 'Pink',
-  '#e36a00': 'Orange',
-  '#bf7000': 'Amber',
-  '#c7af14': 'Yellow',
-  '#d92b2b': 'Red',
-  '#2da608': 'Green',
-  '#06a893': 'Teal',
-  '#c9806b': 'Salmon',
-  '#465bb3': 'Indigo',
-  '#990099': 'Magenta',
-  '#566614': 'Olive',
-  '#525266': 'Slate',
+const COLOR_NAMES: Partial<Record<string, MessageKey>> = {
+  '#0b83d9': 'manage.colorBlue',
+  '#9e5bd9': 'manage.colorPurple',
+  '#d94182': 'manage.colorPink',
+  '#e36a00': 'manage.colorOrange',
+  '#bf7000': 'manage.colorAmber',
+  '#c7af14': 'manage.colorYellow',
+  '#d92b2b': 'manage.colorRed',
+  '#2da608': 'manage.colorGreen',
+  '#06a893': 'manage.colorTeal',
+  '#c9806b': 'manage.colorSalmon',
+  '#465bb3': 'manage.colorIndigo',
+  '#990099': 'manage.colorMagenta',
+  '#566614': 'manage.colorOlive',
+  '#525266': 'manage.colorSlate',
 };
+
+/** A swatch's spoken name, or its place in the palette when it has none. */
+function colorName(color: string, index: number): string {
+  const key = COLOR_NAMES[color];
+  return key ? t(key) : t('manage.colorNumbered', { number: index + 1 });
+}
 
 /**
  * Toggl's palette as swatches, plus a Custom option backed by a native picker for any other color.
@@ -62,7 +69,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
       <div
         className="color-options"
         role="radiogroup"
-        aria-label="Color"
+        aria-label={t('manage.color')}
         onBlur={event => {
           if (!event.currentTarget.contains(event.relatedTarget)) setFocused(null);
         }}
@@ -77,8 +84,8 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
             role="radio"
             tabIndex={index === tabStop ? 0 : -1}
             aria-checked={color === current}
-            aria-label={COLOR_NAMES[color] ?? `Color ${index + 1}`}
-            title={COLOR_NAMES[color]}
+            aria-label={colorName(color, index)}
+            title={COLOR_NAMES[color] ? t(COLOR_NAMES[color]) : undefined}
             className={`color-swatch${color === current ? ' selected' : ''}`}
             style={{ background: color, '--swatch-check': checkColor(color) }}
             onClick={() => onChange(color)}
@@ -104,7 +111,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
           <span className="color-custom-check" aria-hidden="true">
             {custom ? <Icon name="check" size={16} /> : null}
           </span>
-          Custom
+          {t('manage.custom')}
         </button>
       </div>
       <input
@@ -113,7 +120,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
         className="color-custom-input"
         value={current}
         onChange={event => onChange(event.target.value)}
-        aria-label="Custom color"
+        aria-label={t('manage.customColor')}
       />
     </div>
   );

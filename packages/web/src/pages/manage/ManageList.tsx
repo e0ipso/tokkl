@@ -2,6 +2,7 @@ import type { ReactNode, Ref } from 'react';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { Icon, type IconName } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';
+import { t } from '../../i18n/messages.ts';
 
 export interface ManageListQuery<T> {
   data: readonly T[] | undefined;
@@ -40,8 +41,10 @@ export function ManageList<T>({
   const { data, isLoading, error, refetch } = query;
   return (
     <>
-      {error ? <LoadError message={`Could not load ${noun}: ${error.message}`} onRetry={() => void refetch()} /> : null}
-      {isLoading ? <Loading label={`Loading ${noun}…`} /> : null}
+      {error ? (
+        <LoadError message={t('manage.loadFailed', { noun, message: error.message })} onRetry={() => void refetch()} />
+      ) : null}
+      {isLoading ? <Loading label={t('manage.loadingNoun', { noun })} /> : null}
       {data && visible.length === 0 ? (
         data.length === 0 ? (
           <EmptyState icon={<Icon name={empty.icon} size={32} />} title={empty.title}>
@@ -61,7 +64,7 @@ export function ManageList<T>({
               <tr>
                 {headers}
                 <th>
-                  <span className="visually-hidden">Actions</span>
+                  <span className="visually-hidden">{t('manage.actions')}</span>
                 </th>
               </tr>
             </thead>

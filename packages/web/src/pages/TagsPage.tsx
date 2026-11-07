@@ -12,6 +12,7 @@ import { focusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, SearchBox } from './manage/ui.tsx';
 import { ManageList } from './manage/ManageList.tsx';
 import './manage/manage.css';
+import { t } from '../i18n/messages.ts';
 
 function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
   const wid = useWid();
@@ -21,7 +22,7 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
   const rename = useAction<string, Tag>({
     mutationFn: name => tagRequests.rename(wid, tag.id, name),
     invalidate: stale.tags,
-    success: saved => `Renamed to ${saved.name}`,
+    success: saved => t('manage.renamedTo', { name: saved.name }),
     onSuccess: () => setDraft(null),
   });
 
@@ -39,14 +40,19 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
     <tr data-id={tag.id}>
       <td>
         {draft === null ? (
-          <button type="button" className="manage-name-button" title="Rename" onClick={() => setDraft(tag.name)}>
+          <button
+            type="button"
+            className="manage-name-button"
+            title={t('manage.rename')}
+            onClick={() => setDraft(tag.name)}
+          >
             <span className="tag-chip">{tag.name}</span>
           </button>
         ) : (
           <input
             className="inline-input"
             value={draft}
-            aria-label={`New name for ${tag.name}`}
+            aria-label={t('manage.newNameFor', { name: tag.name })}
             maxLength={255}
             autoFocus
             disabled={rename.isPending}
@@ -66,8 +72,8 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
         <button
           type="button"
           className="icon-button"
-          aria-label={`Rename ${tag.name}`}
-          title="Rename"
+          aria-label={t('manage.renameNamed', { name: tag.name })}
+          title={t('manage.rename')}
           onClick={() => setDraft(tag.name)}
         >
           <Icon name="edit" size={16} />
@@ -75,8 +81,8 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
         <button
           type="button"
           className="icon-button"
-          aria-label={`Delete ${tag.name}`}
-          title="Delete"
+          aria-label={t('manage.deleteAria', { name: tag.name })}
+          title={t('common.delete')}
           data-row-action="delete"
           onClick={onDelete}
         >
@@ -101,13 +107,13 @@ export function TagsPage() {
   const create = useAction<string, Tag>({
     mutationFn: name => tagRequests.create(wid, name),
     invalidate: stale.tagCreated,
-    success: tag => `Created ${tag.name}`,
+    success: tag => t('manage.created', { name: tag.name }),
     onSuccess: () => setNewName(''),
   });
   const remove = useAction<Tag>({
     mutationFn: tag => tagRequests.remove(wid, tag.id),
     invalidate: stale.tags,
-    success: (_result, tag) => `Deleted ${tag.name}`,
+    success: (_result, tag) => t('manage.deletedNamed', { name: tag.name }),
     onSuccess: (_result, tag) => {
       // The dialog had focus and would give it back to the row's Delete button, which goes away.
       closeModalThen(
@@ -120,7 +126,7 @@ export function TagsPage() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = newName.trim();
-    if (!fields.validate([['name', !trimmed && 'Enter a tag name']])) return;
+    if (!fields.validate([['name', !trimmed && t('manage.enterTagName')]])) return;
     create.mutate(trimmed);
   };
 
@@ -130,7 +136,7 @@ export function TagsPage() {
     <div className="page manage-page manage-narrow">
       <header className="page-header">
         <h1 ref={heading} tabIndex={-1}>
-          Tags
+          {t('manage.tagsTitle')}
         </h1>
       </header>
 
@@ -140,34 +146,34 @@ export function TagsPage() {
             <input
               {...fields.field('name')}
               value={newName}
-              placeholder="New tag"
-              aria-label="New tag name"
+              placeholder={t('manage.newTagPlaceholder')}
+              aria-label={t('manage.newTagName')}
               maxLength={255}
               onChange={event => setNewName(event.target.value)}
             />
             <button type="submit" className="button button-primary" disabled={create.isPending}>
-              <Icon name="plus" size={16} /> Add tag
+              <Icon name="plus" size={16} /> {t('manage.addTag')}
             </button>
           </div>
           {fields.message('name')}
         </form>
         <span className="spacer" />
-        <SearchBox value={search} onChange={setSearch} placeholder="Search tags" />
+        <SearchBox value={search} onChange={setSearch} placeholder={t('manage.searchTags')} />
       </div>
 
       <ManageList
         query={tagsQuery}
         visible={visible}
-        noun="tags"
+        noun={t('manage.tagsNoun')}
         empty={{
           icon: 'tag',
-          title: 'No tags yet',
-          body: <>Tags label entries across projects, like "meeting" or "review". Add one above.</>,
+          title: t('manage.noTagsYet'),
+          body: t('manage.noTagsBody'),
         }}
-        noMatch={{ title: 'No tags match your search', body: <>Check the spelling, or clear the search.</> }}
+        noMatch={{ title: t('manage.noTagsMatch'), body: t('manage.noTagsMatchBody') }}
         headers={
           <>
-            <th>Tag</th>
+            <th>{t('manage.tag')}</th>
           </>
         }
         tbodyRef={tbody}
@@ -176,19 +182,17 @@ export function TagsPage() {
           <TagRow key={tag.id} tag={tag} onDelete={() => setDeleting(tag)} />
         ))}
       </ManageList>
-      {tags && tags.length > 0 ? (
-        <p className="hint manage-footnote">Click a tag to rename it. Renaming updates every entry that uses it.</p>
-      ) : null}
+      {tags && tags.length > 0 ? <p className="hint manage-footnote">{t('manage.renameHint')}</p> : null}
 
       {deleting ? (
         <ConfirmModal
-          title={`Delete ${deleting.name}?`}
-          confirmLabel="Delete tag"
+          title={t('manage.deleteNamed', { name: deleting.name })}
+          confirmLabel={t('manage.deleteTagButton')}
           busy={remove.isPending}
           onConfirm={() => remove.mutate(deleting)}
           onClose={() => setDeleting(null)}
         >
-          <p>The tag comes off every time entry that has it. The entries stay. You can't undo this.</p>
+          <p>{t('manage.deleteTagBody')}</p>
         </ConfirmModal>
       ) : null}
     </div>

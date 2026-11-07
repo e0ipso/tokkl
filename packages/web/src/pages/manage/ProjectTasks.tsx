@@ -11,6 +11,7 @@ import { duration } from '../../lib/format.ts';
 import { projectRequests, taskTrackedSeconds, useProjectTasks } from '../../api/projects.ts';
 import { useAction } from '../../components/useAction.ts';
 import { keepFocusPastRow } from './rowFocus.ts';
+import { t } from '../../i18n/messages.ts';
 
 function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; onDeleted: () => void }) {
   const wid = useWid();
@@ -46,7 +47,7 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
   const remove = useAction({
     mutationFn: () => projectRequests.removeTask(wid, project.id, task.id),
     invalidate: stale.tasks,
-    success: `Deleted task ${task.name}`,
+    success: t('manage.deletedTask', { name: task.name }),
     onSuccess: onDeleted,
   });
 
@@ -61,8 +62,8 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
       <input
         type="checkbox"
         checked={!active}
-        aria-label={`${task.name} is done`}
-        title={active ? 'Mark as done' : 'Mark as not done'}
+        aria-label={t('manage.taskDone', { name: task.name })}
+        title={active ? t('manage.markDone') : t('manage.markNotDone')}
         onChange={event => {
           const nextActive = !event.target.checked;
           setActive(nextActive);
@@ -72,7 +73,7 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
       <input
         className="inline-input"
         value={name}
-        aria-label="Task name"
+        aria-label={t('manage.taskName')}
         maxLength={255}
         onChange={event => setName(event.target.value)}
         onBlur={commitName}
@@ -93,10 +94,10 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
             disabled={remove.isPending}
             onClick={() => remove.mutate()}
           >
-            Delete
+            {t('common.delete')}
           </button>
           <button ref={keepButton} type="button" className="button button-ghost" onClick={() => confirm(false)}>
-            Keep
+            {t('manage.keep')}
           </button>
         </span>
       ) : (
@@ -104,8 +105,8 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
           ref={deleteButton}
           type="button"
           className="icon-button"
-          aria-label={`Delete task ${task.name}`}
-          title="Delete task"
+          aria-label={t('manage.deleteTaskNamed', { name: task.name })}
+          title={t('manage.deleteTask')}
           data-row-action="delete"
           onClick={() => confirm(true)}
         >
@@ -138,7 +139,7 @@ export function ProjectTasks({ project }: { project: Project }) {
 
   const add = () => {
     const trimmed = newName.trim();
-    if (!fields.validate([['name', !trimmed && 'Enter a task name']])) return;
+    if (!fields.validate([['name', !trimmed && t('manage.enterTaskName')]])) return;
     create.mutate(trimmed);
   };
 
@@ -146,9 +147,9 @@ export function ProjectTasks({ project }: { project: Project }) {
   const done = tasks?.filter(task => !task.active) ?? [];
 
   return (
-    <section className="project-tasks" aria-label="Tasks">
+    <section className="project-tasks" aria-label={t('manage.tasks')}>
       <h3 ref={heading} tabIndex={-1}>
-        Tasks
+        {t('manage.tasks')}
       </h3>
       {project.active ? (
         <div className="inline-controls">
@@ -159,8 +160,8 @@ export function ProjectTasks({ project }: { project: Project }) {
               newTask.current = element;
             }}
             value={newName}
-            placeholder="Add a task"
-            aria-label="New task name"
+            placeholder={t('manage.addTaskPlaceholder')}
+            aria-label={t('manage.newTaskName')}
             maxLength={255}
             onChange={event => setNewName(event.target.value)}
             onKeyDown={event => {
@@ -171,24 +172,24 @@ export function ProjectTasks({ project }: { project: Project }) {
             }}
           />
           <button type="button" className="button" disabled={create.isPending} onClick={add}>
-            <Icon name="plus" size={16} /> Add task
+            <Icon name="plus" size={16} /> {t('manage.addTask')}
           </button>
         </div>
       ) : (
-        <p className="hint">Restore the project to add tasks.</p>
+        <p className="hint">{t('manage.restoreToAddTasks')}</p>
       )}
       {project.active ? fields.message('name') : null}
-      {isLoading ? <Loading label="Loading tasks…" className="is-compact" /> : null}
+      {isLoading ? <Loading label={t('manage.loadingTasks')} className="is-compact" /> : null}
       {error && !tasks ? (
         <LoadError
-          message={`Could not load tasks: ${error.message}`}
+          message={t('manage.tasksLoadFailed', { message: error.message })}
           onRetry={() => void refetch()}
           className="is-compact"
         />
       ) : null}
       {tasks && tasks.length === 0 ? (
-        <EmptyState compact title="No tasks yet.">
-          {project.active ? "Add one above to split this project's time." : null}
+        <EmptyState compact title={t('manage.noTasksYet')}>
+          {project.active ? t('manage.noTasksBody') : null}
         </EmptyState>
       ) : null}
       {tasks && tasks.length > 0 ? (

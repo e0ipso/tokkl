@@ -14,31 +14,39 @@ import { ProjectEditor } from './manage/ProjectEditor.tsx';
 import { useAction } from '../components/useAction.ts';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, RowMenu, SearchBox, Segmented, StatusBadge } from './manage/ui.tsx';
-import { STATUS_OPTIONS, includesText, matchesStatus, type StatusFilter } from './manage/values.ts';
+import { includesText, matchesStatus, statusOptions, type StatusFilter } from './manage/values.ts';
 import { ManageList } from './manage/ManageList.tsx';
 import './manage/manage.css';
+import { t } from '../i18n/messages.ts';
 
 type ClientFilter = 'any' | 'none' | number;
 
 function EstimateBar({ project, settings }: { project: Project; settings: Settings }) {
-  if (project.estimated_hours === null || project.estimated_hours <= 0) return <span className="muted">None</span>;
+  if (project.estimated_hours === null || project.estimated_hours <= 0)
+    return <span className="muted">{t('manage.none')}</span>;
   const estimateSeconds = project.estimated_hours * 3600;
   const percent = Math.round((project.actual_seconds / estimateSeconds) * 100);
   const over = percent > 100;
   return (
-    <div className="estimate" title={`${duration(project.actual_seconds, settings)} of ${project.estimated_hours} h`}>
+    <div
+      className="estimate"
+      title={t('manage.estimateTitle', {
+        tracked: duration(project.actual_seconds, settings),
+        hours: project.estimated_hours,
+      })}
+    >
       <div
         className="estimate-track"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.min(percent, 100)}
-        aria-label="Estimate used"
+        aria-label={t('manage.estimateUsed')}
       >
         <div className={`estimate-fill${over ? ' is-over' : ''}`} style={{ width: `${Math.min(percent, 100)}%` }} />
       </div>
       <span className={`estimate-label${over ? ' is-over' : ''}`}>
-        {percent}% of {project.estimated_hours} h
+        {t('manage.estimateLabel', { percent, hours: project.estimated_hours })}
       </span>
     </div>
   );
@@ -79,7 +87,8 @@ export function ProjectsPage() {
   const setActive = useAction<{ project: Project; active: boolean }, Project>({
     mutationFn: ({ project, active }) => projectRequests.update(wid, project.id, { active }),
     invalidate: stale.projects,
-    success: saved => (saved.active ? `Restored ${saved.name}` : `Archived ${saved.name}`),
+    success: saved =>
+      saved.active ? t('manage.restoredNamed', { name: saved.name }) : t('manage.archivedNamed', { name: saved.name }),
     // The row leaves the list when the status filter no longer matches. The menu button that ran the
     // action had focus; keep it in the list unless the user has moved on.
     onSuccess: saved => {
@@ -92,8 +101,8 @@ export function ProjectsPage() {
     invalidate: stale.projectDeleted,
     success: (_result, { project, mode }) =>
       mode === 'delete'
-        ? `Deleted ${project.name} and moved its entries to the trash`
-        : `Deleted ${project.name}. Its entries no longer have a project`,
+        ? t('manage.projectDeletedToTrash', { name: project.name })
+        : t('manage.projectDeletedUnassigned', { name: project.name }),
     onSuccess: (_result, { project }) => {
       // The dialog had focus and would give it back to the row's menu button, which goes away.
       closeModalThen(
@@ -112,27 +121,27 @@ export function ProjectsPage() {
     <div className="page manage-page">
       <header className="page-header">
         <h1 ref={heading} tabIndex={-1}>
-          Projects
+          {t('manage.projectsTitle')}
         </h1>
         <span className="spacer" />
         <button type="button" className="button button-primary" onClick={() => setEditing('new')}>
-          <Icon name="plus" size={16} /> New project
+          <Icon name="plus" size={16} /> {t('manage.newProject')}
         </button>
       </header>
 
       <div className="toolbar">
-        <Segmented label="Project status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
-        <SearchBox value={search} onChange={setSearch} placeholder="Search projects" />
+        <Segmented label={t('manage.projectStatus')} value={status} options={statusOptions()} onChange={setStatus} />
+        <SearchBox value={search} onChange={setSearch} placeholder={t('manage.searchProjects')} />
         <select
-          aria-label="Client"
+          aria-label={t('manage.client')}
           value={String(clientFilter)}
           onChange={event => {
             const value = event.target.value;
             setClientFilter(value === 'any' || value === 'none' ? value : Number(value));
           }}
         >
-          <option value="any">All clients</option>
-          <option value="none">No client</option>
+          <option value="any">{t('manage.allClients')}</option>
+          <option value="none">{t('manage.noClient')}</option>
           {clients.map(client => (
             <option key={client.id} value={client.id}>
               {client.name}
@@ -144,25 +153,25 @@ export function ProjectsPage() {
       <ManageList
         query={projectsQuery}
         visible={visible}
-        noun="projects"
+        noun={t('manage.projectsNoun')}
         empty={{
           icon: 'folder',
-          title: 'No projects yet',
-          body: <>Create one with New project to group your time entries.</>,
+          title: t('manage.noProjectsYet'),
+          body: t('manage.noProjectsBody'),
         }}
         noMatch={{
-          title: 'No projects match these filters',
-          body: <>Try another status or client, or clear the search.</>,
+          title: t('manage.noProjectsMatch'),
+          body: t('manage.noProjectsMatchBody'),
         }}
         headers={
           <>
-            <th>Project</th>
-            <th>Client</th>
-            <th>Status</th>
-            <th>Billable</th>
-            <th className="num">Rate</th>
-            <th className="num">Tracked</th>
-            <th>Estimate</th>
+            <th>{t('manage.project')}</th>
+            <th>{t('manage.client')}</th>
+            <th>{t('manage.status')}</th>
+            <th>{t('manage.billable')}</th>
+            <th className="num">{t('manage.rate')}</th>
+            <th className="num">{t('manage.tracked')}</th>
+            <th>{t('manage.estimate')}</th>
           </>
         }
         tbodyRef={tbody}
@@ -175,12 +184,14 @@ export function ProjectsPage() {
                 <span>{project.name}</span>
               </button>
             </td>
-            <td>{project.client_name ?? <span className="muted">None</span>}</td>
+            <td>{project.client_name ?? <span className="muted">{t('manage.none')}</span>}</td>
             <td>
               <StatusBadge archived={!project.active} />
             </td>
-            <td>{project.billable ? 'Yes' : <span className="muted">No</span>}</td>
-            <td className="num">{rateText(project, defaultCurrency) ?? <span className="muted">Default</span>}</td>
+            <td>{project.billable ? t('manage.yes') : <span className="muted">{t('manage.no')}</span>}</td>
+            <td className="num">
+              {rateText(project, defaultCurrency) ?? <span className="muted">{t('manage.rateDefault')}</span>}
+            </td>
             <td className="num">{duration(project.actual_seconds, settings)}</td>
             <td>
               <EstimateBar project={project} settings={settings} />
@@ -189,23 +200,23 @@ export function ProjectsPage() {
               <button
                 type="button"
                 className="icon-button"
-                aria-label={`Edit ${project.name}`}
-                title="Edit"
+                aria-label={t('manage.editNamed', { name: project.name })}
+                title={t('manage.edit')}
                 onClick={() => setEditing(project)}
               >
                 <Icon name="edit" size={16} />
               </button>
               <RowMenu
-                label={`More actions for ${project.name}`}
+                label={t('manage.moreActionsFor', { name: project.name })}
                 items={[
                   project.active
-                    ? { label: 'Archive', onSelect: () => setActive.mutate({ project, active: false }) }
+                    ? { label: t('manage.archive'), onSelect: () => setActive.mutate({ project, active: false }) }
                     : {
-                        label: 'Restore',
+                        label: t('manage.restore'),
                         icon: 'undo',
                         onSelect: () => setActive.mutate({ project, active: true }),
                       },
-                  { label: 'Delete', icon: 'trash', danger: true, onSelect: () => setDeleting(project) },
+                  { label: t('common.delete'), icon: 'trash', danger: true, onSelect: () => setDeleting(project) },
                 ]}
               />
             </td>
@@ -223,8 +234,8 @@ export function ProjectsPage() {
 
       {deleting ? (
         <ConfirmModal
-          title={`Delete ${deleting.name}?`}
-          confirmLabel={deleting.actual_seconds > 0 ? 'Keep entries' : 'Delete project'}
+          title={t('manage.deleteNamed', { name: deleting.name })}
+          confirmLabel={deleting.actual_seconds > 0 ? t('manage.keepEntries') : t('manage.deleteProject')}
           danger={deleting.actual_seconds === 0}
           busy={remove.isPending}
           onConfirm={() => remove.mutate({ project: deleting, mode: 'unassign' })}
@@ -237,20 +248,16 @@ export function ProjectsPage() {
                 disabled={remove.isPending}
                 onClick={() => remove.mutate({ project: deleting, mode: 'delete' })}
               >
-                Delete entries too
+                {t('manage.deleteEntriesToo')}
               </button>
             )
           }
         >
-          <p>This deletes the project and its tasks. You can't undo it.</p>
+          <p>{t('manage.deleteProjectBody')}</p>
           {deleting.actual_seconds > 0 ? (
-            <p>
-              It has {duration(deleting.actual_seconds, settings)} of tracked time. Keep those entries without a
-              project, or delete them too. Deleted entries go to the trash. If you restore them later, they come back
-              without a project.
-            </p>
+            <p>{t('manage.deleteProjectTracked', { tracked: duration(deleting.actual_seconds, settings) })}</p>
           ) : (
-            <p>It has no tracked time.</p>
+            <p>{t('manage.deleteProjectUntracked')}</p>
           )}
         </ConfirmModal>
       ) : null}
