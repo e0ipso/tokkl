@@ -140,9 +140,16 @@ function minutesAndSeconds(seconds) {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-// Fills each %s or %d of a translated template with the next value, in
-// order, since String.prototype.format exists only inside GNOME Shell.
-function fill(template, ...values) {
+/**
+ * Fills each %s or %d of a translated template with the next value, in
+ * order. The extension and its preferences use it rather than
+ * String.prototype.format, which exists only inside GNOME Shell.
+ *
+ * @param {string} template
+ * @param {...any} values
+ * @returns {string}
+ */
+export function fill(template, ...values) {
     let next = 0;
     return template.replace(/%[sd]/g, () => String(values[next++]));
 }

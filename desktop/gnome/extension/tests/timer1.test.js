@@ -12,6 +12,7 @@ import {
     countdown,
     describeStatus,
     elapsedSeconds,
+    fill,
     formatElapsed,
     nextPhaseLabel,
     phaseName,
@@ -122,4 +123,10 @@ test('the session items name the next phase and the mode lock', () => {
 
 test('the sign-in methods are the ones Configure accepts', () => {
     assert.deepEqual(AUTH_MODES, ['token', 'password']);
+});
+
+test('fill puts the values into %s and %d in order', () => {
+    assert.equal(fill('Project: %s', 'Inbox'), 'Project: Inbox');
+    assert.equal(fill('%s · %s · Pomodoro %d of %d', 'Work', '4:10 left', 2, 4), 'Work · 4:10 left · Pomodoro 2 of 4');
+    assert.equal(fill('No values'), 'No values');
 });

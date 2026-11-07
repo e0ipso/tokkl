@@ -12,18 +12,25 @@ import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+import {captureActivateKeys, replaceClickGesture} from './compat.js';
 import {describeIndicator, fillColor, pulseOpacity, PULSE_PERIOD_MS, shapeGeometry} from './projectindicator.js';
 import {
     chosenProjectLabel,
     countdown,
     describeStatus,
     elapsedSeconds,
+    fill,
     formatElapsed,
     nextPhaseLabel,
     pomodoroModeLabel,
     projectLabel,
     sessionLine,
 } from './timer1.js';
+import {cachedProperty, serviceRunning} from './timer1proxy.js';
+
+// The properties the project submenu's items show. A change to any other
+// property leaves the items as they are.
+const PROJECT_ITEM_PROPERTIES = ['Projects', 'ChosenProject'];
 
 // The project indicator in a slot of its own; projectindicator.js decides
 // what it shows. Two drawing areas share the slot, so the fill can pulse
@@ -173,35 +180,13 @@ class TokklIndicator extends PanelMenu.Button {
         this._settings = St.Settings.get();
         this._settingsSignal = this._settings.connect('notify::enable-animations', () => this._sync());
 
-        // From GNOME Shell 50 on, PanelMenu.Button opens its menu from a
-        // click gesture that takes every button. Primary clicks pause,
-        // resume and start here instead, so that gesture is replaced by one
-        // that tells the buttons apart. Before 50 the button opens the menu from
-        // vfunc_event, which this class overrides below.
-        if (this._clickGesture instanceof Clutter.Action) {
-            this._clickGesture.set_enabled(false);
-            this._ownGesture = new Clutter.ClickGesture({recognize_on_press: true});
-            this._ownGesture.connect('recognize', gesture => this._onPress(gesture.get_button()));
-            this.add_action(this._ownGesture);
-        }
-
-        // From GNOME Shell 51 on, the menu takes Space, Return and Down from
-        // a key controller on the button, and vfunc_event never sees them. A
-        // controller in the capture phase runs before it, so Space and Return
-        // do what a primary click does here; Down still opens the menu.
-        if (Clutter.KeyController &&
-            this.get_actions().some(action => action instanceof Clutter.KeyController)) {
-            const keys = new Clutter.KeyController();
-            keys.connect('key-press', controller => {
-                const [, symbol] = controller.get_key();
-                const [, pressed, latched, locked] = controller.get_state();
-                if (!this._isActivateKey(symbol, pressed | latched | locked))
-                    return Clutter.EVENT_PROPAGATE;
-                this._onPress(Clutter.BUTTON_PRIMARY);
-                return Clutter.EVENT_STOP;
-            });
-            this.add_action_full('tokkl-activate-keys', Clutter.EventPhase.CAPTURE, keys);
-        }
+        // Primary clicks pause, resume and start, so the buttons must be
+        // told apart: from Shell 50 through a gesture of our own, before it
+        // in vfunc_event below. From Shell 51, Space and Return reach us
+        // before the menu's key controller takes them.
+        this._ownGesture = replaceClickGesture(this, button => this._onPress(button));
+        captureActivateKeys(this, (symbol, modifiers) => this._isActivateKey(symbol, modifiers),
+            () => this._onPress(Clutter.BUTTON_PRIMARY));
 
         this._buildMenu(openPreferences);
         this._sync();
@@ -260,7 +245,7 @@ class TokklIndicator extends PanelMenu.Button {
         });
         this.menu.addMenuItem(this._modeItem);
 
-        // Rebuilt by _syncProjects.
+        // Its items are rebuilt by _syncProjectItems.
         this._projectMenu = new PopupMenu.PopupSubMenuMenuItem('');
         this.menu.addMenuItem(this._projectMenu);
 
@@ -290,7 +275,7 @@ class TokklIndicator extends PanelMenu.Button {
         this._proxy = proxy;
         if (proxy) {
             this._proxySignals = [
-                proxy.connect('g-properties-changed', () => this._sync()),
+                proxy.connect('g-properties-changed', (_source, changed) => this._sync(Object.keys(changed.deepUnpack()))),
                 proxy.connect('notify::g-name-owner', () => this._sync()),
             ];
         }
@@ -303,17 +288,12 @@ class TokklIndicator extends PanelMenu.Button {
         this._proxySignals = [];
     }
 
-    // The property's cached value, or the fallback while the service is
-    // gone: a proxy without an owner keeps no properties.
     _property(name, fallback) {
-        if (!this._proxy?.g_name_owner)
-            return fallback;
-        const value = this._proxy.get_cached_property(name);
-        return value ? value.recursiveUnpack() : fallback;
+        return cachedProperty(this._proxy, name, fallback);
     }
 
     _state() {
-        const owned = Boolean(this._proxy?.g_name_owner);
+        const owned = serviceRunning(this._proxy);
         return {
             status: owned ? this._property('Status', 'error') : null,
             errorString: this._property('ErrorString', ''),
@@ -340,7 +320,13 @@ class TokklIndicator extends PanelMenu.Button {
         };
     }
 
-    _sync() {
+    /**
+     * Shows the service's state.
+     *
+     * @param {string[]} [changed] the properties that changed; all of them
+     *     when left out
+     */
+    _sync(changed) {
         const state = this._state();
         const words = describeStatus(state.status, state.errorString, _);
         const ready = state.status === 'ready';
@@ -371,7 +357,9 @@ class TokklIndicator extends PanelMenu.Button {
         this._toggleItem.visible = !state.sessionActive && (!state.pomodoroMode || timerHeld);
 
         this._syncSession(state, timerHeld);
-        this._syncProjects(state, ready);
+        this._syncProjectLabel(state, ready);
+        if (!changed || changed.some(name => PROJECT_ITEM_PROPERTIES.includes(name)))
+            this._syncProjectItems(state);
 
         // Billable stays editable while an entry runs: the service then
         // edits that entry. While paused it shows the paused entry's flag,
@@ -404,16 +392,19 @@ class TokklIndicator extends PanelMenu.Button {
 
     // Project chooses the project of the next start. The service refuses it
     // while an entry runs or a chain is paused, so the submenu is locked then.
-    _syncProjects(state, ready) {
+    _syncProjectLabel(state, ready) {
         const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
         if (state.running)
-            this._projectMenu.label.text = _('Project: %s (locked while running)').format(chosen);
+            this._projectMenu.label.text = fill(_('Project: %s (locked while running)'), chosen);
         else if (state.paused)
-            this._projectMenu.label.text = _('Project: %s (locked while paused)').format(chosen);
+            this._projectMenu.label.text = fill(_('Project: %s (locked while paused)'), chosen);
         else
-            this._projectMenu.label.text = _('Project: %s').format(chosen);
+            this._projectMenu.label.text = fill(_('Project: %s'), chosen);
         this._projectMenu.setSensitive(ready && !state.running && !state.paused);
+    }
 
+    // One item per project and No project, the chosen one checked.
+    _syncProjectItems(state) {
         const section = this._projectMenu.menu;
         section.removeAll();
         const choices = [{id: 0, label: _('No project')}];
@@ -452,12 +443,12 @@ class TokklIndicator extends PanelMenu.Button {
             timer = _('Stopped');
             status = this._words.text;
             if (this._running) {
-                timer = _('Running %s').format(elapsed);
+                timer = fill(_('Running %s'), elapsed);
             } else if (this._paused) {
-                timer = _('Paused %s').format(elapsed);
+                timer = fill(_('Paused %s'), elapsed);
                 // While paused the line leads with the chain total, then the
                 // connection state, as the KDE and macOS menus do.
-                status = _('Paused %s · %s').format(elapsed, this._words.text);
+                status = fill(_('Paused %s · %s'), elapsed, this._words.text);
             }
         }
         this._statusItem.label.text = status;
