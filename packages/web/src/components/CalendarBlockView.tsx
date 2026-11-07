@@ -5,7 +5,7 @@ import { duration, formatTime } from '../lib/format.ts';
 import type { Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { projectColorStyle } from './ProjectLabel.tsx';
-import type { CalendarDrag } from './useCalendarDrag.ts';
+import type { CalendarDrag } from '../lib/calendarGesture.ts';
 import { t } from '../i18n/messages.ts';
 
 /** One entry's part of a day column, drawn where a move or resize in progress would drop it. */
