@@ -7,7 +7,7 @@ import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useServerDraft } from '../../../components/useServerDraft.ts';
 import { today } from '../../../lib/format.ts';
-import { AllowNotifications } from './AllowNotifications.tsx';
+import { AllowNotifications } from '../../../components/AllowNotifications.tsx';
 import { DisplayFields, PomodoroDefaults, TimerReminderFields } from './PreferenceFields.tsx';
 import {
   changesFrom,
