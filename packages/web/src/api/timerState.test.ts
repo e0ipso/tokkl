@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient, onlineManager } from '@tanstack/react-query';
-import type { TimeEntry, TimerState } from './types.ts';
+import type { TimeEntry, TimerPause, TimerPomodoro, TimerState } from './types.ts';
 import {
   TIMER_ACTION_KEY,
   TIMER_CONFLICT_MESSAGE,
@@ -12,7 +12,9 @@ import {
   planTimerUpdate,
   revisionToSend,
   settleOtherWrites,
+  timerStateOf,
 } from './timerState.ts';
+import { t } from '../i18n/messages.ts';
 import { ApiError } from './client.ts';
 import { clockOffset, serverNow } from './serverClock.ts';
 
@@ -67,12 +69,81 @@ test('the clock offset is the server time minus the local time at arrival', () =
   assert.equal(planTimerUpdate(undefined, state(1), server - 3000)?.offset, 3000);
 });
 
+const pause: TimerPause = {
+  paused: true,
+  seconds: 600,
+  workspace_id: 1,
+  description: 'Write',
+  project_id: null,
+  task_id: null,
+  tag_ids: [3],
+  tags: ['deep'],
+  billable: false,
+  clone_entry_id: null,
+};
+
+const pomodoro: TimerPomodoro = {
+  work_minutes: 25,
+  short_rest_minutes: 5,
+  long_rest_minutes: 15,
+  long_rest_every: 4,
+  phase: {
+    kind: 'work',
+    start: '2026-10-27T10:00:00.000Z',
+    completed: 0,
+    planned_end: '2026-10-27T10:25:00.000Z',
+  },
+  upcoming_phase: 'shortRest',
+  transition: 'workToShortRest',
+  number: 1,
+  entry_id: 7,
+  pomodoro_start: '2026-10-27T10:00:00.000Z',
+};
+
 test('only objects shaped like a timer state pass the guard', () => {
   assert.equal(isTimerState(state(1)), true);
+  assert.equal(isTimerState(state(1, { running_entry: null, pause })), true);
+  assert.equal(isTimerState(state(1, { pomodoro })), true);
+  assert.equal(
+    isTimerState(state(1, { running_entry: null, discarded_pomodoro: { entry_id: 7, start: 'a', stop: 'b' } })),
+    true,
+  );
   assert.equal(isTimerState(null), false);
   assert.equal(isTimerState('x'), false);
   assert.equal(isTimerState({ revision: '1', server_time: 'x' }), false);
   assert.equal(isTimerState({ error: 'Conflict' }), false);
+});
+
+test('a state whose nested parts are malformed or missing fails the guard', () => {
+  // The revision and server time alone are not a state.
+  assert.equal(isTimerState({ revision: 1, server_time: '2026-10-27T10:00:05.000Z' }), false);
+  assert.equal(isTimerState(state(1, { running_entry: { ...entry, start: 5 } as unknown as TimeEntry })), false);
+  assert.equal(isTimerState(state(1, { pause: { ...pause, paused: 'yes' } as unknown as TimerPause })), false);
+  assert.equal(
+    isTimerState(
+      state(1, { pomodoro: { ...pomodoro, phase: { ...pomodoro.phase, kind: 'nap' } } as unknown as TimerPomodoro }),
+    ),
+    false,
+  );
+  assert.equal(
+    isTimerState(state(1, { pomodoro: { ...pomodoro, transition: undefined } as unknown as TimerPomodoro })),
+    false,
+  );
+  assert.equal(
+    isTimerState(state(1, { discarded_pomodoro: { entry_id: 7 } as unknown as TimerState['discarded_pomodoro'] })),
+    false,
+  );
+});
+
+test('a malformed timer state fails its request with the unreadable-state message', () => {
+  assert.equal(timerStateOf(state(3)).revision, 3);
+  assert.throws(() => timerStateOf({ ...state(3), pause: { paused: true } }), { message: t('timer.unreadableState') });
+});
+
+test('a 409 whose body is not a whole state stays a plain ApiError', () => {
+  const body = { ...state(9), pomodoro: { phase: null } };
+  const error = new ApiError(409, JSON.stringify(body), body);
+  assert.equal(explainTimerActionError(error), error);
 });
 
 test('a 409 carrying a state explains itself and hands the state over; other failures pass through', () => {

@@ -1,5 +1,7 @@
 import type { Mutation, QueryClient } from '@tanstack/react-query';
 import { ApiError } from './client.ts';
+import { DecodeError } from './decode.ts';
+import { timerStateReply } from './replies.ts';
 import { clockOffset } from './serverClock.ts';
 import type { TimeEntry, TimerState } from './types.ts';
 import { t } from '../i18n/messages.ts';
@@ -23,18 +25,24 @@ export class TimerActionError extends Error {
   }
 }
 
+/**
+ * Whether `value` is a whole timer state: the revision and server time, and the running entry,
+ * pause chain, session and discarded pomodoro each null or of their full shape.
+ */
 export function isTimerState(value: unknown): value is TimerState {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'revision' in value &&
-    typeof value.revision === 'number' &&
-    'server_time' in value &&
-    typeof value.server_time === 'string'
-  );
+  try {
+    timerStateReply(value);
+    return true;
+  } catch (error) {
+    if (error instanceof DecodeError) return false;
+    throw error;
+  }
 }
 
-/** Decodes a timer state reply, failing when the server sent something else. */
+/**
+ * Decodes a timer state reply, failing when the server sent something else, so a malformed state
+ * fails its request the way a failed request does.
+ */
 export function timerStateOf(value: unknown): TimerState {
   if (!isTimerState(value)) throw new Error(t('timer.unreadableState'));
   return value;

@@ -89,9 +89,11 @@ async function currentRevision(qc: QueryClient): Promise<number> {
 const actionOptions = { mutationKey: TIMER_ACTION_KEY, networkMode: 'always' } as const;
 
 /**
- * Posts a timer action. The reply is the new state. A 409 replaces the cached state with the one in
- * its body and fails with a `TimerActionError` of kind `conflict`; no reply at all fails with kind
- * `offline`. Both carry the message to show. Other failures keep their `ApiError`.
+ * Posts a timer action. The reply is the new state; a reply that is not a whole state fails the
+ * action with the unreadable-state message and leaves the caches alone. A 409 replaces the cached
+ * state with the one in its body and fails with a `TimerActionError` of kind `conflict`; no reply
+ * at all fails with kind `offline`. Both carry the message to show. Other failures, a 409 without a
+ * whole state among them, keep their `ApiError`.
  */
 async function postAction(
   qc: QueryClient,
@@ -99,7 +101,7 @@ async function postAction(
   body: Record<string, unknown> | undefined,
 ): Promise<TimerState> {
   try {
-    return acceptTimerState(qc, await api.post<TimerState>(path, body));
+    return acceptTimerState(qc, await api.post(path, body, { decode: timerStateOf }));
   } catch (error) {
     const explained = explainTimerActionError(error);
     if (explained instanceof TimerActionError && explained.state) acceptTimerState(qc, explained.state);
