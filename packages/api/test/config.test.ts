@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from '../src/config.ts';
+import { ConfigurationError, loadConfig } from '../src/config.ts';
 function tempDir() {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-config-'));
   after(() => rmSync(dir, { recursive: true, force: true }));
@@ -134,4 +134,39 @@ test('startup names TOKKL_TRUST_PROXY when its value is invalid', async () => {
   }
   assert.match(logs, /Startup failed\. Invalid TOKKL_TRUST_PROXY/);
   assert.doesNotMatch(logs, /tokkl listening/);
+});
+test('PORT, HOST, TOKKL_SESSION_DAYS and TOKKL_LOG_LEVEL accept their ranges and name the setting otherwise', () => {
+  const dir = tempDir();
+  const load = (env: NodeJS.ProcessEnv) => loadConfig({ TOKKL_DATA_DIR: dir, ...env }).config;
+  const defaults = load({});
+  assert.deepEqual(
+    [defaults.port, defaults.host, defaults.sessionDays, defaults.logLevel],
+    [8080, '0.0.0.0', 30, 'info'],
+  );
+  assert.equal(load({ PORT: '0' }).port, 0);
+  assert.equal(load({ PORT: ' 65535 ' }).port, 65535);
+  assert.equal(load({ HOST: '::1' }).host, '::1');
+  assert.equal(load({ TOKKL_SESSION_DAYS: '365' }).sessionDays, 365);
+  assert.equal(load({ TOKKL_LOG_LEVEL: 'WARN' }).logLevel, 'warn');
+  const refused: Array<[NodeJS.ProcessEnv, string]> = [
+    [{ PORT: '65536' }, 'PORT'],
+    [{ PORT: 'http' }, 'PORT'],
+    [{ PORT: '80.5' }, 'PORT'],
+    [{ HOST: 'two words' }, 'HOST'],
+    [{ TOKKL_SESSION_DAYS: '0' }, 'TOKKL_SESSION_DAYS'],
+    [{ TIMETRACK_SESSION_DAYS: '366' }, 'TOKKL_SESSION_DAYS'],
+    [{ TOKKL_LOG_LEVEL: 'verbose' }, 'TOKKL_LOG_LEVEL'],
+  ];
+  for (const [env, name] of refused)
+    assert.throws(
+      () => load(env),
+      (error: Error) => error instanceof ConfigurationError && error.message.startsWith(`Invalid ${name}`),
+      JSON.stringify(env),
+    );
+});
+test('database selection errors are configuration errors, so startup prints them', () => {
+  const dir = tempDir();
+  writeFileSync(join(dir, 'timetrack.sqlite'), 'keep');
+  assert.throws(() => loadConfig({ TOKKL_DATA_DIR: dir }), ConfigurationError);
+  assert.throws(() => loadConfig({ TOKKL_DATA_DIR: tempDir(), TOKKL_DATABASE_URL: 'bad://x' }), ConfigurationError);
 });
