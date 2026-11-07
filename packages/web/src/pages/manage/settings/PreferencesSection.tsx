@@ -1,151 +1,25 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useSavePreferences } from '../../../api/account.ts';
 import { keys } from '../../../api/keys.ts';
-import type { DurationFormat, Preferences } from '../../../api/types.ts';
-import { useFieldErrors } from '../../../components/FieldError.tsx';
-import { LengthStepper, LengthStepperGrid } from '../../../components/LengthStepper.tsx';
-import type { StepperRange } from '../../../components/lengthStepper.ts';
-import { useToast } from '../../../components/Toast.tsx';
 import { useSettings } from '../../../api/settings.ts';
-import { formatDate, formatTime, today } from '../../../lib/format.ts';
-import { isTwelveHour } from '../../../lib/settings.ts';
-import { formatDuration } from '@tokkl/common/duration';
-import { DEFAULT_POMODORO_SESSION_CONFIG, POMODORO_SESSION_CONFIG_RANGES } from '@tokkl/common/pomodoroSession';
-import { AllowNotifications } from './AllowNotifications.tsx';
-import { SettingsCard } from './SettingsCard.tsx';
+import type { Preferences } from '../../../api/types.ts';
+import { useFieldErrors } from '../../../components/FieldError.tsx';
+import { useToast } from '../../../components/Toast.tsx';
 import { useServerDraft } from '../../../components/useServerDraft.ts';
-
-const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD.MM.YYYY', 'DD-MM-YYYY', 'MM-DD-YYYY'] as const;
-
-const TIME_FORMATS = [
-  { value: 'H:mm', label: '24-hour', twelveHour: false },
-  { value: 'h:mm A', label: '12-hour', twelveHour: true },
-] as const;
-
-const DURATION_FORMATS: ReadonlyArray<{ value: DurationFormat; label: string }> = [
-  { value: 'improved', label: 'Improved' },
-  { value: 'classic', label: 'Classic' },
-  { value: 'decimal', label: 'Decimal' },
-];
-
-const THEMES: ReadonlyArray<{ value: Preferences['theme']; label: string }> = [
-  { value: 'system', label: 'Match the system' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-];
-
-/** 47 minutes and 6 seconds, the example Toggl uses for its duration formats. */
-const SAMPLE_SECONDS = 47 * 60 + 6;
-
-/**
- * The lengths a new Pomodoro session starts with: the card's label, the short unit it shows, the unit
- * a screen reader and the error message name, and the range the server accepts.
- */
-const POMODORO_NUMBERS = [
-  {
-    key: 'pomodoro_focus_interval_in_minutes',
-    label: 'Work',
-    shortUnit: 'min',
-    unit: 'minutes',
-    range: POMODORO_SESSION_CONFIG_RANGES.workMinutes,
-  },
-  {
-    key: 'pomodoro_break_interval_in_minutes',
-    label: 'Short rest',
-    shortUnit: 'min',
-    unit: 'minutes',
-    range: POMODORO_SESSION_CONFIG_RANGES.shortRestMinutes,
-  },
-  {
-    key: 'pomodoro_long_break_interval_in_minutes',
-    label: 'Long rest',
-    shortUnit: 'min',
-    unit: 'minutes',
-    range: POMODORO_SESSION_CONFIG_RANGES.longRestMinutes,
-  },
-  {
-    key: 'pomodoro_long_break_every',
-    label: 'Long rest every',
-    shortUnit: 'pomodoros',
-    unit: 'pomodoros',
-    range: POMODORO_SESSION_CONFIG_RANGES.longRestEvery,
-  },
-] as const satisfies ReadonlyArray<{
-  key: keyof Preferences;
-  label: string;
-  shortUnit: string;
-  unit: string;
-  range: StepperRange;
-}>;
-
-const NUMBER_FIELDS = [...POMODORO_NUMBERS, { key: 'long_timer_reminder_hours', unit: 'hours' }] as const;
-type NumberKey = (typeof NUMBER_FIELDS)[number]['key'];
-
-type Editable = Pick<
-  Preferences,
-  | 'theme'
-  | 'date_format'
-  | 'timeofday_format'
-  | 'duration_format'
-  | 'collapseTimeEntries'
-  | 'keyboard_shortcuts_enabled'
-  | 'long_timer_reminder_enabled'
-  | NumberKey
->;
-
-/** What the form shows: the numbers are the text in their inputs, so a half-typed value survives. */
-type Draft = { [K in keyof Editable]: K extends NumberKey ? string : Editable[K] };
-
-function pick(prefs: Preferences): Editable {
-  return {
-    theme: prefs.theme ?? 'system',
-    long_timer_reminder_enabled: prefs.long_timer_reminder_enabled ?? true,
-    long_timer_reminder_hours: prefs.long_timer_reminder_hours ?? 8,
-    date_format: prefs.date_format,
-    timeofday_format: prefs.timeofday_format,
-    duration_format: prefs.duration_format,
-    collapseTimeEntries: prefs.collapseTimeEntries,
-    keyboard_shortcuts_enabled: prefs.keyboard_shortcuts_enabled,
-    pomodoro_focus_interval_in_minutes:
-      prefs.pomodoro_focus_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.workMinutes,
-    pomodoro_break_interval_in_minutes:
-      prefs.pomodoro_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.shortRestMinutes,
-    pomodoro_long_break_interval_in_minutes:
-      prefs.pomodoro_long_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestMinutes,
-    pomodoro_long_break_every: prefs.pomodoro_long_break_every ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestEvery,
-  };
-}
-
-function toDraft(values: Editable): Draft {
-  return {
-    ...values,
-    long_timer_reminder_hours: String(values.long_timer_reminder_hours),
-    pomodoro_focus_interval_in_minutes: String(values.pomodoro_focus_interval_in_minutes),
-    pomodoro_break_interval_in_minutes: String(values.pomodoro_break_interval_in_minutes),
-    pomodoro_long_break_interval_in_minutes: String(values.pomodoro_long_break_interval_in_minutes),
-    pomodoro_long_break_every: String(values.pomodoro_long_break_every),
-  };
-}
-
-const isWholeNumber = (text: string) => text.trim() !== '' && Number.isInteger(Number(text.trim()));
-
-/** Whether an edited value is what the server stores, comparing a typed number by its value, not its text. */
-function isStored(key: keyof Draft, value: Draft[keyof Draft], stored: Editable): boolean {
-  const current = stored[key];
-  return typeof current === 'number'
-    ? typeof value === 'string' && isWholeNumber(value) && Number(value.trim()) === current
-    : value === current;
-}
-
-/** The request body for the edited fields; a typed number goes as a number. */
-function changesFrom(edits: Partial<Draft>): Partial<Preferences> {
-  const changes: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(edits)) {
-    changes[key] =
-      typeof value === 'string' && NUMBER_FIELDS.some(field => field.key === key) ? Number(value.trim()) : value;
-  }
-  return changes;
-}
+import { today } from '../../../lib/format.ts';
+import { AllowNotifications } from './AllowNotifications.tsx';
+import { DisplayFields, PomodoroDefaults, TimerReminderFields } from './PreferenceFields.tsx';
+import {
+  changesFrom,
+  editableOf,
+  isStored,
+  numberErrors,
+  refusedField,
+  toDraft,
+  type Editable,
+  type NumberKey,
+} from './preferencesForm.ts';
+import { SettingsCard } from './SettingsCard.tsx';
 
 /**
  * The form keeps only what the user typed and has not saved; every other field shows the stored
@@ -160,42 +34,29 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   const queryClient = useQueryClient();
   const fields = useFieldErrors<NumberKey>();
   const save = useSavePreferences();
-  const form = useServerDraft(toDraft(pick(prefs)), save.isPending);
+  const form = useServerDraft(toDraft(editableOf(prefs)), save.isPending);
   const { draft, edits, set } = form;
   const dropEditsEqualTo = (stored: Editable) => form.dropEditsMatching((key, value) => isStored(key, value, stored));
-
-  const todayKey = today(settings.timeZone);
-  const now = new Date();
-  // A saved format this form doesn't offer stays selectable instead of silently switching.
-  const dateFormats: string[] = DATE_FORMATS.some(format => format === draft.date_format)
-    ? [...DATE_FORMATS]
-    : [draft.date_format, ...DATE_FORMATS];
-  const twelveHour = isTwelveHour(draft.timeofday_format);
 
   // Only whole numbers go to the server; it checks the allowed values, and its 400 shows on the
   // field it names, as in "Invalid pomodoro_long_break_every: expected ...".
   const submit = () => {
-    const valid = fields.validate(
-      NUMBER_FIELDS.map(
-        ({ key, unit }) => [key, !isWholeNumber(draft[key]) && `Enter a whole number of ${unit}`] as const,
-      ),
-    );
-    if (!valid) return;
+    if (!fields.validate(numberErrors(draft))) return;
     if (!form.hasEdits) {
       toast.show('No changes to save');
       return;
     }
     save.mutate(changesFrom(edits), {
       onSuccess: saved => {
-        dropEditsEqualTo(pick(saved));
+        dropEditsEqualTo(editableOf(saved));
         toast.show('Preferences saved');
       },
       onError: error => {
         // The failed save has rolled the cache back to the stored values.
         const stored = queryClient.getQueryData<Preferences>(keys.preferences);
-        if (stored) dropEditsEqualTo(pick(stored));
-        const refused = NUMBER_FIELDS.find(({ key }) => error.message.startsWith(`Invalid ${key}:`));
-        if (refused) fields.validate([[refused.key, error.message]]);
+        if (stored) dropEditsEqualTo(editableOf(stored));
+        const refused = refusedField(error.message);
+        if (refused) fields.validate([[refused, error.message]]);
         else toast.error(error);
       },
     });
@@ -203,132 +64,9 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
 
   return (
     <SettingsCard id="preferences" title="Preferences" onSubmit={submit} saving={save.isPending}>
-      <div className="form-grid">
-        <label className="field">
-          <span>Theme</span>
-          <select
-            value={draft.theme}
-            onChange={event => {
-              const theme = THEMES.find(option => option.value === event.target.value);
-              if (theme) set('theme', theme.value);
-            }}
-          >
-            {THEMES.map(theme => (
-              <option key={theme.value} value={theme.value}>
-                {theme.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Date format</span>
-          <select value={draft.date_format} onChange={event => set('date_format', event.target.value)}>
-            {dateFormats.map(format => (
-              <option key={format} value={format}>
-                {format} ({formatDate(todayKey, format)})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Time format</span>
-          <select
-            value={twelveHour ? 'h:mm A' : 'H:mm'}
-            onChange={event => set('timeofday_format', event.target.value)}
-          >
-            {TIME_FORMATS.map(format => (
-              <option key={format.value} value={format.value}>
-                {format.label} ({formatTime(now, { timeZone: settings.timeZone, twelveHour: format.twelveHour })})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Duration format</span>
-          <select
-            value={draft.duration_format}
-            onChange={event => {
-              const format = DURATION_FORMATS.find(option => option.value === event.target.value);
-              if (format) set('duration_format', format.value);
-            }}
-          >
-            {DURATION_FORMATS.map(format => (
-              <option key={format.value} value={format.value}>
-                {format.label} ({formatDuration(SAMPLE_SECONDS, format.value)})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field checkbox-field field-full">
-          <input
-            type="checkbox"
-            checked={draft.collapseTimeEntries}
-            onChange={event => set('collapseTimeEntries', event.target.checked)}
-          />
-          <span>Group similar time entries in the timer list</span>
-        </label>
-        <label className="field checkbox-field field-full">
-          <input
-            type="checkbox"
-            checked={draft.keyboard_shortcuts_enabled}
-            onChange={event => set('keyboard_shortcuts_enabled', event.target.checked)}
-          />
-          <span>Keyboard shortcuts</span>
-        </label>
-      </div>
-      <h3 className="settings-subheading" id="timer-reminder-title">
-        Long-running timers
-      </h3>
-      <div className="form-grid" role="group" aria-labelledby="timer-reminder-title">
-        <label className="field checkbox-field field-full">
-          <input
-            type="checkbox"
-            checked={draft.long_timer_reminder_enabled}
-            onChange={event => set('long_timer_reminder_enabled', event.target.checked)}
-          />
-          <span>Remind me to check long-running timers</span>
-        </label>
-        <div className="field">
-          <label htmlFor={fields.id('long_timer_reminder_hours')}>Remind me after (hours)</label>
-          <input
-            {...fields.field('long_timer_reminder_hours')}
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={168}
-            value={draft.long_timer_reminder_hours}
-            onChange={event => set('long_timer_reminder_hours', event.target.value)}
-          />
-          {fields.message('long_timer_reminder_hours')}
-        </div>
-        <p className="hint field-full">
-          Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.
-        </p>
-      </div>
-      <h3 className="settings-subheading" id="pomodoro-title">
-        Pomodoro session defaults
-      </h3>
-      <LengthStepperGrid aria-labelledby="pomodoro-title">
-        {POMODORO_NUMBERS.map(({ key, label, shortUnit, unit, range }) => (
-          <LengthStepper
-            key={key}
-            label={label}
-            unit={shortUnit}
-            spokenUnit={unit}
-            range={range}
-            value={draft[key]}
-            onChange={text => {
-              set(key, text);
-              fields.clear(key);
-            }}
-            inputProps={fields.field(key)}
-            error={fields.message(key)}
-          />
-        ))}
-      </LengthStepperGrid>
-      <p className="hint settings-hint">
-        New sessions on the Pomodoro page start with these lengths. You can change them there before you start.
-      </p>
+      <DisplayFields draft={draft} set={set} timeZone={settings.timeZone} todayKey={today(settings.timeZone)} />
+      <TimerReminderFields draft={draft} set={set} fields={fields} />
+      <PomodoroDefaults draft={draft} set={set} fields={fields} />
       <h3 className="settings-subheading" id="notifications-title">
         Notifications
       </h3>
