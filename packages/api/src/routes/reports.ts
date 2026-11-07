@@ -1,12 +1,10 @@
 import { type Request, type Response, type Router } from 'express';
-import type { Repositories } from '../storage/contracts.ts';
 import type { Deps } from '../http/context.ts';
 import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/context.ts';
 import { calendarInput, invalidInput } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { addDays } from '@tokkl/common/time';
-import { memberWorkspace } from '../domain/accounts.ts';
 import type { Workspace } from '../storage/domain.ts';
 import { filterFromBody, resolutionFor, type Dimension } from '../services/storageReports.ts';
 import { checkOrderBy, v3WeeklyFilter, type JobResult, type ReportJob } from '../services/storageReportJobs.ts';
@@ -15,8 +13,8 @@ import { checkOrderBy, v3WeeklyFilter, type JobResult, type ReportJob } from '..
 const TOGGL_MAX_DAYS = 366;
 
 /** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
-async function workspaceFor(db: Repositories, req: Request, res: Response): Promise<Workspace> {
-  return memberWorkspace(db, res.locals.auth.user.id, parseId(req.params.wid));
+function workspaceFor(deps: Deps, req: Request, res: Response): Promise<Workspace> {
+  return deps.readFor(res.locals.auth, queries => queries.workspace(res.locals.auth.user.id, parseId(req.params.wid)));
 }
 
 const GROUPINGS: Record<string, Dimension> = {
@@ -60,7 +58,7 @@ export function reportsV3Routes(deps: Deps): Router {
   api.use(deps.auth.requireAuth);
 
   const v3Filter = async (req: Request, res: Response) => {
-    const ws = await deps.readFor(res.locals.auth, db => workspaceFor(db, req, res));
+    const ws = await workspaceFor(deps, req, res);
     const body = readJson(req);
     return { ws, body, filter: filterFromBody(body, ws, TOGGL_MAX_DAYS) };
   };
@@ -136,7 +134,7 @@ export function reportsV3Routes(deps: Deps): Router {
   });
 
   api.post('/workspace/:wid/weekly/time_entries', async (req, res) => {
-    const ws = await deps.readFor(res.locals.auth, db => workspaceFor(db, req, res));
+    const ws = await workspaceFor(deps, req, res);
     const body = readJson(req);
     const start = typeof body.start_date === 'string' ? body.start_date : '';
     const range = filterFromBody(
@@ -169,7 +167,7 @@ export function appReportRoutes(deps: Deps): Router {
   const appFilter = async (req: Request, res: Response) => {
     const user = res.locals.auth.user;
     // PUT /me accepts only a workspace the user belongs to, but a membership can end after that.
-    const ws = await deps.readFor(res.locals.auth, db => memberWorkspace(db, user.id, user.defaultWorkspaceId));
+    const ws = await deps.readFor(res.locals.auth, queries => queries.workspace(user.id, user.defaultWorkspaceId));
     const body = readJson(req);
     // The web app always applies the workspace rounding setting; the request can still override it.
     const filter = filterFromBody({ rounding: ws.rounding, rounding_minutes: ws.roundingMinutes, ...body }, ws);

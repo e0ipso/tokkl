@@ -14,7 +14,7 @@ import { adminRoutes } from './routes/admin.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
-import { togglV9Routes } from './routes/togglV9.ts';
+import { togglV9Routes } from './routes/toggl/index.ts';
 
 export interface AppOptions {
   storage: Storage;
@@ -56,6 +56,7 @@ export function createApp({
       streamOptions: timerStreamOptions,
       bus: timerBus,
       logger,
+      sessionDays: config.sessionDays,
     }),
   };
   timerBus.receive(signal => {

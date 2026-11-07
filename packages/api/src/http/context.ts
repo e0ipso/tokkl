@@ -1,5 +1,6 @@
 import type { Request, Response, RequestHandler } from 'express';
-import type { Repositories, Storage } from '../storage/contracts.ts';
+import type { Storage } from '../storage/contracts.ts';
+import type { ReadQueries } from '../domain/queries.ts';
 import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
@@ -41,15 +42,11 @@ declare module 'express-serve-static-core' {
 /** Authenticate and collect a JSON response in one snapshot; send only after releasing it. */
 export function jsonRead(
   deps: Deps,
-  work: (req: Request, res: Response, repositories: Repositories) => unknown | Promise<unknown>,
+  work: (req: Request, res: Response, queries: ReadQueries) => unknown,
   administrative = false,
 ): RequestHandler {
   return async (req, res) => {
-    const body = await deps.readFor(
-      res.locals.auth,
-      repositories => Promise.resolve(work(req, res, repositories)),
-      administrative,
-    );
+    const body = await deps.readFor(res.locals.auth, async queries => work(req, res, queries), administrative);
     res.json(body);
   };
 }
@@ -78,19 +75,6 @@ export function readJsonArray(req: Request): unknown[] {
 
 export function readText(req: Request): string {
   return typeof req.body === 'string' ? req.body : '';
-}
-
-/** First value of a query parameter, or undefined. */
-export function query(req: Request, name: string): string | undefined {
-  const value = req.query[name];
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
-  return undefined;
-}
-
-export function queryFlag(req: Request, name: string): boolean {
-  const value = query(req, name);
-  return value === 'true' || value === '1';
 }
 
 /**

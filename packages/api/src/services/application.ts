@@ -21,6 +21,7 @@ import { TimerHub } from './timerHub.ts';
 import { TimerStreams, type TimerStreamOptions } from './timerStreams.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { forbidden } from '../lib/errors.ts';
+import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
 export interface ApplicationServiceOptions {
   storage: Storage;
   storageConfig: StorageConfig;
@@ -30,6 +31,8 @@ export interface ApplicationServiceOptions {
   /** Signals timer revisions to other processes. Defaults to the single-process bus. */
   bus?: TimerBus;
   logger?: Logger;
+  /** The deployment's session length, used until an admin stores one. */
+  sessionDays: number;
 }
 export function createApplicationServices({
   storage,
@@ -38,6 +41,7 @@ export function createApplicationServices({
   streamOptions,
   bus = createLocalTimerBus(),
   logger = silentLogger,
+  sessionDays,
 }: ApplicationServiceOptions) {
   const timerStreams = new TimerStreams(id => timers.getTimerState(id), {
     ...streamOptions,
@@ -128,16 +132,17 @@ export function createApplicationServices({
       publish.claim(authentication.user.id, authentication.user.createdAt);
       return timerStreams.open(authentication.user.id, res, auth.credentialCheck(authentication));
     },
+    /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
     readFor<T>(
       authentication: StorageAuthentication,
-      work: (repositories: Repositories) => Promise<T>,
+      work: (queries: ReadQueries) => Promise<T>,
       administrative = false,
     ): Promise<T> {
       return storage.readSnapshot(async repositories => {
         const user = await currentCredentialUser(repositories, authentication);
         if (!user) throw forbidden('Incorrect username and/or password');
         if (administrative && !isActiveAdmin(user)) throw forbidden('Admin access required');
-        return work(repositories);
+        return work(createReadQueries(repositories, sessionDays));
       });
     },
     accountsFor: (authentication: StorageAuthentication) =>
