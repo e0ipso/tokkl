@@ -422,8 +422,6 @@ private Q_SLOTS:
 
         f.timer.setSelectedProjectId(11);
         f.timer.setBillable(true);
-        QCOMPARE(f.connection.nextProjectId(), std::optional<qint64>(11));
-        QVERIFY(f.connection.nextBillable());
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
     }
 

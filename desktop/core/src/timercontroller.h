@@ -162,8 +162,8 @@ public:
     // The connection could not read every active project: projects is a
     // prefix of them. Cleared with the projects.
     Q_PROPERTY(bool projectsIncomplete READ projectsIncomplete NOTIFY projectsChanged)
-    // Choices for the next start, kept by the connection for its account:
-    // null or a project id, and the billable flag.
+    // Choices for the next start, for the connection's account: null or a
+    // project id, and the billable flag.
     Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId WRITE setSelectedProjectId NOTIFY selectionChanged)
     Q_PROPERTY(bool billable READ billable WRITE setBillable NOTIFY selectionChanged)
 

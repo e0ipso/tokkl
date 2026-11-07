@@ -151,12 +151,42 @@ private Q_SLOTS:
         QVERIFY(!defaults.takeLastEntryWanted());
     }
 
+    // The selection keeps the choice; a new context or connection clears it.
+    void theChoiceGoesWithTheContext()
+    {
+        Fixture f;
+        QVERIFY(f.connect());
+        QSignalSpy changed(&f.selection, &NextStartSelection::changed);
+        f.selection.pickProjectId(11);
+        f.selection.pickBillable(true);
+        QCOMPARE(f.selection.projectId(), 11);
+        QCOMPARE(f.selection.projectIdVariant().toLongLong(), 11);
+        QVERIFY(f.selection.billable());
+        QCOMPARE(changed.count(), 2);
+        // The same pick again changes nothing.
+        f.selection.pickBillable(true);
+        QCOMPARE(changed.count(), 2);
+
+        f.selection.reset();
+        QVERIFY(!f.selection.projectId());
+        QVERIFY(f.selection.projectIdVariant().isNull());
+        QVERIFY(!f.selection.billable());
+        QCOMPARE(changed.count(), 3);
+
+        f.selection.pickProjectId(11);
+        f.selection.setConnection(nullptr);
+        QVERIFY(!f.selection.projectId());
+        // Nothing to choose for without a connection.
+        f.selection.pickBillable(true);
+        QVERIFY(!f.selection.billable());
+    }
+
     void theLastEntrySetsTheChoice()
     {
         Fixture f;
         QVERIFY(f.connect());
         QVERIFY(f.selection.takeLastEntryWanted());
-        QSignalSpy changed(&f.connection, &Connection::nextStartChanged);
+        QSignalSpy changed(&f.selection, &NextStartSelection::changed);
         f.selection.readLastEntry([] {
             return true;
         });

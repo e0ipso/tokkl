@@ -46,6 +46,7 @@ TimerController::TimerController(Clock *clock, QObject *parent)
           this))
     , m_next(new NextStartSelection(m_catalog, this))
 {
+    connect(m_next, &NextStartSelection::changed, this, &TimerController::selectionChanged);
     connect(m_catalog, &ProjectCatalog::listChanged, this, &TimerController::projectsChanged);
     connect(m_catalog, &ProjectCatalog::listLoaded, this, [this] {
         m_next->listLoaded();
@@ -112,7 +113,6 @@ void TimerController::setStateClient(TimerStateClient *client)
         connect(m_connection, &Connection::generationChanged, this, &TimerController::onGenerationChanged);
         connect(m_connection, &Connection::stateChanged, this, &TimerController::onConnectionChanged);
         connect(m_connection, &Connection::accountChanged, this, &TimerController::onConnectionChanged);
-        connect(m_connection, &Connection::nextStartChanged, this, &TimerController::selectionChanged);
         connect(m_connection, &QObject::destroyed, this, &TimerController::reset);
     }
     reset();
@@ -375,8 +375,8 @@ bool TimerController::start()
     m_next->started();
     StartEntry entry;
     entry.start = m_clock->now().toUTC();
-    entry.projectId = m_connection->nextProjectId();
-    entry.billable = m_connection->nextBillable();
+    entry.projectId = m_next->projectId();
+    entry.billable = m_next->billable();
     beginMutation();
 
     m_connection->startEntry(entry, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {

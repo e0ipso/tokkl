@@ -17,7 +17,6 @@ Connection::Connection(Transport *transport, CredentialStore *store, const QStri
     connect(&m_session, &AuthSession::emailChanged, this, &Connection::emailChanged);
     connect(&m_session, &AuthSession::stateChanged, this, &Connection::stateChanged);
     connect(&m_session, &AuthSession::accountChanged, this, &Connection::accountChanged);
-    connect(&m_session, &AuthSession::accountCleared, this, &Connection::clearNextStart);
     connect(&m_session, &AuthSession::generationChanged, this, &Connection::generationChanged);
 }
 
@@ -134,56 +133,6 @@ QString Connection::owner() const
         return QString();
     }
     return QStringLiteral("%1 %2 %3").arg(webUrl().toString(QUrl::FullyEncoded)).arg(me->id).arg(me->defaultWorkspaceId);
-}
-
-std::optional<qint64> Connection::nextProjectId() const
-{
-    return m_nextProjectId;
-}
-
-void Connection::setNextProjectId(std::optional<qint64> projectId)
-{
-    if (projectId == m_nextProjectId) {
-        return;
-    }
-    m_nextProjectId = projectId;
-    Q_EMIT nextStartChanged();
-}
-
-QVariant Connection::nextProjectIdVariant() const
-{
-    return m_nextProjectId ? QVariant(*m_nextProjectId) : QVariant::fromValue(nullptr);
-}
-
-void Connection::setNextProjectIdVariant(const QVariant &projectId)
-{
-    bool ok = false;
-    const qint64 id = projectId.toLongLong(&ok);
-    setNextProjectId(ok && id > 0 ? std::optional<qint64>(id) : std::nullopt);
-}
-
-bool Connection::nextBillable() const
-{
-    return m_nextBillable;
-}
-
-void Connection::setNextBillable(bool billable)
-{
-    if (billable == m_nextBillable) {
-        return;
-    }
-    m_nextBillable = billable;
-    Q_EMIT nextStartChanged();
-}
-
-void Connection::clearNextStart()
-{
-    const bool hadChoices = m_nextProjectId.has_value() || m_nextBillable;
-    m_nextProjectId.reset();
-    m_nextBillable = false;
-    if (hadChoices) {
-        Q_EMIT nextStartChanged();
-    }
 }
 
 void Connection::reconnect()

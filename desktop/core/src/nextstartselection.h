@@ -17,9 +17,9 @@ namespace Tokkl
 class Connection;
 class ProjectCatalog;
 
-// The project and billable flag of the next start, which the connection
-// keeps for its account and announces with nextStartChanged(), and the
-// automatic defaults that set them.
+// The project and billable flag of the next start, and the automatic
+// defaults that set them. The choice goes with the context: reset(), as for
+// another account, and a new connection clear it.
 //
 // After a stop the next start uses the stopped entry's project; when a
 // context starts with nothing running it uses the project of the newest
@@ -51,7 +51,8 @@ public:
     // The catalog is not owned and must outlive the selection.
     explicit NextStartSelection(const ProjectCatalog *catalog, QObject *parent = nullptr);
 
-    // Not owned. Null leaves nothing to choose for.
+    // Not owned. Null leaves nothing to choose for. Either way the choice
+    // is cleared.
     void setConnection(Connection *connection);
 
     std::optional<qint64> projectId() const;
@@ -77,9 +78,9 @@ public:
     // The workspace went away: no project and not billable, and no default
     // or pick applies.
     void forget();
-    // A new context: no default or pick applies, every answer on its way is
-    // dropped, and the last entry is asked for after the first state. The
-    // connection clears the choice itself.
+    // A new context: the choice is cleared, no default or pick applies,
+    // every answer on its way is dropped, and the last entry is asked for
+    // after the first state.
     void reset();
 
     // Ask for the last entry after the next state.
@@ -92,11 +93,17 @@ public:
     // after the next state.
     void readLastEntry(std::function<bool()> stillWanted);
 
+Q_SIGNALS:
+    // The project or the billable flag changed.
+    void changed();
+
 private:
     void apply(const Choice &choice);
+    void set(const Choice &choice);
 
     const ProjectCatalog *m_catalog;
     QPointer<Connection> m_connection;
+    Choice m_choice;
     NextStartDefaults m_defaults;
     // Advanced by reset(); last-entry reads from before do nothing.
     Epoch m_epoch;

@@ -25,8 +25,7 @@ namespace Tokkl
 // AuthSession reads the secret, validates the account, keeps the connection
 // state and starts a new generation whenever a setting or the stored secret
 // changes; ApiClient sends the requests. Connection adds the typed
-// operations, which all use the bound account's default workspace, and the
-// choices for the next start, which go with the account.
+// operations, which all use the bound account's default workspace.
 class Connection : public QObject
 {
     Q_OBJECT
@@ -51,10 +50,6 @@ class Connection : public QObject
     Q_PROPERTY(quint64 generation READ generation NOTIFY generationChanged)
 
     Q_PROPERTY(qint64 workspaceId READ workspaceId NOTIFY accountChanged)
-
-    // Choices for the next start. null or a project id.
-    Q_PROPERTY(QVariant nextProjectId READ nextProjectIdVariant WRITE setNextProjectIdVariant NOTIFY nextStartChanged)
-    Q_PROPERTY(bool nextBillable READ nextBillable WRITE setNextBillable NOTIFY nextStartChanged)
 
 public:
     // The states are AuthSession's; Connection::Connected names the same
@@ -96,13 +91,6 @@ public:
     // The instance, account and workspace of the validated account as one
     // key, for what a device keeps per account. Empty without one.
     QString owner() const;
-
-    std::optional<qint64> nextProjectId() const;
-    void setNextProjectId(std::optional<qint64> projectId);
-    QVariant nextProjectIdVariant() const;
-    void setNextProjectIdVariant(const QVariant &projectId);
-    bool nextBillable() const;
-    void setNextBillable(bool billable);
 
     // Typed operations. They need a bound account, use its workspace, and
     // refuse while a 429 cooldown runs. The connection keeps nothing of
@@ -173,19 +161,15 @@ Q_SIGNALS:
     void stateChanged();
     void generationChanged();
     void accountChanged();
-    void nextStartChanged();
 
 private:
     struct ProjectPages;
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
-    void clearNextStart();
     QUrl api(const QString &path) const;
     QUrl app(const QString &path) const;
 
     const QString m_clientName;
     AuthSession m_session;
-    std::optional<qint64> m_nextProjectId;
-    bool m_nextBillable = false;
 };
 
 }
