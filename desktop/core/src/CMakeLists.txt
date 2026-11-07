@@ -6,8 +6,12 @@
 
 add_library(tokklcore STATIC
     alarmoutput.h
+    apiclient.cpp
+    apiclient.h
     apitypes.cpp
     apitypes.h
+    authsession.cpp
+    authsession.h
     clock.cpp
     clock.h
     connection.cpp
