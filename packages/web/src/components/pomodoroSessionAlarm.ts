@@ -24,10 +24,13 @@ export function phaseAlarm(pomodoro: TimerState['pomodoro'] | undefined, serverN
 }
 
 /** Owns only audio: one tab of the account plays it, under its own Web Lock. */
-export function createPomodoroSessionAlarm(accountId: number, options: {
-  current: () => SessionAlarm | null;
-  onError: (blocked: boolean) => void;
-}) {
+export function createPomodoroSessionAlarm(
+  accountId: number,
+  options: {
+    current: () => SessionAlarm | null;
+    onError: (blocked: boolean) => void;
+  },
+) {
   let audio: HTMLAudioElement | null = null;
   let priming: Promise<void> = Promise.resolve();
   let target: SessionAlarm | null = null;
@@ -50,7 +53,10 @@ export function createPomodoroSessionAlarm(accountId: number, options: {
 
   const acquire = () => {
     if (!active || !target || cancel) return;
-    if (!navigator.locks) { options.onError(true); return; }
+    if (!navigator.locks) {
+      options.onError(true);
+      return;
+    }
     const alarm = target;
     const abort = new AbortController();
     let cancelled = false;
@@ -64,32 +70,40 @@ export function createPomodoroSessionAlarm(accountId: number, options: {
       release();
     };
     cancel = cancelRequest;
-    void navigator.locks.request(`tokkl.pomodoroAudio.${accountId}`, { signal: abort.signal }, async () => {
-      try {
-        await priming;
-        if (!stillCurrent()) return;
-        const sound = element();
-        sound.src = SOUNDS[alarm.transition];
-        sound.loop = true;
-        sound.volume = 1;
-        sound.currentTime = 0;
-        // MDN: play() can reject under autoplay policy even after earlier interaction.
-        // https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay
-        await sound.play();
-        if (!stillCurrent()) { sound.pause(); return; }
-        options.onError(false);
-        channel?.postMessage({ playing: alarm.key });
-        await new Promise<void>((resolve) => { release = resolve; });
-      } catch {
+    void navigator.locks
+      .request(`tokkl.pomodoroAudio.${accountId}`, { signal: abort.signal }, async () => {
+        try {
+          await priming;
+          if (!stillCurrent()) return;
+          const sound = element();
+          sound.src = SOUNDS[alarm.transition];
+          sound.loop = true;
+          sound.volume = 1;
+          sound.currentTime = 0;
+          // MDN: play() can reject under autoplay policy even after earlier interaction.
+          // https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay
+          await sound.play();
+          if (!stillCurrent()) {
+            sound.pause();
+            return;
+          }
+          options.onError(false);
+          channel?.postMessage({ playing: alarm.key });
+          await new Promise<void>(resolve => {
+            release = resolve;
+          });
+        } catch {
+          if (stillCurrent()) options.onError(true);
+        } finally {
+          audio?.pause();
+        }
+      })
+      .catch(() => {
         if (stillCurrent()) options.onError(true);
-      } finally {
-        audio?.pause();
-      }
-    }).catch(() => {
-      if (stillCurrent()) options.onError(true);
-    }).finally(() => {
-      if (cancel === cancelRequest) cancel = null;
-    });
+      })
+      .finally(() => {
+        if (cancel === cancelRequest) cancel = null;
+      });
   };
 
   return {
@@ -106,7 +120,9 @@ export function createPomodoroSessionAlarm(accountId: number, options: {
             acquire();
           }
         };
-      } catch { /* Audio ownership still uses Web Locks when messaging is unavailable. */ }
+      } catch {
+        /* Audio ownership still uses Web Locks when messaging is unavailable. */
+      }
     },
     /** Call synchronously from Start or Retry, before awaiting any state operation. */
     unlock() {
@@ -117,8 +133,17 @@ export function createPomodoroSessionAlarm(accountId: number, options: {
         sound.volume = 0;
         // Prime this same element in the gesture. Browsers may still block a later audible play;
         // the rejected-play path above keeps Retry available rather than assuming permission.
-        priming = Promise.resolve(sound.play()).then(() => { sound.pause(); }, () => { sound.pause(); });
-      } catch { priming = Promise.resolve(); }
+        priming = Promise.resolve(sound.play()).then(
+          () => {
+            sound.pause();
+          },
+          () => {
+            sound.pause();
+          },
+        );
+      } catch {
+        priming = Promise.resolve();
+      }
     },
     update(next: SessionAlarm | null) {
       if (target?.key === next?.key) return;

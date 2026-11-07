@@ -21,7 +21,16 @@ export interface StepperInputProps {
  * or below the range the unit line names the limit it breaks. The form still decides what blocks a
  * submit. `error` is for a message the card cannot know, such as a refusal from the server.
  */
-export function LengthStepper({ label, unit, spokenUnit, range, value, onChange, inputProps, error }: {
+export function LengthStepper({
+  label,
+  unit,
+  spokenUnit,
+  range,
+  value,
+  onChange,
+  inputProps,
+  error,
+}: {
   /** The caption above the value, which is also the field's accessible name. */
   label: string;
   /** The short unit shown under the value, such as "min". */
@@ -40,7 +49,8 @@ export function LengthStepper({ label, unit, spokenUnit, range, value, onChange,
   const status = stepperStatus(value, range);
   const valid = status === 'valid';
   const { min, max } = range;
-  const limit = status === 'aboveMax' ? `max ${max}` : status === 'belowMin' ? `at least ${min}` : `${unit} · ${min}–${max}`;
+  const limit =
+    status === 'aboveMax' ? `max ${max}` : status === 'belowMin' ? `at least ${min}` : `${unit} · ${min}–${max}`;
   const spoken = valid ? `${spokenUnit}, ${min} to ${max}` : `Enter ${min} to ${max} ${spokenUnit}`;
 
   const step = (direction: 1 | -1) => {
@@ -70,7 +80,9 @@ export function LengthStepper({ label, unit, spokenUnit, range, value, onChange,
 
   return (
     <div className="length-stepper" data-invalid={valid ? undefined : true}>
-      <label className="length-stepper-label" htmlFor={inputId}>{label}</label>
+      <label className="length-stepper-label" htmlFor={inputId}>
+        {label}
+      </label>
       <input
         {...inputProps}
         id={inputId}
@@ -85,11 +97,15 @@ export function LengthStepper({ label, unit, spokenUnit, range, value, onChange,
         aria-invalid={inputProps?.['aria-invalid'] || !valid || undefined}
         aria-describedby={[inputProps?.['aria-describedby'], descriptionId].filter(Boolean).join(' ')}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={event => onChange(event.target.value)}
         onKeyDown={onKeyDown}
       />
-      <p className="length-stepper-unit" aria-hidden="true">{limit}</p>
-      <span id={descriptionId} className="visually-hidden">{spoken}</span>
+      <p className="length-stepper-unit" aria-hidden="true">
+        {limit}
+      </p>
+      <span id={descriptionId} className="visually-hidden">
+        {spoken}
+      </span>
       <div className="length-stepper-steps">
         {button(-1)}
         {button(1)}

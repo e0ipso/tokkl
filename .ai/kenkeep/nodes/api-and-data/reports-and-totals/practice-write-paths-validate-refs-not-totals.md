@@ -17,7 +17,7 @@ kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
 ---
-Entry and catalog writes validate references with the transaction-bound `ctx.projects.getRef(workspaceId, id)` and `ctx.tasks.getRef(workspaceId, id)` contracts. The implementation in `packages/api/src/storage/repositories/catalogs.ts` selects lightweight reference fields and does not compute history totals. Domain checks live in `domain/timeEntries.ts` and `domain/catalogs.ts`.
+Entry and catalog writes validate references with the transaction-bound `ctx.projects.getRef(workspaceId, id)` and `ctx.tasks.getRef(workspaceId, id)` contracts. The implementation in `packages/api/src/storage/repositories/projects.ts` and `packages/api/src/storage/repositories/tasks.ts` selects lightweight reference fields and does not compute history totals. Domain checks live in `domain/timeEntries.ts` and `domain/catalogs.ts`.
 
 Full project/task projections compute tracked totals and belong in responses that need them. Import exact-entry writers preserve shared validation while using bounded callback-local reference caches; failed savepoints clear those caches. Do not substitute full totals projections on write validation paths.
 

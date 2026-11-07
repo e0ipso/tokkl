@@ -4,10 +4,11 @@ import { setTimeout } from 'node:timers/promises';
 import { dirname } from 'node:path';
 import { CompiledQuery, SqliteDialect, SqliteDriver, type DatabaseConnection, type SqliteDatabase } from 'kysely';
 import { safeInteger } from './conversion.ts';
+import { BoundedCache } from '../lib/boundedCache.ts';
 import type { SqliteConfig } from './config.ts';
 
 function parameters(values: readonly unknown[]): SQLInputValue[] {
-  return values.map((value) => {
+  return values.map(value => {
     if (value === null || typeof value === 'string' || value instanceof Uint8Array) return value;
     if (typeof value === 'bigint') return BigInt(safeInteger(value));
     if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -22,15 +23,16 @@ function normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
 
 /** Parameter-array and statement metadata bridge; no native SQLite addon is needed. */
 function bridge(database: DatabaseSync): SqliteDatabase {
-  const prepared = new Map<string, ReturnType<SqliteDatabase['prepare']>>();
+  // Savepoint names and variable IN lists must not create an unbounded native cache.
+  const prepared = new BoundedCache<string, ReturnType<SqliteDatabase['prepare']>>(256);
   return {
-    close: () => { prepared.clear(); database.close(); },
-    prepare: (query) => {
+    close: () => {
+      prepared.clear();
+      database.close();
+    },
+    prepare: query => {
       const cached = prepared.get(query);
-      if (cached) {
-        prepared.delete(query); prepared.set(query, cached);
-        return cached;
-      }
+      if (cached) return cached;
       const statement = database.prepare(query);
       statement.setReadBigInts(true);
       const result = {
@@ -47,10 +49,7 @@ function bridge(database: DatabaseSync): SqliteDatabase {
           for (const row of cursor.iterate(...parameters(values))) yield normalizeRow(row);
         },
       };
-      prepared.set(query, result);
-      // Savepoint names and variable IN lists must not create an unbounded native cache.
-      if (prepared.size > 256) prepared.delete(prepared.keys().next().value!);
-      return result;
+      return prepared.set(query, result);
     },
   };
 }
@@ -64,11 +63,17 @@ class NodeSqliteDriver extends SqliteDriver {
   }
   override async acquireConnection(): Promise<DatabaseConnection> {
     const previous = this.#queue;
-    this.#queue = new Promise(resolve => { void previous.then(() => { this.#release = resolve; }); });
+    this.#queue = new Promise(resolve => {
+      void previous.then(() => {
+        this.#release = resolve;
+      });
+    });
     await previous;
     return super.acquireConnection();
   }
-  override async releaseConnection(): Promise<void> { this.#release?.(); }
+  override async releaseConnection(): Promise<void> {
+    this.#release?.();
+  }
   override async beginTransaction(connection: DatabaseConnection): Promise<void> {
     await beginSqliteTransaction(connection, this.#readOnly);
   }
@@ -80,9 +85,14 @@ export class NodeSqliteDialect extends SqliteDialect {
   #readOnly: boolean;
   constructor(config: Omit<SqliteConfig, 'backend'>, readOnly = false) {
     const open = async () => {
-      if (readOnly && config.filename === ':memory:') throw new Error('In-memory reports require the existing connection');
+      if (readOnly && config.filename === ':memory:')
+        throw new Error('In-memory reports require the existing connection');
       if (!readOnly && config.filename !== ':memory:') mkdirSync(dirname(config.filename), { recursive: true });
-      const database = new DatabaseSync(config.filename, { readOnly, timeout: config.busyTimeoutMs, enableForeignKeyConstraints: true });
+      const database = new DatabaseSync(config.filename, {
+        readOnly,
+        timeout: config.busyTimeoutMs,
+        enableForeignKeyConstraints: true,
+      });
       try {
         if (readOnly) database.exec('PRAGMA query_only = ON');
         else database.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL');
@@ -96,23 +106,38 @@ export class NodeSqliteDialect extends SqliteDialect {
     this.#open = open;
     this.#readOnly = readOnly;
   }
-  override createDriver(): SqliteDriver { return new NodeSqliteDriver(this.#open, this.#readOnly); }
+  override createDriver(): SqliteDriver {
+    return new NodeSqliteDriver(this.#open, this.#readOnly);
+  }
 }
 
 /** A sync busy wait would block the async owner that needs to commit on another handle. */
 export async function beginSqliteTransaction(connection: DatabaseConnection, readOnly: boolean): Promise<void> {
-  if (readOnly) { await connection.executeQuery(CompiledQuery.raw('BEGIN')); return; }
+  if (readOnly) {
+    await connection.executeQuery(CompiledQuery.raw('BEGIN'));
+    return;
+  }
   const timeout = await connection.executeQuery<{ timeout: number }>(CompiledQuery.raw('PRAGMA busy_timeout'));
   const milliseconds = timeout.rows[0]!.timeout;
   await connection.executeQuery(CompiledQuery.raw('PRAGMA busy_timeout = 0'));
   try {
     const deadline = Date.now() + milliseconds;
     for (;;) {
-      try { await connection.executeQuery(CompiledQuery.raw('BEGIN IMMEDIATE')); break; }
-      catch (error) {
-        if (!(error instanceof Error) || !('errcode' in error) || Number(error.errcode) % 256 !== 5 || Date.now() >= deadline) throw error;
+      try {
+        await connection.executeQuery(CompiledQuery.raw('BEGIN IMMEDIATE'));
+        break;
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          !('errcode' in error) ||
+          Number(error.errcode) % 256 !== 5 ||
+          Date.now() >= deadline
+        )
+          throw error;
         await setTimeout(5);
       }
     }
-  } finally { await connection.executeQuery(CompiledQuery.raw(`PRAGMA busy_timeout = ${milliseconds}`)); }
+  } finally {
+    await connection.executeQuery(CompiledQuery.raw(`PRAGMA busy_timeout = ${milliseconds}`));
+  }
 }

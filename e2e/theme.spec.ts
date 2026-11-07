@@ -24,7 +24,7 @@ async function saveTheme(page: Page, theme: Theme) {
 }
 
 const dataTheme = (page: Page) => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
-const cachedTheme = (page: Page) => page.evaluate((key) => window.localStorage.getItem(key), CACHE_KEY);
+const cachedTheme = (page: Page) => page.evaluate(key => window.localStorage.getItem(key), CACHE_KEY);
 
 /**
  * Reloads and reads data-theme at DOMContentLoaded. The preferences response is held until the
@@ -33,7 +33,9 @@ const cachedTheme = (page: Page) => page.evaluate((key) => window.localStorage.g
  */
 async function themeAtFirstParse(page: Page) {
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
   const hold = async (route: Route) => {
     await held;
     await route.fallback();
@@ -73,8 +75,10 @@ test('a cached dark theme is on <html> when the document is parsed, on a light s
 
   // Hold the preferences response so only the cache can have set the attribute.
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.route('**/api/v9/me/preferences', async (route) => {
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/v9/me/preferences', async route => {
     await held;
     await route.continue();
   });
@@ -93,7 +97,11 @@ interface FirstFrame {
   rendered: boolean;
 }
 
-test('a cached dark theme is on the first frame while the bundle is still downloading', async ({ page, browser, baseURL }) => {
+test('a cached dark theme is on the first frame while the bundle is still downloading', async ({
+  page,
+  browser,
+  baseURL,
+}) => {
   const colours = await systemTokenColours(browser, baseURL!);
   await login(page);
   await saveTheme(page, 'dark');
@@ -115,8 +123,8 @@ test('a cached dark theme is on the first frame while the bundle is still downlo
     });
   });
   // A cold cache or a fresh deploy: the module bundle arrives well after the HTML and CSS.
-  await page.route(/\/assets\/index-[^/]+\.js$/, async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+  await page.route(/\/assets\/index-[^/]+\.js$/, async route => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
     await route.continue();
   });
   await page.reload();
@@ -125,24 +133,31 @@ test('a cached dark theme is on the first frame while the bundle is still downlo
   expect(first).toEqual({ theme: 'dark', background: colours.dark['--bg'], rendered: false });
 });
 
-test('a theme cached under the old timetrack.theme key applies before first paint and moves to the new key', async ({ page }) => {
+test('a theme cached under the old timetrack.theme key applies before first paint and moves to the new key', async ({
+  page,
+}) => {
   await login(page);
   await saveTheme(page, 'dark');
-  await page.evaluate(({ key, legacy }) => {
-    window.localStorage.removeItem(key);
-    window.localStorage.setItem(legacy, 'dark');
-  }, { key: CACHE_KEY, legacy: LEGACY_CACHE_KEY });
+  await page.evaluate(
+    ({ key, legacy }) => {
+      window.localStorage.removeItem(key);
+      window.localStorage.setItem(legacy, 'dark');
+    },
+    { key: CACHE_KEY, legacy: LEGACY_CACHE_KEY },
+  );
 
   // Hold the preferences response so only the old cache entry can have set the attribute.
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.route('**/api/v9/me/preferences', async (route) => {
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/v9/me/preferences', async route => {
     await held;
     await route.continue();
   });
   expect(await themeAtFirstParse(page)).toBe('dark');
   expect(await cachedTheme(page)).toBe('dark');
-  expect(await page.evaluate((legacy) => window.localStorage.getItem(legacy), LEGACY_CACHE_KEY)).toBeNull();
+  expect(await page.evaluate(legacy => window.localStorage.getItem(legacy), LEGACY_CACHE_KEY)).toBeNull();
   const answered = page.waitForResponse('**/api/v9/me/preferences');
   release();
   await answered;
@@ -152,7 +167,7 @@ test('a theme cached under the old timetrack.theme key applies before first pain
 test('the server preference replaces a stale cache, and with nothing cached the system decides', async ({ page }) => {
   await login(page);
   await saveTheme(page, 'light');
-  await page.evaluate((key) => window.localStorage.setItem(key, 'dark'), CACHE_KEY);
+  await page.evaluate(key => window.localStorage.setItem(key, 'dark'), CACHE_KEY);
 
   // The stale cache applies first, then the server's light theme replaces it.
   expect(await themeAtFirstParse(page)).toBe('dark');
@@ -200,12 +215,22 @@ async function loginWithCachedDark(page: Page) {
 }
 
 test('a failed logout request still clears the cached theme', async ({ page, runtimeErrors }) => {
-  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/app\/logout$/, reason: 'the logout response is replaced with a server error' });
-  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/(v9\/me|app\/timer)$/, reason: 'the browser keeps the cookie of the session the server ended' });
+  runtimeErrors.allowResponse({
+    status: 500,
+    method: 'POST',
+    path: /^\/api\/app\/logout$/,
+    reason: 'the logout response is replaced with a server error',
+  });
+  runtimeErrors.allowResponse({
+    status: 403,
+    method: 'GET',
+    path: /^\/api\/(v9\/me|app\/timer)$/,
+    reason: 'the browser keeps the cookie of the session the server ended',
+  });
   await loginWithCachedDark(page);
 
   // The server ends the session, but the browser gets a 500 and keeps its cookie.
-  await page.route('**/api/app/logout', async (route) => {
+  await page.route('**/api/app/logout', async route => {
     await route.fetch();
     await route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' });
   });
@@ -217,10 +242,19 @@ test('a failed logout request still clears the cached theme', async ({ page, run
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
-test('a logout the server never carries out clears the cache, then says the user is still signed in', async ({ page, runtimeErrors }) => {
-  runtimeErrors.allowResponse({ status: 500, method: 'POST', path: /^\/api\/app\/logout$/, reason: 'the logout request fails before the server ends the session' });
+test('a logout the server never carries out clears the cache, then says the user is still signed in', async ({
+  page,
+  runtimeErrors,
+}) => {
+  runtimeErrors.allowResponse({
+    status: 500,
+    method: 'POST',
+    path: /^\/api\/app\/logout$/,
+    reason: 'the logout request fails before the server ends the session',
+  });
   await loginWithCachedDark(page);
-  const failLogout = (route: Route) => route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' });
+  const failLogout = (route: Route) =>
+    route.fulfill({ status: 500, contentType: 'text/plain', body: 'Internal Server Error' });
   await page.route('**/api/app/logout', failLogout);
   const message = page.getByRole('alert').filter({ hasText: 'Log out failed. You are still signed in.' });
   const buttons = {
@@ -232,7 +266,9 @@ test('a logout the server never carries out clears the cache, then says the user
     if (where === 'Settings') await page.getByRole('link', { name: 'Settings' }).click();
     // Hold the reloaded page's preferences, so the cleared theme cannot be cached again before the check.
     let release = () => {};
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    const held = new Promise<void>(resolve => {
+      release = resolve;
+    });
     const hold = async (route: Route) => {
       await held;
       await route.fallback();
@@ -260,8 +296,18 @@ test('a logout the server never carries out clears the cache, then says the user
   await expect(message).toHaveCount(0);
 });
 
-test('an expired session clears the cached theme once, and the login page follows the system', async ({ page, browser, baseURL, runtimeErrors }) => {
-  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/(v9\/me|app\/timer)$/, reason: 'the browser still sends the cookie of a session the server ended' });
+test('an expired session clears the cached theme once, and the login page follows the system', async ({
+  page,
+  browser,
+  baseURL,
+  runtimeErrors,
+}) => {
+  runtimeErrors.allowResponse({
+    status: 403,
+    method: 'GET',
+    path: /^\/api\/(v9\/me|app\/timer)$/,
+    reason: 'the browser still sends the cookie of a session the server ended',
+  });
   const colours = await systemTokenColours(browser, baseURL!);
   await loginWithCachedDark(page);
 
@@ -271,7 +317,10 @@ test('an expired session clears the cached theme once, and the login page follow
 
   // End the session on the server only. The browser keeps sending the dead cookie, as after expiry.
   const session = await sessionCookie(page, baseURL!);
-  const other = await request.newContext({ baseURL, extraHTTPHeaders: { ...CSRF, cookie: `tokkl_session=${session}` } });
+  const other = await request.newContext({
+    baseURL,
+    extraHTTPHeaders: { ...CSRF, cookie: `tokkl_session=${session}` },
+  });
   try {
     expect((await other.post('/api/app/logout')).ok()).toBe(true);
   } finally {
@@ -280,14 +329,16 @@ test('an expired session clears the cached theme once, and the login page follow
   expect(await meWithSession(baseURL!, session)).toBe(403);
 
   const meRequests: string[] = [];
-  page.on('request', (sent) => {
+  page.on('request', sent => {
     if (new URL(sent.url()).pathname === '/api/v9/me') meRequests.push(sent.url());
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme');
   expect(await cachedTheme(page)).toBeNull();
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe(colours.light['--bg']);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe(
+    colours.light['--bg'],
+  );
 
   // One probe on load and one after the cache is cleared. Refocusing the tab refetches /me once
   // more, and that 403 clears nothing. A loop would refetch within milliseconds, so a quiet
@@ -333,28 +384,35 @@ async function systemTokenColours(browser: Browser, baseURL: string): Promise<To
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBeNull();
-      colours[scheme] = await page.evaluate((tokens) => Object.fromEntries(tokens.map((token) => {
-        const probe = document.createElement('div');
-        probe.style.backgroundColor = `var(${token})`;
-        document.body.append(probe);
-        const colour = getComputedStyle(probe).backgroundColor;
-        probe.remove();
-        return [token, colour];
-      })), TOKENS) as Record<Token, string>;
+      colours[scheme] = (await page.evaluate(
+        tokens =>
+          Object.fromEntries(
+            tokens.map(token => {
+              const probe = document.createElement('div');
+              probe.style.backgroundColor = `var(${token})`;
+              document.body.append(probe);
+              const colour = getComputedStyle(probe).backgroundColor;
+              probe.remove();
+              return [token, colour];
+            }),
+          ),
+        TOKENS,
+      )) as Record<Token, string>;
     } finally {
       await context.close();
     }
   }
   for (const token of TOKENS) {
-    expect(colours.light[token], `${token} must differ between schemes for these checks to mean anything`)
-      .not.toBe(colours.dark[token]);
+    expect(colours.light[token], `${token} must differ between schemes for these checks to mean anything`).not.toBe(
+      colours.dark[token],
+    );
   }
   return colours;
 }
 
 /** The page background. styles.css paints it on <html>; <body> stays transparent. */
 const pageBackground = (page: Page) => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
-const fill = (mark: Locator) => mark.evaluate((element) => getComputedStyle(element).fill);
+const fill = (mark: Locator) => mark.evaluate(element => getComputedStyle(element).fill);
 
 const REPORT_WEEK = '/reports?from=2026-01-05&to=2026-01-11';
 
@@ -362,10 +420,16 @@ const REPORT_WEEK = '/reports?from=2026-01-05&to=2026-01-11';
 async function seedBillableEntry(page: Page) {
   const me = await page.request.get('/api/v9/me');
   expect(me.ok()).toBe(true);
-  const { default_workspace_id: workspace } = await me.json() as { default_workspace_id: number };
+  const { default_workspace_id: workspace } = (await me.json()) as { default_workspace_id: number };
   const response = await page.request.post(`/api/v9/workspaces/${workspace}/time_entries`, {
     headers: CSRF,
-    data: { description: 'Theme check', billable: true, start: '2026-01-05T09:00:00Z', stop: '2026-01-05T11:00:00Z', created_with: 'e2e' },
+    data: {
+      description: 'Theme check',
+      billable: true,
+      start: '2026-01-05T09:00:00Z',
+      stop: '2026-01-05T11:00:00Z',
+      created_with: 'e2e',
+    },
   });
   expect(response.ok()).toBe(true);
 }
@@ -380,7 +444,8 @@ async function chooseTheme(page: Page, label: 'Match the system' | 'Light' | 'Da
 }
 
 async function expectPageColours(page: Page, colours: TokenColours, scheme: Scheme) {
-  await expect.poll(() => pageBackground(page), { message: `page background in the ${scheme} scheme` })
+  await expect
+    .poll(() => pageBackground(page), { message: `page background in the ${scheme} scheme` })
     .toBe(colours[scheme]['--bg']);
 }
 
@@ -388,29 +453,38 @@ async function expectPageColours(page: Page, colours: TokenColours, scheme: Sche
  * The light and dark theme-color metas' colours, in that order, resolved to rgb() through a probe so
  * they compare with the --bg token values.
  */
-const themeColors = (page: Page) => page.evaluate(() => (['light', 'dark'] as const).map((scheme) => {
-  const meta = document.querySelector<HTMLMetaElement>(`meta[name="theme-color"][media="(prefers-color-scheme: ${scheme})"]`);
-  const probe = document.createElement('div');
-  probe.style.backgroundColor = meta?.content ?? '';
-  document.body.append(probe);
-  const colour = getComputedStyle(probe).backgroundColor;
-  probe.remove();
-  return colour;
-}));
+const themeColors = (page: Page) =>
+  page.evaluate(() =>
+    (['light', 'dark'] as const).map(scheme => {
+      const meta = document.querySelector<HTMLMetaElement>(
+        `meta[name="theme-color"][media="(prefers-color-scheme: ${scheme})"]`,
+      );
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = meta?.content ?? '';
+      document.body.append(probe);
+      const colour = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return colour;
+    }),
+  );
 
 /** An explicit theme puts its own --bg in both metas; with none, each meta keeps its scheme's --bg. */
 async function expectThemeColors(page: Page, colours: TokenColours, theme: Scheme | null) {
-  const expected = theme ? [colours[theme]['--bg'], colours[theme]['--bg']] : [colours.light['--bg'], colours.dark['--bg']];
+  const expected = theme
+    ? [colours[theme]['--bg'], colours[theme]['--bg']]
+    : [colours.light['--bg'], colours.dark['--bg']];
   await expect.poll(() => themeColors(page), { message: 'theme-color metas, light then dark' }).toEqual(expected);
 }
 
 async function expectChartColours(page: Page, colours: TokenColours, scheme: Scheme) {
   await page.goto(REPORT_WEEK);
-  await expect(page.getByRole('tablist', { name: 'Report type' }).getByRole('tab', { name: 'Summary' }))
-    .toHaveAttribute('aria-selected', 'true');
+  await expect(
+    page.getByRole('tablist', { name: 'Report type' }).getByRole('tab', { name: 'Summary' }),
+  ).toHaveAttribute('aria-selected', 'true');
   const bar = page.locator('.chart-frame path.mark-billable');
   await expect(bar).toHaveCount(1);
-  await expect.poll(() => fill(bar), { message: `billable bar fill in the ${scheme} scheme` })
+  await expect
+    .poll(() => fill(bar), { message: `billable bar fill in the ${scheme} scheme` })
     .toBe(colours[scheme]['--chart-billable']);
 }
 

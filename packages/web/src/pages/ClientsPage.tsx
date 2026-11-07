@@ -1,77 +1,27 @@
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useClients, useProjects, useWid } from '../api/hooks.ts';
+import { useMemo, useRef, useState } from 'react';
+import { useWid } from '../api/account.ts';
+import { clientRequests, useClients } from '../api/clients.ts';
+import { stale } from '../api/keys.ts';
+import { useProjects } from '../api/projects.ts';
 import type { Client } from '../api/types.ts';
-import { EmptyState } from '../components/EmptyState.tsx';
-import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { Modal } from '../components/Overlay.tsx';
-import { LoadError, Loading } from '../components/PageState.tsx';
-import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { useAction } from '../components/useAction.ts';
+import { ClientEditor } from './manage/ClientEditor.tsx';
+import { ClientRow } from './manage/ClientRow.tsx';
+import { archiveNotice, deleteNotice, projectCountsByClient, visibleClients } from './manage/clientList.ts';
+import { ManageList } from './manage/ManageList.tsx';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
-import {
-  ConfirmModal, RowMenu, STATUS_OPTIONS, SearchBox, Segmented, StatusBadge, matchesStatus, plural, type StatusFilter,
-} from './manage/ui.tsx';
+import { ConfirmModal, SearchBox, Segmented } from './manage/ui.tsx';
+import { STATUS_OPTIONS, matchesStatus, type StatusFilter } from './manage/values.ts';
 import './manage/manage.css';
-
-const CLIENT_KEYS = [keys.clients, keys.projects, keys.entries, keys.current, keys.report] as const;
-
-function ClientEditor({ client, onClose }: { client: Client | null; onClose: () => void }) {
-  const wid = useWid();
-  const formId = useId();
-  const fields = useFieldErrors<'name'>();
-  const [name, setName] = useState(client?.name ?? '');
-  const [notes, setNotes] = useState(client?.notes ?? '');
-
-  const save = useAction<{ name: string; notes: string | null }, Client>({
-    mutationFn: (body) => (client
-      ? api.put<Client>(wsPath(wid, 'clients', client.id), body)
-      : api.post<Client>(wsPath(wid, 'clients'), body)),
-    invalidate: CLIENT_KEYS,
-    success: (saved) => (client ? `Saved ${saved.name}` : `Created ${saved.name}`),
-    onSuccess: onClose,
-  });
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!fields.validate([['name', !name.trim() && 'Enter a client name']])) return;
-    save.mutate({ name: name.trim(), notes: notes.trim() || null });
-  };
-
-  return (
-    <Modal
-      title={client ? 'Edit client' : 'New client'}
-      onClose={onClose}
-      footer={(
-        <>
-          <span className="spacer" />
-          <button type="button" className="button button-ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" form={formId} className="button button-primary" disabled={save.isPending}>
-            {client ? 'Save' : 'Create client'}
-          </button>
-        </>
-      )}
-    >
-      <form id={formId} className="form-grid" noValidate onSubmit={submit}>
-        <div className="field field-full">
-          <label htmlFor={fields.id('name')}>Name</label>
-          <input {...fields.field('name')} value={name} maxLength={255} required onChange={(event) => setName(event.target.value)} />
-          {fields.message('name')}
-        </div>
-        <label className="field field-full">
-          <span>Notes</span>
-          <textarea rows={4} value={notes} maxLength={10_000} onChange={(event) => setNotes(event.target.value)} />
-        </label>
-      </form>
-    </Modal>
-  );
-}
 
 type Pending = { kind: 'archive' | 'delete'; client: Client };
 
+/** Clients: the list with its filters, the editor and the archive and delete dialogs. */
 export function ClientsPage() {
   const wid = useWid();
-  const { data: clients, isLoading, error, refetch } = useClients();
+  const clientsQuery = useClients();
+  const { data: clients } = clientsQuery;
   const { data: projects = [] } = useProjects();
   const [status, setStatus] = useState<StatusFilter>('active');
   const [search, setSearch] = useState('');
@@ -80,20 +30,12 @@ export function ClientsPage() {
   const tbody = useRef<HTMLTableSectionElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
 
-  const projectCounts = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const project of projects) {
-      if (project.client_id !== null) counts.set(project.client_id, (counts.get(project.client_id) ?? 0) + 1);
-    }
-    return counts;
-  }, [projects]);
-
-  const visible = (clients ?? []).filter((client) =>
-    matchesStatus(client.archived, status) && (includesText(client.name, search) || includesText(client.notes, search)));
+  const projectCounts = useMemo(() => projectCountsByClient(projects), [projects]);
+  const visible = visibleClients(clients ?? [], status, search);
 
   const archive = useAction<Client>({
-    mutationFn: (client) => api.post(wsPath(wid, 'clients', client.id, 'archive')),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.archive(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Archived ${client.name} and its projects`,
     onSuccess: (_result, client) => {
       // The dialog had focus and would give it back to the row's menu button. When the row leaves
@@ -103,8 +45,8 @@ export function ClientsPage() {
     },
   });
   const restore = useAction<Client>({
-    mutationFn: (client) => api.post(wsPath(wid, 'clients', client.id, 'restore'), { restore_all_projects: true }),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.restore(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Restored ${client.name} and its projects`,
     // The menu button that ran the action had focus; keep it in the list unless the user has moved on.
     onSuccess: (_result, client) => {
@@ -112,8 +54,8 @@ export function ClientsPage() {
     },
   });
   const remove = useAction<Client>({
-    mutationFn: (client) => api.delete(wsPath(wid, 'clients', client.id)),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.remove(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Deleted ${client.name}`,
     onSuccess: (_result, client) => {
       focusPastRow(tbody.current, client.id, 'menu', heading.current);
@@ -126,7 +68,9 @@ export function ClientsPage() {
   return (
     <div className="page manage-page">
       <header className="page-header">
-        <h1 ref={heading} tabIndex={-1}>Clients</h1>
+        <h1 ref={heading} tabIndex={-1}>
+          Clients
+        </h1>
         <span className="spacer" />
         <button type="button" className="button button-primary" onClick={() => setEditing('new')}>
           <Icon name="plus" size={16} /> New client
@@ -138,64 +82,41 @@ export function ClientsPage() {
         <SearchBox value={search} onChange={setSearch} placeholder="Search clients" />
       </div>
 
-      {error ? <LoadError message={`Could not load clients: ${error.message}`} onRetry={() => void refetch()} /> : null}
-      {isLoading ? <Loading label="Loading clients…" /> : null}
-      {clients && visible.length === 0 ? (
-        clients.length === 0 ? (
-          <EmptyState icon={<Icon name="users" size={32} />} title="No clients yet">
-            Add one to group projects by who you work for.
-          </EmptyState>
-        ) : (
-          <EmptyState icon={<Icon name="search" size={32} />} title="No clients match these filters">
-            Try another status, or clear the search.
-          </EmptyState>
-        )
-      ) : null}
-
-      {visible.length > 0 ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Notes</th>
-                <th className="num">Projects</th>
-                <th>Status</th>
-                <th><span className="visually-hidden">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody ref={tbody}>
-              {visible.map((client) => (
-                <tr key={client.id} data-id={client.id} className={client.archived ? 'archived' : undefined}>
-                  <td>
-                    <button type="button" className="manage-name-button" onClick={() => setEditing(client)}>{client.name}</button>
-                  </td>
-                  <td className="manage-notes" title={client.notes ?? undefined}>{client.notes ?? <span className="muted">None</span>}</td>
-                  <td className="num">{count(client)}</td>
-                  <td><StatusBadge archived={client.archived} /></td>
-                  <td className="manage-actions">
-                    <button type="button" className="icon-button" aria-label={`Edit ${client.name}`} title="Edit" onClick={() => setEditing(client)}>
-                      <Icon name="edit" size={16} />
-                    </button>
-                    <RowMenu
-                      label={`More actions for ${client.name}`}
-                      items={[
-                        client.archived
-                          ? { label: 'Restore', icon: 'undo', onSelect: () => restore.mutate(client) }
-                          : { label: 'Archive', onSelect: () => setPending({ kind: 'archive', client }) },
-                        { label: 'Delete', icon: 'trash', danger: true, onSelect: () => setPending({ kind: 'delete', client }) },
-                      ]}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      <ManageList
+        query={clientsQuery}
+        visible={visible}
+        noun="clients"
+        empty={{ icon: 'users', title: 'No clients yet', body: <>Add one to group projects by who you work for.</> }}
+        noMatch={{ title: 'No clients match these filters', body: <>Try another status, or clear the search.</> }}
+        headers={
+          <>
+            <th>Client</th>
+            <th>Notes</th>
+            <th className="num">Projects</th>
+            <th>Status</th>
+          </>
+        }
+        tbodyRef={tbody}
+      >
+        {visible.map(client => (
+          <ClientRow
+            key={client.id}
+            client={client}
+            projects={count(client)}
+            onEdit={() => setEditing(client)}
+            onArchive={() => setPending({ kind: 'archive', client })}
+            onRestore={() => restore.mutate(client)}
+            onDelete={() => setPending({ kind: 'delete', client })}
+          />
+        ))}
+      </ManageList>
 
       {editing ? (
-        <ClientEditor key={editing === 'new' ? 'new' : editing.id} client={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />
+        <ClientEditor
+          key={editing === 'new' ? 'new' : editing.id}
+          client={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+        />
       ) : null}
 
       {pending?.kind === 'archive' ? (
@@ -207,11 +128,7 @@ export function ClientsPage() {
           onConfirm={() => archive.mutate(pending.client)}
           onClose={() => setPending(null)}
         >
-          <p>
-            {count(pending.client) === 0
-              ? 'It has no projects right now.'
-              : `This also archives its ${plural(count(pending.client), 'project')}. Archived projects keep their time entries but don't show up when you pick a project.`}
-          </p>
+          <p>{archiveNotice(count(pending.client))}</p>
           <p>Restoring the client restores its projects too.</p>
         </ConfirmModal>
       ) : null}
@@ -224,14 +141,7 @@ export function ClientsPage() {
           onConfirm={() => remove.mutate(pending.client)}
           onClose={() => setPending(null)}
         >
-          <p>
-            {count(pending.client) === 0 ? 'It has no projects.' : count(pending.client) === 1
-              ? 'Its project stays, without a client.'
-              : `Its ${count(pending.client)} projects stay, without a client.`}
-            {count(pending.client) === 0 ? null
-              : ` If a project without a client already has the same name, "(${pending.client.name})" is added to the moved one.`}
-            {' '}Time entries don't change. You can't undo this.
-          </p>
+          <p>{deleteNotice(count(pending.client), pending.client.name)}</p>
         </ConfirmModal>
       ) : null}
     </div>

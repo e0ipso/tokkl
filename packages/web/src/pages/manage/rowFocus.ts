@@ -20,13 +20,18 @@ export function rowAction(container: HTMLElement | null, id: number, action: str
  * same `action` control in the nearest row after it that has one, else the nearest row before it,
  * else `fallback`.
  */
-export function focusPastRow(container: HTMLElement | null, id: number, action: string, fallback: HTMLElement | null): void {
+export function focusPastRow(
+  container: HTMLElement | null,
+  id: number,
+  action: string,
+  fallback: HTMLElement | null,
+): void {
   const rows = [...(container?.children ?? [])].filter((row): row is HTMLElement => row instanceof HTMLElement);
-  const index = rows.findIndex((row) => row.dataset.id === String(id));
+  const index = rows.findIndex(row => row.dataset.id === String(id));
   const others = index < 0 ? [] : [...rows.slice(index + 1), ...rows.slice(0, index).reverse()];
   const target = others
-    .map((row) => row.querySelector<HTMLElement>(`[data-row-action="${action}"]:not(:disabled)`))
-    .find((control) => control !== null);
+    .map(row => row.querySelector<HTMLElement>(`[data-row-action="${action}"]:not(:disabled)`))
+    .find(control => control !== null);
   (target ?? fallback)?.focus();
 }
 
@@ -34,7 +39,13 @@ export function focusPastRow(container: HTMLElement | null, id: number, action: 
  * `focusPastRow`, but only when focus would otherwise be lost: it is in the row of `id` or already
  * on the body. Focus the user has moved elsewhere while a request ran stays where it is.
  */
-export function keepFocusPastRow(container: HTMLElement | null, id: number, action: string, fallback: HTMLElement | null): void {
+export function keepFocusPastRow(
+  container: HTMLElement | null,
+  id: number,
+  action: string,
+  fallback: HTMLElement | null,
+): void {
   const active = document.activeElement;
-  if (!active || active === document.body || rowOf(container, id)?.contains(active)) focusPastRow(container, id, action, fallback);
+  if (!active || active === document.body || rowOf(container, id)?.contains(active))
+    focusPastRow(container, id, action, fallback);
 }

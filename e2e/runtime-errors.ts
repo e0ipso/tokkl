@@ -44,21 +44,24 @@ export class RuntimeErrors {
   private readonly pending: Array<Promise<void>> = [];
 
   constructor(page: Page) {
-    page.on('pageerror', (error) => this.issues.push({ kind: 'pageerror', text: error.stack ?? error.message }));
-    page.on('console', (message) => {
+    page.on('pageerror', error => this.issues.push({ kind: 'pageerror', text: error.stack ?? error.message }));
+    page.on('console', message => {
       if (message.type() !== 'error') return;
       // Chromium also logs every failed load as "Failed to load resource: ...". The response and
       // requestfailed listeners record those same failures, and only there can a rule allow one.
       if (message.text().startsWith('Failed to load resource:')) return;
       this.issues.push({ kind: 'console', text: message.text() });
     });
-    page.on('response', (response) => {
+    page.on('response', response => {
       if (response.status() < 400) return;
       this.pending.push(this.checkResponse(response));
     });
-    page.on('requestfailed', (request) => {
+    page.on('requestfailed', request => {
       if (isClosedTimerStream(request.method(), request.url(), request.failure()?.errorText)) return;
-      this.issues.push({ kind: 'requestfailed', text: `${request.method()} ${request.url()}: ${request.failure()?.errorText}` });
+      this.issues.push({
+        kind: 'requestfailed',
+        text: `${request.method()} ${request.url()}: ${request.failure()?.errorText}`,
+      });
     });
   }
 
@@ -71,7 +74,7 @@ export class RuntimeErrors {
     const method = response.request().method();
     const path = new URL(response.url()).pathname;
     const status = response.status();
-    if (this.allowed.some((rule) => rule.status === status && rule.method === method && rule.path.test(path))) return;
+    if (this.allowed.some(rule => rule.status === status && rule.method === method && rule.path.test(path))) return;
     if (await isLoggedOutProbe(response)) return;
     this.issues.push({ kind: 'response', text: `${status} ${method} ${response.url()}` });
   }
@@ -80,8 +83,11 @@ export class RuntimeErrors {
   async verify(testInfo: TestInfo): Promise<void> {
     await Promise.all(this.pending);
     if (this.issues.length === 0) return;
-    await testInfo.attach('runtime-errors.json', { body: JSON.stringify(this.issues, null, 2), contentType: 'application/json' });
-    const lines = this.issues.map((issue) => `- ${issue.kind}: ${issue.text.split('\n')[0]}`);
+    await testInfo.attach('runtime-errors.json', {
+      body: JSON.stringify(this.issues, null, 2),
+      contentType: 'application/json',
+    });
+    const lines = this.issues.map(issue => `- ${issue.kind}: ${issue.text.split('\n')[0]}`);
     throw new Error(`Unexpected runtime errors during the scenario:\n${lines.join('\n')}`);
   }
 }

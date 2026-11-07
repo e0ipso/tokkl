@@ -347,6 +347,70 @@ export interface ImportResult {
   skipped: Array<{ rows: number; reason: string }>;
 }
 
+/** POST /api/app/report/entries: one sorted page of every matching entry. */
+export interface DetailedReportPage {
+  total: number;
+  /** The page served, which is the last page when the requested one is past the end. */
+  page: number;
+  page_size: number;
+  pages: number;
+  /** Whether any matching entry, on any page, has a billable amount. */
+  has_amounts: boolean;
+  entries: ReportEntry[];
+}
+
+/** POST /api/app/report/weekly: totals per project or client over the whole range. */
+export interface WeeklyReport {
+  start_date: string;
+  end_date: string;
+  mode: 'days' | 'weeks';
+  columns: Array<{ start: string; end: string }>;
+  rows: Array<{ id: number | null; title: string; color: string | null; cells: number[]; total: number }>;
+  column_totals: number[];
+  total: number;
+}
+
+/** GET /api/app/bounds: the first and last day with an entry, or null with none. */
+export interface EntryBounds {
+  first_date: string | null;
+  last_date: string | null;
+}
+
+/** PATCH of several time entries at once (Toggl's bulk edit): which ids changed and which did not. */
+export interface BulkPatchResult {
+  success: number[];
+  failure: Array<{ id: number; message: string }>;
+}
+
+/** One JSON Patch operation of a bulk entry edit. */
+export interface PatchOperation {
+  op: 'add' | 'remove' | 'replace';
+  path: string;
+  value?: unknown;
+}
+
+/** POST /api/app/import/json: what a Tokkl JSON restore added, or would add on a dry run. */
+export interface JsonRestoreResult {
+  dry_run: boolean;
+  clients: number;
+  projects: number;
+  tasks: number;
+  tags: number;
+  time_entries: number;
+  skipped_duplicates: number;
+  errors: Array<{ entity: string; id: unknown; message: string }>;
+}
+
+/** GET /api/app/status: whether the server still needs its first admin. */
+export interface AppStatus {
+  setup_required: boolean;
+}
+
+/** POST /api/app/admin/invites: the new invite, with the only copy of its link. */
+export interface CreatedInvite extends Invite {
+  url: string;
+}
+
 /** Calendar and clock fields of an instant in an IANA timezone. */
 export interface ZonedParts {
   year: number;

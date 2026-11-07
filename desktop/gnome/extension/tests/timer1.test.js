@@ -2,8 +2,8 @@
 //   node --test 'desktop/gnome/extension/**/*.test.js'
 
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import {test} from 'node:test';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
 
 import {
     AUTH_MODES,
@@ -12,6 +12,7 @@ import {
     countdown,
     describeStatus,
     elapsedSeconds,
+    fill,
     formatElapsed,
     nextPhaseLabel,
     phaseName,
@@ -27,7 +28,7 @@ function members(xml) {
     const withoutComments = xml.replace(/<!--[\s\S]*?-->/g, '');
     return [...withoutComments.matchAll(/<(property|method|arg)\b([^>]*?)\/?>/g)].map(([, tag, attrs]) => {
         const values = Object.fromEntries([...attrs.matchAll(/(\w+)="([^"]*)"/g)].map(([, k, v]) => [k, v]));
-        return {tag, ...values};
+        return { tag, ...values };
     });
 }
 
@@ -56,7 +57,7 @@ test('elapsed time is written H:MM in whole minutes', () => {
 });
 
 test('every Status value has words and a mark', () => {
-    assert.deepEqual(describeStatus('ready', '', identity), {text: 'Connected', detail: '', mark: ''});
+    assert.deepEqual(describeStatus('ready', '', identity), { text: 'Connected', detail: '', mark: '' });
     assert.equal(describeStatus('loading', '', identity).mark, '…');
     assert.equal(describeStatus('busy', '', identity).mark, '…');
     for (const status of ['unconfigured', 'stale', 'authentication-blocked', 'error', 'unknown-value', null])
@@ -69,8 +70,8 @@ test('every Status value has words and a mark', () => {
 
 test('project labels name the client, an archived project and the missing project', () => {
     const projects = [
-        {id: 7, name: 'Website', clientName: 'Acme'},
-        {id: 9, name: 'Internal', clientName: ''},
+        { id: 7, name: 'Website', clientName: 'Acme' },
+        { id: 9, name: 'Internal', clientName: '' },
     ];
     assert.equal(projectLabel(projects[0]), 'Website (Acme)');
     assert.equal(projectLabel(projects[1]), 'Internal');
@@ -84,13 +85,13 @@ test('project labels name the client, an archived project and the missing projec
 
 test('the countdown rounds the time left up and the overtime down', () => {
     const end = 1_700_001_500;
-    assert.deepEqual(countdown(end, end - 1500), {text: '25:00', overtime: false});
-    assert.deepEqual(countdown(end, end - 1499.2), {text: '25:00', overtime: false});
-    assert.deepEqual(countdown(end, end - 0.001), {text: '0:01', overtime: false});
+    assert.deepEqual(countdown(end, end - 1500), { text: '25:00', overtime: false });
+    assert.deepEqual(countdown(end, end - 1499.2), { text: '25:00', overtime: false });
+    assert.deepEqual(countdown(end, end - 0.001), { text: '0:01', overtime: false });
     // The planned end itself is the first instant of overtime.
-    assert.deepEqual(countdown(end, end), {text: '+0:00', overtime: true});
-    assert.deepEqual(countdown(end, end + 0.999), {text: '+0:00', overtime: true});
-    assert.deepEqual(countdown(end, end + 61.5), {text: '+1:01', overtime: true});
+    assert.deepEqual(countdown(end, end), { text: '+0:00', overtime: true });
+    assert.deepEqual(countdown(end, end + 0.999), { text: '+0:00', overtime: true });
+    assert.deepEqual(countdown(end, end + 61.5), { text: '+1:01', overtime: true });
 });
 
 test('the countdown writes minutes past an hour without wrapping them', () => {
@@ -107,10 +108,12 @@ test('phases are named Work, Short rest and Long rest', () => {
 });
 
 test('the session line names the phase, the time left or the overtime, and the pomodoro', () => {
-    const session = {phase: 'shortRest', plannedEnd: 1_700_000_250, pomodoroNumber: 2, longRestEvery: 4};
+    const session = { phase: 'shortRest', plannedEnd: 1_700_000_250, pomodoroNumber: 2, longRestEvery: 4 };
     assert.equal(sessionLine(session, 1_700_000_000, identity), 'Short rest · 4:10 left · Pomodoro 2 of 4');
-    assert.equal(sessionLine({...session, phase: 'work', pomodoroNumber: 3}, 1_700_000_312, identity),
-        'Work · +1:02 overtime · Pomodoro 3 of 4');
+    assert.equal(
+        sessionLine({ ...session, phase: 'work', pomodoroNumber: 3 }, 1_700_000_312, identity),
+        'Work · +1:02 overtime · Pomodoro 3 of 4',
+    );
 });
 
 test('the session items name the next phase and the mode lock', () => {
@@ -122,4 +125,10 @@ test('the session items name the next phase and the mode lock', () => {
 
 test('the sign-in methods are the ones Configure accepts', () => {
     assert.deepEqual(AUTH_MODES, ['token', 'password']);
+});
+
+test('fill puts the values into %s and %d in order', () => {
+    assert.equal(fill('Project: %s', 'Inbox'), 'Project: Inbox');
+    assert.equal(fill('%s · %s · Pomodoro %d of %d', 'Work', '4:10 left', 2, 4), 'Work · 4:10 left · Pomodoro 2 of 4');
+    assert.equal(fill('No values'), 'No values');
 });

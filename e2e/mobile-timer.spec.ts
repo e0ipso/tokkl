@@ -12,7 +12,11 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   const day = recentDate();
   const project = await api.createProject('Website');
   const task = await api.createTask(project, 'Design');
-  const seeded = await api.createEntry({ description: 'Phone edit', start: accountTime(day, '10:00:00'), stop: accountTime(day, '11:00:00') });
+  const seeded = await api.createEntry({
+    description: 'Phone edit',
+    start: accountTime(day, '10:00:00'),
+    stop: accountTime(day, '11:00:00'),
+  });
   await page.reload();
 
   const row = page.locator('.entry-line', { has: page.locator('input[value="Phone edit"]') });
@@ -58,10 +62,16 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await tap(editor.getByRole('button', { name: 'Save' }));
   await expect(editor).toBeHidden();
 
-  const saved = (await api.entries()).find((entry) => entry.id === seeded.id);
+  const saved = (await api.entries()).find(entry => entry.id === seeded.id);
   expect(saved).toEqual({
-    id: seeded.id, description: 'Phone edit, saved', start: accountTime(day, '10:00:00'), stop: accountTime(day, '11:45:00'),
-    project_id: project, task_id: task, tags: ['mobile'], billable: true,
+    id: seeded.id,
+    description: 'Phone edit, saved',
+    start: accountTime(day, '10:00:00'),
+    stop: accountTime(day, '11:45:00'),
+    project_id: project,
+    task_id: task,
+    tags: ['mobile'],
+    billable: true,
   });
   const savedRow = page.locator('.entry-line', { has: page.locator('input[value="Phone edit, saved"]') });
   await expect(savedRow.locator('.entry-duration')).toHaveValue('1:45:00');
@@ -78,7 +88,7 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await api.backdate((await api.current())!.id, 10);
   await tap(timer.getByRole('button', { name: 'Stop timer' }));
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
-  const started = (await api.entries()).find((entry) => entry.description === 'Phone timer');
+  const started = (await api.entries()).find(entry => entry.description === 'Phone timer');
   expect(started).toMatchObject({ project_id: project, task_id: null, tags: [] });
   expect(started!.stop).not.toBeNull();
   await expectNoPageOverflow(page);
@@ -93,9 +103,21 @@ test('the day calendar fits a phone screen with long block and favourite names',
   const project = await api.createProject('Customer onboarding programme');
   const description = 'Quarterly planning workshop with the whole team';
   // Madrid, Wednesday 2026-06-17: 09:00-10:00 and 12:00-12:30 CEST.
-  await api.createEntry({ description, project_id: project, start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
-  await api.createEntry({ description, project_id: project, start: '2026-06-17T10:00:00Z', stop: '2026-06-17T10:30:00Z' });
-  await api.savePreferences({ favorites: [{ description, project_id: project, task_id: null, tags: [], billable: false }] });
+  await api.createEntry({
+    description,
+    project_id: project,
+    start: '2026-06-17T07:00:00Z',
+    stop: '2026-06-17T08:00:00Z',
+  });
+  await api.createEntry({
+    description,
+    project_id: project,
+    start: '2026-06-17T10:00:00Z',
+    stop: '2026-06-17T10:30:00Z',
+  });
+  await api.savePreferences({
+    favorites: [{ description, project_id: project, task_id: null, tags: [], billable: false }],
+  });
   await page.reload();
 
   await expectFits(page.locator('.favorite').first());
@@ -110,9 +132,11 @@ test('the day calendar fits a phone screen with long block and favourite names',
   await expectFits(strip);
   await expectFits(strip.getByRole('button').last());
   const body = page.locator('.calendar-body');
-  await body.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  await body.evaluate(element => element.scrollIntoView({ block: 'center' }));
   await expectFits(body);
-  const blocks = page.locator('.calendar-column.today').getByRole('group', { name: `${description}, Customer onboarding programme` });
+  const blocks = page
+    .locator('.calendar-column.today')
+    .getByRole('group', { name: `${description}, Customer onboarding programme` });
   await expect(blocks).toHaveCount(2);
   for (const block of await blocks.all()) {
     await expect(block).toBeVisible();
@@ -129,7 +153,11 @@ test('the bulk bar and its count stay on screen while a long selection scrolls',
   for (let hour = 8; hour < 20; hour++) {
     const time = `${String(hour).padStart(2, '0')}:00:00`;
     const end = `${String(hour).padStart(2, '0')}:45:00`;
-    await api.createEntry({ description: `Phone entry ${hour}`, start: accountTime(day, time), stop: accountTime(day, end) });
+    await api.createEntry({
+      description: `Phone entry ${hour}`,
+      start: accountTime(day, time),
+      stop: accountTime(day, end),
+    });
   }
   await page.reload();
 

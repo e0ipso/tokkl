@@ -28,7 +28,7 @@ async function expectAbsent(page: Page, ...texts: string[]): Promise<void> {
   for (const text of texts) expect(html, `the page shows nothing of "${text}"`).not.toContain(text);
 }
 
-test('reset() on one account leaves the other account\'s entries and projects alone', async ({ data, users }) => {
+test("reset() on one account leaves the other account's entries and projects alone", async ({ data, users }) => {
   const b = await users.create();
   await seed(data, A_PROJECT, A_ENTRY);
   await seed(b, B_PROJECT, B_ENTRY);
@@ -36,17 +36,21 @@ test('reset() on one account leaves the other account\'s entries and projects al
   await b.reset();
   expect(await b.entries()).toEqual([]);
   expect(await b.projects()).toEqual([]);
-  expect((await data.entries()).map((entry) => entry.description)).toEqual([A_ENTRY]);
-  expect((await data.projects()).map((project) => project.name)).toEqual([A_PROJECT]);
+  expect((await data.entries()).map(entry => entry.description)).toEqual([A_ENTRY]);
+  expect((await data.projects()).map(project => project.name)).toEqual([A_PROJECT]);
 
   await seed(b, B_PROJECT, B_ENTRY);
   await data.reset();
   expect(await data.entries()).toEqual([]);
-  expect((await b.entries()).map((entry) => entry.description)).toEqual([B_ENTRY]);
-  expect((await b.projects()).map((project) => project.name)).toEqual([B_PROJECT]);
+  expect((await b.entries()).map(entry => entry.description)).toEqual([B_ENTRY]);
+  expect((await b.projects()).map(project => project.name)).toEqual([B_PROJECT]);
 });
 
-test('after A logs out, B logs in on the same browser and sees none of A\'s data, settings or theme', async ({ page, data, users }) => {
+test("after A logs out, B logs in on the same browser and sees none of A's data, settings or theme", async ({
+  page,
+  data,
+  users,
+}) => {
   const b = await users.create({ fullname: 'Second Person' });
   await seed(data, A_PROJECT, A_ENTRY);
   await data.savePreferences({ timeofday_format: 'h:mm A', theme: 'dark' });
@@ -83,7 +87,12 @@ test('after A logs out, B logs in on the same browser and sees none of A\'s data
   await expectAbsent(page, data.account.email, A_PROJECT);
 });
 
-test('B cannot open A\'s data by URL or by API request with B\'s session', async ({ page, data, users, runtimeErrors }) => {
+test("B cannot open A's data by URL or by API request with B's session", async ({
+  page,
+  data,
+  users,
+  runtimeErrors,
+}) => {
   const b = await users.create();
   const a = await seed(data, A_PROJECT, A_ENTRY);
   const aWorkspace = `/api/v9/workspaces/${data.workspaceId}`;
@@ -107,7 +116,10 @@ test('B cannot open A\'s data by URL or by API request with B\'s session', async
   // Opening A's project in the address bar gets the API's refusal, not the project.
   const projectPath = `${aWorkspace}/projects/${a.projectId}`;
   runtimeErrors.allowResponse({
-    status: 403, method: 'GET', path: new RegExp(`^${projectPath}$`), reason: "B's session opens A's project by URL",
+    status: 403,
+    method: 'GET',
+    path: new RegExp(`^${projectPath}$`),
+    reason: "B's session opens A's project by URL",
   });
   const opened = await page.goto(projectPath);
   expect(opened?.status()).toBe(403);
@@ -122,17 +134,22 @@ test('B cannot open A\'s data by URL or by API request with B\'s session', async
   }
   const writes = [
     page.request.post(`${aWorkspace}/projects`, { headers: CSRF, data: { name: 'Planted by B' } }),
-    page.request.put(`${aWorkspace}/time_entries/${a.entryId}`, { headers: CSRF, data: { description: 'Changed by B' } }),
+    page.request.put(`${aWorkspace}/time_entries/${a.entryId}`, {
+      headers: CSRF,
+      data: { description: 'Changed by B' },
+    }),
     page.request.delete(`${aWorkspace}/time_entries/${a.entryId}`, { headers: CSRF }),
     page.request.delete(`${aWorkspace}/projects/${a.projectId}`, { headers: CSRF }),
   ];
   for (const write of writes) expect((await write).status()).toBe(403);
 
   // B's own lists never include A's rows.
-  const own = await (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01')).json() as Array<{ id: number }>;
-  expect(own.map((entry) => entry.id)).not.toContain(a.entryId);
+  const own = (await (
+    await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01')
+  ).json()) as Array<{ id: number }>;
+  expect(own.map(entry => entry.id)).not.toContain(a.entryId);
 
   // A's data is untouched.
-  expect((await data.entries()).map((entry) => entry.description)).toEqual([A_ENTRY]);
-  expect((await data.projects()).map((project) => project.name)).toEqual([A_PROJECT]);
+  expect((await data.entries()).map(entry => entry.description)).toEqual([A_ENTRY]);
+  expect((await data.projects()).map(project => project.name)).toEqual([A_PROJECT]);
 });

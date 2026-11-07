@@ -1,5 +1,7 @@
 import type { RateLimitCounter, RateLimitsRepository } from '../storage/contracts.ts';
-import { sha256 } from './crypto.ts';
+import { sha256 } from '../lib/crypto.ts';
+import { normalizeEmail } from '../domain/accountValues.ts';
+import type { PasswordAttemptResult as AttemptResult } from '../domain/accounts.ts';
 
 /** One failure count an attempt is charged to, with its own limit. */
 export interface Counter {
@@ -18,22 +20,17 @@ export const PASSWORD_WINDOW_MS = 15 * 60 * 1000;
 /** Failures for one account from one address: one person at one machine. */
 export const ACCOUNT_ADDRESS_LIMIT = 10;
 /** Failures for one account from any address: guessing spread over many hosts. */
-export const ACCOUNT_LIMIT = 50;
+const ACCOUNT_LIMIT = 50;
 /** Failures from one address for any account: spraying from one host, without locking out a shared NAT. */
 export const ADDRESS_LIMIT = 100;
 /** Wrong setup codes from one address. */
 export const SETUP_CODE_LIMIT = 10;
 
 /**
- * Accounts are counted by trimmed email with only ASCII A-Z lowercased at every password check.
- * users.email_key folds the same letters on every engine, so two emails share counters exactly when
- * they are the same account. toLowerCase would also fold letters such as Ä that the key keeps apart.
+ * The counters a successful login clears: the account from this address, and the account. Accounts
+ * are counted by their normalized email, so two emails share counters exactly when they are the
+ * same account.
  */
-export function normalizeEmail(email: string): string {
-  return email.trim().replace(/[A-Z]/g, (letter) => String.fromCharCode(letter.charCodeAt(0) + 32));
-}
-
-/** The counters a successful login clears: the account from this address, and the account. */
 export function accountCounters(email: string, address: string): Counter[] {
   const account = normalizeEmail(email);
   return [
@@ -59,8 +56,7 @@ export function passwordCounters(email: string, address: string): Counter[] {
 /** Which limiter a counter belongs to. It is part of the stored key, so equal keys never collide. */
 export type LimiterNamespace = 'password' | 'setup-code';
 
-/** An attempt either ran its check, or was refused unchecked with the seconds to wait. */
-export type AttemptResult = { refused: false; valid: boolean } | { refused: true; retryAfter: number };
+export type { AttemptResult };
 
 /**
  * How long a reservation holds its slot. Far longer than any password check, so it only expires
@@ -94,7 +90,10 @@ export class FailureLimiter {
 
   /** Clears the failure counts. Checks still running for a key keep their slots. */
   async reset(keys: Keys): Promise<void> {
-    await this.limits.reset(this.stored(keys).map(({ keyHash }) => keyHash), new Date().toISOString());
+    await this.limits.reset(
+      this.stored(keys).map(({ keyHash }) => keyHash),
+      new Date().toISOString(),
+    );
   }
 
   /**
@@ -105,9 +104,17 @@ export class FailureLimiter {
   async attempt(keys: Keys, check: () => Promise<boolean>): Promise<AttemptResult> {
     const counters = this.stored(keys);
     const now = Date.now();
-    const reservation = await this.limits.reserve(counters, new Date(now).toISOString(), this.windowMs, RESERVATION_LEASE_MS);
+    const reservation = await this.limits.reserve(
+      counters,
+      new Date(now).toISOString(),
+      this.windowMs,
+      RESERVATION_LEASE_MS,
+    );
     if (!reservation.ok) {
-      return { refused: true, retryAfter: reservation.reason === 'slots' ? 1 : this.secondsUntil(reservation.resetAts, now) };
+      return {
+        refused: true,
+        retryAfter: reservation.reason === 'slots' ? 1 : this.secondsUntil(reservation.resetAts, now),
+      };
     }
     let failed = false;
     try {

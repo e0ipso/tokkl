@@ -20,7 +20,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`PREFERENCE_RULES` in `packages/api/src/domain/accountValues.ts` lists the preference keys Tokkl clients read and the values they can render: date and time-of-day formats, `duration_format`, `theme`, `timerView`, the boolean toggles, `favorites` (at most `MAX_FAVORITES`), and the four Pomodoro length keys. `validatePreferenceChanges` answers 400 for a known key with an unusable value. Keys not in the table are stored as sent, so Toggl clients can keep their own settings.
+`PREFERENCE_RULES` in `packages/api/src/domain/accountValues.ts` lists the preference keys Tokkl clients read and the values they can render: date and time-of-day formats, `duration_format`, `theme`, `timerView`, the boolean toggles, `favorites` (at most `MAX_FAVORITES`), and the four Pomodoro length keys. `parsePreferenceChanges` in `packages/api/src/commands/accounts.ts` answers 400 for a known key with an unusable value. Keys not in the table are stored as sent, so Toggl clients can keep their own settings.
 
 `getPreferences` drops stored values that fail their rule and falls back to `DEFAULT_PREFERENCES`, so values saved before validation existed never reach clients. A new preference the UI depends on needs a rule and a default here.
 
@@ -28,7 +28,7 @@ Pomodoro length keys and defaults: `pomodoro_focus_interval_in_minutes` 1 to 180
 
 Neither `pomodoro_enabled` nor `pomodoro_stop_timer_at_end` is a supported Pomodoro default. Unknown-key pass-through still permits arbitrary future writes. Browser tests cover persisted supported preferences and account JSON restore without implying an automatic legacy schema migration.
 
-`/me/preferences` and `/me/preferences/:client` (GET and POST, `packages/api/src/routes/togglV9.ts`) read and merge into the same `users.preferences` record; `:client` is ignored. A value the phone saves is the value the web app reads, so a client-specific setting needs its own key.
+`/me/preferences` and `/me/preferences/:client` (GET and POST, `packages/api/src/routes/toggl/me.ts`) read and merge into the same `users.preferences` record; `:client` is ignored. A value the phone saves is the value the web app reads, so a client-specific setting needs its own key.
 
 <!-- kk:related:start -->
 # Related

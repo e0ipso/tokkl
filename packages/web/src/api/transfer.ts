@@ -1,0 +1,26 @@
+import { api, download, rawBody } from './client.ts';
+import { APP } from './paths.ts';
+import type { ImportResult, JsonRestoreResult } from './types.ts';
+
+/** Exports, the Toggl CSV import and the Tokkl JSON restore. Pass `stale.imported` after a real import. */
+
+/** The query string for a CSV import request: preview or not, and the chosen Toggl users. */
+export function importQuery(dryRun: boolean, users: readonly string[]): string {
+  const params = new URLSearchParams();
+  if (dryRun) params.set('dry_run', 'true');
+  for (const key of users) params.append('user', key);
+  const text = params.toString();
+  return text ? `?${text}` : '';
+}
+
+export const transferRequests = {
+  /** Saves the account's data as a file: JSON with everything, or CSV with one row per entry. */
+  export: (kind: 'json' | 'csv', filename: string) => download(`${APP}/export.${kind}`, filename),
+  importTogglCsv: (text: string, dryRun: boolean, users: readonly string[]) =>
+    api.post<ImportResult>(`${APP}/import/toggl-csv${importQuery(dryRun, users)}`, rawBody(text, 'text/csv')),
+  restoreJson: (text: string, dryRun: boolean) =>
+    api.post<JsonRestoreResult>(
+      `${APP}/import/json${dryRun ? '?dry_run=true' : ''}`,
+      rawBody(text, 'application/json'),
+    ),
+};

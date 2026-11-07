@@ -73,11 +73,17 @@ export function notifySessionPhaseEnd(phaseStart: string, phaseLabel: string): N
     // renotify needs a non-empty tag. It is the phase start, the alarm's key, so the tabs of this
     // browser that ring for the same phase share one notification.
     const options = {
-      body: 'Choose Next phase or End session in Tokkl.', icon: ICON_URL,
-      tag: `tokkl-pomodoro-session-${phaseStart}`, requireInteraction: true, renotify: true,
+      body: 'Choose Next phase or End session in Tokkl.',
+      icon: ICON_URL,
+      tag: `tokkl-pomodoro-session-${phaseStart}`,
+      requireInteraction: true,
+      renotify: true,
     };
     const notification = new api(`${phaseLabel} phase over`, options);
-    notification.onclick = () => { window.focus(); notification.close(); };
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
     return notification;
   } catch {
     // Some browsers reject page Notification construction even with permission.

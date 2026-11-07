@@ -1,8 +1,10 @@
-import { forwardRef, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { useProjects } from '../api/hooks.ts';
+import { forwardRef, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useProjects } from '../api/projects.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { Icon } from './Icon.tsx';
-import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
+import { ProjectDot, ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
+import { ProjectPicker } from './ProjectPicker.tsx';
+import { TagPicker } from './TagPicker.tsx';
 import { suggestedDraft, useEntryFields, type EntryDraft, type Suggestion } from './useEntryFields.ts';
 
 export interface EntryFieldsHandle {
@@ -18,21 +20,32 @@ export interface EntryFieldsHandle {
  * Enter with no highlighted suggestion calls `onEnter`. `children` follow the attribute buttons in
  * the controls row. With `readOnly` the fields show `draft` and offer no edit.
  */
-export const EntryFields = forwardRef<EntryFieldsHandle, {
-  draft: EntryDraft;
-  recentEntries: TimeEntry[];
-  placeholder: string;
-  onType: (description: string) => void;
-  onEdit: (changes: Partial<EntryDraft>) => void;
-  onDescriptionBlur: () => void;
-  onEnter: (event: KeyboardEvent<HTMLInputElement>) => void;
-  readOnly?: boolean;
-  children?: ReactNode;
-}>(function EntryFields({ draft, recentEntries, placeholder, onType, onEdit, onDescriptionBlur, onEnter, readOnly = false, children }, ref) {
+export const EntryFields = forwardRef<
+  EntryFieldsHandle,
+  {
+    draft: EntryDraft;
+    recentEntries: TimeEntry[];
+    placeholder: string;
+    onType: (description: string) => void;
+    onEdit: (changes: Partial<EntryDraft>) => void;
+    onDescriptionBlur: () => void;
+    onEnter: (event: KeyboardEvent<HTMLInputElement>) => void;
+    readOnly?: boolean;
+    children?: ReactNode;
+  }
+>(function EntryFields(
+  { draft, recentEntries, placeholder, onType, onEdit, onDescriptionBlur, onEnter, readOnly = false, children },
+  ref,
+) {
   const { data: projects = [] } = useProjects();
-  const { suggestions, setShowSuggestions, highlight, setHighlight, project, projectChanges } = useEntryFields({ draft, recentEntries, projects });
+  const { suggestions, setShowSuggestions, highlight, setHighlight, project, projectChanges } = useEntryFields({
+    draft,
+    recentEntries,
+    projects,
+  });
   const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
   const descriptionRef = useRef<HTMLInputElement>(null);
+  const listId = useId();
   // The description's blur hides the suggestions after a delay, so a click on one still lands.
   // A later focus cancels that pending hide, and a focus that comes from a closing picker does not
   // open the suggestions: the user did not ask for them.
@@ -66,9 +79,15 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
           value={draft.description}
           placeholder={placeholder}
           aria-label="Description"
+          // The suggestions are its popup listbox, as in the project picker's search field.
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={suggestions.length > 0}
+          aria-controls={suggestions.length > 0 ? listId : undefined}
+          aria-activedescendant={suggestions[highlight] ? `${listId}-${highlight}` : undefined}
           maxLength={3000}
           readOnly={readOnly}
-          onChange={(event) => {
+          onChange={event => {
             onType(event.target.value);
             setShowSuggestions(true);
             setHighlight(-1);
@@ -81,17 +100,18 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
             hideSuggestionsTimer.current = setTimeout(() => setShowSuggestions(false), 150);
             onDescriptionBlur();
           }}
-          onKeyDown={(event) => {
+          onKeyDown={event => {
             if (event.key === 'ArrowDown' && suggestions.length) {
               event.preventDefault();
-              setHighlight((h) => (h + 1) % suggestions.length);
+              setHighlight(h => (h + 1) % suggestions.length);
             } else if (event.key === 'ArrowUp' && suggestions.length) {
               event.preventDefault();
-              setHighlight((h) => (h <= 0 ? suggestions.length - 1 : h - 1));
+              setHighlight(h => (h <= 0 ? suggestions.length - 1 : h - 1));
             } else if (event.key === 'Enter') {
               event.preventDefault();
-              if (highlight >= 0 && suggestions[highlight]) {
-                pickSuggestion(suggestions[highlight]!);
+              const suggestion = highlight >= 0 ? suggestions[highlight] : undefined;
+              if (suggestion) {
+                pickSuggestion(suggestion);
               } else {
                 onEnter(event);
               }
@@ -107,13 +127,16 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
           }}
         />
         {suggestions.length > 0 ? (
-          <ul className="suggestions" role="listbox">
+          <ul className="suggestions" role="listbox" id={listId} aria-label="Suggestions">
             {suggestions.map((s, i) => (
-              <li key={s.key} role="option" aria-selected={i === highlight}>
+              <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === highlight}>
                 <button
                   type="button"
                   className={`suggestion${i === highlight ? ' highlighted' : ''}`}
-                  onMouseDown={(event) => { event.preventDefault(); pickSuggestion(s); }}
+                  onMouseDown={event => {
+                    event.preventDefault();
+                    pickSuggestion(s);
+                  }}
                 >
                   <span>{s.description || <em className="muted">(no description)</em>}</span>
                   {s.project_id ? (
@@ -169,19 +192,25 @@ export const EntryFields = forwardRef<EntryFieldsHandle, {
 
       {picker === 'project' ? (
         <ProjectPicker
-          anchor={projectButton.current}
+          anchor={projectButton}
           projectId={draft.project_id}
           taskId={draft.task_id}
           onChange={(pid, tid) => onEdit(projectChanges(pid, tid))}
-          onClose={() => { setPicker(null); focusDescriptionQuietly(); }}
+          onClose={() => {
+            setPicker(null);
+            focusDescriptionQuietly();
+          }}
         />
       ) : null}
       {picker === 'tags' ? (
         <TagPicker
-          anchor={tagButton.current}
+          anchor={tagButton}
           value={draft.tags}
-          onChange={(tags) => onEdit({ tags })}
-          onClose={() => { setPicker(null); focusDescriptionQuietly(); }}
+          onChange={tags => onEdit({ tags })}
+          onClose={() => {
+            setPicker(null);
+            focusDescriptionQuietly();
+          }}
         />
       ) : null}
     </>

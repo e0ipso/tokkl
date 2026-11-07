@@ -104,14 +104,8 @@
         "stop": "2026-10-05T09:30:00+00:00",
         "duration": 5400,
         "description": "Homepage, hero",
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
+        "tags": ["Alpha", "zebra"],
+        "tag_ids": ["<id>", "<id>"],
         "duronly": true,
         "all_day": false,
         "at": "2026-10-30T12:00:00+00:00",

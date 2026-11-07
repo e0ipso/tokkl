@@ -10,25 +10,41 @@ import GLib from 'gi://GLib';
 const bus = Gio.DBus.session;
 
 export function call(name, path, iface, method, params, replyType) {
-    const reply = bus.call_sync(name, path, iface, method, params,
-        replyType ? new GLib.VariantType(replyType) : null, Gio.DBusCallFlags.NONE, 10_000, null);
+    const reply = bus.call_sync(
+        name,
+        path,
+        iface,
+        method,
+        params,
+        replyType ? new GLib.VariantType(replyType) : null,
+        Gio.DBusCallFlags.NONE,
+        10_000,
+        null,
+    );
     return reply ? reply.recursiveUnpack() : [];
 }
 
 // Runs code in GNOME Shell's shellDBus.js module, where Main is in scope.
 export function shell(code) {
-    const [ok, result] = call('org.gnome.Shell', '/org/gnome/Shell', 'org.gnome.Shell', 'Eval',
-        new GLib.Variant('(s)', [code]), '(bs)');
-    if (!ok)
-        throw new Error(`Eval failed: ${result}\n${code}`);
+    const [ok, result] = call(
+        'org.gnome.Shell',
+        '/org/gnome/Shell',
+        'org.gnome.Shell',
+        'Eval',
+        new GLib.Variant('(s)', [code]),
+        '(bs)',
+    );
+    if (!ok) throw new Error(`Eval failed: ${result}\n${code}`);
     return result === '' ? undefined : JSON.parse(result);
 }
 
 export function delay(ms) {
-    return new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-        resolve();
-        return GLib.SOURCE_REMOVE;
-    }));
+    return new Promise(resolve =>
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+            resolve();
+            return GLib.SOURCE_REMOVE;
+        }),
+    );
 }
 
 export async function waitFor(what, check, timeoutMs = 15_000) {
@@ -37,8 +53,7 @@ export async function waitFor(what, check, timeoutMs = 15_000) {
     while (Date.now() < deadline) {
         try {
             last = check();
-            if (last === true)
-                return;
+            if (last === true) return;
         } catch (error) {
             last = error.message;
         }
@@ -55,8 +70,7 @@ export function waitForEnabled(uuid) {
             const extension = Main.extensionManager.lookup(${JSON.stringify(uuid)});
             return extension && {state: extension.state, error: extension.error ?? ''};
         })()`);
-        if (info?.error)
-            throw new Error(info.error);
+        if (info?.error) throw new Error(info.error);
         return info?.state === 1 || info;
     });
 }
@@ -106,7 +120,8 @@ export function panelButton(uuid) {
         sensitive: item => shell(`${button}.${item}.sensitive`),
 
         // What the project indicator shows, and the state of its actors.
-        indicator: () => shell(`(() => {
+        indicator: () =>
+            shell(`(() => {
             const indicator = ${button}._projectIndicator;
             return {
                 ...indicator.shape,
@@ -128,7 +143,8 @@ export function panelButton(uuid) {
         },
 
         // Presses and releases a pointer button over the panel button.
-        click: number => shell(`(() => {${pointerCode}
+        click: number =>
+            shell(`(() => {${pointerCode}
             pointer.notify_button(GLib.get_monotonic_time(), ${number}, Clutter.ButtonState.PRESSED);
             pointer.notify_button(GLib.get_monotonic_time(), ${number}, Clutter.ButtonState.RELEASED);
         })()`),
@@ -136,7 +152,8 @@ export function panelButton(uuid) {
         // Presses and releases a key while the panel button has the keyboard
         // focus, as after Ctrl+Alt+Tab: the stage, not a window, takes the
         // keys.
-        press: keyval => shell(`(() => {
+        press: keyval =>
+            shell(`(() => {
             const {Clutter, GLib} = imports.gi;
             const backend = global.stage.get_context?.().get_backend() ?? Clutter.get_default_backend();
             globalThis.tokklKeyboard ??= backend.get_default_seat()
@@ -153,7 +170,7 @@ export function panelButton(uuid) {
 // The WCAG 2 contrast ratio of two colours with red, green and blue from 0
 // to 255.
 export function contrastRatio(a, b) {
-    const luminance = ({red, green, blue}) => {
+    const luminance = ({ red, green, blue }) => {
         const linear = channel => {
             const value = channel / 255;
             return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;

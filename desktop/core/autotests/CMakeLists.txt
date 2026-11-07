@@ -1,9 +1,10 @@
-# Unit tests of the API client, connection state, timer controller, timer
-# state client, Pomodoro preferences and Pomodoro session, against the
-# scripted transport, credential store and clock in fakes.h, of the Pomodoro
-# store on a temporary QSettings file, of the real transport against an
-# in-process loopback server, and of the bundled Pomodoro sounds and glyph
-# against their sums and masters.
+# Unit tests of the API types and client, connection state, timer
+# controller and its parts, timer state client, Pomodoro preferences and
+# Pomodoro session, against the scripted transport, credential store and
+# clock in fakes.h, of the Pomodoro store on a temporary QSettings file, of
+# the translation loader on temporary catalogs, of the real transport
+# against an in-process loopback server, and of the bundled Pomodoro sounds
+# and glyph against their sums and masters.
 # They never reach a credential store, another host or real configuration;
 # private XDG dirs make sure of the last.
 
@@ -25,14 +26,20 @@ function(tokkl_core_test name source)
 endfunction()
 
 tokkl_core_test(api apitest.cpp)
+tokkl_core_test(apiclient apiclienttest.cpp tokklcorefakes)
 tokkl_core_test(connection connectiontest.cpp tokklcorefakes)
+tokkl_core_test(sessioncredentials sessioncredentialstest.cpp tokklcorefakes)
 tokkl_core_test(networktransport networktransporttest.cpp)
 # The User-Agent check needs the version the transport sends.
 target_compile_definitions(networktransporttest PRIVATE
     TOKKL_VERSION_STRING="${TOKKL_CORE_VERSION}")
 tokkl_core_test(timer timercontrollertest.cpp tokklcorefakes)
+tokkl_core_test(timerparts timerpartstest.cpp)
+tokkl_core_test(nextstartselection nextstartselectiontest.cpp tokklcorefakes)
+tokkl_core_test(chosenproject chosenprojecttest.cpp tokklcorefakes)
 tokkl_core_test(timerstateclient timerstateclienttest.cpp tokklcorefakes)
 tokkl_core_test(pomodorostore pomodorostoretest.cpp)
+tokkl_core_test(translations translationstest.cpp)
 tokkl_core_test(pomodoropreferences pomodoropreferencestest.cpp tokklcorefakes)
 tokkl_core_test(pomodorosession pomodorosessiontest.cpp tokklcorefakes)
 tokkl_core_test(pomodorosounds pomodorosoundstest.cpp)
@@ -50,5 +57,5 @@ target_compile_definitions(hourglassglyphtest PRIVATE
     TOKKL_DESKTOP_DIR="${_desktop_dir}")
 
 set(_unit_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-unit")
-set_tests_properties(api connection networktransport timer timerstateclient pomodorostore pomodoropreferences pomodorosession PROPERTIES
+set_tests_properties(api apiclient connection sessioncredentials networktransport timer nextstartselection chosenproject timerstateclient pomodorostore pomodoropreferences pomodorosession PROPERTIES
     ENVIRONMENT "XDG_DATA_HOME=${_unit_xdg}/data;XDG_CONFIG_HOME=${_unit_xdg}/config;XDG_CACHE_HOME=${_unit_xdg}/cache;XDG_STATE_HOME=${_unit_xdg}/state")

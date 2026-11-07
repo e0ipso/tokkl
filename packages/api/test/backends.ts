@@ -13,9 +13,14 @@ async function run(label: string, pattern: string, backend = 'sqlite'): Promise<
   const argv = [process.execPath, '--test', '--test-concurrency=2', '--test-reporter=spec', pattern];
   console.log(JSON.stringify({ event: 'backend-command', label, argv, cwd, backend }));
   const child = spawn(argv[0]!, argv.slice(1), {
-    cwd, env: { ...process.env, TOKKL_TEST_BACKEND: backend }, stdio: 'inherit',
+    cwd,
+    env: { ...process.env, TOKKL_TEST_BACKEND: backend },
+    stdio: 'inherit',
   });
-  const signal = () => { interrupted = true; child.kill('SIGTERM'); };
+  const signal = () => {
+    interrupted = true;
+    child.kill('SIGTERM');
+  };
   process.once('SIGTERM', signal);
   process.once('SIGINT', signal);
   try {
@@ -40,12 +45,18 @@ const selected = args.length ? args[1] : undefined;
 const failures: unknown[] = [];
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb']) {
   if (selected && selected !== backend) continue;
-  try { await run(backend, 'test/*.test.ts', backend); }
-  catch (error) { failures.push(error); }
+  try {
+    await run(backend, 'test/*.test.ts', backend);
+  } catch (error) {
+    failures.push(error);
+  }
   if (interrupted) break;
 }
 if (!interrupted && (!selected || selected === 'storage')) {
-  try { await run('repository, concurrency, migration and lifecycle matrices', 'test/storage/*.test.ts'); }
-  catch (error) { failures.push(error); }
+  try {
+    await run('repository, concurrency, migration and lifecycle matrices', 'test/storage/*.test.ts');
+  } catch (error) {
+    failures.push(error);
+  }
 }
 if (failures.length) throw new AggregateError(failures, 'Backend matrix failed');

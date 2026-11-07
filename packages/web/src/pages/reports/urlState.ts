@@ -46,18 +46,26 @@ export type ReportPatch = Partial<Omit<ReportState, 'range' | 'preset'>> & {
 
 const DEFAULT_PRESET: Preset = 'this_week';
 
-function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
-  return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+/** Whether `value` is one of `allowed`. */
+export function isOneOf<T extends string>(value: string | null, allowed: readonly T[]): value is T {
+  return allowed.some(option => option === value);
 }
 
+function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+  return isOneOf(value, allowed) ? value : fallback;
+}
+
+export const SUB_GROUPINGS: readonly SubGrouping[] = [...GROUPINGS, 'none'];
+export const BILLABLE_FILTERS: readonly BillableFilter[] = ['all', 'billable', 'nonbillable'];
+
 /** A leading "not." in an id list marks the filter as negated, e.g. "not.none.4", or just "not.". */
-function isNegated(value: string | null): boolean {
+function isNegated(value: string | null): value is string {
   return value?.startsWith('not.') ?? false;
 }
 
 /** Ids are dot-separated ("none.4.9") because URLSearchParams would percent-encode commas. */
 function parseIds(raw: string | null): IdFilter {
-  const value = isNegated(raw) ? raw!.slice(4) : raw;
+  const value = isNegated(raw) ? raw.slice(4) : raw;
   if (!value) return [];
   const ids: Array<number | null> = [];
   for (const part of value.split(/[.,]/)) {
@@ -68,10 +76,15 @@ function parseIds(raw: string | null): IdFilter {
 }
 
 function formatIds(ids: IdFilter, negated: boolean): string {
-  return `${negated ? 'not.' : ''}${ids.map((id) => (id === null ? 'none' : String(id))).join('.')}`;
+  return `${negated ? 'not.' : ''}${ids.map(id => (id === null ? 'none' : String(id))).join('.')}`;
 }
 
-export function parseState(params: URLSearchParams, todayKey: string, beginningOfWeek: number, firstDay?: string | null): ReportState {
+export function parseState(
+  params: URLSearchParams,
+  todayKey: string,
+  beginningOfWeek: number,
+  firstDay?: string | null,
+): ReportState {
   const from = params.get('from');
   const to = params.get('to');
   const rangeParam = params.get('range');
@@ -84,7 +97,7 @@ export function parseState(params: URLSearchParams, todayKey: string, beginningO
     range = presetRange(preset, todayKey, beginningOfWeek, firstDay);
   }
   const grouping = oneOf(params.get('group'), GROUPINGS, 'projects');
-  const sub = oneOf<SubGrouping>(params.get('sub'), [...GROUPINGS, 'none'], 'time_entries');
+  const sub = oneOf(params.get('sub'), SUB_GROUPINGS, 'time_entries');
   const page = Number(params.get('page'));
   return {
     preset,
@@ -98,7 +111,7 @@ export function parseState(params: URLSearchParams, todayKey: string, beginningO
     projectsNot: isNegated(params.get('projects')),
     clientsNot: isNegated(params.get('clients')),
     tagsNot: isNegated(params.get('tags')),
-    billable: oneOf(params.get('billable'), ['all', 'billable', 'nonbillable'] as const, 'all'),
+    billable: oneOf(params.get('billable'), BILLABLE_FILTERS, 'all'),
     description: params.get('q') ?? '',
     sort: oneOf(params.get('sort'), ['date', 'duration', 'description'] as const, 'date'),
     dir: oneOf(params.get('dir'), ['asc', 'desc'] as const, 'desc'),
@@ -136,27 +149,45 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
 /** Keys whose change makes the current page of the detailed table meaningless. */
 const RESETS_PAGE: ReadonlyArray<keyof ReportPatch> = [
-  'range', 'preset', 'projects', 'clients', 'tags', 'projectsNot', 'clientsNot', 'tagsNot', 'billable', 'description', 'sort', 'dir',
+  'range',
+  'preset',
+  'projects',
+  'clients',
+  'tags',
+  'projectsNot',
+  'clientsNot',
+  'tagsNot',
+  'billable',
+  'description',
+  'sort',
+  'dir',
 ];
 
 /**
  * Report state lives in the query string, so every report is a bookmarkable URL. Updates replace
  * the history entry instead of pushing, which keeps the back button from replaying each click.
  */
-export function useReportState(todayKey: string, beginningOfWeek: number, firstDay?: string | null): [ReportState, (patch: ReportPatch) => void] {
+export function useReportState(
+  todayKey: string,
+  beginningOfWeek: number,
+  firstDay?: string | null,
+): [ReportState, (patch: ReportPatch) => void] {
   const [params, setParams] = useSearchParams();
   const key = params.toString();
   const state = useMemo(
     () => parseState(new URLSearchParams(key), todayKey, beginningOfWeek, firstDay),
     [key, todayKey, beginningOfWeek, firstDay],
   );
-  const update = useCallback((patch: ReportPatch) => {
-    const current = parseState(new URLSearchParams(window.location.search), todayKey, beginningOfWeek, firstDay);
-    const next: Mutable<ReportState> = { ...current, ...patch };
-    if (patch.range && patch.preset === undefined) next.preset = null;
-    if (patch.page === undefined && RESETS_PAGE.some((name) => name in patch)) next.page = 1;
-    if (next.subGrouping === next.grouping) next.subGrouping = 'none';
-    setParams(serializeState(next), { replace: true });
-  }, [setParams, todayKey, beginningOfWeek, firstDay]);
+  const update = useCallback(
+    (patch: ReportPatch) => {
+      const current = parseState(new URLSearchParams(window.location.search), todayKey, beginningOfWeek, firstDay);
+      const next: Mutable<ReportState> = { ...current, ...patch };
+      if (patch.range && patch.preset === undefined) next.preset = null;
+      if (patch.page === undefined && RESETS_PAGE.some(name => name in patch)) next.page = 1;
+      if (next.subGrouping === next.grouping) next.subGrouping = 'none';
+      setParams(serializeState(next), { replace: true });
+    },
+    [setParams, todayKey, beginningOfWeek, firstDay],
+  );
   return [state, update];
 }

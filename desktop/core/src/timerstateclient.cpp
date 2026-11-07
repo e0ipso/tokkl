@@ -1,6 +1,7 @@
 #include "timerstateclient.h"
 
 #include "clock.h"
+#include "logging.h"
 #include "transport.h"
 
 #include <algorithm>
@@ -38,6 +39,11 @@ TimerStateClient::~TimerStateClient()
 Connection *TimerStateClient::connection() const
 {
     return m_connection;
+}
+
+Clock *TimerStateClient::clock() const
+{
+    return m_clock;
 }
 
 const std::optional<TimerState> &TimerStateClient::state() const
@@ -212,7 +218,7 @@ void TimerStateClient::onTick()
         return;
     }
     // A clock set back would otherwise postpone the reconnect or the poll.
-    if (m_reconnectAt.isValid() && (now >= m_reconnectAt || now.msecsTo(m_reconnectAt) > reconnectMaxMs)) {
+    if (m_reconnectAt.isValid() && (now >= m_reconnectAt || now.msecsTo(m_reconnectAt) > reconnectLongestMs)) {
         openStream();
     }
     if ((!m_streaming || m_settling) && (!m_nextPoll.isValid() || now >= m_nextPoll || now.msecsTo(m_nextPoll) > pollIntervalMs)) {
@@ -259,7 +265,9 @@ void TimerStateClient::scheduleReconnect()
     if (!m_clock) {
         return;
     }
-    m_reconnectAt = m_clock->now().addMSecs(m_backoffMs);
+    const int waitMs = m_backoffMs + m_clock->jitterMs(m_backoffMs / reconnectJitterDivisor);
+    m_reconnectAt = m_clock->now().addMSecs(waitMs);
+    qCDebug(lcNet) << "Event stream reconnects in" << waitMs << "ms";
     m_backoffMs = std::min(m_backoffMs * 2, reconnectMaxMs);
 }
 
@@ -307,6 +315,7 @@ void TimerStateClient::onStreamData(const QByteArray &data)
     m_buffer = buffer.mid(start);
     if (m_buffer.size() + m_event.data.size() > maxEventBytes) {
         // Not a stream of timer states.
+        qCWarning(lcNet) << "Event stream sent more than" << maxEventBytes << "bytes without an event end; dropped";
         closeStream();
         scheduleReconnect();
     }
@@ -348,6 +357,7 @@ void TimerStateClient::dispatchEvent()
     const std::optional<QJsonValue> json = parseJsonBody(event.data);
     const std::optional<TimerState> state = json ? decodeTimerState(*json) : std::nullopt;
     if (!state) {
+        qCWarning(lcNet) << "Event stream sent a timer event Tokkl could not read";
         return;
     }
     setStreaming(true);
@@ -374,6 +384,7 @@ TimerStateClient::ActionCallback TimerStateClient::adopting(ActionCallback done)
             if (result.state) {
                 self->adopt(*result.state);
             } else if (result.outcome == TimerActionResult::Outcome::Unknown) {
+                qCInfo(lcTimer) << "Timer action outcome unknown; settling by reads:" << result.error.message;
                 // Settled by what the server holds, never by sending again.
                 self->settle();
             }

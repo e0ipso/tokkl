@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { api } from '../../../api/client.ts';
-import { keys } from '../../../api/hooks.ts';
+import { accountRequests } from '../../../api/account.ts';
+import { stale } from '../../../api/keys.ts';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
-import { useAction, V9 } from '../queries.ts';
+import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
 const MIN_LENGTH = 8;
@@ -14,9 +14,9 @@ export function PasswordSection() {
   const [confirm, setConfirm] = useState('');
 
   const change = useAction<{ current_password: string; password: string }>({
-    mutationFn: (body) => api.put(`${V9}/me`, body),
+    mutationFn: accountRequests.changePassword,
     // The server replaces the API token with the password, so the API token card must refetch it.
-    invalidate: [keys.me],
+    invalidate: stale.credentials,
     success: 'Password changed. Other browsers were logged out.',
     onSuccess: () => {
       setCurrent('');
@@ -47,7 +47,13 @@ export function PasswordSection() {
       <div className="form-grid">
         <div className="field field-full">
           <label htmlFor={fields.id('current')}>Current password</label>
-          <input {...fields.field('current')} type="password" value={current} autoComplete="current-password" onChange={(event) => setCurrent(event.target.value)} />
+          <input
+            {...fields.field('current')}
+            type="password"
+            value={current}
+            autoComplete="current-password"
+            onChange={event => setCurrent(event.target.value)}
+          />
           {fields.message('current')}
         </div>
         <div className="field">
@@ -58,7 +64,7 @@ export function PasswordSection() {
             value={next}
             minLength={MIN_LENGTH}
             autoComplete="new-password"
-            onChange={(event) => setNext(event.target.value)}
+            onChange={event => setNext(event.target.value)}
           />
           {fields.message('next')}
         </div>
@@ -70,7 +76,7 @@ export function PasswordSection() {
             value={confirm}
             minLength={MIN_LENGTH}
             autoComplete="new-password"
-            onChange={(event) => setConfirm(event.target.value)}
+            onChange={event => setConfirm(event.target.value)}
           />
           {fields.message('confirm')}
         </div>

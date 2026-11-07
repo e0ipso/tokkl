@@ -4,17 +4,29 @@ import type { TimerPomodoro, TimerState } from '../api/types.ts';
 import { countdown, createDiscardNotices, sessionTitle } from './pomodoroSessionPresentation.ts';
 
 const pomodoro: TimerPomodoro = {
-  work_minutes: 25, short_rest_minutes: 5, long_rest_minutes: 15, long_rest_every: 4,
+  work_minutes: 25,
+  short_rest_minutes: 5,
+  long_rest_minutes: 15,
+  long_rest_every: 4,
   phase: { kind: 'work', start: '2026-10-27T10:00:00.000Z', completed: 0, planned_end: '2026-10-27T10:25:00.000Z' },
-  upcoming_phase: 'shortRest', transition: 'workToShortRest', number: 1, entry_id: 7,
+  upcoming_phase: 'shortRest',
+  transition: 'workToShortRest',
+  number: 1,
+  entry_id: 7,
   pomodoro_start: '2026-10-27T10:00:00.000Z',
 };
 
 function state(revision: number, discarded: number | null): TimerState {
   return {
-    revision, server_time: '2026-10-27T10:00:00.000Z', running_entry: null, pause: null, pomodoro: null,
-    discarded_pomodoro: discarded === null ? null
-      : { entry_id: discarded, start: '2026-10-27T10:00:00.000Z', stop: '2026-10-27T10:00:00.000Z' },
+    revision,
+    server_time: '2026-10-27T10:00:00.000Z',
+    running_entry: null,
+    pause: null,
+    pomodoro: null,
+    discarded_pomodoro:
+      discarded === null
+        ? null
+        : { entry_id: discarded, start: '2026-10-27T10:00:00.000Z', stop: '2026-10-27T10:00:00.000Z' },
   };
 }
 

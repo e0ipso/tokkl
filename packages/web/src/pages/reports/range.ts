@@ -1,8 +1,16 @@
 import { addDays, daysBetween, parseDateKey, startOfWeek } from '@tokkl/common/time';
-import { shortDate } from '../../lib/settings.ts';
+import { shortDate } from '../../lib/format.ts';
 
 export const PRESETS = [
-  'today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month', 'last_30', 'this_year', 'last_year',
+  'today',
+  'yesterday',
+  'this_week',
+  'last_week',
+  'this_month',
+  'last_month',
+  'last_30',
+  'this_year',
+  'last_year',
   'all_time',
 ] as const;
 
@@ -61,7 +69,12 @@ export function endOfMonth(key: string): string {
  * Resolves a preset to dates. `firstDay` is the date of the oldest entry and only matters for
  * "All time", which spans from there to today (at most ten years back).
  */
-export function presetRange(preset: Preset, todayKey: string, beginningOfWeek: number, firstDay?: string | null): DateRange {
+export function presetRange(
+  preset: Preset,
+  todayKey: string,
+  beginningOfWeek: number,
+  firstDay?: string | null,
+): DateRange {
   const weekStart = startOfWeek(todayKey, beginningOfWeek);
   const year = todayKey.slice(0, 4);
   switch (preset) {
@@ -96,11 +109,18 @@ export function presetRange(preset: Preset, todayKey: string, beginningOfWeek: n
 }
 
 /** The preset whose range equals `range` today, if any. */
-export function matchingPreset(range: DateRange, todayKey: string, beginningOfWeek: number, firstDay?: string | null): Preset | null {
-  return PRESETS.find((preset) => {
-    const candidate = presetRange(preset, todayKey, beginningOfWeek, firstDay);
-    return candidate.from === range.from && candidate.to === range.to;
-  }) ?? null;
+export function matchingPreset(
+  range: DateRange,
+  todayKey: string,
+  beginningOfWeek: number,
+  firstDay?: string | null,
+): Preset | null {
+  return (
+    PRESETS.find(preset => {
+      const candidate = presetRange(preset, todayKey, beginningOfWeek, firstDay);
+      return candidate.from === range.from && candidate.to === range.to;
+    }) ?? null
+  );
 }
 
 export function rangeDays(range: DateRange): number {

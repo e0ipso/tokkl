@@ -116,8 +116,7 @@ export const AUTH_MODES = ['token', 'password'];
  * @returns {number}
  */
 export function elapsedSeconds(startTime, nowSeconds) {
-    if (!(startTime > 0))
-        return 0;
+    if (!(startTime > 0)) return 0;
     return Math.max(0, Math.floor(nowSeconds) - startTime);
 }
 
@@ -140,9 +139,16 @@ function minutesAndSeconds(seconds) {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-// Fills each %s or %d of a translated template with the next value, in
-// order, since String.prototype.format exists only inside GNOME Shell.
-function fill(template, ...values) {
+/**
+ * Fills each %s or %d of a translated template with the next value, in
+ * order. The extension and its preferences use it rather than
+ * String.prototype.format, which exists only inside GNOME Shell.
+ *
+ * @param {string} template
+ * @param {...any} values
+ * @returns {string}
+ */
+export function fill(template, ...values) {
     let next = 0;
     return template.replace(/%[sd]/g, () => String(values[next++]));
 }
@@ -159,9 +165,8 @@ function fill(template, ...values) {
  */
 export function countdown(plannedEnd, nowSeconds) {
     const ms = Math.round((plannedEnd - nowSeconds) * 1000);
-    if (ms > 0)
-        return {text: minutesAndSeconds(Math.ceil(ms / 1000)), overtime: false};
-    return {text: `+${minutesAndSeconds(Math.floor(-ms / 1000))}`, overtime: true};
+    if (ms > 0) return { text: minutesAndSeconds(Math.ceil(ms / 1000)), overtime: false };
+    return { text: `+${minutesAndSeconds(Math.floor(-ms / 1000))}`, overtime: true };
 }
 
 /**
@@ -174,14 +179,14 @@ export function countdown(plannedEnd, nowSeconds) {
  */
 export function phaseName(phase, _) {
     switch (phase) {
-    case 'work':
-        return _('Work');
-    case 'shortRest':
-        return _('Short rest');
-    case 'longRest':
-        return _('Long rest');
-    default:
-        return '';
+        case 'work':
+            return _('Work');
+        case 'shortRest':
+            return _('Short rest');
+        case 'longRest':
+            return _('Long rest');
+        default:
+            return '';
     }
 }
 
@@ -196,10 +201,15 @@ export function phaseName(phase, _) {
  * @returns {string}
  */
 export function sessionLine(session, nowSeconds, _) {
-    const {text, overtime} = countdown(session.plannedEnd, nowSeconds);
+    const { text, overtime } = countdown(session.plannedEnd, nowSeconds);
     const time = fill(overtime ? _('%s overtime') : _('%s left'), text);
-    return fill(_('%s · %s · Pomodoro %d of %d'), phaseName(session.phase, _), time,
-        session.pomodoroNumber, session.longRestEvery);
+    return fill(
+        _('%s · %s · Pomodoro %d of %d'),
+        phaseName(session.phase, _),
+        time,
+        session.pomodoroNumber,
+        session.longRestEvery,
+    );
 }
 
 /**
@@ -238,30 +248,30 @@ export function pomodoroModeLabel(locked, _) {
  */
 export function describeStatus(status, errorString, _) {
     switch (status) {
-    case null:
-        return {
-            text: _('Timer service not running'),
-            detail: _('Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.'),
-            mark: '!',
-        };
-    case 'unconfigured':
-        return {
-            text: _('Not configured'),
-            detail: _('Set the instance URL and credentials in the extension settings.'),
-            mark: '!',
-        };
-    case 'loading':
-        return {text: _('Loading'), detail: '', mark: '…'};
-    case 'ready':
-        return {text: _('Connected'), detail: '', mark: ''};
-    case 'busy':
-        return {text: _('Saving'), detail: '', mark: '…'};
-    case 'stale':
-        return {text: _('Offline, showing the last known state'), detail: errorString, mark: '!'};
-    case 'authentication-blocked':
-        return {text: _('Sign-in refused'), detail: errorString, mark: '!'};
-    default:
-        return {text: _('Error'), detail: errorString, mark: '!'};
+        case null:
+            return {
+                text: _('Timer service not running'),
+                detail: _('Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.'),
+                mark: '!',
+            };
+        case 'unconfigured':
+            return {
+                text: _('Not configured'),
+                detail: _('Set the instance URL and credentials in the extension settings.'),
+                mark: '!',
+            };
+        case 'loading':
+            return { text: _('Loading'), detail: '', mark: '…' };
+        case 'ready':
+            return { text: _('Connected'), detail: '', mark: '' };
+        case 'busy':
+            return { text: _('Saving'), detail: '', mark: '…' };
+        case 'stale':
+            return { text: _('Offline, showing the last known state'), detail: errorString, mark: '!' };
+        case 'authentication-blocked':
+            return { text: _('Sign-in refused'), detail: errorString, mark: '!' };
+        default:
+            return { text: _('Error'), detail: errorString, mark: '!' };
     }
 }
 
@@ -288,10 +298,8 @@ export function projectLabel(project) {
  * @returns {string}
  */
 export function chosenProjectLabel(projects, chosenProject, chosenProjectName, _) {
-    if (!chosenProject)
-        return _('No project');
+    if (!chosenProject) return _('No project');
     const project = projects.find(candidate => candidate.id === chosenProject);
-    if (project)
-        return projectLabel(project);
+    if (project) return projectLabel(project);
     return chosenProjectName || _('Unavailable project');
 }

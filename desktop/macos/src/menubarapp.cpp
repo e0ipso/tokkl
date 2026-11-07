@@ -1,12 +1,16 @@
 #include "menubarapp.h"
 
+#include "alarmplayer.h"
 #include "clock.h"
 #include "connection.h"
+#include "connectionsettings.h"
 #include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorostore.h"
+#include "settingssave.h"
 #include "settingswindow.h"
+#include "soundchoices.h"
 #include "statusitem.h"
 #include "statusmenu.h"
 #include "statuswords.h"
@@ -14,6 +18,7 @@
 #include "timerstateclient.h"
 #include "transport.h"
 
+#include <QCoreApplication>
 #include <QSettings>
 
 namespace Tokkl
@@ -22,6 +27,11 @@ namespace Tokkl
 QString MenuBarApp::clientName()
 {
     return QStringLiteral("tokkl-macos");
+}
+
+QString MenuBarApp::soundKey(TransitionKind kind)
+{
+    return transitionKindName(kind) + QStringLiteral("Sound");
 }
 
 Transport *MenuBarApp::createTransport(QObject *parent)
@@ -52,9 +62,16 @@ MenuBarApp::MenuBarApp(Transport *transport,
     m_timer->setStateClient(m_stateClient.get());
     m_preferences = std::make_unique<PomodoroPreferences>(m_connection.get());
     m_session = std::make_unique<PomodoroSession>(m_clock, m_timer.get(), m_stateClient.get(), m_pomodoroStore.get());
-    m_alarm = std::make_unique<PomodoroAlarm>(m_session.get(), alarmPlayer, settings);
+    m_sounds = std::make_unique<SoundChoices>(settings, &MenuBarApp::soundKey);
+    // The bundle's Contents/Resources/sounds, which the build fills from
+    // TOKKL_POMODORO_SOUND_FILES.
+    m_alarm = std::make_unique<PomodoroAlarm>(m_session.get(),
+                                              alarmPlayer,
+                                              m_sounds.get(),
+                                              QString(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds")));
     m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_session.get());
-    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences.get(), m_alarm.get());
+    m_settingsWindow =
+        std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences.get(), m_sounds.get(), m_alarm.get());
 
     connect(m_menu.get(), &StatusMenu::settingsRequested, this, &MenuBarApp::showSettings);
     connect(m_menu.get(), &StatusMenu::openRequested, this, &MenuBarApp::openUrlRequested);
@@ -93,6 +110,7 @@ MenuBarApp::~MenuBarApp()
     m_settingsWindow.reset();
     m_menu.reset();
     m_alarm.reset();
+    m_sounds.reset();
     m_session.reset();
     m_preferences.reset();
     m_timer.reset();
@@ -108,40 +126,13 @@ void MenuBarApp::start()
     }
 }
 
-Connection *MenuBarApp::connection() const
-{
-    return m_connection.get();
-}
 
-TimerController *MenuBarApp::timer() const
-{
-    return m_timer.get();
-}
 
-PomodoroSession *MenuBarApp::pomodoroSession() const
-{
-    return m_session.get();
-}
 
-PomodoroPreferences *MenuBarApp::pomodoroPreferences() const
-{
-    return m_preferences.get();
-}
 
-PomodoroAlarm *MenuBarApp::pomodoroAlarm() const
-{
-    return m_alarm.get();
-}
 
-StatusMenu *MenuBarApp::statusMenu() const
-{
-    return m_menu.get();
-}
 
-SettingsWindow *MenuBarApp::settingsWindow() const
-{
-    return m_settingsWindow.get();
-}
+
 
 void MenuBarApp::showSettings()
 {
@@ -159,9 +150,7 @@ void MenuBarApp::applySettings()
     if (!m_settings) {
         return;
     }
-    m_connection->setInstanceUrl(m_settings->value(SettingsWindow::instanceUrlKey).toString());
-    m_connection->setAuthModeString(m_settings->value(SettingsWindow::authModeKey, QStringLiteral("token")).toString());
-    m_connection->setEmail(m_settings->value(SettingsWindow::emailKey).toString());
+    ConnectionSettings::read(*m_settings).applyTo(*m_connection);
     updateItem();
 }
 
@@ -188,7 +177,7 @@ void MenuBarApp::updateItem()
     m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer, *m_session));
     m_statusItem->setToolTip(StatusWords::summary(*m_timer, *m_session));
     m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer, *m_session));
-    const bool monochrome = m_settings && m_settings->value(SettingsWindow::monochromeIconKey, false).toBool();
+    const bool monochrome = m_settings && m_settings->value(SettingsSave::monochromeIconKey, false).toBool();
     m_statusItem->setImage(
         StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()), monochrome, m_session->pomodoroMode()));
 }

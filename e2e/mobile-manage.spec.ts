@@ -17,7 +17,8 @@ test('the bottom navigation reaches every page and stays usable after scrolling 
   const api = await EntityApi.open(page);
   for (let i = 1; i <= 40; i++) await api.createTag(`tag ${String(i).padStart(2, '0')}`);
 
-  for (const name of ['Pomodoro', 'Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer']) await tapNav(page, name);
+  for (const name of ['Pomodoro', 'Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer'])
+    await tapNav(page, name);
 
   // Forty tags make the page scroll; the fixed navigation stays on screen and tappable.
   await tapNav(page, 'Tags');
@@ -34,7 +35,7 @@ test('the bottom navigation reaches every page and stays usable after scrolling 
   await expectFits(confirm);
   await tap(confirm.getByRole('button', { name: 'Delete tag' }));
   await expect(confirm).toBeHidden();
-  expect((await api.tags()).map((tag) => tag.name)).not.toContain('tag 40');
+  expect((await api.tags()).map(tag => tag.name)).not.toContain('tag 40');
   await expect.poll(async () => (await api.tags()).length).toBe(39);
 
   await tapNav(page, 'Settings');
@@ -42,7 +43,9 @@ test('the bottom navigation reaches every page and stays usable after scrolling 
   await tapNav(page, 'Timer');
 });
 
-test('client and tag dialogs and menus finish by touch on a phone and save what the desktop saves', async ({ page }) => {
+test('client and tag dialogs and menus finish by touch on a phone and save what the desktop saves', async ({
+  page,
+}) => {
   await login(page);
   const api = await EntityApi.open(page);
 
@@ -72,12 +75,12 @@ test('client and tag dialogs and menus finish by touch on a phone and save what 
   await tapNav(page, 'Tags');
   await page.getByRole('textbox', { name: 'New tag name' }).fill('phone');
   await tap(page.getByRole('button', { name: 'Add tag' }));
-  await expect.poll(async () => (await api.tags()).map((t) => t.name)).toEqual(['phone']);
+  await expect.poll(async () => (await api.tags()).map(t => t.name)).toEqual(['phone']);
   await tap(page.getByRole('button', { name: 'phone', exact: true }));
   await page.getByRole('textbox', { name: 'New name for phone' }).fill('handset');
   await tap(page.getByRole('heading', { name: 'Tags', level: 1 }));
   await expect(page.getByText('Renamed to handset')).toBeVisible();
-  expect((await api.tags()).map((t) => t.name)).toEqual(['handset']);
+  expect((await api.tags()).map(t => t.name)).toEqual(['handset']);
   await tap(page.getByRole('button', { name: 'Delete handset' }));
   const deleteTag = page.getByRole('dialog', { name: 'Delete handset?' });
   await expectFits(deleteTag);
@@ -107,7 +110,8 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   }
   const more = nav.getByRole('button', { name: 'More', exact: true });
   const sheet = await openMore(page);
-  for (const name of ['Reports', 'Clients', 'Tags', 'Trash']) await expectFits(sheet.getByRole('link', { name, exact: true }));
+  for (const name of ['Reports', 'Clients', 'Tags', 'Trash'])
+    await expectFits(sheet.getByRole('link', { name, exact: true }));
   await expectFits(sheet.getByRole('button', { name: 'Log out' }));
   await expectNoPageOverflow(page);
   await page.keyboard.press('Escape');
@@ -146,8 +150,14 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(items).toHaveCount(5);
   for (const item of await items.all()) {
     const box = (await item.boundingBox())!;
-    expect(Math.min(box.width, box.height), `${await item.innerText()} is at least 44px each way`).toBeGreaterThanOrEqual(44);
-    const label = await item.locator('span').first().evaluate((span) => parseFloat(getComputedStyle(span).fontSize));
+    expect(
+      Math.min(box.width, box.height),
+      `${await item.innerText()} is at least 44px each way`,
+    ).toBeGreaterThanOrEqual(44);
+    const label = await item
+      .locator('span')
+      .first()
+      .evaluate(span => parseFloat(getComputedStyle(span).fontSize));
     expect(label, `${await item.innerText()} label size`).toBeGreaterThanOrEqual(11);
   }
 
@@ -182,17 +192,29 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
 
 // The More button takes the hue of the open page under More, and so does the page's link inside
 // the sheet: Reports keeps its own hue, the other pages under More take More's.
-test('the bottom bar, the More button and the More sheet fill the current page in its section hue', async ({ page }) => {
+test('the bottom bar, the More button and the More sheet fill the current page in its section hue', async ({
+  page,
+}) => {
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Main' });
   const more = nav.getByRole('button', { name: 'More', exact: true });
   await expectSectionHue(page, nav.getByRole('link', { name: 'Timer', exact: true }), 'timer');
-  for (const [name, section] of [['Pomodoro', 'pomodoro'], ['Projects', 'projects'], ['Settings', 'settings'], ['Timer', 'timer']] as const) {
+  for (const [name, section] of [
+    ['Pomodoro', 'pomodoro'],
+    ['Projects', 'projects'],
+    ['Settings', 'settings'],
+    ['Timer', 'timer'],
+  ] as const) {
     await tapNav(page, name);
     await expectSectionHue(page, nav.getByRole('link', { name, exact: true }), section);
     await expect(more).not.toHaveClass(/\bactive\b/);
   }
-  for (const [name, section] of [['Reports', 'reports'], ['Clients', 'more'], ['Tags', 'more'], ['Trash', 'more']] as const) {
+  for (const [name, section] of [
+    ['Reports', 'reports'],
+    ['Clients', 'more'],
+    ['Tags', 'more'],
+    ['Trash', 'more'],
+  ] as const) {
     await tapNav(page, name);
     await expectSectionHue(page, more, section);
     const sheet = await openMore(page);
@@ -211,7 +233,10 @@ test('the More sheet names the signed-in user above Log out and cuts long values
   await login(page);
   const shown = async (sheet: Awaited<ReturnType<typeof openMore>>, fullname: string, email: string) => {
     const user = sheet.locator('.signed-in');
-    for (const [part, text] of [['.signed-in-name', fullname], ['.signed-in-email', email]] as const) {
+    for (const [part, text] of [
+      ['.signed-in-name', fullname],
+      ['.signed-in-email', email],
+    ] as const) {
       await expect(user.locator(part)).toHaveText(text);
       await expect(user.locator(part)).toHaveAttribute('title', text);
       await expectFits(user.locator(part));
@@ -230,7 +255,7 @@ test('the More sheet names the signed-in user above Log out and cuts long values
     fullname: 'E2E User, whose full name is far too long for a phone to show on a single line',
     email: 'a.very.long.mailbox.name.for.this.phone.check@subdomain.example.com',
   };
-  await page.route('**/api/v9/me', async (route) => {
+  await page.route('**/api/v9/me', async route => {
     const response = await route.fetch();
     if (route.request().method() !== 'GET' || !response.ok()) return route.fulfill({ response });
     await route.fulfill({ response, json: { ...(await response.json()), ...long } });
@@ -238,6 +263,6 @@ test('the More sheet names the signed-in user above Log out and cuts long values
   await page.reload();
   const user = await shown(await openMore(page), long.fullname, long.email);
   for (const part of ['.signed-in-name', '.signed-in-email']) {
-    expect(await user.locator(part).evaluate((el) => el.scrollWidth > el.clientWidth), `${part} is cut`).toBe(true);
+    expect(await user.locator(part).evaluate(el => el.scrollWidth > el.clientWidth), `${part} is cut`).toBe(true);
   }
 });

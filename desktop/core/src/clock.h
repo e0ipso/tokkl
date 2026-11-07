@@ -7,8 +7,9 @@
 namespace Tokkl
 {
 
-// Wall-clock time and a once-per-second tick. Tests replace it with a clock
-// they advance by hand.
+// Wall-clock time, a once-per-second tick and the randomness of retry
+// delays. Tests replace it with a clock they advance by hand and whose
+// jitter they choose.
 class Clock : public QObject
 {
     Q_OBJECT
@@ -18,6 +19,10 @@ public:
 
     // The current time in UTC.
     virtual QDateTime now() const = 0;
+    // A delay from 0 up to, but not including, boundMs, added to a retry so
+    // that devices that lost the server at the same moment do not all come
+    // back at the same moment. 0 when boundMs is not positive.
+    virtual int jitterMs(int boundMs) const = 0;
 
 Q_SIGNALS:
     // About once per second. Ticks are not counted: after a sleep the next
@@ -35,6 +40,8 @@ public:
     explicit SystemClock(QObject *parent = nullptr);
 
     QDateTime now() const override;
+    // Uniformly random.
+    int jitterMs(int boundMs) const override;
 
 private:
     void schedule();

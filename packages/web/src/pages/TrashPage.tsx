@@ -1,28 +1,27 @@
 import { useState } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useRestoreEntry } from '../api/hooks.ts';
+import { entryRequests, useRestoreEntry, useTrash } from '../api/entries.ts';
+import { stale } from '../api/keys.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { ProjectDot } from '../components/Pickers.tsx';
+import { ProjectDot } from '../components/ProjectLabel.tsx';
 import { useToast } from '../components/Toast.tsx';
-import { localDay } from '../lib/entryTime.ts';
-import { duration, entrySeconds, formatDate, formatTime, useSettings, type Settings } from '../lib/settings.ts';
-import { useAction, useTrash } from './manage/queries.ts';
-import { ConfirmModal, plural } from './manage/ui.tsx';
+import { useSettings } from '../api/settings.ts';
+import { duration, formatDateTime } from '../lib/format.ts';
+import { type Settings } from '../lib/settings.ts';
+import { entrySeconds } from '../lib/snapping.ts';
+import { useAction } from '../components/useAction.ts';
+import { ConfirmModal } from './manage/ui.tsx';
+import { plural } from '../lib/format.ts';
 import './manage/manage.css';
-
-function dateTime(iso: string, settings: Settings): string {
-  return `${formatDate(localDay(iso, settings.timeZone), settings.dateFormat)} ${formatTime(iso, settings)}`;
-}
 
 function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings }) {
   const toast = useToast();
   const restore = useRestoreEntry();
   const purge = useAction({
-    mutationFn: () => api.delete(`/api/app/trash/${entry.id}`),
-    invalidate: [keys.trash],
+    mutationFn: () => entryRequests.purge(entry.id),
+    invalidate: stale.trash,
     success: 'Deleted the entry for good',
   });
 
@@ -35,20 +34,26 @@ function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings })
             <ProjectDot color={entry.project_color} />
             <span className="project-label-name">{entry.project_name ?? 'Unknown project'}</span>
           </span>
-        ) : <span className="muted">No project</span>}
+        ) : (
+          <span className="muted">No project</span>
+        )}
       </td>
-      <td className="num">{dateTime(entry.start, settings)}</td>
-      <td className="num">{entry.stop ? duration(entrySeconds(entry, new Date()), settings) : <span className="muted">Running</span>}</td>
-      <td className="num">{entry.server_deleted_at ? dateTime(entry.server_deleted_at, settings) : null}</td>
+      <td className="num">{formatDateTime(entry.start, settings)}</td>
+      <td className="num">
+        {entry.stop ? duration(entrySeconds(entry, new Date()), settings) : <span className="muted">Running</span>}
+      </td>
+      <td className="num">{entry.server_deleted_at ? formatDateTime(entry.server_deleted_at, settings) : null}</td>
       <td className="manage-actions">
         <button
           type="button"
           className="button button-ghost"
           disabled={restore.isPending}
-          onClick={() => restore.mutate(entry.id, {
-            onSuccess: () => toast.show('Entry restored'),
-            onError: (error) => toast.error(error),
-          })}
+          onClick={() =>
+            restore.mutate(entry.id, {
+              onSuccess: () => toast.show('Entry restored'),
+              onError: error => toast.error(error),
+            })
+          }
         >
           <Icon name="undo" size={16} /> Restore
         </button>
@@ -73,9 +78,9 @@ export function TrashPage() {
   const [confirmEmpty, setConfirmEmpty] = useState(false);
 
   const empty = useAction<void, { deleted: number }>({
-    mutationFn: () => api.delete<{ deleted: number }>('/api/app/trash'),
-    invalidate: [keys.trash],
-    success: (result) => `Deleted ${plural(result.deleted, 'entry', 'entries')} for good`,
+    mutationFn: entryRequests.emptyTrash,
+    invalidate: stale.trash,
+    success: result => `Deleted ${plural(result.deleted, 'entry', 'entries')} for good`,
     onSuccess: () => setConfirmEmpty(false),
   });
 
@@ -97,7 +102,9 @@ export function TrashPage() {
         Toggl Track has no trash. Here, deleted time entries stay until you restore them or delete them for good.
       </p>
 
-      {error ? <LoadError message={`Could not load the trash: ${error.message}`} onRetry={() => void refetch()} /> : null}
+      {error ? (
+        <LoadError message={`Could not load the trash: ${error.message}`} onRetry={() => void refetch()} />
+      ) : null}
       {isLoading ? <Loading label="Loading the trash…" /> : null}
       {entries && entries.length === 0 ? (
         <EmptyState icon={<Icon name="trash" size={32} />} title="The trash is empty">
@@ -115,11 +122,15 @@ export function TrashPage() {
                 <th className="num">Started</th>
                 <th className="num">Duration</th>
                 <th className="num">Deleted</th>
-                <th><span className="visually-hidden">Actions</span></th>
+                <th>
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => <TrashRow key={entry.id} entry={entry} settings={settings} />)}
+              {entries.map(entry => (
+                <TrashRow key={entry.id} entry={entry} settings={settings} />
+              ))}
             </tbody>
           </table>
         </div>
@@ -137,8 +148,8 @@ export function TrashPage() {
           onClose={() => setConfirmEmpty(false)}
         >
           <p>
-            This deletes {entries.length >= 1000 ? 'every entry' : plural(entries.length, 'entry', 'entries')} in the trash for good.
-            You can't undo this.
+            This deletes {entries.length >= 1000 ? 'every entry' : plural(entries.length, 'entry', 'entries')} in the
+            trash for good. You can't undo this.
           </p>
         </ConfirmModal>
       ) : null}

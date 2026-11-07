@@ -1,26 +1,18 @@
 import { useId, useState, type FormEvent } from 'react';
-import { api } from '../../api/client.ts';
-import { keys, useClients, useProjects, useWid, useWorkspace } from '../../api/hooks.ts';
+import { useWid, useWorkspace } from '../../api/account.ts';
+import { clientRequests, useClients } from '../../api/clients.ts';
+import { stale } from '../../api/keys.ts';
+import { projectRequests, useProjects, type ProjectBody } from '../../api/projects.ts';
 import type { Client, Project } from '../../api/types.ts';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Modal } from '../../components/Overlay.tsx';
 import { PROJECT_COLORS } from '@tokkl/common/colors';
 import { ColorField } from './ColorField.tsx';
 import { ProjectTasks } from './ProjectTasks.tsx';
-import { parseOptionalAmount, useAction, wsPath } from './queries.ts';
+import { useAction } from '../../components/useAction.ts';
+import { parseOptionalAmount } from './values.ts';
 
 const NEW_CLIENT = '__new__';
-
-interface ProjectBody {
-  name: string;
-  color: string;
-  /** 0 clears the client. The server ignores null here and keeps the current client. */
-  client_id: number;
-  billable: boolean;
-  rate: number | null;
-  currency: string | null;
-  estimated_hours: number | null;
-}
 
 function amountText(value: number | null): string {
   return value === null ? '' : String(value);
@@ -46,19 +38,17 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
   const [estimate, setEstimate] = useState(amountText(project?.estimated_hours ?? null));
 
   const save = useAction<ProjectBody, Project>({
-    mutationFn: (body) => (project
-      ? api.put<Project>(wsPath(wid, 'projects', project.id), body)
-      : api.post<Project>(wsPath(wid, 'projects'), body)),
-    invalidate: [keys.projects, keys.clients, keys.tasks, keys.entries, keys.current, keys.report],
-    success: (saved) => (project ? `Saved ${saved.name}` : `Created ${saved.name}`),
+    mutationFn: body => (project ? projectRequests.update(wid, project.id, body) : projectRequests.create(wid, body)),
+    invalidate: stale.projectSaved,
+    success: saved => (project ? `Saved ${saved.name}` : `Created ${saved.name}`),
     onSuccess: onClose,
   });
 
   const createClient = useAction<string, Client>({
-    mutationFn: (clientName) => api.post<Client>(wsPath(wid, 'clients'), { name: clientName }),
-    invalidate: [keys.clients],
-    success: (client) => `Created client ${client.name}`,
-    onSuccess: (client) => {
+    mutationFn: clientName => clientRequests.create(wid, { name: clientName }),
+    invalidate: stale.clientCreated,
+    success: client => `Created client ${client.name}`,
+    onSuccess: client => {
       setClientId(client.id);
       setCreatingClient(false);
       setNewClientName('');
@@ -66,7 +56,7 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
   });
 
   // Archived clients only show up when the project already uses one.
-  const clientOptions = clients.filter((client) => !client.archived || client.id === clientId);
+  const clientOptions = clients.filter(client => !client.archived || client.id === clientId);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -103,20 +93,28 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
       title={project ? 'Edit project' : 'New project'}
       onClose={onClose}
       wide={project !== null}
-      footer={(
+      footer={
         <>
           <span className="spacer" />
-          <button type="button" className="button button-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="button button-ghost" onClick={onClose}>
+            Cancel
+          </button>
           <button type="submit" form={formId} className="button button-primary" disabled={save.isPending}>
             {project ? 'Save' : 'Create project'}
           </button>
         </>
-      )}
+      }
     >
       <form id={formId} className="form-grid" noValidate onSubmit={submit}>
         <div className="field field-full">
           <label htmlFor={fields.id('name')}>Name</label>
-          <input {...fields.field('name')} value={name} onChange={(event) => setName(event.target.value)} maxLength={255} required />
+          <input
+            {...fields.field('name')}
+            value={name}
+            onChange={event => setName(event.target.value)}
+            maxLength={255}
+            required
+          />
           {fields.message('name')}
         </div>
 
@@ -130,15 +128,18 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
             <span>Client</span>
             <select
               value={creatingClient ? NEW_CLIENT : String(clientId ?? '')}
-              onChange={(event) => {
+              onChange={event => {
                 const value = event.target.value;
                 setCreatingClient(value === NEW_CLIENT);
                 if (value !== NEW_CLIENT) setClientId(value === '' ? null : Number(value));
               }}
             >
               <option value="">No client</option>
-              {clientOptions.map((client) => (
-                <option key={client.id} value={client.id}>{client.name}{client.archived ? ' (archived)' : ''}</option>
+              {clientOptions.map(client => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                  {client.archived ? ' (archived)' : ''}
+                </option>
               ))}
               <option value={NEW_CLIENT}>Create client…</option>
             </select>
@@ -152,15 +153,17 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
                 aria-label="New client name"
                 maxLength={255}
                 autoFocus
-                onChange={(event) => setNewClientName(event.target.value)}
-                onKeyDown={(event) => {
+                onChange={event => setNewClientName(event.target.value)}
+                onKeyDown={event => {
                   if (event.key === 'Enter') {
                     event.preventDefault();
                     submitNewClient();
                   }
                 }}
               />
-              <button type="button" className="button" disabled={createClient.isPending} onClick={submitNewClient}>Add client</button>
+              <button type="button" className="button" disabled={createClient.isPending} onClick={submitNewClient}>
+                Add client
+              </button>
               <button
                 type="button"
                 className="button button-ghost"
@@ -182,8 +185,10 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
             {...fields.field('rate')}
             inputMode="decimal"
             value={rate}
-            placeholder={workspace?.default_hourly_rate != null ? `Workspace rate: ${workspace.default_hourly_rate}` : 'No rate'}
-            onChange={(event) => setRate(event.target.value)}
+            placeholder={
+              workspace?.default_hourly_rate != null ? `Workspace rate: ${workspace.default_hourly_rate}` : 'No rate'
+            }
+            onChange={event => setRate(event.target.value)}
           />
           {fields.message('rate')}
         </div>
@@ -195,17 +200,23 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
             maxLength={3}
             placeholder={workspace?.default_currency ?? 'EUR'}
             autoCapitalize="characters"
-            onChange={(event) => setCurrency(event.target.value.toUpperCase())}
+            onChange={event => setCurrency(event.target.value.toUpperCase())}
           />
           {fields.message('currency')}
         </div>
         <div className="field">
           <label htmlFor={fields.id('estimate')}>Estimated hours</label>
-          <input {...fields.field('estimate')} inputMode="decimal" value={estimate} placeholder="No estimate" onChange={(event) => setEstimate(event.target.value)} />
+          <input
+            {...fields.field('estimate')}
+            inputMode="decimal"
+            value={estimate}
+            placeholder="No estimate"
+            onChange={event => setEstimate(event.target.value)}
+          />
           {fields.message('estimate')}
         </div>
         <label className="field checkbox-field">
-          <input type="checkbox" checked={billable} onChange={(event) => setBillable(event.target.checked)} />
+          <input type="checkbox" checked={billable} onChange={event => setBillable(event.target.checked)} />
           <span>Billable by default</span>
         </label>
         <p className="hint field-full">Leave the rate or currency empty to use the workspace defaults.</p>

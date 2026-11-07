@@ -1,8 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addClockMinutes, addDays, clockMinutes, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
-import { SWIPE_MIN_PX, SWIPE_RATIO, clampDayMove, classifySwipe, dragStep, droppedMinute, fitMoveInDay, splitAllDay, stepDay } from './calendarDay.ts';
-import { snappedInstant } from './settings.ts';
+import {
+  SWIPE_MIN_PX,
+  SWIPE_RATIO,
+  clampDayMove,
+  classifySwipe,
+  dragStep,
+  droppedMinute,
+  fitMoveInDay,
+  splitAllDay,
+  stepDay,
+} from './calendarDay.ts';
+import { snappedInstant } from './snapping.ts';
 
 const MADRID = 'Europe/Madrid';
 
@@ -158,7 +168,20 @@ test('stepDay lands on every day across the Madrid clock changes', () => {
 });
 
 test('dragStep is the smallest multiple of the resolution that is at least 15 minutes', () => {
-  const steps: Record<number, number> = { 1: 15, 2: 16, 3: 15, 4: 16, 5: 15, 6: 18, 10: 20, 12: 24, 15: 15, 20: 20, 30: 30, 60: 60 };
+  const steps: Record<number, number> = {
+    1: 15,
+    2: 16,
+    3: 15,
+    4: 16,
+    5: 15,
+    6: 18,
+    10: 20,
+    12: 24,
+    15: 15,
+    20: 20,
+    30: 30,
+    60: 60,
+  };
   for (const [resolution, step] of Object.entries(steps)) {
     assert.equal(dragStep(Number(resolution)), step, `resolution ${resolution}`);
     assert.equal(step % Number(resolution), 0, `resolution ${resolution}`);
@@ -212,7 +235,9 @@ test('splitAllDay keeps no-time entries out of the grid list and groups them by 
   assert.deepEqual(allDay.get('2026-06-17'), [midnight]);
   assert.deepEqual(allDay.get('2026-06-18'), [sameDay]);
   // The day comes from the account zone: the same instants fall on the previous days in New York.
-  assert.deepEqual(splitAllDay([midnight], ['2026-06-16', '2026-06-17'], 'America/New_York').allDay.get('2026-06-16'), [midnight]);
+  assert.deepEqual(splitAllDay([midnight], ['2026-06-16', '2026-06-17'], 'America/New_York').allDay.get('2026-06-16'), [
+    midnight,
+  ]);
   // A day with no chips has no entry in the map.
   assert.equal(allDay.has('2026-06-19'), false);
   assert.equal(splitAllDay([timed], days, MADRID).allDay.size, 0);

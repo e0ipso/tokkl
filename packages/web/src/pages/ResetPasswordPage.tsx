@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ApiError, api } from '../api/client.ts';
+import { authRequests } from '../api/auth.ts';
+import { isApiError } from '../api/client.ts';
 import { Brand } from '../components/Brand.tsx';
-import { FieldError, useFieldErrors } from '../components/FieldError.tsx';
-import { Icon } from '../components/Icon.tsx';
+import { useFieldErrors } from '../components/FieldError.tsx';
+import { FormError, errorMessage } from '../components/FormError.tsx';
 import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 
 /**
@@ -11,8 +12,7 @@ import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
  * to the login form.
  */
 export function ResetPasswordPage({ token }: { token: string }) {
-  const path = `/api/app/password-resets/${encodeURIComponent(token)}`;
-  const [check, retry] = useLinkCheck<{ email: string }>(path);
+  const [check, retry] = useLinkCheck(token, authRequests.checkReset);
   const fields = useFieldErrors<'password'>();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -24,13 +24,13 @@ export function ResetPasswordPage({ token }: { token: string }) {
     setBusy(true);
     setError(null);
     try {
-      await api.post(path, { password });
+      await authRequests.resetPassword(token, password);
       setDone(true);
     } catch (err) {
       // The link was checked on load, so a 400 is the server's password rules; anything else, such
       // as a spent link or too many attempts, is about the page.
-      if (err instanceof ApiError && err.status === 400) fields.validate([['password', err.message]]);
-      else setError(err instanceof Error ? err.message : String(err));
+      if (isApiError(err, 400)) fields.validate([['password', err.message]]);
+      else setError(errorMessage(err));
       setBusy(false);
     }
   };
@@ -54,10 +54,12 @@ export function ResetPasswordPage({ token }: { token: string }) {
         <div className="auth-card" role="status">
           <h1>Password changed</h1>
           <p className="muted">
-            Log in as {check.data.email} with your new password. Every browser that was signed in to this account
-            is now signed out.
+            Log in as {check.data.email} with your new password. Every browser that was signed in to this account is now
+            signed out.
           </p>
-          <a className="button button-primary button-block" href="/">Go to log in</a>
+          <a className="button button-primary button-block" href="/">
+            Go to log in
+          </a>
         </div>
       </div>
     );
@@ -77,7 +79,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
             {...fields.field('password')}
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
             minLength={8}
             autoComplete="new-password"
@@ -85,12 +87,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
           />
           {fields.message('password')}
         </div>
-        {error ? (
-          <div className="auth-error">
-            <Icon name="alert" className="error-icon" />
-            <FieldError message={error} />
-          </div>
-        ) : null}
+        <FormError message={error} />
         <button type="submit" className="button button-primary button-block" disabled={busy}>
           Set password
         </button>

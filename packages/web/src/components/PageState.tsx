@@ -19,7 +19,12 @@ export function Loading({ label = 'Loading…', className }: { label?: string; c
   );
 }
 
-export function LoadError({ message, onRetry, className, title }: {
+export function LoadError({
+  message,
+  onRetry,
+  className,
+  title,
+}: {
   message: string;
   onRetry?: () => void;
   className?: string;
@@ -33,7 +38,9 @@ export function LoadError({ message, onRetry, className, title }: {
         <span>{message}</span>
       </p>
       {onRetry ? (
-        <button type="button" className="button button-ghost" onClick={onRetry}>Try again</button>
+        <button type="button" className="button button-ghost" onClick={onRetry}>
+          Try again
+        </button>
       ) : null}
     </div>
   );
@@ -41,5 +48,9 @@ export function LoadError({ message, onRetry, className, title }: {
 
 /** Marks content that stays on screen while more of it loads, such as the entry list during "Show more days". */
 export function BusyRegion({ busy, className, children }: { busy: boolean; className?: string; children: ReactNode }) {
-  return <div className={className} aria-busy={busy || undefined}>{children}</div>;
+  return (
+    <div className={className} aria-busy={busy || undefined}>
+      {children}
+    </div>
+  );
 }

@@ -78,7 +78,7 @@ export function connectTimerStream(
         retry = setTimeout(connect, retryMs);
       }
     });
-    current.addEventListener('timer', (event) => {
+    current.addEventListener('timer', event => {
       if (stopped) return;
       heard();
       let data: unknown;

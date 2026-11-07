@@ -1,5 +1,5 @@
 import type { Grouping, Report } from '../../api/types.ts';
-import { formatMoney } from '../../lib/settings.ts';
+import { formatMoney } from '../../lib/format.ts';
 
 export const GROUPING_LABELS: Record<Grouping, string> = {
   projects: 'Project',

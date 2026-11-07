@@ -1,7 +1,14 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-import { clickNotification, focusCalls, permissionRequests, setHidden, shownNotifications, stubNotifications } from './notification-tests-helpers.ts';
+import {
+  clickNotification,
+  focusCalls,
+  permissionRequests,
+  setHidden,
+  shownNotifications,
+  stubNotifications,
+} from './notification-tests-helpers.ts';
 import { TimerApi } from './timer-tests-helpers.ts';
 
 const HOUR = 3_600_000;

@@ -26,7 +26,8 @@ class Clock;
 //
 // When a stream ends or fails the client reads the state again if the stream
 // had delivered, and opens a new stream after a wait that starts at 1 s and
-// doubles up to 60 s. A stream that delivered for 60 s starts the wait over.
+// doubles up to 60 s, plus up to a quarter more from the clock's jitter. A
+// stream that delivered for 60 s starts the wait over.
 // Until a stream delivers, the state is read every 30 s. A wake, through
 // resumed() or a tick more than 10 s late, reads the state and replaces the
 // stream at once.
@@ -54,6 +55,11 @@ public:
     static constexpr int resumeGapMs = 10000;
     static constexpr int reconnectMinMs = 1000;
     static constexpr int reconnectMaxMs = 60000;
+    // A reconnect waits up to this share of its backoff longer, at random.
+    static constexpr int reconnectJitterDivisor = 4;
+    // The longest wait for a reconnect; a later one means the clock was set
+    // back.
+    static constexpr int reconnectLongestMs = reconnectMaxMs + reconnectMaxMs / reconnectJitterDivisor;
     // More than any state; a stream that sends more without an event end is
     // dropped.
     static constexpr qsizetype maxEventBytes = 1024 * 1024;
@@ -63,6 +69,9 @@ public:
     ~TimerStateClient() override;
 
     Connection *connection() const;
+    // The clock the client was given; a timer or session built on the
+    // client can share it.
+    Clock *clock() const;
     const std::optional<TimerState> &state() const;
     bool streaming() const;
     bool settling() const;

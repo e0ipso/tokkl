@@ -33,14 +33,14 @@ const COLOR_NAMES: Record<string, string> = {
  */
 export function ColorField({ value, onChange }: { value: string; onChange: (color: string) => void }) {
   const current = value.toLowerCase();
-  const custom = !PROJECT_COLORS.some((color) => color === current);
+  const custom = !PROJECT_COLORS.some(color => color === current);
   const input = useRef<HTMLInputElement>(null);
   const radios = useRef<(HTMLButtonElement | null)[]>([]);
   // The radio that last had focus while focus is inside the group; null once focus leaves.
   const [focused, setFocused] = useState<number | null>(null);
   const count = PROJECT_COLORS.length + 1;
   const customIndex = PROJECT_COLORS.length;
-  const checked = custom ? customIndex : PROJECT_COLORS.findIndex((color) => color === current);
+  const checked = custom ? customIndex : PROJECT_COLORS.findIndex(color => color === current);
   const tabStop = focused ?? checked;
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const next = arrowTarget(event.key, index, count);
@@ -63,14 +63,16 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
         className="color-options"
         role="radiogroup"
         aria-label="Color"
-        onBlur={(event) => {
+        onBlur={event => {
           if (!event.currentTarget.contains(event.relatedTarget)) setFocused(null);
         }}
       >
         {PROJECT_COLORS.map((color, index) => (
           <button
             key={color}
-            ref={(element) => { radios.current[index] = element; }}
+            ref={element => {
+              radios.current[index] = element;
+            }}
             type="button"
             role="radio"
             tabIndex={index === tabStop ? 0 : -1}
@@ -78,16 +80,18 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
             aria-label={COLOR_NAMES[color] ?? `Color ${index + 1}`}
             title={COLOR_NAMES[color]}
             className={`color-swatch${color === current ? ' selected' : ''}`}
-            style={{ background: color, ['--swatch-check' as string]: checkColor(color) }}
+            style={{ background: color, '--swatch-check': checkColor(color) }}
             onClick={() => onChange(color)}
             onFocus={() => setFocused(index)}
-            onKeyDown={(event) => onKeyDown(event, index)}
+            onKeyDown={event => onKeyDown(event, index)}
           >
             {color === current ? <Icon name="check" size={20} /> : null}
           </button>
         ))}
         <button
-          ref={(element) => { radios.current[customIndex] = element; }}
+          ref={element => {
+            radios.current[customIndex] = element;
+          }}
           type="button"
           role="radio"
           tabIndex={tabStop === customIndex ? 0 : -1}
@@ -95,9 +99,11 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
           className={`color-custom${custom ? ' selected' : ''}`}
           onClick={openPicker}
           onFocus={() => setFocused(customIndex)}
-          onKeyDown={(event) => onKeyDown(event, customIndex)}
+          onKeyDown={event => onKeyDown(event, customIndex)}
         >
-          <span className="color-custom-check" aria-hidden="true">{custom ? <Icon name="check" size={16} /> : null}</span>
+          <span className="color-custom-check" aria-hidden="true">
+            {custom ? <Icon name="check" size={16} /> : null}
+          </span>
           Custom
         </button>
       </div>
@@ -106,7 +112,7 @@ export function ColorField({ value, onChange }: { value: string; onChange: (colo
         type="color"
         className="color-custom-input"
         value={current}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={event => onChange(event.target.value)}
         aria-label="Custom color"
       />
     </div>

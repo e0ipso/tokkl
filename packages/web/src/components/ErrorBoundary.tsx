@@ -1,7 +1,11 @@
 import { Component, type ReactNode } from 'react';
 import { LoadError } from './PageState.tsx';
 
-/** Keeps a crash in one page from blanking the whole app, and offers a way back. */
+/**
+ * Keeps a crash in one page from blanking the whole app, and offers a way back: Try again renders
+ * the children again, and a new `resetKey` (the next route) clears the error. React reports every
+ * caught error to the console itself (createRoot's default onCaughtError), so this adds no logging.
+ */
 export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
 

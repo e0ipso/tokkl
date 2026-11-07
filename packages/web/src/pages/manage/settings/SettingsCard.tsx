@@ -1,7 +1,17 @@
 import type { FormEvent, ReactNode, Ref } from 'react';
 
 /** One settings section: a card with a title, an optional intro line and its own save button. */
-export function SettingsCard({ id, title, titleRef, intro, children, onSubmit, saveLabel = 'Save', saving = false, saveDisabled = false }: {
+export function SettingsCard({
+  id,
+  title,
+  titleRef,
+  intro,
+  children,
+  onSubmit,
+  saveLabel = 'Save',
+  saving = false,
+  saveDisabled = false,
+}: {
   id: string;
   title: string;
   /** Lets the section move focus to its title, for example when the focused row went away. */
@@ -18,14 +28,20 @@ export function SettingsCard({ id, title, titleRef, intro, children, onSubmit, s
   const body = (
     <>
       <div className="settings-card-head">
-        <h2 id={headingId} ref={titleRef} tabIndex={titleRef ? -1 : undefined}>{title}</h2>
+        <h2 id={headingId} ref={titleRef} tabIndex={titleRef ? -1 : undefined}>
+          {title}
+        </h2>
       </div>
       {intro ? <p className="hint settings-intro">{intro}</p> : null}
       {children}
     </>
   );
   if (!onSubmit) {
-    return <section className="card settings-card" id={id} aria-labelledby={headingId}>{body}</section>;
+    return (
+      <section className="card settings-card" id={id} aria-labelledby={headingId}>
+        {body}
+      </section>
+    );
   }
   const submit = (event: FormEvent) => {
     event.preventDefault();

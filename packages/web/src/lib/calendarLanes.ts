@@ -31,14 +31,14 @@ export function assignLanes<T extends LaneBlock>(blocks: T[]): T[] {
   const sorted = [...blocks].sort((a, b) => a.top - b.top || a.bottom - b.bottom);
   let cluster: T[] = [];
   const flush = () => {
-    const lanes = Math.max(1, ...cluster.map((block) => block.lane + 1));
+    const lanes = Math.max(1, ...cluster.map(block => block.lane + 1));
     for (const block of cluster) block.lanes = lanes;
     cluster = [];
   };
   for (const block of sorted) {
-    const overlapping = cluster.filter((other) => overlaps(other, block));
+    const overlapping = cluster.filter(other => overlaps(other, block));
     if (overlapping.length === 0) flush();
-    const used = new Set(overlapping.map((other) => other.lane));
+    const used = new Set(overlapping.map(other => other.lane));
     let lane = 0;
     while (used.has(lane)) lane++;
     block.lane = lane;
@@ -60,7 +60,12 @@ function sharesWidth(a: LaneBlock, b: LaneBlock): boolean {
  * otherwise be hidden by it. A zero-length block needs `minHeight` itself. `pxPerMinute` converts
  * the blocks' clock minutes to pixels.
  */
-export function heightClearingMarkers(block: LaneBlock, blocks: readonly LaneBlock[], pxPerMinute: number, minHeight: number): number {
+export function heightClearingMarkers(
+  block: LaneBlock,
+  blocks: readonly LaneBlock[],
+  pxPerMinute: number,
+  minHeight: number,
+): number {
   if (block.top === block.bottom) return minHeight;
   let height = minHeight;
   for (const other of blocks) {

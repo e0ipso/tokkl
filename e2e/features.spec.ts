@@ -22,7 +22,9 @@ test('favorites, split, shortcut help and trash restore', async ({ page }) => {
   // Pin as favorite, then start it with the "1" key.
   await row.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('button', { name: 'Pin as favorite' }).click();
-  await expect(page.getByRole('region', { name: 'Favorites' }).or(page.locator('.favorites'))).toContainText('Pairing session');
+  await expect(page.getByRole('region', { name: 'Favorites' }).or(page.locator('.favorites'))).toContainText(
+    'Pairing session',
+  );
   await timer.getByRole('button', { name: 'Timer mode' }).click();
   await page.locator('body').click({ position: { x: 5, y: 600 } });
   await page.keyboard.press('1');
@@ -33,14 +35,20 @@ test('favorites, split, shortcut help and trash restore', async ({ page }) => {
   await api.backdate((await nextRunning(api, null)).id, 10);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect.poll(() => api.current()).toBeNull();
-  expect((await api.entries()).filter((entry) => entry.description === 'Pairing session')).toHaveLength(2);
+  expect((await api.entries()).filter(entry => entry.description === 'Pairing session')).toHaveLength(2);
 
   // A similar entry on the same past day groups with the manual one; expand the group, then split
   // the 2-hour entry at 9:00. Noon UTC falls on the same day in Europe/Madrid.
-  await api.createEntry({ description: 'Pairing session', start: `${pastDay}T12:00:00Z`, stop: `${pastDay}T12:30:00Z` });
+  await api.createEntry({
+    description: 'Pairing session',
+    start: `${pastDay}T12:00:00Z`,
+    stop: `${pastDay}T12:30:00Z`,
+  });
   await page.reload();
   await page.locator('.count-badge').first().click();
-  const twoHours = page.locator('.entries.nested .entry-line', { has: page.locator('input.entry-duration[value="2:00:00"]') });
+  const twoHours = page.locator('.entries.nested .entry-line', {
+    has: page.locator('input.entry-duration[value="2:00:00"]'),
+  });
   await twoHours.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('button', { name: 'Edit' }).click();
   const editor = page.getByRole('dialog', { name: 'Edit entry' });
@@ -57,7 +65,9 @@ test('favorites, split, shortcut help and trash restore', async ({ page }) => {
   await page.keyboard.press('Escape');
 
   // Delete, let the toast go, restore from the trash.
-  const first = page.locator('.entries.nested .entry-line', { has: page.locator('input.entry-duration[value="1:00:00"]') }).first();
+  const first = page
+    .locator('.entries.nested .entry-line', { has: page.locator('input.entry-duration[value="1:00:00"]') })
+    .first();
   const before = await page.locator('.entries.nested .entry-line').count();
   await first.getByRole('button', { name: 'More actions' }).click();
   await page.getByRole('button', { name: /^Delete/ }).click();
@@ -74,5 +84,7 @@ test('favorites, split, shortcut help and trash restore', async ({ page }) => {
   await timer.getByLabel('Start time').fill('8:30');
   await timer.getByLabel('End time').fill('8:45');
   await timer.getByRole('button', { name: 'Add entry' }).click();
-  await expect(page.locator('.entry-line', { has: page.locator('input[value="Overlapping call"]') }).locator('.overlap-mark')).toBeVisible();
+  await expect(
+    page.locator('.entry-line', { has: page.locator('input[value="Overlapping call"]') }).locator('.overlap-mark'),
+  ).toBeVisible();
 });

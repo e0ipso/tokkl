@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { test as base, expect, request, type APIRequestContext, type APIResponse, type BrowserContext } from '@playwright/test';
+import {
+  test as base,
+  expect,
+  request,
+  type APIRequestContext,
+  type APIResponse,
+  type BrowserContext,
+} from '@playwright/test';
 import { RuntimeErrors } from './runtime-errors.ts';
 import { madridWallClock } from './timer-tests-helpers.ts';
 
@@ -58,7 +65,7 @@ export interface NewUser {
   timezone?: string;
 }
 
-// Cookie-authenticated writes must carry this header (packages/api/src/auth/storageMiddleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 // Preferences that scenarios change, set back to the defaults a new account gets.
@@ -115,7 +122,12 @@ export class TestData {
   readonly workspaceId: number;
   readonly account: Account;
 
-  private constructor(api: APIRequestContext, baseURL: string, me: { id: number; default_workspace_id: number }, account: Account) {
+  private constructor(
+    api: APIRequestContext,
+    baseURL: string,
+    me: { id: number; default_workspace_id: number },
+    account: Account,
+  ) {
     this.api = api;
     this.baseURL = baseURL;
     this.userId = me.id;
@@ -136,10 +148,12 @@ export class TestData {
     const api = await request.newContext({ baseURL });
     const status = await json<{ setup_required: boolean }>(api.get('/api/app/status'));
     if (status.setup_required) {
-      await ok(await api.post('/api/app/setup', {
-        headers: CSRF,
-        data: { setup_code: SETUP_CODE, ...ADMIN_ACCOUNT, timezone: 'Europe/Madrid' },
-      }));
+      await ok(
+        await api.post('/api/app/setup', {
+          headers: CSRF,
+          data: { setup_code: SETUP_CODE, ...ADMIN_ACCOUNT, timezone: 'Europe/Madrid' },
+        }),
+      );
     } else {
       await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: EMAIL, password: PASSWORD } }));
     }
@@ -150,7 +164,9 @@ export class TestData {
   static async login(baseURL: string, account: Account): Promise<TestData> {
     const api = await request.newContext({ baseURL });
     try {
-      await ok(await api.post('/api/app/login', { headers: CSRF, data: { email: account.email, password: account.password } }));
+      await ok(
+        await api.post('/api/app/login', { headers: CSRF, data: { email: account.email, password: account.password } }),
+      );
       return await TestData.signedIn(api, baseURL, account);
     } catch (error) {
       await api.dispose();
@@ -163,16 +179,22 @@ export class TestData {
    * an invite and the new account accepts it. The new account owns a fresh workspace.
    */
   async inviteUser(options: NewUser = {}): Promise<TestData> {
-    const { url } = await json<{ url: string }>(this.api.post('/api/app/admin/invites', {
-      headers: CSRF, data: { role: options.role ?? 'user' },
-    }));
+    const { url } = await json<{ url: string }>(
+      this.api.post('/api/app/admin/invites', {
+        headers: CSRF,
+        data: { role: options.role ?? 'user' },
+      }),
+    );
     const email = options.email ?? `user-${randomUUID().slice(0, 8)}@e2e.example`;
     const account: Account = { email, password: `${email} password`, fullname: options.fullname ?? 'Extra User' };
     const api = await request.newContext({ baseURL: this.baseURL });
     try {
-      await ok(await api.post(url.replace(/^\/invite\//, '/api/app/invites/'), {
-        headers: CSRF, data: { ...account, timezone: options.timezone ?? 'Europe/Madrid' },
-      }));
+      await ok(
+        await api.post(url.replace(/^\/invite\//, '/api/app/invites/'), {
+          headers: CSRF,
+          data: { ...account, timezone: options.timezone ?? 'Europe/Madrid' },
+        }),
+      );
       return await TestData.signedIn(api, this.baseURL, account);
     } catch (error) {
       await api.dispose();
@@ -211,7 +233,7 @@ export class TestData {
 
   /** Deletes these accounts, as an admin, skipping any a scenario has already deleted. */
   async deleteUsers(users: ReadonlyArray<{ userId: number; account: Account }>): Promise<void> {
-    const remaining = new Set((await this.listUsers()).map((user) => user.id));
+    const remaining = new Set((await this.listUsers()).map(user => user.id));
     for (const user of users) {
       if (remaining.has(user.userId)) await this.deleteUser({ id: user.userId, email: user.account.email });
     }
@@ -265,25 +287,38 @@ export class TestData {
   async createZeroLengthEntry(description: string, at: string): Promise<void> {
     const { day, time } = madridWallClock(new Date(at));
     const csv = `Description,Start date,Start time,End date,End time\n${description},${day},${time}:00,${day},${time}:00\n`;
-    const result = await json<{ created: number }>(this.api.post('/api/app/import/toggl-csv', {
-      headers: { ...CSRF, 'Content-Type': 'text/csv' }, data: csv,
-    }));
+    const result = await json<{ created: number }>(
+      this.api.post('/api/app/import/toggl-csv', {
+        headers: { ...CSRF, 'Content-Type': 'text/csv' },
+        data: csv,
+      }),
+    );
     expect(result.created).toBe(1);
   }
 
   async createEntry(entry: SeedEntry): Promise<{ id: number }> {
-    return json(this.api.post(`/api/v9/workspaces/${this.workspaceId}/time_entries`, {
-      headers: CSRF,
-      data: { ...entry, created_with: 'e2e' },
-    }));
+    return json(
+      this.api.post(`/api/v9/workspaces/${this.workspaceId}/time_entries`, {
+        headers: CSRF,
+        data: { ...entry, created_with: 'e2e' },
+      }),
+    );
   }
 
   /** Seeds a no-time entry on `day` (YYYY-MM-DD in the account zone) that lasts `duration` seconds. */
   async createNoTimeEntry(entry: { description: string; day: string; duration: number }): Promise<{ id: number }> {
-    return json(this.api.post(`/api/v9/workspaces/${this.workspaceId}/time_entries`, {
-      headers: CSRF,
-      data: { description: entry.description, all_day: true, start_date: entry.day, duration: entry.duration, created_with: 'e2e' },
-    }));
+    return json(
+      this.api.post(`/api/v9/workspaces/${this.workspaceId}/time_entries`, {
+        headers: CSRF,
+        data: {
+          description: entry.description,
+          all_day: true,
+          start_date: entry.day,
+          duration: entry.duration,
+          created_with: 'e2e',
+        },
+      }),
+    );
   }
 
   async createClient(name: string): Promise<{ id: number }> {
@@ -295,7 +330,11 @@ export class TestData {
   }
 
   /** Saves preferences; the fixture puts every key in BASELINE_PREFERENCES back after the test. */
-  async savePreferences(preferences: { timeofday_format?: string; favorites?: Favorite[]; theme?: 'system' | 'light' | 'dark' }): Promise<void> {
+  async savePreferences(preferences: {
+    timeofday_format?: string;
+    favorites?: Favorite[];
+    theme?: 'system' | 'light' | 'dark';
+  }): Promise<void> {
     await ok(await this.api.post('/api/v9/me/preferences', { headers: CSRF, data: preferences }));
   }
 
@@ -305,11 +344,13 @@ export class TestData {
    */
   async reset(): Promise<void> {
     const ws = `/api/v9/workspaces/${this.workspaceId}`;
-    for (const entry of await this.entries()) await ok(await this.api.delete(`${ws}/time_entries/${entry.id}`, { headers: CSRF }));
+    for (const entry of await this.entries())
+      await ok(await this.api.delete(`${ws}/time_entries/${entry.id}`, { headers: CSRF }));
     await ok(await this.api.delete('/api/app/trash', { headers: CSRF }));
     // A paused chain outlives its entries, because the server keeps it until nothing else runs it.
     const timer = await json<{ revision: number; pause: { paused: boolean } | null }>(this.api.get('/api/app/timer'));
-    if (timer.pause?.paused) await ok(await this.api.post('/api/app/timer/discard', { headers: CSRF, data: { revision: timer.revision } }));
+    if (timer.pause?.paused)
+      await ok(await this.api.post('/api/app/timer/discard', { headers: CSRF, data: { revision: timer.revision } }));
     for (const project of await this.projects()) {
       await ok(await this.api.delete(`${ws}/projects/${project.id}`, { headers: CSRF }));
     }
@@ -334,12 +375,14 @@ export class TestData {
  * account is gone. Call it before a fixture ends the sessions or stops the server.
  */
 export async function leavePages(context: BrowserContext): Promise<void> {
-  await Promise.all(context.pages().map((page) => {
-    const url = page.url();
-    return url.startsWith('http') && new URL(url).pathname !== '/healthz'
-      ? page.goto(new URL('/healthz', url).href).catch(() => {})
-      : undefined;
-  }));
+  await Promise.all(
+    context.pages().map(page => {
+      const url = page.url();
+      return url.startsWith('http') && new URL(url).pathname !== '/healthz'
+        ? page.goto(new URL('/healthz', url).href).catch(() => {})
+        : undefined;
+    }),
+  );
 }
 
 /**
@@ -385,47 +428,57 @@ export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErro
   instanceWide: [false, { scope: 'worker', option: true }],
   // One admin account per worker, invited by the setup admin and deleted when the worker stops.
   // A worker that restarts after a failure gets a new workerIndex, so a new account.
-  account: [async ({ instanceWide }, use, workerInfo) => {
-    if (instanceWide) {
-      workerAccount = ADMIN_ACCOUNT;
-      await use(ADMIN_ACCOUNT);
-      return;
-    }
-    const baseURL = workerInfo.project.use.baseURL!;
-    const setupAdmin = await TestData.open(baseURL);
-    try {
-      const user = await setupAdmin.inviteUser({ role: 'admin', email: workerEmail(workerInfo.workerIndex), fullname: 'E2E User' });
-      await user.close();
-      workerAccount = user.account;
-      try {
-        await use(user.account);
-      } finally {
-        await setupAdmin.deleteUsers([user]);
+  account: [
+    async ({ instanceWide }, use, workerInfo) => {
+      if (instanceWide) {
+        workerAccount = ADMIN_ACCOUNT;
+        await use(ADMIN_ACCOUNT);
+        return;
       }
-    } finally {
-      await setupAdmin.close();
-    }
-  }, { scope: 'worker', auto: true }],
+      const baseURL = workerInfo.project.use.baseURL!;
+      const setupAdmin = await TestData.open(baseURL);
+      try {
+        const user = await setupAdmin.inviteUser({
+          role: 'admin',
+          email: workerEmail(workerInfo.workerIndex),
+          fullname: 'E2E User',
+        });
+        await user.close();
+        workerAccount = user.account;
+        try {
+          await use(user.account);
+        } finally {
+          await setupAdmin.deleteUsers([user]);
+        }
+      } finally {
+        await setupAdmin.close();
+      }
+    },
+    { scope: 'worker', auto: true },
+  ],
   // Automatic, so every scenario starts and ends with an empty account. In the instance project it
   // also deletes the other accounts and pending invites, so a scenario that creates them without
   // the users fixture, and fails before cleaning up, still leaves the setup admin alone.
-  data: [async ({ baseURL, account, instanceWide }, use) => {
-    const data = instanceWide ? await TestData.open(baseURL!) : await TestData.login(baseURL!, account);
-    const resetAll = async () => {
-      if (instanceWide) await data.resetInstance();
-      await data.reset();
-    };
-    try {
-      await resetAll();
-      await use(data);
-    } finally {
+  data: [
+    async ({ baseURL, account, instanceWide }, use) => {
+      const data = instanceWide ? await TestData.open(baseURL!) : await TestData.login(baseURL!, account);
+      const resetAll = async () => {
+        if (instanceWide) await data.resetInstance();
+        await data.reset();
+      };
       try {
         await resetAll();
+        await use(data);
       } finally {
-        await data.close();
+        try {
+          await resetAll();
+        } finally {
+          await data.close();
+        }
       }
-    }
-  }, { auto: true }],
+    },
+    { auto: true },
+  ],
   users: async ({ data, context }, use) => {
     const users = new ExtraUsers(data);
     try {
@@ -437,11 +490,14 @@ export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErro
   },
   // Fails any scenario that hits an uncaught error, a console error or a failed request; see
   // e2e/runtime-errors.ts for the logged-out 403 rule and runtimeErrors.allowResponse.
-  runtimeErrors: [async ({ page }, use, testInfo) => {
-    const errors = new RuntimeErrors(page);
-    await use(errors);
-    await errors.verify(testInfo);
-  }, { auto: true }],
+  runtimeErrors: [
+    async ({ page }, use, testInfo) => {
+      const errors = new RuntimeErrors(page);
+      await use(errors);
+      await errors.verify(testInfo);
+    },
+    { auto: true },
+  ],
 });
 
 export { expect };

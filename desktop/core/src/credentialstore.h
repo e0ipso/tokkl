@@ -9,6 +9,9 @@ namespace Tokkl
 {
 
 struct CredentialResult {
+    Q_GADGET
+
+public:
     enum class Status {
         Ok,
         NotFound, // no secret stored under the key
@@ -16,6 +19,7 @@ struct CredentialResult {
         Unavailable, // locked and not unlocked, or access denied
         Failed, // the store opened but the read or write failed
     };
+    Q_ENUM(Status)
 
     Status status = Status::Failed;
     QString secret; // only for a successful read

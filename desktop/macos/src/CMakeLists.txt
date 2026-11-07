@@ -5,10 +5,10 @@ add_library(tokklmacos STATIC
     loginitem.h
     menubarapp.cpp
     menubarapp.h
-    pomodoroalarm.cpp
-    pomodoroalarm.h
     projectindicator.cpp
     projectindicator.h
+    settingssave.cpp
+    settingssave.h
     settingswindow.cpp
     settingswindow.h
     statusimage.cpp
@@ -63,6 +63,7 @@ qt_add_resources(tokklmacos statushourglass
 # The QtKeychain credential store: the macOS Keychain on macOS. Built
 # elsewhere only when QtKeychain is installed, for its tests.
 if(Qt6Keychain_FOUND)
+    add_subdirectory("${TOKKL_CORE_DIR}/keychain" keychain)
     add_library(tokklkeychain STATIC
         keychaincredentialstore.cpp
         keychaincredentialstore.h
@@ -70,8 +71,7 @@ if(Qt6Keychain_FOUND)
     target_include_directories(tokklkeychain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(tokklkeychain
         PUBLIC
-            tokklcore
-            Qt6Keychain::Qt6Keychain
+            tokklqtkeychain
     )
 endif()
 

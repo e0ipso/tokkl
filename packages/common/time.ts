@@ -65,8 +65,12 @@ export function timeZoneOffsetMs(date: Date, timeZone: string): number {
 
 /** Converts a wall-clock time in `timeZone` to an instant. */
 export function zonedToUtc(
-  year: number, month: number, day: number,
-  hour: number, minute: number, second: number,
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
   timeZone: string,
 ): Date {
   const wall = Date.UTC(year, month - 1, day, hour, minute, second);
@@ -142,12 +146,16 @@ export function addClockMinutes(date: Date, minutes: number, timeZone: string): 
  * one at midnight is on the day that starts there, at 0.
  */
 export function clockSpanOnDay(
-  start: Date, stop: Date, key: string, timeZone: string,
+  start: Date,
+  stop: Date,
+  key: string,
+  timeZone: string,
 ): { top: number; bottom: number } | null {
   const dayStart = startOfDay(key, timeZone).getTime();
   const dayEnd = startOfDay(addDays(key, 1), timeZone).getTime();
   // A range that stops at the day's first instant ended the day before, unless it is empty there.
-  const endsBeforeDay = stop.getTime() < dayStart || (stop.getTime() === dayStart && start.getTime() !== stop.getTime());
+  const endsBeforeDay =
+    stop.getTime() < dayStart || (stop.getTime() === dayStart && start.getTime() !== stop.getTime());
   if (endsBeforeDay || start.getTime() >= dayEnd) return null;
   return {
     top: start.getTime() < dayStart ? 0 : clockMinutes(start, timeZone),
@@ -179,7 +187,5 @@ export function daysBetween(fromKey: string, toKey: string): number {
   const a = parseDateKey(fromKey);
   const b = parseDateKey(toKey);
   if (!a || !b) throw new RangeError('Invalid date');
-  return Math.round(
-    (Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000,
-  );
+  return Math.round((Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000);
 }

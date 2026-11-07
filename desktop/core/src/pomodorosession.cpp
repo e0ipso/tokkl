@@ -202,29 +202,24 @@ bool PomodoroSession::sendWithRevision(void (TimerStateClient::*action)(TimerSta
 
 TimerStateClient::ActionCallback PomodoroSession::finishing()
 {
-    QPointer<PomodoroSession> self(this);
-    const quint64 epoch = m_epoch;
-    return [self, epoch](const TimerActionResult &result) {
-        if (!self || epoch != self->m_epoch) {
-            return;
-        }
-        self->m_pending = false;
+    return m_epoch.guard(this, [this](const TimerActionResult &result) {
+        m_pending = false;
         // The state of an applied action or of a 409 is already adopted and
         // shows what happened. Otherwise the user learns why nothing did, or
         // that the outcome is being settled.
         using Outcome = TimerActionResult::Outcome;
         if (result.outcome == Outcome::Refused || result.outcome == Outcome::Unknown) {
-            self->setMessage(result.error.message);
+            setMessage(result.error.message);
         }
-        self->update();
-    };
+        update();
+    });
 }
 
 void PomodoroSession::onGenerationChanged()
 {
     // Another instance, account or credential: the pending action and its
     // message belonged to the earlier one.
-    ++m_epoch;
+    m_epoch.advance();
     m_pending = false;
     clearMessage();
     update();

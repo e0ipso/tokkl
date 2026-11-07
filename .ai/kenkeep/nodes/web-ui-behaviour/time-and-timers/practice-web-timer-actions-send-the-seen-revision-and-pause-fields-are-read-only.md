@@ -28,7 +28,7 @@ An edit of the running entry, such as the description saved as the user clicks N
 
 Failures become `TimerActionError` (`api/timerState.ts`): kind `conflict` for a 409 whose body is a timer state ("Another device changed the timer first."), and `offline` when fetch rejects. Mutations use `networkMode: 'always'`, so an offline action fails at once instead of waiting and firing late.
 
-In `TimerBar.tsx`, `paused` means a state with `pause.paused` and no running entry. The bar then shows the chain's fields (`pauseDraft` in `pauseView.ts`) in read-only inputs, because Resume starts a clone of what the server holds. The clock is `barSeconds`: the chain's `seconds` plus the clone's elapsed time while it runs, frozen while paused. Plain Stop on a running entry is still a v9 stop; the server ends the chain when the stopped entry is its clone. Chain and session rules live in the server (see `map-timer-state-service-settlement-revision-and-discarded-pomodoro`). Pausing is refused during a session.
+In the timer bar (`timerBarView` in `timerBarView.ts`, read by `TimerBar.tsx`), `paused` means a state with `pause.paused` and no running entry. The bar then shows the chain's fields (`pauseDraft` in `pauseView.ts`) in read-only inputs, because Resume starts a clone of what the server holds. The clock is `barSeconds`: the chain's `seconds` plus the clone's elapsed time while it runs, frozen while paused. Plain Stop on a running entry is still a v9 stop; the server ends the chain when the stopped entry is its clone. Chain and session rules live in the server (see `map-timer-state-service-settlement-revision-and-discarded-pomodoro`). Pausing is refused during a session.
 
 <!-- kk:related:start -->
 # Related

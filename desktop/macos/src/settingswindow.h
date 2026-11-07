@@ -16,6 +16,7 @@ class QPushButton;
 class QRadioButton;
 class QSettings;
 class QSpinBox;
+class MenuBarAppTest;
 
 namespace Tokkl
 {
@@ -25,6 +26,8 @@ class CredentialStore;
 class LoginItem;
 class PomodoroAlarm;
 class PomodoroPreferences;
+class SettingsSave;
+class SoundChoices;
 class Transport;
 
 // Connection settings, the login item and the Pomodoro section. The
@@ -53,20 +56,16 @@ class SettingsWindow : public QWidget
     Q_OBJECT
 
 public:
-    static const QString instanceUrlKey;
-    static const QString authModeKey;
-    static const QString emailKey;
-    static const QString monochromeIconKey;
-
-    // Uses the given transport, store, settings, login item, preferences
-    // and alarm; the window owns none of them. loginItem may be null: the
-    // toggle is hidden. With null preferences the lengths cannot be edited;
-    // with a null alarm Preview plays nothing.
+    // Uses the given transport, store, settings, login item, preferences,
+    // sound choices and alarm; the window owns none of them. loginItem may
+    // be null: the toggle is hidden. With null preferences the lengths
+    // cannot be edited; with a null alarm Preview plays nothing.
     SettingsWindow(Transport *transport,
                    CredentialStore *store,
                    QSettings *settings,
                    LoginItem *loginItem,
                    PomodoroPreferences *preferences,
+                   SoundChoices *sounds,
                    PomodoroAlarm *alarm,
                    QWidget *parent = nullptr);
     ~SettingsWindow() override;
@@ -85,56 +84,16 @@ public:
     // waiting.
     bool save();
 
-    ConnectionSetup *setup() const;
-    QLineEdit *urlField() const;
-    QRadioButton *tokenButton() const;
-    QRadioButton *passwordButton() const;
-    QLineEdit *emailField() const;
-    QLineEdit *secretField() const;
-    QLabel *urlNote() const;
-    QLabel *storeError() const;
-    QPushButton *testButton() const;
-    QLabel *testResult() const;
-    QCheckBox *loginToggle() const;
-    QCheckBox *monochromeToggle() const;
-    QLabel *loginNote() const;
-    QPushButton *saveButton() const;
-
-    QSpinBox *lengthBox(PomodoroField field) const;
-    // The server's message for the field's refused value.
-    QLabel *lengthError(PomodoroField field) const;
-    // Why the lengths cannot be edited.
-    QLabel *lengthsNote() const;
-    // A failed read, or a refused save that names no field.
-    QLabel *pomodoroError() const;
-    QComboBox *soundBox(TransitionKind kind) const;
-    QPushButton *previewButton(TransitionKind kind) const;
-
 Q_SIGNALS:
     // The settings were saved.
     void saved();
 
 private:
-    struct Fields {
-        QString url;
-        QString authMode;
-        QString email;
-        bool monochromeIcon;
-        // The sound id chosen per transition, in TransitionKind order.
-        std::array<QString, 4> sounds;
-    };
-
-    // The lengths' part of a save.
-    enum class LengthsSave {
-        None, // nothing changed, or no account to post to
-        Pending,
-        Failed,
-    };
+    // The app's tests fill and read the fields.
+    friend class ::MenuBarAppTest;
 
     QString authMode() const;
-    void finishSave(quint64 serial, const Fields &fields, bool stored);
-    // Closes once the store has the secret and the lengths are done.
-    void settleSave();
+    void onSaveFinished(bool close);
     void onAccountChanged();
     void updateFields();
     void updateTest();
@@ -149,13 +108,10 @@ private:
     LoginItem *m_loginItem;
     ConnectionSetup *m_setup;
     QPointer<PomodoroPreferences> m_preferences;
+    QPointer<SoundChoices> m_sounds;
     QPointer<PomodoroAlarm> m_alarm;
+    SettingsSave *m_save;
     QTimer m_loadTimer;
-    // Counts saves; a store result for an earlier one is dropped.
-    quint64 m_saveSerial = 0;
-    bool m_saving = false;
-    bool m_secretStored = false;
-    LengthsSave m_lengthsSave = LengthsSave::None;
 
     QLineEdit *m_urlField;
     QLabel *m_urlNote;
@@ -174,8 +130,11 @@ private:
     QPushButton *m_saveButton;
 
     std::array<QSpinBox *, 4> m_lengthBoxes;
+    // The server's message for each field's refused value.
     std::array<QLabel *, 4> m_lengthErrors;
+    // Why the lengths cannot be edited.
     QLabel *m_lengthsNote;
+    // A failed read, or a refused save that names no field.
     QLabel *m_pomodoroError;
     std::array<QComboBox *, 4> m_soundBoxes;
     std::array<QPushButton *, 4> m_previewButtons;

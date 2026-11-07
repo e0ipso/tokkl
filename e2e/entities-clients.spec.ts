@@ -1,18 +1,33 @@
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  EntityApi, entryRow, rowAction, rowActionByKeyboard, rowMenu, timerPickerProjects, yesterday, type Entry,
+  EntityApi,
+  entryRow,
+  rowAction,
+  rowActionByKeyboard,
+  rowMenu,
+  timerPickerProjects,
+  yesterday,
+  type Entry,
 } from './entity-tests-helpers.ts';
 
 /** Everything about an entry that deleting its client must not change. */
 function metadata(entry: Entry) {
   return {
-    id: entry.id, description: entry.description, project_id: entry.project_id, task_id: entry.task_id,
-    tags: entry.tags, billable: entry.billable, start: entry.start, stop: entry.stop,
+    id: entry.id,
+    description: entry.description,
+    project_id: entry.project_id,
+    task_id: entry.task_id,
+    tags: entry.tags,
+    billable: entry.billable,
+    start: entry.start,
+    stop: entry.stop,
   };
 }
 
-test('client name and notes persist, and archiving and restoring the client carries its projects along', async ({ page }) => {
+test('client name and notes persist, and archiving and restoring the client carries its projects along', async ({
+  page,
+}) => {
   await login(page);
   const api = await EntityApi.open(page);
 
@@ -38,7 +53,10 @@ test('client name and notes persist, and archiving and restoring the client carr
   await editor.getByLabel('Notes').fill('Net 45\nPO number required');
   await editor.getByRole('button', { name: 'Save' }).click();
   await expect(editor).toBeHidden();
-  expect(await api.client(client!.id)).toMatchObject({ name: 'Northwind Traders', notes: 'Net 45\nPO number required' });
+  expect(await api.client(client!.id)).toMatchObject({
+    name: 'Northwind Traders',
+    notes: 'Net 45\nPO number required',
+  });
 
   await page.reload();
   const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Northwind Traders' }) });
@@ -53,7 +71,9 @@ test('client name and notes persist, and archiving and restoring the client carr
   // The rename shows on the client's projects.
   await page.getByRole('link', { name: 'Projects' }).click();
   for (const name of ['Portal', 'Audit']) {
-    await expect(page.getByRole('row').filter({ has: page.getByRole('button', { name: `Edit ${name}` }) })).toContainText('Northwind Traders');
+    await expect(
+      page.getByRole('row').filter({ has: page.getByRole('button', { name: `Edit ${name}` }) }),
+    ).toContainText('Northwind Traders');
   }
 
   await page.getByRole('link', { name: 'Clients' }).click();
@@ -63,8 +83,11 @@ test('client name and notes persist, and archiving and restoring the client carr
   await confirm.getByRole('button', { name: 'Archive' }).click();
   await expect(confirm).toBeHidden();
   expect((await api.client(client!.id)).archived).toBe(true);
-  expect((await api.projects()).map((p) => [p.name, p.active]).sort())
-    .toEqual([['Audit', false], ['In house', true], ['Portal', false]]);
+  expect((await api.projects()).map(p => [p.name, p.active]).sort()).toEqual([
+    ['Audit', false],
+    ['In house', true],
+    ['Portal', false],
+  ]);
   await page.getByRole('link', { name: 'Timer' }).click();
   expect(await timerPickerProjects(page)).toEqual(['No project', 'In house']);
 
@@ -73,11 +96,11 @@ test('client name and notes persist, and archiving and restoring the client carr
   await rowAction(page, 'Northwind Traders', 'Restore');
   await expect(page.getByText('Restored Northwind Traders and its projects')).toBeVisible();
   expect((await api.client(client!.id)).archived).toBe(false);
-  expect((await api.projects()).every((p) => p.active)).toBe(true);
+  expect((await api.projects()).every(p => p.active)).toBe(true);
   await page.getByRole('link', { name: 'Timer' }).click();
   expect((await timerPickerProjects(page)).sort()).toEqual(['Audit', 'In house', 'No project', 'Portal']);
   // Archive and restore kept project identities.
-  expect((await api.projects()).map((p) => p.id).sort()).toEqual([portal.id, audit.id, other.id].sort());
+  expect((await api.projects()).map(p => p.id).sort()).toEqual([portal.id, audit.id, other.id].sort());
 });
 
 test('deleting a client keeps project IDs and entry metadata and numbers colliding names', async ({ page }) => {
@@ -90,10 +113,22 @@ test('deleting a client keeps project IDs and entry metadata and numbers collidi
   const website = await api.createProject({ name: 'website', client_id: acme.id, billable: true });
   const intranet = await api.createProject({ name: 'Intranet', client_id: acme.id });
   const seeded = [
-    await api.createEntry({ description: 'Landing page', start: `${day}T08:00:00Z`, stop: `${day}T09:00:00Z`, project_id: website.id, tags: ['design'], billable: true }),
-    await api.createEntry({ description: 'Wiki cleanup', start: `${day}T10:00:00Z`, stop: `${day}T10:45:00Z`, project_id: intranet.id }),
+    await api.createEntry({
+      description: 'Landing page',
+      start: `${day}T08:00:00Z`,
+      stop: `${day}T09:00:00Z`,
+      project_id: website.id,
+      tags: ['design'],
+      billable: true,
+    }),
+    await api.createEntry({
+      description: 'Wiki cleanup',
+      start: `${day}T10:00:00Z`,
+      stop: `${day}T10:45:00Z`,
+      project_id: intranet.id,
+    }),
   ];
-  const before = await Promise.all(seeded.map((entry) => api.entry(entry.id)));
+  const before = await Promise.all(seeded.map(entry => api.entry(entry.id)));
 
   await page.getByRole('link', { name: 'Clients' }).click();
   await rowAction(page, 'Acme', 'Delete');
@@ -106,14 +141,14 @@ test('deleting a client keeps project IDs and entry metadata and numbers collidi
   expect(await api.clients()).toEqual([]);
   const projects = await api.projects();
   // "website (Acme)" is taken (case-insensitively), so the moved project gets the next number.
-  expect(projects.map((p) => [p.id, p.name, p.client_id]).sort((a, b) => Number(a[0]) - Number(b[0]))).toEqual([
+  expect(projects.map(p => [p.id, p.name, p.client_id]).sort((a, b) => Number(a[0]) - Number(b[0]))).toEqual([
     [plain.id, 'Website', null],
     [firstRename.id, 'Website (Acme)', null],
     [website.id, 'website (Acme) 2', null],
     [intranet.id, 'Intranet', null],
   ]);
-  expect(projects.find((p) => p.id === website.id)?.billable).toBe(true);
-  const after = await Promise.all(seeded.map((entry) => api.entry(entry.id)));
+  expect(projects.find(p => p.id === website.id)?.billable).toBe(true);
+  const after = await Promise.all(seeded.map(entry => api.entry(entry.id)));
   expect(after.map(metadata)).toEqual(before.map(metadata));
 
   await page.getByRole('link', { name: 'Timer' }).click();
@@ -161,7 +196,7 @@ test('deleting or archiving a client by keyboard keeps focus in the clients list
   await confirm('Delete Acme?', 'Delete client');
   await expect(page.getByText('No clients match these filters')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1, name: 'Clients' })).toBeFocused();
-  expect((await api.clients()).map((client) => client.name)).toEqual(['Initech']);
+  expect((await api.clients()).map(client => client.name)).toEqual(['Initech']);
 });
 
 // Restoring a client under the Archived filter takes its row, and the focused menu button,
@@ -181,5 +216,8 @@ test('restoring archived clients by keyboard keeps focus in the clients list', a
   await rowActionByKeyboard(page, 'Acme', 'Restore');
   await expect(page.getByText('No clients match these filters')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1, name: 'Clients' })).toBeFocused();
-  expect((await api.clients()).map(({ name, archived }) => [name, archived])).toEqual([['Acme', false], ['Globex', false]]);
+  expect((await api.clients()).map(({ name, archived }) => [name, archived])).toEqual([
+    ['Acme', false],
+    ['Globex', false],
+  ]);
 });

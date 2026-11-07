@@ -1,6 +1,7 @@
 #include "pomodorosounds.h"
 
 #include <QCoreApplication>
+#include <QFileInfo>
 
 namespace Tokkl
 {
@@ -59,6 +60,25 @@ QString defaultSound(TransitionKind kind)
         }
     }
     return QString();
+}
+
+QString chosenSound(QStringView stored, TransitionKind kind)
+{
+    return isSoundId(stored) ? stored.toString() : defaultSound(kind);
+}
+
+QString soundFile(const QString &directory, QStringView soundId)
+{
+    const std::optional<PomodoroSound> sound = pomodoroSound(soundId);
+    if (!sound) {
+        return QString();
+    }
+    QString path = directory;
+    if (!path.endsWith(QLatin1Char('/'))) {
+        path += QLatin1Char('/');
+    }
+    path += sound->fileName;
+    return QFileInfo::exists(path) ? path : QString();
 }
 
 }

@@ -19,7 +19,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`importTogglCsv` in `packages/api/src/services/storageImportCsv.ts` maps the Toggl `User` and `Email` columns. When either column is present, every row belongs to an `ImportUser` (`packages/types/index.ts`): `key`, `user`, `email` and `rows`. `ImportResult` returns those in `users`, and the rows it did not import in `skipped` as `{ rows, reason }`.
+`importTogglCsv` in `packages/api/src/services/importCsv.ts` maps the Toggl `User` and `Email` columns. When either column is present, every row belongs to an `ImportUser` (`packages/types/index.ts`): `key`, `user`, `email` and `rows`. `ImportResult` returns those in `users`, and the rows it did not import in `skipped` as `{ rows, reason }`.
 
 `key` is `JSON.stringify([name, email])`, so User "Alice" with Email "a@x" and User "Alice <a@x>" with no Email stay two users. Treat it as opaque. Pass it back unchanged, and show people `user` and `email` instead.
 

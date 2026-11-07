@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import type { RateLimitCounter, RateLimitsRepository } from '../../src/storage/contracts.ts';
-import { createStorage } from '../../src/storage/index.ts';
+import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createAccountRepositories } from '../../src/storage/repositories/accounts.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
@@ -22,8 +22,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const config = fixture.config.backend === 'sqlite' ? fixture.config : { ...fixture.config, poolMax: 10 };
       const connection = await initializeDatabase(config);
       const runner = createTransactionRunner(connection, db => createAccountRepositories(db, backend));
-      const limits = <T>(work: (repository: RateLimitsRepository) => Promise<T>) => runner.transaction(r => work(r.rateLimits));
-      const reserve = (counters: RateLimitCounter[], now: string, leaseMs = LEASE, windowMs = WINDOW) => limits(r => r.reserve(counters, now, windowMs, leaseMs));
+      const limits = <T>(work: (repository: RateLimitsRepository) => Promise<T>) =>
+        runner.transaction(r => work(r.rateLimits));
+      const reserve = (counters: RateLimitCounter[], now: string, leaseMs = LEASE, windowMs = WINDOW) =>
+        limits(r => r.reserve(counters, now, windowMs, leaseMs));
       /** Failed checks: each reserves, then releases with a failure. */
       const fail = async (counters: RateLimitCounter[], now: string, times = 1) => {
         for (let i = 0; i < times; i++) {
@@ -32,15 +34,30 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await limits(r => r.release(held.reservations, counters, true, now, WINDOW));
         }
       };
-      const live = async (c: RateLimitCounter) => (await connection.db.selectFrom('rate_limit_reservations').select('id').where('key_hash', '=', c.keyHash).execute()).length;
-      const counterRow = (c: RateLimitCounter) => connection.db.selectFrom('rate_limit_counters').selectAll().where('key_hash', '=', c.keyHash).executeTakeFirst();
+      const live = async (c: RateLimitCounter) =>
+        (
+          await connection.db
+            .selectFrom('rate_limit_reservations')
+            .select('id')
+            .where('key_hash', '=', c.keyHash)
+            .execute()
+        ).length;
+      const counterRow = (c: RateLimitCounter) =>
+        connection.db
+          .selectFrom('rate_limit_counters')
+          .selectAll()
+          .where('key_hash', '=', c.keyHash)
+          .executeTakeFirst();
       try {
         await t.test('parallel reservations on one counter never exceed its limit', async () => {
           const one = counter('parallel', 10);
           const results = await Promise.all(Array.from({ length: 30 }, () => reserve([one], at(0))));
-          const granted = results.flatMap(result => result.ok ? result.reservations : []);
+          const granted = results.flatMap(result => (result.ok ? result.reservations : []));
           assert.equal(granted.length, 10);
-          assert.deepEqual(new Set(results.filter(result => !result.ok).map(result => result.ok ? '' : result.reason)), new Set(['slots']));
+          assert.deepEqual(
+            new Set(results.filter(result => !result.ok).map(result => (result.ok ? '' : result.reason))),
+            new Set(['slots']),
+          );
           assert.equal(await live(one), 10);
           await Promise.all(granted.map(id => limits(r => r.release([id], [one], false, at(1), WINDOW))));
           assert.equal(await live(one), 0);
@@ -48,15 +65,27 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         });
 
         await t.test('overlapping counter sets reserved in parallel do not deadlock', async () => {
-          const shared = counter('account', 1000), a = counter('address-a', 1000), b = counter('address-b', 1000);
-          const sets = [[shared, a], [b, shared], [a, b], [b, a, shared], [shared, b, a]];
+          const shared = counter('account', 1000),
+            a = counter('address-a', 1000),
+            b = counter('address-b', 1000);
+          const sets = [
+            [shared, a],
+            [b, shared],
+            [a, b],
+            [b, a, shared],
+            [shared, b, a],
+          ];
           const chosen = Array.from({ length: 40 }, (_, i) => sets[i % sets.length]!);
           const results = await Promise.all(chosen.map(set => reserve(set, at(1000))));
           assert.ok(results.every(result => result.ok));
           const reserved = (c: RateLimitCounter) => chosen.filter(set => set.includes(c)).length;
           for (const c of [shared, a, b]) assert.equal(await live(c), reserved(c));
           // Every failed check charges all its counters in one write.
-          await Promise.all(results.map((result, i) => limits(r => r.release(result.ok ? result.reservations : [], chosen[i]!, true, at(2000), WINDOW))));
+          await Promise.all(
+            results.map((result, i) =>
+              limits(r => r.release(result.ok ? result.reservations : [], chosen[i]!, true, at(2000), WINDOW)),
+            ),
+          );
           for (const c of [shared, a, b]) {
             assert.equal(await live(c), 0);
             assert.equal(Number((await counterRow(c))!.failures), reserved(c));
@@ -64,10 +93,15 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         });
 
         await t.test('a full counter refuses as blocked; failures plus live reservations refuse as slots', async () => {
-          const full = counter('full', 10), other = counter('other', 10);
+          const full = counter('full', 10),
+            other = counter('other', 10);
           await fail([full], at(10_000), 9);
           await fail([full], at(20_000));
-          assert.deepEqual(await reserve([other, full], at(30_000)), { ok: false, reason: 'blocked', resetAts: [at(10_000 + WINDOW)] });
+          assert.deepEqual(await reserve([other, full], at(30_000)), {
+            ok: false,
+            reason: 'blocked',
+            resetAts: [at(10_000 + WINDOW)],
+          });
           assert.equal(await live(other), 0, 'a refused reservation reserves nothing');
           assert.equal(await counterRow(other), undefined, 'and keeps no counter it created');
 
@@ -81,7 +115,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
 
           // An expired lease stops counting, and an expired window starts with no failures.
           assert.equal((await reserve([slots], at(30_000 + LEASE))).ok, true);
-          assert.deepEqual(await reserve([full], at(10_000 + WINDOW - 1)), { ok: false, reason: 'blocked', resetAts: [at(10_000 + WINDOW)] });
+          assert.deepEqual(await reserve([full], at(10_000 + WINDOW - 1)), {
+            ok: false,
+            reason: 'blocked',
+            resetAts: [at(10_000 + WINDOW)],
+          });
           const fresh = await reserve([full], at(10_000 + WINDOW));
           assert.equal(fresh.ok, true);
           const row = (await counterRow(full))!;
@@ -112,7 +150,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.ok(await counterRow(leased));
           assert.equal(await live(leased), 1);
           await fail([counter('tick-2', 5)], at(7 * WINDOW));
-          const counters = (await connection.db.selectFrom('rate_limit_counters').select('key_hash').execute()).map(row => row.key_hash);
+          const counters = (await connection.db.selectFrom('rate_limit_counters').select('key_hash').execute()).map(
+            row => row.key_hash,
+          );
           assert.deepEqual(counters, [hash('tick-2')]);
           assert.equal((await connection.db.selectFrom('rate_limit_reservations').select('id').execute()).length, 0);
         });
@@ -121,15 +161,25 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const durable = counter('durable', 3);
           await fail([durable], at(8 * WINDOW), 3);
         });
-      } finally { await connection.close(); }
+      } finally {
+        await connection.close();
+      }
 
       const reopened = createStorage(await initializeDatabase(config));
       try {
         const durable = counter('durable', 3);
-        assert.deepEqual(await reopened.rateLimits.reserve([durable], at(8 * WINDOW + 1), WINDOW, LEASE), { ok: false, reason: 'blocked', resetAts: [at(9 * WINDOW)] });
+        assert.deepEqual(await reopened.rateLimits.reserve([durable], at(8 * WINDOW + 1), WINDOW, LEASE), {
+          ok: false,
+          reason: 'blocked',
+          resetAts: [at(9 * WINDOW)],
+        });
         await reopened.rateLimits.reset([durable.keyHash], at(8 * WINDOW + 2));
         assert.equal((await reopened.rateLimits.reserve([durable], at(8 * WINDOW + 2), WINDOW, LEASE)).ok, true);
-      } finally { await reopened.close(); }
-    } finally { await fixture.cleanup(); }
+      } finally {
+        await reopened.close();
+      }
+    } finally {
+      await fixture.cleanup();
+    }
   });
 }

@@ -2,21 +2,46 @@ import { request, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD, leavePages } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
-  ACCOUNT, CSRF, LIMIT_WINDOW_SECONDS, SETUP_CODE, acceptInvite, basic, createAccount, createInvite, expect,
-  inviteApiPath, logInThroughForm, meWithSession, retryAfter, sessionCookie, test, withAuth,
+  ACCOUNT,
+  CSRF,
+  LIMIT_WINDOW_SECONDS,
+  SETUP_CODE,
+  acceptInvite,
+  basic,
+  createAccount,
+  createInvite,
+  expect,
+  inviteApiPath,
+  logInThroughForm,
+  meWithSession,
+  retryAfter,
+  sessionCookie,
+  test,
+  withAuth,
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 import { chooseJson, transferFixture } from './transfer-tests-helpers.ts';
 
 // Failed setup and login in the browser, and what logout leaves behind.
 
-test('a wrong setup code shows an error, and a retry with the right code creates the account', async ({ page, runtimeErrors, servers }) => {
+test('a wrong setup code shows an error, and a retry with the right code creates the account', async ({
+  page,
+  runtimeErrors,
+  servers,
+}) => {
   const server = await servers.start({ slot: 0 });
-  runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/setup$/, reason: 'the first attempt sends a wrong setup code' });
+  runtimeErrors.allowResponse({
+    status: 403,
+    method: 'POST',
+    path: /^\/api\/app\/setup$/,
+    reason: 'the first attempt sends a wrong setup code',
+  });
 
   await page.goto(server.baseURL);
   await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
-  await expect(page.getByText("This creates the server's first administrator. You can invite more people afterwards.")).toBeVisible();
+  await expect(
+    page.getByText("This creates the server's first administrator. You can invite more people afterwards."),
+  ).toBeVisible();
   await page.getByLabel('Setup code').fill('WRONG-CODE');
   await page.getByLabel('Name').fill(ACCOUNT.fullname);
   await page.getByLabel('Email').fill(ACCOUNT.email);
@@ -26,7 +51,7 @@ test('a wrong setup code shows an error, and a retry with the right code creates
   await expect(page.getByRole('alert')).toHaveText('Invalid setup code. It is printed in the server log on startup.');
   await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
   expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual({ setup_required: true });
-  expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tokkl_session')).toBe(false);
+  expect((await page.context().cookies(server.baseURL)).some(c => c.name === 'tokkl_session')).toBe(false);
 
   // The form keeps what was typed, so only the code needs fixing.
   await page.getByLabel('Setup code').fill(SETUP_CODE);
@@ -66,16 +91,21 @@ test('a canonical timezone persists across restart and appears in the profile', 
   await page.goto(`${upgraded.baseURL}/settings`);
   const profile = page.getByRole('form', { name: 'Profile' });
   await expect(profile.getByLabel('Timezone')).toHaveValue('Asia/Tokyo');
-  await expect(profile.getByRole('note')).toContainText('This browser is set to Europe/Madrid, but the account uses Asia/Tokyo.');
+  await expect(profile.getByRole('note')).toContainText(
+    'This browser is set to Europe/Madrid, but the account uses Asia/Tokyo.',
+  );
 });
 
-test('account preferences persist across restart and a legacy backup leaves its lengths unchanged', async ({ page, servers }) => {
+test('account preferences persist across restart and a legacy backup leaves its lengths unchanged', async ({
+  page,
+  servers,
+}) => {
   const old = await servers.start({ slot: 0 });
   const { apiToken } = await createAccount(old.baseURL);
-  const fresh = await withAuth(old.baseURL, basic(apiToken, 'api_token'), async (api) => {
+  const fresh = await withAuth(old.baseURL, basic(apiToken, 'api_token'), async api => {
     const response = await api.get('/api/v9/me/preferences');
     expect(response.status()).toBe(200);
-    return await response.json() as Record<string, unknown>;
+    return (await response.json()) as Record<string, unknown>;
   });
   expect(fresh).not.toHaveProperty('pomodoro_enabled');
   expect(fresh).not.toHaveProperty('pomodoro_stop_timer_at_end');
@@ -100,10 +130,12 @@ test('account preferences persist across restart and a legacy backup leaves its 
   const defaults = page.getByRole('group', { name: 'Pomodoro session defaults' });
   await expect(defaults.getByRole('spinbutton', { name: 'Work', exact: true })).toHaveValue('42');
   const backup = transferFixture('restore-full.json');
-  backup.buffer = Buffer.from(JSON.stringify({
-    ...JSON.parse(backup.buffer.toString()),
-    preferences: { ...legacy, pomodoro_focus_interval_in_minutes: 10 },
-  }));
+  backup.buffer = Buffer.from(
+    JSON.stringify({
+      ...JSON.parse(backup.buffer.toString()),
+      preferences: { ...legacy, pomodoro_focus_interval_in_minutes: 10 },
+    }),
+  );
   await chooseJson(page, backup);
   const summary = page.locator('.import-summary').last();
   await expect(summary).toContainText('3 entries to add');
@@ -128,11 +160,23 @@ test('account preferences persist across restart and a legacy backup leaves its 
 });
 
 // Ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.
-test('ten wrong setup codes lock setup on this address, and the setup form says so', async ({ page, runtimeErrors, servers }) => {
+test('ten wrong setup codes lock setup on this address, and the setup form says so', async ({
+  page,
+  runtimeErrors,
+  servers,
+}) => {
   const server = await servers.start({ slot: 0 });
-  runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/setup$/, reason: 'this address sent ten wrong setup codes' });
+  runtimeErrors.allowResponse({
+    status: 429,
+    method: 'POST',
+    path: /^\/api\/app\/setup$/,
+    reason: 'this address sent ten wrong setup codes',
+  });
   for (let i = 0; i < 10; i++) {
-    const wrong = await page.request.post(`${server.baseURL}/api/app/setup`, { headers: CSRF, data: { setup_code: 'WRONG-CODE', ...ACCOUNT } });
+    const wrong = await page.request.post(`${server.baseURL}/api/app/setup`, {
+      headers: CSRF,
+      data: { setup_code: 'WRONG-CODE', ...ACCOUNT },
+    });
     expect(wrong.status()).toBe(403);
   }
 
@@ -142,15 +186,23 @@ test('ten wrong setup codes lock setup on this address, and the setup form says 
   await page.getByLabel('Name').fill(ACCOUNT.fullname);
   await page.getByLabel('Email').fill(ACCOUNT.email);
   await page.getByLabel('Password').fill(ACCOUNT.password);
-  const locked = page.waitForResponse((r) => r.url() === `${server.baseURL}/api/app/setup` && r.status() === 429);
+  const locked = page.waitForResponse(r => r.url() === `${server.baseURL}/api/app/setup` && r.status() === 429);
   await page.getByRole('button', { name: 'Create admin account' }).click();
   expect(retryAfter(await locked)).toBeGreaterThan(LIMIT_WINDOW_SECONDS - 60);
   await expect(page.getByRole('alert')).toHaveText('Too many failed attempts, try again later');
   expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual({ setup_required: true });
 });
 
-test('wrong credentials show an error and keep the browser logged out until a valid retry', async ({ page, runtimeErrors }) => {
-  runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/login$/, reason: 'the first two attempts use a wrong password and an unknown email' });
+test('wrong credentials show an error and keep the browser logged out until a valid retry', async ({
+  page,
+  runtimeErrors,
+}) => {
+  runtimeErrors.allowResponse({
+    status: 403,
+    method: 'POST',
+    path: /^\/api\/app\/login$/,
+    reason: 'the first two attempts use a wrong password and an unknown email',
+  });
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
@@ -167,7 +219,7 @@ test('wrong credentials show an error and keep the browser logged out until a va
   await expect(alert).toHaveText('Incorrect email or password');
 
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
-  expect((await page.context().cookies()).some((c) => c.name === 'tokkl_session')).toBe(false);
+  expect((await page.context().cookies()).some(c => c.name === 'tokkl_session')).toBe(false);
   expect((await page.request.get('/api/v9/me')).status()).toBe(403);
 
   await page.getByLabel('Email').fill(EMAIL);
@@ -178,10 +230,18 @@ test('wrong credentials show an error and keep the browser logged out until a va
   expect((await page.request.get('/api/v9/me')).status()).toBe(200);
 });
 
-test('after logout the old session is refused, and reload or back shows no private data', async ({ page, data, baseURL }) => {
+test('after logout the old session is refused, and reload or back shows no private data', async ({
+  page,
+  data,
+  baseURL,
+}) => {
   const description = 'Private: salary review notes';
   const start = new Date(Date.now() - 2 * 3_600_000);
-  await data.createEntry({ description, start: start.toISOString(), stop: new Date(start.getTime() + 3_600_000).toISOString() });
+  await data.createEntry({
+    description,
+    start: start.toISOString(),
+    stop: new Date(start.getTime() + 3_600_000).toISOString(),
+  });
 
   await login(page);
   await expect(page.locator('.entry-line').first().getByLabel('Description')).toHaveValue(description);
@@ -195,7 +255,7 @@ test('after logout the old session is refused, and reload or back shows no priva
 
   // The server dropped the session itself, not only the browser's cookie.
   expect(await meWithSession(baseURL!, session)).toBe(403);
-  expect((await page.context().cookies()).some((c) => c.name === 'tokkl_session')).toBe(false);
+  expect((await page.context().cookies()).some(c => c.name === 'tokkl_session')).toBe(false);
 
   const expectNoPrivateData = async () => {
     await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
@@ -220,10 +280,24 @@ test('after logout the old session is refused, and reload or back shows no priva
 // other emails from the same address still get the usual answer. Setup codes have their own count.
 // An email that differs only in ASCII case is the same account and shares its count.
 // Every 429 says when to retry; the account's window opened seconds ago, so nearly all of it is left.
-test('ten wrong passwords lock the account on this address, and the login form says so', async ({ page, runtimeErrors, servers }) => {
+test('ten wrong passwords lock the account on this address, and the login form says so', async ({
+  page,
+  runtimeErrors,
+  servers,
+}) => {
   const server = await servers.start({ slot: 0 });
-  runtimeErrors.allowResponse({ status: 429, method: 'POST', path: /^\/api\/app\/login$/, reason: 'the account has ten failed logins from this address' });
-  runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/login$/, reason: 'an unknown email still gets the usual answer' });
+  runtimeErrors.allowResponse({
+    status: 429,
+    method: 'POST',
+    path: /^\/api\/app\/login$/,
+    reason: 'the account has ten failed logins from this address',
+  });
+  runtimeErrors.allowResponse({
+    status: 403,
+    method: 'POST',
+    path: /^\/api\/app\/login$/,
+    reason: 'an unknown email still gets the usual answer',
+  });
   const attempt = async (email: string, password: string) =>
     (await page.request.post(`${server.baseURL}/api/app/login`, { headers: CSRF, data: { email, password } })).status();
 
@@ -239,12 +313,12 @@ test('ten wrong passwords lock the account on this address, and the login form s
   const alert = page.getByRole('alert');
   await page.getByLabel('Email').fill(ACCOUNT.email);
   await page.getByLabel('Password').fill(ACCOUNT.password);
-  const formLocked = page.waitForResponse((r) => r.url() === `${server.baseURL}/api/app/login` && r.status() === 429);
+  const formLocked = page.waitForResponse(r => r.url() === `${server.baseURL}/api/app/login` && r.status() === 429);
   await page.getByRole('button', { name: 'Log in' }).click();
   expectNearlyFullWindow(await formLocked);
   await expect(alert).toHaveText('Too many failed login attempts, try again later');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
-  expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tokkl_session')).toBe(false);
+  expect((await page.context().cookies(server.baseURL)).some(c => c.name === 'tokkl_session')).toBe(false);
   const basicLocked = await page.request.get(`${server.baseURL}/api/v9/me`, {
     headers: { authorization: basic(ACCOUNT.email, ACCOUNT.password) },
   });
@@ -267,7 +341,9 @@ test('ten wrong passwords lock the account on this address, and the login form s
 
 // Login, setup and invite acceptance refuse a request without X-Tokkl-CSRF before doing
 // anything else: 403, no cookie, nothing charged to a limiter, and the invite stays usable.
-test('login, setup and invite acceptance without the CSRF header are refused and charge nothing', async ({ servers }) => {
+test('login, setup and invite acceptance without the CSRF header are refused and charge nothing', async ({
+  servers,
+}) => {
   const server = await servers.start({ slot: 0 });
   const api = await request.newContext({ baseURL: server.baseURL });
   const refused = async (path: string, data: object) => {
@@ -285,7 +361,10 @@ test('login, setup and invite acceptance without the CSRF header are refused and
 
     for (let i = 0; i < 11; i++) await refused('/api/app/login', { email: ACCOUNT.email, password: 'wrong password' });
     await refused('/api/app/login', { email: ACCOUNT.email, password: ACCOUNT.password });
-    const login = await api.post('/api/app/login', { headers: CSRF, data: { email: ACCOUNT.email, password: ACCOUNT.password } });
+    const login = await api.post('/api/app/login', {
+      headers: CSRF,
+      data: { email: ACCOUNT.email, password: ACCOUNT.password },
+    });
     expect(login.status()).toBe(200);
 
     const invite = await createInvite(server.baseURL, apiToken, 'user');
@@ -309,14 +388,15 @@ test('a cross-site form that posts valid credentials does not sign the browser i
   // text/plain sends name=value, so the name carries the JSON up to the last value's opening quote.
   await page.setContent(`<form method="post" enctype="text/plain" action="${loginURL}">
     <input type="hidden" name='${body.slice(0, -2)}' value='"}'></form>`);
-  const response = page.waitForResponse((r) => r.url() === loginURL);
+  const response = page.waitForResponse(r => r.url() === loginURL);
   await page.locator('form').evaluate((form: HTMLFormElement) => form.submit());
   expect((await response).status()).toBe(403);
-  expect((await page.context().cookies(server.baseURL)).some((c) => c.name === 'tokkl_session')).toBe(false);
+  expect((await page.context().cookies(server.baseURL)).some(c => c.name === 'tokkl_session')).toBe(false);
 
   // The same text/plain body with the header logs in, so the header is what refused the form.
   const withHeader = await page.request.post(loginURL, {
-    headers: { ...CSRF, 'content-type': 'text/plain' }, data: `${body.slice(0, -2)}="}\r\n`,
+    headers: { ...CSRF, 'content-type': 'text/plain' },
+    data: `${body.slice(0, -2)}="}\r\n`,
   });
   expect(withHeader.status()).toBe(200);
 });
@@ -352,7 +432,9 @@ test('the sidebar names the signed-in user and follows profile changes', async (
   await profile.getByRole('button', { name: 'Save' }).click();
   await expectShown(name, longName);
   await expectShown(email, recased);
-  expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis')).toBe(true);
+  expect(
+    await name.evaluate(el => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis'),
+  ).toBe(true);
   const navBox = (await nav.boundingBox())!;
   const longBox = (await user.boundingBox())!;
   expect(longBox.x + longBox.width).toBeLessThanOrEqual(navBox.x + navBox.width + 0.5);
@@ -362,7 +444,10 @@ test('the sidebar names the signed-in user and follows profile changes', async (
   await profile.getByRole('button', { name: 'Save' }).click();
   await expect(name).toHaveCount(0);
   await expectShown(email, recased);
-  expect(await (await page.request.get(`${server.baseURL}/api/v9/me`)).json()).toMatchObject({ fullname: '', email: recased });
+  expect(await (await page.request.get(`${server.baseURL}/api/v9/me`)).json()).toMatchObject({
+    fullname: '',
+    email: recased,
+  });
 });
 
 // On a phone the setup and login cards, their fields, buttons and error fit the screen
@@ -373,7 +458,9 @@ test.describe('on a phone', () => {
   const expectCardFits = async (page: Page, labels: string[], button: string) => {
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(scheme === 'dark');
+      await expect
+        .poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches))
+        .toBe(scheme === 'dark');
       await expectFits(page.locator('.auth-card'));
       for (const label of labels) await expectFits(page.getByLabel(label));
       await expectFits(page.getByRole('button', { name: button }));
@@ -387,7 +474,12 @@ test.describe('on a phone', () => {
     await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
     await expectCardFits(page, ['Setup code', 'Name', 'Email', 'Password'], 'Create admin account');
 
-    runtimeErrors.allowResponse({ status: 403, method: 'POST', path: /^\/api\/app\/login$/, reason: 'a wrong password shows the login error' });
+    runtimeErrors.allowResponse({
+      status: 403,
+      method: 'POST',
+      path: /^\/api\/app\/login$/,
+      reason: 'a wrong password shows the login error',
+    });
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
     await page.getByLabel('Email').fill(EMAIL);

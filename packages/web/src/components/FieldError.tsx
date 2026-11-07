@@ -11,7 +11,11 @@ import { useId, useRef, useState } from 'react';
 /** The message under a field, or under a form for an error about the whole form. */
 export function FieldError({ id, message }: { id?: string; message: string | null | undefined }) {
   if (!message) return null;
-  return <p id={id} className="field-error" role="alert">{message}</p>;
+  return (
+    <p id={id} className="field-error" role="alert">
+      {message}
+    </p>
+  );
 }
 
 /** A field and the message to show for it, or a falsy value when it is valid. */
@@ -25,12 +29,13 @@ export function useFieldErrors<K extends string>() {
   const inputId = (key: K) => `${baseId}-${key}`;
   const errorId = (key: K) => `${baseId}-${key}-error`;
 
-  const clear = (key: K) => setErrors((current) => {
-    if (!(key in current)) return current;
-    const next = { ...current };
-    delete next[key];
-    return next;
-  });
+  const clear = (key: K) =>
+    setErrors(current => {
+      if (!(key in current)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
 
   /**
    * Runs the checks in field order: shows the message of every failing field, clears the ones that
@@ -38,7 +43,7 @@ export function useFieldErrors<K extends string>() {
    * Returns true when every check passed.
    */
   const validate = (checks: ReadonlyArray<FieldCheck<K>>): boolean => {
-    setErrors((current) => {
+    setErrors(current => {
       const next = { ...current };
       for (const [key, message] of checks) {
         if (message) next[key] = message;
@@ -54,7 +59,7 @@ export function useFieldErrors<K extends string>() {
   const refFor = (key: K) => {
     let ref = refs.current.get(key);
     if (!ref) {
-      ref = (element) => {
+      ref = element => {
         if (element) elements.current.set(key, element);
         else elements.current.delete(key);
       };

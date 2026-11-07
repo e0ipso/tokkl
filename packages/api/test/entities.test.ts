@@ -6,7 +6,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { canonicalTimeZone } from '@tokkl/common/time';
 import { setup } from './helpers.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
@@ -18,7 +17,7 @@ async function assertEmptyOk(response: Response): Promise<void> {
 }
 
 test('clients CRUD, archive cascades to projects, restore', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const client = await ctx.json('POST', `${base}/clients`, { name: 'ACME', notes: 'net 30' });
   assert.equal(client.status, 200);
@@ -49,58 +48,84 @@ test('clients CRUD, archive cascades to projects, restore', async () => {
   const renamed = await ctx.json('PUT', `${base}/clients/${client.body.id}`, { name: 'ACME Corp' });
   assert.equal(renamed.body.name, 'ACME Corp');
 
-  (await assertEmptyOk(await ctx.request('DELETE', `${base}/clients/${client.body.id}`)));
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/clients/${client.body.id}`));
   const orphan = await ctx.json('GET', `${base}/projects/${project.body.id}`);
   assert.equal(orphan.body.client_id, null);
 });
 
 test('projects: filters, actual_seconds, delete keeps or removes entries', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
-  const a = await ctx.json('POST', `${base}/projects`, { name: 'Alpha', billable: true, rate: 80, currency: 'eur', estimated_hours: 10 });
+  const a = await ctx.json('POST', `${base}/projects`, {
+    name: 'Alpha',
+    billable: true,
+    rate: 80,
+    currency: 'eur',
+    estimated_hours: 10,
+  });
   assert.equal(a.body.currency, 'EUR');
   assert.equal(a.body.estimated_seconds, 36000);
   const b = await ctx.json('POST', `${base}/projects`, { name: 'Beta', active: false });
 
-  await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 5400, project_id: a.body.id });
+  await ctx.json('POST', `${base}/time_entries`, {
+    start: '2026-10-01T08:00:00Z',
+    duration: 5400,
+    project_id: a.body.id,
+  });
   const withTime = await ctx.json('GET', `${base}/projects/${a.body.id}`);
   assert.equal(withTime.body.actual_seconds, 5400);
   assert.equal(withTime.body.actual_hours, 1);
 
   const active = await ctx.json('GET', `${base}/projects?active=true`);
-  assert.deepEqual(active.body.map((p: any) => p.name), ['Alpha']);
+  assert.deepEqual(
+    active.body.map((p: any) => p.name),
+    ['Alpha'],
+  );
   const both = await ctx.json('GET', `${base}/projects`);
   assert.equal(both.body.length, 2);
   const me = await ctx.json('GET', '/api/v9/me/projects');
-  assert.deepEqual(me.body.map((p: any) => p.name), ['Alpha']);
+  assert.deepEqual(
+    me.body.map((p: any) => p.name),
+    ['Alpha'],
+  );
 
   const badColor = await ctx.json('PUT', `${base}/projects/${b.body.id}`, { color: 'red' });
   assert.equal(badColor.status, 400);
 
   const entries = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02');
   assert.equal(entries.body.length, 1);
-  (await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${a.body.id}`)));
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${a.body.id}`));
   const kept = await ctx.json('GET', '/api/v9/me/time_entries?start_date=2026-10-01&end_date=2026-10-02');
   assert.equal(kept.body.length, 1);
   assert.equal(kept.body[0].project_id, null);
 
-  (await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${b.body.id}?teDeletionMode=delete`)));
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${b.body.id}?teDeletionMode=delete`));
   assert.equal((await ctx.json('GET', `${base}/projects/${b.body.id}`)).status, 404);
 });
 
 test('tasks belong to projects and set the project on entries', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const project = await ctx.json('POST', `${base}/projects`, { name: 'Alpha' });
   const other = await ctx.json('POST', `${base}/projects`, { name: 'Other' });
-  const task = await ctx.json('POST', `${base}/projects/${project.body.id}/tasks`, { name: 'Design', estimated_seconds: 3600 });
+  const task = await ctx.json('POST', `${base}/projects/${project.body.id}/tasks`, {
+    name: 'Design',
+    estimated_seconds: 3600,
+  });
   assert.equal(task.status, 200);
   assert.equal(task.body.project_id, project.body.id);
 
-  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 300, task_id: task.body.id });
+  const entry = await ctx.json('POST', `${base}/time_entries`, {
+    start: '2026-10-01T08:00:00Z',
+    duration: 300,
+    task_id: task.body.id,
+  });
   assert.equal(entry.body.project_id, project.body.id);
   const mismatch = await ctx.json('POST', `${base}/time_entries`, {
-    start: '2026-10-01T08:00:00Z', duration: 600, task_id: task.body.id, project_id: other.body.id,
+    start: '2026-10-01T08:00:00Z',
+    duration: 600,
+    task_id: task.body.id,
+    project_id: other.body.id,
   });
   assert.equal(mismatch.status, 400);
 
@@ -110,14 +135,14 @@ test('tasks belong to projects and set the project on entries', async () => {
   const done = await ctx.json('PUT', `${base}/projects/${project.body.id}/tasks/${task.body.id}`, { active: false });
   assert.equal(done.body.active, false);
 
-  (await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${project.body.id}/tasks/${task.body.id}`)));
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/projects/${project.body.id}/tasks/${task.body.id}`));
   const remaining = await ctx.json('GET', `${base}/projects/${project.body.id}/tasks`);
   assert.equal(remaining.body.length, 0);
   assert.equal((await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body.task_id, null);
 });
 
 test('tags: create, rename, duplicate check, delete removes from entries', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const tag = await ctx.json('POST', `${base}/tags`, { name: 'urgent' });
   assert.equal(tag.status, 200);
@@ -125,17 +150,21 @@ test('tags: create, rename, duplicate check, delete removes from entries', async
   assert.equal((await ctx.json('POST', `${base}/tags`, { name: 'URGENT' })).status, 400);
   assert.equal((await ctx.json('POST', `${base}/tags`, { name: '  ' })).status, 400);
 
-  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600, tag_ids: [tag.body.id] });
+  const entry = await ctx.json('POST', `${base}/time_entries`, {
+    start: '2026-10-01T08:00:00Z',
+    duration: 600,
+    tag_ids: [tag.body.id],
+  });
   assert.deepEqual(entry.body.tags, ['urgent']);
   const renamed = await ctx.json('PUT', `${base}/tags/${tag.body.id}`, { name: 'later' });
   assert.equal(renamed.body.name, 'later');
-  (await assertEmptyOk(await ctx.request('DELETE', `${base}/tags/${tag.body.id}`)));
+  await assertEmptyOk(await ctx.request('DELETE', `${base}/tags/${tag.body.id}`));
   const after = await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`);
   assert.deepEqual(after.body.tags, []);
 });
 
 test('preferences merge and /me with related data', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const saved = await ctx.json('POST', '/api/v9/me/preferences', { duration_format: 'decimal', custom_key: 1 });
   assert.equal(saved.body.duration_format, 'decimal');
   const read = await ctx.json('GET', '/api/v9/me/preferences');
@@ -146,13 +175,17 @@ test('preferences merge and /me with related data', async () => {
   assert.equal(related.body.workspaces.length, 1);
   assert.ok(Array.isArray(related.body.projects));
 
-  const ws = await ctx.json('PUT', `/api/v9/workspaces/${ctx.wid}`, { name: 'Home', default_currency: 'usd', default_hourly_rate: 50 });
+  const ws = await ctx.json('PUT', `/api/v9/workspaces/${ctx.wid}`, {
+    name: 'Home',
+    default_currency: 'usd',
+    default_hourly_rate: 50,
+  });
   assert.equal(ws.body.name, 'Home');
   assert.equal(ws.body.default_currency, 'USD');
 });
 
 test('task listings follow Toggl shapes: workspace envelope, project array, paging', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const project = await ctx.json('POST', `${base}/projects`, { name: 'Alpha' });
   for (const name of ['a', 'b', 'c']) await ctx.json('POST', `${base}/projects/${project.body.id}/tasks`, { name });
@@ -175,7 +208,7 @@ test('task listings follow Toggl shapes: workspace envelope, project array, pagi
 });
 
 test('client_id null clears a project client; legacy cid still works', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const client = await ctx.json('POST', `${base}/clients`, { name: 'ACME' });
   const project = await ctx.json('POST', `${base}/projects`, { name: 'Site', cid: client.body.id });
@@ -197,7 +230,7 @@ const BAD_RATES: Array<[string, string]> = [
 ];
 
 test('workspace default_hourly_rate rejects overflow, negatives, non-numbers and values above the cap', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}`;
   await ctx.json('PUT', url, { name: 'Home', default_hourly_rate: 50 });
 
@@ -219,7 +252,7 @@ test('workspace default_hourly_rate rejects overflow, negatives, non-numbers and
 });
 
 test('project rate rejects bad values on create and update and keeps the stored rate', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const project = await ctx.json('POST', `${base}/projects`, { name: 'Alpha', rate: 80 });
 
@@ -232,7 +265,10 @@ test('project rate rejects bad values on create and update and keeps the stored 
     assert.equal(stored.body.rate, 80, raw);
     assert.equal(stored.body.name, 'Alpha', raw);
   }
-  assert.deepEqual((await ctx.json('GET', `${base}/projects`)).body.map((p: any) => p.name), ['Alpha']);
+  assert.deepEqual(
+    (await ctx.json('GET', `${base}/projects`)).body.map((p: any) => p.name),
+    ['Alpha'],
+  );
 
   for (const [i, rate] of [0, 42.5, 1e9, null].entries()) {
     const created = await ctx.json('POST', `${base}/projects`, { name: `Rate ${i}`, rate });
@@ -245,17 +281,22 @@ test('project rate rejects bad values on create and update and keeps the stored 
 });
 
 test('the largest accepted rates keep report amounts finite', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   await ctx.json('PUT', base, { default_hourly_rate: 1e9 });
   const capped = await ctx.json('POST', `${base}/projects`, { name: 'Capped', billable: true, rate: 1e9 });
   const inherits = await ctx.json('POST', `${base}/projects`, { name: 'Default rate', billable: true });
   // The longest entry allowed (999 h) on each project.
   for (const project of [capped.body, inherits.body]) {
-    await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T00:00:00Z', duration: 999 * 3600, project_id: project.id });
+    await ctx.json('POST', `${base}/time_entries`, {
+      start: '2026-10-01T00:00:00Z',
+      duration: 999 * 3600,
+      project_id: project.id,
+    });
   }
   const totals = await ctx.json('POST', `/reports/api/v3/workspace/${ctx.wid}/search/time_entries/totals`, {
-    start_date: '2026-10-01', end_date: '2026-10-01',
+    start_date: '2026-10-01',
+    end_date: '2026-10-01',
   });
   assert.equal(totals.status, 200);
   assert.equal(totals.body.billable_amount_in_cents, 2 * 999 * 1e9 * 100);
@@ -264,94 +305,130 @@ test('the largest accepted rates keep report amounts finite', async () => {
 
 // Project and task totals read the partial live-entry indexes.
 test('project and task totals use the live-entry indexes and count running, not deleted, entries', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const project = await ctx.json('POST', `${base}/projects`, { name: 'Alpha' });
   const task = await ctx.json('POST', `${base}/projects/${project.body.id}/tasks`, { name: 'Design' });
   const entries = `${base}/time_entries`;
   await ctx.json('POST', entries, { start: '2026-10-01T08:00:00Z', duration: 3600, task_id: task.body.id });
-  const deleted = await ctx.json('POST', entries, { start: '2026-10-01T10:00:00Z', duration: 1800, task_id: task.body.id });
-  (await assertEmptyOk(await ctx.request('DELETE', `${entries}/${deleted.body.id}`)));
+  const deleted = await ctx.json('POST', entries, {
+    start: '2026-10-01T10:00:00Z',
+    duration: 1800,
+    task_id: task.body.id,
+  });
+  await assertEmptyOk(await ctx.request('DELETE', `${entries}/${deleted.body.id}`));
   const runningSince = Math.floor(Date.now() / 1000) - 120;
-  await ctx.json('POST', entries, { start: new Date(runningSince * 1000).toISOString(), duration: -1, task_id: task.body.id });
+  await ctx.json('POST', entries, {
+    start: new Date(runningSince * 1000).toISOString(),
+    duration: -1,
+    task_id: task.body.id,
+  });
 
   const before = Math.floor(Date.now() / 1000);
   const projectRes = await ctx.json('GET', `${base}/projects/${project.body.id}`);
   const taskRes = await ctx.json('GET', `${base}/projects/${project.body.id}/tasks/${task.body.id}`);
   const after = Math.floor(Date.now() / 1000);
 
-
-  for (const [actual, scale] of [[projectRes.body.actual_seconds, 1], [taskRes.body.tracked_seconds, 1000]] as const) {
-    assert.ok(actual >= (3600 + before - runningSince) * scale && actual <= (3600 + after - runningSince) * scale, String(actual));
+  for (const [actual, scale] of [
+    [projectRes.body.actual_seconds, 1],
+    [taskRes.body.tracked_seconds, 1000],
+  ] as const) {
+    assert.ok(
+      actual >= (3600 + before - runningSince) * scale && actual <= (3600 + after - runningSince) * scale,
+      String(actual),
+    );
   }
-
 });
 
 test('SQLite physical live-entry indexes exist', async () => {
-  const indexes=await sqliteIndexes(await openDatabase(':memory:'));
+  const indexes = await sqliteIndexes(await openDatabase(':memory:'));
   assert.ok(indexes.includes('time_entries_project_live'));
   assert.ok(indexes.includes('time_entries_task_live'));
 });
 
 test('SQLite legacy schema version 1 is refused without modifying its data', async () => {
- const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
- try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,1))old.exec(migration); old.exec('PRAGMA user_version=1'); old.close();
- const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
- } finally {rmSync(dir,{recursive:true,force:true});}
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
+  const path = join(dir, 'legacy.sqlite');
+  try {
+    const old = new DatabaseSync(path);
+    old.function('canonical_time_zone', { deterministic: true }, value => value);
+    for (const migration of MIGRATIONS.slice(0, 1)) old.exec(migration);
+    old.exec('PRAGMA user_version=1');
+    old.close();
+    const before = readFileSync(path);
+    await assert.rejects(openDatabase(path), /unsupported-schema/);
+    assert.deepEqual(readFileSync(path), before);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('SQLite legacy schema version 6 is refused without modifying its data', async () => {
- const dir=mkdtempSync(join(tmpdir(),'tokkl-refusal-')); const path=join(dir,'legacy.sqlite');
- try { const old=new DatabaseSync(path); old.function('canonical_time_zone',{deterministic:true},value=>value); for(const migration of MIGRATIONS.slice(0,6))old.exec(migration); old.exec('PRAGMA user_version=6'); old.close();
- const before=readFileSync(path); await assert.rejects(openDatabase(path),/unsupported-schema/); assert.deepEqual(readFileSync(path),before);
- } finally {rmSync(dir,{recursive:true,force:true});}
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
+  const path = join(dir, 'legacy.sqlite');
+  try {
+    const old = new DatabaseSync(path);
+    old.function('canonical_time_zone', { deterministic: true }, value => value);
+    for (const migration of MIGRATIONS.slice(0, 6)) old.exec(migration);
+    old.exec('PRAGMA user_version=6');
+    old.close();
+    const before = readFileSync(path);
+    await assert.rejects(openDatabase(path), /unsupported-schema/);
+    assert.deepEqual(readFileSync(path), before);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // Deleting a client renames colliding projects instead of failing or merging them.
 test('deleting a client renames projects whose names collide with unassigned ones', async () => {
-  const ctx = (await setup());
+  const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
-  const project = (body: Record<string, unknown>) => ctx.json('POST', `${base}/projects`, body).then((r) => r.body);
-  const client = (name: string) => ctx.json('POST', `${base}/clients`, { name }).then((r) => r.body);
+  const project = (body: Record<string, unknown>) => ctx.json('POST', `${base}/projects`, body).then(r => r.body);
+  const client = (name: string) => ctx.json('POST', `${base}/clients`, { name }).then(r => r.body);
   const nameOf = async (id: number) => (await ctx.json('GET', `${base}/projects/${id}`)).body.name;
-  const deleteClient = async (id: number) => (await assertEmptyOk(await ctx.request('DELETE', `${base}/clients/${id}`)));
+  const deleteClient = async (id: number) => await assertEmptyOk(await ctx.request('DELETE', `${base}/clients/${id}`));
 
   const unassigned = await project({ name: 'Website' });
   const acme = await client('ACME');
   const acmeSite = await project({ name: 'website', client_id: acme.id, rate: 120 });
-  const entry = await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-01T08:00:00Z', duration: 600, project_id: acmeSite.id });
-  (await deleteClient(acme.id));
+  const entry = await ctx.json('POST', `${base}/time_entries`, {
+    start: '2026-10-01T08:00:00Z',
+    duration: 600,
+    project_id: acmeSite.id,
+  });
+  await deleteClient(acme.id);
   const renamed = await ctx.json('GET', `${base}/projects/${acmeSite.id}`);
   assert.equal(renamed.body.name, 'website (ACME)');
   assert.equal(renamed.body.client_id, null);
   assert.equal(renamed.body.rate, 120);
   assert.equal(renamed.body.actual_seconds, 600);
   assert.equal((await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body.project_id, acmeSite.id);
-  assert.equal((await nameOf(unassigned.id)), 'Website');
+  assert.equal(await nameOf(unassigned.id), 'Website');
 
   // The same client name again: "Website (ACME)" is taken now, so a number is appended.
   const acmeAgain = await client('ACME');
   const second = await project({ name: 'Website', client_id: acmeAgain.id });
-  (await deleteClient(acmeAgain.id));
-  assert.equal((await nameOf(second.id)), 'Website (ACME) 2');
+  await deleteClient(acmeAgain.id);
+  assert.equal(await nameOf(second.id), 'Website (ACME) 2');
 
   // Two clients with the same project name: the first freed name wins, the second gets a suffix.
   const one = await client('One');
   const two = await client('Two');
   const oneSite = await project({ name: 'Shop', client_id: one.id });
   const twoSite = await project({ name: 'Shop', client_id: two.id });
-  (await deleteClient(one.id));
-  assert.equal((await nameOf(oneSite.id)), 'Shop');
-  (await deleteClient(two.id));
-  assert.equal((await nameOf(twoSite.id)), 'Shop (Two)');
+  await deleteClient(one.id);
+  assert.equal(await nameOf(oneSite.id), 'Shop');
+  await deleteClient(two.id);
+  assert.equal(await nameOf(twoSite.id), 'Shop (Two)');
 
   // Generated names stay within the 255 character limit.
   const long = 'x'.repeat(255);
   await project({ name: long });
   const big = await client('Big');
   const longSite = await project({ name: long, client_id: big.id });
-  (await deleteClient(big.id));
-  const clipped = (await nameOf(longSite.id));
+  await deleteClient(big.id);
+  const clipped = await nameOf(longSite.id);
   assert.equal(clipped, `${'x'.repeat(249)} (Big)`);
   assert.equal(clipped.length, 255);
 

@@ -16,7 +16,7 @@
 #   check.sh
 #
 # GNOME Keyring refuses to run as root, so the build and tests run as an
-# unprivileged user. Every test starts its own dbus-daemon; the user's session
+# unprivileged user. Every bus test starts its own dbus-daemon; the user's session
 # bus and keyring are never reached. The repository is mounted read-only, so
 # the version comes from the root package.json and the build stays in the
 # container. CONTAINER_ENGINE defaults to docker. The image is pinned by

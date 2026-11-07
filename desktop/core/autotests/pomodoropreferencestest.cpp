@@ -101,6 +101,16 @@ class PomodoroPreferencesTest : public QObject
     }
 
 private Q_SLOTS:
+    // The settings pages read the ranges and defaults from here.
+    void limitsAreTheConfigs()
+    {
+        const QVariantMap limits = PomodoroPreferences::limits();
+        QCOMPARE(limits.value(QStringLiteral("workMinutes")).toMap().value(QStringLiteral("max")).toInt(), PomodoroConfig::workMinutesRange.max);
+        QCOMPARE(limits.value(QStringLiteral("shortRestMinutes")).toMap().value(QStringLiteral("max")).toInt(), 60);
+        QCOMPARE(limits.value(QStringLiteral("longRestEvery")).toMap().value(QStringLiteral("default")).toInt(), 4);
+        QCOMPARE(limits.value(QStringLiteral("longRestMinutes")).toMap().value(QStringLiteral("min")).toInt(), 1);
+    }
+
     void readsAndSavesOnlyChangedKeys()
     {
         Fixture f;

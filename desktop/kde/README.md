@@ -518,6 +518,18 @@ the files it writes. A second run writes the same bytes. Plasma keeps the
 widget it has loaded, so after installing new icons restart plasmashell or log
 out and back in before checking them.
 
+## Translations
+
+The QML strings use KI18n under the catalogue
+`plasma_applet_com.canpicasoft.tokkl`. The core's C++ messages, such as
+connection states and API errors, use Qt's `tr()` and form the Qt catalogue
+`tokklcore_qt`. `Messages.sh` extracts both. The backend module loads
+`locale/<lang>/LC_MESSAGES/tokklcore_qt.qm` from the XDG data dirs through
+ECM's `ecm_create_qm_loader`, and the build installs `poqm/<lang>/*.po` as
+`.qm` files when the source has a `poqm/` directory. No translations ship yet,
+so the widget shows the English text. `desktop/core/src/translations.h`
+describes the catalogues of all three companions.
+
 ## Staged install
 
 ```sh

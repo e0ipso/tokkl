@@ -15,7 +15,8 @@ export function noTimeDuration(text: string, resolution: number): { seconds: num
 /** The same check for a duration already in seconds, as a duration field commits it. */
 export function noTimeSeconds(parsed: number, resolution: number): { seconds: number; error?: string } {
   const seconds = snapDuration(parsed, resolution);
-  if (seconds <= 0) return { seconds, error: `The duration rounds to zero at the ${resolution}-minute time resolution` };
+  if (seconds <= 0)
+    return { seconds, error: `The duration rounds to zero at the ${resolution}-minute time resolution` };
   if (seconds > MAX_ALL_DAY_SECONDS) return { seconds, error: 'No-time entries can be at most 24 hours' };
   return { seconds };
 }

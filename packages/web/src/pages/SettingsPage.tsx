@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMe, usePreferences, useWorkspace } from '../api/hooks.ts';
+import { useMe, usePreferences, useWorkspace } from '../api/account.ts';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { logOut } from '../lib/session.ts';
@@ -35,7 +35,11 @@ function SessionSection() {
       .finally(() => window.location.reload());
   };
   return (
-    <SettingsCard id="session" title="Session" intro="Log out of this browser. To log out everywhere else, change your password.">
+    <SettingsCard
+      id="session"
+      title="Session"
+      intro="Log out of this browser. To log out everywhere else, change your password."
+    >
       <button type="button" className="button button-ghost" disabled={busy} onClick={logout}>
         <Icon name="logout" size={16} /> Log out
       </button>
@@ -54,23 +58,43 @@ export function SettingsPage() {
         <h1>Settings</h1>
       </header>
       <nav className="settings-nav" aria-label="Settings sections">
-        {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
+        {SECTIONS.map(([id, label]) => (
+          <a key={id} href={`#${id}`}>
+            {label}
+          </a>
+        ))}
       </nav>
 
       {me ? <ProfileSection me={me} /> : null}
       <PasswordSection />
-      {prefs ? <PreferencesSection prefs={prefs} /> : (
+      {prefs ? (
+        <PreferencesSection prefs={prefs} />
+      ) : (
         <SettingsCard id="preferences" title="Preferences">
           {prefsError ? (
-            <LoadError message={`Could not load preferences: ${prefsError.message}`} onRetry={() => void refetchPrefs()} className="is-compact" />
-          ) : <Loading label="Loading preferences…" className="is-compact" />}
+            <LoadError
+              message={`Could not load preferences: ${prefsError.message}`}
+              onRetry={() => void refetchPrefs()}
+              className="is-compact"
+            />
+          ) : (
+            <Loading label="Loading preferences…" className="is-compact" />
+          )}
         </SettingsCard>
       )}
-      {workspace ? <WorkspaceSection workspace={workspace} /> : (
+      {workspace ? (
+        <WorkspaceSection workspace={workspace} />
+      ) : (
         <SettingsCard id="workspace" title="Workspace">
           {workspaceError ? (
-            <LoadError message={`Could not load the workspace: ${workspaceError.message}`} onRetry={() => void refetchWorkspace()} className="is-compact" />
-          ) : <Loading label="Loading the workspace…" className="is-compact" />}
+            <LoadError
+              message={`Could not load the workspace: ${workspaceError.message}`}
+              onRetry={() => void refetchWorkspace()}
+              className="is-compact"
+            />
+          ) : (
+            <Loading label="Loading the workspace…" className="is-compact" />
+          )}
         </SettingsCard>
       )}
       {me ? <ApiTokenSection me={me} /> : null}

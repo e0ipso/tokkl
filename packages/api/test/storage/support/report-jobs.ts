@@ -1,12 +1,13 @@
-import type { ReportFilter } from '../../../src/services/storageReports.ts';
-import type { ReportJob } from '../../../src/services/storageReportJobs.ts';
+import type { ReportFilter } from '../../../src/domain/reportCommands.ts';
+import type { ReportJob } from '../../../src/services/reportJobs.ts';
 
 export const range: ReportFilter = { startDate: '2026-10-01', endDate: '2026-10-31' };
 export function jobs(filter: ReportFilter): ReportJob[] {
   return [
     { kind: 'app-report', filter, grouping: 'project', sub: 'description' },
     { kind: 'app-report', filter, grouping: 'tag', sub: 'client' },
-    { kind: 'app-weekly', filter, rows: 'clients' }, { kind: 'app-weekly', filter, rows: 'projects' },
+    { kind: 'app-weekly', filter, rows: 'clients' },
+    { kind: 'app-weekly', filter, rows: 'projects' },
     { kind: 'app-entries', filter, sort: 'description', dir: 'asc', pageSize: 2, page: 99 },
     { kind: 'app-detailed-csv', filter, sort: 'date', dir: 'desc', durationFormat: 'decimal' },
     { kind: 'app-summary-csv', filter, grouping: 'project', sub: 'description', durationFormat: 'classic' },

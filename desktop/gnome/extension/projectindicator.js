@@ -15,7 +15,7 @@
 // off. The ring and the outline never fade. The label names the project,
 // so the shape is never the only signal.
 
-import {chosenProjectLabel} from './timer1.js';
+import { chosenProjectLabel } from './timer1.js';
 
 // One pulse of the fill, from full opacity down to PULSE_MINIMUM and back,
 // as in the web app.
@@ -45,10 +45,8 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/i;
  */
 export function describeIndicator(state, enableAnimations, _) {
     let kind = 'empty';
-    if (state.indicatorState === 'project')
-        kind = 'filled';
-    else if (state.indicatorState === 'none')
-        kind = 'outline';
+    if (state.indicatorState === 'project') kind = 'filled';
+    else if (state.indicatorState === 'none') kind = 'outline';
     const known = kind !== 'empty' || state.indicatorState === 'pending';
     const round = Boolean(state.running);
     return {
@@ -69,10 +67,9 @@ export function describeIndicator(state, enableAnimations, _) {
  * @returns {{red: number, green: number, blue: number}}
  */
 export function fillColor(color, ink) {
-    if (!HEX_COLOR.test(color))
-        return {red: ink.red, green: ink.green, blue: ink.blue};
+    if (!HEX_COLOR.test(color)) return { red: ink.red, green: ink.green, blue: ink.blue };
     const value = Number.parseInt(color.slice(1), 16);
-    return {red: value >> 16 & 0xff, green: value >> 8 & 0xff, blue: value & 0xff};
+    return { red: (value >> 16) & 0xff, green: (value >> 8) & 0xff, blue: value & 0xff };
 }
 
 /**
@@ -89,7 +86,7 @@ export function fillColor(color, ink) {
  * @returns {{x: number, y: number, size: number, radius: number, line: number, dash: number}}
  */
 export function shapeGeometry(width, height, round, scale) {
-    const size = Math.round(Math.min(width, height) * 5 / 8);
+    const size = Math.round((Math.min(width, height) * 5) / 8);
     return {
         x: Math.round((width - size) / 2),
         y: Math.round((height - size) / 2),
@@ -109,5 +106,5 @@ export function shapeGeometry(width, height, round, scale) {
  */
 export function pulseOpacity(elapsedMs) {
     const phase = (elapsedMs % PULSE_PERIOD_MS) / PULSE_PERIOD_MS;
-    return PULSE_MINIMUM + (1 - PULSE_MINIMUM) * (1 + Math.cos(2 * Math.PI * phase)) / 2;
+    return PULSE_MINIMUM + ((1 - PULSE_MINIMUM) * (1 + Math.cos(2 * Math.PI * phase))) / 2;
 }

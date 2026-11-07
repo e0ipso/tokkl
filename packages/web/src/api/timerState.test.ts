@@ -3,22 +3,45 @@ import assert from 'node:assert/strict';
 import { QueryClient, onlineManager } from '@tanstack/react-query';
 import type { TimeEntry, TimerState } from './types.ts';
 import {
-  TIMER_ACTION_KEY, TIMER_CONFLICT_MESSAGE, TIMER_OFFLINE_MESSAGE, TimerActionError, explainTimerActionError, isTimerState,
-  planTimerUpdate, revisionToSend, settleOtherWrites,
+  TIMER_ACTION_KEY,
+  TIMER_CONFLICT_MESSAGE,
+  TIMER_OFFLINE_MESSAGE,
+  TimerActionError,
+  explainTimerActionError,
+  isTimerState,
+  planTimerUpdate,
+  revisionToSend,
+  settleOtherWrites,
 } from './timerState.ts';
 import { ApiError } from './client.ts';
 import { clockOffset, serverNow } from './serverClock.ts';
 
 const entry: TimeEntry = {
-  id: 7, workspace_id: 1, project_id: null, task_id: null, billable: false, start: '2026-10-27T10:00:00.000Z',
-  stop: null, duration: -1, description: 'Write', tags: [], tag_ids: [], at: '2026-10-27T10:00:00.000Z', server_deleted_at: null,
+  id: 7,
+  workspace_id: 1,
+  project_id: null,
+  task_id: null,
+  billable: false,
+  start: '2026-10-27T10:00:00.000Z',
+  stop: null,
+  duration: -1,
+  description: 'Write',
+  tags: [],
+  tag_ids: [],
+  at: '2026-10-27T10:00:00.000Z',
+  server_deleted_at: null,
   all_day: false,
 };
 
 function state(revision: number, overrides: Partial<TimerState> = {}): TimerState {
   return {
-    revision, server_time: '2026-10-27T10:00:05.000Z', running_entry: entry, pause: null, pomodoro: null,
-    discarded_pomodoro: null, ...overrides,
+    revision,
+    server_time: '2026-10-27T10:00:05.000Z',
+    running_entry: entry,
+    pause: null,
+    pomodoro: null,
+    discarded_pomodoro: null,
+    ...overrides,
   };
 }
 
@@ -76,8 +99,13 @@ test('a 409 carrying a state explains itself and hands the state over; other fai
 /** Starts a mutation in `qc` that stays pending until the returned function is called. */
 function pendingWrite(qc: QueryClient, mutationKey?: readonly unknown[]): () => void {
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  void qc.getMutationCache().build(qc, { mutationKey, mutationFn: () => held }).execute(undefined);
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  void qc
+    .getMutationCache()
+    .build(qc, { mutationKey, mutationFn: () => held })
+    .execute(undefined);
   return release;
 }
 
@@ -90,8 +118,11 @@ test('a write in flight, such as an edit of the running entry, is waited for, be
   const qc = new QueryClient();
   const release = pendingWrite(qc);
   let settled = false;
-  const waiting = settleOtherWrites(qc).then((waited) => { settled = true; return waited; });
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  const waiting = settleOtherWrites(qc).then(waited => {
+    settled = true;
+    return waited;
+  });
+  await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(settled, false, 'still waiting while the edit is pending');
   release();
   assert.equal(await waiting, true);
@@ -107,42 +138,58 @@ test('another timer action in flight is not waited for, so an action never waits
   }
 });
 
-test('a write held for the connection fails the action as offline instead of sending it after reconnect', async (t) => {
+test('a write held for the connection fails the action as offline instead of sending it after reconnect', async t => {
   const qc = new QueryClient();
   onlineManager.setOnline(false);
   t.after(() => onlineManager.setOnline(true));
   const release = pendingWrite(qc);
   try {
-    await assert.rejects(settleOtherWrites(qc), (error: unknown) =>
-      error instanceof TimerActionError && error.kind === 'offline' && error.message === TIMER_OFFLINE_MESSAGE);
+    await assert.rejects(
+      settleOtherWrites(qc),
+      (error: unknown) =>
+        error instanceof TimerActionError && error.kind === 'offline' && error.message === TIMER_OFFLINE_MESSAGE,
+    );
   } finally {
     release();
   }
 });
 
-test('a write that the connection holds while the action waits for it fails the action as offline', async (t) => {
+test('a write that the connection holds while the action waits for it fails the action as offline', async t => {
   const qc = new QueryClient();
   t.after(() => onlineManager.setOnline(true));
   // The edit fails once and is held for its retry while the browser is offline.
   let calls = 0;
-  void qc.getMutationCache().build(qc, {
-    retry: 1, retryDelay: 0,
-    mutationFn: () => {
-      calls += 1;
-      if (calls === 1) {
-        onlineManager.setOnline(false);
-        return Promise.reject(new TypeError('Failed to fetch'));
-      }
-      return Promise.resolve();
-    },
-  }).execute(undefined);
-  await assert.rejects(settleOtherWrites(qc), (error: unknown) => error instanceof TimerActionError && error.kind === 'offline');
+  void qc
+    .getMutationCache()
+    .build(qc, {
+      retry: 1,
+      retryDelay: 0,
+      mutationFn: () => {
+        calls += 1;
+        if (calls === 1) {
+          onlineManager.setOnline(false);
+          return Promise.reject(new TypeError('Failed to fetch'));
+        }
+        return Promise.resolve();
+      },
+    })
+    .execute(undefined);
+  await assert.rejects(
+    settleOtherWrites(qc),
+    (error: unknown) => error instanceof TimerActionError && error.kind === 'offline',
+  );
 });
 
 const phase = (start: string) => ({
-  work_minutes: 25, short_rest_minutes: 5, long_rest_minutes: 15, long_rest_every: 4,
+  work_minutes: 25,
+  short_rest_minutes: 5,
+  long_rest_minutes: 15,
+  long_rest_every: 4,
   phase: { kind: 'work' as const, start, completed: 0, planned_end: '2026-10-27T10:25:00.000Z' },
-  upcoming_phase: 'shortRest' as const, transition: 'workToShortRest' as const, number: 1, entry_id: 7,
+  upcoming_phase: 'shortRest' as const,
+  transition: 'workToShortRest' as const,
+  number: 1,
+  entry_id: 7,
   pomodoro_start: start,
 });
 
@@ -157,11 +204,23 @@ test('when the phase or pause changed meanwhile, the action keeps the revision t
   assert.equal(revisionToSend(seen, state(6, { pomodoro: phase('2026-10-27T10:26:00.000Z') })), 4);
   assert.equal(revisionToSend(seen, state(6)), 4, 'the session ended');
   const pause = {
-    paused: true, seconds: 60, workspace_id: 1, description: '', project_id: null, task_id: null, tag_ids: [], tags: [],
-    billable: false, clone_entry_id: null,
+    paused: true,
+    seconds: 60,
+    workspace_id: 1,
+    description: '',
+    project_id: null,
+    task_id: null,
+    tag_ids: [],
+    tags: [],
+    billable: false,
+    clone_entry_id: null,
   };
   const paused = state(4, { running_entry: null, pause });
   assert.equal(revisionToSend(paused, state(5, { running_entry: null, pause })), 5);
-  assert.equal(revisionToSend(paused, state(5, { pause: { ...pause, paused: false, clone_entry_id: 8 } })), 4, 'resumed elsewhere');
+  assert.equal(
+    revisionToSend(paused, state(5, { pause: { ...pause, paused: false, clone_entry_id: 8 } })),
+    4,
+    'resumed elsewhere',
+  );
   assert.equal(revisionToSend(paused, state(5, { running_entry: null })), 4, 'discarded elsewhere');
 });

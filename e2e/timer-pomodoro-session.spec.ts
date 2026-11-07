@@ -1,13 +1,28 @@
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { describedError, expect, test } from './admin-tests-helpers.ts';
+import { expect, test } from './admin-tests-helpers.ts';
 import { login } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
-import { clickNotification, focusCalls, permissionRequests, stubNotifications, type NotificationSetup } from './notification-tests-helpers.ts';
+import {
+  clickNotification,
+  focusCalls,
+  permissionRequests,
+  stubNotifications,
+  type NotificationSetup,
+} from './notification-tests-helpers.ts';
 import { RuntimeErrors } from './runtime-errors.ts';
 import {
-  expectSnapped, fastForwardStreaming, holdRequest, instant, metadataOf, nextRunning, openSecondDevice, settleTimerTraffic, TimerApi,
-  watchTimerTraffic, type Metadata,
+  expectSnapped,
+  fastForwardStreaming,
+  holdRequest,
+  instant,
+  metadataOf,
+  nextRunning,
+  openSecondDevice,
+  settleTimerTraffic,
+  TimerApi,
+  watchTimerTraffic,
+  type Metadata,
 } from './timer-tests-helpers.ts';
 
 // The server owns the session: it sets every phase start and planned end, and a device only shows
@@ -19,7 +34,11 @@ import {
 
 const START = '2026-01-15T09:42:00Z';
 const FIELDS: Metadata = {
-  description: 'Resumed focus', project_id: null, task_id: null, tags: [], billable: false,
+  description: 'Resumed focus',
+  project_id: null,
+  task_id: null,
+  tags: [],
+  billable: false,
 };
 const STEP = 60_000;
 
@@ -30,14 +49,18 @@ const timer = (page: Page) => page.getByRole('region', { name: 'Timer', exact: t
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Main' });
 /** Each length's card label, the unit it shows and its maximum; every minimum is 1. */
 const LENGTHS = [
-  ['Work', 'min', 180], ['Short rest', 'min', 60],
-  ['Long rest', 'min', 60], ['Long rest every', 'pomodoros', 12],
+  ['Work', 'min', 180],
+  ['Short rest', 'min', 60],
+  ['Long rest', 'min', 60],
+  ['Long rest every', 'pomodoros', 12],
 ] as const;
 /** The value field of a length's stepper card. */
 const length = (page: Page, label: string) => form(page).getByRole('spinbutton', { name: label, exact: true });
 /** The stepper card around a length's value field. */
 const lengthCard = (page: Page, label: string) =>
-  form(page).locator('.length-stepper').filter({ has: page.getByRole('spinbutton', { name: label, exact: true }) });
+  form(page)
+    .locator('.length-stepper')
+    .filter({ has: page.getByRole('spinbutton', { name: label, exact: true }) });
 
 /** Opens the Pomodoro page. `fakeClock: false` keeps the browser clock real, for scenarios where the page writes its own timestamps. */
 async function openPomodoro(page: Page, { fakeClock = true } = {}) {
@@ -73,7 +96,10 @@ async function backdate(page: Page, api: TimerApi) {
 
 /** The server's timer state, without the time it was read at. */
 async function serverState(page: Page) {
-  const { server_time: _, ...state } = await (await page.request.get('/api/app/timer')).json() as Record<string, unknown>;
+  const { server_time: _, ...state } = (await (await page.request.get('/api/app/timer')).json()) as Record<
+    string,
+    unknown
+  >;
   return state as { revision: number; pomodoro: { phase: { kind: string; start: string } } | null };
 }
 
@@ -86,7 +112,7 @@ declare global {
   }
 }
 async function observeAudio(page: Page, reject = false) {
-  await page.addInitScript((reject) => {
+  await page.addInitScript(reject => {
     window.sessionAudio = [];
     window.audioGestures = [];
     window.rejectSessionAudio = reject;
@@ -98,22 +124,32 @@ async function observeAudio(page: Page, reject = false) {
         let previous = 0;
         let source = this.src;
         this.addEventListener('timeupdate', () => {
-          if (this.src !== source) { previous = 0; source = this.src; }
+          if (this.src !== source) {
+            previous = 0;
+            source = this.src;
+          }
           if (this.loop && !this.paused && previous > this.duration / 2 && this.currentTime < previous) record.wraps++;
           previous = this.currentTime;
         });
         window.sessionAudio.push(record);
       }
-      if (window.rejectSessionAudio) return Promise.reject(new DOMException('Blocked for retry test', 'NotAllowedError'));
+      if (window.rejectSessionAudio)
+        return Promise.reject(new DOMException('Blocked for retry test', 'NotAllowedError'));
       return play.call(this);
     };
   }, reject);
 }
-const sounding = (page: Page) => page.evaluate(() => window.sessionAudio
-  .filter(({ element }) => !element.paused && element.loop && element.volume > 0)
-  .map(({ element }) => new URL(element.src).pathname));
+const sounding = (page: Page) =>
+  page.evaluate(() =>
+    window.sessionAudio
+      .filter(({ element }) => !element.paused && element.loop && element.volume > 0)
+      .map(({ element }) => new URL(element.src).pathname),
+  );
 
-test('one-minute sessions retain entry fields, skip phases, count overtime and leave preferences unchanged', async ({ page, data }) => {
+test('one-minute sessions retain entry fields, skip phases, count overtime and leave preferences unchanged', async ({
+  page,
+  data,
+}) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 1 });
   const api = await openPomodoro(page);
   const preferences = await api.preferences();
@@ -122,14 +158,18 @@ test('one-minute sessions retain entry fields, skip phases, count overtime and l
     ['Short rest', 'pomodoro_break_interval_in_minutes'],
     ['Long rest', 'pomodoro_long_break_interval_in_minutes'],
     ['Long rest every', 'pomodoro_long_break_every'],
-  ]) await expect(length(page, label!)).toHaveValue(String(preferences[key!]));
+  ])
+    await expect(length(page, label!)).toHaveValue(String(preferences[key!]));
   const project_id = await api.createProject('Session project');
   const task_id = await api.createTask(project_id, 'Session task');
   const fields = { ...FIELDS, description: 'Session template', project_id, task_id, tags: ['focus'], billable: true };
   await api.createEntry({ ...fields, start: '2026-01-15T08:00:00Z', stop: '2026-01-15T08:10:00Z' });
   await page.reload();
   await form(page).getByLabel('Description').fill('Session temp');
-  await page.locator('.suggestions').getByRole('button', { name: /Session template/ }).click();
+  await page
+    .locator('.suggestions')
+    .getByRole('button', { name: /Session template/ })
+    .click();
   await startPomodoro(page, fields.description);
   await expect(session(page).getByText('Pomodoro 1 of 2')).toBeVisible();
   await expect(session(page).getByRole('timer', { name: 'Time remaining' })).toContainText(/\d:\d\d/);
@@ -145,7 +185,12 @@ test('one-minute sessions retain entry fields, skip phases, count overtime and l
   await session(page).getByRole('button', { name: 'Next phase: Work' }).click();
   await expect(session(page).getByText('Pomodoro 2 of 2')).toBeVisible();
   // The first pomodoro is stored; the second, which copied its fields, is the running entry.
-  await expect.poll(async () => (await api.entries()).filter((entry) => entry.description === 'Edited session' && entry.stop !== null).length).toBe(1);
+  await expect
+    .poll(
+      async () =>
+        (await api.entries()).filter(entry => entry.description === 'Edited session' && entry.stop !== null).length,
+    )
+    .toBe(1);
   const second = await backdate(page, api);
   expect(second.id).not.toBe(first.id);
   await ring(page);
@@ -154,7 +199,9 @@ test('one-minute sessions retain entry fields, skip phases, count overtime and l
   await expect(session(page).getByText('Pomodoro 1 of 2')).toBeVisible();
   await session(page).getByRole('button', { name: 'End session' }).click();
   await expect(form(page)).toBeVisible();
-  const saved = (await api.entries()).filter((entry) => entry.description === 'Edited session').sort((a, b) => instant(a.start) - instant(b.start));
+  const saved = (await api.entries())
+    .filter(entry => entry.description === 'Edited session')
+    .sort((a, b) => instant(a.start) - instant(b.start));
   expect(saved).toHaveLength(2);
   for (const entry of saved) expect(metadataOf(entry)).toEqual({ ...fields, description: 'Edited session' });
   expectSnapped(saved[0]!, first.start, STEP);
@@ -194,7 +241,10 @@ for (const [label, unit, max] of LENGTHS) {
     const spokenUnit = unit === 'min' ? 'minutes' : unit;
     await expect(unitLine).toHaveText(`${unit} · 1–${max}`);
     for (const [value, line] of [
-      ['0', 'at least 1'], [String(max + 1), `max ${max}`], ['1.5', `${unit} · 1–${max}`], ['', `${unit} · 1–${max}`],
+      ['0', 'at least 1'],
+      [String(max + 1), `max ${max}`],
+      ['1.5', `${unit} · 1–${max}`],
+      ['', `${unit} · 1–${max}`],
     ] as const) {
       await control.fill(value);
       await expect(control).toHaveAttribute('aria-invalid', 'true');
@@ -264,14 +314,17 @@ test('plus, minus and the arrow keys step a length by one and clamp at the edges
 test('the length cards sit in one row on a desktop and never split three and one', async ({ page }) => {
   await openPomodoro(page);
   /** How many cards each row of the grid holds, top row first. */
-  const rows = () => form(page).locator('.length-stepper').evaluateAll((cards) => {
-    const counts = new Map<number, number>();
-    for (const card of cards) {
-      const top = Math.round(card.getBoundingClientRect().top);
-      counts.set(top, (counts.get(top) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort(([a], [b]) => a - b).map(([, count]) => count);
-  });
+  const rows = () =>
+    form(page)
+      .locator('.length-stepper')
+      .evaluateAll(cards => {
+        const counts = new Map<number, number>();
+        for (const card of cards) {
+          const top = Math.round(card.getBoundingClientRect().top);
+          counts.set(top, (counts.get(top) ?? 0) + 1);
+        }
+        return [...counts.entries()].sort(([a], [b]) => a - b).map(([, count]) => count);
+      });
   expect(await rows()).toEqual([4]);
   for (let width = 1280; width >= 320; width -= 20) {
     await page.setViewportSize({ width, height: 900 });
@@ -330,7 +383,10 @@ test('the built app serves each transition sound as the committed WAV', async ({
     const response = await page.request.get(`/sounds/${file}`);
     expect(response.status(), file).toBe(200);
     expect(response.headers()['content-type'], file).toBe('audio/wav');
-    expect((await response.body()).equals(readFileSync(new URL(`../packages/web/public/sounds/${file}`, import.meta.url))), file).toBe(true);
+    expect(
+      (await response.body()).equals(readFileSync(new URL(`../packages/web/public/sounds/${file}`, import.meta.url))),
+      file,
+    ).toBe(true);
   }
 });
 
@@ -340,14 +396,22 @@ test('all four native WAV alarms loop until an action and unlock in the Start ge
   await startPomodoro(page);
   expect(await page.evaluate(() => window.audioGestures[0])).toBe(true);
   for (const [sound, next] of [
-    ['work-to-short-rest', 'Short rest'], ['short-rest-to-work', 'Work'],
-    ['work-to-long-rest', 'Long rest'], ['long-rest-to-work', 'Work'],
+    ['work-to-short-rest', 'Short rest'],
+    ['short-rest-to-work', 'Work'],
+    ['work-to-long-rest', 'Long rest'],
+    ['long-rest-to-work', 'Work'],
   ]) {
     await ring(page);
     await expect.poll(() => sounding(page)).toEqual([`/sounds/pomodoro-${sound}.wav`]);
     const wraps = await page.evaluate(() => window.sessionAudio.reduce((sum, item) => sum + item.wraps, 0));
-    await expect.poll(() => page.evaluate(() => window.sessionAudio.reduce((sum, item) => sum + item.wraps, 0)), { timeout: 8_000 }).toBeGreaterThan(wraps);
-    await session(page).getByRole('button', { name: `Next phase: ${next}` }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.sessionAudio.reduce((sum, item) => sum + item.wraps, 0)), {
+        timeout: 8_000,
+      })
+      .toBeGreaterThan(wraps);
+    await session(page)
+      .getByRole('button', { name: `Next phase: ${next}` })
+      .click();
     await expect.poll(() => sounding(page)).toEqual([]);
     await expect(banner(page)).toHaveCount(0);
   }
@@ -363,7 +427,9 @@ test('rejected audio exposes a retry and global actions cancel the loop on anoth
   await nav(page).getByRole('link', { name: 'Reports', exact: true }).click();
   await ring(page);
   await expect(banner(page).getByRole('alert')).toContainText('Sound could not play');
-  await page.evaluate(() => { window.rejectSessionAudio = false; });
+  await page.evaluate(() => {
+    window.rejectSessionAudio = false;
+  });
   await banner(page).getByRole('button', { name: 'Retry sound' }).click();
   await expect.poll(() => sounding(page)).toHaveLength(1);
   await expect(banner(page).getByRole('alert')).toHaveCount(0);
@@ -377,7 +443,9 @@ test('rejected audio exposes a retry and global actions cancel the loop on anoth
 
 test('visible unfocused sessions request persistent notifications and close them on Next and End', async ({ page }) => {
   await stubNotifications(page, { permission: 'granted' });
-  await page.addInitScript(() => { document.hasFocus = () => false; });
+  await page.addInitScript(() => {
+    document.hasFocus = () => false;
+  });
   await openPomodoro(page);
   await startPomodoro(page);
   await ring(page);
@@ -385,7 +453,11 @@ test('visible unfocused sessions request persistent notifications and close them
   const options = await page.evaluate(() => window.notificationStub.shown[0]!.options);
   // The tag is the phase start, which the server sets, so every tab ringing for the phase shares one notification.
   const phase = (await serverState(page)).pomodoro!.phase;
-  expect(options).toMatchObject({ requireInteraction: true, renotify: true, tag: `tokkl-pomodoro-session-${phase.start}` });
+  expect(options).toMatchObject({
+    requireInteraction: true,
+    renotify: true,
+    tag: `tokkl-pomodoro-session-${phase.start}`,
+  });
   expect(await page.evaluate(() => document.visibilityState)).toBe('visible');
   await clickNotification(page, 0);
   expect(await focusCalls(page)).toBe(1);
@@ -395,9 +467,11 @@ test('visible unfocused sessions request persistent notifications and close them
   await expect.poll(() => page.evaluate(() => window.notificationStub.shown.length)).toBe(2);
   const next = (await serverState(page)).pomodoro!.phase;
   expect(next.start).not.toBe(phase.start);
-  expect(await page.evaluate(() => window.notificationStub.shown[1]!.options.tag)).toBe(`tokkl-pomodoro-session-${next.start}`);
+  expect(await page.evaluate(() => window.notificationStub.shown[1]!.options.tag)).toBe(
+    `tokkl-pomodoro-session-${next.start}`,
+  );
   await session(page).getByRole('button', { name: 'End session' }).click();
-  await expect.poll(() => page.evaluate(() => window.notificationStub.shown.every((item) => item.closed))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.notificationStub.shown.every(item => item.closed))).toBe(true);
 });
 
 test('one audio owner hands a ringing session to the other tab when it closes', async ({ page, context }, testInfo) => {
@@ -416,8 +490,15 @@ test('one audio owner hands a ringing session to the other tab when it closes', 
   await ring(other);
   await expect(banner(other)).toBeVisible();
   await other.getByRole('heading', { level: 1 }).click();
-  await expect.poll(() => other.evaluate(async () => (await navigator.locks.query()).pending
-    ?.filter(({ name }) => name?.startsWith('tokkl.pomodoroAudio.')).length)).toBe(1);
+  await expect
+    .poll(() =>
+      other.evaluate(
+        async () =>
+          (await navigator.locks.query()).pending?.filter(({ name }) => name?.startsWith('tokkl.pomodoroAudio.'))
+            .length,
+      ),
+    )
+    .toBe(1);
   expect(await sounding(other)).toEqual([]);
   expect(await sounding(page)).toHaveLength(1);
   await page.close();
@@ -427,15 +508,18 @@ test('one audio owner hands a ringing session to the other tab when it closes', 
   await errors.verify(testInfo);
 });
 
-test('starting a session stops the regular timer at the new pomodoro\'s start', async ({ page, data }) => {
+test("starting a session stops the regular timer at the new pomodoro's start", async ({ page, data }) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 1 });
   const api = await openPomodoro(page);
-  const running = await api.startTimer({ description: 'Regular work', start: new Date(Date.now() - 10 * 60_000).toISOString() });
+  const running = await api.startTimer({
+    description: 'Regular work',
+    start: new Date(Date.now() - 10 * 60_000).toISOString(),
+  });
   await startPomodoro(page);
   const pomodoro = (await api.current())!;
   expect(pomodoro.id).not.toBe(running.id);
   expect(pomodoro.description).toBe('Session work');
-  const stopped = (await api.entries()).find((entry) => entry.id === running.id)!;
+  const stopped = (await api.entries()).find(entry => entry.id === running.id)!;
   expect(instant(stopped.stop)).toBe(Math.round(instant(pomodoro.start) / STEP) * STEP);
   expect(stopped.description).toBe('Regular work');
 });
@@ -446,7 +530,11 @@ for (const action of ['Start', 'Continue', 'favorite'] as const) {
     // The timer the page starts takes its start from the browser clock, which has to agree with the server's.
     const api = await openPomodoro(page, { fakeClock: false });
     const earlier = Date.now() - 60 * 60_000;
-    await api.createEntry({ description: 'Earlier work', start: new Date(earlier).toISOString(), stop: new Date(earlier + 10 * 60_000).toISOString() });
+    await api.createEntry({
+      description: 'Earlier work',
+      start: new Date(earlier).toISOString(),
+      stop: new Date(earlier + 10 * 60_000).toISOString(),
+    });
     await api.savePreferences({ favorites: [{ ...FIELDS, description: 'Favorite 1' }] });
     await page.reload();
     await startPomodoro(page);
@@ -459,7 +547,7 @@ for (const action of ['Start', 'Continue', 'favorite'] as const) {
     const running = await nextRunning(api, pomodoro.id);
     await expect(banner(page)).toHaveCount(0);
     await expect(nav(page).getByRole('link', { name: 'Pomodoro session running' })).toHaveCount(0);
-    const saved = (await api.entries()).find((entry) => entry.id === pomodoro.id)!;
+    const saved = (await api.entries()).find(entry => entry.id === pomodoro.id)!;
     expect(saved.description).toBe('Session work');
     expect(instant(saved.stop)).toBe(Math.round(instant(running.start) / STEP) * STEP);
     expectSnapped(saved, moved.start, STEP);
@@ -477,7 +565,7 @@ test('a remote timer ends the session at the remote start without a reload', asy
   const moved = await backdate(page, api);
   const remote = await api.startTimer({ description: 'Remote work', start: new Date().toISOString() });
   await expect(form(page)).toBeVisible();
-  const saved = (await api.entries()).find((entry) => entry.description === 'Session work')!;
+  const saved = (await api.entries()).find(entry => entry.description === 'Session work')!;
   expect(instant(saved.stop)).toBe(Math.round(instant(remote.start) / STEP) * STEP);
   expectSnapped(saved, moved.start, STEP);
   expect((await api.current())?.id).toBe(remote.id);
@@ -491,7 +579,7 @@ test('a too-short pomodoro is announced and goes to the trash', async ({ page, d
   await session(page).getByRole('button', { name: 'End session' }).click();
   await expect(form(page)).toBeVisible();
   await expect(page.getByText('This pomodoro was too short to save.', { exact: true })).toBeVisible();
-  expect((await api.trash()).map((entry) => entry.id)).toEqual([pomodoro.id]);
+  expect((await api.trash()).map(entry => entry.id)).toEqual([pomodoro.id]);
   expect(await api.entries()).toEqual([]);
 });
 
@@ -499,7 +587,7 @@ test('a too-short pomodoro is announced and goes to the trash', async ({ page, d
 async function secondDevice(page: Page, browser: Parameters<typeof openSecondDevice>[1]) {
   return openSecondDevice(page, browser, {
     path: '/pomodoro',
-    prepare: async (other) => {
+    prepare: async other => {
       await observeAudio(other);
       await watchTimerTraffic(other);
       await other.clock.install({ time: new Date(START) });
@@ -507,7 +595,11 @@ async function secondDevice(page: Page, browser: Parameters<typeof openSecondDev
   });
 }
 
-test('a session started on one device shows on the other, and Next phase there stops this device\'s alarm', async ({ page, browser, data }, testInfo) => {
+test("a session started on one device shows on the other, and Next phase there stops this device's alarm", async ({
+  page,
+  browser,
+  data,
+}, testInfo) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 1 });
   await observeAudio(page);
   const api = await openPomodoro(page);
@@ -549,8 +641,18 @@ test('a session started on one device shows on the other, and Next phase there s
   await errors.verify(testInfo);
 });
 
-test('a second confirm with an old revision gets a conflict, advances nothing and shows the other device\'s phase', async ({ page, browser, data, runtimeErrors }, testInfo) => {
-  runtimeErrors.allowResponse({ status: 409, method: 'POST', path: /\/api\/app\/pomodoro\/next$/, reason: 'both devices confirm the same phase end' });
+test("a second confirm with an old revision gets a conflict, advances nothing and shows the other device's phase", async ({
+  page,
+  browser,
+  data,
+  runtimeErrors,
+}, testInfo) => {
+  runtimeErrors.allowResponse({
+    status: 409,
+    method: 'POST',
+    path: /\/api\/app\/pomodoro\/next$/,
+    reason: 'both devices confirm the same phase end',
+  });
   await data.saveInstanceSettings({ time_resolution_minutes: 1 });
   await observeAudio(page);
   const api = await openPomodoro(page);
@@ -579,7 +681,7 @@ test('a second confirm with an old revision gets a conflict, advances nothing an
   await expect(session(page).getByRole('heading', { name: 'Short rest', exact: true })).toBeVisible();
   await expect(banner(page)).toHaveCount(0);
   // Only the running pomodoro exists: the second confirm stored and started nothing.
-  expect((await api.entries()).map((entry) => entry.stop)).toEqual([null]);
+  expect((await api.entries()).map(entry => entry.stop)).toEqual([null]);
   await errors.verify(testInfo);
 });
 
@@ -596,7 +698,7 @@ test('a session start on one device ends a paused chain on the other', async ({ 
   await startPomodoro(other);
   await expect(timer(page).getByRole('button', { name: 'Resume timer' })).toHaveCount(0);
   await expect(timer(page).getByRole('button', { name: 'Start timer' })).toBeVisible();
-  expect((await serverState(page) as { pause?: unknown }).pause).toBeNull();
+  expect(((await serverState(page)) as { pause?: unknown }).pause).toBeNull();
   await nav(other).getByRole('link', { name: 'Timer', exact: true }).click();
   await expect(timer(other).getByRole('button', { name: 'Resume timer' })).toHaveCount(0);
   expect((await api.current())?.description).toBe('Session work');

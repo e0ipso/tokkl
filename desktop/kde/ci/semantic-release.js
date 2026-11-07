@@ -26,11 +26,11 @@ function run(command, args, { cwd, env }) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'inherit'] });
     let stdout = '';
-    child.stdout.on('data', (chunk) => {
+    child.stdout.on('data', chunk => {
       stdout += chunk;
     });
     child.on('error', reject);
-    child.on('close', (code) => {
+    child.on('close', code => {
       if (code === 0) resolve(stdout.trim());
       else reject(new Error(`${command} ${args.join(' ')} exited with ${code}`));
     });
@@ -63,16 +63,21 @@ export async function prepare(pluginConfig, { cwd, env, nextRelease, logger }) {
 
   const deb = `tokkl-kde_${native}_amd64.deb`;
   const ubuntu = `tokkl-kde_${native}_amd64-ubuntu26.04.deb`;
-  const rpms = files.filter((name) => name.startsWith(`tokkl-kde-${native}-1.`) && name.endsWith('.x86_64.rpm'));
+  const rpms = files.filter(name => name.startsWith(`tokkl-kde-${native}-1.`) && name.endsWith('.x86_64.rpm'));
   const expected = [deb, ubuntu, rpms[0], 'kde-deb.json', 'kde-ubuntu-deb.json', 'kde-rpm.json'];
-  const complete = rpms.length === 1 && files.length === expected.length && expected.every((name) => files.includes(name));
+  const complete =
+    rpms.length === 1 && files.length === expected.length && expected.every(name => files.includes(name));
   if (!complete) {
     throw new Error(
       `Expected ${deb}, one tokkl-kde-${native}-1.*.x86_64.rpm, ${ubuntu}, kde-deb.json, kde-ubuntu-deb.json and kde-rpm.json in ${OUTPUT_DIR}, found: ${files.join(', ') || 'nothing'}`,
     );
   }
 
-  for (const [format, name] of [['deb', deb], ['ubuntu-deb', ubuntu], ['rpm', rpms[0]]]) {
+  for (const [format, name] of [
+    ['deb', deb],
+    ['ubuntu-deb', ubuntu],
+    ['rpm', rpms[0]],
+  ]) {
     const manifestFile = `kde-${format}.json`;
     let manifest;
     try {
@@ -80,11 +85,15 @@ export async function prepare(pluginConfig, { cwd, env, nextRelease, logger }) {
     } catch (error) {
       throw new Error(`${OUTPUT_DIR}/${manifestFile} is not valid JSON: ${error.message}`);
     }
-    const sha256 = createHash('sha256').update(readFileSync(join(output, name))).digest('hex');
+    const sha256 = createHash('sha256')
+      .update(readFileSync(join(output, name)))
+      .digest('hex');
     const want = { format, version: nextRelease.version, revision, package: name, sha256 };
     for (const [key, value] of Object.entries(want)) {
       if (manifest[key] !== value) {
-        throw new Error(`${OUTPUT_DIR}/${manifestFile} has ${key} ${JSON.stringify(manifest[key])}, expected ${JSON.stringify(value)}`);
+        throw new Error(
+          `${OUTPUT_DIR}/${manifestFile} has ${key} ${JSON.stringify(manifest[key])}, expected ${JSON.stringify(value)}`,
+        );
       }
     }
   }

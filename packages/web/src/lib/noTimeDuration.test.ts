@@ -7,7 +7,10 @@ import { noTimeDuration, noTimeSeconds } from './noTimeDuration.ts';
 test('a readable duration is snapped to the resolution', () => {
   assert.deepEqual(noTimeDuration('1:30', 1), { seconds: 5400 });
   assert.deepEqual(noTimeDuration('53m', 15), { seconds: 3600 });
-  assert.deepEqual(noTimeDuration('7m', 15), { seconds: 0, error: 'The duration rounds to zero at the 15-minute time resolution' });
+  assert.deepEqual(noTimeDuration('7m', 15), {
+    seconds: 0,
+    error: 'The duration rounds to zero at the 15-minute time resolution',
+  });
 });
 
 test('unreadable text is an error', () => {
@@ -18,11 +21,20 @@ test('unreadable text is an error', () => {
 test('more than 24 hours after snapping is an error, exactly 24 hours is not', () => {
   assert.deepEqual(noTimeDuration('24h', 15), { seconds: 24 * 3600 });
   assert.deepEqual(noTimeDuration('24:07', 15), { seconds: 24 * 3600 });
-  assert.deepEqual(noTimeDuration('24:08', 15), { seconds: 24 * 3600 + 15 * 60, error: 'No-time entries can be at most 24 hours' });
+  assert.deepEqual(noTimeDuration('24:08', 15), {
+    seconds: 24 * 3600 + 15 * 60,
+    error: 'No-time entries can be at most 24 hours',
+  });
 });
 
 test('a duration in seconds gets the same checks', () => {
   assert.deepEqual(noTimeSeconds(3180, 15), { seconds: 3600 });
-  assert.deepEqual(noTimeSeconds(0, 5), { seconds: 0, error: 'The duration rounds to zero at the 5-minute time resolution' });
-  assert.deepEqual(noTimeSeconds(24 * 3600 + 15 * 60, 15), { seconds: 24 * 3600 + 15 * 60, error: 'No-time entries can be at most 24 hours' });
+  assert.deepEqual(noTimeSeconds(0, 5), {
+    seconds: 0,
+    error: 'The duration rounds to zero at the 5-minute time resolution',
+  });
+  assert.deepEqual(noTimeSeconds(24 * 3600 + 15 * 60, 15), {
+    seconds: 24 * 3600 + 15 * 60,
+    error: 'No-time entries can be at most 24 hours',
+  });
 });

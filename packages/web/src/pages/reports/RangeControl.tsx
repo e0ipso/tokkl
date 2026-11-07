@@ -1,9 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { arrowTarget } from '../../components/arrowKeys.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
+import { useOverlayStack } from '../../components/overlayStack.tsx';
 import {
-  PRESETS, PRESET_LABELS, formatRange, isDateKey, matchingPreset, presetRange, shiftRange, type DateRange, type Preset,
+  PRESETS,
+  PRESET_LABELS,
+  formatRange,
+  isDateKey,
+  matchingPreset,
+  presetRange,
+  shiftRange,
+  type DateRange,
+  type Preset,
 } from './range.ts';
 import type { ReportPatch } from './urlState.ts';
 
@@ -14,12 +23,21 @@ import type { ReportPatch } from './urlState.ts';
 function ownsArrows(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target.closest('[data-own-arrows]') !== null) return true;
-  return target instanceof HTMLElement
-    && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  );
 }
 
 /** Preset list plus a custom range, with arrows that move the range by its own length. */
-export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDay, update }: {
+export function RangeControl({
+  range,
+  preset,
+  todayKey,
+  beginningOfWeek,
+  firstDay,
+  update,
+}: {
   range: DateRange;
   preset: Preset | null;
   todayKey: string;
@@ -30,6 +48,7 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState(range);
   const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const presets = useRef<(HTMLButtonElement | null)[]>([]);
   const active = preset ?? matchingPreset(range, todayKey, beginningOfWeek, firstDay);
   const activeIndex = active ? PRESETS.indexOf(active) : -1;
@@ -38,33 +57,33 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
   const tabStop = focused >= 0 ? focused : Math.max(activeIndex, 0);
 
   const shift = (direction: 1 | -1) => update({ range: shiftRange(range, direction) });
-  const shiftRef = useRef(shift);
-  shiftRef.current = shift;
+  const overlays = useOverlayStack();
 
+  // The arrow keys move the range from anywhere on the page, unless something else owns them.
+  const onArrow = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    // A widget that already handled the key (and called preventDefault) wins.
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (ownsArrows(event.target)) return;
+    if (overlays.isOpen()) return;
+    event.preventDefault();
+    shift(event.key === 'ArrowLeft' ? -1 : 1);
+  });
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      // A widget that already handled the key (and called preventDefault) wins.
-      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      if (ownsArrows(event.target)) return;
-      if (document.querySelector('.modal, .popover')) return;
-      event.preventDefault();
-      shiftRef.current(event.key === 'ArrowLeft' ? -1 : 1);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('keydown', onArrow);
+    return () => document.removeEventListener('keydown', onArrow);
   }, []);
 
-  // Opening moves focus to the active preset, as a listbox popup does.
+  // Opening moves focus to the active preset, as a listbox popup does. Only on opening: a later
+  // change of the active preset must not pull focus back.
+  const focusActivePreset = useEffectEvent(() => presets.current[Math.max(activeIndex, 0)]?.focus());
   useEffect(() => {
-    if (open) presets.current[Math.max(activeIndex, 0)]?.focus();
-    // Only on opening; a later change of the active preset must not pull focus back.
+    if (open) focusActivePreset();
   }, [open]);
 
   /** Closes the popover and gives focus back to the range button if it was inside the popover. */
   const close = () => {
-    const popover = presets.current[0]?.closest('.popover');
-    const inside = popover?.contains(document.activeElement) ?? false;
+    const inside = panel.current?.contains(document.activeElement) ?? false;
     setOpen(false);
     setFocused(-1);
     if (inside) button.current?.focus();
@@ -82,7 +101,13 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
 
   return (
     <div className="range-control">
-      <button type="button" className="icon-button" aria-label="Previous period" title="Previous period (Left arrow)" onClick={() => shift(-1)}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Previous period"
+        title="Previous period (Left arrow)"
+        onClick={() => shift(-1)}
+      >
         <Icon name="chevronLeft" />
       </button>
       <button
@@ -93,23 +118,31 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
         aria-expanded={open}
         onClick={() => {
           setCustom(range);
-          setOpen((v) => !v);
+          setOpen(v => !v);
         }}
       >
         <Icon name="calendar" size={16} />
         {active ? <strong>{PRESET_LABELS[active]}</strong> : null}
         <span className={active ? 'muted' : undefined}>{formatRange(range, todayKey)}</span>
       </button>
-      <button type="button" className="icon-button" aria-label="Next period" title="Next period (Right arrow)" onClick={() => shift(1)}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Next period"
+        title="Next period (Right arrow)"
+        onClick={() => shift(1)}
+      >
         <Icon name="chevronRight" />
       </button>
       {open ? (
-        <Popover anchor={button.current} onClose={close} width={300}>
+        <Popover anchor={button} panel={panel} label="Period" onClose={close} width={300}>
           <div className="range-presets" role="listbox" aria-label="Date range">
             {PRESETS.map((name, index) => (
               <button
                 key={name}
-                ref={(element) => { presets.current[index] = element; }}
+                ref={element => {
+                  presets.current[index] = element;
+                }}
                 type="button"
                 role="option"
                 tabIndex={index === tabStop ? 0 : -1}
@@ -117,21 +150,23 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
                 className={`range-preset${active === name ? ' selected' : ''}`}
                 onClick={() => choose(name)}
                 onFocus={() => setFocused(index)}
-                onKeyDown={(event) => {
+                onKeyDown={event => {
                   const next = arrowTarget(event.key, index, PRESETS.length, true);
                   if (next === null) return;
                   event.preventDefault();
                   presets.current[next]?.focus();
                 }}
               >
-                <span className="range-check" aria-hidden="true">{active === name ? <Icon name="check" size={16} /> : null}</span>
+                <span className="range-check" aria-hidden="true">
+                  {active === name ? <Icon name="check" size={16} /> : null}
+                </span>
                 {PRESET_LABELS[name]}
               </button>
             ))}
           </div>
           <form
             className="range-custom"
-            onSubmit={(event) => {
+            onSubmit={event => {
               event.preventDefault();
               applyCustom();
             }}
@@ -139,13 +174,25 @@ export function RangeControl({ range, preset, todayKey, beginningOfWeek, firstDa
             <span className="range-custom-title">Custom</span>
             <label className="field">
               <span>From</span>
-              <input type="date" value={custom.from} required onChange={(event) => setCustom({ ...custom, from: event.target.value })} />
+              <input
+                type="date"
+                value={custom.from}
+                required
+                onChange={event => setCustom({ ...custom, from: event.target.value })}
+              />
             </label>
             <label className="field">
               <span>To</span>
-              <input type="date" value={custom.to} required onChange={(event) => setCustom({ ...custom, to: event.target.value })} />
+              <input
+                type="date"
+                value={custom.to}
+                required
+                onChange={event => setCustom({ ...custom, to: event.target.value })}
+              />
             </label>
-            <button type="submit" className="button button-primary">Apply</button>
+            <button type="submit" className="button button-primary">
+              Apply
+            </button>
           </form>
         </Popover>
       ) : null}

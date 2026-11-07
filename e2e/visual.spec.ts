@@ -46,40 +46,53 @@ interface Capture {
 }
 
 const PAGES: readonly Capture[] = [
-  { name: 'timer-list', path: '/', timerView: 'list', ready: (page) => page.locator('.entry-list').getByRole('button', { name: 'Roadmap' }) },
+  {
+    name: 'timer-list',
+    path: '/',
+    timerView: 'list',
+    ready: page => page.locator('.entry-list').getByRole('button', { name: 'Roadmap' }),
+  },
   {
     name: 'timer-calendar',
     path: '/',
     timerView: 'calendar',
     // A phone shows only today, which has no entry; the strip's total for the "Planning" day shows the week has loaded.
-    ready: (page) => page.locator('.calendar-grid').getByText('Planning').first()
-      .or(page.getByRole('group', { name: 'Days of the week' }).getByRole('button', { name: 'Wed 15 Jul, 1:00:00' })),
+    ready: page =>
+      page
+        .locator('.calendar-grid')
+        .getByText('Planning')
+        .first()
+        .or(page.getByRole('group', { name: 'Days of the week' }).getByRole('button', { name: 'Wed 15 Jul, 1:00:00' })),
   },
   {
     name: 'reports-summary',
     path: '/reports?from=2026-07-13&to=2026-07-19',
-    ready: (page) => page.getByRole('region', { name: 'Breakdown' }).getByText('Roadmap').first(),
+    ready: page => page.getByRole('region', { name: 'Breakdown' }).getByText('Roadmap').first(),
   },
   {
     name: 'pomodoro-idle',
     path: '/pomodoro',
-    ready: (page) => page.getByRole('form', { name: 'Start a Pomodoro session' }).getByRole('spinbutton', { name: 'Work', exact: true }),
+    ready: page =>
+      page
+        .getByRole('form', { name: 'Start a Pomodoro session' })
+        .getByRole('spinbutton', { name: 'Work', exact: true }),
   },
   {
     name: 'pomodoro-running',
     path: '/pomodoro',
-    act: (page) => page.getByRole('form', { name: 'Start a Pomodoro session' }).getByRole('button', { name: 'Start' }).click(),
-    ready: (page) => page.getByRole('timer', { name: 'Time remaining' }).getByText('25:00', { exact: true }),
+    act: page =>
+      page.getByRole('form', { name: 'Start a Pomodoro session' }).getByRole('button', { name: 'Start' }).click(),
+    ready: page => page.getByRole('timer', { name: 'Time remaining' }).getByText('25:00', { exact: true }),
     // Clicking Start scrolls the taller start form; the phone's fixed bottom bar follows the scroll.
-    settle: (page) => page.evaluate(() => window.scrollTo(0, 0)),
+    settle: page => page.evaluate(() => window.scrollTo(0, 0)),
   },
-  { name: 'projects', path: '/projects', ready: (page) => page.getByRole('main').getByText('Website').first() },
+  { name: 'projects', path: '/projects', ready: page => page.getByRole('main').getByText('Website').first() },
   {
     name: 'settings',
     path: '/settings',
-    ready: (page) => page.getByRole('main').getByText('API token').first(),
+    ready: page => page.getByRole('main').getByText('API token').first(),
     regularUser: { email: 'e2e-user@example.com', fullname: 'E2E User' },
-    settle: async (page) => {
+    settle: async page => {
       // Chromium's first full-page render reflows the offscreen API URL paragraph. Its
       // two-pixel growth otherwise leaves the first screenshot clipped to the old height.
       await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
@@ -88,12 +101,12 @@ const PAGES: readonly Capture[] = [
   {
     name: 'admin',
     path: '/admin',
-    ready: (page) => page.locator('#invites').getByText('For the design team'),
+    ready: page => page.locator('#invites').getByText('For the design team'),
     prepare: async (data, users) => {
       await users.create({ email: 'rita@example.com', fullname: 'Regular Rita' });
       await data.createInvite({ role: 'user', note: 'For the design team' });
     },
-    mask: (page) => [page.locator('.admin-date')],
+    mask: page => [page.locator('.admin-date')],
   },
 ];
 
@@ -121,7 +134,8 @@ async function pinOrigin(page: Page): Promise<void> {
   await page.evaluate(() => {
     for (const code of document.querySelectorAll('code')) {
       const text = code.textContent ?? '';
-      if (text.includes(window.location.origin)) code.textContent = text.replaceAll(window.location.origin, 'http://127.0.0.1:8095');
+      if (text.includes(window.location.origin))
+        code.textContent = text.replaceAll(window.location.origin, 'http://127.0.0.1:8095');
     }
   });
 }
@@ -154,8 +168,10 @@ for (const [device, deviceOptions] of Object.entries(DEVICES)) {
             mask: capture.mask?.(page),
             maxDiffPixelRatio: 0.002,
           });
-          expect(await page.evaluate(() => document.documentElement.scrollHeight),
-            'The full-page capture must not change the document height').toBe(heightBeforeCapture);
+          expect(
+            await page.evaluate(() => document.documentElement.scrollHeight),
+            'The full-page capture must not change the document height',
+          ).toBe(heightBeforeCapture);
         });
       }
     });

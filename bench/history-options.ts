@@ -36,7 +36,20 @@ export function databaseUrl(config: StorageConfig): string {
   return value;
 }
 
-export function historyEnvironment(inherited: NodeJS.ProcessEnv, config: StorageConfig, directory: string, port: number, setupCode: string): NodeJS.ProcessEnv {
+export function historyEnvironment(
+  inherited: NodeJS.ProcessEnv,
+  config: StorageConfig,
+  directory: string,
+  port: number,
+  setupCode: string,
+): NodeJS.ProcessEnv {
   const env = Object.fromEntries(Object.entries(inherited).filter(([key]) => !/^(TOKKL|TIMETRACK)_/.test(key)));
-  return { ...env, PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: directory, TOKKL_SETUP_CODE: setupCode, TOKKL_DATABASE_URL: databaseUrl(config) };
+  return {
+    ...env,
+    PORT: String(port),
+    HOST: '127.0.0.1',
+    TOKKL_DATA_DIR: directory,
+    TOKKL_SETUP_CODE: setupCode,
+    TOKKL_DATABASE_URL: databaseUrl(config),
+  };
 }

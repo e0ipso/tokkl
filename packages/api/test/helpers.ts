@@ -8,10 +8,10 @@ import type { Express } from 'express';
 import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
 import { createApp } from '../src/app.ts';
-import { hashPassword } from '../src/auth/crypto.ts';
+import { hashPassword } from '../src/lib/crypto.ts';
 import { FailureLimiter, type AttemptResult, type Keys } from '../src/auth/rateLimit.ts';
 import type { Config } from '../src/config.ts';
-import { openDatabase, transaction, type FixtureDatabase } from './fixtures/database.ts';
+import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { createFirstAdmin, insertAccount, type UserRole, type User } from './fixtures/domain.ts';
 
 export interface TestContext {
@@ -19,7 +19,11 @@ export interface TestContext {
   user: User;
   wid: number;
   request: (method: string, path: string, body?: unknown, headers?: Record<string, string>) => Promise<Response>;
-  json: <T = any>(method: string, path: string, body?: unknown) => Promise<{ status: number; body: T; headers: Headers }>;
+  json: <T = any>(
+    method: string,
+    path: string,
+    body?: unknown,
+  ) => Promise<{ status: number; body: T; headers: Headers }>;
 }
 
 export const PASSWORD = 'correct horse battery';
@@ -44,7 +48,9 @@ export function testServer(app: Express): TestServer {
   // Bulk SQLite fixture writes can keep timers from firing before the next pooled request.
   server.keepAliveTimeout = 60_000;
   servers.add(server);
-  const ready = new Promise<number>((resolve) => server.once('listening', () => resolve((server.address() as AddressInfo).port)));
+  const ready = new Promise<number>(resolve =>
+    server.once('listening', () => resolve((server.address() as AddressInfo).port)),
+  );
   return {
     request: async (path, init) => fetch(`http://127.0.0.1:${await ready}${path}`, init),
   };
@@ -52,16 +58,27 @@ export function testServer(app: Express): TestServer {
 
 export function testConfig(db?: FixtureDatabase): Config {
   return {
-    port: 0, host: '127.0.0.1', dataDir: '/nonexistent', storage: db ? storageConfigFor(db) : {backend:'sqlite',filename:':memory:',busyTimeoutMs:5000}, webRoot: '/nonexistent',
-    trustProxy: false, sessionDays: 30, setupCode: undefined,
+    port: 0,
+    host: '127.0.0.1',
+    dataDir: '/nonexistent',
+    storage: db ? storageConfigFor(db) : { backend: 'sqlite', filename: ':memory:', busyTimeoutMs: 5000 },
+    webRoot: '/nonexistent',
+    trustProxy: false,
+    sessionDays: 30,
+    setupCode: undefined,
+    // Request lines would drown the test output; failures still print.
+    logLevel: 'warn',
   };
 }
 
 export async function setup(options: { timezone?: string; sqlite?: boolean } = {}): Promise<TestContext> {
-  const db = (await openDatabase(options.sqlite ? ':memory:' : undefined));
-  const user = (await createFirstAdmin(db, {
-    email: 'me@example.com', password: PASSWORD, fullname: 'Test User', timezone: options.timezone ?? 'UTC',
-  }));
+  const db = await openDatabase(options.sqlite ? ':memory:' : undefined);
+  const user = await createFirstAdmin(db, {
+    email: 'me@example.com',
+    password: PASSWORD,
+    fullname: 'Test User',
+    timezone: options.timezone ?? 'UTC',
+  });
   return serve(db, user);
 }
 
@@ -79,10 +96,13 @@ export async function addUser(
 ): Promise<TestContext> {
   const { db } = ctx;
   const passwordHash = await hashPassword(PASSWORD);
-  const user = (await insertAccount(db, {
-    email: options.email, fullname: options.fullname ?? '', timezone: options.timezone ?? 'UTC',
-    passwordHash, role: options.role,
-  }));
+  const user = await insertAccount(db, {
+    email: options.email,
+    fullname: options.fullname ?? '',
+    timezone: options.timezone ?? 'UTC',
+    passwordHash,
+    role: options.role,
+  });
   return serve(db, user);
 }
 
@@ -91,7 +111,12 @@ export async function addUser(
  * pair to send as a cookie. Pass `authorization: ''` with it, or the API token still signs the request in.
  */
 export async function sessionCookie(ctx: TestContext): Promise<string> {
-  const response = await ctx.request('POST', '/api/app/login', { email: ctx.user.email, password: PASSWORD }, { authorization: '', ...CSRF });
+  const response = await ctx.request(
+    'POST',
+    '/api/app/login',
+    { email: ctx.user.email, password: PASSWORD },
+    { authorization: '', ...CSRF },
+  );
   if (response.status !== 200) throw new Error(`Login as ${ctx.user.email} failed with ${response.status}`);
   return response.headers.get('set-cookie')!.split(';')[0]!;
 }
@@ -99,7 +124,12 @@ export async function sessionCookie(ctx: TestContext): Promise<string> {
 /** Serves `db` (reusing its app if it has one) and signs every request in as `user` with its API token. */
 function serve(db: FixtureDatabase, user: User): TestContext {
   let app = apps.get(db);
-  if (!app) { const application=createApp({ storage:storageFor(db),config:testConfig(db),setup:{code:null} }); setServices(db,application.locals.services); app=testServer(application); after(()=>application.locals.close()); }
+  if (!app) {
+    const application = createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } });
+    setServices(db, application.locals.services);
+    app = testServer(application);
+    after(() => application.locals.close());
+  }
   apps.set(db, app);
   const auth = `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`;
   const request = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
@@ -126,7 +156,7 @@ export async function fileBackedCopy(ctx: TestContext): Promise<TestContext & { 
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-test-'));
   const path = join(dir, 'tokkl.db');
   await copySQLiteFile(ctx.db, path);
-  const db = (await openDatabase(path));
+  const db = await openDatabase(path);
   after(() => {
     rmSync(dir, { recursive: true, force: true });
   });
@@ -144,19 +174,41 @@ export function iso(value: string): string {
 export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<unknown>): void {
   const attempt = FailureLimiter.prototype.attempt;
   let pending = true;
-  t.mock.method(FailureLimiter.prototype, 'attempt', function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>): Promise<AttemptResult> {
-    return attempt.call(this, keys, async () => {
-      const valid = await check();
-      if (pending) {
-        pending = false;
-        await during();
-      }
-      return valid;
-    });
-  });
+  t.mock.method(
+    FailureLimiter.prototype,
+    'attempt',
+    function (this: FailureLimiter, keys: Keys, check: () => Promise<boolean>): Promise<AttemptResult> {
+      return attempt.call(this, keys, async () => {
+        const valid = await check();
+        if (pending) {
+          pending = false;
+          await during();
+        }
+        return valid;
+      });
+    },
+  );
 }
 
-export function replaceFixtureApp(ctx:TestContext,options:import('../src/services/timerStreams.ts').TimerStreamOptions) {const app=createApp({storage:storageFor(ctx.db),config:testConfig(ctx.db),setup:{code:null},timerStreamOptions:options});setServices(ctx.db,app.locals.services);after(()=>app.locals.close());const server=testServer(app);apps.set(ctx.db,server);return {streams:app.locals.services.timerStreams as import('../src/services/timerStreams.ts').TimerStreams,server};}
+export function replaceFixtureApp(
+  ctx: TestContext,
+  options: import('../src/services/timerStreams.ts').TimerStreamOptions,
+) {
+  const app = createApp({
+    storage: storageFor(ctx.db),
+    config: testConfig(ctx.db),
+    setup: { code: null },
+    timerStreamOptions: options,
+  });
+  setServices(ctx.db, app.locals.services);
+  after(() => app.locals.close());
+  const server = testServer(app);
+  apps.set(ctx.db, server);
+  return {
+    streams: app.locals.services.timerStreams as import('../src/services/timerStreams.ts').TimerStreams,
+    server,
+  };
+}
 
 /** A second app/storage instance for report isolation; SQLite additionally exercises file-copy workers. */
 export async function independentReportServer(ctx: TestContext): Promise<TestContext> {

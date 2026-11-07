@@ -14,7 +14,9 @@ function dayGroup(page: Page, heading: string) {
 
 /** Descriptions in a day group, in display order. */
 async function descriptions(page: Page, heading: string): Promise<string[]> {
-  return dayGroup(page, heading).getByLabel('Description').evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
+  return dayGroup(page, heading)
+    .getByLabel('Description')
+    .evaluateAll(inputs => inputs.map(input => (input as HTMLInputElement).value));
 }
 
 function summaryTotal(page: Page, label: 'Today' | 'This week') {
@@ -22,20 +24,41 @@ function summaryTotal(page: Page, label: 'Today' | 'This week') {
 }
 
 function calendarDayTotal(page: Page, label: string) {
-  return page.locator('.calendar-day-head').filter({ has: page.getByText(label, { exact: true }) }).locator('small');
+  return page
+    .locator('.calendar-day-head')
+    .filter({ has: page.getByText(label, { exact: true }) })
+    .locator('small');
 }
 
 function reportTotal(page: Page, term: 'Total time' | 'Entries') {
-  return page.locator('.report-totals > div').filter({ has: page.getByText(term, { exact: true }) }).locator('dd');
+  return page
+    .locator('.report-totals > div')
+    .filter({ has: page.getByText(term, { exact: true }) })
+    .locator('dd');
 }
 
-test('day, today and week totals and attribution follow the account time zone in the list, calendar and reports', async ({ page, data }) => {
+test('day, today and week totals and attribution follow the account time zone in the list, calendar and reports', async ({
+  page,
+  data,
+}) => {
   // Madrid times (CEST); Tokyo is seven hours ahead.
-  await data.createEntry({ description: 'Saturday block', start: '2026-06-13T08:00:00Z', stop: '2026-06-13T10:00:00Z' }); // Sat 10:00-12:00
+  await data.createEntry({
+    description: 'Saturday block',
+    start: '2026-06-13T08:00:00Z',
+    stop: '2026-06-13T10:00:00Z',
+  }); // Sat 10:00-12:00
   await data.createEntry({ description: 'Sunday late', start: '2026-06-14T21:30:00Z', stop: '2026-06-14T21:50:00Z' }); // Sun 23:30-23:50, Mon in Tokyo
-  await data.createEntry({ description: 'Across midnight', start: '2026-06-14T21:55:00Z', stop: '2026-06-14T22:55:00Z' }); // Sun 23:55-Mon 00:55
+  await data.createEntry({
+    description: 'Across midnight',
+    start: '2026-06-14T21:55:00Z',
+    stop: '2026-06-14T22:55:00Z',
+  }); // Sun 23:55-Mon 00:55
   await data.createEntry({ description: 'Monday work', start: '2026-06-15T05:00:00Z', stop: '2026-06-15T06:30:00Z' }); // Mon 07:00-08:30
-  await data.createEntry({ description: 'Monday evening', start: '2026-06-15T17:00:00Z', stop: '2026-06-15T17:45:00Z' }); // Mon 19:00-19:45, Tue in Tokyo
+  await data.createEntry({
+    description: 'Monday evening',
+    start: '2026-06-15T17:00:00Z',
+    stop: '2026-06-15T17:45:00Z',
+  }); // Mon 19:00-19:45, Tue in Tokyo
   // Monday 2026-06-15 20:00 in Madrid, already Tuesday 03:00 in Tokyo. Weeks start on Monday.
   await page.clock.setFixedTime(new Date('2026-06-15T18:00:00Z'));
   await login(page);
@@ -79,10 +102,12 @@ test('day, today and week totals and attribution follow the account time zone in
   await page.goto('/reports?from=2026-06-13&to=2026-06-15&tab=detailed');
   const rows = page.locator('tr.entry-row');
   await expect(rows).toHaveCount(5);
-  const dated = await rows.evaluateAll((trs) => trs.map((tr) => {
-    const cells = tr.querySelectorAll('td');
-    return `${cells[0]!.textContent!.trim()} ${cells[1]!.textContent!.trim()}`;
-  }));
+  const dated = await rows.evaluateAll(trs =>
+    trs.map(tr => {
+      const cells = tr.querySelectorAll('td');
+      return `${cells[0]!.textContent!.trim()} ${cells[1]!.textContent!.trim()}`;
+    }),
+  );
   expect(dated.sort()).toEqual([
     '2026-06-13 Saturday block',
     '2026-06-14 Across midnight',
@@ -95,9 +120,10 @@ test('day, today and week totals and attribution follow the account time zone in
 for (const first of [null, '2026-06-15T07:00:00Z', '2026-06-01T22:00:00Z']) {
   test(`Show more days is absent when the earliest entry is ${first ?? 'missing'}`, async ({ page, data }) => {
     // June 1 at 22:00 UTC is June 2 in Madrid, the inclusive start of the first 14 days.
-    if (first) await data.createEntry({ description: 'Only entry', start: first, stop: first.replace(':00:00Z', ':30:00Z') });
+    if (first)
+      await data.createEntry({ description: 'Only entry', start: first, stop: first.replace(':00:00Z', ':30:00Z') });
     await page.clock.setFixedTime(new Date('2026-06-15T10:00:00Z'));
-    const bounds = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/app/bounds');
+    const bounds = page.waitForResponse(response => new URL(response.url()).pathname === '/api/app/bounds');
     await login(page);
     expect((await bounds).status()).toBe(200);
     if (first) await expect(page.locator('input[value="Only entry"]')).toBeVisible();
@@ -122,7 +148,7 @@ test('Show more days reaches an entry older than 90 days', async ({ page, data }
   const requested: string[] = [];
   for (let days = 28; days <= 112; days += 14) {
     const from = new Date(Date.UTC(2026, 5, 15) - (days - 1) * 86_400_000).toISOString().slice(0, 10);
-    const loaded = page.waitForResponse((response) => {
+    const loaded = page.waitForResponse(response => {
       const url = new URL(response.url());
       return url.pathname === '/api/v9/me/time_entries' && url.searchParams.get('start_date') === from;
     });

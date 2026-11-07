@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { api } from '../../../api/client.ts';
-import { keys } from '../../../api/hooks.ts';
+import { accountRequests } from '../../../api/account.ts';
+import { stale } from '../../../api/keys.ts';
 import type { Me } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { copyText } from '../../../lib/clipboard.ts';
 import { ConfirmModal } from '../ui.tsx';
-import { useAction, V9 } from '../queries.ts';
+import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
 export function ApiTokenSection({ me }: { me: Me }) {
@@ -16,8 +16,8 @@ export function ApiTokenSection({ me }: { me: Me }) {
   const origin = window.location.origin;
 
   const reset = useAction<void, string>({
-    mutationFn: () => api.post<string>(`${V9}/me/reset_token`),
-    invalidate: [keys.me],
+    mutationFn: accountRequests.resetApiToken,
+    invalidate: stale.credentials,
     success: 'New API token created. Update the tools that use it.',
     onSuccess: () => {
       setConfirmReset(false);
@@ -26,7 +26,10 @@ export function ApiTokenSection({ me }: { me: Me }) {
   });
 
   const copy = () => {
-    copyText(me.api_token, 'Could not copy. Show the token and copy it by hand.').then(() => toast.show('API token copied'), (error: unknown) => toast.error(error));
+    copyText(me.api_token, 'Could not copy. Show the token and copy it by hand.').then(
+      () => toast.show('API token copied'),
+      (error: unknown) => toast.error(error),
+    );
   };
 
   return (
@@ -52,7 +55,9 @@ export function ApiTokenSection({ me }: { me: Me }) {
       </div>
 
       <h3 className="settings-subheading">Try it</h3>
-      <pre className="code-block"><code>{`curl -u <token>:api_token ${origin}/api/v9/me`}</code></pre>
+      <pre className="code-block">
+        <code>{`curl -u <token>:api_token ${origin}/api/v9/me`}</code>
+      </pre>
       <p className="hint">
         Any tool that lets you change the Toggl base URL can use this server. Point it at <code>{origin}/api/v9</code>,
         and the reports API at <code>{origin}/reports/api/v3</code>.
@@ -66,7 +71,10 @@ export function ApiTokenSection({ me }: { me: Me }) {
           onConfirm={() => reset.mutate()}
           onClose={() => setConfirmReset(false)}
         >
-          <p>The current token stops working right away. Every tool or script that uses it fails until you give it the new one.</p>
+          <p>
+            The current token stops working right away. Every tool or script that uses it fails until you give it the
+            new one.
+          </p>
         </ConfirmModal>
       ) : null}
     </SettingsCard>

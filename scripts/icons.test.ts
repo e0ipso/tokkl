@@ -14,11 +14,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ICON_PACK = 'docs/brand/icon-pack/web/public/';
 const PUBLIC = 'packages/web/public/';
 /** The manifest icons, which the script reduces to 256 colours and serves from the same path. */
-const QUANTISED_ICONS = [
-  'icons/maskable-192.png',
-  'icons/maskable-512.png',
-  'icons/maskable-1024.png',
-];
+const QUANTISED_ICONS = ['icons/maskable-192.png', 'icons/maskable-512.png', 'icons/maskable-1024.png'];
 // Palette reduction moves each channel of a manifest icon by under 1 of 255 on average. A different
 // icon of the pack at the same size is about 24 away, so this bound catches a swapped or stale source.
 const MAX_MEAN_CHANNEL_ERROR = 2;
@@ -44,10 +40,13 @@ const KDE_ICON_SIZES = [32, 48, 64, 96, 128, 256];
 const GNOME_LOGO = 'desktop/gnome/extension/tokkl.png';
 const MACOS_ICONSET = 'desktop/macos/resources/Tokkl.iconset/';
 /** The file names `iconutil -c icns` takes, each with its size in pixels: 16 to 512 points at 1x and 2x. */
-const MACOS_ICONS = [16, 32, 128, 256, 512].flatMap((points) => [
-  [`icon_${points}x${points}.png`, points],
-  [`icon_${points}x${points}@2x.png`, points * 2],
-] as const);
+const MACOS_ICONS = [16, 32, 128, 256, 512].flatMap(
+  points =>
+    [
+      [`icon_${points}x${points}.png`, points],
+      [`icon_${points}x${points}@2x.png`, points * 2],
+    ] as const,
+);
 const DESKTOP_ICONS: [string, number][] = [
   [KDE_LOGO, 96],
   ...KDE_ICON_SIZES.map((size): [string, number] => [`${KDE_ICONS}tokkl-${size}.png`, size]),
@@ -58,13 +57,20 @@ const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PALETTE_PNG = 3;
 const RGBA_PNG = 6;
 
-type Png = { width: number; height: number; depth: number; colourType: number; interlace: number; chunks: Map<string, Buffer[]> };
+type Png = {
+  width: number;
+  height: number;
+  depth: number;
+  colourType: number;
+  interlace: number;
+  chunks: Map<string, Buffer[]>;
+};
 
 function readPng(path: string): Png {
   const bytes = readFileSync(join(ROOT, path));
   assert.ok(bytes.subarray(0, 8).equals(SIGNATURE), `${path} is not a PNG`);
   const chunks = new Map<string, Buffer[]>();
-  for (let at = 8; at < bytes.length; ) {
+  for (let at = 8; at < bytes.length;) {
     const length = bytes.readUInt32BE(at);
     const type = bytes.toString('latin1', at + 4, at + 8);
     chunks.set(type, [...(chunks.get(type) ?? []), bytes.subarray(at + 8, at + 8 + length)]);
@@ -185,16 +191,25 @@ function assertPlacedLike(path: string, source: string) {
   const png = readPng(path);
   const [actual, expected] = [alphaShape(png), packShape(source)];
   const [dx, dy] = [(actual.x - expected.x) * png.width, (actual.y - expected.y) * png.height];
-  assert.ok(Math.hypot(dx, dy) <= MAX_CENTRE_SHIFT, `the art's centre is ${dx.toFixed(2)}, ${dy.toFixed(2)} px from the pack logo's`);
+  assert.ok(
+    Math.hypot(dx, dy) <= MAX_CENTRE_SHIFT,
+    `the art's centre is ${dx.toFixed(2)}, ${dy.toFixed(2)} px from the pack logo's`,
+  );
   const change = actual.coverage / expected.coverage - 1;
-  assert.ok(Math.abs(change) <= MAX_COVERAGE_CHANGE, `the art covers ${(change * 100).toFixed(1)}% more of the canvas than the pack logo`);
+  assert.ok(
+    Math.abs(change) <= MAX_COVERAGE_CHANGE,
+    `the art covers ${(change * 100).toFixed(1)}% more of the canvas than the pack logo`,
+  );
 }
 
 /** Checks that a PNG is 8-bit, not interlaced, and indexes a palette of at most 256 colours. */
 function assertPalettePng(png: Png) {
   assert.deepEqual([png.depth, png.colourType, png.interlace], [8, PALETTE_PNG, 0]);
   const palette = png.chunks.get('PLTE')?.[0];
-  assert.ok(palette && palette.length % 3 === 0 && palette.length / 3 <= 256, 'expected a PLTE chunk of at most 256 colours');
+  assert.ok(
+    palette && palette.length % 3 === 0 && palette.length / 3 <= 256,
+    'expected a PLTE chunk of at most 256 colours',
+  );
 }
 
 test('the full-size wordmark is the master trimmed to its alpha bounds plus a 4px border', () => {
@@ -238,14 +253,17 @@ for (const file of QUANTISED_ICONS) {
     let error = 0;
     for (let i = 0; i < expected.length; i++) error += Math.abs(expected[i]! - actual[i]!);
     const meanError = error / expected.length;
-    assert.ok(meanError <= MAX_MEAN_CHANNEL_ERROR, `mean channel error ${meanError.toFixed(2)} is over ${MAX_MEAN_CHANNEL_ERROR}`);
+    assert.ok(
+      meanError <= MAX_MEAN_CHANNEL_ERROR,
+      `mean channel error ${meanError.toFixed(2)} is over ${MAX_MEAN_CHANNEL_ERROR}`,
+    );
   });
 
   test(`${PUBLIC}${file} is a 256-colour PNG with no metadata`, () => {
     const png = readPng(`${PUBLIC}${file}`);
     assertPalettePng(png);
     // tRNS is allowed, since it carries the palette's alpha rather than metadata.
-    const chunks = [...png.chunks.keys()].filter((type) => type !== 'tRNS').sort();
+    const chunks = [...png.chunks.keys()].filter(type => type !== 'tRNS').sort();
     assert.deepEqual(chunks, ['IDAT', 'IEND', 'IHDR', 'PLTE']);
   });
 }
@@ -257,7 +275,7 @@ test('the macOS iconset holds exactly the ten files iconutil expects', () => {
 
 test('the KDE widget ships a hicolor icon at each size, and the 96px one is its panel logo', () => {
   const names = readdirSync(join(ROOT, KDE_ICONS)).sort();
-  assert.deepEqual(names, KDE_ICON_SIZES.map((size) => `tokkl-${size}.png`).sort());
+  assert.deepEqual(names, KDE_ICON_SIZES.map(size => `tokkl-${size}.png`).sort());
   assert.ok(readFileSync(join(ROOT, `${KDE_ICONS}tokkl-96.png`)).equals(readFileSync(join(ROOT, KDE_LOGO))));
 });
 
@@ -274,7 +292,13 @@ for (const [path, size] of DESKTOP_ICONS) {
   });
 }
 
-for (const [file, size] of [['favicon-16.png', 16], ['favicon-32.png', 32], ['favicon-48.png', 48], ['icon-192.png', 192], ['icon-512.png', 512]] as const) {
+for (const [file, size] of [
+  ['favicon-16.png', 16],
+  ['favicon-32.png', 32],
+  ['favicon-48.png', 48],
+  ['icon-192.png', 192],
+  ['icon-512.png', 512],
+] as const) {
   test(`${file} has a transparent background and visible clock artwork`, () => {
     const png = readPng(`${PUBLIC}icons/${file}`);
     assert.deepEqual([png.width, png.height], [size, size]);
@@ -310,9 +334,14 @@ for (const [path, colour, channel] of [
     }
     const [mono, outline] = [alphaShape(png), packShape(OUTLINE)];
     const [dx, dy] = [(mono.x - outline.x) * png.width, (mono.y - outline.y) * png.height];
-    assert.ok(Math.hypot(dx, dy) <= MAX_CENTRE_SHIFT, `the outline's centre is ${dx.toFixed(2)}, ${dy.toFixed(2)} px from the pack's`);
+    assert.ok(
+      Math.hypot(dx, dy) <= MAX_CENTRE_SHIFT,
+      `the outline's centre is ${dx.toFixed(2)}, ${dy.toFixed(2)} px from the pack's`,
+    );
     const ratio = mono.coverage / outline.coverage;
-    assert.ok(ratio > MIN_OUTLINE_COVERAGE && ratio < MAX_OUTLINE_COVERAGE,
-      `the logo covers ${ratio.toFixed(2)} times the pack outline's share of the canvas`);
+    assert.ok(
+      ratio > MIN_OUTLINE_COVERAGE && ratio < MAX_OUTLINE_COVERAGE,
+      `the logo covers ${ratio.toFixed(2)} times the pack outline's share of the canvas`,
+    );
   });
 }

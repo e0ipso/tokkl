@@ -32,7 +32,7 @@ interface Manifest {
 
 /** Decodes an image in the page and reports its size and its lowest alpha value (255 means opaque). */
 async function decodeImage(page: Page, src: string) {
-  return page.evaluate(async (url) => {
+  return page.evaluate(async url => {
     const image = new Image();
     image.src = url;
     await image.decode();
@@ -62,7 +62,7 @@ test('the built app links a local manifest whose icons are real images of the de
   const response = await page.request.get(manifestUrl.href);
   expect(response.status()).toBe(200);
   expect(response.headers()['content-type']).toMatch(/^application\/(manifest\+)?json\b/);
-  const manifest = await response.json() as Manifest;
+  const manifest = (await response.json()) as Manifest;
 
   expect(typeof manifest.name === 'string' && manifest.name.trim()).toBeTruthy();
   expect(['fullscreen', 'standalone', 'minimal-ui', 'browser']).toContain(manifest.display);
@@ -83,7 +83,7 @@ test('the built app links a local manifest whose icons are real images of the de
 
   // The icon pack's artwork is raster, so the manifest lists only PNG sizes: the general-purpose
   // icons, then the maskable ones. The pack's 1024 px general-purpose icon is too large to serve.
-  expect(manifest.icons?.map((icon) => [icon.src, icon.sizes, icon.type, icon.purpose ?? 'any'])).toEqual([
+  expect(manifest.icons?.map(icon => [icon.src, icon.sizes, icon.type, icon.purpose ?? 'any'])).toEqual([
     ['/icons/icon-192.png', '192x192', 'image/png', 'any'],
     ['/icons/icon-512.png', '512x512', 'image/png', 'any'],
     ['/icons/maskable-192.png', '192x192', 'image/png', 'maskable'],
@@ -133,8 +133,11 @@ function icoSizes(bytes: Buffer) {
 test('the favicon and apple-touch-icon links resolve to images of their declared sizes', async ({ page }) => {
   await page.goto('/');
   const origin = new URL(page.url()).origin;
-  const links = await page.locator('link[rel="icon"], link[rel="apple-touch-icon"]').evaluateAll((elements) =>
-    elements.map((link) => [link.getAttribute('rel'), link.getAttribute('href'), link.getAttribute('sizes')]));
+  const links = await page
+    .locator('link[rel="icon"], link[rel="apple-touch-icon"]')
+    .evaluateAll(elements =>
+      elements.map(link => [link.getAttribute('rel'), link.getAttribute('href'), link.getAttribute('sizes')]),
+    );
   expect(links).toEqual([
     ['icon', '/favicon.ico', '16x16 32x32 48x48'],
     ['icon', '/icons/favicon-32.png', '32x32'],
@@ -180,7 +183,9 @@ test('the served touch icons are the icon pack files, and retired icons are not 
   for (const file of copied) {
     const response = await page.request.get(`/${file}`);
     expect(response.status(), file).toBe(200);
-    expect((await response.body()).equals(readFileSync(`${ICON_PACK}${file}`)), `${file} matches the icon pack`).toBe(true);
+    expect((await response.body()).equals(readFileSync(`${ICON_PACK}${file}`)), `${file} matches the icon pack`).toBe(
+      true,
+    );
   }
 
   const retired = [

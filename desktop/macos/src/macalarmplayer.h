@@ -20,7 +20,7 @@ public:
 
     void loop(const QString &file) override;
     void stop() override;
-    void preview(const QString &file) override;
+    void playOnce(const QString &file) override;
 
 private:
     struct Private;

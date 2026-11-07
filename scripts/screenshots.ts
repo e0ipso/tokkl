@@ -1,6 +1,16 @@
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { expect, request, test, type APIRequestContext, type APIResponse, type Browser, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  request,
+  test,
+  type APIRequestContext,
+  type APIResponse,
+  type Browser,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { PHONE } from '../e2e/mobile-tests-helpers.ts';
 import { RuntimeErrors } from '../e2e/runtime-errors.ts';
 import { NOW, TIME_ZONE, screenshotExport } from './screenshots-data.ts';
@@ -40,38 +50,66 @@ const INVITED = [
  */
 async function inviteUsers(baseURL: string | undefined): Promise<void> {
   for (const { email, fullname, role, note } of INVITED) {
-    const invite = await ok<{ url: string }>(api.post('/api/app/admin/invites', { headers: CSRF, data: { role, note } }));
+    const invite = await ok<{ url: string }>(
+      api.post('/api/app/admin/invites', { headers: CSRF, data: { role, note } }),
+    );
     const guest = await request.newContext({ baseURL });
-    await ok(guest.post(`/api/app${invite.url.replace('/invite/', '/invites/')}`, {
-      headers: CSRF,
-      data: { email, password: 'screenshots password', fullname, timezone: TIME_ZONE },
-    }));
+    await ok(
+      guest.post(`/api/app${invite.url.replace('/invite/', '/invites/')}`, {
+        headers: CSRF,
+        data: { email, password: 'screenshots password', fullname, timezone: TIME_ZONE },
+      }),
+    );
     await guest.dispose();
   }
 }
 
 test.beforeAll(async ({ baseURL }) => {
   api = await request.newContext({ baseURL });
-  await ok(api.post('/api/app/setup', {
-    headers: CSRF,
-    data: { setup_code: 'SCREENSHOTS-SETUP-CODE', email: 'demo@example.com', password: 'screenshots password', fullname: 'Demo User', timezone: TIME_ZONE },
-  }));
-  const result = await ok<{ errors: unknown[]; time_entries: number }>(api.post('/api/app/import/json', {
-    headers: { ...CSRF, 'Content-Type': 'application/json' },
-    data: JSON.stringify(screenshotExport()),
-  }));
+  await ok(
+    api.post('/api/app/setup', {
+      headers: CSRF,
+      data: {
+        setup_code: 'SCREENSHOTS-SETUP-CODE',
+        email: 'demo@example.com',
+        password: 'screenshots password',
+        fullname: 'Demo User',
+        timezone: TIME_ZONE,
+      },
+    }),
+  );
+  const result = await ok<{ errors: unknown[]; time_entries: number }>(
+    api.post('/api/app/import/json', {
+      headers: { ...CSRF, 'Content-Type': 'application/json' },
+      data: JSON.stringify(screenshotExport()),
+    }),
+  );
   expect(result.errors, 'the screenshot data restores without errors').toEqual([]);
   await inviteUsers(baseURL);
 
   const me = await ok<{ default_workspace_id: number }>(api.get('/api/v9/me'));
-  const projects = await ok<Array<{ id: number; name: string }>>(api.get(`/api/v9/workspaces/${me.default_workspace_id}/projects`));
-  const projectId = (name: string) => projects.find((project) => project.name === name)!.id;
+  const projects = await ok<Array<{ id: number; name: string }>>(
+    api.get(`/api/v9/workspaces/${me.default_workspace_id}/projects`),
+  );
+  const projectId = (name: string) => projects.find(project => project.name === name)!.id;
   await savePreferences({
     theme: 'light',
     timerView: 'list',
     favorites: [
-      { description: 'Planning', project_id: projectId('Roadmap'), task_id: null, tags: ['ux', 'ops'], billable: false },
-      { description: 'Code review', project_id: projectId('Billing API'), task_id: null, tags: ['review'], billable: true },
+      {
+        description: 'Planning',
+        project_id: projectId('Roadmap'),
+        task_id: null,
+        tags: ['ux', 'ops'],
+        billable: false,
+      },
+      {
+        description: 'Code review',
+        project_id: projectId('Billing API'),
+        task_id: null,
+        tags: ['review'],
+        billable: true,
+      },
     ],
   });
   session = await api.storageState();
@@ -83,7 +121,10 @@ test.afterAll(async () => {
 });
 
 /** Opens a page with the given device settings, the demo session and the browser clock at NOW. */
-async function openPage(browser: Browser, options: BrowserContextOptions): Promise<{ page: Page; errors: RuntimeErrors }> {
+async function openPage(
+  browser: Browser,
+  options: BrowserContextOptions,
+): Promise<{ page: Page; errors: RuntimeErrors }> {
   const context = await browser.newContext({ ...options, storageState: session });
   const page = await context.newPage();
   await page.clock.setFixedTime(new Date(NOW));
@@ -99,7 +140,8 @@ async function capture(page: Page, path: string, name: string, ready: (page: Pag
   await page.screenshot({ path: `${OUT_DIR}${name}.png`, animations: 'disabled', caret: 'hide' });
 }
 
-const runningTimer = (page: Page) => page.getByRole('region', { name: 'Timer' }).getByRole('button', { name: 'Stop timer' });
+const runningTimer = (page: Page) =>
+  page.getByRole('region', { name: 'Timer' }).getByRole('button', { name: 'Stop timer' });
 const calendar = (page: Page) => page.locator('.calendar-grid').getByText('Release checklist').first();
 const summary = (page: Page) => page.getByRole('region', { name: 'Breakdown' }).getByText('Billing API').first();
 const detailed = (page: Page) => page.getByRole('tabpanel').getByText('Webhook retries').first();

@@ -308,8 +308,10 @@ struct Session {
     QList<std::pair<qint64, QString>> projects() const
     {
         QList<std::pair<qint64, QString>> list;
-        for (const Project &project : connection.projects()) {
-            list.append({project.id, project.name});
+        const QVariantList shown = timer.projects();
+        for (const QVariant &value : shown) {
+            const QVariantMap project = value.toMap();
+            list.append({project.value(QStringLiteral("id")).toLongLong(), project.value(QStringLiteral("name")).toString()});
         }
         std::sort(list.begin(), list.end());
         return list;
@@ -523,8 +525,6 @@ class RealServerTest : public QObject
         QCOMPARE(s.connection.state(), Connection::AuthenticationFailed);
         QVERIFY(!s.connection.account());
         QCOMPARE(s.connection.workspaceId(), 0);
-        QVERIFY(s.connection.projects().isEmpty());
-        QVERIFY(!s.connection.currentEntry());
         QVERIFY(!s.timer.currentEntry());
         QVERIFY(s.timer.projects().isEmpty());
         QVERIFY(!s.timer.canWrite());

@@ -37,10 +37,10 @@ function guardPath(lockPath: string, content: string): string {
 
 /** Files next to the data directory other than `keep`: drafts, guards or locks left behind. */
 function leftovers(root: string, ...keep: string[]): string[] {
-  return readdirSync(root).filter((name) => !keep.includes(name));
+  return readdirSync(root).filter(name => !keep.includes(name));
 }
 
-test('a fresh claim writes this process as the owner and release removes the lock', (t) => {
+test('a fresh claim writes this process as the owner and release removes the lock', t => {
   const { root, dataDir, lockPath } = sandbox(t);
   const release = claimDataDir(dataDir);
   const owner = holder(lockPath);
@@ -53,22 +53,25 @@ test('a fresh claim writes this process as the owner and release removes the loc
   assert.deepEqual(leftovers(root), []);
 });
 
-test('a held lock is refused with a message naming the directory and the lock file', (t) => {
+test('a held lock is refused with a message naming the directory and the lock file', t => {
   const { dataDir, lockPath } = sandbox(t);
   const release = claimDataDir(dataDir);
   t.after(release);
   const held = readFileSync(lockPath, 'utf8');
-  assert.throws(() => claimDataDir(dataDir), (error: Error) => {
-    assert.match(error.message, /is in use by another e2e run/);
-    assert.ok(error.message.includes(`TOKKL_E2E_DATA_DIR ${dataDir} `), error.message);
-    assert.ok(error.message.includes(`(process ${process.pid} on ${hostname()})`), error.message);
-    assert.ok(error.message.includes(`delete ${lockPath}.`), error.message);
-    return true;
-  });
+  assert.throws(
+    () => claimDataDir(dataDir),
+    (error: Error) => {
+      assert.match(error.message, /is in use by another e2e run/);
+      assert.ok(error.message.includes(`TOKKL_E2E_DATA_DIR ${dataDir} `), error.message);
+      assert.ok(error.message.includes(`(process ${process.pid} on ${hostname()})`), error.message);
+      assert.ok(error.message.includes(`delete ${lockPath}.`), error.message);
+      return true;
+    },
+  );
   assert.equal(readFileSync(lockPath, 'utf8'), held, 'a refused claim must not touch the lock');
 });
 
-test('a lock whose process is gone on this host is taken over', (t) => {
+test('a lock whose process is gone on this host is taken over', t => {
   const { root, dataDir, lockPath } = sandbox(t);
   writeFileSync(lockPath, JSON.stringify({ pid: deadPid(), host: hostname(), id: 'crashed-run' }));
   const release = claimDataDir(dataDir);
@@ -78,21 +81,24 @@ test('a lock whose process is gone on this host is taken over', (t) => {
   assert.equal(existsSync(lockPath), false);
 });
 
-test('a lock from another host is never treated as stale, even with a dead pid', (t) => {
+test('a lock from another host is never treated as stale, even with a dead pid', t => {
   const { root, dataDir, lockPath } = sandbox(t);
   const otherHost = `${hostname()}-other`;
   const foreign = JSON.stringify({ pid: deadPid(), host: otherHost, id: 'remote-run' });
   writeFileSync(lockPath, foreign);
-  assert.throws(() => claimDataDir(dataDir), (error: Error) => {
-    assert.match(error.message, /is in use by another e2e run/);
-    assert.ok(error.message.includes(`on ${otherHost})`), error.message);
-    return true;
-  });
+  assert.throws(
+    () => claimDataDir(dataDir),
+    (error: Error) => {
+      assert.match(error.message, /is in use by another e2e run/);
+      assert.ok(error.message.includes(`on ${otherHost})`), error.message);
+      return true;
+    },
+  );
   assert.equal(readFileSync(lockPath, 'utf8'), foreign);
   assert.deepEqual(leftovers(root), ['data.lock']);
 });
 
-test('release removes only this process\'s lock', (t) => {
+test("release removes only this process's lock", t => {
   const { dataDir, lockPath } = sandbox(t);
   const release = claimDataDir(dataDir);
   // Another run took the directory over after this one's lock went (for example, deleted by hand).
@@ -105,18 +111,21 @@ test('release removes only this process\'s lock', (t) => {
   assert.equal(existsSync(lockPath), false, 'a second release must not recreate anything');
 });
 
-test('an old-format {pid, host} lock is recognised as held while its process runs', (t) => {
+test('an old-format {pid, host} lock is recognised as held while its process runs', t => {
   const { dataDir, lockPath } = sandbox(t);
   const old = JSON.stringify({ pid: process.ppid, host: hostname() });
   writeFileSync(lockPath, old);
-  assert.throws(() => claimDataDir(dataDir), (error: Error) => {
-    assert.ok(error.message.includes(`(process ${process.ppid} on ${hostname()})`), error.message);
-    return true;
-  });
+  assert.throws(
+    () => claimDataDir(dataDir),
+    (error: Error) => {
+      assert.ok(error.message.includes(`(process ${process.ppid} on ${hostname()})`), error.message);
+      return true;
+    },
+  );
   assert.equal(readFileSync(lockPath, 'utf8'), old);
 });
 
-test('an old-format {pid, host} lock whose process is gone is taken over', (t) => {
+test('an old-format {pid, host} lock whose process is gone is taken over', t => {
   const { root, dataDir, lockPath } = sandbox(t);
   writeFileSync(lockPath, JSON.stringify({ pid: deadPid(), host: hostname() }));
   const release = claimDataDir(dataDir);
@@ -125,7 +134,7 @@ test('an old-format {pid, host} lock whose process is gone is taken over', (t) =
   release();
 });
 
-test('a recovery guard left by a dead recoverer is cleared along with the stale lock', (t) => {
+test('a recovery guard left by a dead recoverer is cleared along with the stale lock', t => {
   const { root, dataDir, lockPath } = sandbox(t);
   const pid = deadPid();
   const stale = JSON.stringify({ pid, host: hostname(), id: 'crashed-run' });
@@ -137,7 +146,7 @@ test('a recovery guard left by a dead recoverer is cleared along with the stale 
   release();
 });
 
-test('a guard held by a live recoverer is left alone', (t) => {
+test('a guard held by a live recoverer is left alone', t => {
   const { root, dataDir, lockPath } = sandbox(t);
   const stale = JSON.stringify({ pid: deadPid(), host: hostname(), id: 'crashed-run' });
   const guard = guardPath(lockPath, stale);
@@ -189,14 +198,20 @@ async function race(dataDir: string, claimants: number): Promise<Outcome[]> {
     });
     let out = '';
     let err = '';
-    child.stdout.setEncoding('utf8').on('data', (chunk: string) => { out += chunk; });
-    child.stderr.setEncoding('utf8').on('data', (chunk: string) => { err += chunk; });
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      out += chunk;
+    });
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
+      err += chunk;
+    });
     const ready = new Promise<void>((resolve, reject) => {
-      const check = (): void => { if (out.startsWith('ready\n')) resolve(); };
+      const check = (): void => {
+        if (out.startsWith('ready\n')) resolve();
+      };
       child.stdout.on('data', check);
       child.on('exit', () => reject(new Error(`claimant exited before it was ready: ${err || out}`)));
     });
-    const done = new Promise<Outcome>((resolve) => {
+    const done = new Promise<Outcome>(resolve => {
       child.on('close', () => {
         const line = out.trim().split('\n').pop() ?? '';
         try {
@@ -214,19 +229,19 @@ async function race(dataDir: string, claimants: number): Promise<Outcome[]> {
   return Promise.all(children.map(({ done }) => done));
 }
 
-test('claimants racing for a stale lock end with exactly one owner', async (t) => {
+test('claimants racing for a stale lock end with exactly one owner', async t => {
   const claimants = 6;
   const repeats = 4;
   for (let repeat = 0; repeat < repeats; repeat++) {
     const { root, dataDir, lockPath } = sandbox(t);
     writeFileSync(lockPath, JSON.stringify({ pid: deadPid(), host: hostname() }));
     const outcomes = await race(dataDir, claimants);
-    const errors = outcomes.filter((outcome) => outcome.result === 'error');
+    const errors = outcomes.filter(outcome => outcome.result === 'error');
     assert.deepEqual(errors, [], `repeat ${repeat}: claimant errors`);
-    const owners = outcomes.filter((outcome) => outcome.result === 'owner');
+    const owners = outcomes.filter(outcome => outcome.result === 'owner');
     assert.equal(owners.length, 1, `repeat ${repeat}: ${owners.length} owners`);
     assert.equal(owners[0]?.stillHolds, true, `repeat ${repeat}: the owner's lock was replaced while it held it`);
-    assert.equal(outcomes.filter((outcome) => outcome.result === 'refused').length, claimants - 1);
+    assert.equal(outcomes.filter(outcome => outcome.result === 'refused').length, claimants - 1);
     assert.deepEqual(leftovers(root), [], `repeat ${repeat}: files left behind`);
     assert.equal(existsSync(lockPath), false);
   }

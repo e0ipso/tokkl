@@ -4,10 +4,14 @@
 #include <QPointer>
 #include <QUrl>
 
+#include <QVariant>
+
 #include <memory>
+#include <optional>
 
 class QAction;
 class QMenu;
+class MenuBarAppTest;
 
 namespace Tokkl
 {
@@ -54,19 +58,6 @@ public:
     ~StatusMenu() override;
 
     QMenu *menu() const;
-    QMenu *projectMenu() const;
-    QAction *stateAction() const;
-    QAction *messageAction() const;
-    QAction *startStopAction() const;
-    QAction *startSessionAction() const;
-    QAction *nextPhaseAction() const;
-    QAction *endSessionAction() const;
-    QAction *pomodoroModeAction() const;
-    QAction *billableAction() const;
-    QAction *reconnectAction() const;
-    QAction *openAction() const;
-    QAction *settingsAction() const;
-    QAction *quitAction() const;
 
 Q_SIGNALS:
     void openRequested(const QUrl &url);
@@ -74,7 +65,26 @@ Q_SIGNALS:
     void quitRequested();
 
 private:
+    // The app's tests trigger and read the actions.
+    friend class ::MenuBarAppTest;
+
+    // What the project items show. They are rebuilt only when it changes,
+    // not on every refresh.
+    struct ProjectItems {
+        bool choosable = false;
+        QVariant chosen;
+        // The running or paused entry's archived project, or empty.
+        QVariantMap archived;
+        bool incomplete = false;
+        QVariantList projects;
+
+        bool operator==(const ProjectItems &other) const = default;
+    };
+
     void rebuildProjects();
+    void fillProjectMenu(const ProjectItems &items);
+    // A checkable item that chooses projectId, null for no project.
+    QAction *addProjectChoice(const QString &label, const QVariant &projectId, bool checked, bool enabled);
     void refresh();
     void refreshState();
     void refreshSession();
@@ -102,6 +112,7 @@ private:
     QAction *m_settingsAction = nullptr;
     QAction *m_quitAction = nullptr;
     QMetaObject::Connection m_generationWatch;
+    std::optional<ProjectItems> m_projectItems;
 };
 
 }

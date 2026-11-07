@@ -23,9 +23,20 @@ export class TimerActionError extends Error {
 }
 
 export function isTimerState(value: unknown): value is TimerState {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.revision === 'number' && typeof candidate.server_time === 'string';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'revision' in value &&
+    typeof value.revision === 'number' &&
+    'server_time' in value &&
+    typeof value.server_time === 'string'
+  );
+}
+
+/** Decodes a timer state reply, failing when the server sent something else. */
+export function timerStateOf(value: unknown): TimerState {
+  if (!isTimerState(value)) throw new Error('The server sent an unreadable timer state.');
+  return value;
 }
 
 /** What to write into the caches for an arriving state. */
@@ -44,7 +55,11 @@ export interface TimerUpdate {
  * because a slow response or a replayed event must not undo a newer state. An equal revision is
  * kept: it carries a fresher server time.
  */
-export function planTimerUpdate(cached: TimerState | undefined, incoming: TimerState, receivedAt: number): TimerUpdate | null {
+export function planTimerUpdate(
+  cached: TimerState | undefined,
+  incoming: TimerState,
+  receivedAt: number,
+): TimerUpdate | null {
   if (cached && incoming.revision < cached.revision) return null;
   return {
     state: incoming,
@@ -84,7 +99,7 @@ function isOtherWrite(mutation: Mutation<unknown, Error, unknown, unknown>): boo
 export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   const cache = qc.getMutationCache();
   const others = () => cache.getAll().filter(isOtherWrite);
-  const held = () => others().some((mutation) => mutation.state.isPaused);
+  const held = () => others().some(mutation => mutation.state.isPaused);
   if (held()) return Promise.reject(new TimerActionError('offline'));
   if (others().length === 0) return Promise.resolve(false);
   return new Promise((resolve, reject) => {
@@ -102,8 +117,11 @@ export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
 
 /** Whether two states show the same session phase and the same pause, whatever else moved the revision. */
 function sameSubject(a: TimerState, b: TimerState): boolean {
-  return a.pomodoro?.phase.start === b.pomodoro?.phase.start
-    && a.pause?.paused === b.pause?.paused && a.pause?.clone_entry_id === b.pause?.clone_entry_id;
+  return (
+    a.pomodoro?.phase.start === b.pomodoro?.phase.start &&
+    a.pause?.paused === b.pause?.paused &&
+    a.pause?.clone_entry_id === b.pause?.clone_entry_id
+  );
 }
 
 /**

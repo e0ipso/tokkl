@@ -5,13 +5,12 @@
 
 import Gio from 'gi://Gio';
 
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {TokklIndicator} from './indicator.js';
-import {BUS_NAME, OBJECT_PATH, TIMER1_INTERFACE} from './timer1.js';
-
-const Timer1Proxy = Gio.DBusProxy.makeProxyWrapper(TIMER1_INTERFACE);
+import { TokklIndicator } from './indicator.js';
+import { BUS_NAME } from './timer1.js';
+import { createTimer1Proxy } from './timer1proxy.js';
 
 export default class TokklExtension extends Extension {
     enable() {
@@ -28,17 +27,12 @@ export default class TokklExtension extends Extension {
         updateIcons();
         Main.panel.addToStatusArea(this.uuid, this._indicator);
 
-        // Creating the proxy starts tokkl-timerd through D-Bus activation
-        // when it is not running yet.
         this._cancellable = new Gio.Cancellable();
-        new Timer1Proxy(Gio.DBus.session, BUS_NAME, OBJECT_PATH, (proxy, error) => {
-            if (error) {
-                if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
-                    console.warn(`Tokkl: cannot reach ${BUS_NAME}: ${error.message}`);
-                return;
-            }
-            indicator.setProxy(proxy);
-        }, this._cancellable);
+        createTimer1Proxy(
+            this._cancellable,
+            proxy => indicator.setProxy(proxy),
+            error => console.warn(`Tokkl: cannot reach ${BUS_NAME}: ${error.message}`),
+        );
     }
 
     disable() {

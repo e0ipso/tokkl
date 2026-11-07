@@ -155,8 +155,22 @@ PlasmaComponents.Menu {
         id: projectMenu
 
         readonly property bool hasArchived: (menu.timer.running || menu.timer.paused) && menu.timer.entryProject !== null && !menu.timer.entryProject.active
-        // Items before the active projects: No project and the archived one.
-        readonly property int fixedCount: 1 + (hasArchived ? 1 : 0)
+        // The rows after No project, in order: the current entry's archived
+        // project, a note when the list is cut short, then the active
+        // projects. Row i is item 1 + i of the menu.
+        readonly property var rows: {
+            const rows = [];
+            if (projectMenu.hasArchived) {
+                rows.push({ kind: "archived", project: menu.timer.entryProject });
+            }
+            if (menu.timer.projectsIncomplete) {
+                rows.push({ kind: "incomplete" });
+            }
+            for (const project of menu.timer.projects) {
+                rows.push({ kind: "project", project: project });
+            }
+            return rows;
+        }
 
         // A choice is possible: the timer can write, nothing runs, no chain
         // is paused and no session is active.
@@ -175,47 +189,29 @@ PlasmaComponents.Menu {
             onTriggered: menu.timer.chooseProject(null)
         }
 
-        // The current entry's archived project: shown and checked, never
-        // offered for new work.
+        // The archived project is shown and checked, never offered for new
+        // work. The note says the projects read are fewer than the workspace
+        // has and points to the web app; it comes before the projects so a
+        // long list does not bury it.
         Instantiator {
-            model: projectMenu.hasArchived ? [menu.timer.entryProject] : []
-            delegate: PlasmaComponents.MenuItem {
-                required property var modelData
-
-                checkable: true
-                checked: true
-                enabled: false
-                text: menu.words.projectLabel(modelData)
-            }
-            onObjectAdded: (index, object) => projectMenu.insertItem(1 + index, object)
-            onObjectRemoved: (index, object) => projectMenu.removeItem(object)
-        }
-
-        // The projects read are fewer than the workspace has: say so and point
-        // to the web app. Placed before the projects so a long list does not
-        // bury it.
-        Instantiator {
-            model: menu.timer.projectsIncomplete ? [true] : []
-            delegate: PlasmaComponents.MenuItem {
-                enabled: false
-                text: i18nc("@item:inmenu", "Project list cut short. Use Open Tokkl for the others.")
-                Accessible.description: i18nc("@info:whatsthis", "The workspace has more active projects than this menu can list. Open Tokkl in the web app to choose the others.")
-            }
-            onObjectAdded: (index, object) => projectMenu.insertItem(projectMenu.fixedCount + index, object)
-            onObjectRemoved: (index, object) => projectMenu.removeItem(object)
-        }
-
-        Instantiator {
-            model: menu.timer.projects
+            model: projectMenu.rows
             delegate: ChoiceItem {
                 required property var modelData
+                readonly property bool isNote: modelData.kind === "incomplete"
+                readonly property bool isProject: modelData.kind === "project"
 
-                text: menu.words.projectLabel(modelData)
-                selected: menu.timer.chosenProjectId === modelData.id
-                enabled: projectMenu.choosable
-                onTriggered: menu.timer.chooseProject(modelData.id)
+                checkable: !isNote
+                selected: modelData.kind === "archived" || (isProject && menu.timer.chosenProjectId === modelData.project.id)
+                enabled: isProject && projectMenu.choosable
+                text: isNote ? i18nc("@item:inmenu", "Project list cut short. Use Open Tokkl for the others.") : menu.words.projectLabel(modelData.project)
+                Accessible.description: isNote ? i18nc("@info:whatsthis", "The workspace has more active projects than this menu can list. Open Tokkl in the web app to choose the others.") : ""
+                onTriggered: {
+                    if (isProject) {
+                        menu.timer.chooseProject(modelData.project.id);
+                    }
+                }
             }
-            onObjectAdded: (index, object) => projectMenu.insertItem(projectMenu.fixedCount + (menu.timer.projectsIncomplete ? 1 : 0) + index, object)
+            onObjectAdded: (index, object) => projectMenu.insertItem(1 + index, object)
             onObjectRemoved: (index, object) => projectMenu.removeItem(object)
         }
     }

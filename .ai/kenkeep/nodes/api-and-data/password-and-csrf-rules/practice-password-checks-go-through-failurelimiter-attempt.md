@@ -3,7 +3,7 @@ type: practice
 title: Password checks go through FailureLimiter.attempt
 description: >-
   Password checks charge three counters; 429s send Retry-After; disabled
-  accounts fail like bad passwords; new passwords use readNewPassword.
+  accounts fail like bad passwords; new passwords use parseNewPassword.
 tags:
   - server
   - auth
@@ -24,19 +24,19 @@ Before the check runs, `attempt` reserves one slot in each counter: a reservatio
 
 `attempt` returns `{ refused: false, valid }` after running the check, or `{ refused: true, retryAfter }` without running it. A blocked counter gives the latest reset among the full counters, rounded up and clamped to 1 through the window (900 seconds), because an attempt is refused while any counter is full. When no counter is full but reservations fill a slot, the attempt is refused at once with `retryAfter` 1. There is no wait queue, because one instance cannot wake a waiter on another.
 
-Every limiter refusal (form login, Basic auth, password change, setup codes, invite and password reset links) answers 429 through `tooManyRequests(message, seconds)` in `packages/api/src/lib/errors.ts`, which sets `Retry-After`. The seconds come from the refused `attempt`. Setup codes and invite and reset links also run their comparison or lookup through `attempt`, so parallel misses cannot pass a limit before their failures are recorded. Use `attempt` for any new failure-counted check; there is no separate check-then-record API.
+Every limiter refusal (form login, Basic auth, password change, setup codes, invite and password reset links) answers 429 through `tooManyAttempts(message, seconds)` in `packages/api/src/lib/errors.ts`, whose seconds `packages/api/src/http/errors.ts` sends as `Retry-After`. The seconds come from the refused `attempt`. Setup codes and invite and reset links also run their comparison or lookup through `attempt`, so parallel misses cannot pass a limit before their failures are recorded. Use `attempt` for any new failure-counted check; there is no separate check-then-record API.
 
-Authentication in `auth/storageMiddleware.ts` runs password verification through the limiter, then asynchronously re-reads the active account and verified credential identity. Session creation and protected mutations recheck credentials inside the guarded transaction. A suspension, deletion, password reset or token/session revocation committed while scrypt or lock acquisition waits must refuse the stale credential.
+Authentication in `auth/middleware.ts` runs password verification through the limiter, then asynchronously re-reads the active account and verified credential identity. Session creation and protected mutations recheck credentials inside the guarded transaction. A suspension, deletion, password reset or token/session revocation committed while scrypt or lock acquisition waits must refuse the stale credential.
 
-Form login (`auth/storageSessions.ts`, mounted in `routes/app.ts`), HTTP Basic auth (`auth/storageMiddleware.ts`) and the password change in the Toggl v9 `me` update (`routes/togglV9.ts`, charged to the caller's own email) all use these counters. The password change reaches `updateProfile` in `domain/accounts.ts` through the `AccountPasswordAttempt` port, which `passwordAttempt` builds.
+Form login (`auth/sessions.ts`, mounted in `routes/app.ts`), HTTP Basic auth (`auth/middleware.ts`) and the password change in the Toggl v9 `me` update (`routes/toggl/me.ts`, charged to the caller's own email) all use these counters. The password change reaches `updateProfile` in `domain/accounts.ts` through the `AccountPasswordAttempt` port, which `passwordAttempt` builds.
 
 `PUT /me` password rotation validates the current credential again under the protected account transaction after hashing. `createApplicationServices` in `services/application.ts` composes these guarded rechecks; no synchronous no-await window is assumed. API race tests hold actual crypto work or guard acquisition to prove revocation. An unknown email still counts against its account and address and still costs a scrypt run through `verifyAgainstDummy`, so response time does not reveal which emails exist. A successful form login resets only `accountCounters` (account plus address, and account), never the address counter. A reset clears failures but leaves reservations of checks still running. Setup codes use the separate `setupLimiter` keyed by address (`SETUP_CODE_LIMIT`, 10). The setup code itself stays in process memory; only its wrong-guess counter is in the database.
 
 Accounts are keyed by `normalizeEmail`: trim, then lowercase ASCII A-Z only. That matches the `users.email_key` column, which folds the same letters on every engine. Do not use `toLowerCase`, which also folds letters such as Ä and would merge distinct users (`Ä@` and `ä@`) into one counter.
 
-New passwords must be at least `MIN_PASSWORD_LENGTH` (8) and at most `MAX_PASSWORD_LENGTH` (1024) characters (`packages/api/src/auth/crypto.ts`). Current passwords are not capped on login, Basic auth or rotation, so an owner with an older, longer password can still sign in and change it.
+New passwords must be at least `MIN_PASSWORD_LENGTH` (8) and at most `MAX_PASSWORD_LENGTH` (1024) characters (`packages/api/src/domain/accountValues.ts`). Current passwords are not capped on login, Basic auth or rotation, so an owner with an older, longer password can still sign in and change it.
 
-New passwords from first-admin setup, invite accept, `PUT /me` and password reset all go through `readNewPassword` in `packages/api/src/auth/crypto.ts`; use it for any new path that sets one.
+New passwords from first-admin setup, invite accept, `PUT /me` and password reset all go through `parseNewPassword` in `packages/api/src/commands/accounts.ts`; use it for any new path that sets one.
 
 Invite and password reset link lookups (`GET` and `POST` on `/invites/:token` and `/password-resets/:token`, `routes/app.ts`) charge a miss to the address counter (`addressCounter`, the same 100-per-window counter login uses) and answer 429 before the lookup once it is full, so tokens cannot be guessed at speed. A successful reset clears `accountCounters` for that account and address.
 

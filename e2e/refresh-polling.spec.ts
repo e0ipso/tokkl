@@ -7,21 +7,29 @@ import { OtherDevice, countPolls, daysAgo, entryRow, setVisibility } from './gro
 // while the stream is down. Another device changes entries through the API while this page only watches.
 
 let device: OtherDevice;
-test.beforeEach(async ({ baseURL }) => { device = await OtherDevice.open(baseURL!); });
-test.afterEach(async () => { await device.close(); });
+test.beforeEach(async ({ baseURL }) => {
+  device = await OtherDevice.open(baseURL!);
+});
+test.afterEach(async () => {
+  await device.close();
+});
 
 const at = (day: string, hour: number) => `${day}T${String(hour).padStart(2, '0')}:00:00Z`;
 
 test('Show more days follows older entries added and deleted on another device', async ({ page }) => {
   await page.clock.install();
-  const bounds = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/app/bounds');
+  const bounds = page.waitForResponse(response => new URL(response.url()).pathname === '/api/app/bounds');
   await login(page);
   await bounds;
   await expect(page.getByText('No time entries in this period')).toBeVisible();
   const more = page.getByRole('button', { name: 'Show 14 more days' });
   await expect(more).toHaveCount(0);
 
-  const old = await device.createEntry({ description: 'Older history', start: at(daysAgo(20), 9), stop: at(daysAgo(20), 10) });
+  const old = await device.createEntry({
+    description: 'Older history',
+    start: at(daysAgo(20), 9),
+    stop: at(daysAgo(20), 10),
+  });
   await page.clock.fastForward(60_000);
   await expect(more).toBeVisible();
   await expect(entryRow(page, 'Older history')).toHaveCount(0);
@@ -32,8 +40,14 @@ test('Show more days follows older entries added and deleted on another device',
   await expect(more).toHaveCount(0);
 });
 
-test('another device\'s timer changes arrive by push and its history edits through the 60-second poll', async ({ page }) => {
-  const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
+test("another device's timer changes arrive by push and its history edits through the 60-second poll", async ({
+  page,
+}) => {
+  const history = await device.createEntry({
+    description: 'Old history',
+    start: at(daysAgo(1), 9),
+    stop: at(daysAgo(1), 10),
+  });
   // The fake clock runs at normal speed; fastForward jumps it and fires each due interval once.
   await page.clock.install();
   await login(page);
@@ -60,8 +74,12 @@ test('another device\'s timer changes arrive by push and its history edits throu
   expect(polls.current).toBe(0);
 });
 
-test('making the window visible again refreshes another device\'s history edit at once', async ({ page }) => {
-  const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
+test("making the window visible again refreshes another device's history edit at once", async ({ page }) => {
+  const history = await device.createEntry({
+    description: 'Old history',
+    start: at(daysAgo(1), 9),
+    stop: at(daysAgo(1), 10),
+  });
   await login(page);
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
   const polls = countPolls(page);
@@ -78,8 +96,12 @@ test('making the window visible again refreshes another device\'s history edit a
 
 // Clicking back into a window that stayed visible, such as one beside another app, fires focus
 // but no visibilitychange.
-test('focusing a window that stayed visible refreshes another device\'s history edit at once', async ({ page }) => {
-  const history = await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
+test("focusing a window that stayed visible refreshes another device's history edit at once", async ({ page }) => {
+  const history = await device.createEntry({
+    description: 'Old history',
+    start: at(daysAgo(1), 9),
+    stop: at(daysAgo(1), 10),
+  });
   await login(page);
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
   const polls = countPolls(page);
@@ -93,7 +115,11 @@ test('focusing a window that stayed visible refreshes another device\'s history 
 
 test('a refresh keeps the description being typed in the running timer and in a list row', async ({ page }) => {
   const remote = await device.startTimer('Remote timer');
-  const other = await device.createEntry({ description: 'Other history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
+  const other = await device.createEntry({
+    description: 'Other history',
+    start: at(daysAgo(1), 9),
+    stop: at(daysAgo(1), 10),
+  });
   await device.createEntry({ description: 'Old history', start: at(daysAgo(2), 9), stop: at(daysAgo(2), 10) });
   await page.clock.install();
   await login(page);
@@ -103,7 +129,7 @@ test('a refresh keeps the description being typed in the running timer and in a 
   // Days run newest first: "Other history", then "Old history". The typed text replaces the
   // value attribute, so the row is held by position.
   const row = page.locator('.entry-list .entry-line').nth(1);
-  const oldId = [...(await device.entries()).values()].find((entry) => entry.description === 'Old history')!.id;
+  const oldId = [...(await device.entries()).values()].find(entry => entry.description === 'Old history')!.id;
 
   // Typing in the running timer, not saved yet. The other device renames the entry and tags it.
   const timerDescription = timer.getByLabel('Description');
@@ -154,7 +180,7 @@ test('a refresh keeps an unsaved row description when another device edits that 
 
   // A rename of the same entry arrives with the 60-second poll and still leaves the draft alone.
   await device.updateEntry(id, { description: 'Renamed elsewhere' });
-  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v9/me/time_entries');
+  const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v9/me/time_entries');
   await page.clock.fastForward(60_000);
   await refreshed;
   await expect(rowDescription).toBeFocused();
