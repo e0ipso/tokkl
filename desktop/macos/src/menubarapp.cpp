@@ -126,45 +126,13 @@ void MenuBarApp::start()
     }
 }
 
-Connection *MenuBarApp::connection() const
-{
-    return m_connection.get();
-}
 
-TimerController *MenuBarApp::timer() const
-{
-    return m_timer.get();
-}
 
-PomodoroSession *MenuBarApp::pomodoroSession() const
-{
-    return m_session.get();
-}
 
-PomodoroPreferences *MenuBarApp::pomodoroPreferences() const
-{
-    return m_preferences.get();
-}
 
-PomodoroAlarm *MenuBarApp::pomodoroAlarm() const
-{
-    return m_alarm.get();
-}
 
-SoundChoices *MenuBarApp::soundChoices() const
-{
-    return m_sounds.get();
-}
 
-StatusMenu *MenuBarApp::statusMenu() const
-{
-    return m_menu.get();
-}
 
-SettingsWindow *MenuBarApp::settingsWindow() const
-{
-    return m_settingsWindow.get();
-}
 
 void MenuBarApp::showSettings()
 {
