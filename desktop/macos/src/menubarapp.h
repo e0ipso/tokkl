@@ -46,9 +46,10 @@ class Transport;
 // a running or paused timer in either mode, it pauses a running timer,
 // resumes a paused one and starts a stopped one. In Pomodoro mode with
 // nothing running it starts a session. The menu's Start Timer starts a new
-// entry and its Stop Timer ends the chain. Timer state, requests and the
-// project and billable rules stay in TimerController; the session rules stay
-// in PomodoroSession.
+// entry and its Stop Timer ends the chain. TimerController holds the timer:
+// the menu and the status item read its TimerModel and act through its
+// TimerCoordinator, which keeps the request, project and billable rules. The
+// session rules stay in PomodoroSession.
 class MenuBarApp : public QObject
 {
     Q_OBJECT

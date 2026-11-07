@@ -19,7 +19,8 @@ namespace Tokkl
 {
 
 class PomodoroSession;
-class TimerController;
+class TimerCoordinator;
+class TimerModel;
 
 // The menu of the menu bar item: state, the session's message, Start Timer or
 // Stop Timer, Start session, Next phase, End session, Pomodoro mode, Project,
@@ -56,7 +57,8 @@ class StatusMenu : public QObject
 
 public:
     // Uses the timer and the session, which it does not own.
-    StatusMenu(TimerController *timer, PomodoroSession *session, QObject *parent = nullptr);
+    // Shows timer and acts through actions; none of the three is owned.
+    StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, QObject *parent = nullptr);
     ~StatusMenu() override;
 
     QMenu *menu() const;
@@ -84,7 +86,8 @@ private:
     // Pomodoro mode is on and no timer runs or is paused.
     bool pomodoroIdle() const;
 
-    QPointer<TimerController> m_timer;
+    QPointer<TimerModel> m_timer;
+    QPointer<TimerCoordinator> m_actions;
     QPointer<PomodoroSession> m_session;
     std::unique_ptr<QMenu> m_menu;
     QMenu *m_projectMenu = nullptr;

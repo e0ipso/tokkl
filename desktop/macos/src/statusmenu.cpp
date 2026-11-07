@@ -3,7 +3,8 @@
 #include "connection.h"
 #include "pomodorosession.h"
 #include "statuswords.h"
-#include "timercontroller.h"
+#include "timercoordinator.h"
+#include "timermodel.h"
 
 #include <QAction>
 #include <QMenu>
@@ -11,9 +12,10 @@
 namespace Tokkl
 {
 
-StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject *parent)
+StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, QObject *parent)
     : QObject(parent)
     , m_timer(timer)
+    , m_actions(actions)
     , m_session(session)
     , m_menu(std::make_unique<QMenu>())
 {
@@ -26,13 +28,13 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject
 
     m_startStopAction = m_menu->addAction(QString());
     connect(m_startStopAction, &QAction::triggered, this, [this] {
-        if (!m_timer) {
+        if (!m_timer || !m_actions) {
             return;
         }
         if (m_timer->isRunning() || m_timer->isPaused()) {
-            m_timer->stop();
+            m_actions->stop();
         } else {
-            m_timer->start();
+            m_actions->start();
         }
     });
 
@@ -73,8 +75,8 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject
     m_billableAction = m_menu->addAction(tr("Billable"));
     m_billableAction->setCheckable(true);
     connect(m_billableAction, &QAction::triggered, this, [this] {
-        if (m_timer) {
-            m_timer->chooseBillable(!m_timer->chosenBillable());
+        if (m_timer && m_actions) {
+            m_actions->chooseBillable(!m_timer->chosenBillable());
         }
         refresh();
     });
@@ -83,8 +85,8 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject
 
     m_reconnectAction = m_menu->addAction(tr("Reconnect"));
     connect(m_reconnectAction, &QAction::triggered, this, [this] {
-        if (m_timer) {
-            m_timer->reconnect();
+        if (m_actions) {
+            m_actions->reconnect();
         }
     });
 
@@ -107,18 +109,18 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject
     connect(m_quitAction, &QAction::triggered, this, &StatusMenu::quitRequested);
 
     if (m_timer) {
-        connect(m_timer, &TimerController::elapsedChanged, this, &StatusMenu::refreshState);
-        for (auto signal : {&TimerController::statusChanged,
-                            &TimerController::currentEntryChanged,
-                            &TimerController::chainChanged,
-                            &TimerController::sessionActiveChanged,
-                            &TimerController::projectsChanged,
-                            &TimerController::selectionChanged,
-                            &TimerController::choiceChanged,
-                            &TimerController::entryProjectChanged}) {
+        connect(m_timer, &TimerModel::elapsedChanged, this, &StatusMenu::refreshState);
+        for (auto signal : {&TimerModel::statusChanged,
+                            &TimerModel::currentEntryChanged,
+                            &TimerModel::chainChanged,
+                            &TimerModel::sessionActiveChanged,
+                            &TimerModel::projectsChanged,
+                            &TimerModel::selectionChanged,
+                            &TimerModel::choiceChanged,
+                            &TimerModel::entryProjectChanged}) {
             connect(m_timer, signal, this, &StatusMenu::refresh);
         }
-        connect(m_timer, &TimerController::connectionChanged, this, &StatusMenu::watchConnection);
+        connect(m_timer, &TimerModel::connectionChanged, this, &StatusMenu::watchConnection);
         watchConnection();
     }
     if (m_session) {
@@ -226,7 +228,7 @@ void StatusMenu::refresh()
     m_billableAction->setEnabled(m_timer->canWrite() && !paused);
     m_billableAction->setChecked(m_timer->chosenBillable());
 
-    m_reconnectAction->setEnabled(m_timer->status() != TimerController::Unconfigured);
+    m_reconnectAction->setEnabled(m_timer->status() != TimerModel::Unconfigured);
     const Connection *connection = m_timer->connection();
     m_openAction->setEnabled(connection && !connection->webUrl().isEmpty());
 
@@ -288,8 +290,8 @@ QAction *StatusMenu::addProjectChoice(const QString &label, const QVariant &proj
     action->setChecked(checked);
     action->setEnabled(enabled);
     connect(action, &QAction::triggered, this, [this, projectId] {
-        if (m_timer) {
-            m_timer->chooseProject(projectId);
+        if (m_actions) {
+            m_actions->chooseProject(projectId);
         }
         // The action checked itself; a refused choice must not leave it so.
         m_projectItems.reset();

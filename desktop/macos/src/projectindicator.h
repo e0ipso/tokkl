@@ -6,7 +6,7 @@
 namespace Tokkl
 {
 
-class TimerController;
+class TimerModel;
 
 // The project indicator next to the elapsed time in the menu bar, as the KDE
 // panel draws it. It shows the core's chosenProjectId: the running or paused
@@ -56,7 +56,7 @@ struct ProjectIndicator {
 
     // What to draw for the timer. reduceMotion is the system's Reduce Motion
     // setting.
-    static ProjectIndicator fromTimer(const TimerController &timer, bool reduceMotion);
+    static ProjectIndicator fromTimer(const TimerModel &timer, bool reduceMotion);
 
     // The ring and outline colour: the menu bar's own text colour, black on
     // a light menu bar and white on a dark one.

@@ -19,7 +19,7 @@ bool isNoProject(const QVariant &id)
     return !id.isValid() || id.isNull();
 }
 
-QString runText(const TimerController &timer)
+QString runText(const TimerModel &timer)
 {
     if (timer.isRunning()) {
         return tr("Running");
@@ -27,35 +27,35 @@ QString runText(const TimerController &timer)
     return timer.isPaused() ? tr("Paused") : tr("Stopped");
 }
 
-QString statusText(TimerController::Status status)
+QString statusText(TimerModel::Status status)
 {
     switch (status) {
-    case TimerController::Unconfigured:
+    case TimerModel::Unconfigured:
         return tr("Not configured");
-    case TimerController::Loading:
+    case TimerModel::Loading:
         return tr("Loading");
-    case TimerController::Ready:
+    case TimerModel::Ready:
         return tr("Connected");
-    case TimerController::Busy:
+    case TimerModel::Busy:
         return tr("Saving");
-    case TimerController::Stale:
+    case TimerModel::Stale:
         return tr("Offline, showing the last known state");
-    case TimerController::AuthenticationBlocked:
+    case TimerModel::AuthenticationBlocked:
         return tr("Sign-in refused");
-    case TimerController::Error:
+    case TimerModel::Error:
         break;
     }
     return tr("Error");
 }
 
-QString detailText(const TimerController &timer)
+QString detailText(const TimerModel &timer)
 {
     switch (timer.status()) {
-    case TimerController::Unconfigured:
+    case TimerModel::Unconfigured:
         return tr("Set the instance URL and credentials in Tokkl Settings.");
-    case TimerController::Ready:
-    case TimerController::Loading:
-    case TimerController::Busy:
+    case TimerModel::Ready:
+    case TimerModel::Loading:
+    case TimerModel::Busy:
         return QString();
     default:
         return timer.errorString();
@@ -80,7 +80,7 @@ QString projectLabel(const QVariantMap &project)
     return label;
 }
 
-QString projectText(const TimerController &timer)
+QString projectText(const TimerModel &timer)
 {
     const QVariant id = timer.chosenProjectId();
     if (isNoProject(id)) {
@@ -101,7 +101,7 @@ QString projectText(const TimerController &timer)
     return tr("Unknown project");
 }
 
-QString summary(const TimerController &timer)
+QString summary(const TimerModel &timer)
 {
     QStringList parts{tr("%1 %2").arg(runText(timer), timer.elapsedText()), projectText(timer), statusText(timer.status())};
     const QString detail = detailText(timer);
@@ -111,22 +111,22 @@ QString summary(const TimerController &timer)
     return parts.join(QStringLiteral(" · "));
 }
 
-QString menuBarTitle(const TimerController &timer)
+QString menuBarTitle(const TimerModel &timer)
 {
     switch (timer.status()) {
-    case TimerController::Unconfigured:
+    case TimerModel::Unconfigured:
         return tr("Tokkl");
-    case TimerController::Ready:
+    case TimerModel::Ready:
         return timer.elapsedText();
-    case TimerController::Loading:
-    case TimerController::Busy:
+    case TimerModel::Loading:
+    case TimerModel::Busy:
         return tr("%1 …").arg(timer.elapsedText());
     default:
         return tr("%1 !").arg(timer.elapsedText());
     }
 }
 
-QString actionName(const TimerController &timer)
+QString actionName(const TimerModel &timer)
 {
     if (timer.isRunning()) {
         return tr("Pause the Tokkl timer");
@@ -134,7 +134,7 @@ QString actionName(const TimerController &timer)
     return timer.isPaused() ? tr("Resume the Tokkl timer") : tr("Start the Tokkl timer");
 }
 
-QString itemName(const TimerController &timer)
+QString itemName(const TimerModel &timer)
 {
     return tr("%1, %2").arg(actionName(timer), projectText(timer));
 }
@@ -164,21 +164,21 @@ QString sessionText(const PomodoroSession &session)
         .arg(phaseName(session.phase()), time, QString::number(session.pomodoroNumber()), QString::number(session.longRestEvery()));
 }
 
-QString sessionLine(const TimerController &timer, const PomodoroSession &session)
+QString sessionLine(const TimerModel &timer, const PomodoroSession &session)
 {
     const QString text = sessionText(session);
-    if (timer.status() == TimerController::Ready) {
+    if (timer.status() == TimerModel::Ready) {
         return text;
     }
     return tr("%1 · %2").arg(text, statusText(timer.status()));
 }
 
-bool showsSession(const TimerController &timer, const PomodoroSession &session)
+bool showsSession(const TimerModel &timer, const PomodoroSession &session)
 {
     return session.isActive() && !timer.isRunning() && !timer.isPaused();
 }
 
-QString summary(const TimerController &timer, const PomodoroSession &session)
+QString summary(const TimerModel &timer, const PomodoroSession &session)
 {
     if (showsSession(timer, session)) {
         return sessionLine(timer, session);
@@ -186,22 +186,22 @@ QString summary(const TimerController &timer, const PomodoroSession &session)
     return session.pomodoroMode() ? tr("%1 · Pomodoro mode").arg(summary(timer)) : summary(timer);
 }
 
-QString menuBarTitle(const TimerController &timer, const PomodoroSession &session)
+QString menuBarTitle(const TimerModel &timer, const PomodoroSession &session)
 {
     if (!showsSession(timer, session)) {
         return menuBarTitle(timer);
     }
     switch (timer.status()) {
-    case TimerController::Stale:
-    case TimerController::AuthenticationBlocked:
-    case TimerController::Error:
+    case TimerModel::Stale:
+    case TimerModel::AuthenticationBlocked:
+    case TimerModel::Error:
         return tr("%1 !").arg(session.countdownText());
     default:
         return session.countdownText();
     }
 }
 
-QString itemName(const TimerController &timer, const PomodoroSession &session)
+QString itemName(const TimerModel &timer, const PomodoroSession &session)
 {
     if (showsSession(timer, session)) {
         return sessionText(session);

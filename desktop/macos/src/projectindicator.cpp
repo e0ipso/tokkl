@@ -1,7 +1,7 @@
 #include "projectindicator.h"
 
 #include "statuswords.h"
-#include "timercontroller.h"
+#include "timermodel.h"
 
 #include <cmath>
 #include <numbers>
@@ -9,17 +9,17 @@
 namespace Tokkl
 {
 
-ProjectIndicator ProjectIndicator::fromTimer(const TimerController &timer, bool reduceMotion)
+ProjectIndicator ProjectIndicator::fromTimer(const TimerModel &timer, bool reduceMotion)
 {
     ProjectIndicator indicator;
     switch (timer.indicatorState()) {
-    case TimerController::IndicatorState::Pending:
+    case TimerModel::IndicatorState::Pending:
         indicator.kind = Kind::Empty;
         break;
-    case TimerController::IndicatorState::None:
+    case TimerModel::IndicatorState::None:
         indicator.kind = Kind::Outline;
         break;
-    case TimerController::IndicatorState::Project:
+    case TimerModel::IndicatorState::Project:
         indicator.kind = Kind::Filled;
         indicator.color = timer.indicatorColor();
         break;

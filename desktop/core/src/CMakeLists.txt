@@ -61,6 +61,10 @@ add_library(tokklcore STATIC
     soundchoices.h
     timercontroller.cpp
     timercontroller.h
+    timercoordinator.cpp
+    timercoordinator.h
+    timermodel.cpp
+    timermodel.h
     timerstateclient.cpp
     timerstateclient.h
     timerview.cpp

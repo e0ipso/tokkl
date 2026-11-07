@@ -69,7 +69,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
                                               alarmPlayer,
                                               m_sounds.get(),
                                               QString(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds")));
-    m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_session.get());
+    m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_timer->coordinator(), m_session.get());
     m_settingsWindow =
         std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences.get(), m_sounds.get(), m_alarm.get());
 
@@ -78,14 +78,14 @@ MenuBarApp::MenuBarApp(Transport *transport,
     connect(m_menu.get(), &StatusMenu::quitRequested, this, &MenuBarApp::quitRequested);
     connect(m_settingsWindow.get(), &SettingsWindow::saved, this, &MenuBarApp::applySettings);
 
-    for (auto signal : {&TimerController::elapsedChanged,
-                        &TimerController::statusChanged,
-                        &TimerController::currentEntryChanged,
-                        &TimerController::chainChanged,
-                        &TimerController::choiceChanged,
-                        &TimerController::projectsChanged,
-                        &TimerController::entryProjectChanged,
-                        &TimerController::indicatorChanged}) {
+    for (auto signal : {&TimerModel::elapsedChanged,
+                        &TimerModel::statusChanged,
+                        &TimerModel::currentEntryChanged,
+                        &TimerModel::chainChanged,
+                        &TimerModel::choiceChanged,
+                        &TimerModel::projectsChanged,
+                        &TimerModel::entryProjectChanged,
+                        &TimerModel::indicatorChanged}) {
         connect(m_timer.get(), signal, this, &MenuBarApp::updateItem);
     }
     for (auto signal : {&PomodoroSession::modeChanged, &PomodoroSession::sessionChanged, &PomodoroSession::countdownChanged}) {
