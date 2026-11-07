@@ -316,6 +316,24 @@ private Q_SLOTS:
         QVERIFY(f.client.state());
     }
 
+    // The clock's jitter lengthens each wait by up to a quarter of it.
+    void reconnectAddsJitter()
+    {
+        Fixture f;
+        f.clock.jitter = 3000;
+        QVERIFY(connectAccount(f));
+        f.answerRead(stateBody(1, f.clock.now()));
+
+        // The fake keeps the 3 s below each bound, so 1, 2, 4, 8 and 16 s
+        // become 1.249, 2.499, 4.999, 9.999 and 19 s, which the one-second
+        // ticks reach at 2, 3, 5, 10 and 19 s.
+        const QList<int> waits{2, 3, 5, 10, 19};
+        for (int wait : waits) {
+            f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+            QCOMPARE(f.secondsToNextStream(), wait);
+        }
+    }
+
     // A new generation drops the state, its revision and the stream. A
     // refused stream signs the account out like any refused credential.
     void generationDropsState()

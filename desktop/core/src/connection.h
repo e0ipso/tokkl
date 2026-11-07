@@ -177,9 +177,11 @@ public:
     // failure or another status changes nothing here.
     PendingStream *openTimerEvents();
 
-    // Delay before an automatic retry after a connectivity failure, and the
-    // cooldown after a 429 without Retry-After.
+    // Delay before an automatic retry after a connectivity failure, plus up
+    // to retryJitterMs more at random, and the cooldown after a 429 without
+    // Retry-After.
     static constexpr int retryDelayMs = 30000;
+    static constexpr int retryJitterMs = 10000;
     static constexpr int defaultCooldownMs = 60000;
     // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;

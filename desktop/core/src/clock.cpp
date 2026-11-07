@@ -1,5 +1,7 @@
 #include "clock.h"
 
+#include <QRandomGenerator>
+
 namespace Tokkl
 {
 
@@ -18,6 +20,11 @@ SystemClock::SystemClock(QObject *parent)
 QDateTime SystemClock::now() const
 {
     return QDateTime::currentDateTimeUtc();
+}
+
+int SystemClock::jitterMs(int boundMs) const
+{
+    return boundMs > 0 ? int(QRandomGenerator::global()->bounded(boundMs)) : 0;
 }
 
 void SystemClock::schedule()

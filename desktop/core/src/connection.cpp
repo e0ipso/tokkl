@@ -3,6 +3,7 @@
 #include "logging.h"
 
 #include <QCoreApplication>
+#include <QRandomGenerator>
 #include <QUrlQuery>
 
 #include <algorithm>
@@ -480,7 +481,7 @@ void Connection::handleMe(const HttpResponse &response)
         // Not an authentication failure. A bound account stays, marked stale.
         setState(Disconnected, error.message);
         if (!hasContext()) {
-            m_retryTimer.start(retryDelayMs);
+            m_retryTimer.start(retryDelayMs + int(QRandomGenerator::global()->bounded(retryJitterMs)));
         }
         return;
     default:

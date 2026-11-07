@@ -213,7 +213,7 @@ void TimerStateClient::onTick()
         return;
     }
     // A clock set back would otherwise postpone the reconnect or the poll.
-    if (m_reconnectAt.isValid() && (now >= m_reconnectAt || now.msecsTo(m_reconnectAt) > reconnectMaxMs)) {
+    if (m_reconnectAt.isValid() && (now >= m_reconnectAt || now.msecsTo(m_reconnectAt) > reconnectLongestMs)) {
         openStream();
     }
     if ((!m_streaming || m_settling) && (!m_nextPoll.isValid() || now >= m_nextPoll || now.msecsTo(m_nextPoll) > pollIntervalMs)) {
@@ -260,8 +260,9 @@ void TimerStateClient::scheduleReconnect()
     if (!m_clock) {
         return;
     }
-    m_reconnectAt = m_clock->now().addMSecs(m_backoffMs);
-    qCDebug(lcNet) << "Event stream reconnects in" << m_backoffMs << "ms";
+    const int waitMs = m_backoffMs + m_clock->jitterMs(m_backoffMs / reconnectJitterDivisor);
+    m_reconnectAt = m_clock->now().addMSecs(waitMs);
+    qCDebug(lcNet) << "Event stream reconnects in" << waitMs << "ms";
     m_backoffMs = std::min(m_backoffMs * 2, reconnectMaxMs);
 }
 
