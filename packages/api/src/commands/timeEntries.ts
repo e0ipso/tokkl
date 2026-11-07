@@ -6,6 +6,7 @@ import {
   type EntryChanges,
   type EntryFields,
   type EntryPatchStep,
+  type EntrySplit,
   type EntryTimes,
   type NewEntry,
   type TagAction,
@@ -108,6 +109,11 @@ export function parseEntryChanges(body: JsonBody): EntryChanges {
   const allDay = optionalBool(body.all_day, 'all_day');
   const times = readTimes(body);
   return { workspaceId, allDay, times, ...readLabels(body, true), tagAction: tagAction(body.tag_action) };
+}
+
+/** A split request: the instant `at` to cut at, and the second half's `created_with`. */
+export function parseEntrySplit(body: JsonBody): EntrySplit {
+  return { at: parseInstant(body.at, 'at'), createdWith: readCreatedWith(body) };
 }
 
 /** The `stop` of a stop request; the body is optional. */

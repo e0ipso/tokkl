@@ -8,6 +8,8 @@ import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
+import { parseEntrySplit } from '../commands/timeEntries.ts';
+import { readJson } from '../http/request.ts';
 
 export type AppRouteDeps = Pick<Deps, 'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount' | 'importsFor'>;
 
@@ -26,6 +28,16 @@ export function appRoutes(deps: AppRouteDeps): Router {
   app.post('/time_entries/:id/restore', auth, async (req, res) => {
     const entry = await deps.entriesFor(res.locals.auth).restore(parseId(req.params.id));
     return res.json(serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }));
+  });
+  // Both halves or neither: the entry keeps the first, a new entry takes the second.
+  app.post('/time_entries/:id/split', auth, async (req, res) => {
+    const id = parseId(req.params.id);
+    const { first, second } = await deps.entriesFor(res.locals.auth).split(id, parseEntrySplit(readJson(req)));
+    const presentation = { meta: true, user: res.locals.auth.user };
+    return res.json({
+      first: serializeTimeEntry(first, presentation),
+      second: serializeTimeEntry(second, presentation),
+    });
   });
   app.get(
     '/bounds',
