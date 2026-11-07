@@ -1,5 +1,6 @@
 /**
- * Time entry writes: create, edit, stop, delete, restore and purge. Every write guards the user's
+ * Time entry writes: create, edit, stop, delete, restore and purge. Each runs in the transaction its
+ * caller opened (`services/entryOperations.ts`) and never opens one. Every write guards the user's
  * timer and settles it before commit, because the running entry is part of the timer.
  */
 import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
@@ -151,12 +152,10 @@ export async function createTimeEntry(
   publish: TimerPublication,
   options: CreateOptions = {},
 ): Promise<EntryDetails> {
-  return ctx.transaction(async ctx => {
-    const user = await entryWrite(ctx, seen.id, wid, publish);
-    const input = await prepareEntry(ctx, user, wid, entry, options.exact === true);
-    if (!input.stop) await stopRunning(ctx, user, new Date(input.start));
-    return ctx.entries.create(input);
-  });
+  const user = await entryWrite(ctx, seen.id, wid, publish);
+  const input = await prepareEntry(ctx, user, wid, entry, options.exact === true);
+  if (!input.stop) await stopRunning(ctx, user, new Date(input.start));
+  return ctx.entries.create(input);
 }
 
 export async function updateTimeEntry(
@@ -167,10 +166,8 @@ export async function updateTimeEntry(
   changes: EntryChanges,
   publish: TimerPublication,
 ): Promise<EntryDetails> {
-  return ctx.transaction(async ctx => {
-    const user = await entryWrite(ctx, seen.id, wid, publish);
-    return applyEntryUpdate(ctx, user, wid, id, changes);
-  });
+  const user = await entryWrite(ctx, seen.id, wid, publish);
+  return applyEntryUpdate(ctx, user, wid, id, changes);
 }
 
 /** A timed entry's span after an update. Times the edit left alone are `unchanged`. */
@@ -241,34 +238,32 @@ export async function splitTimeEntry(
   split: EntrySplit,
   publish: TimerPublication,
 ): Promise<SplitEntries> {
-  return ctx.transaction(async ctx => {
-    const wid = (await getTimeEntry(ctx, seen.id, id)).workspaceId;
-    const user = await entryWrite(ctx, seen.id, wid, publish);
-    const current = await getEntryIn(ctx, user.id, wid, id);
-    if (current.allDay) throw invalidInput('No-time entries have no start or end time');
-    if (!current.stop) throw conflict('A running time entry can not be split');
-    const resolution = await entryResolution(ctx);
-    const whole = snapToResolution(resolution, user, new Date(current.start), new Date(current.stop));
-    const cut = snapInstant(wholeSeconds(split.at), resolution, user.timezone);
-    if (!whole || cut <= whole.start || cut >= whole.stop)
-      throw invalidInput('The split time must fall inside the entry');
-    const rest: NewEntry = {
-      allDay: false,
-      times: { start: cut, stop: whole.stop },
-      description: current.description,
-      projectId: current.projectId,
-      taskId: current.taskId,
-      tagIds: currentTagIds(current),
-      billable: current.billable,
-      createdWith: split.createdWith,
-    };
-    const second = await ctx.entries.create(await prepareEntry(ctx, user, wid, rest, false));
-    const first = await applyEntryUpdate(ctx, user, wid, id, {
-      times: { start: whole.start, stop: cut },
-      tagAction: 'replace',
-    });
-    return { first, second };
+  const wid = (await getTimeEntry(ctx, seen.id, id)).workspaceId;
+  const user = await entryWrite(ctx, seen.id, wid, publish);
+  const current = await getEntryIn(ctx, user.id, wid, id);
+  if (current.allDay) throw invalidInput('No-time entries have no start or end time');
+  if (!current.stop) throw conflict('A running time entry can not be split');
+  const resolution = await entryResolution(ctx);
+  const whole = snapToResolution(resolution, user, new Date(current.start), new Date(current.stop));
+  const cut = snapInstant(wholeSeconds(split.at), resolution, user.timezone);
+  if (!whole || cut <= whole.start || cut >= whole.stop)
+    throw invalidInput('The split time must fall inside the entry');
+  const rest: NewEntry = {
+    allDay: false,
+    times: { start: cut, stop: whole.stop },
+    description: current.description,
+    projectId: current.projectId,
+    taskId: current.taskId,
+    tagIds: currentTagIds(current),
+    billable: current.billable,
+    createdWith: split.createdWith,
+  };
+  const second = await ctx.entries.create(await prepareEntry(ctx, user, wid, rest, false));
+  const first = await applyEntryUpdate(ctx, user, wid, id, {
+    times: { start: whole.start, stop: cut },
+    tagAction: 'replace',
   });
+  return { first, second };
 }
 
 export async function stopTimeEntry(
@@ -279,13 +274,11 @@ export async function stopTimeEntry(
   publish: TimerPublication,
   stop = new Date(),
 ): Promise<EntryDetails> {
-  return ctx.transaction(async ctx => {
-    const user = await entryWrite(ctx, seen.id, wid, publish);
-    const current = await getEntryIn(ctx, user.id, wid, id);
-    if (current.stop) throw conflict('Time entry already stopped');
-    await stopEntryAt(ctx, user, current, stop);
-    return getTimeEntry(ctx, user.id, id, { includeDeleted: true });
-  });
+  const user = await entryWrite(ctx, seen.id, wid, publish);
+  const current = await getEntryIn(ctx, user.id, wid, id);
+  if (current.stop) throw conflict('Time entry already stopped');
+  await stopEntryAt(ctx, user, current, stop);
+  return getTimeEntry(ctx, user.id, id, { includeDeleted: true });
 }
 
 export async function deleteTimeEntry(
@@ -295,11 +288,9 @@ export async function deleteTimeEntry(
   id: Id,
   publish: TimerPublication,
 ): Promise<void> {
-  await ctx.transaction(async ctx => {
-    await entryWrite(ctx, userId, wid, publish);
-    await getEntryIn(ctx, userId, wid, id);
-    await ctx.entries.softDelete(userId, wid, id, new Date().toISOString());
-  });
+  await entryWrite(ctx, userId, wid, publish);
+  await getEntryIn(ctx, userId, wid, id);
+  await ctx.entries.softDelete(userId, wid, id, new Date().toISOString());
 }
 
 export async function restoreTimeEntry(
@@ -308,17 +299,15 @@ export async function restoreTimeEntry(
   id: Id,
   publish: TimerPublication,
 ): Promise<EntryDetails> {
-  return ctx.transaction(async ctx => {
-    const candidate = await getTimeEntry(ctx, seen.id, id, { includeDeleted: true });
-    const user = await protectEntryOperation(ctx, seen.id, [candidate.workspaceId]);
-    const current = await getTimeEntry(ctx, user.id, id, { includeDeleted: true });
-    await memberWorkspace(ctx, user.id, current.workspaceId);
-    touchTimer(ctx, user.id, publish);
-    if (!current.deletedAt) return current;
-    if (!current.stop && (await ctx.entries.running(user.id)) && !(await stopEntryAt(ctx, user, current, new Date())))
-      return getTimeEntry(ctx, user.id, id, { includeDeleted: true });
-    return ctx.entries.restore(user.id, id);
-  });
+  const candidate = await getTimeEntry(ctx, seen.id, id, { includeDeleted: true });
+  const user = await protectEntryOperation(ctx, seen.id, [candidate.workspaceId]);
+  const current = await getTimeEntry(ctx, user.id, id, { includeDeleted: true });
+  await memberWorkspace(ctx, user.id, current.workspaceId);
+  touchTimer(ctx, user.id, publish);
+  if (!current.deletedAt) return current;
+  if (!current.stop && (await ctx.entries.running(user.id)) && !(await stopEntryAt(ctx, user, current, new Date())))
+    return getTimeEntry(ctx, user.id, id, { includeDeleted: true });
+  return ctx.entries.restore(user.id, id);
 }
 
 export async function purgeDeletedEntries(
@@ -327,11 +316,9 @@ export async function purgeDeletedEntries(
   publish: TimerPublication,
   id?: Id,
 ): Promise<number> {
-  return ctx.transaction(async ctx => {
-    await protectEntryOperation(ctx, userId);
-    touchTimer(ctx, userId, publish);
-    return ctx.entries.purgeDeleted(userId, id);
-  });
+  await protectEntryOperation(ctx, userId);
+  touchTimer(ctx, userId, publish);
+  return ctx.entries.purgeDeleted(userId, id);
 }
 
 /** One operation on one entry. See `EntryPatchStep` for when each refusal is reported. */
@@ -353,23 +340,21 @@ export async function patchTimeEntries(
   steps: EntryPatchStep[],
   publish: TimerPublication,
 ) {
-  return ctx.transaction(async ctx => {
-    const user = await entryWrite(ctx, seen.id, wid, publish);
-    const success: Id[] = [],
-      failure: Array<{ id: Id; message: string }> = [];
-    for (const id of ids) {
-      try {
-        await ctx.savepoint(async sp => {
-          for (const step of steps) await applyPatchStep(sp, user, wid, id, step);
-        });
-        success.push(id);
-      } catch (error) {
-        // A refused edit fails only its id. Storage conflicts and bugs fail the whole request, so a
-        // retryable conflict retries the transaction and no internal message reaches the client.
-        if (!(error instanceof ApplicationError)) throw error;
-        failure.push({ id, message: error.message });
-      }
+  const user = await entryWrite(ctx, seen.id, wid, publish);
+  const success: Id[] = [],
+    failure: Array<{ id: Id; message: string }> = [];
+  for (const id of ids) {
+    try {
+      await ctx.savepoint(async sp => {
+        for (const step of steps) await applyPatchStep(sp, user, wid, id, step);
+      });
+      success.push(id);
+    } catch (error) {
+      // A refused edit fails only its id. Storage conflicts and bugs fail the whole request, so a
+      // retryable conflict retries the transaction and no internal message reaches the client.
+      if (!(error instanceof ApplicationError)) throw error;
+      failure.push({ id, message: error.message });
     }
-    return { success, failure };
-  });
+  }
+  return { success, failure };
 }

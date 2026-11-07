@@ -484,6 +484,18 @@ test('bulk PATCH applies operations per entry and reports failures', async () =>
   assert.equal(unchanged.body.description, 'bulk');
 });
 
+test('bulk PATCH refuses too many ids before it reads the workspace', async () => {
+  const ctx = await setup();
+  const ids = Array.from({ length: 101 }, (_, n) => n + 1).join(',');
+  const patch = [{ op: 'replace', path: '/description', value: 'x' }];
+  // A workspace the user cannot use would answer 403 once read; the id limit answers first.
+  for (const wid of [ctx.wid, 999999]) {
+    const refused = await ctx.json('PATCH', `/api/v9/workspaces/${wid}/time_entries/${ids}`, patch);
+    assert.equal(refused.status, 400);
+    assert.equal(refused.body, 'At most 100 IDs per request');
+  }
+});
+
 test('trash lists deleted entries, restores and purges them', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;

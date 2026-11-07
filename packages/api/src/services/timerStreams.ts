@@ -1,5 +1,5 @@
 import type { TimerState } from '@tokkl/types';
-import { forbidden } from '../lib/errors.ts';
+import { forbidden, unavailable } from '../lib/errors.ts';
 
 /** A passing stream check carries the user's timer revision, read by the same user statement. */
 export type StreamCredentialResult = { valid: false } | { valid: true; revision: number };
@@ -23,9 +23,14 @@ const EVENT_STREAM_HEADERS = {
   Connection: 'close',
 };
 const refused = () => forbidden('Incorrect username and/or password');
+/** A full process sheds the stream; the client polls meanwhile and tries again. */
+const STREAMS_FULL_RETRY_SECONDS = 5;
 export interface TimerStreamOptions {
   keepAliveMs?: number;
+  /** Open and opening streams one user may hold. A new one past it ends the user's oldest. Default 10. */
   maxPerUser?: number;
+  /** Open and opening streams in this process. A new one past it is refused with a 503. Default 1000. */
+  maxStreams?: number;
   /** Called, never awaited, when a keep-alive check reads a revision newer than this process delivered. */
   onBehind?: (id: number, revision: number) => void;
 }
@@ -47,14 +52,18 @@ interface Group {
 export class TimerStreams {
   readonly #state: (id: number) => Promise<TimerState>;
   readonly #users = new Map<number, Group>();
-  readonly #builds = new Map<number, Promise<TimerState>>();
+  readonly #builds = new Map<number, Promise<TimerState | undefined>>();
   readonly #pending = new Set<Promise<unknown>>();
   readonly #options: Required<Omit<TimerStreamOptions, 'onBehind'>>;
   readonly #onBehind: (id: number, revision: number) => void;
   #closed = false;
   constructor(state: (id: number) => Promise<TimerState>, options: TimerStreamOptions = {}) {
     this.#state = state;
-    this.#options = { keepAliveMs: options.keepAliveMs ?? 25000, maxPerUser: options.maxPerUser ?? 10 };
+    this.#options = {
+      keepAliveMs: options.keepAliveMs ?? 25000,
+      maxPerUser: options.maxPerUser ?? 10,
+      maxStreams: options.maxStreams ?? 1000,
+    };
     this.#onBehind = options.onBehind ?? (() => {});
   }
   #group(id: number): Group {
@@ -78,10 +87,34 @@ export class TimerStreams {
     group.queue = next.catch(() => {});
     return this.#track(next);
   }
+  /** Open and opening streams in this process. */
+  #count(): number {
+    let count = 0;
+    for (const group of this.#users.values()) count += group.streams.size;
+    return count;
+  }
+  /**
+   * Adds `stream` to the user's group within both caps, before anything checks or builds for it. The
+   * user's oldest streams past the per-user cap end, as they always have. When the process would
+   * still be over its cap, the new stream is refused and nothing changes.
+   */
+  #join(id: number, stream: Stream): Group {
+    const held = this.#users.get(id)?.streams.size ?? 0;
+    const ending = Math.max(0, held + 1 - this.#options.maxPerUser);
+    if (this.#count() - ending >= this.#options.maxStreams)
+      throw unavailable('Too many timer streams, try again later', STREAMS_FULL_RETRY_SECONDS);
+    const group = this.#group(id);
+    group.streams.add(stream);
+    for (const oldest of group.streams) {
+      if (group.streams.size <= this.#options.maxPerUser) break;
+      this.#end(id, group, oldest);
+    }
+    return group;
+  }
   /** The passing check result, or undefined when the stream must not receive anything. */
   async #valid(group: Group, stream: Stream): Promise<Extract<StreamCredentialResult, { valid: true }> | undefined> {
     try {
-      if (this.#closed || group.retired || stream.res.destroyed) return undefined;
+      if (this.#closed || group.retired || !group.streams.has(stream) || stream.res.destroyed) return undefined;
       const result = await stream.check();
       return result.valid && !this.#closed && !group.retired && group.streams.has(stream) && !stream.res.destroyed
         ? result
@@ -112,37 +145,43 @@ export class TimerStreams {
     return this.#track(this.#open(id, res, check));
   }
   /**
-   * Checks the credential, builds the first state, then sends the headers and that state. Until the
-   * headers go out a refusal or failure still reaches the client as a normal JSON error.
+   * Admits the stream, checks the credential, builds the first state, then sends the headers and
+   * that state. Until the headers go out a refusal or failure still reaches the client as a normal
+   * JSON error. A stream ended while it opens, by the cap or its client, stops where it is.
    */
   async #open(id: number, res: EventStreamResponse, check: () => Promise<StreamCredentialResult>): Promise<void> {
     if (this.#closed) throw refused();
-    const group = this.#group(id);
     const stream: Stream = { res, check, ready: false, revision: -1, ticking: false };
-    group.streams.add(stream);
+    const group = this.#join(id, stream);
     res.on('close', () => this.#end(id, group, stream));
+    const ended = () => group.retired || !group.streams.has(stream);
     try {
       await this.#enqueue(group, async () => {
+        if (ended()) return;
         if (!(await this.#valid(group, stream))) throw refused();
       });
-      if (group.retired) return;
-      const state = await this.#initialState(id, group);
+      if (ended()) return;
+      const state = await this.#initialState(id, group, ended);
+      if (!state) return;
       await this.#enqueue(group, () => this.#start(id, group, stream, state));
     } catch (error) {
-      if (group.retired) return;
+      if (ended()) return;
       if (res.headersSent) this.#end(id, group, stream);
       else this.#discard(id, group, stream);
       throw error;
     }
   }
-  /** Joins the user's pending build, if any. A commit may overtake this initial snapshot. */
-  async #initialState(id: number, group: Group): Promise<TimerState> {
+  /**
+   * Builds after the user's pending build, if any; undefined when the stream ended while it waited.
+   * A commit may overtake this initial snapshot.
+   */
+  async #initialState(id: number, group: Group, ended: () => boolean): Promise<TimerState | undefined> {
     // Registered before the awaited build, so a later stream waits for this one.
     const build = (this.#builds.get(id) ?? Promise.resolve())
       .catch(() => {})
       .then(() => {
         if (group.retired) throw refused();
-        return this.#state(id);
+        return ended() ? undefined : this.#state(id);
       });
     this.#builds.set(id, build);
     return build.finally(() => {
@@ -166,11 +205,6 @@ export class TimerStreams {
     this.#write(id, group, stream, timerEvent(current));
     if (!group.streams.has(stream)) return;
     stream.timer = setInterval(() => this.#tick(id, group, stream), this.#options.keepAliveMs);
-    // The newest streams stay; the oldest beyond the cap end.
-    for (const oldest of group.streams) {
-      if (group.streams.size <= this.#options.maxPerUser) break;
-      this.#end(id, group, oldest);
-    }
   }
   /** A keep-alive: recheck the credential, send the event, and ask for a refresh if this process is behind. */
   #tick(id: number, group: Group, stream: Stream): void {

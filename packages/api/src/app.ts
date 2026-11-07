@@ -3,6 +3,7 @@ import type { Config } from './config.ts';
 import type { Storage } from './storage/contracts.ts';
 import { standaloneRateLimits } from './storage/index.ts';
 import { createApplicationServices } from './services/application.ts';
+import { ReportRunner } from './services/reportRunner.ts';
 import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
 import type { Deps } from './routes/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
@@ -47,7 +48,7 @@ export function createApp({
   // The composition root: framework-free services plus the HTTP adapters the routers share.
   const services = createApplicationServices({
     storage,
-    storageConfig: config.storage,
+    reports: new ReportRunner(config.storage, storage, { logger }),
     streamOptions: timerStreamOptions,
     bus: timerBus,
     logger,

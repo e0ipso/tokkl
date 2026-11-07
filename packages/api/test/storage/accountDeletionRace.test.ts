@@ -7,6 +7,7 @@ import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { generateApiToken, hashPassword, sha256 } from '../../src/lib/crypto.ts';
 import { createApplicationServices } from '../../src/services/application.ts';
+import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { Repositories, Storage } from '../../src/storage/contracts.ts';
 import { createStorage } from '../../src/storage/index.ts';
@@ -74,7 +75,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const fixture = await disposableBackend(backend);
       const storage = createStorage(await initializeDatabase(fixture.config));
       const competing = createStorage(await openConnection(fixture.config));
-      const services = createApplicationServices({ storage, storageConfig: fixture.config, sessionDays: 30 });
+      const services = createApplicationServices({
+        storage,
+        reports: new ReportRunner(fixture.config, storage),
+        sessionDays: 30,
+      });
       t.after(async () => {
         await services.close();
         await competing.close();

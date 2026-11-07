@@ -33,8 +33,9 @@ export function timeEntryRoutes(deps: Pick<Deps, 'readFor' | 'entriesFor'>): Rou
     res.json(serializeTimeEntry(entry, entryPresentation(req, res)));
   });
   api.patch('/workspaces/:wid/time_entries/:ids', async (req, res) => {
-    const ws = await authorizedWorkspace(deps, req, res);
+    // The id limit applies before any read.
     const ids = parseIdList(req.params.ids);
+    const ws = await authorizedWorkspace(deps, req, res);
     const steps = parseEntryPatch(readJsonArray(req));
     res.json(await deps.entriesFor(res.locals.auth).patch(ws.id, ids, steps));
   });
