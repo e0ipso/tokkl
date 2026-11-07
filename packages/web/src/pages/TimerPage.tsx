@@ -10,7 +10,10 @@ import { ShortcutHelp, useShortcuts } from '../components/Shortcuts.tsx';
 import { TimerBar, type TimerBarHandle } from '../components/TimerBar.tsx';
 import { WeekCalendar } from '../components/WeekCalendar.tsx';
 import { localDay } from '../lib/entryTime.ts';
-import { duration, entrySeconds, today, useNow, useSettings } from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { useNow } from '../lib/clock.ts';
+import { duration, today } from '../lib/format.ts';
+import { entrySeconds } from '../lib/snapping.ts';
 
 const PAGE_DAYS = 14;
 

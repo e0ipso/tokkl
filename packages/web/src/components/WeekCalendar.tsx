@@ -15,20 +15,10 @@ import {
   stepDay,
   type SwipeDirection,
 } from '../lib/calendarDay.ts';
-import {
-  dayLabel,
-  duration,
-  shortDate,
-  entrySeconds,
-  formatTime,
-  minutesOfDay,
-  snappedInstant,
-  snappedSeconds,
-  today,
-  useNow,
-  useSettings,
-  weekdayName,
-} from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { useNow } from '../lib/clock.ts';
+import { dayLabel, duration, shortDate, formatTime, minutesOfDay, today, weekdayName } from '../lib/format.ts';
+import { entrySeconds, snappedInstant, snappedSeconds } from '../lib/snapping.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { AllDayEntryDialog } from './AllDayEntryDialog.tsx';
 import { arrowTarget } from './arrowKeys.ts';

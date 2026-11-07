@@ -12,7 +12,10 @@ import {
 import type { Favorite, TimeEntry } from '../api/types.ts';
 import { overlappingIds } from '../lib/entryOverlap.ts';
 import { localDay } from '../lib/entryTime.ts';
-import { dayLabel, duration, entrySeconds, formatTime, today, useNow, useSettings } from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { useNow } from '../lib/clock.ts';
+import { dayLabel, duration, formatTime, today } from '../lib/format.ts';
+import { entrySeconds } from '../lib/snapping.ts';
 import { EmptyState } from './EmptyState.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';

@@ -1,6 +1,7 @@
 import { LoadError, Loading } from '../../components/PageState.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
-import { duration, shortDate, weekdayName, type Settings } from '../../lib/settings.ts';
+import { duration, shortDate, weekdayName } from '../../lib/format.ts';
+import { type Settings } from '../../lib/settings.ts';
 import { Segmented } from '../manage/ui.tsx';
 import { useWeeklyReport, type WeeklyReport } from './api.ts';
 import type { ReportFilterBody } from './query.ts';

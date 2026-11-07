@@ -6,6 +6,7 @@ import { Brand } from '../components/Brand.tsx';
 import { FieldError } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
+import { browserTimeZone } from '../lib/browserTimeZone.ts';
 
 /** /invite/:token, reachable while logged out. Creates the invited account and lands on the timer. */
 export function InvitePage({ token }: { token: string }) {
@@ -24,7 +25,7 @@ export function InvitePage({ token }: { token: string }) {
     setBusy(true);
     setError(null);
     try {
-      await api.post(path, { email, password, fullname, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      await api.post(path, { email, password, fullname, timezone: browserTimeZone() });
       // Load the new account before leaving, so the timer renders signed in rather than the login form.
       await qc.resetQueries();
       setLocation('/', { replace: true });

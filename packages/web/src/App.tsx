@@ -15,7 +15,8 @@ import { PomodoroSessionProvider, usePomodoroSession } from './components/Pomodo
 import { LongTimerReminder } from './components/LongTimerReminder.tsx';
 import { useToast } from './components/Toast.tsx';
 import { formatDuration } from '@tokkl/common/duration';
-import { entrySeconds, useNow } from './lib/settings.ts';
+import { useNow } from './lib/clock.ts';
+import { entrySeconds } from './lib/snapping.ts';
 import { endSession, logOut, takeLogoutFailure } from './lib/session.ts';
 import { applyTheme } from './lib/theme.ts';
 import { useMediaQuery } from './lib/useMediaQuery.ts';

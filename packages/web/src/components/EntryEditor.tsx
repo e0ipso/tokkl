@@ -8,16 +8,10 @@ import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { noTimeSeconds } from '../lib/noTimeDuration.ts';
 import { noTimeFields } from '../lib/noTimeEdit.ts';
-import {
-  entrySeconds,
-  formatTime,
-  minutesOfDay,
-  snappedSeconds,
-  snappedSplit,
-  useNow,
-  useSettings,
-  type SplitHalves,
-} from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { useNow } from '../lib/clock.ts';
+import { formatTime, minutesOfDay } from '../lib/format.ts';
+import { entrySeconds, snappedSeconds, snappedSplit, type SplitHalves } from '../lib/snapping.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { Modal } from './Overlay.tsx';

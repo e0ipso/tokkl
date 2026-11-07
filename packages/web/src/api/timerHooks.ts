@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { keys } from './hooks.ts';
-import { getClockOffset, setClockOffset } from './serverClock.ts';
+import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
   TIMER_ACTION_KEY,
   TimerActionError,
@@ -13,7 +13,7 @@ import {
 } from './timerState.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { TimeEntryInput, TimerState } from './types.ts';
-import { useNow } from '../lib/settings.ts';
+import { useNow } from '../lib/clock.ts';
 
 const POLL_MS = 30_000;
 const timerPath = '/api/app/timer';
@@ -62,10 +62,12 @@ export function useTimerState() {
   });
 }
 
-/** The server's time, corrected by the offset taken with the latest state. Re-renders every `intervalMs` like `useNow`. */
+/**
+ * The server's time at the latest tick, corrected by the offset taken with the latest state.
+ * Re-renders every `intervalMs` like `useNow`.
+ */
 export function useServerNow(intervalMs = 1000): Date {
-  useNow(intervalMs);
-  return new Date(Date.now() + getClockOffset());
+  return serverNow(useNow(intervalMs).getTime(), getClockOffset());
 }
 
 /**

@@ -4,6 +4,7 @@ import { api } from '../api/client.ts';
 import { Brand } from '../components/Brand.tsx';
 import { FieldError } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
+import { browserTimeZone } from '../lib/browserTimeZone.ts';
 
 export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
   const qc = useQueryClient();
@@ -25,7 +26,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
           email,
           password,
           fullname,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timezone: browserTimeZone(),
         });
       } else {
         await api.post('/api/app/login', { email, password });

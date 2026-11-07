@@ -6,7 +6,9 @@ import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { LengthStepper, LengthStepperGrid } from '../../../components/LengthStepper.tsx';
 import type { StepperRange } from '../../../components/lengthStepper.ts';
 import { useToast } from '../../../components/Toast.tsx';
-import { formatDate, formatTime, today, useSettings } from '../../../lib/settings.ts';
+import { useSettings } from '../../../api/settings.ts';
+import { formatDate, formatTime, today } from '../../../lib/format.ts';
+import { isTwelveHour } from '../../../lib/settings.ts';
 import { formatDuration } from '@tokkl/common/duration';
 import { DEFAULT_POMODORO_SESSION_CONFIG, POMODORO_SESSION_CONFIG_RANGES } from '@tokkl/common/pomodoroSession';
 import { AllowNotifications } from './AllowNotifications.tsx';
@@ -183,7 +185,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   const dateFormats: string[] = DATE_FORMATS.includes(draft.date_format as (typeof DATE_FORMATS)[number])
     ? [...DATE_FORMATS]
     : [draft.date_format, ...DATE_FORMATS];
-  const twelveHour = /a/i.test(draft.timeofday_format);
+  const twelveHour = isTwelveHour(draft.timeofday_format);
 
   // Only whole numbers go to the server; it checks the allowed values, and its 400 shows on the
   // field it names, as in "Invalid pomodoro_long_break_every: expected ...".

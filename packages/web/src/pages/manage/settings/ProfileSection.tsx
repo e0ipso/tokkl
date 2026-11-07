@@ -6,6 +6,7 @@ import type { Me } from '../../../api/types.ts';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useAction, V9 } from '../queries.ts';
 import { SettingsCard } from './SettingsCard.tsx';
+import { browserTimeZone } from '../../../lib/browserTimeZone.ts';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
@@ -32,7 +33,7 @@ export function ProfileSection({ me }: { me: Me }) {
   const [timezone, setTimezone] = useState(me.timezone);
   const [weekStart, setWeekStart] = useState(me.beginning_of_week);
   const zones = useMemo(() => timeZones(me.timezone), [me.timezone]);
-  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const browserZone = browserTimeZone();
 
   const save = useAction<ProfileBody, Me>({
     mutationFn: body => api.put<Me>(`${V9}/me`, body),

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useIsMutating } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { keys, useCurrentEntry, useMe, usePreferences } from '../api/hooks.ts';
-import { useNow } from '../lib/settings.ts';
+import { useNow } from '../lib/clock.ts';
 import { notifyInBackground } from './phaseNotification.ts';
 
 interface Reminder {

@@ -15,7 +15,8 @@ import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { SESSION_PHASE_LABEL, clock, countdown } from '../components/pomodoroSessionPresentation.ts';
 import { useToast } from '../components/Toast.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from '../components/useEntryFields.ts';
-import { today, useSettings } from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { today } from '../lib/format.ts';
 import { AllowNotifications } from './manage/settings/AllowNotifications.tsx';
 import './PomodoroPage.css';
 

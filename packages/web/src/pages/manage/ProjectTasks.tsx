@@ -6,7 +6,8 @@ import { EmptyState } from '../../components/EmptyState.tsx';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';
-import { duration, useSettings } from '../../lib/settings.ts';
+import { useSettings } from '../../api/settings.ts';
+import { duration } from '../../lib/format.ts';
 import { taskTrackedSeconds, useAction, useProjectTasks, wsPath } from './queries.ts';
 import { keepFocusPastRow } from './rowFocus.ts';
 

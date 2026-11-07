@@ -9,8 +9,9 @@ import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { copyText } from '../lib/clipboard.ts';
-import { localDay } from '../lib/entryTime.ts';
-import { formatDate, formatTime, useSettings, type Settings } from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { formatDateTime, formatDay } from '../lib/format.ts';
+import { type Settings } from '../lib/settings.ts';
 import { useAction } from './manage/queries.ts';
 import { focusPastRow, keepFocusPastRow, rowAction } from './manage/rowFocus.ts';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
@@ -44,14 +45,6 @@ const SECTIONS = [
 
 /** Must match MAX_INVITE_NOTE_LENGTH in packages/api/src/domain/accounts.ts. */
 const MAX_NOTE_LENGTH = 255;
-
-function day(iso: string, settings: Settings): string {
-  return formatDate(localDay(iso, settings.timeZone), settings.dateFormat);
-}
-
-function dateTime(iso: string, settings: Settings): string {
-  return `${day(iso, settings)} ${formatTime(iso, settings)}`;
-}
 
 function roleLabel(role: UserRole): string {
   return role === 'admin' ? 'an admin' : 'a regular user';
@@ -144,7 +137,7 @@ function UserRow({
         </div>
         {fields.message('status')}
       </td>
-      <td className="num admin-date">{day(user.created_at, settings)}</td>
+      <td className="num admin-date">{formatDay(user.created_at, settings)}</td>
       {/* Plain buttons rather than a RowMenu, so Tab reaches both actions in row order. */}
       <td className="manage-actions">
         {self ? null : (
@@ -388,8 +381,8 @@ function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: 
       <td className="manage-notes" title={invite.note ?? undefined}>
         {invite.note ?? <span className="muted">None</span>}
       </td>
-      <td className="num admin-date">{day(invite.created_at, settings)}</td>
-      <td className="num admin-date">{dateTime(invite.expires_at, settings)}</td>
+      <td className="num admin-date">{formatDay(invite.created_at, settings)}</td>
+      <td className="num admin-date">{formatDateTime(invite.expires_at, settings)}</td>
       <td className="manage-actions">
         <button
           type="button"
