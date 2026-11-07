@@ -6,6 +6,7 @@ import type { Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { projectColorStyle } from './ProjectLabel.tsx';
 import type { CalendarDrag } from './useCalendarDrag.ts';
+import { t } from '../i18n/messages.ts';
 
 /** One entry's part of a day column, drawn where a move or resize in progress would drop it. */
 export function CalendarBlockView({
@@ -15,6 +16,7 @@ export function CalendarBlockView({
   now,
   settings,
   onPointerDown,
+  onOpen,
 }: {
   block: CalendarBlock;
   drag: CalendarDrag | null;
@@ -22,6 +24,8 @@ export function CalendarBlockView({
   now: Date;
   settings: Settings;
   onPointerDown: (event: PointerEvent<HTMLDivElement>, kind: 'move' | 'resize') => void;
+  /** Opens the entry in the editor, as a click on the block does through the drag gesture. */
+  onOpen: () => void;
 }) {
   const active = drag !== null && drag.kind !== 'create' && drag.entry.id === block.entry.id;
   let top = block.top;
@@ -36,8 +40,8 @@ export function CalendarBlockView({
   const storedHeight = minuteToPx(bottom - top);
   const { description, project_name: projectName } = block.entry;
   const elapsed = duration(entrySeconds(block.entry, now), settings);
-  const label = [description || '(no description)', projectName, elapsed].filter(Boolean).join(', ');
-  const heading = description || projectName || '(no description)';
+  const label = [description || t('entries.noDescription'), projectName, elapsed].filter(Boolean).join(', ');
+  const heading = description || projectName || t('entries.noDescription');
   const classes = [
     'calendar-block',
     block.entry.stop ? '' : 'running',
@@ -57,7 +61,13 @@ export function CalendarBlockView({
       }}
       role="group"
       aria-label={label}
-      title={`${label}\n${formatTime(block.entry.start, settings)} – ${block.entry.stop ? formatTime(block.entry.stop, settings) : 'now'}`}
+      title={t('calendar.blockTitle', {
+        label,
+        range: t('dates.timeRange', {
+          start: formatTime(block.entry.start, settings),
+          end: block.entry.stop ? formatTime(block.entry.stop, settings) : t('calendar.now'),
+        }),
+      })}
       onPointerDown={event => {
         if (event.button !== 0) return;
         event.stopPropagation();
@@ -69,16 +79,27 @@ export function CalendarBlockView({
         <>
           <strong>{heading}</strong>
           <span>
-            {projectName ? `${projectName} · ` : null}
+            {projectName ? t('calendar.projectPrefix', { project: projectName }) : null}
             <span className="calendar-block-duration">{elapsed}</span>
           </span>
         </>
       ) : (
         <div className="calendar-block-line">
           <strong>{heading}</strong>
-          {description && projectName ? <span> · {projectName}</span> : null}
+          {description && projectName ? <span>{t('calendar.projectSuffix', { project: projectName })}</span> : null}
         </div>
       )}
+      {/* The block's keyboard and screen reader control, laid over it. A pointer press is the drag
+          gesture's, which opens the editor itself on a click or tap; this button opens it only for a
+          click without a pointer (detail 0): Enter, Space or a screen reader's activation. */}
+      <button
+        type="button"
+        className="calendar-block-open"
+        aria-label={t('calendar.editBlock', { label })}
+        onClick={event => {
+          if (event.detail === 0) onOpen();
+        }}
+      />
       {block.entry.stop ? <span className="calendar-resize" aria-hidden /> : null}
     </div>
   );

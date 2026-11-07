@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { duration } from '../../lib/format.ts';
 import type { Settings } from '../../lib/settings.ts';
 import { fullLabel, type Point, type Resolution } from './seriesChartLayout.ts';
+import { t } from '../../i18n/messages.ts';
 
 /**
  * Diagonal stripes for non-billable time, so the two series differ by texture as well as hue.
@@ -70,11 +71,11 @@ export function ChartTooltip({
       <span className="chart-tooltip-label">{fullLabel(point, resolution)}</span>
       <span className="chart-tooltip-row">
         <Swatch className="key" series="billable" patternId={keyPattern} size={10} />
-        Billable <b>{duration(point.billable_seconds, settings)}</b>
+        {t('reports.billable')} <b>{duration(point.billable_seconds, settings)}</b>
       </span>
       <span className="chart-tooltip-row">
         <Swatch className="key" series="other" patternId={keyPattern} size={10} />
-        Non-billable <b>{duration(point.seconds - point.billable_seconds, settings)}</b>
+        {t('reports.nonBillable')} <b>{duration(point.seconds - point.billable_seconds, settings)}</b>
       </span>
     </div>
   );
@@ -92,20 +93,26 @@ export function ChartDataTable({
 }) {
   return (
     <details className="chart-data">
-      <summary>Show chart data as a table</summary>
+      <summary>{t('reports.chartTable')}</summary>
       <div className="table-wrap">
         <table className="table">
           <thead>
             <tr>
-              <th scope="col">{resolution === 'day' ? 'Day' : resolution === 'week' ? 'Week' : 'Month'}</th>
-              <th scope="col" className="num">
-                Total
+              <th scope="col">
+                {resolution === 'day'
+                  ? t('reports.day')
+                  : resolution === 'week'
+                    ? t('reports.week')
+                    : t('reports.month')}
               </th>
               <th scope="col" className="num">
-                Billable
+                {t('reports.total')}
               </th>
               <th scope="col" className="num">
-                Non-billable
+                {t('reports.billable')}
+              </th>
+              <th scope="col" className="num">
+                {t('reports.nonBillable')}
               </th>
             </tr>
           </thead>

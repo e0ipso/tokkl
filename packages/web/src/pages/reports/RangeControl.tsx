@@ -5,16 +5,17 @@ import { Popover } from '../../components/Overlay.tsx';
 import { useOverlayStack } from '../../components/overlayStack.tsx';
 import {
   PRESETS,
-  PRESET_LABELS,
   formatRange,
   isDateKey,
   matchingPreset,
+  presetLabel,
   presetRange,
   shiftRange,
   type DateRange,
   type Preset,
 } from './range.ts';
 import type { ReportPatch } from './urlState.ts';
+import { t } from '../../i18n/messages.ts';
 
 /**
  * True when the arrow key belongs to the target: a text field, or any element (SVG included)
@@ -104,8 +105,8 @@ export function RangeControl({
       <button
         type="button"
         className="icon-button"
-        aria-label="Previous period"
-        title="Previous period (Left arrow)"
+        aria-label={t('reports.previousPeriod')}
+        title={t('reports.previousPeriodTitle')}
         onClick={() => shift(-1)}
       >
         <Icon name="chevronLeft" />
@@ -122,21 +123,21 @@ export function RangeControl({
         }}
       >
         <Icon name="calendar" size={16} />
-        {active ? <strong>{PRESET_LABELS[active]}</strong> : null}
+        {active ? <strong>{presetLabel(active)}</strong> : null}
         <span className={active ? 'muted' : undefined}>{formatRange(range, todayKey)}</span>
       </button>
       <button
         type="button"
         className="icon-button"
-        aria-label="Next period"
-        title="Next period (Right arrow)"
+        aria-label={t('reports.nextPeriod')}
+        title={t('reports.nextPeriodTitle')}
         onClick={() => shift(1)}
       >
         <Icon name="chevronRight" />
       </button>
       {open ? (
-        <Popover anchor={button} panel={panel} label="Period" onClose={close} width={300}>
-          <div className="range-presets" role="listbox" aria-label="Date range">
+        <Popover anchor={button} panel={panel} label={t('reports.period')} onClose={close} width={300}>
+          <div className="range-presets" role="listbox" aria-label={t('reports.dateRange')}>
             {PRESETS.map((name, index) => (
               <button
                 key={name}
@@ -160,7 +161,7 @@ export function RangeControl({
                 <span className="range-check" aria-hidden="true">
                   {active === name ? <Icon name="check" size={16} /> : null}
                 </span>
-                {PRESET_LABELS[name]}
+                {presetLabel(name)}
               </button>
             ))}
           </div>
@@ -171,9 +172,9 @@ export function RangeControl({
               applyCustom();
             }}
           >
-            <span className="range-custom-title">Custom</span>
+            <span className="range-custom-title">{t('reports.custom')}</span>
             <label className="field">
-              <span>From</span>
+              <span>{t('reports.from')}</span>
               <input
                 type="date"
                 value={custom.from}
@@ -182,7 +183,7 @@ export function RangeControl({
               />
             </label>
             <label className="field">
-              <span>To</span>
+              <span>{t('reports.to')}</span>
               <input
                 type="date"
                 value={custom.to}
@@ -191,7 +192,7 @@ export function RangeControl({
               />
             </label>
             <button type="submit" className="button button-primary">
-              Apply
+              {t('reports.apply')}
             </button>
           </form>
         </Popover>

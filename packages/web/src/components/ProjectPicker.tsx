@@ -6,6 +6,7 @@ import { Popover } from './Overlay.tsx';
 import { ProjectDot } from './ProjectLabel.tsx';
 import { groupPickerProjects, pickerOptions } from './projectPickerOptions.ts';
 import { useToast } from './Toast.tsx';
+import { t } from '../i18n/messages.ts';
 
 /** Scrolls the active option into view when it becomes active (a ref callback, so no lookup by id). */
 function revealOption(element: HTMLElement | null): void {
@@ -103,11 +104,11 @@ export function ProjectPicker({
   };
 
   return (
-    <Popover anchor={anchor} label="Project and task" onClose={onClose} width={320}>
+    <Popover anchor={anchor} label={t('entries.pickerProjectLabel')} onClose={onClose} width={320}>
       <input
         className="picker-search"
         autoFocus
-        placeholder="Find or create project…"
+        placeholder={t('entries.pickerProjectSearch')}
         value={query}
         role="combobox"
         aria-expanded="true"
@@ -138,7 +139,7 @@ export function ProjectPicker({
           }
         }}
       />
-      <div className="picker-list" role="listbox" aria-label="Projects" id={listId}>
+      <div className="picker-list" role="listbox" aria-label={t('entries.pickerProjects')} id={listId}>
         {query === '' ? (
           <PickerOptionButton
             id={optionId(indexOf(null, null))}
@@ -147,7 +148,7 @@ export function ProjectPicker({
             active={isActive(null, null)}
             onPick={() => pick(null, null)}
           >
-            <ProjectDot color={null} /> No project
+            <ProjectDot color={null} /> {t('entries.noProject')}
           </PickerOptionButton>
         ) : null}
         {groups.map(({ client, rows }) => (
@@ -190,12 +191,10 @@ export function ProjectPicker({
         <div className="picker-actions">
           {query.trim() && !exact ? (
             <button type="button" className="picker-item picker-create" onClick={() => void create()}>
-              <Icon name="plus" size={14} /> Create project "{query.trim()}"
+              <Icon name="plus" size={14} /> {t('entries.createProject', { name: query.trim() })}
             </button>
           ) : null}
-          {groups.length === 0 && !query ? (
-            <div className="picker-empty">No projects yet. Type a name to create one.</div>
-          ) : null}
+          {groups.length === 0 && !query ? <div className="picker-empty">{t('entries.noProjectsYet')}</div> : null}
         </div>
       ) : null}
     </Popover>

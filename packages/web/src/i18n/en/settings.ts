@@ -1,0 +1,179 @@
+import type { MessageGroup } from '../catalog.ts';
+
+/** The Settings page: its sections, the preference fields, workspace, API token and data transfer. */
+export const settings = {
+  title: 'Settings',
+  sectionsLabel: 'Settings sections',
+  sectionProfile: 'Profile',
+  sectionPassword: 'Password',
+  sectionPreferences: 'Preferences',
+  sectionWorkspace: 'Workspace',
+  sectionApiToken: 'API token',
+  sectionData: 'Data',
+  sectionSession: 'Session',
+  saving: 'Saving…',
+  sessionIntro: 'Log out of this browser. To log out everywhere else, change your password.',
+  preferencesLoadFailed: 'Could not load preferences: {message}',
+  loadingPreferences: 'Loading preferences…',
+  workspaceLoadFailed: 'Could not load the workspace: {message}',
+  loadingWorkspace: 'Loading the workspace…',
+
+  // Profile
+  profileSaved: 'Profile saved',
+  enterValidEmail: 'Enter a valid email address',
+  fullName: 'Full name',
+  email: 'Email',
+  timezone: 'Timezone',
+  firstDayOfWeek: 'First day of the week',
+  profileHint:
+    'The account timezone decides which day an entry belongs to in lists, reports and imports. You use the email to log in.',
+  browserZone: 'This browser is set to {browser}, but the account uses {account}.',
+  useZone: 'Use {zone}',
+
+  // Password
+  passwordChanged: 'Password changed. Other browsers were logged out.',
+  enterCurrentPassword: 'Enter your current password',
+  passwordTooShort: {
+    one: 'The new password needs at least {count} character',
+    other: 'The new password needs at least {count} characters',
+  },
+  passwordsDontMatch: "The new passwords don't match",
+  passwordIntro: 'Changing it logs out every other browser and replaces your API token. This one stays logged in.',
+  changePassword: 'Change password',
+  currentPassword: 'Current password',
+  newPassword: 'New password',
+  repeatNewPassword: 'Repeat new password',
+  passwordMinimum: { one: 'At least {count} character.', other: 'At least {count} characters.' },
+
+  // Preferences
+  noChanges: 'No changes to save',
+  preferencesSaved: 'Preferences saved',
+  notifications: 'Notifications',
+  theme: 'Theme',
+  themeSystem: 'Match the system',
+  themeLight: 'Light',
+  themeDark: 'Dark',
+  dateFormat: 'Date format',
+  timeFormat: 'Time format',
+  time24: '24-hour',
+  time12: '12-hour',
+  durationFormat: 'Duration format',
+  durationImproved: 'Improved',
+  durationClassic: 'Classic',
+  durationDecimal: 'Decimal',
+  /** A format choice with an example, such as "24-hour (14:05)". */
+  formatOption: '{label} ({sample})',
+  groupSimilar: 'Group similar time entries in the timer list',
+  keyboardShortcuts: 'Keyboard shortcuts',
+  longRunningTimers: 'Long-running timers',
+  remindLongRunning: 'Remind me to check long-running timers',
+  remindAfter: 'Remind me after (hours)',
+  remindHint:
+    'Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.',
+  pomodoroDefaults: 'Pomodoro session defaults',
+  pomodoroHint:
+    'New sessions on the Pomodoro page start with these lengths. You can change them there before you start.',
+  spokenHours: 'hours',
+  wholeNumber: 'Enter a whole number of {unit}',
+
+  // Workspace
+  workspaceSaved: 'Workspace saved',
+  enterWorkspaceName: 'Enter a workspace name',
+  currencyInvalid: 'Currency must be a 3-letter code, like EUR',
+  rateInvalid: 'Hourly rate must be a number of 0 or more',
+  name: 'Name',
+  defaultCurrency: 'Default currency',
+  defaultHourlyRate: 'Default hourly rate',
+  noRate: 'No rate',
+  rateHint: 'Billable entries on projects without their own rate use this rate.',
+  roundDurations: 'Round durations in reports',
+  roundingDirection: 'Rounding direction',
+  roundNearest: 'To the nearest step',
+  roundUp: 'Up',
+  roundDown: 'Down',
+  dontRound: "Don't round",
+  stepHours: { one: '{count} hour', other: '{count} hours' },
+  stepMinutes: { one: '{count} minute', other: '{count} minutes' },
+  roundingHint:
+    'The Reports page rounds each entry. Tracked entries keep their exact times. Toggl API report calls round only when they ask for it.',
+
+  // API token
+  tokenReset: 'New API token created. Update the tools that use it.',
+  tokenCopyFailed: 'Could not copy. Show the token and copy it by hand.',
+  tokenCopied: 'API token copied',
+  tokenIntro:
+    'Tools that speak the Toggl Track API use this token to read and write your data. Treat it like a password.',
+  token: 'API token',
+  tokenHidden: 'API token, hidden',
+  hide: 'Hide',
+  show: 'Show',
+  copy: 'Copy',
+  resetToken: 'Reset token',
+  tryIt: 'Try it',
+  /** Where to point Toggl tools; the placeholders are code elements with the URLs. */
+  apiBase:
+    'Any tool that lets you change the Toggl base URL can use this server. Point it at {api}, and the reports API at {reports}.',
+  resetTokenTitle: 'Reset the API token?',
+  resetTokenBody:
+    'The current token stops working right away. Every tool or script that uses it fails until you give it the new one.',
+
+  // Data
+  export: 'Export',
+  exportHint:
+    'JSON has your clients, projects, tasks, tags, time entries and settings. CSV has one row per time entry, with the same columns as the Toggl Track detailed report.',
+  exportJson: 'Export JSON',
+  exportCsv: 'Export CSV',
+  entryCount: { one: '{count} entry', other: '{count} entries' },
+  projectCount: { one: '{count} project', other: '{count} projects' },
+  clientCount: { one: '{count} client', other: '{count} clients' },
+  taskCount: { one: '{count} task', other: '{count} tasks' },
+  tagCount: { one: '{count} tag', other: '{count} tags' },
+  rowCount: { one: '{count} row', other: '{count} rows' },
+  problemCount: { one: '{count} problem', other: '{count} problems' },
+  alreadyHere: { one: '{count} already here, skipped', other: '{count} already here, skipped' },
+  cancel: 'Cancel',
+  checkingFile: 'Checking the file…',
+
+  restoreTitle: 'Restore a Tokkl export',
+  restoreHint:
+    'Upload a JSON file from Export JSON, from this or another Tokkl server. Clients, projects, tasks and tags are matched by name and created when missing. Entries that are already here get skipped.',
+  chooseJson: 'Choose JSON file',
+  restoring: 'Restoring…',
+  restored: { one: 'Restored {count} entry', other: 'Restored {count} entries' },
+  entriesToAdd: { one: '{count} entry to add', other: '{count} entries to add' },
+  entriesAdded: { one: '{count} entry added', other: '{count} entries added' },
+  /** The other records a restore adds, such as "2 projects, 1 client, 0 tasks, 3 tags to add". */
+  othersToAdd: '{projects}, {clients}, {tasks}, {tags} to add',
+  othersAdded: '{projects}, {clients}, {tasks}, {tags} added',
+  problems: 'Problems',
+  restoreError: '{entity} {id}: {message}',
+  restore: 'Restore',
+
+  importTitle: 'Import from Toggl Track',
+  importHint:
+    'In Toggl Track, go to Reports → Detailed, pick the date range, then Export → CSV. Upload that file here. Times in the file are read in the account timezone, {timeZone}. Entries that are already here get skipped, so importing the same file twice is safe.',
+  chooseCsv: 'Choose CSV file',
+  importing: 'Importing…',
+  imported: { one: 'Imported {count} entry', other: 'Imported {count} entries' },
+  importCount: { one: 'Import {count} entry', other: 'Import {count} entries' },
+  rowsInFile: { one: '{count} row in the file', other: '{count} rows in the file' },
+  entriesToImport: { one: '{count} entry to import', other: '{count} entries to import' },
+  entriesImported: { one: '{count} entry imported', other: '{count} entries imported' },
+  otherUsersRows: {
+    one: '{count} row from other Toggl users, skipped',
+    other: '{count} rows from other Toggl users, skipped',
+  },
+  problemRows: { one: '{count} row with problems', other: '{count} rows with problems' },
+  newProjects: 'New projects: {list}',
+  createdProjects: 'Created projects: {list}',
+  newClients: 'New clients: {list}',
+  createdClients: 'Created clients: {list}',
+  /** Shown when the server sent fewer problems than rows failed. English keeps "problems" for one. */
+  firstProblems: { one: 'First {count} problems', other: 'First {count} problems' },
+  problemRow: 'Row {row}: {message}',
+  importUsers: {
+    one: 'This file has entries from {count} Toggl users. Choose whose entries to import.',
+    other: 'This file has entries from {count} Toggl users. Choose whose entries to import.',
+  },
+  noTogglUser: 'No Toggl user',
+} as const satisfies MessageGroup;

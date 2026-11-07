@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
+import { t } from '../i18n/messages.ts';
+import { INERT_EXEMPT, inertOutside } from './inertOutside.ts';
 import { useOverlayLayer } from './overlayStack.tsx';
+import { useFocusTrap } from './useFocusTrap.ts';
 
 function useDismiss(ref: RefObject<HTMLElement | null>, onClose: () => void, anchor: RefObject<HTMLElement | null>) {
   useEffect(() => {
@@ -92,21 +95,41 @@ export function Popover({
   );
 }
 
+/**
+ * Closes a modal, then moves focus to the page behind it. The page is inert while the modal is
+ * open, so focus can only land there once the close has been committed.
+ */
+export function closeModalThen(close: () => void, focus: () => void): void {
+  flushSync(close);
+  focus();
+}
+
+/**
+ * A dialog over a backdrop, focused on its first control and closed by Escape, the close button or
+ * a press on the backdrop. By default it is modal: Tab cycles inside it and the rest of the page is
+ * inert. `modal={false}` is for a draft the page behind may replace, such as the all-day entry
+ * dialog, which the user can leave by Tab for another day's add button: it is announced as a plain
+ * dialog, Tab leaves it and nothing goes inert.
+ */
 export function Modal({
   title,
   onClose,
   children,
   footer,
   wide,
+  modal = true,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  modal?: boolean;
 }) {
+  const backdrop = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLDivElement>(null);
   const isTopmost = useOverlayLayer();
+  const trapFocus = useFocusTrap();
   // Read on the first render, before anything inside the modal can take focus.
   const [opener] = useState(() => document.activeElement);
   useEffect(() => {
@@ -120,7 +143,9 @@ export function Modal({
   useEffect(() => {
     const dialog = ref.current;
     const first = dialog?.querySelector<HTMLElement>('input, select, textarea, button:not(.modal-close)');
-    first?.focus();
+    // A modal with nothing else to focus, such as the shortcut list, takes focus on its close
+    // button: the opener behind it is inert now.
+    (first ?? (modal ? dialog?.querySelector<HTMLElement>('.modal-close') : null))?.focus();
     return () => {
       // Give focus back to the opener when closing would otherwise drop it, unless the caller has
       // already moved it elsewhere, as after deleting the row the opener sat in.
@@ -128,9 +153,17 @@ export function Modal({
       const dropped = !active || active === document.body || dialog?.contains(active);
       if (dropped && opener instanceof HTMLElement && opener !== document.body && opener.isConnected) opener.focus();
     };
-  }, [opener]);
+  }, [opener, modal]);
+  // A layout effect, so the page wakes in the commit that removes the modal, before focus goes back
+  // to it. Popovers the modal opens are added to the body afterwards and stay usable.
+  useLayoutEffect(() => {
+    const element = backdrop.current;
+    if (!modal || !element) return;
+    return inertOutside(document.body, [element, ...document.querySelectorAll(`[${INERT_EXEMPT}]`)]);
+  }, [modal]);
   return createPortal(
     <div
+      ref={backdrop}
       className="modal-backdrop"
       onPointerDown={event => {
         if (event.target !== event.currentTarget) return;
@@ -139,10 +172,17 @@ export function Modal({
         onClose();
       }}
     >
-      <div ref={ref} className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        ref={ref}
+        className={`modal${wide ? ' modal-wide' : ''}`}
+        role="dialog"
+        aria-modal={modal ? true : undefined}
+        aria-label={title}
+        onKeyDown={modal ? trapFocus : undefined}
+      >
         <header className="modal-header">
           <h2>{title}</h2>
-          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label="Close">
+          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label={t('common.close')}>
             ×
           </button>
         </header>

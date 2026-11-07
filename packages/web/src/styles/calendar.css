@@ -220,6 +220,20 @@
   border-left-color: var(--primary);
   pointer-events: none;
 }
+/* The block's invisible keyboard control, laid over its content. Its focus ring is drawn inside,
+   since the block clips whatever overflows it. The resize handle comes later and stays on top. */
+.calendar-block-open {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: none;
+  cursor: inherit;
+}
+.calendar-block-open:focus-visible {
+  outline-offset: -2px;
+}
 .calendar-resize {
   position: absolute;
   left: 0;

@@ -7,6 +7,7 @@ import { keys } from '../api/keys.ts';
 import { useClockSelector } from '../lib/clock.ts';
 import { notifyInBackground } from './phaseNotification.ts';
 import { createReminderStore, reminderKey } from './reminderStore.ts';
+import { t } from '../i18n/messages.ts';
 
 const reminders = createReminderStore(() => window.localStorage, window);
 
@@ -42,29 +43,26 @@ export function LongTimerReminder() {
     if (latest?.timer === timer && (latest.confirmed || latest.notified)) return;
     reminders.write(key, { timer, notified: true, confirmed: false });
     notifyInBackground(
-      'Is your timer still running on purpose?',
-      `Your timer has been running for more than ${hours} ${hours === 1 ? 'hour' : 'hours'}. Open Tokkl to confirm or review it.`,
+      t('timer.reminderNotificationTitle'),
+      t('timer.reminderNotificationBody', { count: hours }),
       `tokkl-long-timer-${meId}`,
     );
   }, [due, timer, confirmed, prefsSaving, key, hours, meId]);
 
   if (!due || confirmed || !timer) return null;
   return (
-    <div className="timer-reminder" role="status" aria-label="Long-running timer reminder">
-      <span>
-        Your timer has been running for more than {hours} {hours === 1 ? 'hour' : 'hours'}. Is it still running on
-        purpose?
-      </span>
+    <div className="timer-reminder" role="status" aria-label={t('timer.reminderLabel')}>
+      <span>{t('timer.reminderText', { count: hours })}</span>
       <div className="inline-controls">
         <button
           type="button"
           className="button button-ghost"
           onClick={() => reminders.write(key, { timer, notified: true, confirmed: true })}
         >
-          Keep running
+          {t('timer.reminderKeep')}
         </button>
         <Link href="/" className="button button-ghost">
-          Review timer
+          {t('timer.reminderReview')}
         </Link>
       </div>
     </div>

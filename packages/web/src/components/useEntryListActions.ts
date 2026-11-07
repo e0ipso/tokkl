@@ -2,6 +2,7 @@ import { useBulkPatch, useDeleteEntry, useRestoreEntry } from '../api/entries.ts
 import type { PatchOperation } from '../api/types.ts';
 import { bulkEditMessage, deleteMessage } from '../lib/entryMessages.ts';
 import { useToast } from './Toast.tsx';
+import { t } from '../i18n/messages.ts';
 
 /**
  * Deletes each entry on its own, so one failure (say, an entry another device already deleted)
@@ -16,7 +17,9 @@ export function useDeleteEntries(): (ids: number[]) => Promise<void> {
     const results = await Promise.allSettled(ids.map(id => remove.mutateAsync(id)));
     const deleted = ids.filter((_, index) => results[index]?.status === 'fulfilled');
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
-    const undo = deleted.length ? { label: 'Undo', run: () => deleted.forEach(id => restore.mutate(id)) } : undefined;
+    const undo = deleted.length
+      ? { label: t('common.undo'), run: () => deleted.forEach(id => restore.mutate(id)) }
+      : undefined;
     const reason = !failure ? null : failure.reason instanceof Error ? failure.reason.message : String(failure.reason);
     const message = deleteMessage(ids.length, deleted.length, reason);
     toast.show(message.text, { kind: message.kind, action: undo });

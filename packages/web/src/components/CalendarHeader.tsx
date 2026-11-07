@@ -6,6 +6,7 @@ import { entrySeconds } from '../lib/snapping.ts';
 import { arrowTarget } from './arrowKeys.ts';
 import { Icon } from './Icon.tsx';
 import { projectColorStyle } from './ProjectLabel.tsx';
+import { t } from '../i18n/messages.ts';
 
 /** The parts of the week calendar above the hour grid. */
 
@@ -27,37 +28,40 @@ export function CalendarToolbar({
   onStep: (direction: 1 | -1) => void;
   onToday: () => void;
 }) {
-  const unit = dayMode ? 'day' : 'week';
   return (
     <div className="calendar-toolbar">
-      <button type="button" className="icon-button" aria-label={`Previous ${unit}`} onClick={() => onStep(-1)}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={dayMode ? t('calendar.previousDay') : t('calendar.previousWeek')}
+        onClick={() => onStep(-1)}
+      >
         <Icon name="chevronLeft" />
       </button>
       <button
         type="button"
         className="button button-ghost"
         onClick={onToday}
-        title={dayMode ? 'Current day (T)' : 'This week (T)'}
+        title={dayMode ? t('calendar.currentDayTitle') : t('calendar.thisWeekTitle')}
       >
-        {dayMode ? 'Current day' : 'This week'}
+        {dayMode ? t('calendar.currentDay') : t('calendar.thisWeek')}
       </button>
-      <button type="button" className="icon-button" aria-label={`Next ${unit}`} onClick={() => onStep(1)}>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={dayMode ? t('calendar.nextDay') : t('calendar.nextWeek')}
+        onClick={() => onStep(1)}
+      >
         <Icon name="chevronRight" />
       </button>
       <span className="calendar-range">
-        {dayMode ? (
-          <>
-            {weekdayName(selectedDay)}, {shortDate(selectedDay)}
-          </>
-        ) : (
-          <>
-            {shortDate(weekDays[0]!)} to {shortDate(weekDays[6]!)}
-          </>
-        )}
+        {dayMode
+          ? t('dates.dayLabel', { weekday: weekdayName(selectedDay), date: shortDate(selectedDay) })
+          : t('calendar.weekRange', { from: shortDate(weekDays[0]!), to: shortDate(weekDays[6]!) })}
       </span>
       <span className="spacer" />
       <span className="muted">
-        Week total <strong>{duration(weekTotal, settings)}</strong>
+        {t('calendar.weekTotal')} <strong>{duration(weekTotal, settings)}</strong>
       </span>
     </div>
   );
@@ -81,7 +85,7 @@ export function DayStrip({
 }) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   return (
-    <div className="calendar-strip" role="group" aria-label="Days of the week">
+    <div className="calendar-strip" role="group" aria-label={t('calendar.daysOfWeek')}>
       {weekDays.map((day, index) => {
         const total = duration(totals.get(day) ?? 0, settings);
         return (
@@ -93,7 +97,7 @@ export function DayStrip({
             type="button"
             className={`calendar-strip-day${day === todayKey ? ' today' : ''}`}
             aria-pressed={day === selectedDay}
-            aria-label={`${weekdayName(day)} ${shortDate(day)}, ${total}`}
+            aria-label={t('calendar.stripDay', { weekday: weekdayName(day), date: shortDate(day), total })}
             tabIndex={day === selectedDay ? 0 : -1}
             onClick={() => onSelect(day)}
             onKeyDown={event => {
@@ -131,15 +135,15 @@ export function AllDayRow({
   onOpen: (entry: TimeEntry) => void;
 }) {
   return (
-    <div className="calendar-all-day" role="group" aria-label="All-day entries">
-      <div className="calendar-all-day-label">All day</div>
+    <div className="calendar-all-day" role="group" aria-label={t('calendar.allDayEntries')}>
+      <div className="calendar-all-day-label">{t('calendar.allDay')}</div>
       {days.map(day => (
         <div key={day} className="calendar-all-day-cell">
           <button
             type="button"
             className="calendar-all-day-add"
-            aria-label={`Add all-day entry for ${day}`}
-            title={`Add all-day entry for ${day}`}
+            aria-label={t('calendar.addAllDayFor', { day })}
+            title={t('calendar.addAllDayFor', { day })}
             onClick={event => {
               event.currentTarget.focus();
               onAdd(day);
@@ -149,7 +153,7 @@ export function AllDayRow({
           </button>
           {(entries.get(day) ?? []).map(entry => {
             const elapsed = duration(entrySeconds(entry, now), settings);
-            const label = [entry.description || '(no description)', entry.project_name, elapsed]
+            const label = [entry.description || t('entries.noDescription'), entry.project_name, elapsed]
               .filter(Boolean)
               .join(', ');
             return (
@@ -162,7 +166,7 @@ export function AllDayRow({
                 title={label}
                 onClick={() => onOpen(entry)}
               >
-                <strong>{entry.description || entry.project_name || '(no description)'}</strong>
+                <strong>{entry.description || entry.project_name || t('entries.noDescription')}</strong>
                 <span className="calendar-block-duration">{elapsed}</span>
               </button>
             );

@@ -7,8 +7,12 @@ import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 import { browserTimeZone } from '../../../lib/browserTimeZone.ts';
+import { dayOfWeekName } from '../../../lib/format.ts';
+import { t } from '../../../i18n/messages.ts';
+import { tx } from '../../../i18n/rich.ts';
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+/** The days a week can start on, Sunday first, as the account stores them. */
+const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 function timeZones(current: string): string[] {
   const zones = new Set(Intl.supportedValuesOf('timeZone'));
@@ -37,19 +41,19 @@ export function ProfileSection({ me }: { me: Me }) {
     mutationFn: accountRequests.saveProfile,
     // Day boundaries depend on the timezone and week start, so entry lists and reports refetch too.
     invalidate: stale.profile,
-    success: 'Profile saved',
+    success: t('settings.profileSaved'),
   });
 
   const submit = () => {
-    if (!fields.validate([['email', !/^[^@\s]+@[^@\s]+$/.test(email.trim()) && 'Enter a valid email address']])) return;
+    if (!fields.validate([['email', !/^[^@\s]+@[^@\s]+$/.test(email.trim()) && t('settings.enterValidEmail')]])) return;
     save.mutate({ fullname: fullname.trim(), email: email.trim(), timezone, beginning_of_week: weekStart });
   };
 
   return (
-    <SettingsCard id="profile" title="Profile" onSubmit={submit} saving={save.isPending}>
+    <SettingsCard id="profile" title={t('settings.sectionProfile')} onSubmit={submit} saving={save.isPending}>
       <div className="form-grid">
         <label className="field">
-          <span>Full name</span>
+          <span>{t('settings.fullName')}</span>
           <input
             value={fullname}
             maxLength={255}
@@ -58,7 +62,7 @@ export function ProfileSection({ me }: { me: Me }) {
           />
         </label>
         <div className="field">
-          <label htmlFor={fields.id('email')}>Email</label>
+          <label htmlFor={fields.id('email')}>{t('settings.email')}</label>
           <input
             {...fields.field('email')}
             type="email"
@@ -71,7 +75,7 @@ export function ProfileSection({ me }: { me: Me }) {
           {fields.message('email')}
         </div>
         <label className="field">
-          <span>Timezone</span>
+          <span>{t('settings.timezone')}</span>
           <select value={timezone} onChange={event => setTimezone(event.target.value)}>
             {zones.map(zone => (
               <option key={zone} value={zone}>
@@ -81,28 +85,27 @@ export function ProfileSection({ me }: { me: Me }) {
           </select>
         </label>
         <label className="field">
-          <span>First day of the week</span>
+          <span>{t('settings.firstDayOfWeek')}</span>
           <select value={weekStart} onChange={event => setWeekStart(Number(event.target.value))}>
-            {WEEKDAYS.map((day, index) => (
-              <option key={day} value={index}>
-                {day}
+            {WEEKDAYS.map(day => (
+              <option key={day} value={day}>
+                {dayOfWeekName(day)}
               </option>
             ))}
           </select>
         </label>
-        <p className="hint field-full">
-          The account timezone decides which day an entry belongs to in lists, reports and imports. You use the email to
-          log in.
-        </p>
+        <p className="hint field-full">{t('settings.profileHint')}</p>
         {browserZone && !sameZone(browserZone, me.timezone) ? (
           <div className="settings-notice field-full" role="note">
             <span>
-              This browser is set to <strong>{browserZone}</strong>, but the account uses <strong>{me.timezone}</strong>
-              .
+              {tx('settings.browserZone', {
+                browser: <strong>{browserZone}</strong>,
+                account: <strong>{me.timezone}</strong>,
+              })}
             </span>
             {timezone !== browserZone ? (
               <button type="button" className="button button-ghost" onClick={() => setTimezone(browserZone)}>
-                Use {browserZone}
+                {t('settings.useZone', { zone: browserZone })}
               </button>
             ) : null}
           </div>

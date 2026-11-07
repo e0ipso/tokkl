@@ -1,4 +1,5 @@
 import type { TimeEntry, TimerPause, TimerState } from '../api/types.ts';
+import { t } from '../i18n/messages.ts';
 
 /** The timer bar's modes: a running timer, a paused chain, the manual form, or the idle timer. */
 export type TimerBarMode = 'running' | 'paused' | 'manual' | 'idle';
@@ -31,15 +32,15 @@ export function timerBarView(timer: TimerState | undefined, manualModePreference
 }
 
 export function descriptionPlaceholder(mode: TimerBarMode): string {
-  if (mode === 'manual') return 'What did you work on?';
-  if (mode === 'idle') return 'What are you working on?';
-  return 'Add a description';
+  if (mode === 'manual') return t('timer.placeholderManual');
+  if (mode === 'idle') return t('timer.placeholderIdle');
+  return t('timer.placeholderRunning');
 }
 
 /** What the bar's live region says: a pause, or a resume (the running entry continues the chain). */
 export function pauseAnnouncement({ mode, chain, current }: TimerBarView): string {
-  if (mode === 'paused') return 'Timer paused';
-  return chain && current && chain.clone_entry_id === current.id ? 'Timer resumed' : '';
+  if (mode === 'paused') return t('timer.announcePaused');
+  return chain && current && chain.clone_entry_id === current.id ? t('timer.announceResumed') : '';
 }
 
 export function timerBarClass(mode: TimerBarMode): string {

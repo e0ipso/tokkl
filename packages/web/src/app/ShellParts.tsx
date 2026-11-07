@@ -5,6 +5,7 @@ import { useMe, usePreferences } from '../api/account.ts';
 import { useCurrentEntry } from '../api/entries.ts';
 import { useServerNow } from '../api/timerHooks.ts';
 import { Icon } from '../components/Icon.tsx';
+import { t } from '../i18n/messages.ts';
 import { sessionTitle } from '../components/pomodoroSessionPresentation.ts';
 import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { useNow } from '../lib/clock.ts';
@@ -39,8 +40,11 @@ export function RunningTitle() {
     document.title = session
       ? sessionTitle(session, serverNow)
       : current
-        ? `${formatDuration(entrySeconds(current, now))} · ${current.description || 'Running'}`
-        : 'Tokkl';
+        ? t('shell.runningTitle', {
+            duration: formatDuration(entrySeconds(current, now)),
+            description: current.description || t('shell.runningUntitled'),
+          })
+        : t('shell.appName');
   }, [current, session, now, serverNow]);
   return null;
 }
@@ -56,7 +60,7 @@ export function SignedInUser() {
   const name = me.fullname.trim();
   return (
     <div className="signed-in">
-      <span className="visually-hidden">Signed in as </span>
+      <span className="visually-hidden">{t('shell.signedInAs')}</span>
       {name ? (
         <span className="signed-in-name" title={name}>
           {name}
@@ -92,16 +96,16 @@ export function NavLink({
       onClick={onNavigate}
     >
       <Icon name={item.icon} className="nav-icon" />
-      <span>{item.label}</span>
+      <span>{t(item.label)}</span>
       {/* A session's open pomodoro is the running entry; the session's own marker stands for it. */}
       {item.href === '/' && timerRunning && !sessionRunning ? (
-        <span className="running-dot" title="Timer running">
-          <span className="visually-hidden">Timer running</span>
+        <span className="running-dot" title={t('shell.timerRunning')}>
+          <span className="visually-hidden">{t('shell.timerRunning')}</span>
         </span>
       ) : null}
       {item.href === '/pomodoro' && sessionRunning ? (
-        <span className="running-dot" title="Pomodoro session running">
-          <span className="visually-hidden">Pomodoro session running</span>
+        <span className="running-dot" title={t('shell.sessionRunning')}>
+          <span className="visually-hidden">{t('shell.sessionRunning')}</span>
         </span>
       ) : null}
     </Link>

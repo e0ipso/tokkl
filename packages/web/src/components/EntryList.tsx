@@ -16,6 +16,7 @@ import { BulkBar } from './BulkBar.tsx';
 import { EmptyState } from './EmptyState.tsx';
 import { EntryLine } from './EntryLine.tsx';
 import { Icon } from './Icon.tsx';
+import { t } from '../i18n/messages.ts';
 
 type Toggle = (ids: number[], on: boolean) => void;
 
@@ -23,23 +24,21 @@ function EmptyList({ onStartTimer, onManualMode }: { onStartTimer: () => void; o
   return (
     <EmptyState
       icon={<Icon name="timer" size={32} />}
-      title="No time entries in this period"
+      title={t('entries.emptyTitle')}
       actions={
         <>
           <button type="button" className="button button-primary" onClick={onStartTimer}>
-            <Icon name="play" size={14} /> Start timer
+            <Icon name="play" size={14} /> {t('entries.emptyStartTimer')}
           </button>
           {onManualMode ? (
             <button type="button" className="button button-ghost" onClick={onManualMode}>
-              <Icon name="list" size={14} /> Manual mode
+              <Icon name="list" size={14} /> {t('entries.emptyManualMode')}
             </button>
           ) : null}
         </>
       }
     >
-      {onManualMode
-        ? 'Start the timer when you paddle out, or switch to manual mode to log time you already worked.'
-        : 'Start the timer when you paddle out, or fill in the times above to log time you already worked.'}
+      {onManualMode ? t('entries.emptyHintManual') : t('entries.emptyHintTimes')}
     </EmptyState>
   );
 }
@@ -95,7 +94,7 @@ export function EntryList({
         return (
           <section key={day} className="day-group">
             <header className="day-header">
-              <label className="day-select" title="Select all entries of this day">
+              <label className="day-select" title={t('entries.selectDay')}>
                 <input type="checkbox" checked={allSelected} onChange={event => toggle(dayIds, event.target.checked)} />
               </label>
               <h3>{dayLabel(day, todayKey)}</h3>
@@ -156,7 +155,7 @@ function EntryRow({
               className="count-badge"
               onClick={() => setExpanded(!expanded)}
               aria-expanded={expanded}
-              title="Show entries"
+              title={t('entries.showEntries')}
             >
               {row.entries.length}
             </button>

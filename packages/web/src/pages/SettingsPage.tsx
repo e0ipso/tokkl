@@ -11,16 +11,17 @@ import { PreferencesSection } from './manage/settings/PreferencesSection.tsx';
 import { ProfileSection } from './manage/settings/ProfileSection.tsx';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
 import { WorkspaceSection } from './manage/settings/WorkspaceSection.tsx';
+import { t } from '../i18n/messages.ts';
 import './manage/manage.css';
 
 const SECTIONS = [
-  ['profile', 'Profile'],
-  ['password', 'Password'],
-  ['preferences', 'Preferences'],
-  ['workspace', 'Workspace'],
-  ['api-token', 'API token'],
-  ['data', 'Data'],
-  ['session', 'Session'],
+  ['profile', 'settings.sectionProfile'],
+  ['password', 'settings.sectionPassword'],
+  ['preferences', 'settings.sectionPreferences'],
+  ['workspace', 'settings.sectionWorkspace'],
+  ['api-token', 'settings.sectionApiToken'],
+  ['data', 'settings.sectionData'],
+  ['session', 'settings.sectionSession'],
 ] as const;
 
 function SessionSection() {
@@ -35,13 +36,9 @@ function SessionSection() {
       .finally(() => window.location.reload());
   };
   return (
-    <SettingsCard
-      id="session"
-      title="Session"
-      intro="Log out of this browser. To log out everywhere else, change your password."
-    >
+    <SettingsCard id="session" title={t('settings.sectionSession')} intro={t('settings.sessionIntro')}>
       <button type="button" className="button button-ghost" disabled={busy} onClick={logout}>
-        <Icon name="logout" size={16} /> Log out
+        <Icon name="logout" size={16} /> {t('shell.logOut')}
       </button>
     </SettingsCard>
   );
@@ -55,12 +52,12 @@ export function SettingsPage() {
   return (
     <div className="page manage-page settings-page">
       <header className="page-header">
-        <h1>Settings</h1>
+        <h1>{t('settings.title')}</h1>
       </header>
-      <nav className="settings-nav" aria-label="Settings sections">
+      <nav className="settings-nav" aria-label={t('settings.sectionsLabel')}>
         {SECTIONS.map(([id, label]) => (
           <a key={id} href={`#${id}`}>
-            {label}
+            {t(label)}
           </a>
         ))}
       </nav>
@@ -70,30 +67,30 @@ export function SettingsPage() {
       {prefs ? (
         <PreferencesSection prefs={prefs} />
       ) : (
-        <SettingsCard id="preferences" title="Preferences">
+        <SettingsCard id="preferences" title={t('settings.sectionPreferences')}>
           {prefsError ? (
             <LoadError
-              message={`Could not load preferences: ${prefsError.message}`}
+              message={t('settings.preferencesLoadFailed', { message: prefsError.message })}
               onRetry={() => void refetchPrefs()}
               className="is-compact"
             />
           ) : (
-            <Loading label="Loading preferences…" className="is-compact" />
+            <Loading label={t('settings.loadingPreferences')} className="is-compact" />
           )}
         </SettingsCard>
       )}
       {workspace ? (
         <WorkspaceSection workspace={workspace} />
       ) : (
-        <SettingsCard id="workspace" title="Workspace">
+        <SettingsCard id="workspace" title={t('settings.sectionWorkspace')}>
           {workspaceError ? (
             <LoadError
-              message={`Could not load the workspace: ${workspaceError.message}`}
+              message={t('settings.workspaceLoadFailed', { message: workspaceError.message })}
               onRetry={() => void refetchWorkspace()}
               className="is-compact"
             />
           ) : (
-            <Loading label="Loading the workspace…" className="is-compact" />
+            <Loading label={t('settings.loadingWorkspace')} className="is-compact" />
           )}
         </SettingsCard>
       )}

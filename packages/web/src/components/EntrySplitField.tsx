@@ -11,11 +11,12 @@ import { snappedSplit, type SplitHalves } from '../lib/snapping.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { useToast } from './Toast.tsx';
+import { t, type MessageKey } from '../i18n/messages.ts';
 
 const SPLIT_PROBLEMS = {
-  unreadable: 'Enter a split time like 10:30',
-  outside: 'The split time must fall inside the entry',
-} as const;
+  unreadable: 'entries.splitUnreadable',
+  outside: 'entries.splitOutside',
+} as const satisfies Record<string, MessageKey>;
 
 function spanSeconds(span: { start: Date; stop: Date }): number {
   return (span.stop.getTime() - span.start.getTime()) / 1000;
@@ -61,11 +62,11 @@ export function EntrySplitField({
   const halves = splitHalves(entry, text, settings);
 
   const run = async () => {
-    const problem = typeof halves === 'string' && SPLIT_PROBLEMS[halves];
+    const problem = typeof halves === 'string' && t(SPLIT_PROBLEMS[halves]);
     if (!fields.validate([['split', problem]]) || typeof halves === 'string') return;
     try {
       await split.mutateAsync({ entry, halves });
-      toast.show('Entry split in two');
+      toast.show(t('entries.splitDone'));
       onSplit();
     } catch (error) {
       toast.error(error);
@@ -74,21 +75,24 @@ export function EntrySplitField({
 
   return (
     <div className="field field-full">
-      <label htmlFor={fields.id('split')}>Split at</label>
+      <label htmlFor={fields.id('split')}>{t('entries.splitAt')}</label>
       <div className="inline-controls">
         <input
           {...fields.field('split')}
           value={text}
-          placeholder="e.g. 10:30"
+          placeholder={t('entries.splitPlaceholder')}
           onChange={event => setText(event.target.value)}
         />
         <button type="button" className="button button-ghost" onClick={() => void run()}>
-          <Icon name="split" size={16} /> Split
+          <Icon name="split" size={16} /> {t('entries.split')}
         </button>
       </div>
       {typeof halves !== 'string' ? (
         <p className="hint">
-          Splits into {formatDuration(spanSeconds(halves.first))} and {formatDuration(spanSeconds(halves.second))}.
+          {t('entries.splitsInto', {
+            first: formatDuration(spanSeconds(halves.first)),
+            second: formatDuration(spanSeconds(halves.second)),
+          })}
         </p>
       ) : null}
       {fields.message('split')}

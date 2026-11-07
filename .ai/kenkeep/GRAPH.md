@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:6f3c4bd870e68d9bdeb77a9b77be794b59efc272f59b0146fddfd2569ad5efc1'
-node_count: 109
+nodes_hash: 'sha256:22e6c650c710bd3df8cbf3feb91a075909e147a2f4efeedc8ceaf47afe203fbd'
+node_count: 110
 ---
 # kenkeep Graph
 
-Total nodes: 109
+Total nodes: 110
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -412,6 +412,14 @@ Total nodes: 109
 - **path:** web-ui-behaviour/interaction-and-state/map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md
 - **tags:** web, timer, components, react, focus
 - **relates_to:** practice-timer-bar-pickers-return-focus-without-opening-suggestions, practice-web-ui-survives-background-refetches, map-test-and-static-analysis-layout
+
+## map-web-message-catalog-and-intl-formatting
+
+- **kind:** map
+- **title:** UI text: the typed message catalog, t() and tx(), and Intl formatting
+- **path:** web-ui-behaviour/interaction-and-state/map-web-message-catalog-and-intl-formatting.md
+- **tags:** web, i18n, a11y, react, e2e
+- **relates_to:** map-web-page-state-and-field-error-components, map-shared-list-controls-in-manage-ui
 
 ## map-web-page-state-and-field-error-components
 

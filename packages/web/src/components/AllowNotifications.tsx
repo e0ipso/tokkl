@@ -1,16 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { t, type MessageKey } from '../i18n/messages.ts';
 import { notificationAccess, requestNotificationAccess, type NotificationAccess } from './phaseNotification.ts';
 
-const STATUS: Record<NotificationAccess, string> = {
-  default:
-    'Shows a notification when a phase ends while Tokkl is in a background tab, or when a long-running timer needs checking.',
-  granted:
-    'Notifications are allowed. Tokkl shows them for Pomodoro phases and long-running timer reminders while Tokkl is in a background tab.',
-  denied:
-    "Notifications are blocked. Allow them in the browser's site settings to get timer reminders and Pomodoro notifications in a background tab.",
-  insecure:
-    'Notifications need HTTPS. Open Tokkl over HTTPS to get timer reminders and Pomodoro notifications in a background tab.',
-  unsupported: "This browser can't show notifications.",
+const STATUS: Record<NotificationAccess, MessageKey> = {
+  default: 'timer.notificationsDefault',
+  granted: 'timer.notificationsGranted',
+  denied: 'timer.notificationsDenied',
+  insecure: 'timer.notificationsInsecure',
+  unsupported: 'timer.notificationsUnsupported',
 };
 
 /**
@@ -46,12 +43,12 @@ export function AllowNotifications() {
             aria-describedby={statusId}
             onClick={() => void allow()}
           >
-            Allow notifications
+            {t('timer.allowNotifications')}
           </button>
         </div>
       ) : null}
       <p ref={status} id={statusId} className="hint" tabIndex={-1}>
-        {STATUS[access]}
+        {t(STATUS[access])}
       </p>
     </div>
   );

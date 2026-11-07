@@ -1,6 +1,7 @@
 import type { TimeEntry } from '../api/types.ts';
 import { localDay } from './entryTime.ts';
 import { entrySeconds } from './snapping.ts';
+import { t } from '../i18n/messages.ts';
 
 /** How the timer page's entry list groups stopped entries into days and rows. */
 
@@ -73,7 +74,7 @@ export function rangeLabel(entries: readonly StoppedEntry[], format: (iso: strin
   if (timed.length === 0) return '';
   const starts = timed.map(e => e.start).sort();
   const stops = timed.map(e => e.stop).sort();
-  return `${format(starts[0]!)} – ${format(stops[stops.length - 1]!)}`;
+  return t('dates.timeRange', { start: format(starts[0]!), end: format(stops[stops.length - 1]!) });
 }
 
 /**

@@ -6,6 +6,7 @@ import { InstanceSettingsSection } from './admin/InstanceSettingsSection.tsx';
 import { InvitesSection } from './admin/InvitesSection.tsx';
 import { UsersSection } from './admin/UsersSection.tsx';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
+import { t } from '../i18n/messages.ts';
 import './manage/manage.css';
 
 /**
@@ -15,9 +16,9 @@ import './manage/manage.css';
  */
 
 const SECTIONS = [
-  ['users', 'Users'],
-  ['invites', 'Invites'],
-  ['instance', 'Instance settings'],
+  ['users', 'admin.sectionUsers'],
+  ['invites', 'admin.sectionInvites'],
+  ['instance', 'admin.sectionInstance'],
 ] as const;
 
 export function AdminPage() {
@@ -29,7 +30,7 @@ export function AdminPage() {
 
   const header = (
     <header className="page-header">
-      <h1>Admin</h1>
+      <h1>{t('admin.title')}</h1>
     </header>
   );
 
@@ -45,7 +46,7 @@ export function AdminPage() {
     return (
       <div className="page manage-page settings-page admin-page">
         {header}
-        <Loading label="Loading accounts…" />
+        <Loading label={t('admin.loadingAccounts')} />
       </div>
     );
   }
@@ -53,10 +54,10 @@ export function AdminPage() {
   return (
     <div className="page manage-page settings-page admin-page">
       {header}
-      <nav className="settings-nav" aria-label="Admin sections">
+      <nav className="settings-nav" aria-label={t('admin.sectionsLabel')}>
         {SECTIONS.map(([id, label]) => (
           <a key={id} href={`#${id}`}>
-            {label}
+            {t(label)}
           </a>
         ))}
       </nav>
@@ -65,15 +66,15 @@ export function AdminPage() {
       {instance.data ? (
         <InstanceSettingsSection server={instance.data} />
       ) : (
-        <SettingsCard id="instance" title="Instance settings">
+        <SettingsCard id="instance" title={t('admin.sectionInstance')}>
           {instance.error ? (
             <LoadError
-              message={`Could not load instance settings: ${instance.error.message}`}
+              message={t('admin.instanceLoadFailed', { message: instance.error.message })}
               onRetry={() => void instance.refetch()}
               className="is-compact"
             />
           ) : (
-            <Loading label="Loading instance settings…" className="is-compact" />
+            <Loading label={t('admin.loadingInstance')} className="is-compact" />
           )}
         </SettingsCard>
       )}

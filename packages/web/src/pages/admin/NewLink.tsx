@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { copyText } from '../../lib/clipboard.ts';
+import { t } from '../../i18n/messages.ts';
 
 /**
  * A new one-time link, such as an invite or a password reset link. The server returns it only once,
@@ -22,7 +23,7 @@ export function NewLink({
 }) {
   const toast = useToast();
   const copy = () => {
-    copyText(link, 'Could not copy. Select the link and copy it by hand.').then(
+    copyText(link, t('admin.copyFailed')).then(
       () => toast.show(copied),
       (error: unknown) => toast.error(error),
     );
@@ -37,10 +38,10 @@ export function NewLink({
       </div>
       <div className="inline-controls">
         <button type="button" className="button button-ghost" onClick={copy}>
-          <Icon name="copy" size={16} /> Copy link
+          <Icon name="copy" size={16} /> {t('admin.copyLink')}
         </button>
         <button type="button" className="button button-ghost" onClick={onDone}>
-          Done
+          {t('common.done')}
         </button>
       </div>
     </div>

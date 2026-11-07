@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '../../components/Icon.tsx';
 import { Modal, Popover } from '../../components/Overlay.tsx';
+import { t } from '../../i18n/messages.ts';
 
 /** Asks before a destructive or wide-reaching action. */
 export function ConfirmModal({
@@ -31,7 +32,7 @@ export function ConfirmModal({
         <>
           <span className="spacer" />
           <button type="button" className="button button-ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           {extraActions}
           <button
@@ -135,7 +136,13 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
         <Icon name="more" />
       </button>
       {open ? (
-        <Popover anchor={button} label="Row actions" onClose={() => setOpen(false)} width={190} align="right">
+        <Popover
+          anchor={button}
+          label={t('manage.rowActions')}
+          onClose={() => setOpen(false)}
+          width={190}
+          align="right"
+        >
           <div className="menu" role="menu">
             {items.map(item => (
               <button
@@ -166,7 +173,7 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
 export function StatusBadge({ archived, label }: { archived: boolean; label?: string }) {
   return (
     <span className={`manage-status${archived ? ' is-archived' : ''}`}>
-      {label ?? (archived ? 'Archived' : 'Active')}
+      {label ?? (archived ? t('manage.statusArchived') : t('manage.statusActive'))}
     </span>
   );
 }

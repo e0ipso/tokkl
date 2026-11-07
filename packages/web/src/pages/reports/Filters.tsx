@@ -8,6 +8,7 @@ import { Popover } from '../../components/Overlay.tsx';
 import { ProjectDot } from '../../components/ProjectLabel.tsx';
 import { SearchBox, Segmented } from '../manage/ui.tsx';
 import { BILLABLE_FILTERS, isOneOf, type IdFilter, type ReportPatch, type ReportState } from './urlState.ts';
+import { t } from '../../i18n/messages.ts';
 
 interface Option {
   readonly id: number | null;
@@ -16,14 +17,10 @@ interface Option {
   readonly hint?: string | null;
 }
 
-const FILTER_MODES = [
-  { value: 'is', label: 'Is' },
-  { value: 'not', label: 'Is not' },
-] as const;
-
 /** A filter chip that opens a searchable checkbox list. */
 function MultiSelect({
   label,
+  noun,
   options,
   value,
   onChange,
@@ -32,6 +29,8 @@ function MultiSelect({
   showDots = false,
 }: {
   label: string;
+  /** The filter's name inside a sentence, as in "Find project…". */
+  noun: string;
   options: readonly Option[];
   value: IdFilter;
   onChange: (next: IdFilter) => void;
@@ -52,9 +51,13 @@ function MultiSelect({
     value.length === 0
       ? null
       : value.length === 1
-        ? (options.find(o => o.id === value[0])?.label ?? '1 selected')
-        : `${value.length} selected`;
-  const summary = picked && negated ? `not ${picked}` : picked;
+        ? (options.find(o => o.id === value[0])?.label ?? t('reports.filterOneSelected'))
+        : t('reports.filterSelected', { count: value.length });
+  const summary = picked && negated ? t('reports.filterNot', { picked }) : picked;
+  const modes = [
+    { value: 'is', label: t('reports.filterIs') },
+    { value: 'not', label: t('reports.filterIsNot') },
+  ] as const;
 
   return (
     <>
@@ -73,7 +76,7 @@ function MultiSelect({
       {open ? (
         <Popover
           anchor={button}
-          label={`${label} filter`}
+          label={t('reports.filterPopover', { label })}
           onClose={() => {
             setOpen(false);
             setQuery('');
@@ -83,15 +86,15 @@ function MultiSelect({
           <input
             className="picker-search"
             autoFocus
-            placeholder={`Find ${label.toLowerCase()}…`}
-            aria-label={`Find ${label.toLowerCase()}`}
+            placeholder={t('reports.filterFind', { noun })}
+            aria-label={t('reports.filterFindLabel', { noun })}
             value={query}
             onChange={event => setQuery(event.target.value)}
           />
           <Segmented
             className="filter-mode"
-            label={`${label} filter mode`}
-            options={FILTER_MODES}
+            label={t('reports.filterMode', { label })}
+            options={modes}
             value={negated ? 'not' : 'is'}
             onChange={mode => onNegatedChange(mode === 'not')}
           />
@@ -105,15 +108,15 @@ function MultiSelect({
               </label>
             ))}
             {visible.length === 0 ? (
-              <EmptyState compact title="Nothing matches.">
-                {query.trim() ? 'Try a shorter search.' : null}
+              <EmptyState compact title={t('reports.nothingMatches')}>
+                {query.trim() ? t('reports.shorterSearch') : null}
               </EmptyState>
             ) : null}
           </div>
           {value.length ? (
             <div className="filter-popover-footer">
               <button type="button" className="link-button" onClick={() => onChange([])}>
-                Clear
+                {t('reports.clear')}
               </button>
             </div>
           ) : null}
@@ -141,7 +144,14 @@ function DescriptionSearch({ value, onChange }: { value: string; onChange: (next
     }, 300);
     return () => clearTimeout(id);
   }, [text, onChange]);
-  return <SearchBox value={text} onChange={setText} placeholder="Description" label="Filter by description" />;
+  return (
+    <SearchBox
+      value={text}
+      onChange={setText}
+      placeholder={t('reports.description')}
+      label={t('reports.filterByDescription')}
+    />
+  );
 }
 
 export function Filters({ state, update }: { state: ReportState; update: (patch: ReportPatch) => void }) {
@@ -151,7 +161,7 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
 
   const projectOptions = useMemo<Option[]>(
     () => [
-      { id: null, label: 'Without project' },
+      { id: null, label: t('reports.withoutProject') },
       ...[...projects]
         .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
         .map(p => ({ id: p.id, label: p.name, color: p.color, hint: p.client_name })),
@@ -160,14 +170,14 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
   );
   const clientOptions = useMemo<Option[]>(
     () => [
-      { id: null, label: 'Without client' },
+      { id: null, label: t('reports.withoutClient') },
       ...[...clients].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ id: c.id, label: c.name })),
     ],
     [clients],
   );
   const tagOptions = useMemo<Option[]>(
     () => [
-      { id: null, label: 'Without tags' },
+      { id: null, label: t('reports.withoutTags') },
       ...[...tags].sort((a, b) => a.name.localeCompare(b.name)).map(t => ({ id: t.id, label: t.name })),
     ],
     [tags],
@@ -180,9 +190,10 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
     state.description !== '';
 
   return (
-    <div className="report-filters" role="group" aria-label="Filters">
+    <div className="report-filters" role="group" aria-label={t('reports.filters')}>
       <MultiSelect
-        label="Project"
+        label={t('reports.filterProject')}
+        noun={t('reports.filterProjectNoun')}
         options={projectOptions}
         value={state.projects}
         onChange={projects => update({ projects })}
@@ -191,7 +202,8 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
         showDots
       />
       <MultiSelect
-        label="Client"
+        label={t('reports.filterClient')}
+        noun={t('reports.filterClientNoun')}
         options={clientOptions}
         value={state.clients}
         onChange={clients => update({ clients })}
@@ -199,7 +211,8 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
         onNegatedChange={clientsNot => update({ clientsNot })}
       />
       <MultiSelect
-        label="Tag"
+        label={t('reports.filterTag')}
+        noun={t('reports.filterTagNoun')}
         options={tagOptions}
         value={state.tags}
         onChange={tags => update({ tags })}
@@ -208,16 +221,16 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
       />
       <select
         className={`filter-select${state.billable !== 'all' ? ' active' : ''}`}
-        aria-label="Billable"
+        aria-label={t('reports.billable')}
         value={state.billable}
         onChange={event => {
           const value = event.target.value;
           if (isOneOf(value, BILLABLE_FILTERS)) update({ billable: value });
         }}
       >
-        <option value="all">Billable and non-billable</option>
-        <option value="billable">Billable only</option>
-        <option value="nonbillable">Non-billable only</option>
+        <option value="all">{t('reports.billableAll')}</option>
+        <option value="billable">{t('reports.billableOnly')}</option>
+        <option value="nonbillable">{t('reports.nonBillableOnly')}</option>
       </select>
       <DescriptionSearch value={state.description} onChange={onDescription} />
       {active ? (
@@ -237,7 +250,7 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
             })
           }
         >
-          Clear filters
+          {t('reports.clearFilters')}
         </button>
       ) : null}
     </div>

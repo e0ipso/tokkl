@@ -10,6 +10,7 @@ import { noTimeFields } from '../lib/noTimeEdit.ts';
 import type { Settings } from '../lib/settings.ts';
 import { entrySeconds, snappedSeconds } from '../lib/snapping.ts';
 import type { FieldCheck } from './FieldError.tsx';
+import { t } from '../i18n/messages.ts';
 
 export type TimeFieldKey = 'start' | 'end' | 'duration';
 
@@ -114,11 +115,11 @@ export function useEntryTimes(entry: TimeEntry, settings: Settings, now: Date) {
     }
     const unreadable = !range && (running ? 'start' : unreadableTime(startText, timeOptions));
     const seconds = !running && durationChanged ? parseDuration(durationText) : null;
-    const timesMessage = 'Check the start and end times';
+    const timesMessage = t('entries.checkTimes');
     const valid = validate([
       ['start', unreadable === 'start' && timesMessage],
       ['end', unreadable === 'end' && timesMessage],
-      ['duration', !running && durationChanged && seconds === null && 'Check the duration'],
+      ['duration', !running && durationChanged && seconds === null && t('entries.checkDuration')],
     ]);
     if (!valid || !range) return null;
     const times: TimeEntryInput = {};

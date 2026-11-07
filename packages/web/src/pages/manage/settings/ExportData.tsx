@@ -3,6 +3,7 @@ import { transferRequests } from '../../../api/transfer.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { exportFilename } from './transferForm.ts';
+import { t } from '../../../i18n/messages.ts';
 
 /** Saves the account's data as JSON or as CSV. One export runs at a time. */
 export function ExportData() {
@@ -22,11 +23,8 @@ export function ExportData() {
 
   return (
     <>
-      <h3 className="settings-subheading">Export</h3>
-      <p className="hint">
-        JSON has your clients, projects, tasks, tags, time entries and settings. CSV has one row per time entry, with
-        the same columns as the Toggl Track detailed report.
-      </p>
+      <h3 className="settings-subheading">{t('settings.export')}</h3>
+      <p className="hint">{t('settings.exportHint')}</p>
       <div className="inline-controls settings-row">
         <button
           type="button"
@@ -34,7 +32,7 @@ export function ExportData() {
           disabled={exporting !== null}
           onClick={() => void exportFile('json')}
         >
-          <Icon name="download" size={16} /> Export JSON
+          <Icon name="download" size={16} /> {t('settings.exportJson')}
         </button>
         <button
           type="button"
@@ -42,7 +40,7 @@ export function ExportData() {
           disabled={exporting !== null}
           onClick={() => void exportFile('csv')}
         >
-          <Icon name="download" size={16} /> Export CSV
+          <Icon name="download" size={16} /> {t('settings.exportCsv')}
         </button>
       </div>
     </>

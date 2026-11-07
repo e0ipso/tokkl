@@ -11,6 +11,7 @@ import { ColorField } from './ColorField.tsx';
 import { ProjectTasks } from './ProjectTasks.tsx';
 import { useAction } from '../../components/useAction.ts';
 import { parseOptionalAmount } from './values.ts';
+import { t } from '../../i18n/messages.ts';
 
 const NEW_CLIENT = '__new__';
 
@@ -40,14 +41,14 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
   const save = useAction<ProjectBody, Project>({
     mutationFn: body => (project ? projectRequests.update(wid, project.id, body) : projectRequests.create(wid, body)),
     invalidate: stale.projectSaved,
-    success: saved => (project ? `Saved ${saved.name}` : `Created ${saved.name}`),
+    success: saved => (project ? t('manage.saved', { name: saved.name }) : t('manage.created', { name: saved.name })),
     onSuccess: onClose,
   });
 
   const createClient = useAction<string, Client>({
     mutationFn: clientName => clientRequests.create(wid, { name: clientName }),
     invalidate: stale.clientCreated,
-    success: client => `Created client ${client.name}`,
+    success: client => t('manage.createdClient', { name: client.name }),
     onSuccess: client => {
       setClientId(client.id);
       setCreatingClient(false);
@@ -65,10 +66,10 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
     const code = currency.trim().toUpperCase();
     // Checked in the order the fields appear, so focus goes to the first one to fix.
     const valid = fields.validate([
-      ['name', !name.trim() && 'Enter a project name'],
-      ['rate', parsedRate === undefined && 'Hourly rate must be a number of 0 or more'],
-      ['currency', code !== '' && !/^[A-Z]{3}$/.test(code) && 'Currency must be a 3-letter code, like EUR'],
-      ['estimate', parsedEstimate === undefined && 'Estimated hours must be a number of 0 or more'],
+      ['name', !name.trim() && t('manage.enterProjectName')],
+      ['rate', parsedRate === undefined && t('manage.rateInvalid')],
+      ['currency', code !== '' && !/^[A-Z]{3}$/.test(code) && t('manage.currencyInvalid')],
+      ['estimate', parsedEstimate === undefined && t('manage.estimateInvalid')],
     ]);
     if (!valid || parsedRate === undefined || parsedEstimate === undefined) return;
     save.mutate({
@@ -84,30 +85,30 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
 
   const submitNewClient = () => {
     const trimmed = newClientName.trim();
-    if (!fields.validate([['client', !trimmed && 'Enter a client name']])) return;
+    if (!fields.validate([['client', !trimmed && t('manage.enterClientName')]])) return;
     createClient.mutate(trimmed);
   };
 
   return (
     <Modal
-      title={project ? 'Edit project' : 'New project'}
+      title={project ? t('manage.editProject') : t('manage.newProject')}
       onClose={onClose}
       wide={project !== null}
       footer={
         <>
           <span className="spacer" />
           <button type="button" className="button button-ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" form={formId} className="button button-primary" disabled={save.isPending}>
-            {project ? 'Save' : 'Create project'}
+            {project ? t('common.save') : t('manage.createProject')}
           </button>
         </>
       }
     >
       <form id={formId} className="form-grid" noValidate onSubmit={submit}>
         <div className="field field-full">
-          <label htmlFor={fields.id('name')}>Name</label>
+          <label htmlFor={fields.id('name')}>{t('manage.name')}</label>
           <input
             {...fields.field('name')}
             value={name}
@@ -119,13 +120,13 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
         </div>
 
         <div className="field field-full">
-          <span>Color</span>
+          <span>{t('manage.color')}</span>
           <ColorField value={color} onChange={setColor} />
         </div>
 
         <div className="field field-full">
           <label className="field">
-            <span>Client</span>
+            <span>{t('manage.client')}</span>
             <select
               value={creatingClient ? NEW_CLIENT : String(clientId ?? '')}
               onChange={event => {
@@ -134,14 +135,13 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
                 if (value !== NEW_CLIENT) setClientId(value === '' ? null : Number(value));
               }}
             >
-              <option value="">No client</option>
+              <option value="">{t('manage.noClient')}</option>
               {clientOptions.map(client => (
                 <option key={client.id} value={client.id}>
-                  {client.name}
-                  {client.archived ? ' (archived)' : ''}
+                  {client.archived ? t('manage.archivedClient', { name: client.name }) : client.name}
                 </option>
               ))}
-              <option value={NEW_CLIENT}>Create client…</option>
+              <option value={NEW_CLIENT}>{t('manage.createClientOption')}</option>
             </select>
           </label>
           {creatingClient ? (
@@ -149,8 +149,8 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
               <input
                 {...fields.field('client')}
                 value={newClientName}
-                placeholder="New client name"
-                aria-label="New client name"
+                placeholder={t('manage.newClientName')}
+                aria-label={t('manage.newClientName')}
                 maxLength={255}
                 autoFocus
                 onChange={event => setNewClientName(event.target.value)}
@@ -162,7 +162,7 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
                 }}
               />
               <button type="button" className="button" disabled={createClient.isPending} onClick={submitNewClient}>
-                Add client
+                {t('manage.addClient')}
               </button>
               <button
                 type="button"
@@ -172,7 +172,7 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
                   fields.clear('client');
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           ) : null}
@@ -180,20 +180,22 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
         </div>
 
         <div className="field">
-          <label htmlFor={fields.id('rate')}>Hourly rate</label>
+          <label htmlFor={fields.id('rate')}>{t('manage.hourlyRate')}</label>
           <input
             {...fields.field('rate')}
             inputMode="decimal"
             value={rate}
             placeholder={
-              workspace?.default_hourly_rate != null ? `Workspace rate: ${workspace.default_hourly_rate}` : 'No rate'
+              workspace?.default_hourly_rate != null
+                ? t('manage.workspaceRate', { rate: workspace.default_hourly_rate })
+                : t('manage.noRate')
             }
             onChange={event => setRate(event.target.value)}
           />
           {fields.message('rate')}
         </div>
         <div className="field">
-          <label htmlFor={fields.id('currency')}>Currency</label>
+          <label htmlFor={fields.id('currency')}>{t('manage.currency')}</label>
           <input
             {...fields.field('currency')}
             value={currency}
@@ -205,21 +207,21 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
           {fields.message('currency')}
         </div>
         <div className="field">
-          <label htmlFor={fields.id('estimate')}>Estimated hours</label>
+          <label htmlFor={fields.id('estimate')}>{t('manage.estimatedHours')}</label>
           <input
             {...fields.field('estimate')}
             inputMode="decimal"
             value={estimate}
-            placeholder="No estimate"
+            placeholder={t('manage.noEstimate')}
             onChange={event => setEstimate(event.target.value)}
           />
           {fields.message('estimate')}
         </div>
         <label className="field checkbox-field">
           <input type="checkbox" checked={billable} onChange={event => setBillable(event.target.checked)} />
-          <span>Billable by default</span>
+          <span>{t('manage.billableByDefault')}</span>
         </label>
-        <p className="hint field-full">Leave the rate or currency empty to use the workspace defaults.</p>
+        <p className="hint field-full">{t('manage.defaultsHint')}</p>
       </form>
 
       {project ? <ProjectTasks project={project} /> : null}

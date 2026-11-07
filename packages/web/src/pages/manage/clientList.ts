@@ -1,5 +1,5 @@
 import type { Client, Project } from '../../api/types.ts';
-import { plural } from '../../lib/format.ts';
+import { t } from '../../i18n/messages.ts';
 import { includesText, matchesStatus, type StatusFilter } from './values.ts';
 
 /** The rules behind the Clients page: project counts, the filtered list and what each dialog says. */
@@ -24,22 +24,10 @@ export function visibleClients(clients: readonly Client[], status: StatusFilter,
 
 /** What archiving a client with `projects` projects does to them. */
 export function archiveNotice(projects: number): string {
-  return projects === 0
-    ? 'It has no projects right now.'
-    : `This also archives its ${plural(projects, 'project')}. Archived projects keep their time entries but don't show up when you pick a project.`;
+  return projects === 0 ? t('manage.archiveNoProjects') : t('manage.archiveProjects', { count: projects });
 }
 
 /** What deleting the client `name` with `projects` projects does to them. */
 export function deleteNotice(projects: number, name: string): string {
-  const stay =
-    projects === 0
-      ? 'It has no projects.'
-      : projects === 1
-        ? 'Its project stays, without a client.'
-        : `Its ${projects} projects stay, without a client.`;
-  const rename =
-    projects === 0
-      ? ''
-      : ` If a project without a client already has the same name, "(${name})" is added to the moved one.`;
-  return `${stay}${rename} Time entries don't change. You can't undo this.`;
+  return projects === 0 ? t('manage.deleteNoProjects') : t('manage.deleteProjectsStay', { count: projects, name });
 }

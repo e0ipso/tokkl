@@ -2,12 +2,13 @@ import type { Mutation, QueryClient } from '@tanstack/react-query';
 import { ApiError } from './client.ts';
 import { clockOffset } from './serverClock.ts';
 import type { TimeEntry, TimerState } from './types.ts';
+import { t } from '../i18n/messages.ts';
 
 /** What the views show when another device changed the timer before this action reached the server. */
-export const TIMER_CONFLICT_MESSAGE = 'Another device changed the timer first.';
+export const TIMER_CONFLICT_MESSAGE = t('timer.conflict');
 
 /** What the views show when an action could not reach the server. */
-export const TIMER_OFFLINE_MESSAGE = "Can't reach the server. Try again when you're back online.";
+export const TIMER_OFFLINE_MESSAGE = t('timer.offline');
 
 /** Why a timer action failed in a way the views explain: the timer moved on, or the server was unreachable. */
 export class TimerActionError extends Error {
@@ -35,7 +36,7 @@ export function isTimerState(value: unknown): value is TimerState {
 
 /** Decodes a timer state reply, failing when the server sent something else. */
 export function timerStateOf(value: unknown): TimerState {
-  if (!isTimerState(value)) throw new Error('The server sent an unreadable timer state.');
+  if (!isTimerState(value)) throw new Error(t('timer.unreadableState'));
   return value;
 }
 

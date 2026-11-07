@@ -6,6 +6,7 @@ import type { Client } from '../../api/types.ts';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Modal } from '../../components/Overlay.tsx';
 import { useAction } from '../../components/useAction.ts';
+import { t } from '../../i18n/messages.ts';
 
 /** Creates a client, or edits one: its name and notes. */
 export function ClientEditor({ client, onClose }: { client: Client | null; onClose: () => void }) {
@@ -18,35 +19,35 @@ export function ClientEditor({ client, onClose }: { client: Client | null; onClo
   const save = useAction<ClientBody, Client>({
     mutationFn: body => (client ? clientRequests.update(wid, client.id, body) : clientRequests.create(wid, body)),
     invalidate: stale.clients,
-    success: saved => (client ? `Saved ${saved.name}` : `Created ${saved.name}`),
+    success: saved => (client ? t('manage.saved', { name: saved.name }) : t('manage.created', { name: saved.name })),
     onSuccess: onClose,
   });
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!fields.validate([['name', !name.trim() && 'Enter a client name']])) return;
+    if (!fields.validate([['name', !name.trim() && t('manage.enterClientName')]])) return;
     save.mutate({ name: name.trim(), notes: notes.trim() || null });
   };
 
   return (
     <Modal
-      title={client ? 'Edit client' : 'New client'}
+      title={client ? t('manage.editClient') : t('manage.newClient')}
       onClose={onClose}
       footer={
         <>
           <span className="spacer" />
           <button type="button" className="button button-ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" form={formId} className="button button-primary" disabled={save.isPending}>
-            {client ? 'Save' : 'Create client'}
+            {client ? t('common.save') : t('manage.createClient')}
           </button>
         </>
       }
     >
       <form id={formId} className="form-grid" noValidate onSubmit={submit}>
         <div className="field field-full">
-          <label htmlFor={fields.id('name')}>Name</label>
+          <label htmlFor={fields.id('name')}>{t('manage.name')}</label>
           <input
             {...fields.field('name')}
             value={name}
@@ -57,7 +58,7 @@ export function ClientEditor({ client, onClose }: { client: Client | null; onClo
           {fields.message('name')}
         </div>
         <label className="field field-full">
-          <span>Notes</span>
+          <span>{t('manage.notes')}</span>
           <textarea rows={4} value={notes} maxLength={10_000} onChange={event => setNotes(event.target.value)} />
         </label>
       </form>

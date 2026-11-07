@@ -16,6 +16,7 @@ import { useNow } from '../lib/clock.ts';
 import { duration, today } from '../lib/format.ts';
 import { periodTotals } from '../lib/entryRows.ts';
 import { draftOf } from '../components/useEntryFields.ts';
+import { t } from '../i18n/messages.ts';
 
 const PAGE_DAYS = 14;
 
@@ -29,10 +30,10 @@ function PeriodTotals({ entries }: { entries: TimeEntry[] }) {
   return (
     <>
       <span>
-        Today <strong>{duration(totals.todaySeconds, settings)}</strong>
+        {t('entries.periodToday')} <strong>{duration(totals.todaySeconds, settings)}</strong>
       </span>
       <span>
-        This week <strong>{duration(totals.weekSeconds, settings)}</strong>
+        {t('entries.periodWeek')} <strong>{duration(totals.weekSeconds, settings)}</strong>
       </span>
     </>
   );
@@ -102,14 +103,14 @@ export function TimerPage() {
       <TimerBar ref={timer} recentEntries={entries} />
       <div className="timer-summary">
         <PeriodTotals entries={entries} />
-        <div className="segmented view-switch" role="group" aria-label="View">
+        <div className="segmented view-switch" role="group" aria-label={t('entries.view')}>
           <button
             type="button"
             className={view === 'list' ? 'active' : ''}
             aria-pressed={view === 'list'}
             onClick={() => setView('list')}
           >
-            List
+            {t('entries.viewList')}
           </button>
           <button
             type="button"
@@ -117,18 +118,18 @@ export function TimerPage() {
             aria-pressed={view === 'calendar'}
             onClick={() => setView('calendar')}
           >
-            Calendar
+            {t('entries.viewCalendar')}
           </button>
         </div>
-        <button type="button" className="link-button" onClick={() => setHelp(true)} title="Keyboard shortcuts">
-          <kbd>?</kbd> Shortcuts
+        <button type="button" className="link-button" onClick={() => setHelp(true)} title={t('timer.shortcutsTitle')}>
+          <kbd>?</kbd> {t('entries.shortcuts')}
         </button>
       </div>
       {favorites.length > 0 ? (
-        <div className="favorites" aria-label="Favorites">
+        <div className="favorites" aria-label={t('entries.favorites')}>
           {favorites.map((favorite, index) => {
             const project = projects.find(p => p.id === favorite.project_id);
-            const name = favorite.description || project?.name || 'Untitled';
+            const name = favorite.description || project?.name || t('entries.favoriteUntitled');
             const projectName = favorite.description ? project?.name : undefined;
             return (
               <div key={index} className="favorite">
@@ -136,8 +137,8 @@ export function TimerPage() {
                   type="button"
                   className="favorite-start"
                   onClick={() => startFavorite(favorite)}
-                  title={`Start (${index + 1})`}
-                  aria-label={projectName ? `${name}, ${projectName}` : name}
+                  title={t('entries.favoriteStart', { number: index + 1 })}
+                  aria-label={projectName ? t('entries.favoriteName', { name, project: projectName }) : name}
                 >
                   <kbd>{index + 1}</kbd>
                   {project ? <ProjectDot color={project.color} /> : null}
@@ -147,7 +148,7 @@ export function TimerPage() {
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label="Remove favorite"
+                  aria-label={t('entries.removeFavorite')}
                   onClick={() => removeFavorite(index)}
                 >
                   <Icon name="x" size={12} />
@@ -162,9 +163,9 @@ export function TimerPage() {
       ) : (
         <>
           {isLoading ? (
-            <Loading label="Loading entries…" />
+            <Loading label={t('entries.loadingEntries')} />
           ) : error && !entries.length ? (
-            <LoadError message={`Could not load time entries: ${error.message}`} onRetry={() => void refetch()} />
+            <LoadError message={t('entries.loadFailed', { message: error.message })} onRetry={() => void refetch()} />
           ) : (
             <BusyRegion busy={isFetching}>
               <EntryList
@@ -183,7 +184,7 @@ export function TimerPage() {
                 disabled={isFetching}
                 onClick={() => setDays(days + PAGE_DAYS)}
               >
-                {isFetching ? 'Loading…' : `Show ${PAGE_DAYS} more days`}
+                {isFetching ? t('common.loading') : t('entries.showMoreDays', { count: PAGE_DAYS })}
               </button>
             </div>
           ) : null}

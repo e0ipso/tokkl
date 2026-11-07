@@ -15,6 +15,7 @@ import { EMPTY_DRAFT, type EntryDraft } from './useEntryFields.ts';
 import { useHeightProperty } from './useHeightProperty.ts';
 import { useRunningDraft } from './useRunningDraft.ts';
 import { useTimerBarActions } from './useTimerBarActions.ts';
+import { t } from '../i18n/messages.ts';
 
 export interface TimerBarHandle {
   startNew: () => void;
@@ -78,7 +79,7 @@ export function TimerBar({ recentEntries, ref }: { recentEntries: TimeEntry[]; r
   const typedSeconds = actions.timerDuration ? parseDuration(actions.timerDuration) : null;
 
   return (
-    <section ref={barRef} className={timerBarClass(mode)} aria-label="Timer">
+    <section ref={barRef} className={timerBarClass(mode)} aria-label={t('timer.region')}>
       <EntryFields
         ref={fields}
         draft={held ?? draft}
@@ -110,20 +111,20 @@ export function TimerBar({ recentEntries, ref }: { recentEntries: TimeEntry[]; r
           <>
             <span className="timer-running">
               <span className="timer-running-dot" aria-hidden="true" />
-              Running
+              {t('timer.running')}
             </span>
             <TimerClock running={current} chain={chain} onEdit={() => setEditing(true)} />
           </>
         ) : mode === 'paused' ? (
           <>
-            <span className="timer-paused">Paused</span>
+            <span className="timer-paused">{t('timer.paused')}</span>
             <TimerClock running={null} chain={chain} onEdit={() => setEditing(true)} />
           </>
         ) : (
           <input
             {...actions.timerErrors.field('duration')}
             className="timer-clock timer-clock-input"
-            aria-label="Duration"
+            aria-label={t('timer.duration')}
             placeholder="0:00:00"
             value={actions.timerDuration}
             onChange={event => actions.setTimerDuration(event.target.value)}

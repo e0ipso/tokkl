@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { t } from '../i18n/messages.ts';
 import { Icon } from './Icon.tsx';
 
 /**
@@ -10,7 +11,7 @@ import { Icon } from './Icon.tsx';
  * as the danger colour; a full-page error passes a title, which renders as the page's h1.
  */
 
-export function Loading({ label = 'Loading…', className }: { label?: string; className?: string }) {
+export function Loading({ label = t('common.loading'), className }: { label?: string; className?: string }) {
   return (
     <div className={`page-state page-loading${className ? ` ${className}` : ''}`} aria-busy="true">
       <span className="page-state-spinner" aria-hidden="true" />
@@ -39,7 +40,7 @@ export function LoadError({
       </p>
       {onRetry ? (
         <button type="button" className="button button-ghost" onClick={onRetry}>
-          Try again
+          {t('common.tryAgain')}
         </button>
       ) : null}
     </div>

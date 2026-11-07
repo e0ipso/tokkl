@@ -1,4 +1,5 @@
 import type { FormEvent, ReactNode, Ref } from 'react';
+import { t } from '../../../i18n/messages.ts';
 
 /** One settings section: a card with a title, an optional intro line and its own save button. */
 export function SettingsCard({
@@ -8,7 +9,7 @@ export function SettingsCard({
   intro,
   children,
   onSubmit,
-  saveLabel = 'Save',
+  saveLabel = t('common.save'),
   saving = false,
   saveDisabled = false,
 }: {
@@ -53,7 +54,7 @@ export function SettingsCard({
       {body}
       <div className="settings-actions">
         <button type="submit" className="button button-primary" disabled={saving || saveDisabled}>
-          {saving ? 'Saving…' : saveLabel}
+          {saving ? t('settings.saving') : saveLabel}
         </button>
       </div>
     </form>

@@ -5,6 +5,7 @@ import { stale } from '../api/keys.ts';
 import { useProjects } from '../api/projects.ts';
 import type { Client } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
+import { closeModalThen } from '../components/Overlay.tsx';
 import { useAction } from '../components/useAction.ts';
 import { ClientEditor } from './manage/ClientEditor.tsx';
 import { ClientRow } from './manage/ClientRow.tsx';
@@ -12,8 +13,9 @@ import { archiveNotice, deleteNotice, projectCountsByClient, visibleClients } fr
 import { ManageList } from './manage/ManageList.tsx';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, SearchBox, Segmented } from './manage/ui.tsx';
-import { STATUS_OPTIONS, matchesStatus, type StatusFilter } from './manage/values.ts';
+import { matchesStatus, statusOptions, type StatusFilter } from './manage/values.ts';
 import './manage/manage.css';
+import { t } from '../i18n/messages.ts';
 
 type Pending = { kind: 'archive' | 'delete'; client: Client };
 
@@ -36,18 +38,22 @@ export function ClientsPage() {
   const archive = useAction<Client>({
     mutationFn: client => clientRequests.archive(wid, client.id),
     invalidate: stale.clients,
-    success: (_result, client) => `Archived ${client.name} and its projects`,
+    success: (_result, client) => t('manage.clientArchived', { name: client.name }),
     onSuccess: (_result, client) => {
       // The dialog had focus and would give it back to the row's menu button. When the row leaves
       // the list, that button goes with it.
-      if (!matchesStatus(true, status)) focusPastRow(tbody.current, client.id, 'menu', heading.current);
-      setPending(null);
+      closeModalThen(
+        () => setPending(null),
+        () => {
+          if (!matchesStatus(true, status)) focusPastRow(tbody.current, client.id, 'menu', heading.current);
+        },
+      );
     },
   });
   const restore = useAction<Client>({
     mutationFn: client => clientRequests.restore(wid, client.id),
     invalidate: stale.clients,
-    success: (_result, client) => `Restored ${client.name} and its projects`,
+    success: (_result, client) => t('manage.clientRestored', { name: client.name }),
     // The menu button that ran the action had focus; keep it in the list unless the user has moved on.
     onSuccess: (_result, client) => {
       if (!matchesStatus(false, status)) keepFocusPastRow(tbody.current, client.id, 'menu', heading.current);
@@ -56,10 +62,12 @@ export function ClientsPage() {
   const remove = useAction<Client>({
     mutationFn: client => clientRequests.remove(wid, client.id),
     invalidate: stale.clients,
-    success: (_result, client) => `Deleted ${client.name}`,
+    success: (_result, client) => t('manage.deletedNamed', { name: client.name }),
     onSuccess: (_result, client) => {
-      focusPastRow(tbody.current, client.id, 'menu', heading.current);
-      setPending(null);
+      closeModalThen(
+        () => setPending(null),
+        () => focusPastRow(tbody.current, client.id, 'menu', heading.current),
+      );
     },
   });
 
@@ -69,31 +77,31 @@ export function ClientsPage() {
     <div className="page manage-page">
       <header className="page-header">
         <h1 ref={heading} tabIndex={-1}>
-          Clients
+          {t('manage.clientsTitle')}
         </h1>
         <span className="spacer" />
         <button type="button" className="button button-primary" onClick={() => setEditing('new')}>
-          <Icon name="plus" size={16} /> New client
+          <Icon name="plus" size={16} /> {t('manage.newClient')}
         </button>
       </header>
 
       <div className="toolbar">
-        <Segmented label="Client status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
-        <SearchBox value={search} onChange={setSearch} placeholder="Search clients" />
+        <Segmented label={t('manage.clientStatus')} value={status} options={statusOptions()} onChange={setStatus} />
+        <SearchBox value={search} onChange={setSearch} placeholder={t('manage.searchClients')} />
       </div>
 
       <ManageList
         query={clientsQuery}
         visible={visible}
-        noun="clients"
-        empty={{ icon: 'users', title: 'No clients yet', body: <>Add one to group projects by who you work for.</> }}
-        noMatch={{ title: 'No clients match these filters', body: <>Try another status, or clear the search.</> }}
+        noun={t('manage.clientsNoun')}
+        empty={{ icon: 'users', title: t('manage.noClientsYet'), body: t('manage.noClientsBody') }}
+        noMatch={{ title: t('manage.noClientsMatch'), body: t('manage.noClientsMatchBody') }}
         headers={
           <>
-            <th>Client</th>
-            <th>Notes</th>
-            <th className="num">Projects</th>
-            <th>Status</th>
+            <th>{t('manage.client')}</th>
+            <th>{t('manage.notes')}</th>
+            <th className="num">{t('manage.projects')}</th>
+            <th>{t('manage.status')}</th>
           </>
         }
         tbodyRef={tbody}
@@ -121,22 +129,22 @@ export function ClientsPage() {
 
       {pending?.kind === 'archive' ? (
         <ConfirmModal
-          title={`Archive ${pending.client.name}?`}
-          confirmLabel="Archive"
+          title={t('manage.archiveNamed', { name: pending.client.name })}
+          confirmLabel={t('manage.archive')}
           danger={false}
           busy={archive.isPending}
           onConfirm={() => archive.mutate(pending.client)}
           onClose={() => setPending(null)}
         >
           <p>{archiveNotice(count(pending.client))}</p>
-          <p>Restoring the client restores its projects too.</p>
+          <p>{t('manage.restoreClientNote')}</p>
         </ConfirmModal>
       ) : null}
 
       {pending?.kind === 'delete' ? (
         <ConfirmModal
-          title={`Delete ${pending.client.name}?`}
-          confirmLabel="Delete client"
+          title={t('manage.deleteNamed', { name: pending.client.name })}
+          confirmLabel={t('manage.deleteClient')}
           busy={remove.isPending}
           onConfirm={() => remove.mutate(pending.client)}
           onClose={() => setPending(null)}

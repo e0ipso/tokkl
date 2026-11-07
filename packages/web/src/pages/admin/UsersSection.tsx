@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
 import type { AdminAccount } from '../../api/types.ts';
+import { closeModalThen } from '../../components/Overlay.tsx';
 import type { Settings } from '../../lib/settings.ts';
 import { focusPastRow, rowAction } from '../manage/rowFocus.ts';
 import { SettingsCard } from '../manage/settings/SettingsCard.tsx';
 import { DeleteUserModal } from './DeleteUserModal.tsx';
 import { NewLink } from './NewLink.tsx';
 import { UserRow } from './UserRow.tsx';
+import { t } from '../../i18n/messages.ts';
 
 /** Every account on the server, with role, status, password reset and delete. */
 export function UsersSection({
@@ -22,22 +24,17 @@ export function UsersSection({
   const tbody = useRef<HTMLTableSectionElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   return (
-    <SettingsCard
-      id="users"
-      title="Users"
-      titleRef={title}
-      intro="Every account on this server. Disabling signs the account out and blocks it until you enable it again."
-    >
+    <SettingsCard id="users" title={t('admin.sectionUsers')} titleRef={title} intro={t('admin.usersIntro')}>
       <div className="table-wrap">
         <table className="table admin-table">
           <thead>
             <tr>
-              <th>Account</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th className="num">Created</th>
+              <th>{t('admin.account')}</th>
+              <th>{t('admin.role')}</th>
+              <th>{t('admin.status')}</th>
+              <th className="num">{t('admin.created')}</th>
               <th>
-                <span className="visually-hidden">Actions</span>
+                <span className="visually-hidden">{t('admin.actions')}</span>
               </th>
             </tr>
           </thead>
@@ -59,16 +56,14 @@ export function UsersSection({
         <NewLink
           key={reset.link}
           link={reset.link}
-          label={`Password reset link for ${reset.email}`}
-          copied="Reset link copied"
+          label={t('admin.resetLinkLabel', { email: reset.email })}
+          copied={t('admin.resetLinkCopied')}
           onDone={() => {
             (rowAction(tbody.current, reset.id, 'reset') ?? title.current)?.focus();
             setReset(null);
           }}
         >
-          <strong>Password reset link for {reset.email} created.</strong> Copy it now: it is shown only once. Send it to
-          them; it works once, for 24 hours, and replaces any earlier link. Using it signs the account out of every
-          browser and replaces their API token, so apps signed in with the old one must sign in again.
+          <strong>{t('admin.resetLinkCreated', { email: reset.email })}</strong> {t('admin.resetLinkHelp')}
         </NewLink>
       ) : null}
       {deleting ? (
@@ -78,8 +73,10 @@ export function UsersSection({
           onClose={() => setDeleting(null)}
           onDeleted={() => {
             // The modal had focus; the row that opened it goes away once the list refetches.
-            focusPastRow(tbody.current, deleting.id, 'delete', title.current);
-            setDeleting(null);
+            closeModalThen(
+              () => setDeleting(null),
+              () => focusPastRow(tbody.current, deleting.id, 'delete', title.current),
+            );
           }}
         />
       ) : null}

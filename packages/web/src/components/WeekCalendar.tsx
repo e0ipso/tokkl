@@ -16,6 +16,7 @@ import { EntryEditor } from './EntryEditor.tsx';
 import { useOverlayStack } from './overlayStack.tsx';
 import { LoadError, Loading } from './PageState.tsx';
 import { useCalendarDrag } from './useCalendarDrag.ts';
+import { t } from '../i18n/messages.ts';
 
 /** The timer page's calendar view: a week of day columns, or one day on narrow screens. */
 export function WeekCalendar() {
@@ -195,6 +196,7 @@ export function WeekCalendar() {
                     now={now}
                     settings={settings}
                     onPointerDown={(event, kind) => gesture.beginBlock(event, kind, block)}
+                    onOpen={() => setEditing(block.entry)}
                   />
                 ))}
                 {drag?.kind === 'create' && drag.day === day ? (
@@ -213,19 +215,16 @@ export function WeekCalendar() {
           </div>
         </div>
         {isLoading ? (
-          <Loading label="Loading week…" className="calendar-state" />
+          <Loading label={t('calendar.loadingWeek')} className="calendar-state" />
         ) : error && !data ? (
           <LoadError
             className="calendar-state"
-            message={`Could not load this week: ${error.message}`}
+            message={t('calendar.loadFailed', { message: error.message })}
             onRetry={() => void refetch()}
           />
         ) : null}
       </div>
-      <p className="hint">
-        Drag on an empty slot to add an entry. Drag a block to move it, or its bottom edge to change the end. Click a
-        block to edit it.
-      </p>
+      <p className="hint">{t('calendar.hint')}</p>
       {creatingDay ? (
         <AllDayEntryDialog
           key={creatingDay}

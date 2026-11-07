@@ -6,12 +6,18 @@ import { LoadError, Loading } from '../../components/PageState.tsx';
 import { ProjectDot } from '../../components/ProjectLabel.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { localDay } from '../../lib/entryTime.ts';
-import { duration, formatDate, formatTime } from '../../lib/format.ts';
+import { duration, formatCount, formatDate, formatTime } from '../../lib/format.ts';
 import { type Settings } from '../../lib/settings.ts';
 import { entryRequests } from '../../api/entries.ts';
 import { useDetailedEntries, type ReportFilterBody } from '../../api/reports.ts';
 import { money } from './format.ts';
 import type { ReportPatch, SortDir, SortKey } from './urlState.ts';
+import { t } from '../../i18n/messages.ts';
+
+/** A project's name, followed by its task when there is one. */
+function projectText(project: string, task: string | null): string {
+  return task ? t('entries.projectWithTask', { project, task }) : project;
+}
 
 function SortHeader({
   label,
@@ -86,12 +92,12 @@ export function DetailedTab({
     }
   };
 
-  if (detailed.isPending) return <Loading label="Loading report…" />;
+  if (detailed.isPending) return <Loading label={t('reports.loading')} />;
   if (!data) {
     return (
       <LoadError
         className="report-error"
-        message={`Couldn't load the detailed report: ${detailed.error?.message}`}
+        message={t('reports.detailedLoadFailed', { message: String(detailed.error?.message) })}
         onRetry={() => void detailed.refetch()}
       />
     );
@@ -105,16 +111,16 @@ export function DetailedTab({
         <table className="table detailed-table">
           <thead>
             <tr>
-              <SortHeader label="Date" name="date" sort={sort} dir={dir} update={update} />
-              <SortHeader label="Description" name="description" sort={sort} dir={dir} update={update} />
-              <th scope="col">Project</th>
-              <th scope="col">Client</th>
-              <th scope="col">Tags</th>
-              <th scope="col">Time</th>
-              <SortHeader label="Duration" name="duration" sort={sort} dir={dir} update={update} numeric />
+              <SortHeader label={t('reports.date')} name="date" sort={sort} dir={dir} update={update} />
+              <SortHeader label={t('reports.description')} name="description" sort={sort} dir={dir} update={update} />
+              <th scope="col">{t('reports.project')}</th>
+              <th scope="col">{t('reports.client')}</th>
+              <th scope="col">{t('reports.tags')}</th>
+              <th scope="col">{t('reports.time')}</th>
+              <SortHeader label={t('reports.duration')} name="duration" sort={sort} dir={dir} update={update} numeric />
               {data.has_amounts ? (
                 <th scope="col" className="num">
-                  Amount
+                  {t('reports.amount')}
                 </th>
               ) : null}
             </tr>
@@ -135,10 +141,10 @@ export function DetailedTab({
               >
                 <td className="nowrap">{formatDate(localDay(entry.start, settings.timeZone), settings.dateFormat)}</td>
                 <td className="detailed-description">
-                  {entry.description ? entry.description : <span className="muted">No description</span>}
+                  {entry.description ? entry.description : <span className="muted">{t('reports.noDescription')}</span>}
                   {entry.billable ? (
-                    <span className="billable-mark" title="Billable">
-                      <Icon name="dollar" size={13} title="Billable" />
+                    <span className="billable-mark" title={t('reports.billable')}>
+                      <Icon name="dollar" size={13} title={t('reports.billable')} />
                     </span>
                   ) : null}
                 </td>
@@ -146,16 +152,12 @@ export function DetailedTab({
                   {entry.project_name ? (
                     <span className="project-label">
                       <ProjectDot color={entry.project_color} />
-                      <span
-                        className="project-label-name"
-                        title={entry.task_name ? `${entry.project_name}: ${entry.task_name}` : entry.project_name}
-                      >
-                        {entry.project_name}
-                        {entry.task_name ? `: ${entry.task_name}` : ''}
+                      <span className="project-label-name" title={projectText(entry.project_name, entry.task_name)}>
+                        {projectText(entry.project_name, entry.task_name)}
                       </span>
                     </span>
                   ) : (
-                    <span className="muted">Without project</span>
+                    <span className="muted">{t('reports.withoutProject')}</span>
                   )}
                 </td>
                 <td className="detailed-client" title={entry.client_name ?? undefined}>
@@ -171,7 +173,12 @@ export function DetailedTab({
                   </span>
                 </td>
                 <td className="nowrap muted">
-                  {entry.all_day ? '' : `${formatTime(entry.start, settings)} – ${formatTime(entry.stop, settings)}`}
+                  {entry.all_day
+                    ? ''
+                    : t('dates.timeRange', {
+                        start: formatTime(entry.start, settings),
+                        end: formatTime(entry.stop, settings),
+                      })}
                 </td>
                 <td className="num">{duration(entry.seconds, settings)}</td>
                 {data.has_amounts ? <td className="num">{money(entry.amount_cents, entry.currency)}</td> : null}
@@ -181,18 +188,21 @@ export function DetailedTab({
         </table>
       </div>
       {data.pages > 1 ? (
-        <nav className="pager" aria-label="Pages">
+        <nav className="pager" aria-label={t('reports.pages')}>
           <button
             type="button"
             className="button button-ghost"
             disabled={current <= 1}
             onClick={() => update({ page: current - 1 })}
           >
-            <Icon name="chevronLeft" size={16} /> Previous
+            <Icon name="chevronLeft" size={16} /> {t('reports.previous')}
           </button>
           <span className="muted">
-            {(first + 1).toLocaleString()} to {(first + data.entries.length).toLocaleString()} of{' '}
-            {data.total.toLocaleString()}
+            {t('reports.pageRange', {
+              from: formatCount(first + 1),
+              to: formatCount(first + data.entries.length),
+              total: formatCount(data.total),
+            })}
           </span>
           <button
             type="button"
@@ -200,7 +210,7 @@ export function DetailedTab({
             disabled={current >= data.pages}
             onClick={() => update({ page: current + 1 })}
           >
-            Next <Icon name="chevronRight" size={16} />
+            {t('reports.next')} <Icon name="chevronRight" size={16} />
           </button>
         </nav>
       ) : null}

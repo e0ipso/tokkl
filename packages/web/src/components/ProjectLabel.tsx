@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useProjects, useTasks } from '../api/projects.ts';
+import { t } from '../i18n/messages.ts';
 
 /**
  * Sets --project-color for the element. CSS derives the dot, border and tint from it (see
@@ -28,7 +29,7 @@ export function ProjectLabel({
   if (projectId === null) return null;
   const project = projects?.find(p => p.id === projectId);
   const task = taskId ? tasks?.find(t => t.id === taskId) : undefined;
-  const name = project?.name ?? fallback?.name ?? 'Unknown project';
+  const name = project?.name ?? fallback?.name ?? t('entries.unknownProject');
   const color = project?.color ?? fallback?.color;
   const client = project?.client_name ?? fallback?.client;
   const taskName = task?.name ?? fallback?.task;
@@ -36,8 +37,7 @@ export function ProjectLabel({
     <span className="project-label">
       <ProjectDot color={color} />
       <span className="project-label-name">
-        {name}
-        {taskName ? `: ${taskName}` : ''}
+        {taskName ? t('entries.projectWithTask', { project: name, task: taskName }) : name}
       </span>
       {client ? <span className="project-label-client">{client}</span> : null}
     </span>

@@ -7,7 +7,7 @@ import type { JsonRestoreResult } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useAction } from '../../../components/useAction.ts';
-import { plural } from '../../../lib/format.ts';
+import { t } from '../../../i18n/messages.ts';
 
 /** Restores a Tokkl JSON export: preview first, then import. */
 export function RestoreJson() {
@@ -22,7 +22,7 @@ export function RestoreJson() {
       setResult(restored);
       if (!dryRun) {
         void invalidate(qc, stale.imported);
-        toast.show(`Restored ${plural(restored.time_entries, 'entry', 'entries')}`);
+        toast.show(t('settings.restored', { count: restored.time_entries }));
         setFile(null);
         if (input.current) input.current.value = '';
       }
@@ -36,42 +36,44 @@ export function RestoreJson() {
     setFile({ name: selected.name, text });
     run.mutate({ text, dryRun: true });
   };
-  const verb = result?.dry_run ? 'to add' : 'added';
   return (
     <>
-      <h3 className="settings-subheading">Restore a Tokkl export</h3>
-      <p className="hint">
-        Upload a JSON file from Export JSON, from this or another Tokkl server. Clients, projects, tasks and tags are
-        matched by name and created when missing. Entries that are already here get skipped.
-      </p>
+      <h3 className="settings-subheading">{t('settings.restoreTitle')}</h3>
+      <p className="hint">{t('settings.restoreHint')}</p>
       <div className="inline-controls settings-row">
         <label className="button button-ghost file-button">
-          <Icon name="upload" size={16} /> Choose JSON file
+          <Icon name="upload" size={16} /> {t('settings.chooseJson')}
           <input ref={input} type="file" accept=".json,application/json" onChange={event => void choose(event)} />
         </label>
         {file ? <span className="muted file-name">{file.name}</span> : null}
       </div>
-      {run.isPending ? <p className="hint">{result ? 'Restoring…' : 'Checking the file…'}</p> : null}
+      {run.isPending ? <p className="hint">{result ? t('settings.restoring') : t('settings.checkingFile')}</p> : null}
       {result ? (
         <div className="import-summary" aria-live="polite">
           <ul className="import-stats">
             <li>
-              {plural(result.time_entries, 'entry', 'entries')} {verb}
+              {t(result.dry_run ? 'settings.entriesToAdd' : 'settings.entriesAdded', { count: result.time_entries })}
             </li>
-            <li>{result.skipped_duplicates} already here, skipped</li>
+            <li>{t('settings.alreadyHere', { count: result.skipped_duplicates })}</li>
             <li>
-              {plural(result.projects, 'project')}, {plural(result.clients, 'client')}, {plural(result.tasks, 'task')},{' '}
-              {plural(result.tags, 'tag')} {verb}
+              {t(result.dry_run ? 'settings.othersToAdd' : 'settings.othersAdded', {
+                projects: t('settings.projectCount', { count: result.projects }),
+                clients: t('settings.clientCount', { count: result.clients }),
+                tasks: t('settings.taskCount', { count: result.tasks }),
+                tags: t('settings.tagCount', { count: result.tags }),
+              })}
             </li>
-            {result.errors.length ? <li className="is-error">{plural(result.errors.length, 'problem')}</li> : null}
+            {result.errors.length ? (
+              <li className="is-error">{t('settings.problemCount', { count: result.errors.length })}</li>
+            ) : null}
           </ul>
           {result.errors.length ? (
             <details className="import-errors">
-              <summary>Problems</summary>
+              <summary>{t('settings.problems')}</summary>
               <ul>
                 {result.errors.map((error, i) => (
                   <li key={i}>
-                    {error.entity} {String(error.id)}: {error.message}
+                    {t('settings.restoreError', { entity: error.entity, id: String(error.id), message: error.message })}
                   </li>
                 ))}
               </ul>
@@ -87,7 +89,7 @@ export function RestoreJson() {
             disabled={run.isPending}
             onClick={() => run.mutate({ text: file.text, dryRun: false })}
           >
-            <Icon name="upload" size={16} /> Restore
+            <Icon name="upload" size={16} /> {t('settings.restore')}
           </button>
           <button
             type="button"
@@ -98,7 +100,7 @@ export function RestoreJson() {
               if (input.current) input.current.value = '';
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       ) : null}

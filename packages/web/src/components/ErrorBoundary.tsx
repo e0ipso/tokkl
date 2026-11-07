@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { t } from '../i18n/messages.ts';
 import { LoadError } from './PageState.tsx';
 
 /**
@@ -22,7 +23,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: st
     return (
       <div className="page error-page">
         <LoadError
-          title="Something broke on this page"
+          title={t('shell.pageBroke')}
           message={this.state.error.message}
           onRetry={() => this.setState({ error: null })}
         />

@@ -10,6 +10,7 @@ import { useFieldErrors } from './FieldError.tsx';
 import { Modal } from './Overlay.tsx';
 import { useToast } from './Toast.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from './useEntryFields.ts';
+import { t } from '../i18n/messages.ts';
 
 /** A calendar draft for a no-time entry, independent of the timer bar and saved-entry editor. */
 export function AllDayEntryDialog({
@@ -44,7 +45,7 @@ export function AllDayEntryDialog({
         { ...draft, all_day: true, start_date: day, duration: seconds },
         { onSuccess: () => onClose() },
       );
-      toast.show(`Added ${formatDuration(entrySeconds(saved, new Date()))}`);
+      toast.show(t('entries.added', { duration: formatDuration(entrySeconds(saved, new Date())) }));
     } catch (error) {
       toast.error(error);
     } finally {
@@ -53,16 +54,18 @@ export function AllDayEntryDialog({
   };
 
   return (
+    // Not modal: Tab can leave the draft for another day's add button, which replaces it.
     <Modal
-      title="Add all-day entry"
+      title={t('calendar.addAllDayTitle')}
+      modal={false}
       onClose={onClose}
       footer={
         <>
           <button type="button" className="button button-ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" form={formId} className="button button-primary" disabled={create.isPending}>
-            {create.isPending ? 'Adding…' : 'Add entry'}
+            {create.isPending ? t('calendar.adding') : t('calendar.addEntry')}
           </button>
         </>
       }
@@ -79,7 +82,7 @@ export function AllDayEntryDialog({
           <EntryFields
             draft={draft}
             recentEntries={recentEntries}
-            placeholder="What did you work on?"
+            placeholder={t('timer.placeholderManual')}
             onType={description => setDraft(current => ({ ...current, description }))}
             onEdit={changes => setDraft(current => ({ ...current, ...changes }))}
             onDescriptionBlur={() => {}}
@@ -91,10 +94,10 @@ export function AllDayEntryDialog({
         </div>
         <label className="manual-switch field-full">
           <input type="checkbox" role="switch" checked disabled />
-          No times
+          {t('entries.noTimes')}
         </label>
         <label className="field">
-          <span>Date</span>
+          <span>{t('entries.date')}</span>
           <input
             type="date"
             value={day}
@@ -103,11 +106,11 @@ export function AllDayEntryDialog({
           />
         </label>
         <div className="field">
-          <label htmlFor={fields.id('duration')}>Duration</label>
+          <label htmlFor={fields.id('duration')}>{t('entries.duration')}</label>
           <input
             {...fields.field('duration')}
             value={durationText}
-            placeholder="e.g. 1:30 or 90m"
+            placeholder={t('calendar.durationPlaceholder')}
             disabled={create.isPending}
             onChange={event => setDurationText(event.target.value)}
           />

@@ -5,6 +5,7 @@ import { useSettings } from '../api/settings.ts';
 import { AllowNotifications } from '../components/AllowNotifications.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
+import { t } from '../i18n/messages.ts';
 import { today } from '../lib/format.ts';
 import { RunningSession } from './pomodoro/RunningSession.tsx';
 import { StartForm } from './pomodoro/StartForm.tsx';
@@ -20,16 +21,16 @@ export function PomodoroPage() {
   return (
     <div className="page pomodoro-page">
       <header className="page-header">
-        <h1>Pomodoro</h1>
+        <h1>{t('pomodoro.title')}</h1>
       </header>
       {session ? (
         <RunningSession recentEntries={recentEntries} />
       ) : preferences ? (
         <StartForm preferences={preferences} recentEntries={recentEntries} />
       ) : error ? (
-        <LoadError message={`Could not load preferences: ${error.message}`} onRetry={() => void refetch()} />
+        <LoadError message={t('pomodoro.loadFailed', { message: error.message })} onRetry={() => void refetch()} />
       ) : (
-        <Loading label="Loading preferences…" />
+        <Loading label={t('pomodoro.loadingPreferences')} />
       )}
       <div className="pomodoro-notifications">
         <AllowNotifications />

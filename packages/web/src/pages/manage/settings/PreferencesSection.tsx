@@ -20,6 +20,7 @@ import {
   type NumberKey,
 } from './preferencesForm.ts';
 import { SettingsCard } from './SettingsCard.tsx';
+import { t } from '../../../i18n/messages.ts';
 
 /**
  * The form keeps only what the user typed and has not saved; every other field shows the stored
@@ -43,13 +44,13 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   const submit = () => {
     if (!fields.validate(numberErrors(draft))) return;
     if (!form.hasEdits) {
-      toast.show('No changes to save');
+      toast.show(t('settings.noChanges'));
       return;
     }
     save.mutate(changesFrom(edits), {
       onSuccess: saved => {
         dropEditsEqualTo(editableOf(saved));
-        toast.show('Preferences saved');
+        toast.show(t('settings.preferencesSaved'));
       },
       onError: error => {
         // The failed save has rolled the cache back to the stored values.
@@ -63,12 +64,12 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   };
 
   return (
-    <SettingsCard id="preferences" title="Preferences" onSubmit={submit} saving={save.isPending}>
+    <SettingsCard id="preferences" title={t('settings.sectionPreferences')} onSubmit={submit} saving={save.isPending}>
       <DisplayFields draft={draft} set={set} timeZone={settings.timeZone} todayKey={today(settings.timeZone)} />
       <TimerReminderFields draft={draft} set={set} fields={fields} />
       <PomodoroDefaults draft={draft} set={set} fields={fields} />
       <h3 className="settings-subheading" id="notifications-title">
-        Notifications
+        {t('settings.notifications')}
       </h3>
       <div className="form-grid" role="group" aria-labelledby="notifications-title">
         <AllowNotifications />
