@@ -27,6 +27,8 @@ kk_confidence: medium
 
 Input (`useCalendarDrag.ts`): mouse and pen drags start at once. A touch drag starts only after a 500 ms hold (`LONG_PRESS_MS`) that a move over 10px, a lift or a pointercancel aborts. `.calendar-column` has `touch-action: pan-y`, so a finger scrolls the grid. A quick tap on a block still opens its editor, like a click. A non-passive `touchmove` listener on the root calls `preventDefault()` only while a drag is active and `event.cancelable` is true.
 
+Keyboard (`CalendarBlockView.tsx`): each timed block stays a `role="group"` named "description, project, duration", which the e2e specs query, and holds a transparent `.calendar-block-open` button over its content named "Edit <that name>". Tab reaches it, and its click opens the editor only when `event.detail` is 0 (Enter, Space or a screen reader's activation), because a pointer click already opens it through the drag gesture. The resize handle comes after it in the DOM and stays on top. The block clips overflow, so the button's focus ring has `outline-offset: -2px`. `e2e/calendar.spec.ts` "a calendar block opens its editor from the keyboard" covers it.
+
 When changing this, verify:
 - The `touchmove` `preventDefault` is load-bearing. Without it Chromium treats a vertical touch drag as a pan and fires `pointercancel`.
 - The `cancelable` check matters too. Cancelling an uncancelable touchmove logs a Chromium warning, and the e2e runtime-error guard fails on it.
