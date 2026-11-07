@@ -1,4 +1,8 @@
-/** Sign-in sessions and the API token: starting and ending them, and rotating the token. */
+/**
+ * Sign-in sessions and the API token: starting and ending them, and rotating the token. Starting
+ * and ending a session guard only the user: a deletion that commits while one waits makes its lock
+ * restart the transaction, which then finds the account gone and refuses as before.
+ */
 import type { User } from '../storage/domain.ts';
 import { forbidden } from '../lib/errors.ts';
 import { generateApiToken, generateSessionToken, sha256 } from '../lib/crypto.ts';
@@ -20,7 +24,6 @@ export function createSessionOperations<R extends AccountRepositories>(
     /** Call after external password/limiter verification; this revalidates the observed hash under lock. */
     async createSession(seen: User, userAgent: string, deploymentSessionDays: number) {
       return runner.transaction(async ctx => {
-        await ctx.lockInstanceAdministration();
         if (!(await ctx.users.get(seen.id))) throw forbidden('Incorrect email or password');
         await ctx.lockUsers([seen.id]);
         // The password was verified before the guards; it must still be the account's password.
@@ -46,7 +49,6 @@ export function createSessionOperations<R extends AccountRepositories>(
     },
     async deleteSession(token: string): Promise<void> {
       await runner.transaction(async ctx => {
-        await ctx.lockInstanceAdministration();
         const session = await ctx.sessions.find(sha256(token));
         if (!session) return;
         if (await ctx.users.get(session.userId)) await ctx.lockUsers([session.userId]);

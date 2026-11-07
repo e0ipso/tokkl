@@ -2,7 +2,7 @@ import { sql, type Kysely } from 'kysely';
 import type { Backend } from './config.ts';
 import type { StorageConnection } from './connections.ts';
 import type { OperationContext, TransactionScope } from './contracts.ts';
-import { classifyConflict, StorageTransactionError } from './errors.ts';
+import { classifyConflict, StorageConflict, StorageTransactionError } from './errors.ts';
 import { beginSqliteTransaction } from './sqliteBridge.ts';
 
 /** Internal only: construct ALL repositories using this exact connection-bound db. */
@@ -97,7 +97,9 @@ class LockOrder<D> {
         const result = await sql`select id from ${sql.table(table)} where id = ${id} ${this.#forUpdate()}`.execute(
           this.#db,
         );
-        if (result.rows.length !== 1) throw new Error('Storage lock target does not exist');
+        // Callers lock rows they read first. A row gone by now was deleted by a transaction this
+        // one waited for: run again, so discovery sees the deletion and refuses as it would have.
+        if (result.rows.length !== 1) throw new StorageConflict('serialization');
         this.#held.add(key);
         this.#lastRank = key;
       }

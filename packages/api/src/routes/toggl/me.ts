@@ -73,7 +73,7 @@ export function meRoutes(deps: Deps): Router {
   );
   api.post(['/me/preferences', '/me/preferences/:client'], async (req, res) => {
     const changes = parsePreferenceChanges(readJson(req));
-    res.json(await deps.accountsFor(res.locals.auth).savePreferences(res.locals.auth.user.id, changes));
+    res.json(await deps.preferencesFor(res.locals.auth).savePreferences(res.locals.auth.user.id, changes));
   });
   api.get(
     '/me/workspaces',

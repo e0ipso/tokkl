@@ -22,8 +22,8 @@ export interface AccountSecurityEffects {
 export const now = () => new Date().toISOString();
 export const refused = () => forbidden('Incorrect username and/or password');
 
+/** The user under its guard. A deletion that commits meanwhile restarts the transaction. */
 export async function lockExistingUser(ctx: AccountContext, id: Id): Promise<User> {
-  // Instance guard precedes discovery, so an account deletion cannot remove this parent meanwhile.
   if (!(await ctx.users.get(id))) throw notFound('User not found');
   await ctx.lockUsers([id]);
   return (await ctx.users.get(id))!;

@@ -233,9 +233,17 @@ function createProfileOperations<R extends AccountRepositories>(
         'Email already in use',
       );
     },
+  };
+}
+
+/**
+ * Saving preferences guards only the user. A deletion that commits while the save waits makes the
+ * user lock restart the transaction, which then finds the account gone.
+ */
+export function createPreferenceOperations<R extends AccountRepositories>(runner: AccountRunner<R>) {
+  return {
     async savePreferences(userId: Id, changes: PreferenceChanges): Promise<JsonObject> {
       return runner.transaction(async ctx => {
-        await ctx.lockInstanceAdministration();
         const user = await lockExistingUser(ctx, userId);
         if (!isActiveUser(user)) throw refused();
         const serialized = JSON.stringify({ ...user.preferences, ...changes });
@@ -257,6 +265,7 @@ export function createAccountOperations<R extends AccountRepositories>(
     ...createInviteOperations(runner),
     ...createPasswordResetOperations(runner, security),
     ...createProfileOperations(runner, security),
+    ...createPreferenceOperations(runner),
     ...createSessionOperations(runner, security),
   };
 }

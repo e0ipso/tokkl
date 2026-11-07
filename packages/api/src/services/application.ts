@@ -6,7 +6,7 @@
 import type { Repositories, Storage, TransactionContext } from '../storage/contracts.ts';
 import type { StorageConfig } from '../storage/config.ts';
 import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
-import { createAccountOperations } from '../domain/accounts.ts';
+import { createAccountOperations, createPreferenceOperations } from '../domain/accounts.ts';
 import { authenticatedUser, isActiveAdmin, type Authentication } from '../domain/credentials.ts';
 import { noWorkspaceAccess } from '../domain/membership.ts';
 import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
@@ -92,6 +92,9 @@ export function createApplicationServices({
     },
     accountsFor: (authentication: Authentication) =>
       createAccountOperations(guardedStorage(storage, authentication, true), security),
+    /** Preferences take only the user's guard, so their credential check runs before and after. */
+    preferencesFor: (authentication: Authentication) =>
+      createPreferenceOperations(guardedStorage(storage, authentication)),
     timersFor: (authentication: Authentication) =>
       presentTimerOperations(createTimerOperations(guardedStorage(storage, authentication), publish)),
     importsFor: (authentication: Authentication) =>
