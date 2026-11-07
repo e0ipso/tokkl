@@ -6,17 +6,18 @@
 #include "connection.h"
 #include "credentialstore.h"
 #include "instanceurl.h"
-#include "apitypes.h"
+#include "logging.h"
+#include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
 #include "pomodorostore.h"
+#include "soundchoices.h"
 #include "timercontroller.h"
 #include "timerstateclient.h"
 
 #include <QDBusMessage>
 #include <QDBusMetaType>
-#include <QMetaMethod>
 #include <QSettings>
 
 #include <optional>
@@ -31,11 +32,6 @@ const QString TimerService::credentialStoreError = QStringLiteral("org.tokkl.Tim
 
 namespace
 {
-const QString instanceUrlKey = QStringLiteral("instanceUrl");
-const QString authModeKey = QStringLiteral("authMode");
-const QString emailKey = QStringLiteral("email");
-// The sound choices, keyed by transition name.
-const QString soundsGroup = QStringLiteral("Sounds");
 // The key of a failed read, or of a refusal that names no length, in
 // PomodoroLengthErrors.
 const QString generalErrorKey = QStringLiteral("general");
@@ -52,10 +48,25 @@ qint64 unixSeconds(const QDateTime &time)
     return time.isValid() ? time.toSecsSinceEpoch() : 0;
 }
 
-QString soundKey(TransitionKind kind)
+// Why Configure cannot use the settings, or empty when it can.
+QString configureError(const InstanceUrl &instance, const QString &authMode, const QString &email)
 {
-    return soundsGroup + QLatin1Char('/') + transitionKindName(kind);
+    if (!instance.isValid()) {
+        return instance.error;
+    }
+    if (authMode != QLatin1String("token") && authMode != QLatin1String("password")) {
+        return TimerService::tr("The sign-in method must be \"token\" or \"password\".");
+    }
+    if (authMode == QLatin1String("password") && email.trimmed().isEmpty()) {
+        return TimerService::tr("Enter the email address of your Tokkl account.");
+    }
+    return QString();
 }
+}
+
+QString TimerService::soundKey(TransitionKind kind)
+{
+    return QStringLiteral("Sounds/") + transitionKindName(kind);
 }
 
 QString TimerService::clientName()
@@ -71,6 +82,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     , m_timer(new TimerController(m_clock, this))
     , m_client(new TimerStateClient(m_connection, m_clock, this))
     , m_pomodoroStore(new SettingsPomodoroStore(m_settings, this))
+    , m_sounds(new SoundChoices(m_settings, &TimerService::soundKey, this))
     , m_preferences(new PomodoroPreferences(m_connection, this))
     , m_session(new PomodoroSession(m_clock, m_timer, m_client, m_pomodoroStore, this))
     , m_store(store)
@@ -102,6 +114,7 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     connect(m_session, &PomodoroSession::messageChanged, this, publish);
     connect(m_preferences, &PomodoroPreferences::changed, this, publish);
     connect(m_preferences, &PomodoroPreferences::stateChanged, this, publish);
+    connect(m_sounds, &SoundChoices::changed, this, publish);
 
     loadSettings();
     m_published = snapshot();
@@ -143,6 +156,16 @@ TimerController *TimerService::timer() const
 PomodoroSession *TimerService::session() const
 {
     return m_session;
+}
+
+SoundChoices *TimerService::soundChoices() const
+{
+    return m_sounds;
+}
+
+void TimerService::setAlarm(PomodoroAlarm *alarm)
+{
+    m_alarm = alarm;
 }
 
 bool TimerService::running() const
@@ -364,13 +387,12 @@ QMap<QString, QString> TimerService::sounds() const
 {
     QMap<QString, QString> sounds;
     for (const TransitionKind kind : transitions) {
-        const QString transition = transitionKindName(kind);
-        sounds.insert(transition, soundFor(transition));
+        sounds.insert(transitionKindName(kind), m_sounds->chosen(kind));
     }
     return sounds;
 }
 
-QList<QVariantMap> TimerService::soundChoices() const
+QList<QVariantMap> TimerService::soundCatalogue() const
 {
     QList<QVariantMap> choices;
     const QList<PomodoroSound> catalogue = pomodoroSounds();
@@ -381,17 +403,6 @@ QList<QVariantMap> TimerService::soundChoices() const
         });
     }
     return choices;
-}
-
-QString TimerService::soundFor(const QString &transition) const
-{
-    const std::optional<TransitionKind> kind = parseTransitionKind(transition);
-    if (!kind) {
-        return QString();
-    }
-    // A stored id the catalogue no longer has falls back to the default.
-    const QString stored = m_settings->value(soundKey(*kind)).toString();
-    return isSoundId(stored) ? stored : defaultSound(*kind);
 }
 
 bool TimerService::Start()
@@ -428,14 +439,7 @@ bool TimerService::SetBillable(bool billable)
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
 {
     const InstanceUrl instance = parseInstanceUrl(instanceUrl);
-    QString invalid;
-    if (!instance.isValid()) {
-        invalid = instance.error;
-    } else if (authMode != QLatin1String("token") && authMode != QLatin1String("password")) {
-        invalid = tr("The sign-in method must be \"token\" or \"password\".");
-    } else if (authMode == QLatin1String("password") && email.trimmed().isEmpty()) {
-        invalid = tr("Enter the email address of your Tokkl account.");
-    }
+    const QString invalid = configureError(instance, authMode, email);
     if (!invalid.isEmpty()) {
         if (calledFromDBus()) {
             sendErrorReply(QDBusError::InvalidArgs, invalid);
@@ -447,10 +451,11 @@ void TimerService::Configure(const QString &instanceUrl, const QString &authMode
     // The same cleaning as the KDE Configure page: tokens never carry
     // surrounding whitespace, passwords are used exactly as typed.
     const QString cleaned = mode == AuthMode::Token ? secret.trimmed() : secret;
-    const QString url = instance.base.toString();
-    const QString address = email.trimmed();
+    const ConnectionSettings settings{instance.base.toString(), authMode, email.trimmed()};
     if (cleaned.isEmpty()) {
-        applySettings(url, authMode, address);
+        if (!applySettings(settings) && calledFromDBus()) {
+            sendErrorReply(QDBusError::Failed, tr("The settings could not be saved to %1.").arg(m_settings->fileName()));
+        }
         return;
     }
 
@@ -461,16 +466,18 @@ void TimerService::Configure(const QString &instanceUrl, const QString &authMode
         call = message();
         bus = QDBusContext::connection();
     }
-    m_store->write(credentialKey(instance, mode, address), cleaned, this, [this, call, bus, url, authMode, address](const CredentialResult &result) {
+    m_store->write(credentialKey(instance, mode, settings.email), cleaned, this, [this, call, bus, settings](const CredentialResult &result) {
+        QDBusMessage reply;
         if (!result.ok()) {
-            if (call) {
-                bus.send(call->createErrorReply(credentialStoreError, m_store->message(result)));
-            }
-            return;
+            reply = call ? call->createErrorReply(credentialStoreError, m_store->message(result)) : QDBusMessage();
+        } else if (!applySettings(settings)) {
+            reply = call ? call->createErrorReply(QDBusError::Failed, tr("The settings could not be saved to %1.").arg(m_settings->fileName()))
+                         : QDBusMessage();
+        } else {
+            reply = call ? call->createReply() : QDBusMessage();
         }
-        applySettings(url, authMode, address);
         if (call) {
-            bus.send(call->createReply());
+            bus.send(reply);
         }
     });
 }
@@ -533,11 +540,9 @@ bool TimerService::SetSound(const QString &transition, const QString &soundId)
         }
         return false;
     }
-    m_settings->setValue(soundKey(*kind), soundId);
-    m_settings->sync();
-    const bool stored = m_settings->status() == QSettings::NoError;
-    publishChanges();
-    return stored;
+    // A choice the file cannot keep is not taken, so Sounds keeps showing
+    // the one stored.
+    return m_sounds->choose(*kind, soundId);
 }
 
 bool TimerService::PreviewSound(const QString &soundId)
@@ -548,34 +553,29 @@ bool TimerService::PreviewSound(const QString &soundId)
         }
         return false;
     }
-    // Accepted only when a player listens.
-    if (!isSignalConnected(QMetaMethod::fromSignal(&TimerService::previewRequested))) {
+    // Accepted only when an alarm plays it.
+    if (!m_alarm) {
         return false;
     }
-    Q_EMIT previewRequested(soundId);
+    m_alarm->preview(soundId);
     return true;
 }
 
 void TimerService::loadSettings()
 {
-    const QString url = m_settings->value(instanceUrlKey).toString();
-    if (!url.isEmpty()) {
-        m_connection->setInstanceUrl(url);
-        m_connection->setAuthModeString(m_settings->value(authModeKey).toString());
-        m_connection->setEmail(m_settings->value(emailKey).toString());
+    const ConnectionSettings settings = ConnectionSettings::read(*m_settings);
+    if (!settings.instanceUrl.isEmpty()) {
+        settings.applyTo(*m_connection);
     }
 }
 
-void TimerService::applySettings(const QString &instanceUrl, const QString &authMode, const QString &email)
+bool TimerService::applySettings(const ConnectionSettings &settings)
 {
-    m_settings->setValue(instanceUrlKey, instanceUrl);
-    m_settings->setValue(authModeKey, authMode);
-    m_settings->setValue(emailKey, email);
-    m_settings->sync();
-
-    m_connection->setInstanceUrl(instanceUrl);
-    m_connection->setAuthModeString(authMode);
-    m_connection->setEmail(email);
+    if (!settings.write(*m_settings)) {
+        return false;
+    }
+    settings.applyTo(*m_connection);
+    return true;
 }
 
 QVariantMap TimerService::snapshot() const
@@ -610,7 +610,7 @@ QVariantMap TimerService::snapshot() const
         {QStringLiteral("PomodoroLengthsEditable"), pomodoroLengthsEditable()},
         {QStringLiteral("PomodoroLengthErrors"), QVariant::fromValue(pomodoroLengthErrors())},
         {QStringLiteral("Sounds"), QVariant::fromValue(sounds())},
-        {QStringLiteral("SoundChoices"), QVariant::fromValue(soundChoices())},
+        {QStringLiteral("SoundChoices"), QVariant::fromValue(soundCatalogue())},
     };
 }
 
@@ -618,7 +618,6 @@ QVariantMap TimerService::snapshot() const
 // the bus last saw. A core signal that changed nothing visible sends nothing.
 void TimerService::publishChanges()
 {
-    updateAlarm();
     const QVariantMap current = snapshot();
     QVariantMap changed;
     for (auto it = current.cbegin(); it != current.cend(); ++it) {
@@ -633,18 +632,6 @@ void TimerService::publishChanges()
     QDBusMessage signal = QDBusMessage::createSignal(objectPath, QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("PropertiesChanged"));
     signal << interfaceName << changed << QStringList();
     m_bus.send(signal);
-}
-
-// Tells the player when the alarm starts or stops, and which sound the
-// ringing transition has.
-void TimerService::updateAlarm()
-{
-    const QString sound = m_session->isRinging() ? soundFor(m_session->ringingTransition()) : QString();
-    if (sound == m_alarmSound) {
-        return;
-    }
-    m_alarmSound = sound;
-    Q_EMIT alarmChanged(!sound.isEmpty(), sound);
 }
 
 }

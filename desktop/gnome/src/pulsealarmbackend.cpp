@@ -1,7 +1,5 @@
 #include "pulsealarmbackend.h"
 
-#include "wavfile.h"
-
 #include <QThread>
 
 #include <pulse/error.h>
@@ -170,14 +168,18 @@ void PulseAlarmBackend::stop()
 
 void PulseAlarmBackend::play(PulseStream *stream, const QString &file)
 {
-    QString error;
-    const std::optional<WavData> wav = readWavFile(file, &error);
-    if (!wav) {
-        stream->stop();
-        Q_EMIT errorOccurred(error);
-        return;
+    auto cached = m_sounds.constFind(file);
+    if (cached == m_sounds.cend()) {
+        QString error;
+        const std::optional<WavData> wav = readWavFile(file, &error);
+        if (!wav) {
+            stream->stop();
+            Q_EMIT errorOccurred(error);
+            return;
+        }
+        cached = m_sounds.insert(file, *wav);
     }
-    stream->play(file, *wav);
+    stream->play(file, *cached);
 }
 
 }

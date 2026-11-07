@@ -3,17 +3,21 @@
 // extension, with the alarm played here on the sound server. D-Bus
 // activation or its systemd user unit starts it.
 
-#include "alarmplayer.h"
 #include "keychaincredentialstore.h"
+#include "pomodoroalarm.h"
 #include "pulsealarmbackend.h"
 #include "timerservice.h"
 #include "transport.h"
 
 #include <QCoreApplication>
 #include <QDBusConnection>
+#include <QLoggingCategory>
 #include <QStandardPaths>
 
-#include <cstdio>
+namespace
+{
+Q_LOGGING_CATEGORY(lcTimerd, "tokkl.timerd", QtInfoMsg)
+}
 
 int main(int argc, char **argv)
 {
@@ -23,7 +27,7 @@ int main(int argc, char **argv)
 
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
-        std::fprintf(stderr, "tokkl-timerd: no session bus: %s\n", qPrintable(bus.lastError().message()));
+        qCCritical(lcTimerd) << "No session bus:" << bus.lastError().message();
         return 1;
     }
 
@@ -34,12 +38,12 @@ int main(int argc, char **argv)
     // The Pomodoro alarm, from the bundled sounds the package installs.
     Tokkl::PulseAlarmBackend alarmBackend(QCoreApplication::applicationName());
     QObject::connect(&alarmBackend, &Tokkl::PulseAlarmBackend::errorOccurred, &service, [](const QString &message) {
-        std::fprintf(stderr, "tokkl-timerd: no sound: %s\n", qPrintable(message));
+        qCWarning(lcTimerd) << "No sound:" << message;
     });
-    Tokkl::AlarmPlayer player(&service, &alarmBackend, QStringLiteral(TOKKL_SOUNDS_DIR));
+    Tokkl::PomodoroAlarm alarm(service.session(), &alarmBackend, service.soundChoices(), QStringLiteral(TOKKL_SOUNDS_DIR));
+    service.setAlarm(&alarm);
     if (!service.registerOn(bus)) {
-        std::fprintf(stderr, "tokkl-timerd: could not own %s on the session bus: %s\n", qPrintable(Tokkl::TimerService::serviceName),
-                     qPrintable(bus.lastError().message()));
+        qCCritical(lcTimerd) << "Could not own" << Tokkl::TimerService::serviceName << "on the session bus:" << bus.lastError().message();
         return 1;
     }
     return app.exec();
