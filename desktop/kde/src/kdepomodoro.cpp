@@ -21,6 +21,9 @@ void KdePomodoro::setTimer(TimerController *timer)
     if (m_timer) {
         disconnect(m_timer, &TimerController::connectionChanged, this, nullptr);
     }
+    // While m_timer is still the old timer, so the session leaves it.
+    const bool hadSession = m_session;
+    release();
     m_timer = timer;
     if (m_timer) {
         // The timer's state client is set after the timer exists.
@@ -28,6 +31,9 @@ void KdePomodoro::setTimer(TimerController *timer)
     }
     Q_EMIT timerChanged();
     build();
+    if (hadSession && !m_session) {
+        Q_EMIT sessionChanged();
+    }
 }
 
 PomodoroStore *KdePomodoro::store() const
@@ -66,12 +72,27 @@ void KdePomodoro::componentComplete()
     build();
 }
 
-void KdePomodoro::clear()
+void KdePomodoro::release()
 {
-    delete m_session;
-    delete m_preferences;
+    if (m_session) {
+        if (m_timer) {
+            disconnect(m_timer, nullptr, m_session, nullptr);
+        }
+        if (m_client) {
+            disconnect(m_client, nullptr, m_session, nullptr);
+            if (Clock *clock = m_client->clock()) {
+                disconnect(clock, nullptr, m_session, nullptr);
+            }
+        }
+        m_session->deleteLater();
+    }
+    if (m_preferences) {
+        m_preferences->deleteLater();
+    }
     m_session = nullptr;
     m_preferences = nullptr;
+    m_client = nullptr;
+    m_builtStore = nullptr;
 }
 
 void KdePomodoro::build()
@@ -83,14 +104,19 @@ void KdePomodoro::build()
     if (!client || !client->connection()) {
         // The timer lost its client: the session built on it goes too.
         if (m_session) {
-            clear();
+            release();
             Q_EMIT sessionChanged();
         }
         return;
     }
-    clear();
+    if (m_session && client == m_client && m_store == m_builtStore) {
+        return; // built on these already
+    }
+    release();
+    m_client = client;
+    m_builtStore = m_store;
     m_preferences = new PomodoroPreferences(client->connection(), this);
-    m_session = new PomodoroSession(&m_clock, m_timer, client, m_store, this);
+    m_session = new PomodoroSession(client->clock(), m_timer, client, m_store, this);
     Q_EMIT sessionChanged();
 }
 

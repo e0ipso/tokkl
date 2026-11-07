@@ -69,6 +69,9 @@ public:
     ~TimerStateClient() override;
 
     Connection *connection() const;
+    // The clock the client was given; a timer or session built on the
+    // client can share it.
+    Clock *clock() const;
     const std::optional<TimerState> &state() const;
     bool streaming() const;
     bool settling() const;

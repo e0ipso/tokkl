@@ -17,8 +17,9 @@
 namespace Tokkl
 {
 
-// Builds one TimerStateClient on the connection and a system clock, the
-// client every part of the widget shares: the timer controller reads it and
+// Builds one TimerStateClient on the connection and the widget's one system
+// clock, which the timer and the session use through it. Every part of the
+// widget shares the client: the timer controller reads it and
 // the Pomodoro session acts through it. The client is null until the
 // connection is set. Setting another connection builds a new client and
 // emits clientChanged(), so bindings that pass the client on follow; the

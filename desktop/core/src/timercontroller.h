@@ -174,7 +174,8 @@ public:
     Q_PROPERTY(QString indicatorColor READ indicatorColor NOTIFY indicatorChanged)
 
 public:
-    // Uses the system clock.
+    // Uses the clock of the state client it is given, so QML needs no
+    // clock of its own.
     explicit TimerController(QObject *parent = nullptr);
     // Uses the given clock, which the controller does not own.
     explicit TimerController(Clock *clock, QObject *parent = nullptr);
@@ -307,6 +308,8 @@ private:
     bool readable() const;
 
     QPointer<Clock> m_clock;
+    // m_clock follows the state client's.
+    bool m_clientClock = false;
     QPointer<TimerStateClient> m_state;
     QPointer<Connection> m_connection;
 

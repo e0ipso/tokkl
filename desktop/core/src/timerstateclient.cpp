@@ -41,6 +41,11 @@ Connection *TimerStateClient::connection() const
     return m_connection;
 }
 
+Clock *TimerStateClient::clock() const
+{
+    return m_clock;
+}
+
 const std::optional<TimerState> &TimerStateClient::state() const
 {
     return m_state;

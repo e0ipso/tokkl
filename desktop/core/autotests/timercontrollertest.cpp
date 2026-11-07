@@ -359,6 +359,25 @@ class TimerControllerTest : public QObject
     }
 
 private Q_SLOTS:
+    // A timer made without a clock, as QML makes it, ticks on the clock of
+    // the state client it is given.
+    void usesTheClientsClock()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        TimerController shared;
+        shared.setStateClient(&f.state);
+        QVERIFY(shared.isRunning());
+        QVERIFY(shared.canWrite());
+        QSignalSpy elapsed(&shared, &TimerController::elapsedChanged);
+        f.clock.advance(60000);
+        QCOMPARE(elapsed.size(), 1);
+        QCOMPARE(shared.elapsedSeconds(), f.timer.elapsedSeconds());
+
+        shared.setStateClient(nullptr);
+        QVERIFY(!shared.canWrite());
+    }
+
     void exposesContextAndEntry()
     {
         Fixture f;

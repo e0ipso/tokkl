@@ -36,8 +36,7 @@ bool sameChain(const std::optional<TimerPause> &a, const std::optional<TimerPaus
 TimerController::TimerController(QObject *parent)
     : TimerController(nullptr, parent)
 {
-    m_clock = new SystemClock(this);
-    connect(m_clock, &Clock::ticked, this, &TimerController::onTick);
+    m_clientClock = true;
 }
 
 TimerController::TimerController(Clock *clock, QObject *parent)
@@ -87,6 +86,15 @@ void TimerController::setStateClient(TimerStateClient *client)
     detach();
     m_state = client;
     m_connection = client ? client->connection() : nullptr;
+    if (m_clientClock) {
+        if (m_clock) {
+            disconnect(m_clock, &Clock::ticked, this, &TimerController::onTick);
+        }
+        m_clock = client ? client->clock() : nullptr;
+        if (m_clock) {
+            connect(m_clock, &Clock::ticked, this, &TimerController::onTick);
+        }
+    }
     if (m_state) {
         connect(m_state, &TimerStateClient::stateChanged, this, &TimerController::onStateChanged);
         connect(m_state, &TimerStateClient::settlingChanged, this, &TimerController::onSettlingChanged);
