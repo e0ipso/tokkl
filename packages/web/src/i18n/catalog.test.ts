@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { interpolate, pluralForm, type ParamsOf, type PluralMessage } from './catalog.ts';
-import { LOCALE } from './locale.ts';
+import { activeLocale } from './locale.ts';
 
-const rules = new Intl.PluralRules(LOCALE);
+const rules = activeLocale.pluralRules;
 const entries = { one: '{count} entry', other: '{count} entries' } as const satisfies PluralMessage;
 
 test('placeholders are filled by name, numbers as written, and a missing value stays visible', () => {

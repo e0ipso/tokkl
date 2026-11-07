@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { en, t, template } from './messages.ts';
+import { en } from './en/index.ts';
+import { t, template } from './messages.ts';
 import { tx } from './rich.ts';
 
 test('t fills named placeholders from the catalog', () => {

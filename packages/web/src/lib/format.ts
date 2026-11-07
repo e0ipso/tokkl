@@ -1,6 +1,6 @@
 import { formatDuration } from '@tokkl/common/duration';
 import { addDays, dateKey, parseDateKey, zonedParts } from '@tokkl/common/time';
-import { LOCALE, NUMBER_LOCALE } from '../i18n/locale.ts';
+import { activeLocale } from '../i18n/locale.ts';
 import { t } from '../i18n/messages.ts';
 import { localDay } from './entryTime.ts';
 import type { Settings } from './settings.ts';
@@ -11,14 +11,16 @@ import type { Settings } from './settings.ts';
  * `dates` patterns put the parts together.
  */
 
+const { language, numberLocale } = activeLocale;
+
 // Date keys and hours are formatted as UTC instants, so no time zone can move them to another day.
-const weekdayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', timeZone: 'UTC' });
-const longWeekdayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', timeZone: 'UTC' });
-const monthFormat = new Intl.DateTimeFormat(LOCALE, { month: 'short', timeZone: 'UTC' });
-const longMonthFormat = new Intl.DateTimeFormat(LOCALE, { month: 'long', timeZone: 'UTC' });
-const dayPeriodFormat = new Intl.DateTimeFormat(LOCALE, { hour: 'numeric', hourCycle: 'h12', timeZone: 'UTC' });
-const relativeDays = new Intl.RelativeTimeFormat(LOCALE, { numeric: 'auto' });
-const countFormat = new Intl.NumberFormat(NUMBER_LOCALE);
+const weekdayFormat = new Intl.DateTimeFormat(language, { weekday: 'short', timeZone: 'UTC' });
+const longWeekdayFormat = new Intl.DateTimeFormat(language, { weekday: 'long', timeZone: 'UTC' });
+const monthFormat = new Intl.DateTimeFormat(language, { month: 'short', timeZone: 'UTC' });
+const longMonthFormat = new Intl.DateTimeFormat(language, { month: 'long', timeZone: 'UTC' });
+const dayPeriodFormat = new Intl.DateTimeFormat(language, { hour: 'numeric', hourCycle: 'h12', timeZone: 'UTC' });
+const relativeDays = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
+const countFormat = new Intl.NumberFormat(numberLocale);
 
 /** Midnight UTC on a calendar date, for formatting its date parts. */
 function utcDay(year: number, month: number, day: number): Date {
@@ -27,7 +29,7 @@ function utcDay(year: number, month: number, day: number): Date {
 
 /** The text with its first letter in upper case, for a name that starts a label. */
 function sentenceStart(text: string): string {
-  return text.charAt(0).toLocaleUpperCase(LOCALE) + text.slice(1);
+  return text.charAt(0).toLocaleUpperCase(language) + text.slice(1);
 }
 
 /** "AM" or "PM" for an hour of the day, from 0 to 23. */
@@ -124,7 +126,7 @@ export function formatCount(count: number): string {
 
 export function formatMoney(cents: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(NUMBER_LOCALE, { style: 'currency', currency }).format(cents / 100);
+    return new Intl.NumberFormat(numberLocale, { style: 'currency', currency }).format(cents / 100);
   } catch {
     return t('common.moneyFallback', { amount: (cents / 100).toFixed(2), currency });
   }

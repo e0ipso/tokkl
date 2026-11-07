@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { Report } from '../../api/types.ts';
-import { NUMBER_LOCALE } from '../../i18n/locale.ts';
+import { activeLocale } from '../../i18n/locale.ts';
 import { duration } from '../../lib/format.ts';
 import type { Settings } from '../../lib/settings.ts';
 import { ChartDataTable, ChartTooltip, StripePattern, Swatch } from './SeriesChartParts.tsx';
@@ -17,7 +17,7 @@ import {
 import { useGeometry, useWidth } from './useChartSize.ts';
 import { t, type MessageKey } from '../../i18n/messages.ts';
 
-const hoursFormat = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 2 });
+const hoursFormat = new Intl.NumberFormat(activeLocale.numberLocale, { maximumFractionDigits: 2 });
 
 const DESCRIPTION = {
   day: 'reports.chartDays',
