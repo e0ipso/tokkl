@@ -54,7 +54,11 @@ type Scheme = Exclude<Theme, 'system'>;
 // "Match the system" puts each tag's original colour back.
 const themeColorTags = Array.from(
   document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][media]'),
-  meta => ({ meta, scheme: (meta.media.includes('dark') ? 'dark' : 'light') as Scheme, colour: meta.content }),
+  (meta): { meta: HTMLMetaElement; scheme: Scheme; colour: string } => ({
+    meta,
+    scheme: meta.media.includes('dark') ? 'dark' : 'light',
+    colour: meta.content,
+  }),
 );
 
 function setThemeColor(theme: Theme): void {

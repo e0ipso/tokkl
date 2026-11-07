@@ -14,7 +14,7 @@ export function useDeleteEntries(): (ids: number[]) => Promise<void> {
   const toast = useToast();
   return async ids => {
     const results = await Promise.allSettled(ids.map(id => remove.mutateAsync(id)));
-    const deleted = ids.filter((_, index) => results[index]!.status === 'fulfilled');
+    const deleted = ids.filter((_, index) => results[index]?.status === 'fulfilled');
     const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
     const undo = deleted.length ? { label: 'Undo', run: () => deleted.forEach(id => restore.mutate(id)) } : undefined;
     const reason = !failure ? null : failure.reason instanceof Error ? failure.reason.message : String(failure.reason);

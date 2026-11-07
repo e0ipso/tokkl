@@ -59,13 +59,13 @@ export const SUB_GROUPINGS: readonly SubGrouping[] = [...GROUPINGS, 'none'];
 export const BILLABLE_FILTERS: readonly BillableFilter[] = ['all', 'billable', 'nonbillable'];
 
 /** A leading "not." in an id list marks the filter as negated, e.g. "not.none.4", or just "not.". */
-function isNegated(value: string | null): boolean {
+function isNegated(value: string | null): value is string {
   return value?.startsWith('not.') ?? false;
 }
 
 /** Ids are dot-separated ("none.4.9") because URLSearchParams would percent-encode commas. */
 function parseIds(raw: string | null): IdFilter {
-  const value = isNegated(raw) ? raw!.slice(4) : raw;
+  const value = isNegated(raw) ? raw.slice(4) : raw;
   if (!value) return [];
   const ids: Array<number | null> = [];
   for (const part of value.split(/[.,]/)) {

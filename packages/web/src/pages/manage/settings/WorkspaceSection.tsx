@@ -56,7 +56,7 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
     });
   };
 
-  const steps: number[] = ROUNDING_MINUTES.includes(roundingMinutes as (typeof ROUNDING_MINUTES)[number])
+  const steps: number[] = ROUNDING_MINUTES.some(step => step === roundingMinutes)
     ? [...ROUNDING_MINUTES]
     : [...ROUNDING_MINUTES, roundingMinutes].sort((a, b) => a - b);
 

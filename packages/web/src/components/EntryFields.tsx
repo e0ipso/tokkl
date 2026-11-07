@@ -109,8 +109,9 @@ export const EntryFields = forwardRef<
               setHighlight(h => (h <= 0 ? suggestions.length - 1 : h - 1));
             } else if (event.key === 'Enter') {
               event.preventDefault();
-              if (highlight >= 0 && suggestions[highlight]) {
-                pickSuggestion(suggestions[highlight]!);
+              const suggestion = highlight >= 0 ? suggestions[highlight] : undefined;
+              if (suggestion) {
+                pickSuggestion(suggestion);
               } else {
                 onEnter(event);
               }

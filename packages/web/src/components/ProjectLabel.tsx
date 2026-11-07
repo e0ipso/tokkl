@@ -6,7 +6,7 @@ import { useProjects, useTasks } from '../api/projects.ts';
  * .project-dot in styles/entries.css); text never takes the project colour.
  */
 export function projectColorStyle(color: string | null | undefined): CSSProperties | undefined {
-  return color ? { ['--project-color' as string]: color } : undefined;
+  return color ? { '--project-color': color } : undefined;
 }
 
 export function ProjectDot({ color }: { color: string | null | undefined }) {
