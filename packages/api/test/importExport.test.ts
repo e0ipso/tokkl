@@ -3,6 +3,8 @@ import { entryCount, catalogCounts } from './fixtures/observations.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addUser, setup, type TestContext } from './helpers.ts';
+import { ApplicationError } from '../src/lib/errors.ts';
+import { createImportOperations } from '../src/services/importJson.ts';
 
 const TOGGL_CSV = [
   'User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount (EUR)',
@@ -828,4 +830,22 @@ test('imports into a default workspace the caller is not a member of are refused
     assert.equal(await csv.json(), 'User does not have access to this resource.');
   }
   assert.deepEqual(await rowCounts(owner), before);
+});
+
+test('a JSON file that is not a Tokkl export is refused before a transaction opens', async () => {
+  let transactions = 0;
+  const imports = createImportOperations(
+    {
+      transaction: async () => {
+        transactions++;
+        throw new Error('A transaction opened');
+      },
+    },
+    async () => {},
+  );
+  await assert.rejects(
+    imports.importJsonExport(1, { format: 'something-else' }, { dryRun: false }),
+    error => error instanceof ApplicationError && error.message === 'This is not a Tokkl JSON export',
+  );
+  assert.equal(transactions, 0);
 });

@@ -205,22 +205,26 @@ function exporterZone(file: Item, user: User): string {
   return (typeof exporter === 'string' ? canonicalTimeZone(exporter) : null) ?? user.timezone;
 }
 
+/** `data` as a Tokkl JSON export, or a 400 when it names no format this server restores. */
+function exportFile(data: unknown): Item {
+  const format = typeof data === 'object' && data !== null ? (data as Item).format : undefined;
+  if (format !== EXPORT_FORMAT && format !== LEGACY_EXPORT_FORMAT)
+    throw invalidInput('This is not a Tokkl JSON export');
+  return data as Item;
+}
+
 /**
  * Restores a Tokkl JSON export into the user's default workspace: catalogs first, matched by name,
- * then entries, skipping duplicates. Joins the supplied operation; the outer runner controls the
- * dry-run rollback and retries.
+ * then entries, skipping duplicates. Runs in the caller's transaction; the outer runner controls
+ * the dry-run rollback and retries.
  */
 async function importJsonExport(
   ctx: OperationContext<EntryRepositories>,
   userId: number,
-  data: unknown,
+  file: Item,
   options: { dryRun: boolean },
   publish: TimerPublication,
 ): Promise<JsonImportResult> {
-  const format = typeof data === 'object' && data !== null ? (data as Item).format : undefined;
-  if (format !== EXPORT_FORMAT && format !== LEGACY_EXPORT_FORMAT)
-    throw invalidInput('This is not a Tokkl JSON export');
-  const file = data as Item;
   const user = await protectImport(ctx, userId);
   const restore: Restore = {
     ctx,
@@ -261,8 +265,13 @@ export function createImportOperations<R extends EntryRepositories>(
   publish: TimerPublication,
 ) {
   return {
-    importJsonExport: (userId: number, data: unknown, options: { dryRun: boolean }) =>
-      runner.transaction(ctx => importJsonExport(ctx, userId, data, options, publish), { dryRun: options.dryRun }),
+    /** The file's format is checked before the transaction opens. */
+    async importJsonExport(userId: number, data: unknown, options: { dryRun: boolean }) {
+      const file = exportFile(data);
+      return runner.transaction(ctx => importJsonExport(ctx, userId, file, options, publish), {
+        dryRun: options.dryRun,
+      });
+    },
     /** The file is parsed before the transaction opens. */
     async importTogglCsv(userId: number, text: string, options: { dryRun: boolean; users?: string[] }) {
       const table = await readTogglCsv(text);
