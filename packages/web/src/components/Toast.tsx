@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 
 interface Toast {
   id: number;
@@ -36,8 +36,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [show],
   );
 
+  // Stable for the life of the provider, so consumers that only show toasts never re-render for them.
+  const api = useMemo<ToastApi>(() => ({ show, error }), [show, error]);
+
   return (
-    <ToastContext.Provider value={{ show, error }}>
+    <ToastContext.Provider value={api}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map(toast => (

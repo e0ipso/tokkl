@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { addDays } from '@tokkl/common/time';
 import {
   DEFAULT_POMODORO_SESSION_CONFIG,
@@ -15,7 +15,8 @@ import { LoadError, Loading } from '../components/PageState.tsx';
 import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { SESSION_PHASE_LABEL, clock, countdown } from '../components/pomodoroSessionPresentation.ts';
 import { useToast } from '../components/Toast.tsx';
-import { EMPTY_DRAFT, type EntryDraft } from '../components/useEntryFields.ts';
+import { EMPTY_DRAFT, draftOf, draftSignature, type EntryDraft } from '../components/useEntryFields.ts';
+import { useServerNow } from '../api/timerHooks.ts';
 import { useSettings } from '../api/settings.ts';
 import { today } from '../lib/format.ts';
 import { AllowNotifications } from './manage/settings/AllowNotifications.tsx';
@@ -55,16 +56,6 @@ type LengthKey = keyof PomodoroSessionConfig;
 
 /** How long typing in the description waits before saving it to the running entry. */
 const DESCRIPTION_SAVE_DELAY_MS = 800;
-
-function draftOf(entry: TimeEntry): EntryDraft {
-  return {
-    description: entry.description,
-    project_id: entry.project_id,
-    task_id: entry.task_id,
-    tags: entry.tags,
-    billable: entry.billable,
-  };
-}
 
 function StartForm({ preferences, recentEntries }: { preferences: Preferences; recentEntries: TimeEntry[] }) {
   const { start, busy, unlockAudio } = usePomodoroSession();
@@ -161,9 +152,8 @@ function useRunningEntryEdits(entryId: number | null) {
     return send(pending.id, { description: pending.description });
   };
   // Leaving the page or the session ending elsewhere still saves what was typed.
-  const latest = useRef(settle);
-  latest.current = settle;
-  useEffect(() => () => void latest.current(), []);
+  const settleLater = useEffectEvent(() => void settle());
+  useEffect(() => () => settleLater(), []);
   return {
     pending: () => waiting.current !== null,
     settle,
@@ -173,7 +163,7 @@ function useRunningEntryEdits(entryId: number | null) {
       waiting.current = {
         id: entryId,
         description,
-        timer: setTimeout(() => void latest.current(), DESCRIPTION_SAVE_DELAY_MS),
+        timer: setTimeout(() => void settle(), DESCRIPTION_SAVE_DELAY_MS),
       };
     },
     edit(changes: Partial<EntryDraft>) {
@@ -187,8 +177,22 @@ function useRunningEntryEdits(entryId: number | null) {
   };
 }
 
+/** The phase's countdown on the server's clock, then the overtime. It is the only part that ticks. */
+function SessionCountdown({ plannedEnd }: { plannedEnd: string }) {
+  const { overtime, seconds } = countdown(plannedEnd, useServerNow(1000));
+  return (
+    <div className="pomodoro-session-countdown" role="timer" aria-label={overtime ? 'Overtime' : 'Time remaining'}>
+      <span className="pomodoro-clock">
+        {overtime ? '+' : ''}
+        {clock(seconds)}
+      </span>
+      <span className="muted">{overtime ? 'Overtime' : 'Time remaining'}</span>
+    </div>
+  );
+}
+
 function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
-  const { session, phase, plannedEnd, transitionKind, now, busy, nextPhase, end } = usePomodoroSession();
+  const { session, phase, plannedEnd, transitionKind, busy, nextPhase, end } = usePomodoroSession();
   const { data: entry } = useCurrentEntry();
   const open = entry && session && entry.id === session.entry_id ? entry : null;
   const [draft, setDraft] = useState<EntryDraft>(open ? draftOf(open) : EMPTY_DRAFT);
@@ -197,11 +201,13 @@ function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
 
   // Follow the running entry, which another device or the next pomodoro may change, but keep a
   // description that is still being typed or waiting to save.
-  useEffect(() => {
+  const follow = useEffectEvent(() => {
     if (!open) return;
     const typing = (fieldsRef.current?.hasFocus() ?? false) || edits.pending();
     setDraft(previous => ({ ...draftOf(open), description: typing ? previous.description : open.description }));
-  }, [open?.id, open?.description, open?.project_id, open?.task_id, open?.billable, open?.tags.join('\u0000')]);
+  });
+  const signature = open ? `${open.id}\u0002${draftSignature(open)}` : null;
+  useEffect(() => follow(), [signature]);
 
   const settleThen = (action: () => Promise<void>) => () => {
     void edits.settle();
@@ -209,7 +215,6 @@ function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
   };
 
   if (!session || !phase || !plannedEnd || !transitionKind) return <Loading label="Ending session…" />;
-  const { overtime, seconds } = countdown(phase.planned_end, now);
 
   return (
     <section className="card pomodoro-card" aria-label="Running Pomodoro session">
@@ -219,13 +224,7 @@ function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
           Pomodoro {session.number} of {session.long_rest_every}
         </p>
       </div>
-      <div className="pomodoro-session-countdown" role="timer" aria-label={overtime ? 'Overtime' : 'Time remaining'}>
-        <span className="pomodoro-clock">
-          {overtime ? '+' : ''}
-          {clock(seconds)}
-        </span>
-        <span className="muted">{overtime ? 'Overtime' : 'Time remaining'}</span>
-      </div>
+      <SessionCountdown plannedEnd={phase.planned_end} />
       <div className="pomodoro-actions">
         <button type="button" className="button button-primary" disabled={busy} onClick={settleThen(nextPhase)}>
           Next phase: {SESSION_PHASE_LABEL[session.upcoming_phase]}
