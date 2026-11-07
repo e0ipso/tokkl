@@ -406,22 +406,44 @@ void compareWithResources(const QList<QImage> &images, const QStringList &files)
         QCOMPARE(images.at(i).deviceIndependentSize(), QSizeF(16, 16));
     }
 }
-
-QAction *projectAction(StatusMenu &menu, const QString &label)
-{
-    const QList<QAction *> actions = menu.projectMenu()->actions();
-    for (QAction *action : actions) {
-        if (action->text() == label) {
-            return action;
-        }
-    }
-    return nullptr;
-}
 }
 
+// A friend of StatusMenu and SettingsWindow, so it reaches their actions and
+// fields directly.
 class MenuBarAppTest : public QObject
 {
     Q_OBJECT
+
+    static QAction *projectAction(const StatusMenu &menu, const QString &label)
+    {
+        const QList<QAction *> actions = menu.m_projectMenu->actions();
+        for (QAction *action : actions) {
+            if (action->text() == label) {
+                return action;
+            }
+        }
+        return nullptr;
+    }
+
+    static QSpinBox *lengthBox(const SettingsWindow &window, PomodoroField field)
+    {
+        return window.m_lengthBoxes.at(std::size_t(field));
+    }
+
+    static QLabel *lengthError(const SettingsWindow &window, PomodoroField field)
+    {
+        return window.m_lengthErrors.at(std::size_t(field));
+    }
+
+    static QComboBox *soundBox(const SettingsWindow &window, TransitionKind kind)
+    {
+        return window.m_soundBoxes.at(std::size_t(kind));
+    }
+
+    static QPushButton *previewButton(const SettingsWindow &window, TransitionKind kind)
+    {
+        return window.m_previewButtons.at(std::size_t(kind));
+    }
 
     struct Fixture {
         // The settings live in settingsFile, or in a file of the fixture's
@@ -561,7 +583,7 @@ class MenuBarAppTest : public QObject
         // Pomodoro mode on or off through the menu.
         bool setPomodoroMode(bool on)
         {
-            QAction *mode = app.statusMenu()->pomodoroModeAction();
+            QAction *mode = app.statusMenu()->m_pomodoroModeAction;
             if (mode->isChecked() != on) {
                 mode->trigger();
             }
@@ -573,7 +595,7 @@ class MenuBarAppTest : public QObject
         bool startSession()
         {
             const qsizetype before = transport.requests.size();
-            app.statusMenu()->startSessionAction()->trigger();
+            app.statusMenu()->m_startSessionAction->trigger();
             const qsizetype post = last("POST", "/app/pomodoro");
             if (post < before) {
                 return false;
@@ -630,7 +652,7 @@ private Q_SLOTS:
         // Nothing to start or stop yet.
         f.item.click();
         QVERIFY(f.transport.requests.isEmpty());
-        QVERIFY(!f.app.statusMenu()->startStopAction()->isEnabled());
+        QVERIFY(!f.app.statusMenu()->m_startStopAction->isEnabled());
     }
 
     void titleShowsElapsedTime()
@@ -648,7 +670,7 @@ private Q_SLOTS:
         QCOMPARE(f.item.title, QStringLiteral("0:02"));
         QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Running 0:02 · No project · Connected")), qPrintable(f.item.toolTip));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, No project"));
-        QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:02")));
+        QVERIFY(f.app.statusMenu()->m_stateAction->text().startsWith(QStringLiteral("Running 0:02")));
     }
 
     // A click on a running timer pauses it: the server answers with the
@@ -683,15 +705,15 @@ private Q_SLOTS:
         QCOMPARE(f.item.accessibleName, QStringLiteral("Resume the Tokkl timer, Alpha"));
         QVERIFY2(f.item.toolTip.startsWith(QStringLiteral("Paused 0:10 · Alpha · Connected")), qPrintable(f.item.toolTip));
         StatusMenu &menu = *f.app.statusMenu();
-        QVERIFY2(menu.stateAction()->text().startsWith(QStringLiteral("Paused 0:10")), qPrintable(menu.stateAction()->text()));
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
-        QVERIFY(menu.startStopAction()->isEnabled());
+        QVERIFY2(menu.m_stateAction->text().startsWith(QStringLiteral("Paused 0:10")), qPrintable(menu.m_stateAction->text()));
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(menu.m_startStopAction->isEnabled());
         // The paused entry's project and billable flag, locked.
-        QCOMPARE(menu.projectMenu()->title(), QStringLiteral("Project: Alpha"));
-        QVERIFY(!menu.projectMenu()->menuAction()->isEnabled());
+        QCOMPARE(menu.m_projectMenu->title(), QStringLiteral("Project: Alpha"));
+        QVERIFY(!menu.m_projectMenu->menuAction()->isEnabled());
         QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)"))->isEnabled());
-        QVERIFY(menu.billableAction()->isChecked());
-        QVERIFY(!menu.billableAction()->isEnabled());
+        QVERIFY(menu.m_billableAction->isChecked());
+        QVERIFY(!menu.m_billableAction->isEnabled());
         // A still dot in the project colour. Only a running dot pulses.
         QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
         QVERIFY(f.item.indicator.round);
@@ -727,13 +749,13 @@ private Q_SLOTS:
         QTRY_VERIFY(f.app.timer()->isRunning());
         QTRY_COMPARE(f.item.title, QStringLiteral("0:10"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
-        QCOMPARE(f.app.statusMenu()->startStopAction()->text(), QStringLiteral("Stop Timer"));
+        QCOMPARE(f.app.statusMenu()->m_startStopAction->text(), QStringLiteral("Stop Timer"));
         // The dot pulses again.
         QVERIFY(f.item.indicator.round);
         QVERIFY(f.item.indicator.pulsing);
         f.advance(60);
         QCOMPARE(f.item.title, QStringLiteral("0:11"));
-        QVERIFY(f.app.statusMenu()->stateAction()->text().startsWith(QStringLiteral("Running 0:11")));
+        QVERIFY(f.app.statusMenu()->m_stateAction->text().startsWith(QStringLiteral("Running 0:11")));
     }
 
     // A click on a stopped timer starts an entry on the selected project,
@@ -760,24 +782,24 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(QByteArrayLiteral("null"), qint64(12)));
         StatusMenu &menu = *f.app.statusMenu();
-        QVERIFY(menu.projectMenu()->menuAction()->isEnabled());
-        QCOMPARE(menu.projectMenu()->title(), QStringLiteral("Project: Beta (Acme)"));
+        QVERIFY(menu.m_projectMenu->menuAction()->isEnabled());
+        QCOMPARE(menu.m_projectMenu->title(), QStringLiteral("Project: Beta (Acme)"));
         QVERIFY(projectAction(menu, QStringLiteral("Beta (Acme)"))->isChecked());
         QVERIFY(!projectAction(menu, QStringLiteral("Alpha"))->isChecked());
-        QVERIFY(!menu.billableAction()->isChecked());
+        QVERIFY(!menu.m_billableAction->isChecked());
 
         projectAction(menu, QStringLiteral("Alpha"))->trigger();
         QCOMPARE(f.app.timer()->selectedProjectId().toLongLong(), 11);
         QTRY_VERIFY(projectAction(menu, QStringLiteral("Alpha"))->isChecked());
         QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)"))->isChecked());
         // Alpha is billable by default.
-        QVERIFY(menu.billableAction()->isChecked());
-        menu.billableAction()->trigger();
+        QVERIFY(menu.m_billableAction->isChecked());
+        menu.m_billableAction->trigger();
         QVERIFY(!f.app.timer()->billable());
-        QVERIFY(!menu.billableAction()->isChecked());
+        QVERIFY(!menu.m_billableAction->isChecked());
 
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
-        menu.startStopAction()->trigger();
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Start Timer"));
+        menu.m_startStopAction->trigger();
         const QJsonObject body = jsonBody(f.transport.requests.at(f.last("POST", "/workspaces/7/time_entries")));
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
         QCOMPARE(body.value(QStringLiteral("billable")).toBool(), false);
@@ -790,9 +812,9 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(entryBody(qint64(11))));
         StatusMenu &menu = *f.app.statusMenu();
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
-        QVERIFY(!menu.projectMenu()->menuAction()->isEnabled());
-        QCOMPARE(menu.projectMenu()->title(), QStringLiteral("Project: Alpha"));
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(!menu.m_projectMenu->menuAction()->isEnabled());
+        QCOMPARE(menu.m_projectMenu->title(), QStringLiteral("Project: Alpha"));
         QAction *beta = projectAction(menu, QStringLiteral("Beta (Acme)"));
         QVERIFY(beta && !beta->isEnabled());
         QVERIFY(!projectAction(menu, QStringLiteral("No project"))->isEnabled());
@@ -803,8 +825,8 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), before);
         QCOMPARE(f.app.timer()->chosenProjectId().toLongLong(), 11);
 
-        QVERIFY(menu.billableAction()->isEnabled());
-        menu.billableAction()->trigger();
+        QVERIFY(menu.m_billableAction->isEnabled());
+        menu.m_billableAction->trigger();
         QCOMPARE(f.transport.requests.size(), before + 1);
         const HttpRequest update = f.transport.requests.last();
         QCOMPARE(update.method, QByteArray("PUT"));
@@ -818,9 +840,9 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(entryBody()));
         StatusMenu &menu = *f.app.statusMenu();
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Stop Timer"));
         const qsizetype before = f.transport.requests.size();
-        menu.startStopAction()->trigger();
+        menu.m_startStopAction->trigger();
         QCOMPARE(f.transport.requests.size(), before + 1);
         const HttpRequest stop = f.transport.requests.last();
         QCOMPARE(stop.method, QByteArray("PATCH"));
@@ -830,8 +852,8 @@ private Q_SLOTS:
         QTRY_VERIFY(!f.app.timer()->isRunning());
         QVERIFY(!f.app.timer()->isPaused());
         QTRY_COMPARE(f.item.title, QStringLiteral("0:00"));
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
-        QVERIFY(menu.stateAction()->text().startsWith(QStringLiteral("Stopped 0:00")));
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Start Timer"));
+        QVERIFY(menu.m_stateAction->text().startsWith(QStringLiteral("Stopped 0:00")));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer, No project"));
     }
 
@@ -842,25 +864,25 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect(QByteArrayLiteral("null"), std::nullopt, pauseObject(true, 600)));
         StatusMenu &menu = *f.app.statusMenu();
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
-        QVERIFY(menu.startStopAction()->isEnabled());
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(menu.m_startStopAction->isEnabled());
 
         const qsizetype before = f.transport.requests.size();
-        menu.startStopAction()->trigger();
+        menu.m_startStopAction->trigger();
         QCOMPARE(f.transport.requests.size(), before + 1);
         const HttpRequest discard = f.transport.requests.last();
         QCOMPARE(discard.method, QByteArray("POST"));
         QCOMPARE(discard.url.path(), QStringLiteral("/api/app/timer/discard"));
         QCOMPARE(discard.body, revisionBody(f.revision));
         // Nothing more to send while the answer is on its way.
-        QVERIFY(!menu.startStopAction()->isEnabled());
+        QVERIFY(!menu.m_startStopAction->isEnabled());
 
         f.respond(before, 200, f.state());
         QTRY_VERIFY(!f.app.timer()->isPaused());
         QCOMPARE(f.item.title, QStringLiteral("0:00"));
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
-        QTRY_VERIFY(menu.startStopAction()->isEnabled());
-        QVERIFY(menu.stateAction()->text().startsWith(QStringLiteral("Stopped 0:00")));
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Start Timer"));
+        QTRY_VERIFY(menu.m_startStopAction->isEnabled());
+        QVERIFY(menu.m_stateAction->text().startsWith(QStringLiteral("Stopped 0:00")));
         QVERIFY2(f.item.accessibleName.startsWith(QStringLiteral("Start the Tokkl timer, ")), qPrintable(f.item.accessibleName));
         // The paused dot gives way to the stopped square.
         QVERIFY(!f.item.indicator.round);
@@ -889,10 +911,10 @@ private Q_SLOTS:
         QVERIFY(f.app.timer()->isPaused());
 
         StatusMenu &menu = *f.app.statusMenu();
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
-        QVERIFY(!menu.startStopAction()->isEnabled());
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(!menu.m_startStopAction->isEnabled());
         const qsizetype before = f.transport.requests.size();
-        menu.startStopAction()->trigger();
+        menu.m_startStopAction->trigger();
         QCOMPARE(f.transport.requests.size(), before);
         QVERIFY(f.app.timer()->isPaused());
     }
@@ -911,14 +933,14 @@ private Q_SLOTS:
         QTRY_VERIFY(f.app.timer()->isStale());
 
         StatusMenu &menu = *f.app.statusMenu();
-        QVERIFY(menu.startStopAction()->isEnabled());
+        QVERIFY(menu.m_startStopAction->isEnabled());
         const qsizetype before = f.transport.requests.size();
-        menu.startStopAction()->trigger();
+        menu.m_startStopAction->trigger();
         QCOMPARE(f.last("POST", "/timer/discard"), before);
         f.transport.respond(before, FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
         QTRY_VERIFY(!f.app.timer()->errorString().isEmpty());
         QVERIFY(f.app.timer()->isPaused());
-        QVERIFY(!menu.startStopAction()->isEnabled());
+        QVERIFY(!menu.m_startStopAction->isEnabled());
     }
 
     // A pause refused because another device moved the timer first shows the
@@ -935,7 +957,7 @@ private Q_SLOTS:
         QTRY_VERIFY(!f.app.timer()->isRunning());
         QCOMPARE(f.app.timer()->errorString(), QStringLiteral("The timer changed on another device first."));
         QVERIFY2(f.item.toolTip.contains(QStringLiteral("The timer changed on another device first.")), qPrintable(f.item.toolTip));
-        QVERIFY(f.app.statusMenu()->stateAction()->toolTip().contains(QStringLiteral("The timer changed on another device first.")));
+        QVERIFY(f.app.statusMenu()->m_stateAction->toolTip().contains(QStringLiteral("The timer changed on another device first.")));
     }
 
     // The running entry's project: a pulsing dot in its colour. Stop Timer
@@ -951,7 +973,7 @@ private Q_SLOTS:
         QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
 
-        f.app.statusMenu()->startStopAction()->trigger();
+        f.app.statusMenu()->m_startStopAction->trigger();
         f.respond(f.last("PATCH", "/stop"), 200, stoppedEntryBody(qint64(11)));
         QTRY_VERIFY(!f.app.timer()->isRunning());
         QVERIFY(!f.app.timer()->isPaused());
@@ -1077,7 +1099,7 @@ private Q_SLOTS:
             QVERIFY2(coloured, qPrintable(files.at(i)));
         }
 
-        f.app.statusMenu()->startStopAction()->trigger();
+        f.app.statusMenu()->m_startStopAction->trigger();
         f.respond(f.last("PATCH", "/stop"), 200, stoppedEntryBody(qint64(11)));
         QTRY_VERIFY(!f.app.timer()->isRunning());
         QVERIFY(f.item.image.indicator != running.indicator);
@@ -1095,8 +1117,8 @@ private Q_SLOTS:
         const StatusImage before = f.item.image;
         f.app.showSettings();
         SettingsWindow &window = *f.app.settingsWindow();
-        QVERIFY(!window.monochromeToggle()->isChecked());
-        window.monochromeToggle()->setChecked(true);
+        QVERIFY(!window.m_monochromeToggle->isChecked());
+        window.m_monochromeToggle->setChecked(true);
         QSignalSpy saved(&window, &SettingsWindow::saved);
         QVERIFY(window.save());
         QTRY_COMPARE(saved.count(), 1);
@@ -1120,7 +1142,7 @@ private Q_SLOTS:
         relaunched.app.start();
         QVERIFY(relaunched.item.image.monochromeLogo);
         relaunched.app.showSettings();
-        QVERIFY(relaunched.app.settingsWindow()->monochromeToggle()->isChecked());
+        QVERIFY(relaunched.app.settingsWindow()->m_monochromeToggle->isChecked());
         relaunched.settings.setValue(SettingsSave::monochromeIconKey, false);
         relaunched.app.applySettings();
         QVERIFY(!relaunched.item.image.monochromeLogo);
@@ -1133,7 +1155,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect(QByteArrayLiteral("null")));
-        QAction *mode = f.app.statusMenu()->pomodoroModeAction();
+        QAction *mode = f.app.statusMenu()->m_pomodoroModeAction;
         QVERIFY(mode->isCheckable());
         QVERIFY(!mode->isChecked());
         QVERIFY(mode->isEnabled());
@@ -1146,7 +1168,7 @@ private Q_SLOTS:
         QVERIFY(!mode->isEnabled());
         QCOMPARE(mode->text(), QStringLiteral("Pomodoro mode (locked while running)"));
 
-        f.app.statusMenu()->endSessionAction()->trigger();
+        f.app.statusMenu()->m_endSessionAction->trigger();
         QVERIFY(f.app.pomodoroSession()->isActive());
         f.respond(f.last("POST", "/app/pomodoro/end"), 200, f.state());
         QVERIFY(!f.app.pomodoroSession()->isActive());
@@ -1156,7 +1178,7 @@ private Q_SLOTS:
 
         Fixture running;
         QVERIFY(running.connect(entryBody()));
-        QAction *locked = running.app.statusMenu()->pomodoroModeAction();
+        QAction *locked = running.app.statusMenu()->m_pomodoroModeAction;
         QVERIFY(!locked->isChecked());
         QVERIFY(!locked->isEnabled());
         QCOMPARE(locked->text(), QStringLiteral("Pomodoro mode (locked while running)"));
@@ -1172,68 +1194,68 @@ private Q_SLOTS:
         QVERIFY(f.connect(QByteArrayLiteral("null"), qint64(12)));
         StatusMenu &menu = *f.app.statusMenu();
         PomodoroSession &session = *f.app.pomodoroSession();
-        QVERIFY(menu.startStopAction()->isVisible());
-        QVERIFY(!menu.startSessionAction()->isVisible());
-        QVERIFY(!menu.nextPhaseAction()->isVisible());
-        QVERIFY(!menu.endSessionAction()->isVisible());
-        QVERIFY(!menu.messageAction()->isVisible());
+        QVERIFY(menu.m_startStopAction->isVisible());
+        QVERIFY(!menu.m_startSessionAction->isVisible());
+        QVERIFY(!menu.m_nextPhaseAction->isVisible());
+        QVERIFY(!menu.m_endSessionAction->isVisible());
+        QVERIFY(!menu.m_messageAction->isVisible());
 
         QVERIFY(f.setPomodoroMode(true));
-        QVERIFY(!menu.startStopAction()->isVisible());
-        QVERIFY(!menu.startStopAction()->isEnabled());
-        QVERIFY(menu.startSessionAction()->isVisible());
-        QVERIFY(menu.startSessionAction()->isEnabled());
-        QCOMPARE(menu.startSessionAction()->text(), QStringLiteral("Start session"));
-        QVERIFY(!menu.nextPhaseAction()->isVisible());
-        QVERIFY(!menu.endSessionAction()->isVisible());
-        QVERIFY(menu.stateAction()->text().startsWith(QStringLiteral("Stopped 0:00")));
+        QVERIFY(!menu.m_startStopAction->isVisible());
+        QVERIFY(!menu.m_startStopAction->isEnabled());
+        QVERIFY(menu.m_startSessionAction->isVisible());
+        QVERIFY(menu.m_startSessionAction->isEnabled());
+        QCOMPARE(menu.m_startSessionAction->text(), QStringLiteral("Start session"));
+        QVERIFY(!menu.m_nextPhaseAction->isVisible());
+        QVERIFY(!menu.m_endSessionAction->isVisible());
+        QVERIFY(menu.m_stateAction->text().startsWith(QStringLiteral("Stopped 0:00")));
 
         // Start session sends the chosen project and billable flag; the
         // server takes the account's lengths.
         const qsizetype before = f.transport.requests.size();
-        menu.startSessionAction()->trigger();
+        menu.m_startSessionAction->trigger();
         QCOMPARE(f.last("POST", "/app/pomodoro"), before);
         const QJsonObject start = f.lastBody("POST", "/app/pomodoro");
         QCOMPARE(start.value(QStringLiteral("project_id")).toInteger(), 12);
         QCOMPARE(start.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-macos"));
         // Another start waits for the answer.
-        QVERIFY(!menu.startSessionAction()->isEnabled());
+        QVERIFY(!menu.m_startSessionAction->isEnabled());
         const QDateTime begin = f.clock.now();
         f.respond(before, 200, f.sessionState(work(begin)));
         QVERIFY(session.isActive());
-        QVERIFY(!menu.startSessionAction()->isVisible());
-        QVERIFY(!menu.startStopAction()->isVisible());
-        QVERIFY(menu.nextPhaseAction()->isVisible());
-        QCOMPARE(menu.nextPhaseAction()->text(), QStringLiteral("Next phase: Short rest"));
-        QVERIFY(menu.endSessionAction()->isVisible());
-        QCOMPARE(menu.endSessionAction()->text(), QStringLiteral("End session"));
-        QCOMPARE(menu.stateAction()->text(), QStringLiteral("Work · 1:00 left · Pomodoro 1 of 2"));
-        QVERIFY(menu.projectMenu()->menuAction()->isEnabled());
+        QVERIFY(!menu.m_startSessionAction->isVisible());
+        QVERIFY(!menu.m_startStopAction->isVisible());
+        QVERIFY(menu.m_nextPhaseAction->isVisible());
+        QCOMPARE(menu.m_nextPhaseAction->text(), QStringLiteral("Next phase: Short rest"));
+        QVERIFY(menu.m_endSessionAction->isVisible());
+        QCOMPARE(menu.m_endSessionAction->text(), QStringLiteral("End session"));
+        QCOMPARE(menu.m_stateAction->text(), QStringLiteral("Work · 1:00 left · Pomodoro 1 of 2"));
+        QVERIFY(menu.m_projectMenu->menuAction()->isEnabled());
         QVERIFY(projectAction(menu, QStringLiteral("Alpha"))->isEnabled());
-        QVERIFY(menu.billableAction()->isEnabled());
+        QVERIFY(menu.m_billableAction->isEnabled());
 
         // Next phase sends the revision shown.
         f.advance(60);
-        menu.nextPhaseAction()->trigger();
+        menu.m_nextPhaseAction->trigger();
         QCOMPARE(f.lastBody("POST", "/app/pomodoro/next"), (QJsonObject{{QStringLiteral("revision"), f.revision}}));
         f.respond(f.last("POST", "/app/pomodoro/next"), 200, f.sessionState(shortRest(f.clock.now(), begin)));
         QCOMPARE(session.phase(), QStringLiteral("shortRest"));
-        QCOMPARE(menu.nextPhaseAction()->text(), QStringLiteral("Next phase: Work"));
-        QCOMPARE(menu.stateAction()->text(), QStringLiteral("Short rest · 1:00 left · Pomodoro 1 of 2"));
+        QCOMPARE(menu.m_nextPhaseAction->text(), QStringLiteral("Next phase: Work"));
+        QCOMPARE(menu.m_stateAction->text(), QStringLiteral("Short rest · 1:00 left · Pomodoro 1 of 2"));
 
         // End session ends it on the server. A pomodoro too short to save
         // is dropped and told.
-        menu.endSessionAction()->trigger();
+        menu.m_endSessionAction->trigger();
         QCOMPARE(f.lastBody("POST", "/app/pomodoro/end"), (QJsonObject{{QStringLiteral("revision"), f.revision}}));
         f.respond(f.last("POST", "/app/pomodoro/end"), 200, f.state(QByteArrayLiteral("null"), QJsonValue::Null, QJsonValue::Null, discardedJson(f.clock.now())));
         QVERIFY(!session.isActive());
-        QVERIFY(menu.messageAction()->isVisible());
-        QVERIFY(!menu.messageAction()->isEnabled());
-        QCOMPARE(menu.messageAction()->text(), QStringLiteral("This pomodoro was too short to save."));
-        QVERIFY(menu.startSessionAction()->isVisible());
-        QVERIFY(!menu.nextPhaseAction()->isVisible());
-        QVERIFY(!menu.endSessionAction()->isVisible());
-        QVERIFY(menu.pomodoroModeAction()->isEnabled());
+        QVERIFY(menu.m_messageAction->isVisible());
+        QVERIFY(!menu.m_messageAction->isEnabled());
+        QCOMPARE(menu.m_messageAction->text(), QStringLiteral("This pomodoro was too short to save."));
+        QVERIFY(menu.m_startSessionAction->isVisible());
+        QVERIFY(!menu.m_nextPhaseAction->isVisible());
+        QVERIFY(!menu.m_endSessionAction->isVisible());
+        QVERIFY(menu.m_pomodoroModeAction->isEnabled());
     }
 
     // A session started on another device shows in Timer mode: the state
@@ -1247,7 +1269,7 @@ private Q_SLOTS:
         StatusMenu &menu = *f.app.statusMenu();
         PomodoroSession &session = *f.app.pomodoroSession();
         QVERIFY(!session.pomodoroMode());
-        QVERIFY(menu.startStopAction()->isVisible());
+        QVERIFY(menu.m_startStopAction->isVisible());
 
         const QDateTime begin = f.clock.now().addSecs(-10);
         QVERIFY(f.push(f.sessionState(work(begin))));
@@ -1257,17 +1279,17 @@ private Q_SLOTS:
         QCOMPARE(f.item.title, QStringLiteral("0:50"));
         QCOMPARE(f.item.toolTip, QStringLiteral("Work · 0:50 left · Pomodoro 1 of 2"));
         QCOMPARE(f.item.accessibleName, f.item.toolTip);
-        QCOMPARE(menu.stateAction()->text(), f.item.toolTip);
-        QVERIFY(!menu.startStopAction()->isVisible());
-        QVERIFY(!menu.startStopAction()->isEnabled());
-        QVERIFY(!menu.startSessionAction()->isVisible());
-        QVERIFY(menu.nextPhaseAction()->isVisible());
-        QCOMPARE(menu.nextPhaseAction()->text(), QStringLiteral("Next phase: Short rest"));
-        QVERIFY(menu.endSessionAction()->isVisible());
+        QCOMPARE(menu.m_stateAction->text(), f.item.toolTip);
+        QVERIFY(!menu.m_startStopAction->isVisible());
+        QVERIFY(!menu.m_startStopAction->isEnabled());
+        QVERIFY(!menu.m_startSessionAction->isVisible());
+        QVERIFY(menu.m_nextPhaseAction->isVisible());
+        QCOMPARE(menu.m_nextPhaseAction->text(), QStringLiteral("Next phase: Short rest"));
+        QVERIFY(menu.m_endSessionAction->isVisible());
         // The mode is locked while the session runs, wherever it began.
-        QVERIFY(!menu.pomodoroModeAction()->isChecked());
-        QVERIFY(!menu.pomodoroModeAction()->isEnabled());
-        QCOMPARE(menu.pomodoroModeAction()->text(), QStringLiteral("Pomodoro mode (locked while running)"));
+        QVERIFY(!menu.m_pomodoroModeAction->isChecked());
+        QVERIFY(!menu.m_pomodoroModeAction->isEnabled());
+        QCOMPARE(menu.m_pomodoroModeAction->text(), QStringLiteral("Pomodoro mode (locked while running)"));
         QVERIFY(!f.setPomodoroMode(true));
 
         // The click opens the menu before the planned end and confirms Next
@@ -1282,17 +1304,17 @@ private Q_SLOTS:
         QVERIFY(f.last("POST", "/app/pomodoro/next") >= 0);
         f.respond(f.last("POST", "/app/pomodoro/next"), 200, f.sessionState(shortRest(f.clock.now(), begin)));
         QCOMPARE(f.item.title, QStringLiteral("1:00"));
-        QCOMPARE(menu.nextPhaseAction()->text(), QStringLiteral("Next phase: Work"));
+        QCOMPARE(menu.m_nextPhaseAction->text(), QStringLiteral("Next phase: Work"));
 
         // The other device ends it.
         QVERIFY(f.push(f.state()));
         QVERIFY(!session.isActive());
-        QVERIFY(!menu.nextPhaseAction()->isVisible());
-        QVERIFY(!menu.endSessionAction()->isVisible());
-        QVERIFY(menu.startStopAction()->isVisible());
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Start Timer"));
-        QTRY_VERIFY(menu.startStopAction()->isEnabled());
-        QVERIFY(menu.pomodoroModeAction()->isEnabled());
+        QVERIFY(!menu.m_nextPhaseAction->isVisible());
+        QVERIFY(!menu.m_endSessionAction->isVisible());
+        QVERIFY(menu.m_startStopAction->isVisible());
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Start Timer"));
+        QTRY_VERIFY(menu.m_startStopAction->isEnabled());
+        QVERIFY(menu.m_pomodoroModeAction->isEnabled());
         QCOMPARE(f.item.title, QStringLiteral("0:00"));
     }
 
@@ -1304,11 +1326,11 @@ private Q_SLOTS:
         QVERIFY(f.connect(chainEntryBody(41, f.clock.now()), std::nullopt, QJsonValue::Null, pomodoroJson(work(f.clock.now()), 41)));
         StatusMenu &menu = *f.app.statusMenu();
         QVERIFY(f.app.pomodoroSession()->isActive());
-        QVERIFY(!menu.startSessionAction()->isVisible());
-        QVERIFY(!menu.startStopAction()->isVisible());
-        QVERIFY(menu.nextPhaseAction()->isVisible());
-        QVERIFY(menu.endSessionAction()->isVisible());
-        QVERIFY(!menu.pomodoroModeAction()->isEnabled());
+        QVERIFY(!menu.m_startSessionAction->isVisible());
+        QVERIFY(!menu.m_startStopAction->isVisible());
+        QVERIFY(menu.m_nextPhaseAction->isVisible());
+        QVERIFY(menu.m_endSessionAction->isVisible());
+        QVERIFY(!menu.m_pomodoroModeAction->isEnabled());
     }
 
     // Start session is disabled until a state has been read, and while an
@@ -1318,10 +1340,10 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.setPomodoroMode(true));
         StatusMenu &menu = *f.app.statusMenu();
-        QVERIFY(menu.startSessionAction()->isVisible());
-        QVERIFY(!menu.startSessionAction()->isEnabled());
+        QVERIFY(menu.m_startSessionAction->isVisible());
+        QVERIFY(!menu.m_startSessionAction->isEnabled());
         QVERIFY(f.connect(QByteArrayLiteral("null")));
-        QVERIFY(menu.startSessionAction()->isEnabled());
+        QVERIFY(menu.m_startSessionAction->isEnabled());
     }
 
     // A refused action leaves its message under the state line; the next
@@ -1333,14 +1355,14 @@ private Q_SLOTS:
         QVERIFY(f.setPomodoroMode(true));
         StatusMenu &menu = *f.app.statusMenu();
         const qsizetype before = f.transport.requests.size();
-        menu.startSessionAction()->trigger();
+        menu.m_startSessionAction->trigger();
         QCOMPARE(f.last("POST", "/app/pomodoro"), before);
         f.respond(before, 422, QByteArrayLiteral("\"No such project\""));
         QTRY_VERIFY(!f.app.pomodoroSession()->message().isEmpty());
         QVERIFY(!f.app.pomodoroSession()->isActive());
-        QVERIFY(menu.messageAction()->isVisible());
-        QCOMPARE(menu.messageAction()->text(), f.app.pomodoroSession()->message());
-        QTRY_VERIFY(menu.startSessionAction()->isEnabled());
+        QVERIFY(menu.m_messageAction->isVisible());
+        QCOMPARE(menu.m_messageAction->text(), f.app.pomodoroSession()->message());
+        QTRY_VERIFY(menu.m_startSessionAction->isEnabled());
     }
 
     // The session keeps counting from the last state held when the instance
@@ -1359,18 +1381,18 @@ private Q_SLOTS:
         QTRY_VERIFY(f.app.timer()->isStale());
         QCOMPARE(f.item.title, QStringLiteral("0:30 !"));
         QCOMPARE(f.item.toolTip, QStringLiteral("Work · 0:30 left · Pomodoro 1 of 2 · Offline, showing the last known state"));
-        QCOMPARE(menu.stateAction()->text(), f.item.toolTip);
+        QCOMPARE(menu.m_stateAction->text(), f.item.toolTip);
         // The name for a screen reader stays short.
         QCOMPARE(f.item.accessibleName, QStringLiteral("Work · 0:30 left · Pomodoro 1 of 2"));
 
         // Next phase still tries; when the request fails the menu says why.
-        menu.nextPhaseAction()->trigger();
+        menu.m_nextPhaseAction->trigger();
         const qsizetype next = f.last("POST", "/app/pomodoro/next");
         QVERIFY(next > poll);
         f.transport.respond(next, FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
         QTRY_VERIFY(!f.app.pomodoroSession()->message().isEmpty());
-        QVERIFY(menu.messageAction()->isVisible());
-        QCOMPARE(menu.messageAction()->text(), f.app.pomodoroSession()->message());
+        QVERIFY(menu.m_messageAction->isVisible());
+        QCOMPARE(menu.m_messageAction->text(), f.app.pomodoroSession()->message());
     }
 
     // During a session the title counts the phase down, then the overtime up,
@@ -1397,7 +1419,7 @@ private Q_SLOTS:
         QCOMPARE(f.item.title, QStringLiteral("+1:05"));
         QCOMPARE(f.item.toolTip, QStringLiteral("Work · +1:05 overtime · Pomodoro 1 of 2"));
         QCOMPARE(f.item.accessibleName, f.item.toolTip);
-        QCOMPARE(f.app.statusMenu()->stateAction()->text(), f.item.toolTip);
+        QCOMPARE(f.app.statusMenu()->m_stateAction->text(), f.item.toolTip);
     }
 
     // A primary click in Pomodoro mode starts a session, opens the menu in
@@ -1454,9 +1476,9 @@ private Q_SLOTS:
         QVERIFY(f.item.toolTip.endsWith(QStringLiteral(" · Pomodoro mode")));
         QVERIFY(!f.item.image.hourglass.isEmpty());
         StatusMenu &menu = *f.app.statusMenu();
-        QVERIFY(menu.startStopAction()->isVisible());
-        QCOMPARE(menu.startStopAction()->text(), QStringLiteral("Stop Timer"));
-        QVERIFY(!menu.startSessionAction()->isVisible());
+        QVERIFY(menu.m_startStopAction->isVisible());
+        QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Stop Timer"));
+        QVERIFY(!menu.m_startSessionAction->isVisible());
 
         const qsizetype before = f.transport.requests.size();
         f.item.click();
@@ -1503,8 +1525,8 @@ private Q_SLOTS:
         f.advance(5);
         QCOMPARE(f.player.loops.size(), 1);
 
-        QVERIFY(f.app.statusMenu()->nextPhaseAction()->isEnabled());
-        f.app.statusMenu()->nextPhaseAction()->trigger();
+        QVERIFY(f.app.statusMenu()->m_nextPhaseAction->isEnabled());
+        f.app.statusMenu()->m_nextPhaseAction->trigger();
         f.respond(f.last("POST", "/app/pomodoro/next"), 200, f.sessionState(shortRest(f.clock.now(), begin)));
         QVERIFY(!f.app.pomodoroSession()->isRinging());
         QVERIFY(f.player.looping.isEmpty());
@@ -1530,7 +1552,7 @@ private Q_SLOTS:
 
         Fixture relaunched(f.settings.fileName());
         QVERIFY(relaunched.app.pomodoroSession()->pomodoroMode());
-        QVERIFY(relaunched.app.statusMenu()->pomodoroModeAction()->isChecked());
+        QVERIFY(relaunched.app.statusMenu()->m_pomodoroModeAction->isChecked());
         QVERIFY(!relaunched.item.image.hourglass.isEmpty());
         QVERIFY(relaunched.app.pomodoroPreferences());
     }
@@ -1579,13 +1601,13 @@ private Q_SLOTS:
         QVERIFY(f.connect(entryBody()));
         StatusMenu &menu = *f.app.statusMenu();
         QSignalSpy open(&f.app, &MenuBarApp::openUrlRequested);
-        menu.openAction()->trigger();
+        menu.m_openAction->trigger();
         QCOMPARE(open.size(), 1);
         QCOMPARE(open.first().first().toUrl(), QUrl(QStringLiteral("https://a.example.test/")));
         QSignalSpy quit(&f.app, &MenuBarApp::quitRequested);
-        menu.quitAction()->trigger();
+        menu.m_quitAction->trigger();
         QCOMPARE(quit.size(), 1);
-        menu.settingsAction()->trigger();
+        menu.m_settingsAction->trigger();
         QVERIFY(f.app.settingsWindow()->isVisible());
     }
 
@@ -1596,11 +1618,11 @@ private Q_SLOTS:
         Fixture f;
         f.app.start();
         SettingsWindow &window = *f.app.settingsWindow();
-        QVERIFY(window.tokenButton()->isChecked());
-        QVERIFY(!window.emailField()->isVisibleTo(&window));
-        window.urlField()->setText(QStringLiteral("  https://a.example.test/tokkl/  "));
-        QTest::keyClicks(window.secretField(), token);
-        QVERIFY(window.testButton()->isEnabled());
+        QVERIFY(window.m_tokenButton->isChecked());
+        QVERIFY(!window.m_emailField->isVisibleTo(&window));
+        window.m_urlField->setText(QStringLiteral("  https://a.example.test/tokkl/  "));
+        QTest::keyClicks(window.m_secretField, token);
+        QVERIFY(window.m_testButton->isEnabled());
         QSignalSpy saved(&window, &SettingsWindow::saved);
         QVERIFY(window.save());
         QTRY_COMPARE(saved.count(), 1);
@@ -1630,20 +1652,20 @@ private Q_SLOTS:
         SettingsWindow &window = *f.app.settingsWindow();
         QVERIFY(window.isVisible());
         QSignalSpy saved(&window, &SettingsWindow::saved);
-        window.urlField()->setText(instance);
-        QTest::keyClicks(window.secretField(), token);
-        window.monochromeToggle()->setChecked(true);
-        window.saveButton()->click();
+        window.m_urlField->setText(instance);
+        QTest::keyClicks(window.m_secretField, token);
+        window.m_monochromeToggle->setChecked(true);
+        window.m_saveButton->click();
 
         QTRY_COMPARE(f.store.held.size(), 1);
         QCoreApplication::processEvents();
         QCOMPARE(saved.count(), 0);
         QVERIFY(window.isVisible());
-        QVERIFY(!window.saveButton()->isEnabled());
+        QVERIFY(!window.m_saveButton->isEnabled());
         QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
         QVERIFY(!f.settings.contains(SettingsSave::monochromeIconKey));
         // The pending save owns a snapshot, even if the checkbox changes.
-        window.monochromeToggle()->setChecked(false);
+        window.m_monochromeToggle->setChecked(false);
         QVERIFY(f.app.connection()->instanceUrl().isEmpty());
 
         f.store.finish(CredentialResult::Status::Ok);
@@ -1665,27 +1687,27 @@ private Q_SLOTS:
         f.app.start();
         SettingsWindow &window = *f.app.settingsWindow();
         QSignalSpy saved(&window, &SettingsWindow::saved);
-        window.urlField()->setText(instance);
-        QTest::keyClicks(window.secretField(), token);
-        window.monochromeToggle()->setChecked(true);
-        window.saveButton()->click();
+        window.m_urlField->setText(instance);
+        QTest::keyClicks(window.m_secretField, token);
+        window.m_monochromeToggle->setChecked(true);
+        window.m_saveButton->click();
         QTRY_COMPARE(f.store.held.size(), 1);
 
         f.store.finish(CredentialResult::Status::Unavailable);
-        QTRY_VERIFY(window.storeError()->isVisibleTo(&window));
-        QCOMPARE(window.storeError()->text(), f.store.message(CredentialResult{CredentialResult::Status::Unavailable, {}}));
+        QTRY_VERIFY(window.m_storeError->isVisibleTo(&window));
+        QCOMPARE(window.m_storeError->text(), f.store.message(CredentialResult{CredentialResult::Status::Unavailable, {}}));
         QCOMPARE(saved.count(), 0);
         QVERIFY(window.isVisible());
-        QCOMPARE(window.secretField()->text(), token);
-        QVERIFY(window.saveButton()->isEnabled());
+        QCOMPARE(window.m_secretField->text(), token);
+        QVERIFY(window.m_saveButton->isEnabled());
         QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
         QVERIFY(!f.settings.contains(SettingsSave::monochromeIconKey));
         QVERIFY(!f.item.image.monochromeLogo);
         QVERIFY(f.store.secrets.isEmpty());
 
-        window.saveButton()->click();
+        window.m_saveButton->click();
         QTRY_COMPARE(f.store.held.size(), 1);
-        QVERIFY(!window.storeError()->isVisibleTo(&window));
+        QVERIFY(!window.m_storeError->isVisibleTo(&window));
         f.store.finish(CredentialResult::Status::Ok);
         QTRY_COMPARE(saved.count(), 1);
         QVERIFY(!window.isVisible());
@@ -1697,8 +1719,8 @@ private Q_SLOTS:
         Fixture f;
         f.app.start();
         SettingsWindow &window = *f.app.settingsWindow();
-        window.urlField()->setText(QStringLiteral("https://bea:secret@a.example.test"));
-        QVERIFY(window.urlNote()->isVisibleTo(&window));
+        window.m_urlField->setText(QStringLiteral("https://bea:secret@a.example.test"));
+        QVERIFY(window.m_urlNote->isVisibleTo(&window));
         QVERIFY(!window.save());
         QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
     }
@@ -1708,26 +1730,26 @@ private Q_SLOTS:
         Fixture f;
         f.app.start();
         SettingsWindow &window = *f.app.settingsWindow();
-        window.urlField()->setText(instance);
-        window.passwordButton()->setChecked(true);
-        QVERIFY(window.emailField()->isVisibleTo(&window));
-        window.emailField()->setText(QStringLiteral("bea@example.test"));
-        QTest::keyClicks(window.secretField(), QStringLiteral("pw-1"));
-        QVERIFY(window.testButton()->isEnabled());
+        window.m_urlField->setText(instance);
+        window.m_passwordButton->setChecked(true);
+        QVERIFY(window.m_emailField->isVisibleTo(&window));
+        window.m_emailField->setText(QStringLiteral("bea@example.test"));
+        QTest::keyClicks(window.m_secretField, QStringLiteral("pw-1"));
+        QVERIFY(window.m_testButton->isEnabled());
 
-        window.testButton()->click();
+        window.m_testButton->click();
         const qsizetype test = f.last("GET", "/me");
         QVERIFY(test >= 0);
         QCOMPARE(f.transport.requests.at(test).authorization, QByteArray("Basic ") + QByteArray("bea@example.test:pw-1").toBase64());
-        QCOMPARE(window.testResult()->text(), QStringLiteral("Testing…"));
+        QCOMPARE(window.m_testResult->text(), QStringLiteral("Testing…"));
         f.respond(test, 200, meBody());
-        QCOMPARE(window.setup()->testResult(), ConnectionSetup::Succeeded);
-        QVERIFY2(window.testResult()->text().contains(QStringLiteral("Connected as Bea")), qPrintable(window.testResult()->text()));
+        QCOMPARE(window.m_setup->testResult(), ConnectionSetup::Succeeded);
+        QVERIFY2(window.m_testResult->text().contains(QStringLiteral("Connected as Bea")), qPrintable(window.m_testResult->text()));
 
-        window.testButton()->click();
+        window.m_testButton->click();
         f.respond(f.last("GET", "/me"), 401, QByteArrayLiteral(R"({"error":"bad"})"));
-        QCOMPARE(window.setup()->testResult(), ConnectionSetup::Failed);
-        QVERIFY(window.testResult()->text().contains(QStringLiteral("refused")));
+        QCOMPARE(window.m_setup->testResult(), ConnectionSetup::Failed);
+        QVERIFY(window.m_testResult->text().contains(QStringLiteral("refused")));
 
         // Nothing is kept before Save.
         QVERIFY(f.store.secrets.isEmpty());
@@ -1747,12 +1769,12 @@ private Q_SLOTS:
         QVERIFY(f.connect(entryBody()));
         SettingsWindow &window = *f.app.settingsWindow();
         f.app.showSettings();
-        QTRY_COMPARE(window.secretField()->text(), token);
-        window.secretField()->clear();
-        QTest::keyClicks(window.secretField(), QStringLiteral("typed"));
+        QTRY_COMPARE(window.m_secretField->text(), token);
+        window.m_secretField->clear();
+        QTest::keyClicks(window.m_secretField, QStringLiteral("typed"));
         window.close();
         f.app.showSettings();
-        QTRY_COMPARE(window.secretField()->text(), token);
+        QTRY_COMPARE(window.m_secretField->text(), token);
     }
 
     // Opening the window reads the lengths again, and the spin boxes take
@@ -1769,23 +1791,23 @@ private Q_SLOTS:
             R"({"pomodoro_focus_interval_in_minutes":30,"pomodoro_break_interval_in_minutes":7,)"
             R"("pomodoro_long_break_interval_in_minutes":20,"pomodoro_long_break_every":3})"));
 
-        QTRY_COMPARE(window.lengthBox(PomodoroField::WorkMinutes)->value(), 30);
-        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->value(), 7);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->value(), 20);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->value(), 3);
+        QTRY_COMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 30);
+        QCOMPARE(lengthBox(window, PomodoroField::ShortRestMinutes)->value(), 7);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->value(), 20);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestEvery)->value(), 3);
         for (const PomodoroField field : {PomodoroField::WorkMinutes, PomodoroField::ShortRestMinutes, PomodoroField::LongRestMinutes, PomodoroField::LongRestEvery}) {
-            QVERIFY(!window.lengthBox(field)->isReadOnly());
-            QVERIFY(!window.lengthError(field)->isVisibleTo(&window));
+            QVERIFY(!lengthBox(window, field)->isReadOnly());
+            QVERIFY(!lengthError(window, field)->isVisibleTo(&window));
         }
-        QCOMPARE(window.lengthBox(PomodoroField::WorkMinutes)->minimum(), 1);
-        QCOMPARE(window.lengthBox(PomodoroField::WorkMinutes)->maximum(), 180);
-        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->minimum(), 1);
-        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->maximum(), 60);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->minimum(), 1);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->maximum(), 60);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->minimum(), 1);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->maximum(), 12);
-        QVERIFY(!window.lengthsNote()->isVisibleTo(&window));
+        QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->minimum(), 1);
+        QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->maximum(), 180);
+        QCOMPARE(lengthBox(window, PomodoroField::ShortRestMinutes)->minimum(), 1);
+        QCOMPARE(lengthBox(window, PomodoroField::ShortRestMinutes)->maximum(), 60);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->minimum(), 1);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->maximum(), 60);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestEvery)->minimum(), 1);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestEvery)->maximum(), 12);
+        QVERIFY(!window.m_lengthsNote->isVisibleTo(&window));
     }
 
     // Save posts the lengths that changed, and only those, next to the
@@ -1798,14 +1820,14 @@ private Q_SLOTS:
         f.app.showSettings();
         QVERIFY(f.waitFor("GET", "/me/preferences", qsizetype(f.transport.requests.size()) - 2));
         f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
-        QTRY_COMPARE(window.secretField()->text(), token);
-        QTRY_COMPARE(window.lengthBox(PomodoroField::WorkMinutes)->value(), 1);
+        QTRY_COMPARE(window.m_secretField->text(), token);
+        QTRY_COMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 1);
 
-        window.lengthBox(PomodoroField::WorkMinutes)->setValue(30);
-        window.lengthBox(PomodoroField::LongRestEvery)->setValue(3);
+        lengthBox(window, PomodoroField::WorkMinutes)->setValue(30);
+        lengthBox(window, PomodoroField::LongRestEvery)->setValue(3);
         QSignalSpy saved(&window, &SettingsWindow::saved);
         const qsizetype before = f.transport.requests.size();
-        window.saveButton()->click();
+        window.m_saveButton->click();
         const qsizetype post = f.last("POST", "/me/preferences");
         QVERIFY(post >= before);
         QCOMPARE(jsonBody(f.transport.requests.at(post)),
@@ -1813,22 +1835,22 @@ private Q_SLOTS:
         // The Keychain has the secret; the window waits for the server.
         QTRY_COMPARE(saved.count(), 1);
         QVERIFY(window.isVisible());
-        QVERIFY(!window.saveButton()->isEnabled());
+        QVERIFY(!window.m_saveButton->isEnabled());
 
         f.respond(post, 200, QByteArrayLiteral(
             R"({"pomodoro_focus_interval_in_minutes":30,"pomodoro_break_interval_in_minutes":1,)"
             R"("pomodoro_long_break_interval_in_minutes":1,"pomodoro_long_break_every":3})"));
         QTRY_VERIFY(!window.isVisible());
         QCOMPARE(f.app.pomodoroPreferences()->workMinutes(), 30);
-        QVERIFY(window.saveButton()->isEnabled());
+        QVERIFY(window.m_saveButton->isEnabled());
 
         // Nothing changed: Save posts no lengths and closes once the
         // Keychain has the secret.
         f.app.showSettings();
         f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
-        QTRY_COMPARE(window.secretField()->text(), token);
+        QTRY_COMPARE(window.m_secretField->text(), token);
         const qsizetype again = f.transport.requests.size();
-        window.saveButton()->click();
+        window.m_saveButton->click();
         QTRY_VERIFY(!window.isVisible());
         QCOMPARE(f.find("POST", "/me/preferences").size(), 1);
         QVERIFY(f.transport.requests.size() >= again);
@@ -1843,29 +1865,29 @@ private Q_SLOTS:
         SettingsWindow &window = *f.app.settingsWindow();
         f.app.showSettings();
         f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
-        QTRY_COMPARE(window.secretField()->text(), token);
+        QTRY_COMPARE(window.m_secretField->text(), token);
 
-        window.lengthBox(PomodoroField::LongRestMinutes)->setValue(45);
-        window.saveButton()->click();
+        lengthBox(window, PomodoroField::LongRestMinutes)->setValue(45);
+        window.m_saveButton->click();
         const qsizetype post = f.last("POST", "/me/preferences");
         QVERIFY(post >= 0);
         f.respond(post, 400, QByteArrayLiteral(R"("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")"));
-        QTRY_VERIFY(window.lengthError(PomodoroField::LongRestMinutes)->isVisibleTo(&window));
-        QCOMPARE(window.lengthError(PomodoroField::LongRestMinutes)->text(),
+        QTRY_VERIFY(lengthError(window, PomodoroField::LongRestMinutes)->isVisibleTo(&window));
+        QCOMPARE(lengthError(window, PomodoroField::LongRestMinutes)->text(),
                  QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
-        QVERIFY(!window.lengthError(PomodoroField::WorkMinutes)->isVisibleTo(&window));
-        QVERIFY(!window.pomodoroError()->isVisibleTo(&window));
+        QVERIFY(!lengthError(window, PomodoroField::WorkMinutes)->isVisibleTo(&window));
+        QVERIFY(!window.m_pomodoroError->isVisibleTo(&window));
         QVERIFY(window.isVisible());
-        QVERIFY(window.saveButton()->isEnabled());
+        QVERIFY(window.m_saveButton->isEnabled());
         // The typed value stays for another try.
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->value(), 45);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->value(), 45);
 
         // A failure that names no field is the general error.
-        window.saveButton()->click();
+        window.m_saveButton->click();
         f.respond(f.last("POST", "/me/preferences"), 400, QByteArrayLiteral(R"("Preferences are too large")"));
-        QTRY_VERIFY(window.pomodoroError()->isVisibleTo(&window));
-        QCOMPARE(window.pomodoroError()->text(), QStringLiteral("Preferences are too large"));
-        QVERIFY(!window.lengthError(PomodoroField::LongRestMinutes)->isVisibleTo(&window));
+        QTRY_VERIFY(window.m_pomodoroError->isVisibleTo(&window));
+        QCOMPARE(window.m_pomodoroError->text(), QStringLiteral("Preferences are too large"));
+        QVERIFY(!lengthError(window, PomodoroField::LongRestMinutes)->isVisibleTo(&window));
         QVERIFY(window.isVisible());
     }
 
@@ -1878,16 +1900,16 @@ private Q_SLOTS:
         SettingsWindow &window = *f.app.settingsWindow();
         QVERIFY(window.isVisible());
         QVERIFY(f.transport.requests.isEmpty());
-        QCOMPARE(window.lengthBox(PomodoroField::WorkMinutes)->value(), 25);
-        QCOMPARE(window.lengthBox(PomodoroField::ShortRestMinutes)->value(), 5);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestMinutes)->value(), 15);
-        QCOMPARE(window.lengthBox(PomodoroField::LongRestEvery)->value(), 4);
+        QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 25);
+        QCOMPARE(lengthBox(window, PomodoroField::ShortRestMinutes)->value(), 5);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->value(), 15);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestEvery)->value(), 4);
         for (const PomodoroField field : {PomodoroField::WorkMinutes, PomodoroField::ShortRestMinutes, PomodoroField::LongRestMinutes, PomodoroField::LongRestEvery}) {
-            QVERIFY(window.lengthBox(field)->isReadOnly());
+            QVERIFY(lengthBox(window, field)->isReadOnly());
         }
-        QVERIFY(window.lengthsNote()->isVisibleTo(&window));
-        QVERIFY(window.lengthsNote()->text().contains(QStringLiteral("connection")));
-        QVERIFY(!window.pomodoroError()->isVisibleTo(&window));
+        QVERIFY(window.m_lengthsNote->isVisibleTo(&window));
+        QVERIFY(window.m_lengthsNote->text().contains(QStringLiteral("connection")));
+        QVERIFY(!window.m_pomodoroError->isVisibleTo(&window));
     }
 
     // The sound choices list the catalogue, default to the sound named
@@ -1900,22 +1922,22 @@ private Q_SLOTS:
         Fixture f;
         f.app.start();
         SettingsWindow &window = *f.app.settingsWindow();
-        QComboBox *box = window.soundBox(TransitionKind::WorkToShortRest);
+        QComboBox *box = soundBox(window, TransitionKind::WorkToShortRest);
         QCOMPARE(box->count(), 4);
         for (int i = 0; i < 4; ++i) {
             QCOMPARE(box->itemText(i), sounds.at(i).label);
         }
         QCOMPARE(box->currentIndex(), 0);
-        QCOMPARE(window.soundBox(TransitionKind::ShortRestToWork)->currentIndex(), 1);
-        QCOMPARE(window.soundBox(TransitionKind::WorkToLongRest)->currentIndex(), 2);
-        QCOMPARE(window.soundBox(TransitionKind::LongRestToWork)->currentIndex(), 3);
+        QCOMPARE(soundBox(window, TransitionKind::ShortRestToWork)->currentIndex(), 1);
+        QCOMPARE(soundBox(window, TransitionKind::WorkToLongRest)->currentIndex(), 2);
+        QCOMPARE(soundBox(window, TransitionKind::LongRestToWork)->currentIndex(), 3);
 
         box->setCurrentIndex(3);
         QVERIFY(!f.settings.contains(MenuBarApp::soundKey(TransitionKind::WorkToShortRest)));
-        window.urlField()->setText(instance);
-        QTest::keyClicks(window.secretField(), token);
+        window.m_urlField->setText(instance);
+        QTest::keyClicks(window.m_secretField, token);
         QSignalSpy saved(&window, &SettingsWindow::saved);
-        window.saveButton()->click();
+        window.m_saveButton->click();
         QTRY_COMPARE(saved.count(), 1);
         QCOMPARE(f.settings.value(MenuBarApp::soundKey(TransitionKind::WorkToShortRest)).toString(), QStringLiteral("long-rest-to-work"));
         // The untouched choices are kept as they showed.
@@ -1925,8 +1947,8 @@ private Q_SLOTS:
 
         Fixture relaunched(f.settings.fileName());
         relaunched.app.showSettings();
-        QCOMPARE(relaunched.app.settingsWindow()->soundBox(TransitionKind::WorkToShortRest)->currentIndex(), 3);
-        QCOMPARE(relaunched.app.settingsWindow()->soundBox(TransitionKind::LongRestToWork)->currentIndex(), 3);
+        QCOMPARE(soundBox(*relaunched.app.settingsWindow(), TransitionKind::WorkToShortRest)->currentIndex(), 3);
+        QCOMPARE(soundBox(*relaunched.app.settingsWindow(), TransitionKind::LongRestToWork)->currentIndex(), 3);
     }
 
     // Preview plays the sound selected next to it once, through the player,
@@ -1936,10 +1958,10 @@ private Q_SLOTS:
         Fixture f;
         f.app.start();
         SettingsWindow &window = *f.app.settingsWindow();
-        window.soundBox(TransitionKind::LongRestToWork)->setCurrentIndex(1);
-        window.previewButton(TransitionKind::LongRestToWork)->click();
+        soundBox(window, TransitionKind::LongRestToWork)->setCurrentIndex(1);
+        previewButton(window, TransitionKind::LongRestToWork)->click();
         QCOMPARE(f.player.previews, QStringList{soundFile(QStringLiteral("short-rest-to-work"))});
-        window.previewButton(TransitionKind::WorkToLongRest)->click();
+        previewButton(window, TransitionKind::WorkToLongRest)->click();
         QCOMPARE(f.player.previews.size(), 2);
         QCOMPARE(f.player.previews.last(), soundFile(QStringLiteral("work-to-long-rest")));
         QVERIFY(f.player.loops.isEmpty());
@@ -1951,29 +1973,29 @@ private Q_SLOTS:
         Fixture f;
         SettingsWindow &window = *f.app.settingsWindow();
         f.app.showSettings();
-        QVERIFY(window.loginToggle()->isVisibleTo(&window));
-        QVERIFY(!window.loginToggle()->isChecked());
+        QVERIFY(window.m_loginToggle->isVisibleTo(&window));
+        QVERIFY(!window.m_loginToggle->isChecked());
 
-        window.loginToggle()->click();
+        window.m_loginToggle->click();
         QCOMPARE(f.login.calls, QList<bool>{true});
-        QVERIFY(window.loginToggle()->isChecked());
-        window.loginToggle()->click();
+        QVERIFY(window.m_loginToggle->isChecked());
+        window.m_loginToggle->click();
         QCOMPARE(f.login.calls, (QList<bool>{true, false}));
-        QVERIFY(!window.loginToggle()->isChecked());
+        QVERIFY(!window.m_loginToggle->isChecked());
 
         // A refused registration leaves the toggle as the system has it.
         f.login.failure = QStringLiteral("Tokkl could not be added to the login items.");
-        window.loginToggle()->click();
-        QVERIFY(!window.loginToggle()->isChecked());
-        QCOMPARE(window.loginNote()->text(), f.login.failure);
+        window.m_loginToggle->click();
+        QVERIFY(!window.m_loginToggle->isChecked());
+        QCOMPARE(window.m_loginNote->text(), f.login.failure);
 
         // Waiting for approval counts as on, with a pointer to System Settings.
         f.login.failure.clear();
         f.login.current = LoginItem::State::RequiresApproval;
         window.close();
         f.app.showSettings();
-        QVERIFY(window.loginToggle()->isChecked());
-        QVERIFY(window.loginNote()->text().contains(QStringLiteral("Login Items")));
+        QVERIFY(window.m_loginToggle->isChecked());
+        QVERIFY(window.m_loginNote->text().contains(QStringLiteral("Login Items")));
     }
 };
 
