@@ -1,28 +1,26 @@
 import { useState } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useRestoreEntry } from '../api/hooks.ts';
+import { entryRequests, useRestoreEntry, useTrash } from '../api/entries.ts';
+import { stale } from '../api/keys.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { ProjectDot } from '../components/Pickers.tsx';
 import { useToast } from '../components/Toast.tsx';
-import { localDay } from '../lib/entryTime.ts';
-import { duration, entrySeconds, formatDate, formatTime, useSettings, type Settings } from '../lib/settings.ts';
-import { useAction, useTrash } from './manage/queries.ts';
+import { useSettings } from '../api/settings.ts';
+import { duration, formatDateTime } from '../lib/format.ts';
+import { type Settings } from '../lib/settings.ts';
+import { entrySeconds } from '../lib/snapping.ts';
+import { useAction } from '../components/useAction.ts';
 import { ConfirmModal, plural } from './manage/ui.tsx';
 import './manage/manage.css';
-
-function dateTime(iso: string, settings: Settings): string {
-  return `${formatDate(localDay(iso, settings.timeZone), settings.dateFormat)} ${formatTime(iso, settings)}`;
-}
 
 function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings }) {
   const toast = useToast();
   const restore = useRestoreEntry();
   const purge = useAction({
-    mutationFn: () => api.delete(`/api/app/trash/${entry.id}`),
-    invalidate: [keys.trash],
+    mutationFn: () => entryRequests.purge(entry.id),
+    invalidate: stale.trash,
     success: 'Deleted the entry for good',
   });
 
@@ -39,11 +37,11 @@ function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings })
           <span className="muted">No project</span>
         )}
       </td>
-      <td className="num">{dateTime(entry.start, settings)}</td>
+      <td className="num">{formatDateTime(entry.start, settings)}</td>
       <td className="num">
         {entry.stop ? duration(entrySeconds(entry, new Date()), settings) : <span className="muted">Running</span>}
       </td>
-      <td className="num">{entry.server_deleted_at ? dateTime(entry.server_deleted_at, settings) : null}</td>
+      <td className="num">{entry.server_deleted_at ? formatDateTime(entry.server_deleted_at, settings) : null}</td>
       <td className="manage-actions">
         <button
           type="button"
@@ -79,8 +77,8 @@ export function TrashPage() {
   const [confirmEmpty, setConfirmEmpty] = useState(false);
 
   const empty = useAction<void, { deleted: number }>({
-    mutationFn: () => api.delete<{ deleted: number }>('/api/app/trash'),
-    invalidate: [keys.trash],
+    mutationFn: entryRequests.emptyTrash,
+    invalidate: stale.trash,
     success: result => `Deleted ${plural(result.deleted, 'entry', 'entries')} for good`,
     onSuccess: () => setConfirmEmpty(false),
   });

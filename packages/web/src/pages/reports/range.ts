@@ -1,5 +1,5 @@
 import { addDays, daysBetween, parseDateKey, startOfWeek } from '@tokkl/common/time';
-import { shortDate } from '../../lib/settings.ts';
+import { shortDate } from '../../lib/format.ts';
 
 export const PRESETS = [
   'today',

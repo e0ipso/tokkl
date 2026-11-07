@@ -1,35 +1,17 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import { api, download } from '../../../api/client.ts';
-import { keys } from '../../../api/hooks.ts';
-import type { ImportResult } from '../../../api/types.ts';
+import { useQueryClient } from '@tanstack/react-query';
+import { invalidate } from '../../../api/invalidate.ts';
+import { stale } from '../../../api/keys.ts';
+import { transferRequests } from '../../../api/transfer.ts';
+import type { ImportResult, JsonRestoreResult } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { plural } from '../ui.tsx';
-import { useAction, useInvalidate } from '../queries.ts';
+import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';
-
-const IMPORT_PATH = '/api/app/import/toggl-csv';
-const IMPORT_KEYS = [
-  keys.entries,
-  keys.current,
-  keys.projects,
-  keys.clients,
-  keys.tags,
-  keys.tasks,
-  keys.report,
-] as const;
 
 function stamp(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-/** The query string for a CSV import request: preview or not, and the chosen Toggl users. */
-function importQuery(dryRun: boolean, users: string[]): string {
-  const params = new URLSearchParams();
-  if (dryRun) params.set('dry_run', 'true');
-  for (const key of users) params.append('user', key);
-  const text = params.toString();
-  return text ? `?${text}` : '';
 }
 
 function ImportSummary({ result }: { result: ImportResult }) {
@@ -79,17 +61,6 @@ function ImportSummary({ result }: { result: ImportResult }) {
   );
 }
 
-interface RestoreResult {
-  dry_run: boolean;
-  clients: number;
-  projects: number;
-  tasks: number;
-  tags: number;
-  time_entries: number;
-  skipped_duplicates: number;
-  errors: Array<{ entity: string; id: unknown; message: string }>;
-}
-
 /** Checkboxes for a team export: whose rows to import. */
 function ImportUsers({
   users,
@@ -124,17 +95,16 @@ function ImportUsers({
 /** Restores a Tokkl JSON export: preview first, then import. */
 function RestoreJson() {
   const toast = useToast();
-  const invalidate = useInvalidate();
+  const qc = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
-  const [result, setResult] = useState<RestoreResult | null>(null);
-  const run = useAction<{ text: string; dryRun: boolean }, RestoreResult>({
-    mutationFn: ({ text, dryRun }) =>
-      api.post<RestoreResult>(`/api/app/import/json${dryRun ? '?dry_run=true' : ''}`, text),
+  const [result, setResult] = useState<JsonRestoreResult | null>(null);
+  const run = useAction<{ text: string; dryRun: boolean }, JsonRestoreResult>({
+    mutationFn: ({ text, dryRun }) => transferRequests.restoreJson(text, dryRun),
     onSuccess: (restored, { dryRun }) => {
       setResult(restored);
       if (!dryRun) {
-        void invalidate(...IMPORT_KEYS);
+        void invalidate(qc, stale.imported);
         toast.show(`Restored ${plural(restored.time_entries, 'entry', 'entries')}`);
         setFile(null);
         if (input.current) input.current.value = '';
@@ -221,7 +191,7 @@ function RestoreJson() {
 
 export function DataSection({ timeZone }: { timeZone: string }) {
   const toast = useToast();
-  const invalidate = useInvalidate();
+  const qc = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -231,11 +201,10 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   const latest = useRef(0);
 
   const runImport = useAction<{ text: string; dryRun: boolean; users: string[]; request: number }, ImportResult>({
-    mutationFn: ({ text, dryRun, users }) =>
-      api.post<ImportResult>(`${IMPORT_PATH}${importQuery(dryRun, users)}`, text),
+    mutationFn: ({ text, dryRun, users }) => transferRequests.importTogglCsv(text, dryRun, users),
     onSuccess: (imported, { dryRun, request }) => {
       if (!dryRun) {
-        void invalidate(...IMPORT_KEYS);
+        void invalidate(qc, stale.imported);
         toast.show(`Imported ${plural(imported.created, 'entry', 'entries')}`);
       }
       if (request !== latest.current) return;
@@ -256,10 +225,7 @@ export function DataSection({ timeZone }: { timeZone: string }) {
   const exportFile = async (kind: 'json' | 'csv') => {
     setExporting(kind);
     try {
-      await download(
-        `/api/app/export.${kind}`,
-        kind === 'json' ? `tokkl-${stamp()}.json` : `tokkl-entries-${stamp()}.csv`,
-      );
+      await transferRequests.export(kind, kind === 'json' ? `tokkl-${stamp()}.json` : `tokkl-entries-${stamp()}.csv`);
     } catch (error) {
       toast.error(error);
     } finally {

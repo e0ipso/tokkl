@@ -12,7 +12,7 @@ import {
   splitAllDay,
   stepDay,
 } from './calendarDay.ts';
-import { snappedInstant } from './settings.ts';
+import { snappedInstant } from './snapping.ts';
 
 const MADRID = 'Europe/Madrid';
 

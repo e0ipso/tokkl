@@ -1,26 +1,18 @@
 import { useId, useState, type FormEvent } from 'react';
-import { api } from '../../api/client.ts';
-import { keys, useClients, useProjects, useWid, useWorkspace } from '../../api/hooks.ts';
+import { useWid, useWorkspace } from '../../api/account.ts';
+import { clientRequests, useClients } from '../../api/clients.ts';
+import { stale } from '../../api/keys.ts';
+import { projectRequests, useProjects, type ProjectBody } from '../../api/projects.ts';
 import type { Client, Project } from '../../api/types.ts';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Modal } from '../../components/Overlay.tsx';
 import { PROJECT_COLORS } from '@tokkl/common/colors';
 import { ColorField } from './ColorField.tsx';
 import { ProjectTasks } from './ProjectTasks.tsx';
-import { parseOptionalAmount, useAction, wsPath } from './queries.ts';
+import { useAction } from '../../components/useAction.ts';
+import { parseOptionalAmount } from './values.ts';
 
 const NEW_CLIENT = '__new__';
-
-interface ProjectBody {
-  name: string;
-  color: string;
-  /** 0 clears the client. The server ignores null here and keeps the current client. */
-  client_id: number;
-  billable: boolean;
-  rate: number | null;
-  currency: string | null;
-  estimated_hours: number | null;
-}
 
 function amountText(value: number | null): string {
   return value === null ? '' : String(value);
@@ -46,18 +38,15 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
   const [estimate, setEstimate] = useState(amountText(project?.estimated_hours ?? null));
 
   const save = useAction<ProjectBody, Project>({
-    mutationFn: body =>
-      project
-        ? api.put<Project>(wsPath(wid, 'projects', project.id), body)
-        : api.post<Project>(wsPath(wid, 'projects'), body),
-    invalidate: [keys.projects, keys.clients, keys.tasks, keys.entries, keys.current, keys.report],
+    mutationFn: body => (project ? projectRequests.update(wid, project.id, body) : projectRequests.create(wid, body)),
+    invalidate: stale.projectSaved,
     success: saved => (project ? `Saved ${saved.name}` : `Created ${saved.name}`),
     onSuccess: onClose,
   });
 
   const createClient = useAction<string, Client>({
-    mutationFn: clientName => api.post<Client>(wsPath(wid, 'clients'), { name: clientName }),
-    invalidate: [keys.clients],
+    mutationFn: clientName => clientRequests.create(wid, { name: clientName }),
+    invalidate: stale.clientCreated,
     success: client => `Created client ${client.name}`,
     onSuccess: client => {
       setClientId(client.id);

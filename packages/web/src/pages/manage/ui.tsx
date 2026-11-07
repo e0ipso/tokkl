@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '../../components/Icon.tsx';
 import { Modal, Popover } from '../../components/Overlay.tsx';
 
@@ -118,22 +118,24 @@ export interface MenuItem {
  * `focusPastRow` move focus to the next row's menu when this row goes away.
  */
 export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
-  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
   return (
     <>
       <button
+        ref={button}
         type="button"
         className="icon-button"
         aria-label={label}
         aria-haspopup="menu"
-        aria-expanded={anchor !== null}
+        aria-expanded={open}
         data-row-action="menu"
-        onClick={event => setAnchor(anchor ? null : event.currentTarget)}
+        onClick={() => setOpen(!open)}
       >
         <Icon name="more" />
       </button>
-      {anchor ? (
-        <Popover anchor={anchor} onClose={() => setAnchor(null)} width={190} align="right">
+      {open ? (
+        <Popover anchor={button} label="Row actions" onClose={() => setOpen(false)} width={190} align="right">
           <div className="menu" role="menu">
             {items.map(item => (
               <button
@@ -144,8 +146,8 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
                 onClick={() => {
                   // The item goes away with the menu. Focus the menu button first, so a modal the
                   // item opens returns focus there when it closes.
-                  anchor.focus();
-                  setAnchor(null);
+                  button.current?.focus();
+                  setOpen(false);
                   item.onSelect();
                 }}
               >

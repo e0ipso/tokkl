@@ -1,14 +1,17 @@
 import { useMemo, useRef, useState } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useClients, useProjects, useWid, useWorkspace } from '../api/hooks.ts';
+import { useWid, useWorkspace } from '../api/account.ts';
+import { useClients } from '../api/clients.ts';
+import { stale } from '../api/keys.ts';
+import { projectRequests, useProjects, type ProjectDeletionMode } from '../api/projects.ts';
 import type { Project } from '../api/types.ts';
-import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { LoadError, Loading } from '../components/PageState.tsx';
 import { ProjectDot } from '../components/Pickers.tsx';
-import { duration, formatMoney, useSettings, type Settings } from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { duration, formatMoney } from '../lib/format.ts';
+import { type Settings } from '../lib/settings.ts';
 import { ProjectEditor } from './manage/ProjectEditor.tsx';
-import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { useAction } from '../components/useAction.ts';
+import { includesText } from './manage/values.ts';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import {
   ConfirmModal,
@@ -20,12 +23,10 @@ import {
   matchesStatus,
   type StatusFilter,
 } from './manage/ui.tsx';
+import { ManageList } from './manage/ManageList.tsx';
 import './manage/manage.css';
 
 type ClientFilter = 'any' | 'none' | number;
-type DeletionMode = 'unassign' | 'delete';
-
-const PROJECT_KEYS = [keys.projects, keys.tasks, keys.entries, keys.current, keys.report] as const;
 
 function EstimateBar({ project, settings }: { project: Project; settings: Settings }) {
   if (project.estimated_hours === null || project.estimated_hours <= 0) return <span className="muted">None</span>;
@@ -59,7 +60,8 @@ function rateText(project: Project, defaultCurrency: string): string | null {
 export function ProjectsPage() {
   const wid = useWid();
   const settings = useSettings();
-  const { data: projects, isLoading, error, refetch } = useProjects();
+  const projectsQuery = useProjects();
+  const { data: projects } = projectsQuery;
   const { data: clients = [] } = useClients();
   const { data: workspace } = useWorkspace();
   const [status, setStatus] = useState<StatusFilter>('active');
@@ -83,8 +85,8 @@ export function ProjectsPage() {
   );
 
   const setActive = useAction<{ project: Project; active: boolean }, Project>({
-    mutationFn: ({ project, active }) => api.put<Project>(wsPath(wid, 'projects', project.id), { active }),
-    invalidate: PROJECT_KEYS,
+    mutationFn: ({ project, active }) => projectRequests.update(wid, project.id, { active }),
+    invalidate: stale.projects,
     success: saved => (saved.active ? `Restored ${saved.name}` : `Archived ${saved.name}`),
     // The row leaves the list when the status filter no longer matches. The menu button that ran the
     // action had focus; keep it in the list unless the user has moved on.
@@ -93,9 +95,9 @@ export function ProjectsPage() {
     },
   });
 
-  const remove = useAction<{ project: Project; mode: DeletionMode }>({
-    mutationFn: ({ project, mode }) => api.delete(`${wsPath(wid, 'projects', project.id)}?teDeletionMode=${mode}`),
-    invalidate: [...PROJECT_KEYS, keys.trash],
+  const remove = useAction<{ project: Project; mode: ProjectDeletionMode }>({
+    mutationFn: ({ project, mode }) => projectRequests.remove(wid, project.id, mode),
+    invalidate: stale.projectDeleted,
     success: (_result, { project, mode }) =>
       mode === 'delete'
         ? `Deleted ${project.name} and moved its entries to the trash`
@@ -145,90 +147,77 @@ export function ProjectsPage() {
         </select>
       </div>
 
-      {error ? (
-        <LoadError message={`Could not load projects: ${error.message}`} onRetry={() => void refetch()} />
-      ) : null}
-      {isLoading ? <Loading label="Loading projects…" /> : null}
-      {projects && visible.length === 0 ? (
-        projects.length === 0 ? (
-          <EmptyState icon={<Icon name="folder" size={32} />} title="No projects yet">
-            Create one with New project to group your time entries.
-          </EmptyState>
-        ) : (
-          <EmptyState icon={<Icon name="search" size={32} />} title="No projects match these filters">
-            Try another status or client, or clear the search.
-          </EmptyState>
-        )
-      ) : null}
-
-      {visible.length > 0 ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Client</th>
-                <th>Status</th>
-                <th>Billable</th>
-                <th className="num">Rate</th>
-                <th className="num">Tracked</th>
-                <th>Estimate</th>
-                <th>
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody ref={tbody}>
-              {visible.map(project => (
-                <tr key={project.id} data-id={project.id} className={project.active ? undefined : 'archived'}>
-                  <td>
-                    <button type="button" className="manage-name-button" onClick={() => setEditing(project)}>
-                      <ProjectDot color={project.color} />
-                      <span>{project.name}</span>
-                    </button>
-                  </td>
-                  <td>{project.client_name ?? <span className="muted">None</span>}</td>
-                  <td>
-                    <StatusBadge archived={!project.active} />
-                  </td>
-                  <td>{project.billable ? 'Yes' : <span className="muted">No</span>}</td>
-                  <td className="num">
-                    {rateText(project, defaultCurrency) ?? <span className="muted">Default</span>}
-                  </td>
-                  <td className="num">{duration(project.actual_seconds, settings)}</td>
-                  <td>
-                    <EstimateBar project={project} settings={settings} />
-                  </td>
-                  <td className="manage-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`Edit ${project.name}`}
-                      title="Edit"
-                      onClick={() => setEditing(project)}
-                    >
-                      <Icon name="edit" size={16} />
-                    </button>
-                    <RowMenu
-                      label={`More actions for ${project.name}`}
-                      items={[
-                        project.active
-                          ? { label: 'Archive', onSelect: () => setActive.mutate({ project, active: false }) }
-                          : {
-                              label: 'Restore',
-                              icon: 'undo',
-                              onSelect: () => setActive.mutate({ project, active: true }),
-                            },
-                        { label: 'Delete', icon: 'trash', danger: true, onSelect: () => setDeleting(project) },
-                      ]}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      <ManageList
+        query={projectsQuery}
+        visible={visible}
+        noun="projects"
+        empty={{
+          icon: 'folder',
+          title: 'No projects yet',
+          body: <>Create one with New project to group your time entries.</>,
+        }}
+        noMatch={{
+          title: 'No projects match these filters',
+          body: <>Try another status or client, or clear the search.</>,
+        }}
+        headers={
+          <>
+            <th>Project</th>
+            <th>Client</th>
+            <th>Status</th>
+            <th>Billable</th>
+            <th className="num">Rate</th>
+            <th className="num">Tracked</th>
+            <th>Estimate</th>
+          </>
+        }
+        tbodyRef={tbody}
+      >
+        {visible.map(project => (
+          <tr key={project.id} data-id={project.id} className={project.active ? undefined : 'archived'}>
+            <td>
+              <button type="button" className="manage-name-button" onClick={() => setEditing(project)}>
+                <ProjectDot color={project.color} />
+                <span>{project.name}</span>
+              </button>
+            </td>
+            <td>{project.client_name ?? <span className="muted">None</span>}</td>
+            <td>
+              <StatusBadge archived={!project.active} />
+            </td>
+            <td>{project.billable ? 'Yes' : <span className="muted">No</span>}</td>
+            <td className="num">{rateText(project, defaultCurrency) ?? <span className="muted">Default</span>}</td>
+            <td className="num">{duration(project.actual_seconds, settings)}</td>
+            <td>
+              <EstimateBar project={project} settings={settings} />
+            </td>
+            <td className="manage-actions">
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Edit ${project.name}`}
+                title="Edit"
+                onClick={() => setEditing(project)}
+              >
+                <Icon name="edit" size={16} />
+              </button>
+              <RowMenu
+                label={`More actions for ${project.name}`}
+                items={[
+                  project.active
+                    ? { label: 'Archive', onSelect: () => setActive.mutate({ project, active: false }) }
+                    : {
+                        label: 'Restore',
+                        icon: 'undo',
+                        onSelect: () => setActive.mutate({ project, active: true }),
+                      },
+                  { label: 'Delete', icon: 'trash', danger: true, onSelect: () => setDeleting(project) },
+                ]}
+              />
+            </td>
+          </tr>
+        ))}
+      </ManageList>
 
       {editingProject ? (
         <ProjectEditor

@@ -1,5 +1,5 @@
-import { forwardRef, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { useProjects } from '../api/hooks.ts';
+import { forwardRef, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useProjects } from '../api/projects.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { Icon } from './Icon.tsx';
 import { ProjectDot, ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
@@ -43,6 +43,7 @@ export const EntryFields = forwardRef<
   });
   const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
   const descriptionRef = useRef<HTMLInputElement>(null);
+  const listId = useId();
   // The description's blur hides the suggestions after a delay, so a click on one still lands.
   // A later focus cancels that pending hide, and a focus that comes from a closing picker does not
   // open the suggestions: the user did not ask for them.
@@ -76,6 +77,12 @@ export const EntryFields = forwardRef<
           value={draft.description}
           placeholder={placeholder}
           aria-label="Description"
+          // The suggestions are its popup listbox, as in the project picker's search field.
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={suggestions.length > 0}
+          aria-controls={suggestions.length > 0 ? listId : undefined}
+          aria-activedescendant={suggestions[highlight] ? `${listId}-${highlight}` : undefined}
           maxLength={3000}
           readOnly={readOnly}
           onChange={event => {
@@ -117,9 +124,9 @@ export const EntryFields = forwardRef<
           }}
         />
         {suggestions.length > 0 ? (
-          <ul className="suggestions" role="listbox">
+          <ul className="suggestions" role="listbox" id={listId} aria-label="Suggestions">
             {suggestions.map((s, i) => (
-              <li key={s.key} role="option" aria-selected={i === highlight}>
+              <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === highlight}>
                 <button
                   type="button"
                   className={`suggestion${i === highlight ? ' highlighted' : ''}`}
@@ -182,7 +189,7 @@ export const EntryFields = forwardRef<
 
       {picker === 'project' ? (
         <ProjectPicker
-          anchor={projectButton.current}
+          anchor={projectButton}
           projectId={draft.project_id}
           taskId={draft.task_id}
           onChange={(pid, tid) => onEdit(projectChanges(pid, tid))}
@@ -194,7 +201,7 @@ export const EntryFields = forwardRef<
       ) : null}
       {picker === 'tags' ? (
         <TagPicker
-          anchor={tagButton.current}
+          anchor={tagButton}
           value={draft.tags}
           onChange={tags => onEdit({ tags })}
           onClose={() => {

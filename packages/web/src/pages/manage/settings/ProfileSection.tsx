@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react';
 import { canonicalTimeZone } from '@tokkl/common/time';
-import { api } from '../../../api/client.ts';
-import { keys } from '../../../api/hooks.ts';
+import { accountRequests, type ProfileChanges } from '../../../api/account.ts';
+import { stale } from '../../../api/keys.ts';
 import type { Me } from '../../../api/types.ts';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
-import { useAction, V9 } from '../queries.ts';
+import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';
+import { browserTimeZone } from '../../../lib/browserTimeZone.ts';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
-
-type ProfileBody = Pick<Me, 'fullname' | 'email' | 'timezone' | 'beginning_of_week'>;
 
 function timeZones(current: string): string[] {
   const zones = new Set(Intl.supportedValuesOf('timeZone'));
@@ -32,12 +31,12 @@ export function ProfileSection({ me }: { me: Me }) {
   const [timezone, setTimezone] = useState(me.timezone);
   const [weekStart, setWeekStart] = useState(me.beginning_of_week);
   const zones = useMemo(() => timeZones(me.timezone), [me.timezone]);
-  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const browserZone = browserTimeZone();
 
-  const save = useAction<ProfileBody, Me>({
-    mutationFn: body => api.put<Me>(`${V9}/me`, body),
+  const save = useAction<ProfileChanges, Me>({
+    mutationFn: accountRequests.saveProfile,
     // Day boundaries depend on the timezone and week start, so entry lists and reports refetch too.
-    invalidate: [keys.me, keys.entries, keys.current, keys.report],
+    invalidate: stale.profile,
     success: 'Profile saved',
   });
 

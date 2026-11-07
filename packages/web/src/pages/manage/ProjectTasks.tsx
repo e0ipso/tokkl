@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../../api/client.ts';
-import { keys, useWid } from '../../api/hooks.ts';
+import { useWid } from '../../api/account.ts';
+import { stale } from '../../api/keys.ts';
 import type { Project, Task } from '../../api/types.ts';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';
-import { duration, useSettings } from '../../lib/settings.ts';
-import { taskTrackedSeconds, useAction, useProjectTasks, wsPath } from './queries.ts';
+import { useSettings } from '../../api/settings.ts';
+import { duration } from '../../lib/format.ts';
+import { projectRequests, taskTrackedSeconds, useProjectTasks } from '../../api/projects.ts';
+import { useAction } from '../../components/useAction.ts';
 import { keepFocusPastRow } from './rowFocus.ts';
-
-const TASK_KEYS = [keys.tasks, keys.entries, keys.current, keys.report] as const;
 
 function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; onDeleted: () => void }) {
   const wid = useWid();
@@ -32,18 +32,20 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
     setConfirming(next);
   };
   // Flip the checkbox right away; the refetch after the save confirms it.
-  const [active, setActive] = useState(task.active);
-  useEffect(() => setActive(task.active), [task.active]);
-  const path = wsPath(wid, 'projects', project.id, 'tasks', task.id);
+  // The flip is kept with the stored value it was made against, so a refetch that changes the
+  // stored value replaces it.
+  const [flip, setFlip] = useState<{ active: boolean; over: boolean } | null>(null);
+  const active = flip && flip.over === task.active ? flip.active : task.active;
+  const setActive = (next: boolean) => setFlip({ active: next, over: task.active });
 
   const update = useAction<Partial<Pick<Task, 'name' | 'active'>>, Task>({
-    mutationFn: changes => api.put<Task>(path, changes),
-    invalidate: TASK_KEYS,
+    mutationFn: changes => projectRequests.updateTask(wid, project.id, task.id, changes),
+    invalidate: stale.tasks,
     onSuccess: saved => setName(saved.name),
   });
   const remove = useAction({
-    mutationFn: () => api.delete<null>(path),
-    invalidate: TASK_KEYS,
+    mutationFn: () => projectRequests.removeTask(wid, project.id, task.id),
+    invalidate: stale.tasks,
     success: `Deleted task ${task.name}`,
     onSuccess: onDeleted,
   });
@@ -64,7 +66,7 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
         onChange={event => {
           const nextActive = !event.target.checked;
           setActive(nextActive);
-          update.mutate({ active: nextActive }, { onError: () => setActive(task.active) });
+          update.mutate({ active: nextActive }, { onError: () => setFlip(null) });
         }}
       />
       <input
@@ -129,8 +131,8 @@ export function ProjectTasks({ project }: { project: Project }) {
   const deleted = (id: number) => keepFocusPastRow(list.current, id, 'delete', newTask.current ?? heading.current);
 
   const create = useAction<string, Task>({
-    mutationFn: name => api.post<Task>(wsPath(wid, 'projects', project.id, 'tasks'), { name }),
-    invalidate: TASK_KEYS,
+    mutationFn: name => projectRequests.createTask(wid, project.id, name),
+    invalidate: stale.tasks,
     onSuccess: () => setNewName(''),
   });
 

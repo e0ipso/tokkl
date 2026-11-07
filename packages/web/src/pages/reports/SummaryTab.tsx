@@ -2,10 +2,11 @@ import { useState } from 'react';
 import type { Grouping, Report, ReportGroup } from '../../api/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { ProjectDot, projectColorStyle } from '../../components/Pickers.tsx';
-import { duration, formatMoney, type Settings } from '../../lib/settings.ts';
+import { duration, formatMoney } from '../../lib/format.ts';
+import { type Settings } from '../../lib/settings.ts';
 import { GROUPING_LABELS, formatPercent, groupTitle, money, percent, reportCurrency } from './format.ts';
 import { SeriesChart } from './SeriesChart.tsx';
-import { GROUPINGS, type ReportPatch, type SubGrouping } from './urlState.ts';
+import { GROUPINGS, SUB_GROUPINGS, isOneOf, type ReportPatch, type SubGrouping } from './urlState.ts';
 
 function Totals({ report, settings }: { report: Report; settings: Settings }) {
   const { totals } = report;
@@ -77,7 +78,8 @@ function GroupRow({
   settings: Settings;
 }) {
   const [open, setOpen] = useState(false);
-  const expandable = subGrouping !== 'none' && group.sub_groups.length > 0;
+  const subLabel = subGrouping === 'none' ? '' : GROUPING_LABELS[subGrouping].toLowerCase();
+  const expandable = subLabel !== '' && group.sub_groups.length > 0;
   const title = groupTitle(group.title, grouping);
   const dotColor = grouping === 'projects' ? (group.color ?? 'var(--muted)') : null;
   return (
@@ -90,7 +92,7 @@ function GroupRow({
                 type="button"
                 className="icon-button group-toggle"
                 aria-expanded={open}
-                aria-label={`${open ? 'Hide' : 'Show'} ${GROUPING_LABELS[subGrouping as Grouping].toLowerCase()} breakdown for ${title}`}
+                aria-label={`${open ? 'Hide' : 'Show'} ${subLabel} breakdown for ${title}`}
                 onClick={() => setOpen(v => !v)}
               >
                 <Icon name={open ? 'chevronDown' : 'chevronRight'} size={16} />
@@ -161,7 +163,13 @@ export function SummaryTab({
         <div className="toolbar breakdown-toolbar">
           <label className="inline-select">
             <span>Group by</span>
-            <select value={grouping} onChange={event => update({ grouping: event.target.value as Grouping })}>
+            <select
+              value={grouping}
+              onChange={event => {
+                const value = event.target.value;
+                if (isOneOf(value, GROUPINGS)) update({ grouping: value });
+              }}
+            >
               {GROUPINGS.map(name => (
                 <option key={name} value={name}>
                   {GROUPING_LABELS[name]}
@@ -171,7 +179,13 @@ export function SummaryTab({
           </label>
           <label className="inline-select">
             <span>then by</span>
-            <select value={subGrouping} onChange={event => update({ subGrouping: event.target.value as SubGrouping })}>
+            <select
+              value={subGrouping}
+              onChange={event => {
+                const value = event.target.value;
+                if (isOneOf(value, SUB_GROUPINGS)) update({ subGrouping: value });
+              }}
+            >
               <option value="none">Nothing</option>
               {GROUPINGS.filter(name => name !== grouping).map(name => (
                 <option key={name} value={name}>

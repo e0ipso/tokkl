@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { api } from '../api/client.ts';
+import { authRequests } from '../api/auth.ts';
 import { clearCachedTheme } from './theme.ts';
 
 /**
@@ -38,7 +38,7 @@ export function endSession(qc: QueryClient): void {
  */
 export async function logOut(qc: QueryClient): Promise<void> {
   try {
-    await api.post('/api/app/logout');
+    await authRequests.logout();
   } catch (error) {
     endSession(qc);
     try {

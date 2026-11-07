@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { api } from '../../../api/client.ts';
-import { keys, useWid } from '../../../api/hooks.ts';
+import { accountRequests, useWid, type WorkspaceChanges } from '../../../api/account.ts';
+import { stale } from '../../../api/keys.ts';
 import type { Workspace } from '../../../api/types.ts';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
-import { parseOptionalAmount, useAction, wsPath } from '../queries.ts';
+import { useAction } from '../../../components/useAction.ts';
+import { parseOptionalAmount } from '../values.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 
 /** The rounding steps Toggl accepts, in minutes. */
@@ -14,11 +15,6 @@ const ROUNDING_MODES = [
   { value: 1, label: 'Up' },
   { value: -1, label: 'Down' },
 ] as const;
-
-type WorkspaceBody = Pick<
-  Workspace,
-  'name' | 'default_currency' | 'default_hourly_rate' | 'rounding' | 'rounding_minutes'
->;
 
 function stepLabel(minutes: number): string {
   if (minutes === 0) return "Don't round";
@@ -36,9 +32,9 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
   const [rounding, setRounding] = useState(workspace.rounding);
   const [roundingMinutes, setRoundingMinutes] = useState(workspace.rounding_minutes);
 
-  const save = useAction<WorkspaceBody, Workspace>({
-    mutationFn: body => api.put<Workspace>(wsPath(wid), body),
-    invalidate: [keys.workspace, keys.report, keys.projects],
+  const save = useAction<WorkspaceChanges, Workspace>({
+    mutationFn: body => accountRequests.saveWorkspace(wid, body),
+    invalidate: stale.workspace,
     success: 'Workspace saved',
   });
 

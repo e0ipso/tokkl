@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { formatDuration } from '@tokkl/common/duration';
-import { useCreateEntry } from '../api/hooks.ts';
+import { useCreateEntry } from '../api/entries.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { noTimeDuration } from '../lib/noTimeDuration.ts';
-import { entrySeconds, useSettings } from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { entrySeconds } from '../lib/snapping.ts';
 import { EntryFields } from './EntryFields.tsx';
 import { useFieldErrors } from './FieldError.tsx';
 import { Modal } from './Overlay.tsx';
@@ -30,13 +31,6 @@ export function AllDayEntryDialog({
   const fields = useFieldErrors<'duration'>();
   // React may not have rendered the pending mutation before another submit arrives.
   const submitting = useRef(false);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
 
   const save = async () => {
     if (submitting.current || create.isPending) return;
@@ -44,10 +38,13 @@ export function AllDayEntryDialog({
     if (!fields.validate([['duration', error]]) || seconds === null) return;
     submitting.current = true;
     try {
-      const saved = await create.mutateAsync({ ...draft, all_day: true, start_date: day, duration: seconds });
+      // TanStack skips a call's own callbacks once its component is gone, so a dismissed draft's
+      // pending save cannot close a newer dialog. The toast still says what was added.
+      const saved = await create.mutateAsync(
+        { ...draft, all_day: true, start_date: day, duration: seconds },
+        { onSuccess: () => onClose() },
+      );
       toast.show(`Added ${formatDuration(entrySeconds(saved, new Date()))}`);
-      // A dismissed draft's pending save must not close a newer dialog.
-      if (mounted.current) onClose();
     } catch (error) {
       toast.error(error);
     } finally {

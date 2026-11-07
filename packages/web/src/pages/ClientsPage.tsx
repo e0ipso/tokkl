@@ -1,13 +1,14 @@
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useClients, useProjects, useWid } from '../api/hooks.ts';
+import { useWid } from '../api/account.ts';
+import { clientRequests, useClients, type ClientBody } from '../api/clients.ts';
+import { stale } from '../api/keys.ts';
+import { useProjects } from '../api/projects.ts';
 import type { Client } from '../api/types.ts';
-import { EmptyState } from '../components/EmptyState.tsx';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { Modal } from '../components/Overlay.tsx';
-import { LoadError, Loading } from '../components/PageState.tsx';
-import { includesText, useAction, wsPath } from './manage/queries.ts';
+import { useAction } from '../components/useAction.ts';
+import { includesText } from './manage/values.ts';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import {
   ConfirmModal,
@@ -20,9 +21,8 @@ import {
   plural,
   type StatusFilter,
 } from './manage/ui.tsx';
+import { ManageList } from './manage/ManageList.tsx';
 import './manage/manage.css';
-
-const CLIENT_KEYS = [keys.clients, keys.projects, keys.entries, keys.current, keys.report] as const;
 
 function ClientEditor({ client, onClose }: { client: Client | null; onClose: () => void }) {
   const wid = useWid();
@@ -31,12 +31,9 @@ function ClientEditor({ client, onClose }: { client: Client | null; onClose: () 
   const [name, setName] = useState(client?.name ?? '');
   const [notes, setNotes] = useState(client?.notes ?? '');
 
-  const save = useAction<{ name: string; notes: string | null }, Client>({
-    mutationFn: body =>
-      client
-        ? api.put<Client>(wsPath(wid, 'clients', client.id), body)
-        : api.post<Client>(wsPath(wid, 'clients'), body),
-    invalidate: CLIENT_KEYS,
+  const save = useAction<ClientBody, Client>({
+    mutationFn: body => (client ? clientRequests.update(wid, client.id, body) : clientRequests.create(wid, body)),
+    invalidate: stale.clients,
     success: saved => (client ? `Saved ${saved.name}` : `Created ${saved.name}`),
     onSuccess: onClose,
   });
@@ -88,7 +85,8 @@ type Pending = { kind: 'archive' | 'delete'; client: Client };
 
 export function ClientsPage() {
   const wid = useWid();
-  const { data: clients, isLoading, error, refetch } = useClients();
+  const clientsQuery = useClients();
+  const { data: clients } = clientsQuery;
   const { data: projects = [] } = useProjects();
   const [status, setStatus] = useState<StatusFilter>('active');
   const [search, setSearch] = useState('');
@@ -112,8 +110,8 @@ export function ClientsPage() {
   );
 
   const archive = useAction<Client>({
-    mutationFn: client => api.post(wsPath(wid, 'clients', client.id, 'archive')),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.archive(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Archived ${client.name} and its projects`,
     onSuccess: (_result, client) => {
       // The dialog had focus and would give it back to the row's menu button. When the row leaves
@@ -123,8 +121,8 @@ export function ClientsPage() {
     },
   });
   const restore = useAction<Client>({
-    mutationFn: client => api.post(wsPath(wid, 'clients', client.id, 'restore'), { restore_all_projects: true }),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.restore(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Restored ${client.name} and its projects`,
     // The menu button that ran the action had focus; keep it in the list unless the user has moved on.
     onSuccess: (_result, client) => {
@@ -132,8 +130,8 @@ export function ClientsPage() {
     },
   });
   const remove = useAction<Client>({
-    mutationFn: client => api.delete(wsPath(wid, 'clients', client.id)),
-    invalidate: CLIENT_KEYS,
+    mutationFn: client => clientRequests.remove(wid, client.id),
+    invalidate: stale.clients,
     success: (_result, client) => `Deleted ${client.name}`,
     onSuccess: (_result, client) => {
       focusPastRow(tbody.current, client.id, 'menu', heading.current);
@@ -160,80 +158,64 @@ export function ClientsPage() {
         <SearchBox value={search} onChange={setSearch} placeholder="Search clients" />
       </div>
 
-      {error ? <LoadError message={`Could not load clients: ${error.message}`} onRetry={() => void refetch()} /> : null}
-      {isLoading ? <Loading label="Loading clients…" /> : null}
-      {clients && visible.length === 0 ? (
-        clients.length === 0 ? (
-          <EmptyState icon={<Icon name="users" size={32} />} title="No clients yet">
-            Add one to group projects by who you work for.
-          </EmptyState>
-        ) : (
-          <EmptyState icon={<Icon name="search" size={32} />} title="No clients match these filters">
-            Try another status, or clear the search.
-          </EmptyState>
-        )
-      ) : null}
-
-      {visible.length > 0 ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Notes</th>
-                <th className="num">Projects</th>
-                <th>Status</th>
-                <th>
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody ref={tbody}>
-              {visible.map(client => (
-                <tr key={client.id} data-id={client.id} className={client.archived ? 'archived' : undefined}>
-                  <td>
-                    <button type="button" className="manage-name-button" onClick={() => setEditing(client)}>
-                      {client.name}
-                    </button>
-                  </td>
-                  <td className="manage-notes" title={client.notes ?? undefined}>
-                    {client.notes ?? <span className="muted">None</span>}
-                  </td>
-                  <td className="num">{count(client)}</td>
-                  <td>
-                    <StatusBadge archived={client.archived} />
-                  </td>
-                  <td className="manage-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`Edit ${client.name}`}
-                      title="Edit"
-                      onClick={() => setEditing(client)}
-                    >
-                      <Icon name="edit" size={16} />
-                    </button>
-                    <RowMenu
-                      label={`More actions for ${client.name}`}
-                      items={[
-                        client.archived
-                          ? { label: 'Restore', icon: 'undo', onSelect: () => restore.mutate(client) }
-                          : { label: 'Archive', onSelect: () => setPending({ kind: 'archive', client }) },
-                        {
-                          label: 'Delete',
-                          icon: 'trash',
-                          danger: true,
-                          onSelect: () => setPending({ kind: 'delete', client }),
-                        },
-                      ]}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      <ManageList
+        query={clientsQuery}
+        visible={visible}
+        noun="clients"
+        empty={{ icon: 'users', title: 'No clients yet', body: <>Add one to group projects by who you work for.</> }}
+        noMatch={{ title: 'No clients match these filters', body: <>Try another status, or clear the search.</> }}
+        headers={
+          <>
+            <th>Client</th>
+            <th>Notes</th>
+            <th className="num">Projects</th>
+            <th>Status</th>
+          </>
+        }
+        tbodyRef={tbody}
+      >
+        {visible.map(client => (
+          <tr key={client.id} data-id={client.id} className={client.archived ? 'archived' : undefined}>
+            <td>
+              <button type="button" className="manage-name-button" onClick={() => setEditing(client)}>
+                {client.name}
+              </button>
+            </td>
+            <td className="manage-notes" title={client.notes ?? undefined}>
+              {client.notes ?? <span className="muted">None</span>}
+            </td>
+            <td className="num">{count(client)}</td>
+            <td>
+              <StatusBadge archived={client.archived} />
+            </td>
+            <td className="manage-actions">
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Edit ${client.name}`}
+                title="Edit"
+                onClick={() => setEditing(client)}
+              >
+                <Icon name="edit" size={16} />
+              </button>
+              <RowMenu
+                label={`More actions for ${client.name}`}
+                items={[
+                  client.archived
+                    ? { label: 'Restore', icon: 'undo', onSelect: () => restore.mutate(client) }
+                    : { label: 'Archive', onSelect: () => setPending({ kind: 'archive', client }) },
+                  {
+                    label: 'Delete',
+                    icon: 'trash',
+                    danger: true,
+                    onSelect: () => setPending({ kind: 'delete', client }),
+                  },
+                ]}
+              />
+            </td>
+          </tr>
+        ))}
+      </ManageList>
 
       {editing ? (
         <ClientEditor

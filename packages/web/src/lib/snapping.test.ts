@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { snappedInstant, snappedSeconds, snappedSplit, type SplitHalves } from './settings.ts';
+import { snappedInstant, snappedSeconds, snappedSplit, type SplitHalves } from './snapping.ts';
 
 const utc = (timeResolution: number) => ({ timeZone: 'UTC', timeResolution });
 const at = (iso: string) => new Date(iso);

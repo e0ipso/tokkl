@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMe, usePreferences, useWorkspace } from '../api/hooks.ts';
+import { useMe, usePreferences, useWorkspace } from '../api/account.ts';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { logOut } from '../lib/session.ts';

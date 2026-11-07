@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { api } from '../../api/client.ts';
 import type { TimeEntry } from '../../api/types.ts';
 import { EntryEditor } from '../../components/EntryEditor.tsx';
 import { Icon } from '../../components/Icon.tsx';
@@ -7,10 +6,11 @@ import { LoadError, Loading } from '../../components/PageState.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { localDay } from '../../lib/entryTime.ts';
-import { duration, formatDate, formatTime, type Settings } from '../../lib/settings.ts';
-import { useDetailedEntries } from './api.ts';
+import { duration, formatDate, formatTime } from '../../lib/format.ts';
+import { type Settings } from '../../lib/settings.ts';
+import { entryRequests } from '../../api/entries.ts';
+import { useDetailedEntries, type ReportFilterBody } from '../../api/reports.ts';
 import { money } from './format.ts';
-import type { ReportFilterBody } from './query.ts';
 import type { ReportPatch, SortDir, SortKey } from './urlState.ts';
 
 function SortHeader({
@@ -71,14 +71,14 @@ export function DetailedTab({
   const [opening, setOpening] = useState<number | null>(null);
   const toast = useToast();
 
-  const detailed = useDetailedEntries(filters, sort, dir, page);
+  const detailed = useDetailedEntries(filters, { sort, dir }, page);
   const data = detailed.data;
 
   const open = async (id: number) => {
     if (opening !== null) return;
     setOpening(id);
     try {
-      setEditing(await api.get<TimeEntry>(`/api/v9/me/time_entries/${id}?meta=true`));
+      setEditing(await entryRequests.get(id));
     } catch (error) {
       toast.error(error);
     } finally {

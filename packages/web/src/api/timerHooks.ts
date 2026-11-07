@@ -1,18 +1,19 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import { keys } from './hooks.ts';
-import { getClockOffset, setClockOffset } from './serverClock.ts';
+import { keys } from './keys.ts';
+import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
   TIMER_ACTION_KEY,
   TimerActionError,
   explainTimerActionError,
+  timerStateOf,
   planTimerUpdate,
   revisionToSend,
   settleOtherWrites,
 } from './timerState.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { TimeEntryInput, TimerState } from './types.ts';
-import { useNow } from '../lib/settings.ts';
+import { useNow } from '../lib/clock.ts';
 
 const POLL_MS = 30_000;
 const timerPath = '/api/app/timer';
@@ -40,7 +41,7 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
 }
 
 async function readTimerState(qc: QueryClient): Promise<TimerState> {
-  return acceptTimerState(qc, await api.get<TimerState>(timerPath));
+  return acceptTimerState(qc, await api.get(timerPath, { decode: timerStateOf }));
 }
 
 /**
@@ -56,13 +57,17 @@ export function useTimerState() {
     refetchInterval: streaming ? false : POLL_MS,
     // Views mounting together share one read; focus still refetches once a second has passed.
     staleTime: 1000,
+    // A 403 here means the credential is gone; /me decides what the app shows then.
+    meta: { sessionProbe: true },
   });
 }
 
-/** The server's time, corrected by the offset taken with the latest state. Re-renders every `intervalMs` like `useNow`. */
+/**
+ * The server's time at the latest tick, corrected by the offset taken with the latest state.
+ * Re-renders every `intervalMs` like `useNow`.
+ */
 export function useServerNow(intervalMs = 1000): Date {
-  useNow(intervalMs);
-  return new Date(Date.now() + getClockOffset());
+  return serverNow(useNow(intervalMs).getTime(), getClockOffset());
 }
 
 /**
