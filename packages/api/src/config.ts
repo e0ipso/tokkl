@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
 import { parseStorageConfig, type StorageConfig } from './storage/config.ts';
+import { isLogLevel, LOG_LEVELS, type LogLevel } from './lib/logger.ts';
 
 export interface Config {
   port: number;
@@ -21,6 +22,8 @@ export interface Config {
   sessionDays: number;
   /** Optional fixed setup code; a random one is generated and logged otherwise. */
   setupCode: string | undefined;
+  /** The least severe log level written, from TOKKL_LOG_LEVEL. Defaults to info. */
+  logLevel: LogLevel;
 }
 
 export interface LoadedConfig {
@@ -66,6 +69,12 @@ function trustProxy(value: string | undefined): Config['trustProxy'] {
   throw invalidTrustProxy();
 }
 
+function logLevel(value: string | undefined): LogLevel {
+  const level = (value ?? '').trim().toLowerCase() || 'info';
+  if (isLogLevel(level)) return level;
+  throw new ConfigurationError(`Invalid TOKKL_LOG_LEVEL: use one of ${LOG_LEVELS.join(', ')}.`);
+}
+
 function int(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -102,6 +111,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
     trustProxy: trustProxy(setting('TRUST_PROXY')),
     sessionDays: int(setting('SESSION_DAYS'), 30),
     setupCode: setting('SETUP_CODE') || undefined,
+    logLevel: logLevel(env.TOKKL_LOG_LEVEL),
   };
 
   const notices: string[] = [];

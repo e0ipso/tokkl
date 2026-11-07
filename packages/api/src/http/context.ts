@@ -6,6 +6,7 @@ import type { Config } from '../config.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import type { TimerStreams } from '../services/timerStreams.ts';
 import { invalidInput } from '../lib/errors.ts';
+import type { Logger } from '../lib/logger.ts';
 
 /** Shared by every router; created once in createApp. */
 export interface Deps extends ApplicationServices {
@@ -30,6 +31,10 @@ declare module 'express-serve-static-core' {
   interface Locals {
     auth: StorageAuthentication;
     workSignal: AbortSignal;
+    /** The request's logger; every line it writes carries the request id. */
+    log: Logger;
+    /** Where the innermost router that saw the request is mounted; see createRouter. */
+    mountPath?: string;
   }
 }
 

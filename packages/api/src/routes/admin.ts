@@ -1,12 +1,13 @@
-import express, { type Router } from 'express';
+import { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
+import { createRouter } from '../http/router.ts';
 import { jsonRead, readJson } from '../http/context.ts';
 import { parseId, togglTime } from '../lib/values.ts';
 import { serializeAccount, serializeInvite } from '../domain/accountValues.ts';
 import { getInstanceSettings, serializeSettings } from '../domain/accounts.ts';
 export function adminRoutes(deps: Deps): Router {
   const { config } = deps;
-  const api = express.Router();
+  const api = createRouter();
   api.use(deps.auth.requireAuth, deps.auth.requireAdmin);
   api.get(
     '/users',

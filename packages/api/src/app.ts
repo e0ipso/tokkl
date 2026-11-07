@@ -8,6 +8,7 @@ import { createLocalTimerBus, type TimerBus } from './domain/timerBus.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { errorHandler } from './http/errors.ts';
+import { requestLog } from './http/requestLog.ts';
 import { createLogger, type Logger } from './lib/logger.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { appRoutes, type SetupState } from './routes/app.ts';
@@ -66,7 +67,7 @@ export function createApp({
   setup,
   timerStreamOptions,
   timerBus = createLocalTimerBus(),
-  logger = createLogger(),
+  logger = createLogger({ level: config.logLevel }),
 }: AppOptions): Express {
   const app = express();
   const loginLimiter = new FailureLimiter(storage.rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
@@ -75,10 +76,19 @@ export function createApp({
     config,
     loginLimiter,
     setupLimiter: new FailureLimiter(storage.rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
-    ...createApplicationServices(storage, config.storage, loginLimiter, timerStreamOptions, timerBus),
+    ...createApplicationServices({
+      storage,
+      storageConfig: config.storage,
+      limiter: loginLimiter,
+      streamOptions: timerStreamOptions,
+      bus: timerBus,
+      logger,
+    }),
   };
   timerBus.receive(signal => {
-    deps.publish.refresh(signal.userId, signal.revision).catch(() => console.error('Timer refresh failed'));
+    deps.publish
+      .refresh(signal.userId, signal.revision)
+      .catch(error => logger.error('Timer refresh failed', { error }));
   });
 
   app.disable('x-powered-by');
@@ -86,6 +96,7 @@ export function createApp({
   // A hop count or the proxies' addresses. req.ip becomes the address the outermost trusted proxy
   // appended to X-Forwarded-For, and req.secure follows X-Forwarded-Proto.
   app.set('trust proxy', config.trustProxy);
+  app.use(requestLog(logger));
   app.use(securityHeaders);
   const active = new Set<AbortController>();
   let closing = false;

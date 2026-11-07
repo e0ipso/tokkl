@@ -1,5 +1,6 @@
-import express, { type Router } from 'express';
+import { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
+import { createRouter } from '../http/router.ts';
 import { jsonRead, query, readText } from '../http/context.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
@@ -11,7 +12,7 @@ export interface SetupState {
 }
 export function appRoutes(deps: Deps, setup: SetupState): Router {
   const { storage, config, accounts, loginLimiter, setupLimiter } = deps;
-  const app = express.Router(),
+  const app = createRouter(),
     auth = deps.auth.requireAuth;
   const sessions = createStorageSessions(storage, accounts, {
     loginLimiter,

@@ -66,6 +66,8 @@ export function testConfig(db?: FixtureDatabase): Config {
     trustProxy: false,
     sessionDays: 30,
     setupCode: undefined,
+    // Request lines would drown the test output; failures still print.
+    logLevel: 'warn',
   };
 }
 

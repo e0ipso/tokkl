@@ -18,20 +18,32 @@ import {
 import { createStorageImports } from './storageImportJson.ts';
 import { StorageReportRunner } from './storageReportRunner.ts';
 import { TimerHub } from './timerHub.ts';
-import { TimerStreams } from './timerStreams.ts';
+import { TimerStreams, type TimerStreamOptions } from './timerStreams.ts';
+import { silentLogger, type Logger } from '../lib/logger.ts';
 import { forbidden } from '../lib/errors.ts';
-export function createApplicationServices(
-  storage: Storage,
-  config: StorageConfig,
-  limiter: FailureLimiter,
-  streamOptions?: import('./timerStreams.ts').TimerStreamOptions,
-  bus: TimerBus = createLocalTimerBus(),
-) {
+export interface ApplicationServiceOptions {
+  storage: Storage;
+  storageConfig: StorageConfig;
+  /** Failed password attempts, shared by every path that checks a password. */
+  limiter: FailureLimiter;
+  streamOptions?: TimerStreamOptions;
+  /** Signals timer revisions to other processes. Defaults to the single-process bus. */
+  bus?: TimerBus;
+  logger?: Logger;
+}
+export function createApplicationServices({
+  storage,
+  storageConfig: config,
+  limiter,
+  streamOptions,
+  bus = createLocalTimerBus(),
+  logger = silentLogger,
+}: ApplicationServiceOptions) {
   const timerStreams = new TimerStreams(id => timers.getTimerState(id), {
     ...streamOptions,
     // `publish` is defined below; the tick calls this only after construction.
     onBehind: (id, revision) => {
-      publish.refresh(id, revision).catch(() => console.error('Timer refresh failed'));
+      publish.refresh(id, revision).catch(error => logger.error('Timer refresh failed', { error }));
     },
   });
   const hub = new TimerHub();
@@ -60,8 +72,8 @@ export function createApplicationServices(
       const delivery = ordered(id, state, incarnation);
       try {
         bus.send({ userId: id, revision: state.revision });
-      } catch {
-        console.error('Timer bus send failed');
+      } catch (error) {
+        logger.warn('Timer bus send failed', { error });
       }
       return delivery;
     },

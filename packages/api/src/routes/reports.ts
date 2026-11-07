@@ -1,6 +1,7 @@
-import express, { type Request, type Response, type Router } from 'express';
+import { type Request, type Response, type Router } from 'express';
 import type { Repositories } from '../storage/contracts.ts';
 import type { Deps } from '../http/context.ts';
+import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/context.ts';
 import { calendarInput, invalidInput } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
@@ -55,7 +56,7 @@ async function send(deps: Deps, res: Response, ws: Workspace, job: ReportJob): P
  * totals, summary, weekly, and CSV exports.
  */
 export function reportsV3Routes(deps: Deps): Router {
-  const api = express.Router();
+  const api = createRouter();
   api.use(deps.auth.requireAuth);
 
   const v3Filter = async (req: Request, res: Response) => {
@@ -162,7 +163,7 @@ function positiveInt(value: unknown, fallback: number, field: string): number {
 
 /** Report endpoint for the web app: totals, a time series and groupings in one response. */
 export function appReportRoutes(deps: Deps): Router {
-  const api = express.Router();
+  const api = createRouter();
 
   /** The account's workspace, the request body and its filter, with the app's range allowance. */
   const appFilter = async (req: Request, res: Response) => {

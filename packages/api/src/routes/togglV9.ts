@@ -1,5 +1,6 @@
-import express, { type Request, type Response, type Router } from 'express';
+import { type Request, type Response, type Router } from 'express';
 import type { Deps } from '../http/context.ts';
+import { createRouter } from '../http/router.ts';
 import { clientAddress, jsonRead, query, queryFlag, readJson, readJsonArray } from '../http/context.ts';
 import { passwordAttempt } from '../auth/storageMiddleware.ts';
 import { calendarInput, invalidInput } from '../lib/errors.ts';
@@ -105,7 +106,7 @@ function paginate<T>(req: Request, items: T[], defaultPerPage: number): T[] {
 }
 export function togglV9Routes(deps: Deps): Router {
   const { storage: db, config } = deps;
-  const api = express.Router();
+  const api = createRouter();
   api.use(deps.auth.requireAuth);
   const workspaceFor = (db: AccountRepositories, req: Request, res: Response) =>
     memberWorkspace(db, res.locals.auth.user.id, parseId(req.params.wid));
