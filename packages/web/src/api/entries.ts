@@ -6,6 +6,7 @@ import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
 import { entryBoundsReply, entryListReply, runningEntryReply, timeEntryReply } from './replies.ts';
+import { TIMER_ENTRY_OPTIONS, attemptTimerRequest } from './timerOutcome.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
 
@@ -86,15 +87,33 @@ export function useUpdateEntry() {
   });
 }
 
+/**
+ * Starts the timer, or saves a finished entry typed into the idle bar. It is tried at once even
+ * offline (`TIMER_ENTRY_OPTIONS`); other creates use `useCreateEntry`, which waits for the connection.
+ */
+export function useStartEntry() {
+  const wid = useWid();
+  const onSuccess = useInvalidateEntries();
+  return useMutation({
+    ...TIMER_ENTRY_OPTIONS,
+    mutationFn: (input: TimeEntryInput) => attemptTimerRequest(() => entryRequests.create(wid, input)),
+    onSuccess,
+  });
+}
+
+/** Stops the running entry, tried at once even offline like `useStartEntry`. */
 export function useStopEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({
+    ...TIMER_ENTRY_OPTIONS,
     mutationFn: (input: number | { id: number; stop: string }) => {
       const id = typeof input === 'number' ? input : input.id;
-      return api.patch<TimeEntry>(
-        `${wsPath(wid, 'time_entries', id, 'stop')}?meta=true`,
-        typeof input === 'number' ? undefined : { stop: input.stop },
+      return attemptTimerRequest(() =>
+        api.patch<TimeEntry>(
+          `${wsPath(wid, 'time_entries', id, 'stop')}?meta=true`,
+          typeof input === 'number' ? undefined : { stop: input.stop },
+        ),
       );
     },
     onSuccess,

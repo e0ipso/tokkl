@@ -1,7 +1,7 @@
 import { useRef, useState, type RefObject } from 'react';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
-import { useCreateEntry, useDeleteEntry, useRestoreEntry, useStopEntry, useUpdateEntry } from '../api/entries.ts';
-import { useDiscardPause, usePauseTimer, useResumeTimer } from '../api/timerHooks.ts';
+import { useDeleteEntry, useRestoreEntry, useStartEntry, useStopEntry, useUpdateEntry } from '../api/entries.ts';
+import { useDiscardPause, usePauseTimer, useResumeTimer, useTimerOutcome } from '../api/timerHooks.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import type { EntryFieldsHandle } from './EntryFields.tsx';
@@ -17,6 +17,8 @@ import { t } from '../i18n/messages.ts';
  * The server owns the running entry, the pause chain and the Pomodoro session: every action goes
  * through a v9 write or a timer action. Pause, Resume and Stop while paused wait for the server's
  * answer, and nothing else starts or stops an entry until it arrives, so two writes never race.
+ * Every write is tried at once, online or not. A Start, Continue or Stop that got no reply leaves
+ * the timer unknown, and the next start reads the timer state before it takes its start time.
  */
 export function useTimerBarActions({
   current,
@@ -29,7 +31,7 @@ export function useTimerBarActions({
   running: ReturnType<typeof useRunningDraft>;
   fields: RefObject<EntryFieldsHandle | null>;
 }) {
-  const create = useCreateEntry();
+  const create = useStartEntry();
   const update = useUpdateEntry();
   const stopEntry = useStopEntry();
   const remove = useDeleteEntry();
@@ -37,6 +39,7 @@ export function useTimerBarActions({
   const pauseTimer = usePauseTimer();
   const resumeTimer = useResumeTimer();
   const discardPause = useDiscardPause();
+  const outcome = useTimerOutcome();
   const toast = useToast();
   const [timerDuration, setTimerDuration] = useState('');
   const timerErrors = useFieldErrors<'duration'>();
@@ -65,6 +68,8 @@ export function useTimerBarActions({
     starting.current = true;
     try {
       fields.current?.hideSuggestions();
+      // After a write that got no reply, the server may already run another entry; the read shows it.
+      if (!(await outcome.mayStart(current?.id ?? null))) return null;
       let saved: TimeEntry;
       if (seconds !== null && seconds > 0) {
         const stop = new Date();
@@ -84,6 +89,7 @@ export function useTimerBarActions({
       setTimerDuration('');
       return saved;
     } catch (error) {
+      outcome.failed(error);
       running.forgetOwnStart();
       toast.error(error);
       return null;
@@ -124,6 +130,7 @@ export function useTimerBarActions({
     try {
       stopped = await stopEntry.mutateAsync(current.id);
     } catch (error) {
+      outcome.failed(error);
       toast.error(error);
       return;
     }

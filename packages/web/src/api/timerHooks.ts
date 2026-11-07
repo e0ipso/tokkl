@@ -12,6 +12,7 @@ import {
   revisionToSend,
   settleOtherWrites,
 } from './timerState.ts';
+import { createTimerOutcome, type TimerOutcome } from './timerOutcome.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { TimeEntryInput, TimerState } from './types.ts';
 import { useNow } from '../lib/clock.ts';
@@ -40,6 +41,22 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
 
 async function readTimerState(qc: QueryClient): Promise<TimerState> {
   return acceptTimerState(qc, await api.get(timerPath, { decode: timerStateOf }));
+}
+
+const outcomes = new WeakMap<QueryClient, TimerOutcome>();
+
+/**
+ * Whether the last Start, Continue or Stop left the timer unknown, shared by every view on this
+ * client so a remounted timer bar still reads the state before its next start.
+ */
+export function useTimerOutcome(): TimerOutcome {
+  const qc = useQueryClient();
+  let outcome = outcomes.get(qc);
+  if (!outcome) {
+    outcome = createTimerOutcome(() => readTimerState(qc));
+    outcomes.set(qc, outcome);
+  }
+  return outcome;
 }
 
 /**
