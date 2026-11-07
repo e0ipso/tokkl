@@ -6,6 +6,8 @@ import type { TagLabel } from '../domain.ts';
 import { booleanValue, entityId, finiteNumber, utcInstant } from '../conversion.ts';
 import { reportContains, reportDuration, reportIds, reportTags } from './report-sql.ts';
 
+const nullableId = (v: number | string | null) => (v === null ? null : entityId(v));
+
 export function createReportRepositories(
   db: Kysely<PhysicalDatabase>,
   backend: Backend,
@@ -44,72 +46,80 @@ export function createReportRepositories(
     if (f.description) q = q.where(reportContains(backend, f.description));
     return q;
   };
+  type Selection = ReturnType<typeof selected>;
+  const entryRows = (q: Selection) =>
+    q
+      .select([
+        'e.id',
+        'e.user_id',
+        'e.workspace_id',
+        'e.description',
+        'e.start',
+        'e.stop',
+        'e.updated_at',
+        'e.billable',
+        'e.all_day',
+        'e.project_id',
+        'e.task_id',
+        'p.name as project_name',
+        'p.color as project_color',
+        'p.rate as project_rate',
+        'p.currency as project_currency',
+        'c.id as client_id',
+        'c.name as client_name',
+        't.name as task_name',
+      ])
+      .orderBy('e.start')
+      .orderBy('e.id')
+      .execute();
+  /** Each selected entry's tags. Reuses the relational selection, not an unbounded IN list or one
+   * tag lookup per entry. */
+  const entryTags = async (q: Selection): Promise<Map<number, TagLabel[]>> => {
+    const labels = await db
+      .selectFrom('time_entry_tags as et')
+      .innerJoin('tags as g', 'g.id', 'et.tag_id')
+      .select(['et.time_entry_id', 'g.id', 'g.name'])
+      .where('et.time_entry_id', 'in', q.select('e.id'))
+      .orderBy('g.name_key')
+      .orderBy('g.id')
+      .execute();
+    const tags = new Map<number, TagLabel[]>();
+    for (const r of labels) {
+      const id = entityId(r.time_entry_id),
+        list = tags.get(id) ?? [];
+      list.push({ id: entityId(r.id), name: r.name });
+      tags.set(id, list);
+    }
+    return tags;
+  };
+  const reportEntry = (r: Awaited<ReturnType<typeof entryRows>>[number], tags: Map<number, TagLabel[]>) => ({
+    id: entityId(r.id),
+    userId: entityId(r.user_id),
+    workspaceId: entityId(r.workspace_id),
+    description: r.description,
+    start: utcInstant(r.start),
+    stop: utcInstant(r.stop),
+    updatedAt: utcInstant(r.updated_at),
+    billable: booleanValue(r.billable),
+    allDay: booleanValue(r.all_day),
+    projectId: nullableId(r.project_id),
+    taskId: nullableId(r.task_id),
+    projectName: r.project_name,
+    projectColor: r.project_color,
+    projectRate: r.project_rate === null ? null : finiteNumber(r.project_rate),
+    projectCurrency: r.project_currency,
+    clientId: nullableId(r.client_id),
+    clientName: r.client_name,
+    taskName: r.task_name,
+    tags: tags.get(entityId(r.id)) ?? [],
+  });
   return {
     reports: {
       async collect(userId, workspaceId, selection) {
         const q = selected(userId, workspaceId, selection);
-        const rows = await q
-          .select([
-            'e.id',
-            'e.user_id',
-            'e.workspace_id',
-            'e.description',
-            'e.start',
-            'e.stop',
-            'e.updated_at',
-            'e.billable',
-            'e.all_day',
-            'e.project_id',
-            'e.task_id',
-            'p.name as project_name',
-            'p.color as project_color',
-            'p.rate as project_rate',
-            'p.currency as project_currency',
-            'c.id as client_id',
-            'c.name as client_name',
-            't.name as task_name',
-          ])
-          .orderBy('e.start')
-          .orderBy('e.id')
-          .execute();
-        // Reuse the relational selection, not an unbounded IN list or one tag lookup per entry.
-        const labels = await db
-          .selectFrom('time_entry_tags as et')
-          .innerJoin('tags as g', 'g.id', 'et.tag_id')
-          .select(['et.time_entry_id', 'g.id', 'g.name'])
-          .where('et.time_entry_id', 'in', q.select('e.id'))
-          .orderBy('g.name_key')
-          .orderBy('g.id')
-          .execute();
-        const tags = new Map<number, TagLabel[]>();
-        for (const r of labels) {
-          const id = entityId(r.time_entry_id),
-            list = tags.get(id) ?? [];
-          list.push({ id: entityId(r.id), name: r.name });
-          tags.set(id, list);
-        }
-        const nullableId = (v: number | string | null) => (v === null ? null : entityId(v));
-        return rows.map(r => ({
-          id: entityId(r.id),
-          userId: entityId(r.user_id),
-          workspaceId: entityId(r.workspace_id),
-          description: r.description,
-          start: utcInstant(r.start),
-          stop: utcInstant(r.stop),
-          updatedAt: utcInstant(r.updated_at),
-          billable: booleanValue(r.billable),
-          allDay: booleanValue(r.all_day),
-          projectId: nullableId(r.project_id),
-          taskId: nullableId(r.task_id),
-          projectName: r.project_name,
-          projectColor: r.project_color,
-          projectRate: r.project_rate === null ? null : finiteNumber(r.project_rate),
-          projectCurrency: r.project_currency,
-          clientId: nullableId(r.client_id),
-          clientName: r.client_name,
-          taskName: r.task_name,
-          tags: tags.get(entityId(r.id)) ?? [],
-        }));
+        const rows = await entryRows(q);
+        const tags = await entryTags(q);
+        return rows.map(r => reportEntry(r, tags));
       },
     },
   };
