@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { AccountEntryEffects, AccountRunner } from '../../src/domain/accounts.ts';
+import type { AccountRunner } from '../../src/domain/accountGuards.ts';
+import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { generateApiToken, hashPassword, sha256 } from '../../src/lib/crypto.ts';

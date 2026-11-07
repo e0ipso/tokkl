@@ -33,11 +33,6 @@ import { getInstanceSettings } from './instanceSettings.ts';
 import { memberWorkspace, noWorkspaceAccess } from './membership.ts';
 import { createSessionOperations } from './sessions.ts';
 
-export type { AccountContext, AccountRepositories, AccountRunner, AccountSecurityEffects } from './accountGuards.ts';
-export { INVITE_NOT_FOUND, PASSWORD_RESET_HOURS, RESET_NOT_FOUND } from './accountLinks.ts';
-export type { AccountCredential };
-export { isActiveAdmin, isActiveUser };
-
 /** An attempt either ran its check, or was refused unchecked with the seconds to wait. */
 export type PasswordAttemptResult = { refused: false; valid: boolean } | { refused: true; retryAfter: number };
 /** The HTTP/auth adapter supplies FailureLimiter.attempt with passwordCounters and its address. */
@@ -269,3 +264,6 @@ export function createAccountOperations<R extends AccountRepositories>(
     ...createSessionOperations(runner, security),
   };
 }
+export type AccountOperations<R extends AccountRepositories = AccountRepositories> = ReturnType<
+  typeof createAccountOperations<R>
+>;

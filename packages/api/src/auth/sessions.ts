@@ -1,5 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type { AccountRepositories, AccountRunner, createAccountOperations } from '../domain/accounts.ts';
+import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
+import type { createAccountOperations } from '../domain/accounts.ts';
 import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accountLinks.ts';
 import { parseNewAccount, parseNewPassword } from '../commands/accounts.ts';
 import type { User } from '../storage/domain.ts';

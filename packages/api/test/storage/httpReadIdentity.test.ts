@@ -6,6 +6,7 @@ import type { Backend } from '../../src/storage/config.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
+import { withBodies } from '../fixtures/accountBodies.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { gate, serveInvariant } from './support/invariantHttp.ts';
@@ -41,12 +42,13 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
   const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
   const server = await serveInvariant(app),
     services = app.locals.services;
+  const accounts = withBodies(services.accounts, storage);
   t.after(async () => {
     await server.close();
     await storage.close();
     await fixture.cleanup();
   });
-  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password });
+  const admin = await accounts.createFirstAdmin({ email: 'admin@example.test', password });
   const paths = [
     '/api/v9/me?with_related_data=true',
     '/api/v9/me/time_entries?start_date=2026-10-30&end_date=2026-10-31',
@@ -58,9 +60,9 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
   ];
   for (const [index, path] of paths.entries())
     await t.test(path, async child => {
-      const invite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);
-      const old = await services.accounts.acceptInvite(invite.token, { email: `old${index}@example.test`, password });
-      const nextInvite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);
+      const invite = await accounts.createInvite(admin.id, { role: 'user' }, 30);
+      const old = await accounts.acceptInvite(invite.token, { email: `old${index}@example.test`, password });
+      const nextInvite = await accounts.createInvite(admin.id, { role: 'user' }, 30);
       const held = holdAuthentication(child, storage, old.apiToken);
       const pending = server.request(
         'GET',
@@ -78,7 +80,7 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
       );
       assert.equal(deletion.status, 200);
       await deletion.json();
-      const replacement = await services.accounts.acceptInvite(nextInvite.token, {
+      const replacement = await accounts.acceptInvite(nextInvite.token, {
         email: `new${index}@example.test`,
         password,
       });
@@ -101,7 +103,7 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
         body = await response.text();
       assert.equal(response.status, 403, body);
       assert.ok(!body.includes('private replacement entry'));
-      await services.accounts.deleteAccount(admin.id, replacement.id, replacement.email, services.entryEffects);
+      await accounts.deleteAccount(admin.id, replacement.id, replacement.email, services.entryEffects);
     });
 });
 
@@ -112,14 +114,15 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
     const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
     const server = await serveInvariant(app),
       services = app.locals.services;
+    const accounts = withBodies(services.accounts, storage);
     t.after(async () => {
       await server.close();
       await storage.close();
       await fixture.cleanup();
     });
-    const founder = await services.accounts.createFirstAdmin({ email: 'founder@example.test', password });
-    const invite = await services.accounts.createInvite(founder.id, { role: 'admin' }, 30);
-    const user = await services.accounts.acceptInvite(invite.token, { email: 'reader@example.test', password });
+    const founder = await accounts.createFirstAdmin({ email: 'founder@example.test', password });
+    const invite = await accounts.createInvite(founder.id, { role: 'admin' }, 30);
+    const user = await accounts.acceptInvite(invite.token, { email: 'reader@example.test', password });
     let token = user.apiToken;
     for (const path of ['/api/v9/me/workspaces', '/api/app/export.json'])
       await t.test(`token rotated before ${path}`, async child => {
@@ -192,20 +195,21 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
   const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
   const server = await serveInvariant(app),
     services = app.locals.services;
+  const accounts = withBodies(services.accounts, storage);
   t.after(async () => {
     await server.close();
     await storage.close();
     await fixture.cleanup();
   });
-  const admin = await services.accounts.createFirstAdmin({ email: 'admin@example.test', password });
+  const admin = await accounts.createFirstAdmin({ email: 'admin@example.test', password });
   for (const [index, report] of [
     '/api/app/report/entries',
     '/reports/api/v3/workspace/{wid}/search/time_entries',
   ].entries()) {
     await t.test(report, async child => {
-      const invite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);
-      const old = await services.accounts.acceptInvite(invite.token, { email: `old${index}@example.test`, password });
-      const nextInvite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);
+      const invite = await accounts.createInvite(admin.id, { role: 'user' }, 30);
+      const old = await accounts.acceptInvite(invite.token, { email: `old${index}@example.test`, password });
+      const nextInvite = await accounts.createInvite(admin.id, { role: 'user' }, 30);
       const path = report.replace('{wid}', String(old.defaultWorkspaceId));
       const warm = await server.request('POST', path, range, old.apiToken);
       assert.equal(warm.status, 200);
@@ -235,7 +239,7 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
       );
       assert.equal(deletion.status, 200);
       await deletion.json();
-      const replacement = await services.accounts.acceptInvite(nextInvite.token, {
+      const replacement = await accounts.acceptInvite(nextInvite.token, {
         email: `new${index}@example.test`,
         password,
       });
@@ -259,7 +263,7 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
         body = await response.text();
       assert.equal(response.status, 403, body);
       assert.ok(!body.includes('private replacement entry'));
-      await services.accounts.deleteAccount(admin.id, replacement.id, replacement.email, services.entryEffects);
+      await accounts.deleteAccount(admin.id, replacement.id, replacement.email, services.entryEffects);
     });
   }
 });

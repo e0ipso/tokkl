@@ -1,5 +1,6 @@
 import type { Request, RequestHandler } from 'express';
-import type { AccountPasswordAttempt, AccountRepositories, AccountRunner } from '../domain/accounts.ts';
+import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
+import type { AccountPasswordAttempt } from '../domain/accounts.ts';
 import {
   type Authentication,
   findActiveSession,

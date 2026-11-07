@@ -3,7 +3,8 @@
  * delete its owner, and must settle and publish the affected timers.
  */
 import type { Id } from '../storage/domain.ts';
-import type { AccountEntryEffects, AccountRepositories } from './accounts.ts';
+import type { AccountRepositories } from './accountGuards.ts';
+import type { AccountEntryEffects } from './accounts.ts';
 import type { CatalogTimerEffects } from './catalogs.ts';
 import type { EntryContext, EntryRepositories } from './entryAccess.ts';
 import { reanchorNoTimeEntries } from './timeEntries.ts';

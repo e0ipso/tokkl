@@ -5,6 +5,7 @@ import type { StorageAuthentication } from '../../src/auth/middleware.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
+import { withBodies } from '../fixtures/accountBodies.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.ts';
@@ -19,6 +20,7 @@ for (const delayed of [false, true])
       const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
       const server = await serveInvariant(app),
         services = app.locals.services;
+      const accounts = withBodies(services.accounts, storage);
       const release = gate(),
         entered = gate(),
         releasePublication = gate(),
@@ -43,16 +45,16 @@ for (const delayed of [false, true])
         await storage.close();
         await fixture.cleanup();
       });
-      const admin = await services.accounts.createFirstAdmin({
+      const admin = await accounts.createFirstAdmin({
         email: 'admin@example.test',
         password: 'correct horse battery',
       });
-      const invite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);
-      const old = await services.accounts.acceptInvite(invite.token, {
+      const invite = await accounts.createInvite(admin.id, { role: 'user' }, 30);
+      const old = await accounts.acceptInvite(invite.token, {
         email: 'old@example.test',
         password: 'correct horse battery',
       });
-      const nextInvite = await services.accounts.createInvite(admin.id, { role: 'user' }, 30);
+      const nextInvite = await accounts.createInvite(admin.id, { role: 'user' }, 30);
       const oldStream = await readTimerStream(
         await server.request('GET', '/api/app/timer/events', undefined, old.apiToken),
       );

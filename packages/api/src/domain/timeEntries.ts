@@ -33,8 +33,6 @@ import {
 import { memberWorkspace } from './membership.ts';
 import { touchTimer, type TimerPublication } from './timerSettlement.ts';
 
-export type { EntryContext, EntryRepositories } from './entryAccess.ts';
-
 function assertWorkspace(sent: EntryFields, wid: Id): void {
   if (sent.workspaceId && sent.workspaceId !== wid)
     throw invalidInput('Workspace ID in the body does not match the URL');

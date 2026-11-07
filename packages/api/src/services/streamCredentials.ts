@@ -1,4 +1,4 @@
-import type { AccountRepositories, AccountRunner } from '../domain/accounts.ts';
+import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
 import { credentialHolds, type Authentication } from '../domain/credentials.ts';
 import type { Repositories } from '../storage/contracts.ts';
 import type { StreamCredentialResult } from './timerStreams.ts';
