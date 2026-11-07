@@ -58,7 +58,7 @@ function timers(db: FixtureDatabase) {
   return entries.bodyTimers(
     presentTimerOperations(
       createTimerOperations(
-        ctx ? { transaction: ctx.transaction, readSnapshot: storageFor(db).readSnapshot } : storageFor(db),
+        ctx ? { transaction: work => work(ctx), readSnapshot: storageFor(db).readSnapshot } : storageFor(db),
         publication(db),
       ),
     ),

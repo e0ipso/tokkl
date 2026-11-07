@@ -184,10 +184,6 @@ function createScope<D, R extends object>(
   context: () => OperationContext<R>,
 ): TransactionScope<R> {
   return {
-    async transaction(nested) {
-      check();
-      return nested(context());
-    },
     async savepoint(unit) {
       check();
       // A connection has a stack of savepoints. Concurrent sibling units cannot share it.

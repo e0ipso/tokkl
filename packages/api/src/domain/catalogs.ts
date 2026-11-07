@@ -37,22 +37,21 @@ async function invalidate(ctx: CatalogContext, wid: Id, effects: CatalogTimerEff
     ctx.afterCommit(() => pending.publish());
   });
 }
+/** Runs `work` in the caller's transaction under the workspace guard; a duplicate name is a 400. */
 async function write<T>(
   ctx: CatalogContext,
   wid: Id,
   work: (ctx: CatalogContext) => Promise<T>,
   tag = false,
 ): Promise<T> {
-  return ctx.transaction(async operation => {
-    await operation.lockWorkspaces([wid]);
-    try {
-      return await work(operation);
-    } catch (error) {
-      if (error instanceof StorageConflict && error.kind === 'unique')
-        throw invalidInput(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
-      throw error;
-    }
-  });
+  await ctx.lockWorkspaces([wid]);
+  try {
+    return await work(ctx);
+  } catch (error) {
+    if (error instanceof StorageConflict && error.kind === 'unique')
+      throw invalidInput(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
+    throw error;
+  }
 }
 function unique(existing: { id: number } | undefined, except?: Id, tag = false): void {
   if (existing && existing.id !== except)

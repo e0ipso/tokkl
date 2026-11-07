@@ -29,7 +29,7 @@ function cachedReferences(ctx: EntryContext) {
   return { refs, clear: () => Object.values(cached).forEach(lookup => lookup.clear()) };
 }
 
-/** Callback-scoped import capability. All reads and writes use this guarded context. */
+/** Callback-scoped import capability in the caller's transaction. All reads and writes use this guarded context. */
 export async function withExactEntryImport<T>(
   ctx: EntryContext,
   userId: Id,
@@ -37,44 +37,42 @@ export async function withExactEntryImport<T>(
   publish: TimerPublication,
   work: (writer: ExactEntryImport) => Promise<T>,
 ): Promise<T> {
-  return ctx.transaction(async ctx => {
-    const user = await protectEntryOperation(ctx, userId, [wid]);
-    await memberWorkspace(ctx, user.id, wid);
-    let active = true,
-      rowActive = false;
-    const { refs, clear } = cachedReferences(ctx);
-    function check() {
-      if (!active) throw new Error('Entry import scope is closed');
-    }
-    const writer: ExactEntryImport = {
-      async savepoint(unit) {
-        check();
-        if (rowActive) throw new Error('Import rows must be sequential');
-        rowActive = true;
-        try {
-          return await ctx.savepoint(() => unit());
-        } catch (error) {
-          clear();
-          throw error;
-        } finally {
-          rowActive = false;
-        }
-      },
-      async create(entry) {
-        check();
-        if (!rowActive) throw new Error('Entry import requires a row savepoint');
-        const input = await prepareEntry(ctx, user, wid, entry, true, refs);
-        if (!input.stop && (await ctx.entries.running(userId)))
-          throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
-        touchTimer(ctx, userId, publish);
-        await ctx.entries.insert(input);
-      },
-    };
-    try {
-      return await work(writer);
-    } finally {
-      active = false;
-      clear();
-    }
-  });
+  const user = await protectEntryOperation(ctx, userId, [wid]);
+  await memberWorkspace(ctx, user.id, wid);
+  let active = true,
+    rowActive = false;
+  const { refs, clear } = cachedReferences(ctx);
+  function check() {
+    if (!active) throw new Error('Entry import scope is closed');
+  }
+  const writer: ExactEntryImport = {
+    async savepoint(unit) {
+      check();
+      if (rowActive) throw new Error('Import rows must be sequential');
+      rowActive = true;
+      try {
+        return await ctx.savepoint(() => unit());
+      } catch (error) {
+        clear();
+        throw error;
+      } finally {
+        rowActive = false;
+      }
+    },
+    async create(entry) {
+      check();
+      if (!rowActive) throw new Error('Entry import requires a row savepoint');
+      const input = await prepareEntry(ctx, user, wid, entry, true, refs);
+      if (!input.stop && (await ctx.entries.running(userId)))
+        throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
+      touchTimer(ctx, userId, publish);
+      await ctx.entries.insert(input);
+    },
+  };
+  try {
+    return await work(writer);
+  } finally {
+    active = false;
+    clear();
+  }
 }

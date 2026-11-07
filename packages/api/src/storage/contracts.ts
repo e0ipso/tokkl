@@ -301,9 +301,12 @@ export interface Repositories {
   reports: ReportsRepository;
   transfers: TransfersRepository;
 }
-/** SQL-free operations shared by transaction-bound repository sets. */
+/**
+ * SQL-free operations of one open write transaction. A scope cannot open another transaction: code
+ * that receives an `OperationContext` runs inside its caller's, and only a runner (`Storage` and the
+ * domain's `*Runner` interfaces) opens one.
+ */
 export interface TransactionScope<R extends object> {
-  transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   savepoint<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   beforeCommit(key: string, callback: () => Promise<void>): void;
   /**

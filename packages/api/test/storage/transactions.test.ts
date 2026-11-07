@@ -51,10 +51,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             events.push('after');
             assert.equal(await runner.readSnapshot(r => r.settings.get('before')), 'yes');
           });
-          await ctx.transaction(async nested => {
-            assert.equal(nested, ctx);
-            assert.equal(await nested.settings.get('outer'), 'yes');
-          });
+          // Only the runner opens transactions; the context it hands out cannot start another.
+          assert.equal('transaction' in ctx, false);
           await assert.rejects(
             ctx.savepoint(async sp => {
               sp.beforeCommit('settle', async () => {
