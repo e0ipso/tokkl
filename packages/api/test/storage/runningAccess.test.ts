@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CompiledQuery } from 'kysely';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createStorage } from '../../src/storage/index.ts';
+import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { createEntryRepositories } from '../../src/storage/repositories/entries.ts';
 import { createTimerRepositories } from '../../src/storage/repositories/timers.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';

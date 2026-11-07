@@ -2,18 +2,19 @@ import { after } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
-import type { Storage, TransactionContext } from '../../src/storage/contracts.ts';
+import type { TransactionContext } from '../../src/storage/contracts.ts';
 import type { StorageConfig, Backend } from '../../src/storage/config.ts';
 import type { ApplicationServices } from '../../src/services/application.ts';
 import { disposableBackend, type DisposableBackend } from '../storage/support/disposableBackend.ts';
 import { registerPhysicalFixture } from './physical.ts';
+import { withShortcuts, type StorageWithShortcuts } from './storageShortcuts.ts';
 
 /** Identity only. All application work uses the associated asynchronous storage. */
 export interface FixtureDatabase {
   readonly backend: Backend;
 }
 interface Fixture {
-  storage: Storage;
+  storage: StorageWithShortcuts;
   config: StorageConfig;
   services?: ApplicationServices;
 }
@@ -61,7 +62,7 @@ function selectedBackend(): Backend {
 async function open(config: StorageConfig, cleanup?: () => Promise<void>): Promise<FixtureDatabase> {
   const connection = await initializeDatabase(config);
   const handle = Object.freeze({ backend: config.backend });
-  fixtures.set(handle, { storage: createStorage(connection), config });
+  fixtures.set(handle, { storage: withShortcuts(createStorage(connection)), config });
   registerPhysicalFixture(handle, connection.db);
   owned.push({ handle, cleanup });
   return handle;
@@ -83,7 +84,7 @@ export function openSQLiteDatabase(filename = ':memory:'): Promise<FixtureDataba
   return open({ backend: 'sqlite', filename, busyTimeoutMs: 5000 });
 }
 export const reopenDatabase = (db: FixtureDatabase): Promise<FixtureDatabase> => open(storageConfigFor(db));
-export function storageFor(db: FixtureDatabase): Storage {
+export function storageFor(db: FixtureDatabase): StorageWithShortcuts {
   const f = fixtures.get(db);
   if (!f) throw Error('Unknown fixture');
   return f.storage;

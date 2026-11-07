@@ -1,6 +1,7 @@
 import express, { type Express } from 'express';
 import type { Config } from './config.ts';
 import type { Storage } from './storage/contracts.ts';
+import { standaloneRateLimits } from './storage/index.ts';
 import { createApplicationServices } from './services/application.ts';
 import { createLocalTimerBus, type TimerBus } from './domain/timerBus.ts';
 import type { Deps } from './http/context.ts';
@@ -43,12 +44,13 @@ export function createApp({
   logger = createLogger({ level: config.logLevel }),
 }: AppOptions): Express {
   const app = express();
-  const loginLimiter = new FailureLimiter(storage.rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
+  const rateLimits = standaloneRateLimits(storage);
+  const loginLimiter = new FailureLimiter(rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   const deps: Deps = {
     storage,
     config,
     loginLimiter,
-    setupLimiter: new FailureLimiter(storage.rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
+    setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
     ...createApplicationServices({
       storage,
       storageConfig: config.storage,

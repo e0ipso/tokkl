@@ -318,7 +318,11 @@ export interface TransactionScope<R extends object> {
 }
 export type OperationContext<R extends object> = R & TransactionScope<R>;
 export type TransactionContext = OperationContext<Repositories>;
-export interface Storage extends Repositories {
+/**
+ * The application's database. Every repository call runs inside an explicit unit of work: a write
+ * transaction, which takes the guards in the documented order, or a read-only snapshot.
+ */
+export interface Storage {
   transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
   readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;

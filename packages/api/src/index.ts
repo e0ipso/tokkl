@@ -79,7 +79,12 @@ async function main(): Promise<void> {
   const storage = createStorage(await initializeDatabase(config.storage));
   let timerBus: TimerBus | undefined;
   try {
-    const setup = { code: (await storage.users.count()) === 0 ? (config.setupCode ?? setupCode()) : null };
+    const setup = {
+      code:
+        (await storage.readSnapshot(repositories => repositories.users.count())) === 0
+          ? (config.setupCode ?? setupCode())
+          : null,
+    };
     // A process must hear other instances' timer signals before it reports that it is listening.
     timerBus = await startTimerBus(config.storage, logger);
     const app = createApp({ storage, config, setup, timerBus, logger });
