@@ -25,6 +25,25 @@ test('oversized bodies get a 413 with a Toggl-style string error', async () => {
   assert.equal(await response.json(), 'Request body too large');
 });
 
+test('an import checks the credential and the CSRF header before it reads a body', async () => {
+  const ctx = await setup();
+  const huge = 'x'.repeat(51 * 1024 * 1024);
+  const anonymous = await ctx.request('POST', '/api/app/import/json', huge, { authorization: '', ...CSRF });
+  assert.equal(anonymous.status, 403);
+  assert.equal(await anonymous.json(), 'Incorrect username and/or password');
+  assert.equal(anonymous.headers.get('cache-control'), 'no-store');
+  const noCsrf = await ctx.request('POST', '/api/app/import/toggl-csv', huge, { authorization: '' });
+  assert.equal(noCsrf.status, 403);
+  assert.equal(await noCsrf.json(), 'Missing CSRF header');
+  // A signed-in import may be large, up to its own limit.
+  const oversize = await ctx.request('POST', '/api/app/import/json', huge);
+  assert.equal(oversize.status, 413);
+  assert.equal(await oversize.json(), 'Request body too large');
+  const large = await ctx.request('POST', '/api/app/import/json', JSON.stringify({ pad: 'x'.repeat(1_100_000) }));
+  assert.equal(large.status, 400);
+  assert.equal(large.headers.get('cache-control'), 'no-store');
+});
+
 test('behind a trusted HTTPS proxy the session cookie is Secure and HSTS is sent', async () => {
   const db = await openDatabase();
   await createFirstAdmin(db, { email: 'me@example.com', password: PASSWORD, fullname: '', timezone: 'UTC' });

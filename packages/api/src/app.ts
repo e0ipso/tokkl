@@ -11,10 +11,12 @@ import { createSessionHandlers, type SetupState } from './auth/sessions.ts';
 import { errorHandler } from './http/errors.ts';
 import { requestLog } from './http/requestLog.ts';
 import { noStore, securityHeaders } from './http/security.ts';
+import { textBody } from './http/request.ts';
 import { webRootRoutes } from './http/webRoot.ts';
 import { createLogger, type Logger } from './lib/logger.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { appRoutes } from './routes/app.ts';
+import { importRoutes } from './routes/imports.ts';
 import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/toggl/index.ts';
@@ -30,12 +32,6 @@ export interface AppOptions {
   /** Where request failures and background errors are logged. Defaults to JSON lines on stdout/stderr. */
   logger?: Logger;
 }
-
-/**
- * Bodies are read as text whatever the Content-Type, then parsed by the route. Toggl clients do
- * not always send `Content-Type: application/json`, and the import routes take raw CSV or JSON.
- */
-const textBody = (limit: string) => express.text({ type: () => true, limit });
 
 export function createApp({
   storage,
@@ -109,7 +105,8 @@ export function createApp({
     res.json({ ok: true });
   });
 
-  app.use('/api/app/import', textBody('50mb'));
+  // Imports authenticate before they read their larger bodies, so they come before the 1 MB parser.
+  app.use('/api/app', importRoutes(deps));
   app.use(['/api', '/reports/api'], textBody('1mb'), noStore);
 
   app.use('/api/v9', togglV9Routes(deps));

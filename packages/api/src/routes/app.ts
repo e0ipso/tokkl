@@ -2,16 +2,15 @@ import { type Router } from 'express';
 import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { jsonRead } from './context.ts';
-import { readText } from '../http/request.ts';
-import { query, queryList } from '../http/params.ts';
-import { invalidInput, notFound } from '../lib/errors.ts';
+import { query } from '../http/params.ts';
+import { notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
 import { parseEntrySplit } from '../commands/timeEntries.ts';
 import { readJson } from '../http/request.ts';
 
-export type AppRouteDeps = Pick<Deps, 'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount' | 'importsFor'>;
+export type AppRouteDeps = Pick<Deps, 'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount'>;
 
 export function appRoutes(deps: AppRouteDeps): Router {
   const { sessions } = deps;
@@ -99,31 +98,6 @@ export function appRoutes(deps: AppRouteDeps): Router {
       .set('Content-Type', 'text/csv; charset=utf-8')
       .set('Content-Disposition', `attachment; filename="${result.filename}"`)
       .send(result.body);
-  });
-  app.post('/import/toggl-csv', auth, async (req, res) => {
-    const text = readText(req);
-    if (!text.trim()) throw invalidInput('The file is empty');
-    // One `user=<key>` per selected Toggl user; keys may hold commas, so they are never joined.
-    const users = queryList(req, 'user');
-    if (users?.length === 0) throw invalidInput('Invalid user selection');
-    return res.json(
-      await deps
-        .importsFor(res.locals.auth)
-        .importTogglCsv(res.locals.auth.user.id, text, { dryRun: query(req, 'dry_run') === 'true', users }),
-    );
-  });
-  app.post('/import/json', auth, async (req, res) => {
-    let data: unknown;
-    try {
-      data = JSON.parse(readText(req));
-    } catch {
-      throw invalidInput('The file is not valid JSON');
-    }
-    return res.json(
-      await deps
-        .importsFor(res.locals.auth)
-        .importJsonExport(res.locals.auth.user.id, data, { dryRun: query(req, 'dry_run') === 'true' }),
-    );
   });
   return app;
 }
