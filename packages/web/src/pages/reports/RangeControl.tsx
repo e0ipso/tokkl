@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { arrowTarget } from '../../components/arrowKeys.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
+import { useOverlayStack } from '../../components/overlayStack.tsx';
 import {
   PRESETS,
   PRESET_LABELS,
@@ -55,6 +56,7 @@ export function RangeControl({
   const tabStop = focused >= 0 ? focused : Math.max(activeIndex, 0);
 
   const shift = (direction: 1 | -1) => update({ range: shiftRange(range, direction) });
+  const overlays = useOverlayStack();
   const shiftRef = useRef(shift);
   shiftRef.current = shift;
 
@@ -64,13 +66,13 @@ export function RangeControl({
       // A widget that already handled the key (and called preventDefault) wins.
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
       if (ownsArrows(event.target)) return;
-      if (document.querySelector('.modal, .popover')) return;
+      if (overlays.isOpen()) return;
       event.preventDefault();
       shiftRef.current(event.key === 'ArrowLeft' ? -1 : 1);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  }, [overlays]);
 
   // Opening moves focus to the active preset, as a listbox popup does.
   useEffect(() => {
@@ -133,7 +135,7 @@ export function RangeControl({
         <Icon name="chevronRight" />
       </button>
       {open ? (
-        <Popover anchor={button.current} onClose={close} width={300}>
+        <Popover anchor={button} label="Period" onClose={close} width={300}>
           <div className="range-presets" role="listbox" aria-label="Date range">
             {PRESETS.map((name, index) => (
               <button

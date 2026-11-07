@@ -182,7 +182,7 @@ export const EntryFields = forwardRef<
 
       {picker === 'project' ? (
         <ProjectPicker
-          anchor={projectButton.current}
+          anchor={projectButton}
           projectId={draft.project_id}
           taskId={draft.task_id}
           onChange={(pid, tid) => onEdit(projectChanges(pid, tid))}
@@ -194,7 +194,7 @@ export const EntryFields = forwardRef<
       ) : null}
       {picker === 'tags' ? (
         <TagPicker
-          anchor={tagButton.current}
+          anchor={tagButton}
           value={draft.tags}
           onChange={tags => onEdit({ tags })}
           onClose={() => {

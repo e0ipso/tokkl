@@ -72,7 +72,8 @@ function MultiSelect({
       </button>
       {open ? (
         <Popover
-          anchor={button.current}
+          anchor={button}
+          label={`${label} filter`}
           onClose={() => {
             setOpen(false);
             setQuery('');

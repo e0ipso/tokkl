@@ -26,6 +26,7 @@ import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
 import { LoadError, Loading } from './PageState.tsx';
 import { projectColorStyle } from './Pickers.tsx';
+import { useOverlayStack } from './overlayStack.tsx';
 import { useToast } from './Toast.tsx';
 
 const HOUR_HEIGHT = 48;
@@ -108,6 +109,7 @@ export function WeekCalendar() {
   const create = useCreateEntry();
   const update = useUpdateEntry();
   const toast = useToast();
+  const overlays = useOverlayStack();
   const [editing, setEditing] = useState<TimeEntry | null>(null);
   const [creatingDay, setCreatingDay] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -182,8 +184,7 @@ export function WeekCalendar() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || document.querySelector('.modal, .popover'))
-        return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || overlays.isOpen()) return;
       if (event.key.toLowerCase() === 't' && !event.ctrlKey && !event.metaKey) {
         selectDay(todayKey);
       }
@@ -191,7 +192,7 @@ export function WeekCalendar() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
     // selectDay reads selectedDay, so the listener is renewed when the day changes.
-  }, [todayKey, selectedDay]);
+  }, [todayKey, selectedDay, overlays]);
 
   const minuteAt = (clientY: number, column: HTMLElement) =>
     ((clientY - column.getBoundingClientRect().top) / HOUR_HEIGHT) * 60;

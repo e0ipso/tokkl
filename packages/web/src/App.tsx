@@ -16,6 +16,7 @@ import { sessionTitle } from './components/pomodoroSessionPresentation.ts';
 import { PomodoroSessionProvider, usePomodoroSession } from './components/PomodoroSessionProvider.tsx';
 import { LongTimerReminder } from './components/LongTimerReminder.tsx';
 import { useToast } from './components/Toast.tsx';
+import { useFocusTrap } from './components/useFocusTrap.ts';
 import { formatDuration } from '@tokkl/common/duration';
 import { useNow } from './lib/clock.ts';
 import { entrySeconds } from './lib/snapping.ts';
@@ -98,23 +99,14 @@ function MoreSheet({ onClose, children }: { onClose: () => void; children: React
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('a[href]')?.focus();
   }, []);
+  const trapFocus = useFocusTrap();
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
       event.stopPropagation();
       onClose();
       return;
     }
-    if (event.key !== 'Tab') return;
-    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('a[href], button')];
-    const first = controls[0];
-    const last = controls[controls.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last?.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first?.focus();
-    }
+    trapFocus(event);
   };
   return (
     <>

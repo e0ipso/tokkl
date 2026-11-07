@@ -462,7 +462,7 @@ function EntryLine({
 
       {picker === 'project' ? (
         <ProjectPicker
-          anchor={projectRef.current}
+          anchor={projectRef}
           projectId={entry.project_id}
           taskId={entry.task_id}
           onChange={(pid, tid) =>
@@ -476,14 +476,14 @@ function EntryLine({
       ) : null}
       {picker === 'tags' ? (
         <TagPicker
-          anchor={tagRef.current}
+          anchor={tagRef}
           value={entry.tags}
           onChange={tags => patch([{ op: 'replace', path: '/tags', value: tags }])}
           onClose={() => setPicker(null)}
         />
       ) : null}
       {picker === 'menu' ? (
-        <Popover anchor={menuRef.current} onClose={() => setPicker(null)} width={200} align="right">
+        <Popover anchor={menuRef} label="Entry actions" onClose={() => setPicker(null)} width={200} align="right">
           <div className="menu">
             {single ? (
               <button
@@ -595,7 +595,7 @@ function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
       </button>
       {picker === 'project' ? (
         <ProjectPicker
-          anchor={projectRef.current}
+          anchor={projectRef}
           projectId={null}
           taskId={null}
           onChange={(pid, tid) =>
@@ -612,7 +612,7 @@ function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
       ) : null}
       {picker === 'tags' ? (
         <TagPicker
-          anchor={tagRef.current}
+          anchor={tagRef}
           value={[]}
           onChange={tags => {
             setPicker(null);

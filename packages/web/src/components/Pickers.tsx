@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useMemo, useState, type CSSProperties, type RefObject } from 'react';
 import { useCreateProject, useProjects, useTasks } from '../api/projects.ts';
 import { useCreateTag, useTags } from '../api/tags.ts';
 import type { Project } from '../api/types.ts';
@@ -75,7 +75,7 @@ export function ProjectPicker({
   onChange,
   onClose,
 }: {
-  anchor: HTMLElement | null;
+  anchor: RefObject<HTMLElement | null>;
   projectId: number | null;
   taskId: number | null;
   onChange: (projectId: number | null, taskId: number | null) => void;
@@ -164,7 +164,7 @@ export function ProjectPicker({
   };
 
   return (
-    <Popover anchor={anchor} onClose={onClose} width={320}>
+    <Popover anchor={anchor} label="Project and task" onClose={onClose} width={320}>
       <input
         className="picker-search"
         autoFocus
@@ -279,7 +279,7 @@ export function TagPicker({
   onChange,
   onClose,
 }: {
-  anchor: HTMLElement | null;
+  anchor: RefObject<HTMLElement | null>;
   value: string[];
   onChange: (tags: string[]) => void;
   onClose: () => void;
@@ -310,7 +310,7 @@ export function TagPicker({
   };
 
   return (
-    <Popover anchor={anchor} onClose={onClose} width={260}>
+    <Popover anchor={anchor} label="Tags" onClose={onClose} width={260}>
       <input
         className="picker-search"
         autoFocus

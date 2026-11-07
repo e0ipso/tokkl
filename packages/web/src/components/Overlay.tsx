@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { useFocusTrap } from './useFocusTrap.ts';
+import { useOverlayLayer } from './overlayStack.tsx';
 
-function useDismiss(ref: React.RefObject<HTMLElement | null>, onClose: () => void, anchor?: HTMLElement | null) {
+function useDismiss(ref: RefObject<HTMLElement | null>, onClose: () => void, anchor: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -10,8 +12,9 @@ function useDismiss(ref: React.RefObject<HTMLElement | null>, onClose: () => voi
       }
     };
     const onPointer = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (ref.current?.contains(target) || anchor?.contains(target)) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (ref.current?.contains(target) || anchor.current?.contains(target)) return;
       onClose();
     };
     document.addEventListener('keydown', onKey, true);
@@ -23,35 +26,63 @@ function useDismiss(ref: React.RefObject<HTMLElement | null>, onClose: () => voi
   }, [ref, onClose, anchor]);
 }
 
+/**
+ * Places the panel under its anchor, or above it when there is more room there, kept inside the
+ * viewport. It writes the position straight to the panel before paint, after every render, so the
+ * panel follows the anchor whenever its content changes.
+ */
+function usePlacement(
+  panel: RefObject<HTMLElement | null>,
+  anchor: RefObject<HTMLElement | null>,
+  width: number,
+  align: 'left' | 'right',
+) {
+  useLayoutEffect(() => {
+    const element = panel.current;
+    if (!element) return;
+    const target = anchor.current;
+    element.style.setProperty('display', target ? '' : 'none');
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const effectiveWidth = Math.min(width, viewportWidth - 16);
+    const preferred = align === 'right' ? rect.right - effectiveWidth : rect.left;
+    const left = Math.max(8, Math.min(preferred, viewportWidth - effectiveWidth - 8));
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const above = spaceBelow < 260 && rect.top > spaceBelow;
+    Object.assign(element.style, {
+      left: `${left}px`,
+      width: `${effectiveWidth}px`,
+      top: above ? '' : `${rect.bottom + 4}px`,
+      bottom: above ? `${window.innerHeight - rect.top + 4}px` : '',
+      maxHeight: `${above ? rect.top - 16 : spaceBelow - 16}px`,
+    });
+  });
+}
+
 /** A floating panel placed under `anchor`, closed by Escape or a click outside. */
 export function Popover({
   anchor,
+  label,
   onClose,
   children,
   width = 300,
   align = 'left',
 }: {
-  anchor: HTMLElement | null;
+  anchor: RefObject<HTMLElement | null>;
+  /** The dialog's accessible name. */
+  label: string;
   onClose: () => void;
   children: ReactNode;
   width?: number;
   align?: 'left' | 'right';
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  useOverlayLayer();
   useDismiss(ref, onClose, anchor);
-  if (!anchor) return null;
-  const rect = anchor.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const effectiveWidth = Math.min(width, viewportWidth - 16);
-  let left = align === 'right' ? rect.right - effectiveWidth : rect.left;
-  left = Math.max(8, Math.min(left, viewportWidth - effectiveWidth - 8));
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const style: React.CSSProperties =
-    spaceBelow < 260 && rect.top > spaceBelow
-      ? { left, bottom: window.innerHeight - rect.top + 4, width: effectiveWidth, maxHeight: rect.top - 16 }
-      : { left, top: rect.bottom + 4, width: effectiveWidth, maxHeight: spaceBelow - 16 };
+  usePlacement(ref, anchor, width, align);
   return createPortal(
-    <div ref={ref} className="popover" style={style} role="dialog">
+    <div ref={ref} className="popover" role="dialog" aria-label={label}>
       {children}
     </div>,
     document.body,
@@ -72,15 +103,18 @@ export function Modal({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const isTopmost = useOverlayLayer();
+  const trapFocus = useFocusTrap();
   // Read on the first render, before anything inside the modal can take focus.
   const [opener] = useState(() => document.activeElement);
   useEffect(() => {
+    // A popover over the modal takes Escape first; the modal closes only when it is on top.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.querySelector('.popover')) onClose();
+      if (event.key === 'Escape' && isTopmost()) onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, isTopmost]);
   useEffect(() => {
     const dialog = ref.current;
     const first = dialog?.querySelector<HTMLElement>('input, select, textarea, button:not(.modal-close)');
@@ -103,7 +137,14 @@ export function Modal({
         onClose();
       }}
     >
-      <div ref={ref} className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        ref={ref}
+        className={`modal${wide ? ' modal-wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onKeyDown={trapFocus}
+      >
         <header className="modal-header">
           <h2>{title}</h2>
           <button type="button" className="icon-button modal-close" onClick={onClose} aria-label="Close">

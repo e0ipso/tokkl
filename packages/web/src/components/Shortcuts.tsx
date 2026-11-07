@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Modal } from './Overlay.tsx';
+import { useOverlayStack } from './overlayStack.tsx';
 
 export const SHORTCUTS: Array<[string, string]> = [
   ['N', 'Start a new timer'],
@@ -20,11 +21,12 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** Single-key shortcuts, ignored while typing or when a dialog is open. */
 export function useShortcuts(enabled: boolean, handlers: Record<string, () => void>) {
+  const overlays = useOverlayStack();
   useEffect(() => {
     if (!enabled) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return;
-      if (document.querySelector('.modal, .popover')) return;
+      if (overlays.isOpen()) return;
       const handler = handlers[event.key.toLowerCase()] ?? handlers[event.key];
       if (handler) {
         event.preventDefault();
@@ -33,7 +35,7 @@ export function useShortcuts(enabled: boolean, handlers: Record<string, () => vo
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [enabled, handlers]);
+  }, [enabled, handlers, overlays]);
 }
 
 export function ShortcutHelp({ onClose }: { onClose: () => void }) {
