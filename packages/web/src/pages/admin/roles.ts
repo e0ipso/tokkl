@@ -1,17 +1,15 @@
 import type { UserRole } from '../../api/types.ts';
+import type { MessageKey } from '../../i18n/messages.ts';
 
-export const ROLES: ReadonlyArray<{ value: UserRole; label: string }> = [
-  { value: 'user', label: 'User' },
-  { value: 'admin', label: 'Admin' },
+/** The instance roles, with the catalog key of each one's name. */
+export const ROLES: ReadonlyArray<{ value: UserRole; label: MessageKey }> = [
+  { value: 'user', label: 'admin.roleUser' },
+  { value: 'admin', label: 'admin.roleAdmin' },
 ];
 
 /** Whether a select's value is one of the instance roles. */
 export function isUserRole(value: string): value is UserRole {
   return ROLES.some(role => role.value === value);
-}
-
-export function roleLabel(role: UserRole): string {
-  return role === 'admin' ? 'an admin' : 'a regular user';
 }
 
 /** A server path such as /invite/<token> as a full link to share. */

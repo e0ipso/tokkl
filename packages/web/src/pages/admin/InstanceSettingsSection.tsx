@@ -7,27 +7,33 @@ import { useToast } from '../../components/Toast.tsx';
 import { useAction } from '../../components/useAction.ts';
 import { useServerDraft } from '../../components/useServerDraft.ts';
 import { SettingsCard } from '../manage/settings/SettingsCard.tsx';
+import { t, type MessageKey } from '../../i18n/messages.ts';
 
 const SETTING_FIELDS = [
   {
     key: 'session_days',
-    unit: 'days',
-    label: 'Session length (days)',
-    hint: 'New logins stay signed in this long. Existing sessions keep their expiry.',
+    unit: 'admin.unitDays',
+    label: 'admin.sessionLength',
+    hint: 'admin.sessionLengthHint',
   },
   {
     key: 'invite_days',
-    unit: 'days',
-    label: 'Invite link lifetime (days)',
-    hint: 'New invite links stop working after this many days.',
+    unit: 'admin.unitDays',
+    label: 'admin.inviteLifetime',
+    hint: 'admin.inviteLifetimeHint',
   },
   {
     key: 'time_resolution_minutes',
-    unit: 'minutes',
-    label: 'Time resolution (minutes)',
-    hint: 'Starts and stops move to the nearest multiple of this many minutes. A timer that rounds to zero goes to the trash, and a typed entry that rounds to zero is refused. Existing entries change only when they are edited.',
+    unit: 'admin.unitMinutes',
+    label: 'admin.timeResolution',
+    hint: 'admin.timeResolutionHint',
   },
-] as const satisfies ReadonlyArray<{ key: keyof InstanceSettings; unit: string; label: string; hint: string }>;
+] as const satisfies ReadonlyArray<{
+  key: keyof InstanceSettings;
+  unit: MessageKey;
+  label: MessageKey;
+  hint: MessageKey;
+}>;
 
 type SettingsKey = keyof InstanceSettings;
 type SettingsDraft = Record<SettingsKey, string>;
@@ -56,7 +62,7 @@ export function InstanceSettingsSection({ server }: { server: InstanceSettings }
   const save = useAction<Partial<InstanceSettings>, InstanceSettings>({
     mutationFn: adminRequests.saveSettings,
     invalidate: stale.adminSettings,
-    success: 'Instance settings saved',
+    success: t('admin.instanceSaved'),
     onSuccess: saved => {
       queryClient.setQueryData(keys.adminSettings, saved);
       form.dropEditsMatching(holds(saved));
@@ -81,7 +87,7 @@ export function InstanceSettingsSection({ server }: { server: InstanceSettings }
           [
             key,
             (draft[key].trim() === '' || !Number.isInteger(Number(draft[key].trim()))) &&
-              `Enter a whole number of ${unit}`,
+              t('admin.wholeNumber', { unit: t(unit) }),
           ] as const,
       ),
     );
@@ -92,15 +98,15 @@ export function InstanceSettingsSection({ server }: { server: InstanceSettings }
       if (value !== undefined) changes[key] = Number(value.trim());
     }
     if (Object.keys(changes).length > 0) save.mutate(changes);
-    else toast.show('No changes to save');
+    else toast.show(t('admin.noChanges'));
   };
 
   return (
-    <SettingsCard id="instance" title="Instance settings" onSubmit={submit} saving={save.isPending}>
+    <SettingsCard id="instance" title={t('admin.sectionInstance')} onSubmit={submit} saving={save.isPending}>
       <div className="form-grid">
         {SETTING_FIELDS.map(({ key, label, hint }) => (
           <div key={key} className="field">
-            <label htmlFor={fields.id(key)}>{label}</label>
+            <label htmlFor={fields.id(key)}>{t(label)}</label>
             <input
               {...fields.field(key)}
               type="number"
@@ -109,7 +115,7 @@ export function InstanceSettingsSection({ server }: { server: InstanceSettings }
               onChange={event => form.set(key, event.target.value)}
             />
             {fields.message(key)}
-            <p className="hint">{hint}</p>
+            <p className="hint">{t(hint)}</p>
           </div>
         ))}
       </div>

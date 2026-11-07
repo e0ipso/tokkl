@@ -6,6 +6,8 @@ import { useFieldErrors } from '../../components/FieldError.tsx';
 import { useAction } from '../../components/useAction.ts';
 import { ConfirmModal } from '../manage/ui.tsx';
 import { deleteConfirmError } from './accountChange.ts';
+import { t } from '../../i18n/messages.ts';
+import { tx } from '../../i18n/rich.ts';
 
 /** Deletes an account once the admin types its email. */
 export function DeleteUserModal({
@@ -22,7 +24,7 @@ export function DeleteUserModal({
   const remove = useAction<string>({
     mutationFn: typed => adminRequests.deleteUser(user.id, typed),
     invalidate: stale.adminUsers,
-    success: `Deleted ${user.email}`,
+    success: t('admin.deleted', { email: user.email }),
     onSuccess: onDeleted,
     onError: error => fields.validate([['email', error.message]]),
   });
@@ -35,22 +37,19 @@ export function DeleteUserModal({
 
   return (
     <ConfirmModal
-      title={`Delete ${user.email}?`}
-      confirmLabel="Delete account"
+      title={t('admin.deleteTitle', { email: user.email })}
+      confirmLabel={t('admin.deleteAccount')}
       busy={remove.isPending}
       onConfirm={() => confirm()}
       onClose={onClose}
     >
-      <p>
-        This deletes the account and its workspace, with every time entry, project, client and tag in it. It cannot be
-        undone.
-      </p>
-      <p>To keep the data, disable the account instead. A disabled account can be enabled again.</p>
-      <p>Ask them to export their data first, from Settings, Data.</p>
+      <p>{t('admin.deleteBody')}</p>
+      <p>{t('admin.deleteDisableInstead')}</p>
+      <p>{t('admin.deleteExportFirst')}</p>
       <form noValidate onSubmit={confirm}>
         <div className="field">
           <label htmlFor={fields.id('email')}>
-            Type <strong>{user.email}</strong> to confirm
+            {tx('admin.typeToConfirm', { email: <strong>{user.email}</strong> })}
           </label>
           <input
             {...fields.field('email')}

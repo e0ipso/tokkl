@@ -9,6 +9,7 @@ import type { Settings } from '../../lib/settings.ts';
 import { StatusBadge } from '../manage/ui.tsx';
 import { changeField, changeMessage } from './accountChange.ts';
 import { ROLES, absoluteLink, isUserRole } from './roles.ts';
+import { t } from '../../i18n/messages.ts';
 
 /** One account: its role, status and the admin actions on it. */
 export function UserRow({
@@ -36,7 +37,7 @@ export function UserRow({
   });
   const revoke = useAction({
     mutationFn: () => adminRequests.revokeSessions(user.id),
-    success: `Signed ${user.email} out of every browser. Their API token still works.`,
+    success: t('admin.signedOut', { email: user.email }),
   });
   const reset = useAction<void, PasswordResetLink>({
     mutationFn: () => adminRequests.createPasswordReset(user.id),
@@ -56,14 +57,14 @@ export function UserRow({
       <td className="admin-account">
         <span className="admin-account-name">
           {user.fullname || user.email}
-          {self ? <span className="muted"> (you)</span> : null}
+          {self ? <span className="muted"> {t('admin.you')}</span> : null}
         </span>
         {user.fullname ? <span className="admin-account-email">{user.email}</span> : null}
       </td>
       <td>
         <select
           {...fields.field('role')}
-          aria-label={`Role of ${user.email}`}
+          aria-label={t('admin.roleOf', { email: user.email })}
           value={user.role}
           onChange={event => {
             const role = event.target.value;
@@ -72,7 +73,7 @@ export function UserRow({
         >
           {ROLES.map(role => (
             <option key={role.value} value={role.value}>
-              {role.label}
+              {t(role.label)}
             </option>
           ))}
         </select>
@@ -80,15 +81,15 @@ export function UserRow({
       </td>
       <td>
         <div className="admin-status">
-          <StatusBadge archived={disabled} label={disabled ? 'Disabled' : 'Active'} />
+          <StatusBadge archived={disabled} label={disabled ? t('admin.disabled') : t('admin.active')} />
           <button
             {...fields.field('status')}
             type="button"
             className="button button-ghost"
-            aria-label={`${disabled ? 'Enable' : 'Disable'} ${user.email}`}
+            aria-label={t(disabled ? 'admin.enableNamed' : 'admin.disableNamed', { email: user.email })}
             onClick={() => change({ disabled: !disabled })}
           >
-            {disabled ? 'Enable' : 'Disable'}
+            {disabled ? t('admin.enable') : t('admin.disable')}
           </button>
         </div>
         {fields.message('status')}
@@ -101,8 +102,8 @@ export function UserRow({
             <button
               type="button"
               className="icon-button"
-              aria-label={`Revoke sessions of ${user.email}`}
-              title="Revoke sessions: sign out of every browser"
+              aria-label={t('admin.revokeSessionsOf', { email: user.email })}
+              title={t('admin.revokeSessionsTitle')}
               disabled={revoke.isPending}
               onClick={() => revoke.mutate()}
             >
@@ -111,9 +112,9 @@ export function UserRow({
             <button
               type="button"
               className="icon-button"
-              aria-label={`Reset password of ${user.email}`}
+              aria-label={t('admin.resetPasswordOf', { email: user.email })}
               data-row-action="reset"
-              title="Reset password: create a one-time link to set a new password"
+              title={t('admin.resetPasswordTitle')}
               disabled={reset.isPending}
               onClick={() => reset.mutate()}
             >
@@ -122,9 +123,9 @@ export function UserRow({
             <button
               type="button"
               className="icon-button"
-              aria-label={`Delete ${user.email}`}
+              aria-label={t('admin.deleteNamed', { email: user.email })}
               data-row-action="delete"
-              title="Delete account"
+              title={t('admin.deleteAccount')}
               onClick={() => onDelete(user)}
             >
               <Icon name="trash" size={16} />

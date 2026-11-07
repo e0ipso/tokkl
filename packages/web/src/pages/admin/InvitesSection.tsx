@@ -12,6 +12,7 @@ import { keepFocusPastRow } from '../manage/rowFocus.ts';
 import { SettingsCard } from '../manage/settings/SettingsCard.tsx';
 import { NewLink } from './NewLink.tsx';
 import { ROLES, absoluteLink, isUserRole } from './roles.ts';
+import { t } from '../../i18n/messages.ts';
 
 /** Must match MAX_INVITE_NOTE_LENGTH in packages/api/src/domain/accounts.ts. */
 const MAX_NOTE_LENGTH = 255;
@@ -20,15 +21,17 @@ function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: 
   const revoke = useAction({
     mutationFn: () => adminRequests.revokeInvite(invite.id),
     invalidate: stale.adminInvites,
-    success: 'Invite revoked. Its link no longer works.',
+    success: t('admin.inviteRevoked'),
     onSuccess: onRevoked,
   });
-  const name = invite.note ? `invite "${invite.note}"` : `${invite.role} invite`;
+  const revokeLabel = invite.note
+    ? t('admin.revokeNoteInvite', { note: invite.note })
+    : t(invite.role === 'admin' ? 'admin.revokeAdminInvite' : 'admin.revokeUserInvite');
   return (
     <tr data-id={invite.id}>
-      <td>{invite.role === 'admin' ? 'Admin' : 'User'}</td>
+      <td>{invite.role === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser')}</td>
       <td className="manage-notes" title={invite.note ?? undefined}>
-        {invite.note ?? <span className="muted">None</span>}
+        {invite.note ?? <span className="muted">{t('admin.none')}</span>}
       </td>
       <td className="num admin-date">{formatDay(invite.created_at, settings)}</td>
       <td className="num admin-date">{formatDateTime(invite.expires_at, settings)}</td>
@@ -36,12 +39,12 @@ function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: 
         <button
           type="button"
           className="button button-danger-ghost"
-          aria-label={`Revoke ${name}`}
+          aria-label={revokeLabel}
           data-row-action="revoke"
           disabled={revoke.isPending}
           onClick={() => revoke.mutate()}
         >
-          Revoke
+          {t('admin.revoke')}
         </button>
       </td>
     </tr>
@@ -77,14 +80,10 @@ export function InvitesSection({ settings }: { settings: Settings }) {
   };
 
   return (
-    <SettingsCard
-      id="invites"
-      title="Invites"
-      intro="An invite link lets one person create an account. The server sends no email; share the link yourself."
-    >
-      <form className="form-grid admin-invite-form" aria-label="New invite" noValidate onSubmit={submit}>
+    <SettingsCard id="invites" title={t('admin.sectionInvites')} intro={t('admin.invitesIntro')}>
+      <form className="form-grid admin-invite-form" aria-label={t('admin.newInvite')} noValidate onSubmit={submit}>
         <div className="field">
-          <label htmlFor={fields.id('role')}>Role</label>
+          <label htmlFor={fields.id('role')}>{t('admin.role')}</label>
           <select
             {...fields.field('role')}
             value={role}
@@ -95,57 +94,57 @@ export function InvitesSection({ settings }: { settings: Settings }) {
           >
             {ROLES.map(option => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.label)}
               </option>
             ))}
           </select>
           {fields.message('role')}
         </div>
         <div className="field">
-          <label htmlFor={fields.id('note')}>Note (optional)</label>
+          <label htmlFor={fields.id('note')}>{t('admin.noteOptional')}</label>
           <input
             {...fields.field('note')}
             value={note}
             maxLength={MAX_NOTE_LENGTH}
-            placeholder="Who it is for"
+            placeholder={t('admin.notePlaceholder')}
             onChange={event => setNote(event.target.value)}
           />
           {fields.message('note')}
         </div>
         <div className="settings-actions field-full">
           <button ref={createButton} type="submit" className="button button-primary" disabled={create.isPending}>
-            {create.isPending ? 'Creating…' : 'Create invite'}
+            {create.isPending ? t('admin.creating') : t('admin.createInvite')}
           </button>
         </div>
       </form>
       {link ? (
         <NewLink
           link={link}
-          label="Invite link"
-          copied="Invite link copied"
+          label={t('admin.inviteLink')}
+          copied={t('admin.inviteLinkCopied')}
           onDone={() => {
             createButton.current?.focus();
             setLink(null);
           }}
         >
-          <strong>Invite link created.</strong> Copy it now: it is shown only once. Send it to the person you invite.
+          <strong>{t('admin.inviteLinkCreated')}</strong> {t('admin.inviteLinkHelp')}
         </NewLink>
       ) : null}
 
       <h3 ref={heading} className="settings-subheading" tabIndex={-1}>
-        Pending invites
+        {t('admin.pendingInvites')}
       </h3>
       {invites.error ? (
         <LoadError
-          message={`Could not load invites: ${invites.error.message}`}
+          message={t('admin.invitesLoadFailed', { message: invites.error.message })}
           onRetry={() => void invites.refetch()}
           className="is-compact"
         />
       ) : null}
-      {invites.isLoading ? <Loading label="Loading invites…" className="is-compact" /> : null}
+      {invites.isLoading ? <Loading label={t('admin.loadingInvites')} className="is-compact" /> : null}
       {invites.data && invites.data.length === 0 ? (
-        <EmptyState compact title="No pending invites">
-          Links that were used, revoked or expired drop off this list.
+        <EmptyState compact title={t('admin.noPendingInvites')}>
+          {t('admin.noPendingInvitesBody')}
         </EmptyState>
       ) : null}
       {invites.data && invites.data.length > 0 ? (
@@ -153,12 +152,12 @@ export function InvitesSection({ settings }: { settings: Settings }) {
           <table className="table admin-table">
             <thead>
               <tr>
-                <th>Role</th>
-                <th>Note</th>
-                <th className="num">Created</th>
-                <th className="num">Expires</th>
+                <th>{t('admin.role')}</th>
+                <th>{t('admin.note')}</th>
+                <th className="num">{t('admin.created')}</th>
+                <th className="num">{t('admin.expires')}</th>
                 <th>
-                  <span className="visually-hidden">Actions</span>
+                  <span className="visually-hidden">{t('admin.actions')}</span>
                 </th>
               </tr>
             </thead>
