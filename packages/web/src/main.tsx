@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App.tsx';
 import { createQueryClient } from './api/queryClient.ts';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { OverlayStackProvider } from './components/overlayStack.tsx';
 import { ToastProvider } from './components/Toast.tsx';
 import './styles.css';
@@ -16,7 +17,10 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <OverlayStackProvider>
-          <App />
+          {/* The shell has its own boundary per route; this one catches a crash outside any page. */}
+          <ErrorBoundary resetKey="app">
+            <App />
+          </ErrorBoundary>
         </OverlayStackProvider>
       </ToastProvider>
     </QueryClientProvider>
