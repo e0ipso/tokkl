@@ -61,7 +61,8 @@ MenuBarApp::MenuBarApp(Transport *transport,
     // on the server's timer and session.
     m_timer->setStateClient(m_stateClient.get());
     m_preferences = std::make_unique<PomodoroPreferences>(m_connection.get());
-    m_session = std::make_unique<PomodoroSession>(m_clock, m_timer.get(), m_stateClient.get(), m_pomodoroStore.get());
+    // The session reads and acts through the timer's state client.
+    m_session = std::make_unique<PomodoroSession>(m_clock, m_timer->coordinator(), m_pomodoroStore.get());
     m_sounds = std::make_unique<SoundChoices>(settings, &MenuBarApp::soundKey);
     // The bundle's Contents/Resources/sounds, which the build fills from
     // TOKKL_POMODORO_SOUND_FILES.
@@ -69,7 +70,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
                                               alarmPlayer,
                                               m_sounds.get(),
                                               QString(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds")));
-    m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_session.get());
+    m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_timer->coordinator(), m_session.get());
     m_settingsWindow =
         std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences.get(), m_sounds.get(), m_alarm.get());
 
@@ -78,14 +79,14 @@ MenuBarApp::MenuBarApp(Transport *transport,
     connect(m_menu.get(), &StatusMenu::quitRequested, this, &MenuBarApp::quitRequested);
     connect(m_settingsWindow.get(), &SettingsWindow::saved, this, &MenuBarApp::applySettings);
 
-    for (auto signal : {&TimerController::elapsedChanged,
-                        &TimerController::statusChanged,
-                        &TimerController::currentEntryChanged,
-                        &TimerController::chainChanged,
-                        &TimerController::choiceChanged,
-                        &TimerController::projectsChanged,
-                        &TimerController::entryProjectChanged,
-                        &TimerController::indicatorChanged}) {
+    for (auto signal : {&TimerModel::elapsedChanged,
+                        &TimerModel::statusChanged,
+                        &TimerModel::currentEntryChanged,
+                        &TimerModel::chainChanged,
+                        &TimerModel::choiceChanged,
+                        &TimerModel::projectsChanged,
+                        &TimerModel::entryProjectChanged,
+                        &TimerModel::indicatorChanged}) {
         connect(m_timer.get(), signal, this, &MenuBarApp::updateItem);
     }
     for (auto signal : {&PomodoroSession::modeChanged, &PomodoroSession::sessionChanged, &PomodoroSession::countdownChanged}) {

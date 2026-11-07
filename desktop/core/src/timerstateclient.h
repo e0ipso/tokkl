@@ -60,8 +60,9 @@ public:
     // The longest wait for a reconnect; a later one means the clock was set
     // back.
     static constexpr int reconnectLongestMs = reconnectMaxMs + reconnectMaxMs / reconnectJitterDivisor;
-    // More than any state; a stream that sends more without an event end is
-    // dropped.
+    // More than any state. A stream that sends more for one event, counted
+    // from the end of the last one as the bytes arrive, is dropped before
+    // the event is read.
     static constexpr qsizetype maxEventBytes = 1024 * 1024;
 
     // Neither is owned; both must outlive the client.
@@ -115,6 +116,8 @@ private:
         QByteArray type;
         QByteArray data;
         bool hasData = false;
+        // The bytes of its lines read so far, line ends included.
+        qsizetype bytes = 0;
     };
 
     bool readable() const;
@@ -130,6 +133,8 @@ private:
     void onStreamData(const QByteArray &data);
     void onStreamEnded();
     void readLine(QByteArrayView line);
+    // Drops a stream that sent more than maxEventBytes for one event.
+    void dropOversizedStream();
     void dispatchEvent();
     bool adopt(const TimerState &state);
     void setStreaming(bool streaming);

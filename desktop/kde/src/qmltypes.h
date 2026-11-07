@@ -12,7 +12,9 @@
 #include "kdeconnection.h"
 #include "kdepomodoro.h"
 #include "kdetimerstate.h"
+#include "menuactions.h"
 #include "pomodorolengthsclient.h"
+#include "pomodorolengthssaves.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosoundcatalogue.h"
@@ -59,10 +61,26 @@ struct TokklTimerStateForeign {
     QML_NAMED_ELEMENT(TokklTimerState)
 };
 
+// What TokklTimer is: the model the panel reads. It has no QML name of its
+// own.
+struct TokklTimerModelForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::TimerModel)
+    QML_ANONYMOUS
+};
+
 struct TokklTimerForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::TimerController)
     QML_NAMED_ELEMENT(TokklTimer)
+};
+
+// Which of the menu's timer and session actions show and can be chosen, from
+// the core's rules with the KDE panel's policy.
+struct TokklMenuActionsForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::MenuActions)
+    QML_NAMED_ELEMENT(TokklMenuActions)
 };
 
 // Pomodoro mode. TokklPomodoro builds the session and the preferences
@@ -108,6 +126,15 @@ struct TokklPomodoroLengthsForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::PomodoroLengthsClient)
     QML_NAMED_ELEMENT(TokklPomodoroLengths)
+};
+
+// The panel's word on the last Pomodoro lengths save of its account, which
+// the Configure page hands to a process-wide owner so it outlives the
+// dialog.
+struct TokklLengthsSaveStatusForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::PomodoroLengthsSaveStatus)
+    QML_NAMED_ELEMENT(TokklLengthsSaveStatus)
 };
 
 struct TokklAlarmForeign {

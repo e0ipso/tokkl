@@ -146,6 +146,12 @@ Item {
             signalName: "configurationChanged"
         }
 
+        // What the panel reads of the page's saves.
+        Component {
+            id: saveStatusComponent
+            TokklLengthsSaveStatus {}
+        }
+
         function meBody() {
             return JSON.stringify({
                 id: 3,
@@ -345,6 +351,40 @@ Item {
             compare(field("longRestEvery").value, 4);
             wait(50);
             compare(pomodoroChangedSpy.count, 2);
+        }
+
+        // OK closes the dialog before the server answers. The save goes on
+        // without the page, and its refusal reaches the panel's account.
+        function test_refusalAfterTheDialogClosedReachesThePanel() {
+            openPage("tok-pomodoro");
+            connectPage(50, 10, 20, 3);
+            const status = createTemporaryObject(saveStatusComponent, pomodoroCase, {
+                connection: lengths.connection
+            });
+            compare(status.refusal, "");
+            stepUp("workMinutes");
+            page.saveConfig();
+            const post = network.pending("POST", "/me/preferences");
+            verify(post >= 0, "Apply sends the lengths");
+
+            // QML reads the page's objects as null from here on; the save
+            // keeps the C++ connection and preferences until the answer.
+            page.destroy();
+            tryVerify(() => lengths === null, 3000, "the page and its lengths client are gone");
+            const reason = "Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180";
+            network.respond(post, 400, JSON.stringify(reason));
+            compare(status.refusal, reason);
+
+            // The next save of the account clears it.
+            openPage("tok-pomodoro");
+            connectPage(50, 10, 20, 3);
+            status.connection = lengths.connection;
+            compare(status.refusal, reason);
+            stepUp("workMinutes");
+            page.saveConfig();
+            compare(status.refusal, "");
+            network.respond(network.pending("POST", "/me/preferences"), 200, lengthsBody(51, 10, 20, 3));
+            compare(status.refusal, "");
         }
 
         function test_lengthsAreReadOnlyWithoutAnAccount() {

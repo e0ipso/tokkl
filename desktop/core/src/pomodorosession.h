@@ -4,7 +4,7 @@
 #include "clock.h"
 #include "epoch.h"
 #include "pomodorostore.h"
-#include "timercontroller.h"
+#include "timeractions.h"
 #include "timerstateclient.h"
 
 #include <QDateTime>
@@ -28,9 +28,12 @@ namespace Tokkl
 //
 // activate() is the panel's left-click. With a session active, a click
 // confirms Next phase while the alarm rings and otherwise asks the platform to
-// open the menu. Without one, a timer running or paused gets
-// TimerController::toggle(), and so does everything in Timer mode. In
-// Pomodoro mode the click starts a session.
+// open the menu. Without one, a timer running or paused gets the timer's
+// toggle(), and so does everything in Timer mode. In Pomodoro mode the click
+// starts a session.
+//
+// The session knows the timer only through TimerActions, and reads and acts
+// through the timer's own state client, so the two always share one state.
 //
 // Start session sends the timer's chosen project and billable flag; the
 // server takes the account's lengths and starts the open pomodoro on its own
@@ -84,7 +87,7 @@ class PomodoroSession : public QObject
     Q_PROPERTY(QString ringingTransition READ ringingTransition NOTIFY ringingChanged)
 
     // Pomodoro mode is on, no session action waits, and the timer could
-    // start something new (TimerController::canStartNew()).
+    // start something new (TimerActions::canStartNew()).
     Q_PROPERTY(bool canStartSession READ canStartSession NOTIFY canStartSessionChanged)
     // The last message for the user: why an action failed, or that a
     // pomodoro was too short to save. It stays until clearMessage(), the
@@ -94,15 +97,16 @@ class PomodoroSession : public QObject
 public:
     // What a left-click did.
     enum class Activation {
-        Handled,
+        Handled, // a request was sent
         OpenMenu, // a session runs before its planned end; the platform opens the menu
-        Ignored, // nothing sent: no account, or an action waits for its answer or its outcome
+        Ignored, // nothing sent: no account, no state read yet, or an action waits for its answer or its outcome
     };
     Q_ENUM(Activation)
 
-    // Uses the clock, the timer, the timer's state client and the store,
-    // none of which it owns.
-    PomodoroSession(Clock *clock, TimerController *timer, TimerStateClient *client, PomodoroStore *store, QObject *parent = nullptr);
+    // Uses the clock, the timer and the store, none of which it owns, and
+    // the state client the timer has now. A timer that takes another client
+    // needs another session.
+    PomodoroSession(Clock *clock, TimerActions *timer, PomodoroStore *store, QObject *parent = nullptr);
 
     bool pomodoroMode() const;
     // Returns false, and changes nothing, while modeLocked or when the
@@ -180,7 +184,7 @@ private:
     void setMessage(const QString &message);
 
     QPointer<Clock> m_clock;
-    QPointer<TimerController> m_timer;
+    QPointer<TimerActions> m_timer;
     QPointer<TimerStateClient> m_client;
     QPointer<PomodoroStore> m_store;
 

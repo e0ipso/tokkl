@@ -76,7 +76,7 @@ void KdePomodoro::release()
 {
     if (m_session) {
         if (m_timer) {
-            disconnect(m_timer, nullptr, m_session, nullptr);
+            disconnect(m_timer->coordinator(), nullptr, m_session, nullptr);
         }
         if (m_client) {
             disconnect(m_client, nullptr, m_session, nullptr);
@@ -116,7 +116,7 @@ void KdePomodoro::build()
     m_client = client;
     m_builtStore = m_store;
     m_preferences = new PomodoroPreferences(client->connection(), this);
-    m_session = new PomodoroSession(client->clock(), m_timer, client, m_store, this);
+    m_session = new PomodoroSession(client->clock(), m_timer->coordinator(), m_store, this);
     Q_EMIT sessionChanged();
 }
 

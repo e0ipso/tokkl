@@ -2,23 +2,22 @@
 
 #include "timer1adaptor.h"
 
-#include "clock.h"
+#include "configurationadapter.h"
 #include "connection.h"
+#include "menuactions.h"
 #include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
-#include "pomodorostore.h"
 #include "projectchoices.h"
-#include "servicesettings.h"
 #include "soundchoices.h"
-#include "timercontroller.h"
+#include "timercoordinator.h"
+#include "timermodel.h"
 #include "timerstateclient.h"
 
 #include <QDBusMessage>
 #include <QDBusMetaType>
 #include <QMetaProperty>
-#include <QSettings>
 
 #include <optional>
 
@@ -28,7 +27,6 @@ namespace Tokkl
 const QString TimerService::serviceName = QStringLiteral("org.tokkl.Timer1");
 const QString TimerService::objectPath = QStringLiteral("/org/tokkl/Timer1");
 const QString TimerService::interfaceName = QStringLiteral("org.tokkl.Timer1");
-const QString TimerService::credentialStoreError = QStringLiteral("org.tokkl.Timer1.Error.CredentialStore");
 
 namespace
 {
@@ -59,38 +57,34 @@ QString TimerService::clientName()
     return QStringLiteral("tokkl-gnome");
 }
 
-TimerService::TimerService(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock, QObject *parent)
+TimerService::TimerService(const Parts &parts, QObject *parent)
     : QObject(parent)
-    , m_settings(new QSettings(settingsFile, QSettings::IniFormat, this))
-    , m_clock(clock ? clock : new SystemClock(this))
-    , m_connection(new Connection(transport, store, clientName(), this))
-    , m_timer(new TimerController(m_clock, this))
-    , m_client(new TimerStateClient(m_connection, m_clock, this))
-    , m_pomodoroStore(new SettingsPomodoroStore(m_settings, this))
-    , m_sounds(new SoundChoices(m_settings, &TimerService::soundKey, this))
-    , m_preferences(new PomodoroPreferences(m_connection, this))
-    , m_session(new PomodoroSession(m_clock, m_timer, m_client, m_pomodoroStore, this))
-    , m_connectionSettings(new ServiceSettings(m_settings, m_connection, store, this))
+    , m_timer(parts.timer)
+    , m_actions(parts.actions)
+    , m_session(parts.session)
+    , m_preferences(parts.preferences)
+    , m_sounds(parts.sounds)
+    , m_configuration(parts.configuration)
     , m_bus(QString())
 {
     qDBusRegisterMetaType<QList<QVariantMap>>();
     qDBusRegisterMetaType<QMap<QString, int>>();
     qDBusRegisterMetaType<QMap<QString, QString>>();
+    qDBusRegisterMetaType<QMap<QString, QVariantMap>>();
     new Timer1Adaptor(this);
 
-    m_timer->setStateClient(m_client);
     // Each property follows the core signal that announces its change. The
     // countdown is left out: clients count down to PlannedEnd themselves.
     const auto publish = [this] {
         publishChanges();
     };
-    connect(m_timer, &TimerController::currentEntryChanged, this, publish);
-    connect(m_timer, &TimerController::chainChanged, this, publish);
-    connect(m_timer, &TimerController::indicatorChanged, this, publish);
-    connect(m_timer, &TimerController::projectsChanged, this, publish);
-    connect(m_timer, &TimerController::choiceChanged, this, publish);
-    connect(m_timer, &TimerController::entryProjectChanged, this, publish);
-    connect(m_timer, &TimerController::statusChanged, this, publish);
+    connect(m_timer, &TimerModel::currentEntryChanged, this, publish);
+    connect(m_timer, &TimerModel::chainChanged, this, publish);
+    connect(m_timer, &TimerModel::indicatorChanged, this, publish);
+    connect(m_timer, &TimerModel::projectsChanged, this, publish);
+    connect(m_timer, &TimerModel::choiceChanged, this, publish);
+    connect(m_timer, &TimerModel::entryProjectChanged, this, publish);
+    connect(m_timer, &TimerModel::statusChanged, this, publish);
     connect(m_session, &PomodoroSession::modeChanged, this, publish);
     connect(m_session, &PomodoroSession::modeLockedChanged, this, publish);
     connect(m_session, &PomodoroSession::sessionChanged, this, publish);
@@ -101,7 +95,6 @@ TimerService::TimerService(Transport *transport, CredentialStore *store, const Q
     connect(m_preferences, &PomodoroPreferences::stateChanged, this, publish);
     connect(m_sounds, &SoundChoices::changed, this, publish);
 
-    m_connectionSettings->load();
     m_published = snapshot();
 }
 
@@ -128,16 +121,6 @@ bool TimerService::registerOn(QDBusConnection bus)
     return true;
 }
 
-PomodoroSession *TimerService::session() const
-{
-    return m_session;
-}
-
-SoundChoices *TimerService::soundChoices() const
-{
-    return m_sounds;
-}
-
 void TimerService::setAlarm(PomodoroAlarm *alarm)
 {
     m_alarm = alarm;
@@ -162,7 +145,8 @@ qint64 TimerService::localStartTime() const
     }
     // serverNow() is this machine's clock plus the offset, so the start on
     // this clock is the server's start minus it.
-    return entry->start.addMSecs(-m_client->serverOffsetMs()).toSecsSinceEpoch();
+    const TimerStateClient *client = m_timer->stateClient();
+    return entry->start.addMSecs(client ? -client->serverOffsetMs() : 0).toSecsSinceEpoch();
 }
 
 bool TimerService::paused() const
@@ -178,11 +162,11 @@ qint64 TimerService::chainSeconds() const
 QString TimerService::indicatorState() const
 {
     switch (m_timer->indicatorState()) {
-    case TimerController::IndicatorState::None:
+    case TimerModel::IndicatorState::None:
         break;
-    case TimerController::IndicatorState::Pending:
+    case TimerModel::IndicatorState::Pending:
         return QStringLiteral("pending");
-    case TimerController::IndicatorState::Project:
+    case TimerModel::IndicatorState::Project:
         return QStringLiteral("project");
     }
     return QStringLiteral("none");
@@ -255,19 +239,19 @@ bool TimerService::billable() const
 QString TimerService::status() const
 {
     switch (m_timer->status()) {
-    case TimerController::Unconfigured:
+    case TimerModel::Unconfigured:
         return QStringLiteral("unconfigured");
-    case TimerController::Loading:
+    case TimerModel::Loading:
         return QStringLiteral("loading");
-    case TimerController::Ready:
+    case TimerModel::Ready:
         return QStringLiteral("ready");
-    case TimerController::Busy:
+    case TimerModel::Busy:
         return QStringLiteral("busy");
-    case TimerController::Stale:
+    case TimerModel::Stale:
         return QStringLiteral("stale");
-    case TimerController::AuthenticationBlocked:
+    case TimerModel::AuthenticationBlocked:
         return QStringLiteral("authentication-blocked");
-    case TimerController::Error:
+    case TimerModel::Error:
         break;
     }
     return QStringLiteral("error");
@@ -343,6 +327,19 @@ QString TimerService::sessionMessage() const
     return m_session->message();
 }
 
+QMap<QString, QVariantMap> TimerService::actions() const
+{
+    // GNOME's menu has always waited for Status ready before it offered a
+    // write, and has left Project and Billable to the timer during a
+    // session; the policy keeps both.
+    const QVariantMap states = MenuActionStates::of(*m_timer, m_session, MenuActionPolicy::gnome()).toVariantMap();
+    QMap<QString, QVariantMap> actions;
+    for (auto it = states.cbegin(); it != states.cend(); ++it) {
+        actions.insert(it.key(), it.value().toMap());
+    }
+    return actions;
+}
+
 QMap<QString, int> TimerService::pomodoroLengths() const
 {
     return {
@@ -402,62 +399,43 @@ QList<QVariantMap> TimerService::soundCatalogue() const
 bool TimerService::Start()
 {
     // In Pomodoro mode the desktop starts no timer: sessions run instead.
-    return !m_session->pomodoroMode() && m_timer->start();
+    return !m_session->pomodoroMode() && m_actions->start();
 }
 
 bool TimerService::Stop()
 {
-    return m_timer->stop();
+    return m_actions->stop();
 }
 
 bool TimerService::Pause()
 {
-    return m_timer->pause();
+    return m_actions->pause();
 }
 
 bool TimerService::Resume()
 {
-    return m_timer->resume();
+    return m_actions->resume();
 }
 
 bool TimerService::SetProject(qint64 projectId)
 {
-    return m_timer->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId));
+    return m_actions->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId));
 }
 
 bool TimerService::SetBillable(bool billable)
 {
-    return m_timer->chooseBillable(billable);
+    return m_actions->chooseBillable(billable);
 }
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
 {
-    std::optional<QDBusMessage> call;
-    QDBusConnection bus(QString{});
+    std::optional<ConfigurationAdapter::Call> call;
     if (calledFromDBus()) {
+        // The adapter answers once the credential store has.
         setDelayedReply(true);
-        call = message();
-        bus = QDBusContext::connection();
+        call = ConfigurationAdapter::Call{message(), QDBusContext::connection()};
     }
-    m_connectionSettings->configure(instanceUrl, authMode, email, secret, [call, bus](const ServiceSettings::Outcome &outcome) {
-        if (!call) {
-            return;
-        }
-        switch (outcome.kind) {
-        case ServiceSettings::Outcome::Kind::Saved:
-            bus.send(call->createReply());
-            break;
-        case ServiceSettings::Outcome::Kind::Invalid:
-            bus.send(call->createErrorReply(QDBusError::InvalidArgs, outcome.message));
-            break;
-        case ServiceSettings::Outcome::Kind::StoreRefused:
-            bus.send(call->createErrorReply(credentialStoreError, outcome.message));
-            break;
-        case ServiceSettings::Outcome::Kind::NotWritten:
-            bus.send(call->createErrorReply(QDBusError::Failed, outcome.message));
-            break;
-        }
-    });
+    m_configuration->configure(instanceUrl, authMode, email, secret, call);
 }
 
 bool TimerService::SetPomodoroMode(bool pomodoro)

@@ -2,6 +2,7 @@
 // GNOME Shell in it: indicator.js reads the properties, calls these and puts
 // the result on screen.
 
+import { legacyActions } from './legacyactions.js';
 import {
     chosenProjectLabel,
     countdown,
@@ -14,22 +15,31 @@ import {
 } from './timer1.js';
 
 /**
+ * @typedef {object} ActionState one action of the Actions property
+ * @property {boolean} visible
+ * @property {boolean} enabled
+ * @property {string} [label]
+ */
+
+/**
  * @typedef {object} ServiceState the org.tokkl.Timer1 properties the menu
  *     reads; status is null when nothing owns the bus name
  * @property {string|null} status
- * @property {boolean} running
- * @property {boolean} paused
  * @property {Array<{id: number, name: string, clientName?: string}>} projects
  * @property {boolean} [projectsIncomplete]
  * @property {number} chosenProject
  * @property {string} chosenProjectName
  * @property {boolean} billable
+ * @property {boolean} running
+ * @property {boolean} paused
  * @property {boolean} pomodoroMode
  * @property {boolean} modeLocked
  * @property {boolean} sessionActive
  * @property {boolean} canStartSession
  * @property {string} upcomingPhase
  * @property {string} sessionMessage
+ * @property {Record<string, ActionState>|null} [actions] the Actions property,
+ *     missing or null when the service publishes none
  * @property {string} [actionError] the extension's own word on a method call
  *     that failed, empty or missing when none did
  */
@@ -37,30 +47,29 @@ import {
 /**
  * Each menu item's text, whether it shows and whether it can be chosen.
  *
- * Start, or Stop while an entry runs or a chain is paused, never pauses:
- * Stop ends the chain. Pomodoro mode hides it unless a timer runs or is
- * paused, since the service starts no timer then, and an active session
- * hides it in either mode. The session's items follow the published state;
- * the service refuses what does not apply. Project chooses the project of
- * the next start and is locked while an entry runs or a chain is paused.
- * Billable stays editable while an entry runs, as the service then edits
- * that entry, and shows the paused entry's flag, which cannot change, while
- * paused.
+ * Which items show and can be chosen is the service's to say: the Actions
+ * property carries the shared core's rules, the ones the KDE and macOS
+ * menus follow, with GNOME's policy (writes wait for Status "ready", and a
+ * session leaves Project and Billable to the timer). This turns each
+ * action's label into words. Start, or Stop while an entry runs or a chain
+ * is paused, never pauses: Stop ends the chain. Without Actions, from no
+ * service or one older than the property, legacyActions() gives the rules
+ * that service's extension had.
  *
  * @param {ServiceState} state
  * @param {{detail: string}} words describeStatus() of the state
  * @param {(text: string) => string} _ gettext
  */
 export function describeMenu(state, words, _) {
-    const ready = state.status === 'ready';
-    const timerHeld = state.running || state.paused;
+    const actions = state.status !== null && state.actions ? state.actions : legacyActions(state);
     const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
     // Translators: %s is the project's name, or No project.
     let projectText = fill(_('Project: %s'), chosen);
     // Translators: %s is the project's name, or No project.
-    if (state.running) projectText = fill(_('Project: %s (locked while running)'), chosen);
+    if (actions.project.label === 'projectRunning') projectText = fill(_('Project: %s (locked while running)'), chosen);
     // Translators: %s is the project's name, or No project.
-    else if (state.paused) projectText = fill(_('Project: %s (locked while paused)'), chosen);
+    else if (actions.project.label === 'projectPaused')
+        projectText = fill(_('Project: %s (locked while paused)'), chosen);
     // A call that failed outranks the service's message: it is newer, and
     // the service may not have seen the call at all.
     const message = state.actionError || state.sessionMessage;
@@ -68,25 +77,24 @@ export function describeMenu(state, words, _) {
         message: { text: message, visible: message.length > 0 },
         detail: { text: words.detail, visible: words.detail.length > 0 },
         toggle: {
-            text: timerHeld ? _('Stop') : _('Start'),
-            sensitive: ready,
-            visible: !state.sessionActive && (!state.pomodoroMode || timerHeld),
+            text: actions.run.label === 'stop' ? _('Stop') : _('Start'),
+            sensitive: actions.run.enabled,
+            visible: actions.run.visible,
         },
-        // The service says when a session can start: not before it has read
-        // the server's state, and not while an action waits for its answer.
-        startSession: {
-            visible: state.pomodoroMode && !state.sessionActive && !timerHeld,
-            sensitive: state.canStartSession,
+        startSession: { visible: actions.startSession.visible, sensitive: actions.startSession.enabled },
+        nextPhase: {
+            text: nextPhaseLabel(actions.nextPhase.label, _),
+            visible: actions.nextPhase.visible,
+            sensitive: actions.nextPhase.enabled,
         },
-        nextPhase: { text: nextPhaseLabel(state.upcomingPhase, _), visible: state.sessionActive },
-        endSession: { visible: state.sessionActive },
+        endSession: { visible: actions.endSession.visible, sensitive: actions.endSession.enabled },
         mode: {
-            text: pomodoroModeLabel(state.modeLocked, _),
+            text: pomodoroModeLabel(actions.mode.label === 'pomodoroModeLocked', _),
             checked: state.pomodoroMode,
-            sensitive: state.status !== null && !state.modeLocked,
+            sensitive: actions.mode.enabled,
         },
-        project: { text: projectText, sensitive: ready && !state.running && !state.paused },
-        billable: { checked: state.billable, sensitive: ready && !state.paused },
+        project: { text: projectText, sensitive: actions.project.enabled },
+        billable: { checked: state.billable, sensitive: actions.billable.enabled },
     };
 }
 

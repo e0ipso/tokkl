@@ -316,6 +316,50 @@ private Q_SLOTS:
         QVERIFY(f.client.state());
     }
 
+    // An event over the limit is dropped with its stream before it is
+    // parsed, even when it arrives whole and holds a valid state; its lines
+    // are counted from the end of the event before it, not per piece.
+    void oversizedEventIsNotParsed()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.answerRead(stateBody(1, f.clock.now()));
+        FakeStream *stream = f.transport.lastStream();
+        stream->push(eventFrame(stateBody(2, f.clock.now())));
+        QCOMPARE(f.client.state()->revision, 2);
+        const qsizetype changes = f.changes.size();
+
+        // A whole event: a state padded to more than the limit.
+        QByteArray padded = stateBody(3, f.clock.now());
+        padded.append(QByteArray(TimerStateClient::maxEventBytes, ' '));
+        stream->push(eventFrame(padded));
+        QVERIFY(stream->aborted);
+        QCOMPARE(f.changes.size(), changes);
+        QCOMPARE(f.client.state()->revision, 2);
+        QVERIFY(!f.client.streaming());
+
+        // Lines that each fit, sent in small pieces, still add up.
+        QCOMPARE(f.secondsToNextStream(), 1);
+        FakeStream *next = f.transport.lastStream();
+        next->push("event: timer\n");
+        const QByteArray line = "data:" + QByteArray(64 * 1024, ' ') + "\n";
+        for (qsizetype sent = 0; sent <= TimerStateClient::maxEventBytes && !next->aborted; sent += line.size()) {
+            next->push(line);
+        }
+        QVERIFY(next->aborted);
+        QCOMPARE(f.changes.size(), changes);
+
+        // Small events keep a stream up however long it runs.
+        QCOMPARE(f.secondsToNextStream(), 2);
+        FakeStream *third = f.transport.lastStream();
+        for (int i = 0; i < 50000; ++i) {
+            third->push("event: keep-alive\ndata:\n\n");
+        }
+        QVERIFY(!third->aborted);
+        third->push(eventFrame(stateBody(4, f.clock.now())));
+        QCOMPARE(f.client.state()->revision, 4);
+    }
+
     // The clock's jitter lengthens each wait by up to a quarter of it.
     void reconnectAddsJitter()
     {

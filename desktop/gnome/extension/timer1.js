@@ -8,103 +8,12 @@
 export const BUS_NAME = 'org.tokkl.Timer1';
 export const OBJECT_PATH = '/org/tokkl/Timer1';
 
-// desktop/gnome/dbus/org.tokkl.Timer1.xml without its comments. The tests
-// fail when the two differ.
-export const TIMER1_INTERFACE = `<node>
-  <interface name="org.tokkl.Timer1">
-    <property name="Running" type="b" access="read"/>
-    <property name="StartTime" type="x" access="read"/>
-    <property name="LocalStartTime" type="x" access="read"/>
-    <property name="Paused" type="b" access="read"/>
-    <property name="ChainSeconds" type="x" access="read"/>
-    <property name="IndicatorState" type="s" access="read"/>
-    <property name="IndicatorColor" type="s" access="read"/>
-    <property name="Projects" type="aa{sv}" access="read"/>
-    <property name="ProjectsIncomplete" type="b" access="read"/>
-    <property name="ChosenProject" type="x" access="read"/>
-    <property name="ChosenProjectName" type="s" access="read"/>
-    <property name="Billable" type="b" access="read"/>
-    <property name="Status" type="s" access="read"/>
-    <property name="ErrorString" type="s" access="read"/>
-    <property name="PomodoroMode" type="b" access="read"/>
-    <property name="ModeLocked" type="b" access="read"/>
-    <property name="SessionActive" type="b" access="read"/>
-    <property name="CanStartSession" type="b" access="read"/>
-    <property name="Phase" type="s" access="read"/>
-    <property name="PhaseStart" type="x" access="read"/>
-    <property name="PlannedEnd" type="x" access="read"/>
-    <property name="PomodoroNumber" type="i" access="read"/>
-    <property name="LongRestEvery" type="i" access="read"/>
-    <property name="UpcomingPhase" type="s" access="read"/>
-    <property name="Ringing" type="b" access="read"/>
-    <property name="RingingTransition" type="s" access="read"/>
-    <property name="SessionMessage" type="s" access="read"/>
-    <property name="PomodoroLengths" type="a{si}" access="read"/>
-    <property name="PomodoroLengthsEditable" type="b" access="read"/>
-    <property name="PomodoroLengthErrors" type="a{ss}" access="read"/>
-    <property name="Sounds" type="a{ss}" access="read"/>
-    <property name="SoundChoices" type="aa{sv}" access="read"/>
-    <method name="Start">
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="Stop">
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="Pause">
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="Resume">
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="SetProject">
-      <arg name="projectId" type="x" direction="in"/>
-      <arg name="accepted" type="b" direction="out"/>
-    </method>
-    <method name="SetBillable">
-      <arg name="billable" type="b" direction="in"/>
-      <arg name="accepted" type="b" direction="out"/>
-    </method>
-    <method name="Configure">
-      <arg name="instanceUrl" type="s" direction="in"/>
-      <arg name="authMode" type="s" direction="in"/>
-      <arg name="email" type="s" direction="in"/>
-      <arg name="secret" type="s" direction="in"/>
-    </method>
-    <method name="SetPomodoroMode">
-      <arg name="pomodoro" type="b" direction="in"/>
-      <arg name="accepted" type="b" direction="out"/>
-    </method>
-    <method name="Activate">
-      <arg name="action" type="s" direction="out"/>
-    </method>
-    <method name="StartSession">
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="NextPhase">
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="EndSession">
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="SetPomodoroLengths">
-      <arg name="work" type="i" direction="in"/>
-      <arg name="shortRest" type="i" direction="in"/>
-      <arg name="longRest" type="i" direction="in"/>
-      <arg name="longRestEvery" type="i" direction="in"/>
-      <arg name="sent" type="b" direction="out"/>
-    </method>
-    <method name="RefreshPreferences"/>
-    <method name="SetSound">
-      <arg name="transition" type="s" direction="in"/>
-      <arg name="soundId" type="s" direction="in"/>
-      <arg name="accepted" type="b" direction="out"/>
-    </method>
-    <method name="PreviewSound">
-      <arg name="soundId" type="s" direction="in"/>
-      <arg name="accepted" type="b" direction="out"/>
-    </method>
-  </interface>
-</node>`;
+// The interface description the extension reads at run time, next to its
+// modules. pack-extension.sh copies it from desktop/gnome/dbus, the one
+// source of the contract: tokkl-timerd installs that file and its tests
+// compare it with the service's introspection, and the extension's tests and
+// the Shell harness's mock read it there.
+export const TIMER1_XML_FILE = 'org.tokkl.Timer1.xml';
 
 // The values of Configure's authMode argument.
 export const AUTH_MODES = ['token', 'password'];

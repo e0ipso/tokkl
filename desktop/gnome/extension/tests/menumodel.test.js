@@ -9,6 +9,21 @@ import { describeStatus, projectLabel } from '../timer1.js';
 
 const identity = text => text;
 
+// The Actions property as tokkl-timerd publishes it for a stopped, ready
+// timer in Timer mode, with some actions replaced.
+function actions(overrides = {}) {
+    return {
+        run: { visible: true, enabled: true, label: 'start' },
+        startSession: { visible: false, enabled: false, label: 'startSession' },
+        nextPhase: { visible: false, enabled: false, label: '' },
+        endSession: { visible: false, enabled: false, label: 'endSession' },
+        project: { visible: true, enabled: true, label: 'project' },
+        billable: { visible: true, enabled: true, label: 'billable' },
+        mode: { visible: true, enabled: true, label: 'pomodoroMode' },
+        ...overrides,
+    };
+}
+
 function serviceState(overrides = {}) {
     return {
         status: 'ready',
@@ -24,6 +39,7 @@ function serviceState(overrides = {}) {
         canStartSession: false,
         upcomingPhase: '',
         sessionMessage: '',
+        actions: actions(),
         ...overrides,
     };
 }
@@ -33,58 +49,79 @@ function menuFor(overrides) {
     return describeMenu(state, describeStatus(state.status, '', identity), identity);
 }
 
-test('a stopped timer offers Start and an open project choice', () => {
+test('the menu shows what Actions says', () => {
     const menu = menuFor();
     assert.deepEqual(menu.toggle, { text: 'Start', sensitive: true, visible: true });
     assert.deepEqual(menu.project, { text: 'Project: No project', sensitive: true });
     assert.deepEqual(menu.billable, { checked: false, sensitive: true });
-    assert.equal(menu.startSession.visible, false);
+    assert.deepEqual(menu.startSession, { visible: false, sensitive: false });
     assert.equal(menu.nextPhase.visible, false);
     assert.equal(menu.message.visible, false);
+
+    const held = menuFor({
+        actions: actions({
+            run: { visible: true, enabled: false, label: 'stop' },
+            project: { visible: true, enabled: false, label: 'project' },
+            billable: { visible: true, enabled: false, label: 'billable' },
+        }),
+    });
+    assert.deepEqual(held.toggle, { text: 'Stop', sensitive: false, visible: true });
+    assert.equal(held.project.sensitive, false);
+    assert.equal(held.billable.sensitive, false);
 });
 
-test('a running entry locks the project but not billable', () => {
-    const menu = menuFor({ running: true, chosenProject: 7, billable: true });
-    assert.equal(menu.toggle.text, 'Stop');
-    assert.deepEqual(menu.project, { text: 'Project: Alpha (Acme) (locked while running)', sensitive: false });
-    assert.deepEqual(menu.billable, { checked: true, sensitive: true });
+test('a project locked by a running or paused entry says why', () => {
+    const running = menuFor({
+        chosenProject: 7,
+        billable: true,
+        actions: actions({ project: { visible: true, enabled: false, label: 'projectRunning' } }),
+    });
+    assert.deepEqual(running.project, { text: 'Project: Alpha (Acme) (locked while running)', sensitive: false });
+    assert.deepEqual(running.billable, { checked: true, sensitive: true });
+    const paused = menuFor({
+        actions: actions({ project: { visible: true, enabled: false, label: 'projectPaused' } }),
+    });
+    assert.equal(paused.project.text, 'Project: No project (locked while paused)');
 });
 
-test('a paused chain locks the project and billable and offers Stop', () => {
-    const menu = menuFor({ paused: true });
-    assert.equal(menu.toggle.text, 'Stop');
-    assert.equal(menu.project.text, 'Project: No project (locked while paused)');
-    assert.equal(menu.project.sensitive, false);
-    assert.equal(menu.billable.sensitive, false);
-});
-
-test('Pomodoro mode hides Start and offers a session the service allows', () => {
-    const menu = menuFor({ pomodoroMode: true, canStartSession: true });
+test('Start session shows and can be chosen as Actions says', () => {
+    const menu = menuFor({
+        pomodoroMode: true,
+        actions: actions({
+            run: { visible: false, enabled: false, label: 'start' },
+            startSession: { visible: true, enabled: true, label: 'startSession' },
+        }),
+    });
     assert.equal(menu.toggle.visible, false);
     assert.deepEqual(menu.startSession, { visible: true, sensitive: true });
     assert.deepEqual(menu.mode, { text: 'Pomodoro mode', checked: true, sensitive: true });
-    // A timer still held in Pomodoro mode keeps its Stop.
-    assert.equal(menuFor({ pomodoroMode: true, paused: true }).toggle.visible, true);
 });
 
-test('an active session shows its own items in either mode', () => {
-    for (const pomodoroMode of [false, true]) {
-        const menu = menuFor({ pomodoroMode, sessionActive: true, upcomingPhase: 'shortRest', modeLocked: true });
-        assert.equal(menu.toggle.visible, false);
-        assert.equal(menu.startSession.visible, false);
-        assert.deepEqual(menu.nextPhase, { text: 'Next phase: Short rest', visible: true });
-        assert.deepEqual(menu.endSession, { visible: true });
-        assert.equal(menu.mode.text, 'Pomodoro mode (locked while running)');
-        assert.equal(menu.mode.sensitive, false);
-    }
+test('an active session shows its own items', () => {
+    const menu = menuFor({
+        actions: actions({
+            run: { visible: false, enabled: false, label: 'start' },
+            nextPhase: { visible: true, enabled: true, label: 'shortRest' },
+            endSession: { visible: true, enabled: true, label: 'endSession' },
+            mode: { visible: true, enabled: false, label: 'pomodoroModeLocked' },
+        }),
+    });
+    assert.equal(menu.toggle.visible, false);
+    assert.equal(menu.startSession.visible, false);
+    assert.deepEqual(menu.nextPhase, { text: 'Next phase: Short rest', visible: true, sensitive: true });
+    assert.deepEqual(menu.endSession, { visible: true, sensitive: true });
+    assert.equal(menu.mode.text, 'Pomodoro mode (locked while running)');
+    assert.equal(menu.mode.sensitive, false);
 });
 
-test('nothing can be chosen without a ready service', () => {
+test('nothing can be chosen without a service', () => {
     const menu = menuFor({ status: null });
-    assert.equal(menu.toggle.sensitive, false);
+    assert.deepEqual(menu.toggle, { text: 'Start', sensitive: false, visible: true });
     assert.equal(menu.project.sensitive, false);
     assert.equal(menu.billable.sensitive, false);
     assert.equal(menu.mode.sensitive, false);
+    assert.equal(menu.startSession.visible, false);
+    assert.equal(menu.nextPhase.visible, false);
     assert.deepEqual(menu.detail, {
         text: 'Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.',
         visible: true,

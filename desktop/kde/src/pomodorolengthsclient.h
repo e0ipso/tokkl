@@ -23,6 +23,11 @@ namespace Tokkl
 // account is known only once the connection has validated it, so this client
 // has no cache to show earlier. Until it has read them, the page shows the
 // lengths the panel keeps in the widget's settings.
+//
+// save() hands the save to PomodoroLengthsSaves, which outlives the page: a
+// client deleted before the answer, as when OK closes the dialog, leaves its
+// connection and preferences there until the answer comes, and a refusal
+// reaches the panel.
 class PomodoroLengthsClient : public QObject
 {
     Q_OBJECT
@@ -36,12 +41,22 @@ public:
     // Uses the network and KDE Wallet, as the widget's connection does.
     explicit PomodoroLengthsClient(QObject *parent = nullptr);
 
+    ~PomodoroLengthsClient() override;
+
     Connection *connection() const;
     PomodoroPreferences *preferences() const;
     bool isConnecting() const;
 
+    // Sends the lengths that differ from the server's. False, and nothing
+    // is sent, when the preferences cannot save now or nothing differs;
+    // otherwise saveAnswered() follows.
+    Q_INVOKABLE bool save(int workMinutes, int shortRestMinutes, int longRestMinutes, int longRestEvery);
+
 Q_SIGNALS:
     void connectingChanged();
+    // A save from here has its answer; the preferences hold what the server
+    // kept, and any refusal.
+    void saveAnswered();
 
 protected:
     // Takes ownership of the connection.

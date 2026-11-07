@@ -2,17 +2,32 @@
 // core as org.tokkl.Timer1 on the session bus, for the GNOME Shell
 // extension, with the alarm played here on the sound server. D-Bus
 // activation or its systemd user unit starts it.
+//
+// main() is the daemon's composition root: it builds every object the
+// service serves and wires them, and TimerService only maps them onto the
+// bus.
 
+#include "clock.h"
+#include "configurationadapter.h"
+#include "connection.h"
 #include "keychaincredentialstore.h"
 #include "pomodoroalarm.h"
+#include "pomodoropreferences.h"
+#include "pomodorosession.h"
+#include "pomodorostore.h"
 #include "pulsealarmbackend.h"
+#include "servicesettings.h"
+#include "soundchoices.h"
+#include "timercontroller.h"
 #include "timerservice.h"
+#include "timerstateclient.h"
 #include "translations.h"
 #include "transport.h"
 
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QLoggingCategory>
+#include <QSettings>
 #include <QSocketNotifier>
 #include <QStandardPaths>
 
@@ -86,14 +101,32 @@ int main(int argc, char **argv)
 
     Tokkl::NetworkTransport transport(Tokkl::TimerService::clientName());
     Tokkl::KeychainCredentialStore store;
-    const QString settingsFile = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/tokkl/tokkl-timerd.conf");
-    Tokkl::TimerService service(&transport, &store, settingsFile);
+    // The address, sign-in method and email (never the secret), the
+    // Pomodoro mode and the sound choices live in this file.
+    QSettings settings(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/tokkl/tokkl-timerd.conf"),
+                       QSettings::IniFormat);
+    Tokkl::SystemClock clock;
+    Tokkl::Connection connection(&transport, &store, Tokkl::TimerService::clientName());
+    // The timer and the session are the server's, read through one state
+    // client; the session reads and acts through the timer's.
+    Tokkl::TimerController timer(&clock);
+    Tokkl::TimerStateClient client(&connection, &clock);
+    Tokkl::SettingsPomodoroStore pomodoroStore(&settings);
+    Tokkl::SoundChoices sounds(&settings, &Tokkl::TimerService::soundKey);
+    Tokkl::PomodoroPreferences preferences(&connection);
+    timer.setStateClient(&client);
+    Tokkl::PomodoroSession session(&clock, timer.coordinator(), &pomodoroStore);
+    Tokkl::ServiceSettings connectionSettings(&settings, &connection, &store);
+    Tokkl::ConfigurationAdapter configuration(&connectionSettings);
+    Tokkl::TimerService service({&timer, timer.coordinator(), &session, &preferences, &sounds, &configuration});
+    connectionSettings.load();
+
     // The Pomodoro alarm, from the bundled sounds the package installs.
     Tokkl::PulseAlarmBackend alarmBackend(QCoreApplication::applicationName());
     QObject::connect(&alarmBackend, &Tokkl::PulseAlarmBackend::errorOccurred, &service, [](const QString &message) {
         qCWarning(lcTimerd).noquote() << "no sound:" << message;
     });
-    Tokkl::PomodoroAlarm alarm(service.session(), &alarmBackend, service.soundChoices(), QStringLiteral(TOKKL_SOUNDS_DIR));
+    Tokkl::PomodoroAlarm alarm(&session, &alarmBackend, &sounds, QStringLiteral(TOKKL_SOUNDS_DIR));
     service.setAlarm(&alarm);
     if (!service.registerOn(bus)) {
         std::fprintf(stderr, "tokkl-timerd: could not own %s on the session bus: %s\n", qPrintable(Tokkl::TimerService::serviceName),

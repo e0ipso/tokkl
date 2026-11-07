@@ -1,6 +1,7 @@
 #include "pomodorolengthsclient.h"
 
 #include "kdeconnection.h"
+#include "pomodorolengthssaves.h"
 
 namespace Tokkl
 {
@@ -24,6 +25,22 @@ PomodoroLengthsClient::PomodoroLengthsClient(Connection *connection, QObject *pa
         }
     });
     m_connecting = isConnecting();
+    connect(PomodoroLengthsSaves::instance(), &PomodoroLengthsSaves::answered, this, [this](PomodoroPreferences *preferences) {
+        if (preferences == m_preferences) {
+            Q_EMIT saveAnswered();
+        }
+    });
+}
+
+PomodoroLengthsClient::~PomodoroLengthsClient()
+{
+    // A save still waiting keeps the connection and preferences alive.
+    PomodoroLengthsSaves::instance()->keepUntilAnswered(m_connection, m_preferences);
+}
+
+bool PomodoroLengthsClient::save(int workMinutes, int shortRestMinutes, int longRestMinutes, int longRestEvery)
+{
+    return PomodoroLengthsSaves::instance()->save(m_connection, m_preferences, workMinutes, shortRestMinutes, longRestMinutes, longRestEvery);
 }
 
 Connection *PomodoroLengthsClient::connection() const

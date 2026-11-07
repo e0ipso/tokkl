@@ -53,6 +53,55 @@ constexpr std::array<TransitionKind, 4> transitions{
     TransitionKind::LongRestToWork,
 };
 
+// Long rest every: a count of pomodoros, shown with a plural that follows
+// the count. The text is a numerus message, so a catalog can give each
+// language its own forms. With no catalog loaded Qt shows a source text as
+// written, so the English source keeps the singular apart from the plural.
+class PomodoroCountBox : public QSpinBox
+{
+public:
+    using QSpinBox::QSpinBox;
+
+protected:
+    QString textFromValue(int value) const override
+    {
+        return value == 1 ? SettingsWindow::tr("%n pomodoro", nullptr, value) : SettingsWindow::tr("%n pomodoros", nullptr, value);
+    }
+
+    int valueFromText(const QString &text) const override
+    {
+        return digits(text).toInt();
+    }
+
+    // The count is the digits typed; the words around them come back with
+    // the value.
+    QValidator::State validate(QString &input, int &) const override
+    {
+        const QString typed = digits(input);
+        bool ok = false;
+        const int value = typed.toInt(&ok);
+        if (typed.isEmpty()) {
+            return QValidator::Intermediate;
+        }
+        if (!ok) {
+            return QValidator::Invalid;
+        }
+        return value >= minimum() && value <= maximum() ? QValidator::Acceptable : QValidator::Intermediate;
+    }
+
+private:
+    static QString digits(const QString &text)
+    {
+        QString digits;
+        for (const QChar c : text) {
+            if (c.isDigit()) {
+                digits += c;
+            }
+        }
+        return digits;
+    }
+};
+
 std::size_t index(PomodoroField field)
 {
     return std::size_t(field);
@@ -155,9 +204,11 @@ SettingsWindow::SettingsWindow(Transport *transport,
     const std::array<QString, 4> lengthLabels{tr("Work:"), tr("Short rest:"), tr("Long rest:"), tr("Long rest every:")};
     for (const PomodoroField field : lengthFields) {
         const PomodoroRange range = lengthRange(field);
-        auto *box = new QSpinBox;
+        QSpinBox *box = field == PomodoroField::LongRestEvery ? new PomodoroCountBox : new QSpinBox;
         box->setRange(range.min, range.max);
-        box->setSuffix(field == PomodoroField::LongRestEvery ? tr(" pomodoros") : tr(" min"));
+        if (field != PomodoroField::LongRestEvery) {
+            box->setSuffix(tr(" min"));
+        }
         auto *error = noteLabel();
         error->hide();
         m_lengthBoxes.at(index(field)) = box;
@@ -173,20 +224,32 @@ SettingsWindow::SettingsWindow(Transport *transport,
     pomodoroForm->addRow(QString(), m_pomodoroError);
 
     const std::array<QString, 4> soundLabels{tr("Work → short rest:"), tr("Short rest → work:"), tr("Work → long rest:"), tr("Long rest → work:")};
+    // Each selector and Preview button names its transition in words, as
+    // a screen reader would read the arrow of the visible label.
+    const std::array<QString, 4> soundNames{tr("Work to short rest sound"), tr("Short rest to work sound"), tr("Work to long rest sound"),
+                                            tr("Long rest to work sound")};
+    const std::array<QString, 4> previewNames{tr("Preview the work to short rest sound"), tr("Preview the short rest to work sound"),
+                                              tr("Preview the work to long rest sound"), tr("Preview the long rest to work sound")};
     const QList<PomodoroSound> sounds = pomodoroSounds();
     for (const TransitionKind kind : transitions) {
         auto *box = new QComboBox;
         for (const PomodoroSound &sound : sounds) {
             box->addItem(sound.label, sound.id);
         }
+        box->setAccessibleName(soundNames.at(index(kind)));
         auto *button = new QPushButton(tr("Preview"));
         button->setToolTip(tr("Plays the selected sound once."));
+        button->setAccessibleName(previewNames.at(index(kind)));
         auto *row = new QHBoxLayout;
         row->addWidget(box, 1);
         row->addWidget(button);
         m_soundBoxes.at(index(kind)) = box;
         m_previewButtons.at(index(kind)) = button;
-        pomodoroForm->addRow(soundLabels.at(index(kind)), row);
+        // The row is a layout, which takes no buddy, so the label is made
+        // here and points at the selector.
+        auto *label = new QLabel(soundLabels.at(index(kind)));
+        label->setBuddy(box);
+        pomodoroForm->addRow(label, row);
         connect(button, &QPushButton::clicked, this, [this, kind] {
             preview(kind);
         });

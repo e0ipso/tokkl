@@ -273,6 +273,68 @@ private Q_SLOTS:
         QCOMPARE(response.body, QByteArray("{\"id\":5}"));
     }
 
+    // An answer whose length is announced over the limit is not read: it
+    // ends as a NetworkError without a body, whatever its status. One at the
+    // limit is read whole.
+    void announcedBodyOverLimit_data()
+    {
+        QTest::addColumn<QByteArray>("statusLine");
+        QTest::addColumn<int>("size");
+        QTest::addColumn<bool>("fits");
+        QTest::newRow("200 at the limit") << QByteArray("200 OK") << 1000 << true;
+        QTest::newRow("200 over") << QByteArray("200 OK") << 1001 << false;
+        QTest::newRow("404 over") << QByteArray("404 Not Found") << 5000 << false;
+    }
+
+    void announcedBodyOverLimit()
+    {
+        QFETCH(QByteArray, statusLine);
+        QFETCH(int, size);
+        QFETCH(bool, fits);
+        LoopbackServer server;
+        const QByteArray body = "\"" + QByteArray(size - 2, 'x') + "\"";
+        server.response = httpResponse(statusLine, "", body);
+        NetworkTransport transport(clientName);
+        QCOMPARE(transport.maxResponseBytes(), NetworkTransport::defaultMaxResponseBytes);
+        transport.setMaxResponseBytes(1000);
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic c2VjcmV0", {}});
+        if (fits) {
+            QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
+            QCOMPARE(response.body, body);
+        } else {
+            QVERIFY(response.outcome == HttpResponse::Outcome::NetworkError);
+            QCOMPARE(response.status, 0);
+            QVERIFY(response.body.isEmpty());
+            QVERIFY(response.errorString.contains(QLatin1String("1000")));
+            QVERIFY(!response.errorString.contains(QLatin1String("c2VjcmV0")));
+        }
+    }
+
+    // A body without a length is counted as it arrives and aborted once it
+    // passes the limit, without waiting for its end.
+    void unannouncedBodyOverLimit()
+    {
+        StreamServer server;
+        NetworkTransport transport(clientName);
+        transport.setMaxResponseBytes(1000);
+        std::optional<HttpResponse> result;
+        PendingReply *reply = transport.send(HttpRequest{"GET", server.url(QStringLiteral("/api/v9/workspaces/1/projects")), "Basic eA==", {}});
+        connect(reply, &PendingReply::finished, reply, [&result](const HttpResponse &response) {
+            result = response;
+        });
+        QTRY_VERIFY(server.socket);
+        server.socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n");
+        server.writeChunk("[" + QByteArray(600, ' '));
+        QTest::qWait(100);
+        QVERIFY(!result.has_value());
+        server.writeChunk(QByteArray(600, ' '));
+        // The server never ends the body, and the request timeout is far.
+        QTRY_VERIFY_WITH_TIMEOUT(result.has_value(), 5000);
+        QVERIFY(result->outcome == HttpResponse::Outcome::NetworkError);
+        QVERIFY(result->body.isEmpty());
+        delete reply;
+    }
+
     void timeout()
     {
         LoopbackServer server; // reads the request, never answers
@@ -386,6 +448,22 @@ private Q_SLOTS:
         QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::Finished);
         QCOMPARE(log.finished.first().status, 403);
         QCOMPARE(log.finished.first().body, QByteArray("\"Invalid credentials\""));
+        QCOMPARE(log.chunks, 0);
+        delete stream;
+    }
+
+    // A refused stream's body counts against the limit like a reply's.
+    void streamRefusedOverLimit()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("403 Forbidden", "", "\"" + QByteArray(2000, 'x') + "\"");
+        NetworkTransport transport(clientName);
+        transport.setMaxResponseBytes(1000);
+        PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
+        StreamLog log(stream);
+        QTRY_COMPARE(log.finished.size(), 1);
+        QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::NetworkError);
+        QVERIFY(log.finished.first().body.isEmpty());
         QCOMPARE(log.chunks, 0);
         delete stream;
     }

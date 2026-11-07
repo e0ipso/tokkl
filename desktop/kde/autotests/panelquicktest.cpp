@@ -13,6 +13,8 @@
 #include "connection.h"
 #include "connectionsetup.h"
 #include "fakes.h"
+#include "menuactions.h"
+#include "pomodorolengthssaves.h"
 #include "pomodorolengthsclient.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
@@ -54,7 +56,12 @@ public:
     explicit PanelFixture(QObject *parent = nullptr)
         : QObject(parent)
     {
+    }
+
+    TimerCoordinator *bound()
+    {
         m_timer.setStateClient(&m_client);
+        return m_timer.coordinator();
     }
 
     TimerController *timer()
@@ -189,8 +196,10 @@ private:
     QSettings m_settings{m_dir.filePath(QStringLiteral("pomodoro.ini")), QSettings::IniFormat};
     SettingsPomodoroStore m_pomodoroStore{&m_settings};
     PomodoroPreferences m_preferences{&m_connection};
-    // Last, so it goes first: it still reads the others while it ends.
-    PomodoroSession m_session{&m_clock, &m_timer, &m_client, &m_pomodoroStore};
+    // Last, so it goes first: it still reads the others while it ends. It
+    // reads and acts through the timer's state client, so the timer gets
+    // the client first.
+    PomodoroSession m_session{&m_clock, bound(), &m_pomodoroStore};
     QSet<qsizetype> m_answered;
 };
 
@@ -369,9 +378,11 @@ public Q_SLOTS:
         qmlRegisterUncreatableType<Connection>(uri, 1, 0, "TokklConnection", QStringLiteral("Created by PanelFixture"));
         qmlRegisterUncreatableType<TimerController>(uri, 1, 0, "TokklTimer", QStringLiteral("Created by PanelFixture"));
         qmlRegisterUncreatableType<PomodoroSession>(uri, 1, 0, "TokklPomodoroSession", QStringLiteral("Created by PanelFixture"));
+        qmlRegisterType<MenuActions>(uri, 1, 0, "TokklMenuActions");
         qmlRegisterType<FakeConnectionSetup>(uri, 1, 0, "TokklConnectionSetup");
         qmlRegisterUncreatableType<PomodoroPreferences>(uri, 1, 0, "TokklPomodoroPreferences", QStringLiteral("Created by TokklPomodoroLengths"));
         qmlRegisterType<FakePomodoroLengths>(uri, 1, 0, "TokklPomodoroLengths");
+        qmlRegisterType<PomodoroLengthsSaveStatus>(uri, 1, 0, "TokklLengthsSaveStatus");
         qmlRegisterType<FakeAlarm>(uri, 1, 0, "TokklAlarm");
         qmlRegisterSingletonType<PomodoroSoundCatalogue>(uri, 1, 0, "TokklPomodoroSounds", [](QQmlEngine *, QJSEngine *) -> QObject * {
             return new PomodoroSoundCatalogue;

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 import {
     AUTH_MODES,
-    TIMER1_INTERFACE,
+    TIMER1_XML_FILE,
     chosenProjectLabel,
     countdown,
     describeStatus,
@@ -23,19 +23,11 @@ import {
 
 const identity = text => text;
 
-// Every <property>, <method> and <arg> with its attributes, in order.
-function members(xml) {
-    const withoutComments = xml.replace(/<!--[\s\S]*?-->/g, '');
-    return [...withoutComments.matchAll(/<(property|method|arg)\b([^>]*?)\/?>/g)].map(([, tag, attrs]) => {
-        const values = Object.fromEntries([...attrs.matchAll(/(\w+)="([^"]*)"/g)].map(([, k, v]) => [k, v]));
-        return { tag, ...values };
-    });
-}
-
-test('the interface matches the service description', () => {
-    const service = readFileSync(new URL('../../dbus/org.tokkl.Timer1.xml', import.meta.url), 'utf8');
-    assert.deepEqual(members(TIMER1_INTERFACE), members(service));
-    assert.match(TIMER1_INTERFACE, /<interface name="org\.tokkl\.Timer1">/);
+test('the extension reads the service description by its file name', () => {
+    // pack-extension.sh copies this file into the extension, and the proxy
+    // reads it there; the tests and the Shell harness read it here.
+    const service = readFileSync(new URL(`../../dbus/${TIMER1_XML_FILE}`, import.meta.url), 'utf8');
+    assert.match(service, /<interface name="org\.tokkl\.Timer1">/);
 });
 
 test('elapsed time counts from StartTime and is 0 when stopped', () => {

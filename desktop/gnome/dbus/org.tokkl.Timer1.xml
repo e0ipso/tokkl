@@ -115,6 +115,21 @@
          save. Empty when there is none; it stays until the next action or
          the next message. -->
     <property name="SessionMessage" type="s" access="read"/>
+    <!-- Which timer and session actions a menu shows and can choose, from
+         the shared core's rules with the GNOME policy: Start, Stop, Project
+         and Billable wait for Status "ready", and a session leaves Project
+         and Billable as the timer allows. The keys are run, startSession,
+         nextPhase, endSession, project, billable and mode, each with
+         visible (b), enabled (b) and label (s). enabled is false whenever
+         visible is. The label names the text to show: "start" or "stop"
+         for run, the phase NextPhase would start for nextPhase (as
+         UpcomingPhase names it), "project", or "projectRunning" or
+         "projectPaused" while a held entry locks it, for project,
+         "pomodoroMode" or "pomodoroModeLocked" for mode, and the key
+         itself otherwise. The methods still refuse what does not apply. -->
+    <property name="Actions" type="a{sa{sv}}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QVariantMap&gt;"/>
+    </property>
     <!-- The account's Pomodoro lengths: work, shortRest and longRest in
          minutes, and longRestEvery in work phases per round. The last
          known lengths while the account is unreachable; the defaults

@@ -32,7 +32,7 @@
 ### #gnome
 - Open [**GNOME Shell extension panel button and menu**](gnome-shell-extension/map-gnome-shell-extension-panel-button-and-menu.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; click and key activation; Shell 50 click gesture; Shell 51 key controller
 - Open [**GNOME Shell extension project indicator and chosen project label**](gnome-shell-extension/map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) — projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel falls back to ChosenProjectName
-- Open [**GNOME Shell extension packaging and preferences**](gnome-shell-extension/map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js and *.png as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
+- Open [**GNOME Shell extension packaging and preferences**](gnome-shell-extension/map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
 ### #ci
 - Open [**KDE real-server test**](kde-companion/kde-ci-and-release-pipeline/map-kde-real-server-test.md) — realservertest.cpp, driven by realserver.test.ts, runs the companion against fixture Tokkl servers behind proxies and checks the data.
 - Open [**Release stages, KDE semantic-release plugin and GNOME assets**](kde-companion/kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md) — A push to main runs release-version, two kde-release legs, then release; the plugin gates on the manifests; GNOME assets upload after.
@@ -44,7 +44,7 @@
 ### #packaging
 - Open [**KDE native packaging: DEB, RPM and the version mapping**](kde-companion/map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.
 - Open [**KDE release upgrade check: previous-package.sh and --previous-package**](kde-companion/map-kde-release-upgrade-check-from-the-published-predecessor.md) — Release legs upgrade from the newest older published tokkl-kde asset, checked by size and SHA-256, or from a 0.0.0 build when none is usable.
-- Open [**GNOME Shell extension packaging and preferences**](gnome-shell-extension/map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js and *.png as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
+- Open [**GNOME Shell extension packaging and preferences**](gnome-shell-extension/map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
 ### #audio
 - Open [**Pomodoro sounds: FFmpeg recipes, same-origin files, WAV for loops**](../web-ui-behaviour/pomodoro/practice-pomodoro-sounds-are-ffmpeg-generated-same-origin-files-loops-are-wav.md) — Sounds in public/sounds are FFmpeg-generated with recipe and SHA-256 in docs/sounds; looping alarms are WAV, since MP3 padding breaks loops.
 - Open [**Desktop Pomodoro alarm playback: one backend per platform**](map-desktop-pomodoro-alarm-playback-one-backend-per-platform.md) — KDE plays the alarm with QSoundEffect, tokkl-timerd with libpulse-simple, macOS with NSSound; the four WAVs come from desktop/core/sounds.

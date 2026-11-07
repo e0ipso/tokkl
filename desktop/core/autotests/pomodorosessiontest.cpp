@@ -5,6 +5,7 @@
 
 #include "connection.h"
 #include "fakes.h"
+#include "menuactions.h"
 #include "pomodorosession.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
@@ -128,6 +129,54 @@ QJsonObject pomodoroJson(const Phase &phase, qint64 entryId)
 }
 }
 
+// A timer that is only TimerActions, as a session sees it: the client it
+// reads, and answers the test sets.
+class StandInTimer : public TimerActions
+{
+    Q_OBJECT
+
+public:
+    explicit StandInTimer(TimerStateClient *client)
+        : m_client(client)
+    {
+    }
+
+    TimerStateClient *stateClient() const override
+    {
+        return m_client;
+    }
+    bool holdsEntry() const override
+    {
+        return held;
+    }
+    bool isBusy() const override
+    {
+        return false;
+    }
+    bool canStartNew() const override
+    {
+        return startable;
+    }
+    Selection selection() const override
+    {
+        return chosen;
+    }
+    bool toggle() override
+    {
+        ++toggles;
+        return toggleSends;
+    }
+
+    bool held = false;
+    bool startable = true;
+    bool toggleSends = true;
+    Selection chosen;
+    int toggles = 0;
+
+private:
+    TimerStateClient *m_client;
+};
+
 class PomodoroSessionTest : public QObject
 {
     Q_OBJECT
@@ -159,7 +208,7 @@ class PomodoroSessionTest : public QObject
 
         void createSession()
         {
-            session = std::make_unique<PomodoroSession>(&clock, &timer, &client, &store);
+            session = std::make_unique<PomodoroSession>(&clock, timer.coordinator(), &store);
         }
 
         QDateTime serverNow() const
@@ -265,6 +314,120 @@ class PomodoroSessionTest : public QObject
     }
 
 private Q_SLOTS:
+    // The menus' actions come from one set of rules; the policies say where
+    // the panels differ: GNOME waits for Ready, and only KDE holds Project
+    // and Billable during a session.
+    void menuActionsFollowTheTimerAndTheSession()
+    {
+        Fixture f;
+        const auto plasma = [&f] {
+            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::plasma());
+        };
+        const auto macos = [&f] {
+            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::macos());
+        };
+        const auto gnome = [&f] {
+            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::gnome());
+        };
+        MenuActions actions;
+        actions.setTimer(&f.timer);
+        actions.setSession(f.session.get());
+        QSignalSpy changes(&actions, &MenuActions::changed);
+
+        // No account: Start shows and cannot be chosen.
+        QVERIFY(actions.states() == plasma());
+        QVERIFY(plasma().run.visible && !plasma().run.enabled);
+        QCOMPARE(plasma().run.label, QStringLiteral("start"));
+        QVERIFY(!plasma().startSession.visible && !plasma().nextPhase.visible && !plasma().endSession.visible);
+        QVERIFY(!plasma().project.enabled && !plasma().billable.enabled);
+        QVERIFY(plasma().mode.enabled);
+        // Without a session the menu reads as Timer mode.
+        QVERIFY(MenuActionStates::of(f.timer, nullptr, MenuActionPolicy::plasma()).run.visible);
+        QVERIFY(!MenuActionStates::of(f.timer, nullptr, MenuActionPolicy::plasma()).mode.enabled);
+
+        QVERIFY(connectAccount(f));
+        QVERIFY(!changes.isEmpty());
+        QVERIFY(actions.states() == plasma());
+        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+            QVERIFY(states.run.enabled && states.project.enabled && states.billable.enabled);
+            QCOMPARE(states.project.label, QStringLiteral("project"));
+        }
+
+        // A refused start keeps its message: status Error while the timer can
+        // still write. GNOME, which waits for Ready, holds the writes.
+        QVERIFY(f.timer.start());
+        QVERIFY(!plasma().run.enabled);
+        f.transport.respond(f.last("POST", entriesPath), FakeTransport::answer(400, "\"Project is archived\""));
+        f.respond(f.last("GET", statePath), f.state(std::nullopt));
+        QCOMPARE(f.timer.status(), TimerModel::Error);
+        QVERIFY(f.timer.canWrite());
+        QVERIFY(plasma().run.enabled && macos().run.enabled && plasma().project.enabled);
+        QVERIFY(!gnome().run.enabled && !gnome().project.enabled && !gnome().billable.enabled);
+        // A billable choice clears the kept message.
+        QVERIFY(f.timer.chooseBillable(false));
+        QVERIFY(gnome().run.enabled);
+
+        // Pomodoro mode: Start session instead of Start.
+        QVERIFY(f.session->setPomodoroMode(true));
+        QVERIFY(!plasma().run.visible && !plasma().run.enabled);
+        QVERIFY(plasma().startSession.visible && plasma().startSession.enabled);
+        QCOMPARE(actions.statesVariant().value(QStringLiteral("startSession")).toMap().value(QStringLiteral("visible")).toBool(), true);
+
+        // A session: Next phase and End session; only KDE holds the choices.
+        QVERIFY(f.session->startSession());
+        QVERIFY(!plasma().startSession.enabled);
+        f.respond(f.last("POST", startPath), f.state(work(f.serverNow())));
+        QVERIFY(f.session->isActive());
+        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+            QVERIFY(!states.run.visible && !states.startSession.visible);
+            QVERIFY(states.nextPhase.visible && states.nextPhase.enabled && states.endSession.visible && states.endSession.enabled);
+            QCOMPARE(states.nextPhase.label, QStringLiteral("shortRest"));
+            QVERIFY(!states.mode.enabled);
+            QCOMPARE(states.mode.label, QStringLiteral("pomodoroModeLocked"));
+        }
+        QVERIFY(!plasma().project.enabled && !plasma().billable.enabled);
+        QVERIFY(macos().project.enabled && macos().billable.enabled);
+        QVERIFY(gnome().project.enabled && gnome().billable.enabled);
+        QVERIFY(actions.states() == plasma());
+    }
+
+    // The session needs nothing of the timer but TimerActions: it reads and
+    // acts through the timer's client, starts with the typed selection, and
+    // a click in Timer mode is the timer's toggle and reports what it did.
+    void worksThroughTimerActions()
+    {
+        Fixture f(false);
+        QVERIFY(connectAccount(f));
+        StandInTimer timer(&f.client);
+        timer.chosen = {11, true};
+        PomodoroSession session(&f.clock, &timer, &f.store);
+
+        QCOMPARE(session.activate(), PomodoroSession::Activation::Handled);
+        QCOMPARE(timer.toggles, 1);
+        timer.toggleSends = false;
+        QCOMPARE(session.activate(), PomodoroSession::Activation::Ignored);
+        QCOMPARE(timer.toggles, 2);
+
+        QVERIFY(session.setPomodoroMode(true));
+        QVERIFY(session.canStartSession());
+        timer.startable = false;
+        Q_EMIT timer.changed();
+        QVERIFY(!session.canStartSession());
+        timer.startable = true;
+        Q_EMIT timer.changed();
+        QVERIFY(session.startSession());
+        const qsizetype start = f.last("POST", startPath);
+        QVERIFY(start >= 0);
+        QCOMPARE(f.body(start).value(QStringLiteral("project_id")).toInteger(), 11);
+        QCOMPARE(f.body(start).value(QStringLiteral("billable")).toBool(), true);
+
+        // A held timer locks the mode, as the timer says.
+        f.respond(start, f.state(std::nullopt));
+        timer.held = true;
+        Q_EMIT timer.changed();
+        QVERIFY(session.modeLocked());
+    }
+
     void followsASessionStartedElsewhere()
     {
         Fixture f;
@@ -423,6 +586,8 @@ private Q_SLOTS:
     void startsAndEndsOnTheServer()
     {
         Fixture f;
+        // Before an account, the timer's toggle sends nothing.
+        QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);
         QVERIFY(connectAccount(f));
         QVERIFY(!f.session->canStartSession());
 
@@ -431,6 +596,10 @@ private Q_SLOTS:
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
         const qsizetype timerStart = f.last("POST", entriesPath);
         QVERIFY(timerStart >= 0);
+        // While the start waits for its answer, a click is ignored, as
+        // Activate promises over D-Bus.
+        QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);
+        QCOMPARE(f.find("POST", entriesPath).size(), 1);
         const QJsonObject started = runningEntry(30, f.serverNow());
         f.transport.respond(timerStart, FakeTransport::answer(200, QJsonDocument(started).toJson(QJsonDocument::Compact)));
         // The read after the start shows it.

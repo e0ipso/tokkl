@@ -36,6 +36,8 @@ add_library(tokklcore STATIC
     instanceurl.h
     logging.cpp
     logging.h
+    menuactions.cpp
+    menuactions.h
     mutationgate.cpp
     mutationgate.h
     nextstartdefaults.h
@@ -59,8 +61,13 @@ add_library(tokklcore STATIC
     sessioncredentials.h
     soundchoices.cpp
     soundchoices.h
+    timeractions.h
     timercontroller.cpp
     timercontroller.h
+    timercoordinator.cpp
+    timercoordinator.h
+    timermodel.cpp
+    timermodel.h
     timerstateclient.cpp
     timerstateclient.h
     timerview.cpp
