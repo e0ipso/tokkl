@@ -38,7 +38,7 @@ mock.module('node:net', {
     createServer() {
       const probe = new EventEmitter() as EventEmitter & {
         listen: (port: number, host: string, ready: () => void) => void;
-        close: (done?: () => void) => void;
+        close: (closed: () => void) => void;
       };
       probe.listen = (_port: number, _host: string, ready: () => void) => {
         if (occupied) probe.emit('error', new Error('occupied'));
