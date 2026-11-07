@@ -65,3 +65,34 @@ export function createLogger(options: LoggerOptions = {}, context: LogFields = {
 
 /** Discards everything. For composition roots that have no logger to hand. */
 export const silentLogger: Logger = createLogger({ level: 'silent' });
+
+/**
+ * What a log keeps of an unexpected error whose message may hold SQL, row values or connection
+ * details: the error's name, a short machine code such as `ECONNREFUSED`, and the stack frames.
+ * The message never appears.
+ */
+export interface ErrorDiagnostic {
+  name: string;
+  code?: string;
+  frames: string[];
+}
+
+const MAX_FRAMES = 30;
+const PLAIN_WORD = /^[A-Za-z0-9_.-]{1,40}$/;
+const FRAME = /^\s+at \S/;
+
+export function redactedDiagnostic(error: unknown): ErrorDiagnostic {
+  if (!(error instanceof Error)) return { name: typeof error, frames: [] };
+  const name = PLAIN_WORD.test(error.name) ? error.name : 'Error';
+  const { code } = error as { code?: unknown };
+  const stack = typeof error.stack === 'string' ? error.stack : '';
+  // V8 starts the stack with the error's own text, which may span lines. The frames follow it.
+  const head = String(error);
+  const tail = stack.startsWith(head) ? stack.slice(head.length) : '';
+  const frames = tail
+    .split('\n')
+    .filter(line => FRAME.test(line))
+    .slice(0, MAX_FRAMES)
+    .map(line => line.trim());
+  return typeof code === 'string' && PLAIN_WORD.test(code) ? { name, code, frames } : { name, frames };
+}

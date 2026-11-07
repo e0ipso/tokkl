@@ -68,7 +68,7 @@ export function createApplicationServices({
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
-  const reports = new ReportRunner(storageConfig, storage);
+  const reports = new ReportRunner(storageConfig, storage, { logger });
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
     authentication: Authentication,
