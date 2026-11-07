@@ -7,7 +7,7 @@ import {
   catalogTaskQuery,
   catalogProjectRefQuery,
   catalogTaskRefQuery,
-} from '../packages/api/src/storage/repositories/catalogs.ts';
+} from '../packages/api/src/storage/repositories/catalog-queries.ts';
 import { createReportRepositories } from '../packages/api/src/storage/repositories/reports.ts';
 import { createEntryRepositories } from '../packages/api/src/storage/repositories/entries.ts';
 import { createTransactionRunner } from '../packages/api/src/storage/transactions.ts';
