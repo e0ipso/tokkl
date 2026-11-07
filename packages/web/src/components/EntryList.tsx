@@ -4,6 +4,7 @@ import type { TimeEntry } from '../api/types.ts';
 import { overlappingIds } from '../lib/entryOverlap.ts';
 import {
   entriesByDay,
+  presentSelection,
   rangeLabel,
   rowsForDay,
   stoppedSeconds,
@@ -57,14 +58,24 @@ export function EntryList({
   onManualMode?: () => void;
 }) {
   const settings = useSettings();
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Ids the user checked. Entries can go away while checked (deleted elsewhere, or out of the
+  // range), so everything below reads `selected`, the checked ids still on the list.
+  const [checked, setChecked] = useState<Set<number>>(new Set());
   const todayKey = today(settings.timeZone);
   const days = useMemo(() => entriesByDay(entries, settings.timeZone), [entries, settings.timeZone]);
   const overlaps = useMemo(() => overlappingIds(entries), [entries]);
+  const selected = useMemo(
+    () =>
+      presentSelection(
+        checked,
+        days.flatMap(({ entries: list }) => list),
+      ),
+    [checked, days],
+  );
 
   const toggle: Toggle = (ids, on) => {
-    setSelected(current => {
-      const next = new Set(current);
+    setChecked(current => {
+      const next = presentSelection(current, entries);
       for (const id of ids) {
         if (on) next.add(id);
         else next.delete(id);
@@ -77,7 +88,7 @@ export function EntryList({
 
   return (
     <div className="entry-list">
-      {selected.size > 0 ? <BulkBar ids={[...selected]} onDone={() => setSelected(new Set())} /> : null}
+      {selected.size > 0 ? <BulkBar ids={[...selected]} onDone={() => setChecked(new Set())} /> : null}
       {days.map(({ day, entries: list }) => {
         const dayIds = list.map(entry => entry.id);
         const allSelected = dayIds.every(id => selected.has(id));
