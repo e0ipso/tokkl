@@ -3,7 +3,7 @@ import { useProjects, useTasks } from '../api/projects.ts';
 
 /**
  * Sets --project-color for the element. CSS derives the dot, border and tint from it (see
- * .project-dot in styles.css); text never takes the project colour.
+ * .project-dot in styles/entries.css); text never takes the project colour.
  */
 export function projectColorStyle(color: string | null | undefined): CSSProperties | undefined {
   return color ? { ['--project-color' as string]: color } : undefined;

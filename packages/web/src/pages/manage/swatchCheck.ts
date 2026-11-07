@@ -7,7 +7,7 @@ function luminance(hex: string): number {
   return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
 }
 
-// The values of --swatch-check-light and --swatch-check-dark in styles.css; change them together.
+// The values of --swatch-check-light and --swatch-check-dark in styles/tokens.css; change them together.
 const CHECK_LIGHT = luminance('#ffffff');
 const CHECK_DARK = luminance('#08061f');
 
