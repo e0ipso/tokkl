@@ -3,6 +3,7 @@ import type { OperationContext, Repositories, ProjectInput } from '../storage/co
 import type { Client, Id, ProjectSummary, TaskSummary, Tag } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
+import { isCurrencyCode } from './workspaceValues.ts';
 import { optionalBool, optionalId, optionalNumber, optionalRate, optionalString, requireName } from '../lib/values.ts';
 
 export type CatalogRepositories = Pick<Repositories, 'clients' | 'projects' | 'tasks' | 'tags'>;
@@ -156,7 +157,7 @@ function date(value: unknown, field: string, fallback: string | null): string | 
 function currency(value: unknown, fallback: string | null): string | null {
   if (value === undefined) return fallback;
   if (value === null || value === '') return null;
-  if (typeof value !== 'string' || !/^[A-Za-z]{3}$/.test(value))
+  if (typeof value !== 'string' || !isCurrencyCode(value))
     throw invalidInput('Invalid currency: expected an ISO 4217 code');
   return value.toUpperCase();
 }

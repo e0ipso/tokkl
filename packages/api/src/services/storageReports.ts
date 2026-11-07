@@ -1,4 +1,5 @@
-import { NO_WORKSPACE_ACCESS } from '../domain/accounts.ts';
+import { isRoundingMinutes, ROUNDING_MINUTES } from '../domain/workspaceValues.ts';
+import { noWorkspaceAccess } from '../domain/membership.ts';
 import { invalidInput, forbidden } from '../lib/errors.ts';
 import { addDays, dateKey, daysBetween, parseDateKey, startOfDay, startOfWeek } from '@tokkl/common/time';
 import type { User, Workspace, ReportEntryProjection } from '../storage/domain.ts';
@@ -56,9 +57,6 @@ export interface ReportEntry {
 
 const MAX_RANGE_DAYS = 3660;
 
-/** Rounding steps Toggl accepts, in minutes. 0 turns rounding off. */
-export const ROUNDING_MINUTES = [0, 1, 5, 6, 10, 12, 15, 30, 60, 240];
-
 export function validateRange(
   startDate: unknown,
   endDate: unknown,
@@ -110,7 +108,7 @@ export function collectReport(
       : await repositories.users.get(userId);
     if (!user) throw forbidden();
     const workspace = await repositories.workspaces.forMember(userId, workspaceId);
-    if (!workspace) throw forbidden(NO_WORKSPACE_ACCESS);
+    if (!workspace) throw noWorkspaceAccess();
     const from = startOfDay(filter.startDate, user.timezone).toISOString();
     const to = startOfDay(addDays(filter.endDate, 1), user.timezone).toISOString();
     const entries = await repositories.reports.collect(userId, workspaceId, { ...filter, from, to });
@@ -394,7 +392,7 @@ export function filterFromBody(body: Record<string, unknown>, workspace: Workspa
   }
   const rounding = body.rounding === undefined ? undefined : Number(body.rounding);
   const roundingMinutes = body.rounding_minutes === undefined ? undefined : Number(body.rounding_minutes);
-  if (roundingMinutes !== undefined && !ROUNDING_MINUTES.includes(roundingMinutes)) {
+  if (roundingMinutes !== undefined && !isRoundingMinutes(roundingMinutes)) {
     throw invalidInput(`Invalid 'rounding_minutes' value, allowed values are: '${ROUNDING_MINUTES.join(', ')}'`);
   }
   // Toggl applies the workspace rounding only when the request asks for rounding.

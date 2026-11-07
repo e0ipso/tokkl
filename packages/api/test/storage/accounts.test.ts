@@ -6,7 +6,7 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createAccountRepositories } from '../../src/storage/repositories/accounts.ts';
 import { ApplicationError } from '../../src/lib/errors.ts';
 import { errorReply } from '../../src/http/errors.ts';
-import { sha256, verifyPassword } from '../../src/auth/crypto.ts';
+import { sha256, verifyPassword } from '../../src/lib/crypto.ts';
 import { getPreferences, readNewAccount } from '../../src/domain/accountValues.ts';
 import { serializeAccount, serializeInvite, serializeUser, serializeWorkspace } from '../../src/presenters/toggl.ts';
 import { jsonObject } from '../../src/storage/conversion.ts';

@@ -4,9 +4,11 @@ import { dateKey, parseDateKey, startOfDay } from '@tokkl/common/time';
 import type { EntryInput, OperationContext, Repositories } from '../storage/contracts.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import type { EntryDetails, TimeEntry, User } from '../storage/domain.ts';
-import { invalidInput, conflict, forbidden, notFound, type ApplicationError } from '../lib/errors.ts';
+import { invalidInput, conflict, notFound, type ApplicationError } from '../lib/errors.ts';
 import { isoSeconds, optionalBool, optionalId, optionalString, parseInstant } from '../lib/values.ts';
 import { resolveTagNames } from './catalogs.ts';
+import { timeResolutionOf } from './instanceSettings.ts';
+import { memberWorkspace, noWorkspaceAccess } from './membership.ts';
 import { touchTimer, type TimerPublication } from './timers.ts';
 
 export type EntryRepositories = Pick<
@@ -15,11 +17,6 @@ export type EntryRepositories = Pick<
 >;
 export type EntryContext = OperationContext<EntryRepositories>;
 export const MAX_DESCRIPTION_LENGTH = 3000;
-export async function memberWorkspace(ctx: EntryRepositories, userId: number, wid: number) {
-  const workspace = await ctx.workspaces.forMember(userId, wid);
-  if (!workspace) throw forbidden('User does not have access to this resource.');
-  return workspace;
-}
 export async function getTimeEntry(
   ctx: EntryRepositories,
   userId: number,
@@ -50,8 +47,7 @@ export async function protectEntryOperation(
       ...(pause ? [pause.workspaceId] : []),
     ]),
   ];
-  for (const wid of ids)
-    if (!(await ctx.workspaces.get(wid))) throw forbidden('User does not have access to this resource.');
+  for (const wid of ids) if (!(await ctx.workspaces.get(wid))) throw noWorkspaceAccess();
   await ctx.lockWorkspaces(ids);
   await ctx.lockUserTimer(userId);
   const user = await ctx.users.get(userId);
@@ -67,8 +63,7 @@ export async function protectEntryOperation(
   return user;
 }
 export async function entryResolution(ctx: EntryRepositories): Promise<number> {
-  const value = (await ctx.settings.read()).timeResolutionMinutes;
-  return value !== undefined && [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60].includes(value) ? value : 5;
+  return timeResolutionOf(await ctx.settings.read());
 }
 
 interface Draft {

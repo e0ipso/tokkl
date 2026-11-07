@@ -35,7 +35,7 @@ const { createStorageAuth, credentialCheck } = await import('../../src/auth/stor
 const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');
 const { errorReply } = await import('../../src/http/errors.ts');
-const { sha256, verifyPassword, hashPassword } = await import('../../src/auth/crypto.ts');
+const { sha256, verifyPassword, hashPassword } = await import('../../src/lib/crypto.ts');
 const { disposableBackend } = await import('./support/disposableBackend.ts');
 const basic = (email: string, password: string) => ({
   authorization: `Basic ${Buffer.from(`${email}:${password}`).toString('base64')}`,

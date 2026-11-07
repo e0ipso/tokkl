@@ -4,11 +4,40 @@ import {
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
 import { canonicalTimeZone } from '@tokkl/common/time';
-import { readNewPassword } from '../auth/crypto.ts';
 import { invalidInput } from '../lib/errors.ts';
 import { optionalString, optionalId } from '../lib/values.ts';
 import type { JsonObject, User } from '../storage/domain.ts';
 import type { AccountChanges } from '../storage/contracts.ts';
+/** Shortest password accepted when one is set. */
+export const MIN_PASSWORD_LENGTH = 8;
+/** Longest password accepted when one is set. Existing longer passwords still verify. */
+export const MAX_PASSWORD_LENGTH = 1024;
+
+/**
+ * The rules for a password being set: first-admin setup, invite acceptance, password change and
+ * password reset. Anything else, a missing value included, is a 400.
+ */
+export function readNewPassword(value: unknown): string {
+  const password = typeof value === 'string' ? value : '';
+  if (password.length < MIN_PASSWORD_LENGTH)
+    throw invalidInput(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  if (password.length > MAX_PASSWORD_LENGTH)
+    throw invalidInput(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+  return password;
+}
+
+/** One `@` with something on each side and no whitespace: a check for typos, not deliverability. */
+const isEmailAddress = (value: string) => /^[^@\s]+@[^@\s]+$/.test(value);
+
+/**
+ * The account key of an email: trimmed, with only ASCII A-Z lowercased. users.email_key folds the
+ * same letters on every engine, so two emails share a key exactly when they are the same account.
+ * toLowerCase would also fold letters such as Ä that the key keeps apart.
+ */
+export function normalizeEmail(email: string): string {
+  return email.trim().replace(/[A-Z]/g, letter => String.fromCharCode(letter.charCodeAt(0) + 32));
+}
+
 const MAX_ACCOUNT_FAVORITE_DESCRIPTION_LENGTH = 3000;
 /** Defaults for the preferences this app reads. Unknown keys sent by clients are kept as-is. */
 export const DEFAULT_PREFERENCES = {
@@ -137,7 +166,7 @@ export interface NewAccountInput {
 export function readNewAccount(body: Record<string, unknown>): NewAccountInput {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
-  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw invalidInput('Enter a valid email address');
+  if (!isEmailAddress(email)) throw invalidInput('Enter a valid email address');
   const timezone =
     body.timezone === undefined || body.timezone === ''
       ? 'UTC'
@@ -149,7 +178,7 @@ export function readNewAccount(body: Record<string, unknown>): NewAccountInput {
 }
 export function readProfileChanges(body: Record<string, unknown>): AccountChanges {
   const email = optionalString(body.email, 'email', 255)?.trim();
-  if (email !== undefined && !/^[^@\s]+@[^@\s]+$/.test(email)) throw invalidInput('Invalid email');
+  if (email !== undefined && !isEmailAddress(email)) throw invalidInput('Invalid email');
   const fullName = optionalString(body.fullname, 'fullname', 255);
   const requestedZone = optionalString(body.timezone, 'timezone', 64);
   const timezone = requestedZone === undefined ? undefined : canonicalTimeZone(requestedZone);

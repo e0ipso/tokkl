@@ -2,7 +2,8 @@ import type { Repositories, Storage, TransactionContext } from '../storage/contr
 import type { StorageConfig } from '../storage/config.ts';
 import { createStorageAuth, currentCredentialUser, type StorageAuthentication } from '../auth/storageMiddleware.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
-import { createAccountOperations, isActiveAdmin } from '../domain/accounts.ts';
+import { createAccountOperations } from '../domain/accounts.ts';
+import { isActiveAdmin } from '../domain/credentials.ts';
 import type { TimerState } from '@tokkl/types';
 import type { Response } from 'express';
 import type { Id } from '../storage/domain.ts';
@@ -21,6 +22,7 @@ import { TimerHub } from './timerHub.ts';
 import { TimerStreams, type TimerStreamOptions } from './timerStreams.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { forbidden } from '../lib/errors.ts';
+import { noWorkspaceAccess } from '../domain/membership.ts';
 import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
 export interface ApplicationServiceOptions {
   storage: Storage;
@@ -162,7 +164,7 @@ export function createApplicationServices({
       return protectedStorage(authentication).transaction(async ctx => {
         await ctx.lockWorkspaces([wid]);
         const ws = await ctx.workspaces.forMember(authentication.user.id, wid);
-        if (!ws) throw forbidden('User does not have access to this resource.');
+        if (!ws) throw noWorkspaceAccess();
         await ctx.lockUsers([authentication.user.id, ...(await ctx.timers.affectedUsers(wid))]);
         return work(ctx, createCatalogTimerEffects(ctx, publish));
       });

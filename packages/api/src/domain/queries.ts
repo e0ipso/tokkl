@@ -19,7 +19,8 @@ import type {
   Workspace,
   WorkspaceMember,
 } from '../storage/domain.ts';
-import { getInstanceSettings, memberWorkspace } from './accounts.ts';
+import { memberWorkspace } from './membership.ts';
+import { getInstanceSettings } from './instanceSettings.ts';
 import { getClient, getProject, getTask } from './catalogs.ts';
 import { getTimeEntry } from './timeEntries.ts';
 

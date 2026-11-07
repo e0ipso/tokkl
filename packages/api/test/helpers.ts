@@ -8,7 +8,7 @@ import type { Express } from 'express';
 import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
 import { createApp } from '../src/app.ts';
-import { hashPassword } from '../src/auth/crypto.ts';
+import { hashPassword } from '../src/lib/crypto.ts';
 import { FailureLimiter, type AttemptResult, type Keys } from '../src/auth/rateLimit.ts';
 import type { Config } from '../src/config.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';

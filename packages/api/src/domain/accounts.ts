@@ -1,21 +1,26 @@
 import type { AccountChanges, OperationContext, Repositories } from '../storage/contracts.ts';
 import type { Id, InstanceSettings, JsonObject, User, UserRole, Workspace } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
+import { getInstanceSettings, readSettingChanges } from './instanceSettings.ts';
+import { memberWorkspace, noWorkspaceAccess } from './membership.ts';
+import {
+  currentCredentialUser,
+  findActiveSession,
+  isActiveAdmin,
+  isActiveUser,
+  unchangedActive,
+  type AccountCredential,
+} from './credentials.ts';
+import { isCurrencyCode, isRoundingMinutes, isRoundingMode, ROUNDING_MINUTES } from './workspaceValues.ts';
 import { invalidInput, forbidden, notFound, tooManyAttempts } from '../lib/errors.ts';
 import { optionalBool, optionalRate, optionalString } from '../lib/values.ts';
-import {
-  generateApiToken,
-  generateSessionToken,
-  hashPassword,
-  readNewPassword,
-  sha256,
-  verifyPassword,
-} from '../auth/crypto.ts';
-import { normalizeEmail, type AttemptResult } from '../auth/rateLimit.ts';
+import { generateApiToken, generateSessionToken, hashPassword, sha256, verifyPassword } from '../lib/crypto.ts';
 import {
   DEFAULT_PREFERENCES,
   getPreferences,
+  normalizeEmail,
   readNewAccount,
+  readNewPassword,
   readProfileChanges,
   validatePreferenceChanges,
 } from './accountValues.ts';
@@ -26,11 +31,13 @@ export interface AccountRunner<R extends AccountRepositories = AccountRepositori
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }
-export type AccountCredential =
-  { kind: 'session'; token: string } | { kind: 'api-token'; token: string } | { kind: 'password' };
+export type { AccountCredential };
+export { isActiveAdmin, isActiveUser };
+/** An attempt either ran its check, or was refused unchecked with the seconds to wait. */
+export type PasswordAttemptResult = { refused: false; valid: boolean } | { refused: true; retryAfter: number };
 /** The HTTP/auth adapter supplies FailureLimiter.attempt with passwordCounters and its address. */
 export interface AccountPasswordAttempt {
-  attempt(check: () => Promise<boolean>): Promise<AttemptResult>;
+  attempt(check: () => Promise<boolean>): Promise<PasswordAttemptResult>;
 }
 /** Required at operations that need entry/timer work. Implement with the same operation context. */
 export interface AccountEntryEffects<R extends AccountRepositories = AccountRepositories> {
@@ -43,23 +50,15 @@ export interface AccountEntryEffects<R extends AccountRepositories = AccountRepo
 export interface AccountSecurityEffects {
   recheckUser(userId: Id): Promise<void>;
 }
-export const NO_WORKSPACE_ACCESS = 'User does not have access to this resource.';
 export const INVITE_NOT_FOUND = 'This invite link is not valid. Ask your admin for a new one.';
 export const RESET_NOT_FOUND = 'This password reset link is not valid. Ask your admin for a new one.';
 export const PASSWORD_RESET_HOURS = 24;
 export const MAX_INVITE_NOTE_LENGTH = 255;
 const now = () => new Date().toISOString();
-export const isActiveUser = (user: User | undefined): user is User => !!user && user.disabledAt === null;
 const active = isActiveUser;
-export const isActiveAdmin = (user: User) => active(user) && user.role === 'admin';
 const activeAdmin = isActiveAdmin;
 const refused = () => forbidden('Incorrect username and/or password');
 
-export async function memberWorkspace(ctx: AccountRepositories, userId: Id, workspaceId: Id): Promise<Workspace> {
-  const ws = await ctx.workspaces.forMember(userId, workspaceId);
-  if (!ws) throw forbidden(NO_WORKSPACE_ACCESS);
-  return ws;
-}
 export async function findUsableInvite(ctx: AccountRepositories, token: string) {
   return ctx.tokens.findUsable(sha256(token), 'invite', now());
 }
@@ -77,20 +76,6 @@ async function lockExistingUser(ctx: AccountContext, id: Id): Promise<User> {
 async function requireAdmin(ctx: AccountContext, id: Id) {
   const actor = await ctx.users.get(id);
   if (!actor || !activeAdmin(actor)) throw forbidden('Admin access required');
-}
-async function currentSignedIn(
-  ctx: AccountRepositories,
-  seen: User,
-  credential: AccountCredential,
-): Promise<User | undefined> {
-  const current = await ctx.users.get(seen.id);
-  if (!active(current) || current.passwordHash !== seen.passwordHash) return;
-  if (credential.kind === 'api-token' && current.apiToken !== credential.token) return;
-  if (credential.kind === 'session') {
-    const session = await ctx.sessions.find(sha256(credential.token));
-    if (!session || session.userId !== current.id || session.expiresAt < now()) return;
-  }
-  return current;
 }
 async function accountInput(input: Record<string, unknown>, role: UserRole) {
   const account = readNewAccount(input);
@@ -111,46 +96,6 @@ async function emailConflict<T>(work: () => Promise<T>, message: string): Promis
     if (error instanceof StorageConflict && error.kind === 'unique') throw invalidInput(message);
     throw error;
   }
-}
-const resolutions = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60];
-const settingNames = {
-  session_days: 'sessionDays',
-  invite_days: 'inviteDays',
-  time_resolution_minutes: 'timeResolutionMinutes',
-} as const;
-function validSetting(key: keyof InstanceSettings, value: unknown): value is number {
-  return (
-    typeof value === 'number' &&
-    Number.isSafeInteger(value) &&
-    (key === 'timeResolutionMinutes'
-      ? resolutions.includes(value)
-      : value >= 1 && value <= (key === 'sessionDays' ? 365 : 90))
-  );
-}
-export function readSettingChanges(body: Record<string, unknown>): Partial<InstanceSettings> {
-  const changes: Partial<InstanceSettings> = {};
-  for (const [name, value] of Object.entries(body)) {
-    if (!Object.hasOwn(settingNames, name)) throw invalidInput(`Unknown setting: ${name}`);
-    const key = settingNames[name as keyof typeof settingNames];
-    if (!validSetting(key, value))
-      throw invalidInput(
-        `Invalid ${name}: expected ${key === 'timeResolutionMinutes' ? `one of ${resolutions.join(', ')}` : `an integer from 1 to ${key === 'sessionDays' ? 365 : 90}`}`,
-      );
-    changes[key] = value;
-  }
-  if (!Object.keys(changes).length)
-    throw invalidInput('Expected session_days or invite_days or time_resolution_minutes');
-  return changes;
-}
-export async function getInstanceSettings(ctx: AccountRepositories, sessionDays: number): Promise<InstanceSettings> {
-  const stored = await ctx.settings.read();
-  return {
-    sessionDays: validSetting('sessionDays', stored.sessionDays) ? stored.sessionDays : sessionDays,
-    inviteDays: validSetting('inviteDays', stored.inviteDays) ? stored.inviteDays : 7,
-    timeResolutionMinutes: validSetting('timeResolutionMinutes', stored.timeResolutionMinutes)
-      ? stored.timeResolutionMinutes
-      : 5,
-  };
 }
 export function createAccountOperations<R extends AccountRepositories>(
   runner: AccountRunner<R>,
@@ -314,38 +259,37 @@ export function createAccountOperations<R extends AccountRepositories>(
     async addWorkspaceMember(actorId: Id, workspaceId: Id, userId: Id, role: 'owner' | 'member'): Promise<void> {
       await runner.transaction(async ctx => {
         await ctx.lockInstanceAdministration();
-        if (!(await ctx.workspaces.get(workspaceId))) throw forbidden(NO_WORKSPACE_ACCESS);
+        if (!(await ctx.workspaces.get(workspaceId))) throw noWorkspaceAccess();
         await ctx.lockWorkspaces([workspaceId]);
         if (!(await ctx.users.get(userId))) throw notFound('User not found');
-        if (!active(await ctx.users.get(actorId))) throw forbidden(NO_WORKSPACE_ACCESS);
+        if (!active(await ctx.users.get(actorId))) throw noWorkspaceAccess();
         await ctx.lockUsers([actorId, userId]);
         if (!active(await ctx.users.get(actorId)) || (await ctx.workspaces.getRole(actorId, workspaceId)) !== 'owner')
-          throw forbidden(NO_WORKSPACE_ACCESS);
+          throw noWorkspaceAccess();
         await ctx.workspaces.addMember({ workspaceId, userId, role });
       });
     },
     async updateWorkspace(userId: Id, workspaceId: Id, body: Record<string, unknown>): Promise<Workspace> {
       return runner.transaction(async ctx => {
         await ctx.lockInstanceAdministration();
-        if (!(await ctx.workspaces.get(workspaceId))) throw forbidden(NO_WORKSPACE_ACCESS);
+        if (!(await ctx.workspaces.get(workspaceId))) throw noWorkspaceAccess();
         await ctx.lockWorkspaces([workspaceId]);
         if (!active(await ctx.users.get(userId))) throw refused();
         const ws = await memberWorkspace(ctx, userId, workspaceId);
         const name = optionalString(body.name, 'name', 140)?.trim() || ws.name;
         const currency = optionalString(body.default_currency, 'default_currency', 3);
-        if (currency !== undefined && !/^[A-Za-z]{3}$/.test(currency)) throw invalidInput('Invalid default_currency');
+        if (currency !== undefined && !isCurrencyCode(currency)) throw invalidInput('Invalid default_currency');
         const rate = optionalRate(body.default_hourly_rate, 'default_hourly_rate');
-        if (body.rounding !== undefined && ![-1, 0, 1].includes(body.rounding as number))
-          throw invalidInput('Invalid rounding');
-        const allowedMinutes = [0, 1, 5, 6, 10, 12, 15, 30, 60, 240];
-        if (body.rounding_minutes !== undefined && !allowedMinutes.includes(body.rounding_minutes as number))
-          throw invalidInput(`Invalid rounding_minutes, allowed values are: ${allowedMinutes.join(', ')}`);
+        const { rounding, rounding_minutes: roundingMinutes } = body;
+        if (rounding !== undefined && !isRoundingMode(rounding)) throw invalidInput('Invalid rounding');
+        if (roundingMinutes !== undefined && !isRoundingMinutes(roundingMinutes))
+          throw invalidInput(`Invalid rounding_minutes, allowed values are: ${ROUNDING_MINUTES.join(', ')}`);
         return ctx.workspaces.update(workspaceId, {
           name,
           defaultCurrency: (currency ?? ws.defaultCurrency).toUpperCase(),
           defaultHourlyRate: rate === undefined ? ws.defaultHourlyRate : rate,
-          rounding: body.rounding === undefined ? ws.rounding : (body.rounding as number),
-          roundingMinutes: body.rounding_minutes === undefined ? ws.roundingMinutes : (body.rounding_minutes as number),
+          rounding: rounding ?? ws.rounding,
+          roundingMinutes: roundingMinutes ?? ws.roundingMinutes,
         });
       });
     },
@@ -378,8 +322,8 @@ export function createAccountOperations<R extends AccountRepositories>(
               await ctx.lockWorkspaces([changes.defaultWorkspaceId]);
             }
             await ctx.lockUsers([seen.id]);
-            const user = await currentSignedIn(ctx, seen, credential);
-            if (!user || (credential.kind === 'password' && user.apiToken !== seen.apiToken)) throw refused();
+            const user = await currentCredentialUser(ctx, seen, credential);
+            if (!user) throw refused();
             if (changes.defaultWorkspaceId && !(await ctx.workspaces.forMember(user.id, changes.defaultWorkspaceId)))
               throw invalidInput('Invalid default_workspace_id');
             if (changes.email !== undefined) {
@@ -451,7 +395,7 @@ export function createAccountOperations<R extends AccountRepositories>(
         await ctx.lockInstanceAdministration();
         if (!(await ctx.users.get(seen.id))) throw refused();
         await ctx.lockUsers([seen.id]);
-        if (!(await currentSignedIn(ctx, seen, credential))) throw refused();
+        if (!(await currentCredentialUser(ctx, seen, credential))) throw refused();
         const token = generateApiToken();
         await ctx.users.rotateApiToken(seen.id, token);
         ctx.afterCommit(() => security.recheckUser(seen.id));
@@ -464,8 +408,9 @@ export function createAccountOperations<R extends AccountRepositories>(
         await ctx.lockInstanceAdministration();
         if (!(await ctx.users.get(seen.id))) throw forbidden('Incorrect email or password');
         await ctx.lockUsers([seen.id]);
-        const user = await currentSignedIn(ctx, seen, { kind: 'password' });
-        if (!user) throw forbidden('Incorrect email or password');
+        // The password was verified before the guards; it must still be the account's password.
+        const user = await ctx.users.get(seen.id);
+        if (!unchangedActive(user, seen)) throw forbidden('Incorrect email or password');
         const settings = await getInstanceSettings(ctx, deploymentSessionDays),
           token = generateSessionToken(),
           at = now();
@@ -482,12 +427,7 @@ export function createAccountOperations<R extends AccountRepositories>(
       });
     },
     async findSessionUser(token: string): Promise<User | undefined> {
-      return runner.readSnapshot(async ctx => {
-        const session = await ctx.sessions.find(sha256(token));
-        if (!session || session.expiresAt < now()) return;
-        const user = await ctx.users.get(session.userId);
-        return active(user) ? user : undefined;
-      });
+      return runner.readSnapshot(async ctx => (await findActiveSession(ctx, token))?.user);
     },
     async deleteSession(token: string): Promise<void> {
       await runner.transaction(async ctx => {

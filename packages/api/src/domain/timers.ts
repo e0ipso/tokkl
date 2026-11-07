@@ -18,7 +18,6 @@ import {
   createTimeEntry,
   entryDurationSeconds,
   getTimeEntry,
-  memberWorkspace,
   protectEntryOperation,
   reanchorNoTimeEntries,
   stopEntryAt,
@@ -26,6 +25,7 @@ import {
   type EntryRepositories,
 } from './timeEntries.ts';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
+import { memberWorkspace } from './membership.ts';
 
 /** One local application instance owns this callback. No connection or database identity is exposed.
  * `incarnation` is the user row's `createdAt`. It tells apart accounts that reuse a deleted id. */

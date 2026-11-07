@@ -7,7 +7,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase, migrations, verifyCurrent } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
-import { sha256 } from '../../src/auth/crypto.ts';
+import { sha256 } from '../../src/lib/crypto.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { serveInvariant, transactionBarrier } from './support/invariantHttp.ts';

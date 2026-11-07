@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { storageFor } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
-import { sha256 } from '../src/auth/crypto.ts';
+import { sha256 } from '../src/lib/crypto.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { createFirstAdmin, type User } from './fixtures/domain.ts';
 import { CSRF, PASSWORD, addUser, sessionCookie, setup, testConfig, testServer } from './helpers.ts';

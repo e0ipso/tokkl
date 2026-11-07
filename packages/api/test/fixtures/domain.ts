@@ -1,4 +1,4 @@
-import { generateApiToken } from '../../src/auth/crypto.ts';
+import { generateApiToken } from '../../src/lib/crypto.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { createTimerPublication, createTimerOperations, settleTimer as settle } from '../../src/domain/timers.ts';
 import * as entries from '../../src/domain/timeEntries.ts';
