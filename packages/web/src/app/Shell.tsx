@@ -15,9 +15,6 @@ import { useToast } from '../components/Toast.tsx';
 import { logOut, takeLogoutFailure } from '../lib/session.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { t } from '../i18n/messages.ts';
-// The page imports bring in manage.css, reports.css and PomodoroPage.css. Their order here is the
-// order of those sheets in the bundle, before styles.css (main.tsx), so it decides the cascade:
-// keep it unless the CSS is checked for the new order.
 import { AdminPage } from '../pages/AdminPage.tsx';
 import { ClientsPage } from '../pages/ClientsPage.tsx';
 import { ProjectsPage } from '../pages/ProjectsPage.tsx';

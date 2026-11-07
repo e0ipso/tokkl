@@ -1,7 +1,7 @@
 ---
 type: practice
-title: "styles.css loads last and owns the colour tokens"
-description: "styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals."
+title: "styles.css orders the cascade and owns the colour tokens"
+description: "styles.css imports every sheet in cascade order, page sheets first; page CSS uses its tokens and no colour literals."
 tags:
   - web
   - css
@@ -18,7 +18,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-The page stylesheets (`pages/manage/manage.css`, `pages/reports/reports.css`) are imported by the page components, which `app/Shell.tsx` pulls in before `packages/web/src/main.tsx` imports `./styles.css`. So `styles.css` comes later in the bundle and wins every tie of equal specificity. A page rule that overrides a `styles.css` class adds a second class to win, for example `.hint.manage-intro`. Reordering the imports in `main.tsx` changes which rules win across the app.
+`packages/web/src/styles.css` is the only stylesheet a module imports (`main.tsx` imports it once), and its `@import` list is the cascade. The page sheets (`pages/manage/manage.css`, `pages/reports/reports.css`, `pages/PomodoroPage.css`) come first and the app-wide sheets under `styles/` after them, so the app-wide rules win every tie of equal specificity whatever order the modules load in. A page rule that overrides an app-wide class adds a second class to win, for example `.hint.manage-intro`. Pages and components do not import CSS; a new sheet goes into that list, and its position decides which rules win. The built CSS was byte-identical before and after the sheets moved into the list.
 
 Colours belong in the token block of `styles.css` (`styles/tokens.css`), where each pair gets a row in the contrast table. The page stylesheets only reference tokens and contain no colour literals. The report table tokens live there too: `--report-zebra` (an alias of `--chart-band`), `--report-head-bg` and `--report-head-text`.
 

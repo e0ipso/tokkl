@@ -1,7 +1,11 @@
-/* The app-wide stylesheet, one file per part of the app. main.tsx imports it after the pages, so it
-   comes last in the bundle and wins equal-specificity ties with page CSS. The order below is the
-   cascade: tokens first, the shared rules before the components that build on them, and the
-   reduced-motion overrides last. */
+/* The one stylesheet entry, imported once by main.tsx. The order below is the cascade, and no
+   module import order changes it. The page sheets come first, so the app-wide rules after them win
+   equal-specificity ties; a page rule that overrides an app-wide class adds that class to win. Then
+   tokens, the shared rules before the components that build on them, and the reduced-motion
+   overrides last. */
+@import './pages/manage/manage.css';
+@import './pages/reports/reports.css';
+@import './pages/PomodoroPage.css';
 @import './styles/tokens.css';
 @import './styles/base.css';
 @import './styles/shared.css';

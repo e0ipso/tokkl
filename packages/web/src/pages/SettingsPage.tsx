@@ -12,7 +12,6 @@ import { ProfileSection } from './manage/settings/ProfileSection.tsx';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
 import { WorkspaceSection } from './manage/settings/WorkspaceSection.tsx';
 import { t } from '../i18n/messages.ts';
-import './manage/manage.css';
 
 const SECTIONS = [
   ['profile', 'settings.sectionProfile'],

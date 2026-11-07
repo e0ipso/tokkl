@@ -15,7 +15,6 @@ import { SummaryTab } from './reports/SummaryTab.tsx';
 import { TABS, useReportState, type Tab } from './reports/urlState.ts';
 import { WeeklyTab } from './reports/WeeklyTab.tsx';
 import { t, type MessageKey } from '../i18n/messages.ts';
-import './reports/reports.css';
 
 const TAB_LABELS = {
   summary: 'reports.tabSummary',

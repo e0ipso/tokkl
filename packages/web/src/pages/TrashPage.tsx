@@ -13,7 +13,6 @@ import { type Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { useAction } from '../components/useAction.ts';
 import { ConfirmModal } from './manage/ui.tsx';
-import './manage/manage.css';
 import { t } from '../i18n/messages.ts';
 
 function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings }) {

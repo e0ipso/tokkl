@@ -7,7 +7,6 @@ import { InvitesSection } from './admin/InvitesSection.tsx';
 import { UsersSection } from './admin/UsersSection.tsx';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
 import { t } from '../i18n/messages.ts';
-import './manage/manage.css';
 
 /**
  * Instance administration: accounts, invite links and instance settings. Only admins see the nav
