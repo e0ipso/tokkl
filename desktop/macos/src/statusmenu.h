@@ -4,7 +4,10 @@
 #include <QPointer>
 #include <QUrl>
 
+#include <QVariant>
+
 #include <memory>
+#include <optional>
 
 class QAction;
 class QMenu;
@@ -102,6 +105,19 @@ private:
     QAction *m_settingsAction = nullptr;
     QAction *m_quitAction = nullptr;
     QMetaObject::Connection m_generationWatch;
+    // What the project items show. They are rebuilt only when it changes,
+    // not on every refresh.
+    struct ProjectItems {
+        bool choosable = false;
+        QVariant chosen;
+        // The running or paused entry's archived project, or empty.
+        QVariantMap archived;
+        bool incomplete = false;
+        QVariantList projects;
+
+        bool operator==(const ProjectItems &other) const = default;
+    };
+    std::optional<ProjectItems> m_projectItems;
 };
 
 }
