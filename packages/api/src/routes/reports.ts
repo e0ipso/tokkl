@@ -1,20 +1,22 @@
 import { type Request, type Response, type Router } from 'express';
 import type { Deps } from '../http/context.ts';
 import { createRouter } from '../http/router.ts';
-import { readJson } from '../http/context.ts';
+import { readJson } from '../http/request.ts';
 import { calendarInput, invalidInput } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { addDays } from '@tokkl/common/time';
 import type { Workspace } from '../storage/domain.ts';
-import { filterFromBody, resolutionFor, type Dimension } from '../services/storageReports.ts';
+import { resolutionFor } from '../services/reportAggregates.ts';
 import {
-  readDurationFormat,
-  readOrderBy,
-  readSortDirection,
-  v3WeeklyFilter,
-  type JobResult,
-  type ReportJob,
-} from '../services/storageReportJobs.ts';
+  parseDetailedOrder,
+  parseDurationFormat,
+  parseGrouping,
+  parseOrderBy,
+  parsePositiveInt,
+  parseReportFilter,
+  parseSortDirection,
+} from '../commands/reports.ts';
+import { v3WeeklyFilter, type JobResult, type ReportJob } from '../services/reportJobs.ts';
 import { lenientNumber } from '../http/params.ts';
 
 /** Toggl's Reports API v3 rejects ranges longer than a year. */
@@ -23,22 +25,6 @@ const TOGGL_MAX_DAYS = 366;
 /** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
 function workspaceFor(deps: Deps, req: Request, res: Response): Promise<Workspace> {
   return deps.readFor(res.locals.auth, queries => queries.workspace(res.locals.auth.user.id, parseId(req.params.wid)));
-}
-
-const GROUPINGS: Record<string, Dimension> = {
-  projects: 'project',
-  clients: 'client',
-  tags: 'tag',
-  tasks: 'task',
-  time_entries: 'description',
-  users: 'none',
-};
-
-function dimension(value: unknown, fallback: string, field: string): [string, Dimension] {
-  const name = value === undefined || value === null || value === '' ? fallback : String(value);
-  const dim = GROUPINGS[name];
-  if (!dim) throw invalidInput(`Invalid '${field}' value, allowed values are: '${Object.keys(GROUPINGS).join(', ')}'`);
-  return [name, dim];
 }
 
 /** Builds the response in the report runner and sends it. */
@@ -68,19 +54,19 @@ export function reportsV3Routes(deps: Deps): Router {
   const v3Filter = async (req: Request, res: Response) => {
     const ws = await workspaceFor(deps, req, res);
     const body = readJson(req);
-    return { ws, body, filter: filterFromBody(body, ws, TOGGL_MAX_DAYS) };
+    return { ws, body, filter: parseReportFilter(body, ws, TOGGL_MAX_DAYS) };
   };
 
   api.post('/workspace/:wid/search/time_entries', async (req, res) => {
     const { ws, body, filter } = await v3Filter(req, res);
-    const orderBy = readOrderBy(body.order_by);
+    const orderBy = parseOrderBy(body.order_by);
     const pageSize = Math.min(Math.max(lenientNumber(body.page_size, 50), 1), 1000);
     const firstRow = Math.max(lenientNumber(body.first_row_number, 1), 1);
     await send(deps, res, ws, {
       kind: 'v3-search',
       filter,
       orderBy,
-      orderDir: readSortDirection(body.order_dir),
+      orderDir: parseSortDirection(body.order_dir),
       pageSize,
       firstRow,
     });
@@ -103,20 +89,20 @@ export function reportsV3Routes(deps: Deps): Router {
 
   api.post('/workspace/:wid/search/time_entries.csv', async (req, res) => {
     const { ws, body, filter } = await v3Filter(req, res);
-    const orderBy = readOrderBy(body.order_by);
+    const orderBy = parseOrderBy(body.order_by);
     await send(deps, res, ws, {
       kind: 'v3-csv',
       filter,
       orderBy,
-      orderDir: readSortDirection(body.order_dir),
-      durationFormat: readDurationFormat(body.duration_format),
+      orderDir: parseSortDirection(body.order_dir),
+      durationFormat: parseDurationFormat(body.duration_format),
     });
   });
 
   const summary = async (req: Request, res: Response) => {
     const { ws, body, filter } = await v3Filter(req, res);
-    const [groupingName, grouping] = dimension(body.grouping, 'projects', 'grouping');
-    const [subName, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
+    const [groupingName, grouping] = parseGrouping(body.grouping, 'projects', 'grouping');
+    const [subName, sub] = parseGrouping(body.sub_grouping, 'time_entries', 'sub_grouping');
     if (grouping === sub) throw invalidInput('grouping and sub_grouping must differ');
     res.set('X-Range-Start', filter.startDate);
     res.set('X-Range-End', filter.endDate);
@@ -143,7 +129,7 @@ export function reportsV3Routes(deps: Deps): Router {
       filter,
       grouping,
       sub,
-      durationFormat: readDurationFormat(body.duration_format),
+      durationFormat: parseDurationFormat(body.duration_format),
     });
   });
 
@@ -151,7 +137,7 @@ export function reportsV3Routes(deps: Deps): Router {
     const ws = await workspaceFor(deps, req, res);
     const body = readJson(req);
     const start = typeof body.start_date === 'string' ? body.start_date : '';
-    const range = filterFromBody(
+    const range = parseReportFilter(
       { ...body, end_date: body.end_date ?? (start ? calendarInput(() => addDays(start, 6)) : undefined) },
       ws,
       TOGGL_MAX_DAYS,
@@ -166,13 +152,6 @@ export function reportsV3Routes(deps: Deps): Router {
 /** The largest page the web app's detailed report may request. */
 const APP_MAX_PAGE_SIZE = 500;
 
-function positiveInt(value: unknown, fallback: number, field: string): number {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
-    throw invalidInput(`Invalid '${field}' value`);
-  return value;
-}
-
 /** Report endpoint for the web app: totals, a time series and groupings in one response. */
 export function appReportRoutes(deps: Deps): Router {
   const api = createRouter();
@@ -184,7 +163,7 @@ export function appReportRoutes(deps: Deps): Router {
     const ws = await deps.readFor(res.locals.auth, queries => queries.workspace(user.id, user.defaultWorkspaceId));
     const body = readJson(req);
     // The web app always applies the workspace rounding setting; the request can still override it.
-    const filter = filterFromBody({ rounding: ws.rounding, rounding_minutes: ws.roundingMinutes, ...body }, ws);
+    const filter = parseReportFilter({ rounding: ws.rounding, rounding_minutes: ws.roundingMinutes, ...body }, ws);
     return { user, ws, body, filter };
   };
 
@@ -198,54 +177,43 @@ export function appReportRoutes(deps: Deps): Router {
 
   api.post('/report', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
-    const [, grouping] = dimension(body.grouping, 'projects', 'grouping');
-    const [, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
+    const [, grouping] = parseGrouping(body.grouping, 'projects', 'grouping');
+    const [, sub] = parseGrouping(body.sub_grouping, 'time_entries', 'sub_grouping');
     await send(deps, res, ws, { kind: 'app-report', filter, grouping, sub });
   });
 
-  /** The detailed report's sort order, checked before any entry is read. */
-  const detailedOrder = (body: Record<string, unknown>) => {
-    const sort = body.sort ?? 'date';
-    if (sort !== 'date' && sort !== 'duration' && sort !== 'description') {
-      throw invalidInput("Invalid 'sort' value, allowed values are: 'date, duration, description'");
-    }
-    const dir = body.dir ?? 'desc';
-    if (dir !== 'asc' && dir !== 'desc') throw invalidInput("Invalid 'dir' value, allowed values are: 'asc, desc'");
-    return { sort, dir } as const;
-  };
-
   api.post('/report/entries', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
-    const { sort, dir } = detailedOrder(body);
-    const pageSize = positiveInt(body.page_size, 100, 'page_size');
+    const { sort, dir } = parseDetailedOrder(body);
+    const pageSize = parsePositiveInt(body.page_size, 100, 'page_size');
     if (pageSize > APP_MAX_PAGE_SIZE) throw invalidInput(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
-    const page = positiveInt(body.page, 1, 'page');
+    const page = parsePositiveInt(body.page, 1, 'page');
     await send(deps, res, ws, { kind: 'app-entries', filter, sort, dir, pageSize, page });
   });
 
   // CSV exports of the report the web app shows: its range allowance, filters and rounding.
   api.post('/report/detailed.csv', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
-    const { sort, dir } = detailedOrder(body);
+    const { sort, dir } = parseDetailedOrder(body);
     await send(deps, res, ws, {
       kind: 'app-detailed-csv',
       filter,
       sort,
       dir,
-      durationFormat: readDurationFormat(body.duration_format),
+      durationFormat: parseDurationFormat(body.duration_format),
     });
   });
 
   api.post('/report/summary.csv', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
-    const [, grouping] = dimension(body.grouping, 'projects', 'grouping');
-    const [, sub] = dimension(body.sub_grouping, 'time_entries', 'sub_grouping');
+    const [, grouping] = parseGrouping(body.grouping, 'projects', 'grouping');
+    const [, sub] = parseGrouping(body.sub_grouping, 'time_entries', 'sub_grouping');
     await send(deps, res, ws, {
       kind: 'app-summary-csv',
       filter,
       grouping,
       sub,
-      durationFormat: readDurationFormat(body.duration_format),
+      durationFormat: parseDurationFormat(body.duration_format),
     });
   });
 

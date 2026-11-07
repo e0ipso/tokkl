@@ -1,34 +1,30 @@
+/**
+ * The application services the HTTP layer calls: domain operations bound to storage, the signed-in
+ * credential checks around them, timer delivery and the report runner. Framework-free; `app.ts`
+ * composes them with the HTTP adapters.
+ */
 import type { Repositories, Storage, TransactionContext } from '../storage/contracts.ts';
 import type { StorageConfig } from '../storage/config.ts';
-// The composition root: it also builds the HTTP auth adapter, whose stream check the timer streams use.
-import { createStorageAuth } from '../auth/storageMiddleware.ts';
-import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
-import type { FailureLimiter } from '../auth/rateLimit.ts';
-import { createAccountOperations } from '../domain/accounts.ts';
-import { isActiveAdmin } from '../domain/credentials.ts';
-import type { TimerState } from '@tokkl/types';
-import type { Id } from '../storage/domain.ts';
 import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
-import {
-  buildTimerState,
-  createAccountEntryEffects,
-  createCatalogTimerEffects,
-  createTimerOperations,
-  createTimerPublication,
-  type OrderedTimerPublication,
-} from '../domain/timers.ts';
-import { createStorageImports } from './storageImportJson.ts';
-import { StorageReportRunner } from './storageReportRunner.ts';
-import { TimerStreams, type EventStreamResponse, type TimerStreamOptions } from './timerStreams.ts';
-import { silentLogger, type Logger } from '../lib/logger.ts';
-import { forbidden } from '../lib/errors.ts';
+import { createAccountOperations, createPreferenceOperations } from '../domain/accounts.ts';
+import { authenticatedUser, isActiveAdmin, type Authentication } from '../domain/credentials.ts';
 import { noWorkspaceAccess } from '../domain/membership.ts';
 import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
+import { createAccountEntryEffects, createCatalogTimerEffects } from '../domain/timerEffects.ts';
+import type { CatalogTimerEffects } from '../domain/catalogs.ts';
+import { createTimerOperations } from '../domain/timers.ts';
+import { forbidden } from '../lib/errors.ts';
+import { silentLogger, type Logger } from '../lib/logger.ts';
+import { createStorageImports } from './importJson.ts';
+import { StorageReportRunner } from './reportRunner.ts';
+import { credentialCheck } from './streamCredentials.ts';
+import { createTimerDelivery } from './timerDelivery.ts';
+import { presentTimerOperations } from './timerReplies.ts';
+import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts';
+
 export interface ApplicationServiceOptions {
   storage: Storage;
   storageConfig: StorageConfig;
-  /** Failed password attempts, shared by every path that checks a password. */
-  limiter: FailureLimiter;
   streamOptions?: TimerStreamOptions;
   /** Signals timer revisions to other processes. Defaults to the single-process bus. */
   bus?: TimerBus;
@@ -36,127 +32,85 @@ export interface ApplicationServiceOptions {
   /** The deployment's session length, used until an admin stores one. */
   sessionDays: number;
 }
+
+const refused = () => forbidden('Incorrect username and/or password');
+
+/**
+ * `storage` whose transactions refuse a credential that no longer holds. Account operations
+ * (`administrative`) check once under the instance guard. Other work checks before and again after
+ * it ran, because it holds the actor's user guard only once the domain took it: a credential
+ * changed while the write waited rolls the write back.
+ */
+function guardedStorage(storage: Storage, authentication: Authentication, administrative = false): Storage {
+  return {
+    ...storage,
+    transaction: (work, options) =>
+      storage.transaction(async ctx => {
+        if (administrative) await ctx.lockInstanceAdministration();
+        if (!(await authenticatedUser(ctx, authentication))) throw refused();
+        const result = await work(ctx);
+        if (administrative) return result;
+        if (!(await authenticatedUser(ctx, authentication))) throw refused();
+        return result;
+      }, options),
+  };
+}
+
 export function createApplicationServices({
   storage,
-  storageConfig: config,
-  limiter,
+  storageConfig,
   streamOptions,
   bus = createLocalTimerBus(),
   logger = silentLogger,
   sessionDays,
 }: ApplicationServiceOptions) {
-  const timerStreams = new TimerStreams(id => timers.getTimerState(id), {
-    ...streamOptions,
-    // `publish` is defined below; the tick calls this only after construction.
-    onBehind: (id, revision) => {
-      publish.refresh(id, revision).catch(error => logger.error('Timer refresh failed', { error }));
-    },
-  });
-  const ordered = createTimerPublication(
-    async (id, state) => {
-      // A failed delivery must not fail the commit that caused it; the next state supersedes it.
-      await timerStreams.publish(id, state).catch(error => logger.error('Timer delivery failed', { error }));
-    },
-    id => timerStreams.forgetUser(id),
-    {
-      hasStreams: id => timerStreams.hasStreams(id),
-      // Read-only on purpose: settling here would commit a new revision and signal it back.
-      rebuild: id =>
-        storage.readSnapshot(async repositories => {
-          const user = await repositories.users.get(id);
-          return user ? { state: await buildTimerState(repositories, user), incarnation: user.createdAt } : undefined;
-        }),
-    },
-  );
-  const refreshes = new Set<Promise<void>>();
-  // Every local commit publishes through here. Remote refreshes skip the send, which stops echo loops.
-  const publish: OrderedTimerPublication = Object.assign(
-    (id: Id, state: TimerState, incarnation: string) => {
-      const delivery = ordered(id, state, incarnation);
-      try {
-        bus.send({ userId: id, revision: state.revision });
-      } catch (error) {
-        logger.warn('Timer bus send failed', { error });
-      }
-      return delivery;
-    },
-    {
-      forgetUser: ordered.forgetUser,
-      claim: ordered.claim,
-      refresh(id: Id, hintedRevision: number) {
-        const refresh = ordered.refresh(id, hintedRevision);
-        refreshes.add(refresh);
-        void refresh.then(
-          () => refreshes.delete(refresh),
-          () => refreshes.delete(refresh),
-        );
-        return refresh;
-      },
-    },
-  );
-  const timers = createTimerOperations(storage, publish);
+  const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
-  const accounts = createAccountOperations(storage, security);
-  const entryEffects = createAccountEntryEffects<Repositories>(publish);
-  const auth = createStorageAuth(storage, limiter);
-  const reports = new StorageReportRunner(config, storage);
-  function protectedStorage(authentication: Authentication, administrative = false): Storage {
-    return {
-      ...storage,
-      transaction: (work, options) =>
-        storage.transaction(async ctx => {
-          if (administrative) await ctx.lockInstanceAdministration();
-          if (!(await authenticatedUser(ctx, authentication))) throw forbidden('Incorrect username and/or password');
-          const result = await work(ctx);
-          if (administrative) return result;
-          // Domain work holds the actor's user guard, or the instance guard for account operations.
-          // Recheck after lock acquisition so a credential changed while waiting rolls back the write.
-          if (!(await authenticatedUser(ctx, authentication))) throw forbidden('Incorrect username and/or password');
-          return result;
-        }, options),
-    };
-  }
+  const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
+  const reports = new StorageReportRunner(storageConfig, storage);
   return {
-    auth,
-    accounts,
-    entryEffects,
+    accounts: createAccountOperations(storage, security),
+    entryEffects: createAccountEntryEffects<Repositories>(publish),
     timerStreams,
     publish,
     reports,
+    /** Builds each timer stream's keep-alive credential check. */
+    streamCredentials,
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
     openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
       publish.claim(authentication.user.id, authentication.user.createdAt);
-      return timerStreams.open(authentication.user.id, res, auth.credentialCheck(authentication));
+      return timerStreams.open(authentication.user.id, res, streamCredentials.check(authentication));
     },
     /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
-    readFor<T>(
-      authentication: Authentication,
-      work: (queries: ReadQueries) => Promise<T>,
-      administrative = false,
-    ): Promise<T> {
+    readFor<T>(authentication: Authentication, work: (queries: ReadQueries) => Promise<T>, administrative = false) {
       return storage.readSnapshot(async repositories => {
         const user = await authenticatedUser(repositories, authentication);
-        if (!user) throw forbidden('Incorrect username and/or password');
+        if (!user) throw refused();
         if (administrative && !isActiveAdmin(user)) throw forbidden('Admin access required');
         return work(createReadQueries(repositories, sessionDays));
       });
     },
     accountsFor: (authentication: Authentication) =>
-      createAccountOperations(protectedStorage(authentication, true), security),
-    timersFor: (authentication: Authentication) => createTimerOperations(protectedStorage(authentication), publish),
-    importsFor: (authentication: Authentication) => createStorageImports(protectedStorage(authentication), publish),
-    async entryWrite<T>(authentication: Authentication, work: (ctx: TransactionContext) => Promise<T>) {
-      return protectedStorage(authentication).transaction(work);
+      createAccountOperations(guardedStorage(storage, authentication, true), security),
+    /** Preferences take only the user's guard, so their credential check runs before and after. */
+    preferencesFor: (authentication: Authentication) =>
+      createPreferenceOperations(guardedStorage(storage, authentication)),
+    timersFor: (authentication: Authentication) =>
+      presentTimerOperations(createTimerOperations(guardedStorage(storage, authentication), publish)),
+    importsFor: (authentication: Authentication) =>
+      createStorageImports(guardedStorage(storage, authentication), publish),
+    entryWrite<T>(authentication: Authentication, work: (ctx: TransactionContext) => Promise<T>) {
+      return guardedStorage(storage, authentication).transaction(work);
     },
-    async catalogWrite<T>(
+    /** Runs a catalog write under the workspace guard and the guards of every timer it may change. */
+    catalogWrite<T>(
       authentication: Authentication,
       wid: number,
-      work: (ctx: TransactionContext, effects: ReturnType<typeof createCatalogTimerEffects>) => Promise<T>,
+      work: (ctx: TransactionContext, effects: CatalogTimerEffects) => Promise<T>,
     ) {
-      return protectedStorage(authentication).transaction(async ctx => {
+      return guardedStorage(storage, authentication).transaction(async ctx => {
         await ctx.lockWorkspaces([wid]);
-        const ws = await ctx.workspaces.forMember(authentication.user.id, wid);
-        if (!ws) throw noWorkspaceAccess();
+        if (!(await ctx.workspaces.forMember(authentication.user.id, wid))) throw noWorkspaceAccess();
         await ctx.lockUsers([authentication.user.id, ...(await ctx.timers.affectedUsers(wid))]);
         return work(ctx, createCatalogTimerEffects(ctx, publish));
       });
@@ -164,7 +118,7 @@ export function createApplicationServices({
     async close() {
       const results = await Promise.allSettled([timerStreams.closeAll(), reports.close()]);
       // Streams are closed, so no new rebuild starts. Let started ones finish before storage closes.
-      await Promise.allSettled([...refreshes]);
+      await settled();
       if (results.some(result => result.status === 'rejected')) throw new Error('Application shutdown failed');
     },
   };

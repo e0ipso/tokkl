@@ -12,9 +12,9 @@ import { initializeDatabase, validateEngine } from '../../src/storage/migrations
 import { openConnection } from '../../src/storage/connections.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
-import { StorageReportRunner } from '../../src/services/storageReportRunner.ts';
-import { collectReport } from '../../src/services/storageReports.ts';
-import { formatReportJob, type ReportJob } from '../../src/services/storageReportJobs.ts';
+import { StorageReportRunner } from '../../src/services/reportRunner.ts';
+import { collectReport } from '../../src/services/reports.ts';
+import { formatReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryAccount } from './support/entry-timer.ts';
 

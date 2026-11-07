@@ -7,10 +7,11 @@ import { createAccountRepositories } from '../../src/storage/repositories/accoun
 import { ApplicationError } from '../../src/lib/errors.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { sha256, verifyPassword } from '../../src/lib/crypto.ts';
-import { getPreferences, readNewAccount } from '../../src/domain/accountValues.ts';
+import { getPreferences } from '../../src/domain/accountValues.ts';
+import { parseNewAccount as readNewAccount } from '../../src/commands/accounts.ts';
 import { serializeAccount, serializeInvite, serializeUser, serializeWorkspace } from '../../src/presenters/toggl.ts';
 import { jsonObject } from '../../src/storage/conversion.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
+import { createAccountOperations } from '../fixtures/accountBodies.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {

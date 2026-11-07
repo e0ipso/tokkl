@@ -1,5 +1,5 @@
 import type { Repositories } from '../../src/storage/contracts.ts';
-import { assembleCsvExport, assembleJsonExport } from '../../src/services/storageExport.ts';
+import { assembleCsvExport, assembleJsonExport } from '../../src/services/exports.ts';
 
 /** Anything that opens a read snapshot over the transfer repository. */
 export interface ExportRunner {

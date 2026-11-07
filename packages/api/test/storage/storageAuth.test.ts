@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { syncBuiltinESMExports } from 'node:module';
 import express, { type ErrorRequestHandler } from 'express';
 import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
-import type { StorageAuthentication } from '../../src/auth/storageMiddleware.ts';
+import type { StorageAuthentication } from '../../src/auth/middleware.ts';
 import type { RateLimitsRepository } from '../../src/storage/contracts.ts';
 import type { FailureLimiter as Limiter, Keys } from '../../src/auth/rateLimit.ts';
 
@@ -28,12 +28,13 @@ const { initializeDatabase } = await import('../../src/storage/migrations.ts');
 const { openConnection } = await import('../../src/storage/connections.ts');
 const { createTransactionRunner } = await import('../../src/storage/transactions.ts');
 const { createAccountRepositories } = await import('../../src/storage/repositories/accounts.ts');
-const { createAccountOperations } = await import('../../src/domain/accounts.ts');
+const { createAccountOperations, createDomainAccountOperations } = await import('../fixtures/accountBodies.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
-const { createStorageAuth, credentialCheck, passwordAttempt } = await import('../../src/auth/storageMiddleware.ts');
-const { clientAddress } = await import('../../src/http/context.ts');
-const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
+const { createStorageAuth, passwordAttempt } = await import('../../src/auth/middleware.ts');
+const { credentialCheck } = await import('../../src/services/streamCredentials.ts');
+const { clientAddress } = await import('../../src/http/request.ts');
+const { createStorageSessions } = await import('../../src/auth/sessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');
 const { errorReply } = await import('../../src/http/errors.ts');
 const { sha256, verifyPassword, hashPassword } = await import('../../src/lib/crypto.ts');
@@ -83,7 +84,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const blocked = async (limiter: Limiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
       const fail = (keys: Keys) => loginLimiter.attempt(keys, async () => false);
       const setup = { code: 'setup-code' as string | null };
-      const sessions = createStorageSessions(runner, operations, {
+      const sessions = createStorageSessions(runner, createDomainAccountOperations(runner, security), {
         loginLimiter,
         setupLimiter,
         sessionDays: 30,
@@ -613,7 +614,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         async () => {
           await request('/me', { headers: { cookie } });
           assert.ok(observed);
-          const check = auth.credentialCheck(observed);
+          const check = credentialCheck(runner, observed);
           await connection!.close();
           const count = mapped.length;
           await expectError('/me', 500, 'Internal server error', { headers: basic(admin.apiToken, 'api_token') });

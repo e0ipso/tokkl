@@ -1,7 +1,7 @@
 import { expect, type APIResponse, type Browser, type Page } from '@playwright/test';
 import { RuntimeErrors } from './runtime-errors.ts';
 
-// Cookie-authenticated writes must carry this header (packages/api/src/auth/storageMiddleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 export interface EntryView {

@@ -6,6 +6,7 @@ import { createApplicationServices } from './services/application.ts';
 import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
 import type { Deps } from './http/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
+import { createStorageAuth } from './auth/middleware.ts';
 import { errorHandler } from './http/errors.ts';
 import { requestLog } from './http/requestLog.ts';
 import { noStore, securityHeaders } from './http/security.ts';
@@ -46,15 +47,16 @@ export function createApp({
   const app = express();
   const rateLimits = standaloneRateLimits(storage);
   const loginLimiter = new FailureLimiter(rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
+  // The composition root: framework-free services plus the HTTP adapters the routers share.
   const deps: Deps = {
     storage,
     config,
     loginLimiter,
     setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
+    auth: createStorageAuth(storage, loginLimiter),
     ...createApplicationServices({
       storage,
       storageConfig: config.storage,
-      limiter: loginLimiter,
       streamOptions: timerStreamOptions,
       bus: timerBus,
       logger,

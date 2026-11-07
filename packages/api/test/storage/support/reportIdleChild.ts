@@ -1,7 +1,7 @@
 import { initializeDatabase } from '../../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../../src/storage/repositories/reports.ts';
-import { StorageReportRunner } from '../../../src/services/storageReportRunner.ts';
+import { StorageReportRunner } from '../../../src/services/reportRunner.ts';
 import { disposableBackend } from './disposableBackend.ts';
 import { entryAccount, entryTimerFactory } from './entry-timer.ts';
 const fixture = await disposableBackend('sqlite');

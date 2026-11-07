@@ -1,10 +1,12 @@
 import type { Router } from 'express';
 import type { Deps } from '../../http/context.ts';
-import { clientAddress, jsonRead, readJson } from '../../http/context.ts';
+import { jsonRead } from '../../http/context.ts';
+import { clientAddress, readJson } from '../../http/request.ts';
 import { changedSince, lenientNumber, query, queryFlag } from '../../http/params.ts';
 import { createRouter } from '../../http/router.ts';
-import { passwordAttempt } from '../../auth/storageMiddleware.ts';
+import { passwordAttempt } from '../../auth/middleware.ts';
 import { getPreferences } from '../../domain/accountValues.ts';
+import { parsePreferenceChanges, parseProfileUpdate } from '../../commands/accounts.ts';
 import type { RelatedData, WorkspaceProject } from '../../domain/queries.ts';
 import { sliceOffset } from '../../lib/pagination.ts';
 import { parseId } from '../../lib/values.ts';
@@ -57,7 +59,7 @@ export function meRoutes(deps: Deps): Router {
       .updateProfile(
         user,
         credential,
-        readJson(req),
+        parseProfileUpdate(readJson(req)),
         deps.entryEffects,
         passwordAttempt(deps.loginLimiter, user.email, clientAddress(req)),
       );
@@ -71,7 +73,8 @@ export function meRoutes(deps: Deps): Router {
     jsonRead(deps, (_req, res) => getPreferences(res.locals.auth.user)),
   );
   api.post(['/me/preferences', '/me/preferences/:client'], async (req, res) => {
-    res.json(await deps.accountsFor(res.locals.auth).savePreferences(res.locals.auth.user.id, readJson(req)));
+    const changes = parsePreferenceChanges(readJson(req));
+    res.json(await deps.preferencesFor(res.locals.auth).savePreferences(res.locals.auth.user.id, changes));
   });
   api.get(
     '/me/workspaces',

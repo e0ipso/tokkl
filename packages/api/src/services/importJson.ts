@@ -9,18 +9,18 @@ import {
   createTask,
   resolveTagNames,
 } from '../domain/catalogs.ts';
-import {
-  withExactEntryImport,
-  noTimeSpan,
-  type EntryRepositories,
-  type ExactEntryImport,
-} from '../domain/timeEntries.ts';
-import { createCatalogTimerEffects, type TimerPublication } from '../domain/timers.ts';
+import { parseNewClient, parseNewProject, parseNewTask } from '../commands/catalogs.ts';
+import { parseNewEntry } from '../commands/timeEntries.ts';
+import type { EntryRepositories } from '../domain/entryAccess.ts';
+import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImport.ts';
+import { noTimeSpan } from '../domain/entrySpans.ts';
+import { createCatalogTimerEffects } from '../domain/timerEffects.ts';
+import type { TimerPublication } from '../domain/timerSettlement.ts';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { User } from '../storage/domain.ts';
-import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './storageExport.ts';
-import { protectImport, importError, type ImportRunner } from './storageImportContext.ts';
-import { importTogglCsv } from './storageImportCsv.ts';
+import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './exports.ts';
+import { protectImport, importError, type ImportRunner } from './importGuards.ts';
+import { importTogglCsv } from './importCsv.ts';
 export interface JsonImportResult {
   dry_run: boolean;
   clients: number;
@@ -84,7 +84,7 @@ async function restoreClient(restore: Restore, item: Item): Promise<void> {
   const { ctx, wid } = restore;
   let found = await ctx.clients.findByName(wid, nameOf(item));
   if (!found) {
-    found = await createClient(ctx, wid, { name: nameOf(item), notes: item.notes ?? null });
+    found = await createClient(ctx, wid, parseNewClient({ name: nameOf(item), notes: item.notes ?? null }));
     if (item.archived === true)
       await setClientArchived(ctx, wid, found.id, true, createCatalogTimerEffects(ctx, restore.publish));
     restore.result.clients++;
@@ -98,21 +98,25 @@ async function restoreProject(restore: Restore, item: Item): Promise<void> {
     clientId = mapped(restore, 'client', item.client_id);
   let found = await ctx.projects.findByName(wid, clientId, name);
   if (!found) {
-    found = await createProject(ctx, wid, {
-      name,
-      client_id: clientId,
-      color: item.color,
-      active: item.active,
-      billable: item.billable,
-      estimated_hours: item.estimated_hours,
-      rate: item.rate,
-      currency: item.currency,
-      fixed_fee: item.fixed_fee,
-      start_date: item.start_date,
-      end_date: item.end_date,
-      is_private: item.is_private,
-      template: item.template,
-    });
+    found = await createProject(
+      ctx,
+      wid,
+      parseNewProject({
+        name,
+        client_id: clientId,
+        color: item.color,
+        active: item.active,
+        billable: item.billable,
+        estimated_hours: item.estimated_hours,
+        rate: item.rate,
+        currency: item.currency,
+        fixed_fee: item.fixed_fee,
+        start_date: item.start_date,
+        end_date: item.end_date,
+        is_private: item.is_private,
+        template: item.template,
+      }),
+    );
     restore.result.projects++;
   }
   restore.ids.project.set(Number(item.id), found.id);
@@ -128,11 +132,12 @@ async function restoreTask(restore: Restore, item: Item): Promise<void> {
     const archived = !(await ctx.projects.getRef(wid, pid))!.active;
     const effects = createCatalogTimerEffects(ctx, restore.publish);
     if (archived) await updateProject(ctx, wid, pid, { active: true }, effects);
-    found = await createTask(ctx, wid, pid, {
-      name: nameOf(item),
-      active: item.active,
-      estimated_seconds: item.estimated_seconds,
-    });
+    found = await createTask(
+      ctx,
+      wid,
+      pid,
+      parseNewTask({ name: nameOf(item), active: item.active, estimated_seconds: item.estimated_seconds }),
+    );
     if (archived) await updateProject(ctx, wid, pid, { active: false }, effects);
     restore.result.tasks++;
   }
@@ -180,17 +185,19 @@ async function restoreEntry(restore: Restore, writer: ExactEntryImport, zone: st
   }
   if (!stop && (await ctx.entries.running(userId)))
     throw new Error('Another timer is running here. Stop it and restore again to import this running entry');
-  await writer.create({
-    description,
-    ...(noTime
-      ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
-      : { start: start.toISOString(), ...(stop ? { stop: stop.toISOString() } : { duration: -1 }) }),
-    project_id: projectId,
-    task_id: taskId,
-    billable: item.billable === true,
-    tag_ids: tagIds,
-    created_with: typeof item.created_with === 'string' ? item.created_with : 'tokkl-json-import',
-  });
+  await writer.create(
+    parseNewEntry({
+      description,
+      ...(noTime
+        ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
+        : { start: start.toISOString(), ...(stop ? { stop: stop.toISOString() } : { duration: -1 }) }),
+      project_id: projectId,
+      task_id: taskId,
+      billable: item.billable === true,
+      tag_ids: tagIds,
+      created_with: typeof item.created_with === 'string' ? item.created_with : 'tokkl-json-import',
+    }),
+  );
   restore.result.time_entries++;
 }
 

@@ -17,7 +17,7 @@ kk_relates_to: []
 kk_depends_on: []
 kk_confidence: high
 ---
-Project and task totals sum live entries per project or task. Migration2 in `packages/api/src/storage/migrations.ts` adds `time_entries_project_live` and `time_entries_task_live` using the definitions in `storage/schema.ts`. SQLite/PostgreSQL use partial indexes; MySQL/MariaDB use dialect-compatible covering indexes. The production query builders live in `storage/queries/catalogs.ts` and repositories in `storage/repositories/catalogs.ts`.
+Project and task totals sum live entries per project or task. Migration2 in `packages/api/src/storage/migrations.ts` adds `time_entries_project_live` and `time_entries_task_live` using the definitions in `storage/schema.ts`. SQLite/PostgreSQL use partial indexes; MySQL/MariaDB use dialect-compatible covering indexes. The production query builders live in `storage/repositories/catalog-queries.ts` (`catalogTotal` in `storage/repositories/catalog-sql.ts`) and repositories in `storage/repositories/projects.ts` and `storage/repositories/tasks.ts`.
 
 Keep the live-entry and project/task scope predicates compatible with the indexes. Real-engine integration and history-benchmark EXPLAIN checks require actual chosen indexed totals access, not a candidate index or forced planner setting. Small bounded catalog reference scans are distinct from entry-history scans.
 

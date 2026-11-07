@@ -5,8 +5,8 @@ import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
-import { createTimeEntry } from '../../src/domain/timeEntries.ts';
-import { createTimerPublication } from '../../src/domain/timers.ts';
+import { createTimeEntry } from '../fixtures/entryBodies.ts';
+import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {

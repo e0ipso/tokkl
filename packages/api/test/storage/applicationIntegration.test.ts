@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
+import { createAccountOperations } from '../fixtures/accountBodies.ts';
 import { createApp } from '../../src/app.ts';
 import { testConfig, testServer, setup, addUser } from '../helpers.ts';
 import { addWorkspaceMember } from '../fixtures/domain.ts';
@@ -105,7 +105,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
       });
       const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
       t.after(() => app.locals.close());
-      const { createTimeEntry } = await import('../../src/domain/timeEntries.ts');
+      const { createTimeEntry } = await import('../fixtures/entryBodies.ts');
       const entered = gate(),
         release = gate();
       const owner = users[0]!,

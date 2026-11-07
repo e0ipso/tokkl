@@ -1,6 +1,17 @@
 import type { Request, Router } from 'express';
 import type { Deps } from '../../http/context.ts';
-import { jsonRead, readJson } from '../../http/context.ts';
+import { jsonRead } from '../../http/context.ts';
+import { readJson } from '../../http/request.ts';
+import {
+  parseClientChanges,
+  parseClientRestore,
+  parseNewClient,
+  parseNewProject,
+  parseNewTask,
+  parseProjectChanges,
+  parseTagName,
+  parseTaskChanges,
+} from '../../commands/catalogs.ts';
 import {
   changedSince,
   optionalPageWindow,
@@ -93,15 +104,15 @@ function projectRoutes(deps: Deps, api: Router): void {
   );
   api.post('/workspaces/:wid/projects', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
-    const body = readJson(req);
-    const project = await deps.catalogWrite(res.locals.auth, ws.id, ctx => createProject(ctx, ws.id, body));
-    res.json(serializeProject(project, ws.defaultCurrency));
+    const project = parseNewProject(readJson(req));
+    const created = await deps.catalogWrite(res.locals.auth, ws.id, ctx => createProject(ctx, ws.id, project));
+    res.json(serializeProject(created, ws.defaultCurrency));
   });
   api.put('/workspaces/:wid/projects/:pid', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
-    const body = readJson(req);
+    const changes = parseProjectChanges(readJson(req));
     const project = await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) =>
-      updateProject(ctx, ws.id, parseId(req.params.pid), body, effects),
+      updateProject(ctx, ws.id, parseId(req.params.pid), changes, effects),
     );
     res.json(serializeProject(project, ws.defaultCurrency));
   });
@@ -153,15 +164,18 @@ function taskRoutes(deps: Deps, api: Router): void {
   );
   api.post('/workspaces/:wid/projects/:pid/tasks', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
-    const task = await deps.catalogWrite(res.locals.auth, ws.id, ctx =>
-      createTask(ctx, ws.id, parseId(req.params.pid), readJson(req)),
-    );
-    res.json(serializeTask(task));
+    const pid = parseId(req.params.pid);
+    const task = parseNewTask(readJson(req));
+    const created = await deps.catalogWrite(res.locals.auth, ws.id, ctx => createTask(ctx, ws.id, pid, task));
+    res.json(serializeTask(created));
   });
   api.put('/workspaces/:wid/projects/:pid/tasks/:tid', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
+    const pid = parseId(req.params.pid),
+      tid = parseId(req.params.tid);
+    const changes = parseTaskChanges(readJson(req));
     const task = await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) =>
-      updateTask(ctx, ws.id, parseId(req.params.pid), parseId(req.params.tid), readJson(req), effects),
+      updateTask(ctx, ws.id, pid, tid, changes, effects),
     );
     res.json(serializeTask(task));
   });
@@ -192,14 +206,15 @@ function clientRoutes(deps: Deps, api: Router): void {
   );
   api.post('/workspaces/:wid/clients', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
-    res.json(
-      serializeClient(await deps.catalogWrite(res.locals.auth, ws.id, ctx => createClient(ctx, ws.id, readJson(req)))),
-    );
+    const client = parseNewClient(readJson(req));
+    res.json(serializeClient(await deps.catalogWrite(res.locals.auth, ws.id, ctx => createClient(ctx, ws.id, client))));
   });
   api.put('/workspaces/:wid/clients/:cid', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
+    const cid = parseId(req.params.cid);
+    const changes = parseClientChanges(readJson(req));
     const client = await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) =>
-      updateClient(ctx, ws.id, parseId(req.params.cid), readJson(req), effects),
+      updateClient(ctx, ws.id, cid, changes, effects),
     );
     res.json(serializeClient(client));
   });
@@ -215,9 +230,9 @@ function clientRoutes(deps: Deps, api: Router): void {
   api.post('/workspaces/:wid/clients/:cid/restore', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
     const cid = parseId(req.params.cid);
-    const body = req.body ? readJson(req) : {};
+    const restore = parseClientRestore(req.body ? readJson(req) : {});
     const client = await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) =>
-      restoreClient(ctx, ws.id, cid, body, effects),
+      restoreClient(ctx, ws.id, cid, restore, effects),
     );
     res.json(serializeClient(client));
   });
@@ -242,14 +257,15 @@ function tagRoutes(deps: Deps, api: Router): void {
   );
   api.post('/workspaces/:wid/tags', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
-    res.json(
-      serializeTag(await deps.catalogWrite(res.locals.auth, ws.id, ctx => createTag(ctx, ws.id, readJson(req)))),
-    );
+    const name = parseTagName(readJson(req));
+    res.json(serializeTag(await deps.catalogWrite(res.locals.auth, ws.id, ctx => createTag(ctx, ws.id, name))));
   });
   api.put('/workspaces/:wid/tags/:tid', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
+    const tid = parseId(req.params.tid);
+    const name = parseTagName(readJson(req));
     const tag = await deps.catalogWrite(res.locals.auth, ws.id, (ctx, effects) =>
-      updateTag(ctx, ws.id, parseId(req.params.tid), readJson(req), effects),
+      updateTag(ctx, ws.id, tid, name, effects),
     );
     res.json(serializeTag(tag));
   });

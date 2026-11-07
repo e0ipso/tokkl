@@ -31,6 +31,17 @@ export class StateConflict<T = unknown> extends ApplicationError {
   }
 }
 
+/**
+ * Work stopped because the request that asked for it ended: the client went away, or the server
+ * is shutting down. It is not a server fault; `http/errors.ts` answers only a client still there.
+ */
+export class RequestCancelled extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RequestCancelled';
+  }
+}
+
 export const invalidInput = (message: string) => new ApplicationError('invalid', message);
 export const forbidden = (message = 'Forbidden') => new ApplicationError('forbidden', message);
 export const notFound = (message = 'Not found') => new ApplicationError('not-found', message);

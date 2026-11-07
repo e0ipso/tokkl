@@ -6,15 +6,14 @@ import { pad2, zonedToUtc } from '@tokkl/common/time';
 import type { ImportResult, ImportUser } from '@tokkl/types';
 import type { OperationContext } from '../storage/contracts.ts';
 import { createClient, createProject, createTask } from '../domain/catalogs.ts';
-import {
-  withExactEntryImport,
-  noTimeSpan,
-  type EntryRepositories,
-  type ExactEntryImport,
-} from '../domain/timeEntries.ts';
+import { parseNewClient, parseNewProject, parseNewTask } from '../commands/catalogs.ts';
+import { parseNewEntry } from '../commands/timeEntries.ts';
+import type { EntryRepositories } from '../domain/entryAccess.ts';
+import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImport.ts';
+import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../storage/domain.ts';
-import type { TimerPublication } from '../domain/timers.ts';
-import { protectImport, importError } from './storageImportContext.ts';
+import type { TimerPublication } from '../domain/timerSettlement.ts';
+import { protectImport, importError } from './importGuards.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],
   email: ['email'],
@@ -212,7 +211,7 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
     if (known !== undefined) return known;
     let client = await ctx.clients.findByName(wid, name);
     if (!client) {
-      client = await createClient(ctx, wid, { name });
+      client = await createClient(ctx, wid, parseNewClient({ name }));
       result.created_clients.push(name);
     }
     return clients.set(name, client.id);
@@ -225,7 +224,7 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
       const cid = client ? await clientId(client) : null;
       let project = await ctx.projects.findByName(wid, cid, name);
       if (!project) {
-        project = await createProject(ctx, wid, { name, client_id: cid });
+        project = await createProject(ctx, wid, parseNewProject({ name, client_id: cid }));
         result.created_projects.push(client ? `${name} (${client})` : name);
       }
       return projects.set(key, project.id);
@@ -237,7 +236,10 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
         tasks.get(key) ??
         tasks.set(
           key,
-          ((await ctx.tasks.findByName(wid, projectId, name)) ?? (await createTask(ctx, wid, projectId, { name }))).id,
+          (
+            (await ctx.tasks.findByName(wid, projectId, name)) ??
+            (await createTask(ctx, wid, projectId, parseNewTask({ name })))
+          ).id,
         )
       );
     },
@@ -288,20 +290,22 @@ export async function importTogglCsv(
       result.skipped_duplicates++;
       return;
     }
-    await writer.create({
-      description,
-      ...(noTime
-        ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
-        : { start: start.toISOString(), stop: stop.toISOString() }),
-      project_id: pid,
-      task_id: await names.taskId(pid, cell(row, 'task')),
-      billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
-      tags: cell(row, 'tags')
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean),
-      created_with: 'tokkl-csv-import',
-    });
+    await writer.create(
+      parseNewEntry({
+        description,
+        ...(noTime
+          ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
+          : { start: start.toISOString(), stop: stop.toISOString() }),
+        project_id: pid,
+        task_id: await names.taskId(pid, cell(row, 'task')),
+        billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
+        tags: cell(row, 'tags')
+          .split(',')
+          .map(t => t.trim())
+          .filter(Boolean),
+        created_with: 'tokkl-csv-import',
+      }),
+    );
     result.created++;
   }
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {

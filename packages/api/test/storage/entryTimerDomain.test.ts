@@ -6,8 +6,10 @@ import { createAccountRepositories } from '../../src/storage/repositories/accoun
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
 import { createEntryRepositories } from '../../src/storage/repositories/entries.ts';
 import { createTimerRepositories } from '../../src/storage/repositories/timers.ts';
-import * as entries from '../../src/domain/timeEntries.ts';
-import { createTimerOperations, createTimerPublication } from '../../src/domain/timers.ts';
+import * as entries from '../fixtures/entryBodies.ts';
+import { createTimerOperations } from '../../src/domain/timers.ts';
+import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { presentTimerOperations } from '../../src/services/timerReplies.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { failsWith } from '../fixtures/errors.ts';
 import { errorReply } from '../../src/http/errors.ts';
@@ -42,7 +44,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           events.push(state.revision);
           assert.equal((await runner.readSnapshot(ctx => ctx.timers.getRevision(id)))?.revision, state.revision);
         });
-        const timer = createTimerOperations(runner, publish);
+        const timer = entries.bodyTimers(presentTimerOperations(createTimerOperations(runner, publish)));
         assert.equal((await timer.getTimerState(user.id, at('09:00:00'))).revision, 0);
         const entry = await runner.transaction(ctx =>
           entries.createTimeEntry(

@@ -2,15 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
-import * as catalog from '../../src/domain/catalogs.ts';
-import * as entries from '../../src/domain/timeEntries.ts';
-import {
-  createTimerOperations,
-  createTimerPublication,
-  createCatalogTimerEffects,
-  createAccountEntryEffects,
-} from '../../src/domain/timers.ts';
+import { createAccountOperations } from '../fixtures/accountBodies.ts';
+import * as catalog from '../fixtures/catalogBodies.ts';
+import * as entries from '../fixtures/entryBodies.ts';
+import { createTimerOperations } from '../../src/domain/timers.ts';
+import { createCatalogTimerEffects, createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
+import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { presentTimerOperations } from '../../src/services/timerReplies.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
 
@@ -27,7 +25,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const publish = createTimerPublication(async (id, state) => {
         events.push([id, state.revision]);
       });
-      const timer = createTimerOperations(runner, publish),
+      const timer = presentTimerOperations(createTimerOperations(runner, publish)),
         effects = createAccountEntryEffects<ReturnType<ReturnType<typeof entryTimerFactory>>>(publish);
       const accounts = createAccountOperations(runner, { async recheckUser() {} });
       const client = await runner.transaction(ctx => catalog.createClient(ctx, wid, { name: 'Client' }));

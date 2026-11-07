@@ -1,8 +1,7 @@
 import type { Request, RequestHandler } from 'express';
-import type { AccountPasswordAttempt, AccountRepositories, AccountRunner } from '../domain/accounts.ts';
+import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
+import type { AccountPasswordAttempt } from '../domain/accounts.ts';
 import {
-  credentialHolds,
-  authenticatedUser,
   type Authentication,
   findActiveSession,
   isActiveAdmin,
@@ -11,11 +10,10 @@ import {
 } from '../domain/credentials.ts';
 import type { User } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
-import { clientAddress, getCookie } from '../http/context.ts';
+import { clientAddress, getCookie } from '../http/request.ts';
 import { forbidden, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from '../lib/crypto.ts';
 import { passwordCounters, type FailureLimiter } from './rateLimit.ts';
-import type { StreamCredentialResult } from '../services/timerStreams.ts';
 
 export const SESSION_COOKIE = 'tokkl_session';
 export const LEGACY_SESSION_COOKIE = 'tt_session';
@@ -77,33 +75,6 @@ export async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: 
   const current = await ctx.users.get(seen.id);
   return unchangedActive(current, seen) ? current : undefined;
 }
-/** Check credentials in the data snapshot for reads, or under the operation's guards for writes. */
-export const currentCredentialUser = authenticatedUser;
-export type { StreamCredentialResult };
-async function currentCredentialRevision(
-  ctx: Pick<Repositories, 'users' | 'sessions'>,
-  auth: StorageAuthentication,
-): Promise<StreamCredentialResult> {
-  const current = await ctx.users.getWithTimerRevision(auth.user.id);
-  return current && (await credentialHolds(ctx, auth.user, auth.credential, current.user))
-    ? { valid: true, revision: current.timerRevision }
-    : { valid: false };
-}
-/** Independent async stream port. Storage failures fail closed and never reject a keep-alive callback. */
-export function credentialCheck<R extends AccountRepositories>(
-  runner: AccountRunner<R>,
-  auth: StorageAuthentication,
-): () => Promise<StreamCredentialResult> {
-  // Capture fingerprints now, even if HTTP locals are replaced after a profile update.
-  const observed = { ...auth, user: { ...auth.user }, credential: { ...auth.credential } };
-  return async () => {
-    try {
-      return await runner.readSnapshot(ctx => currentCredentialRevision(ctx, observed));
-    } catch {
-      return { valid: false };
-    }
-  };
-}
 export function createStorageAuth<R extends AccountRepositories>(runner: AccountRunner<R>, limiter: FailureLimiter) {
   const authenticate = async (req: Request): Promise<StorageAuthentication> => {
     const header = req.headers.authorization;
@@ -150,6 +121,6 @@ export function createStorageAuth<R extends AccountRepositories>(runner: Account
     authenticate,
     requireAuth,
     requireAdmin,
-    credentialCheck: (auth: StorageAuthentication) => credentialCheck(runner, auth),
   };
 }
+export type StorageAuth = ReturnType<typeof createStorageAuth>;

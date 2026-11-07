@@ -1,4 +1,11 @@
+/**
+ * Readers for loosely typed JSON values. The command parsers build on these, so every field of one
+ * kind is refused with the same message wherever it arrives.
+ */
 import { invalidInput } from './errors.ts';
+
+/** A JSON object from a request body or an import file, before it is parsed. */
+export type JsonBody = Record<string, unknown>;
 
 /** Toggl serialises timestamps as RFC 3339 with an explicit "+00:00" offset. */
 export function togglTime(iso: string | null | undefined): string | null {

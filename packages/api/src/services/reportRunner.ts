@@ -1,11 +1,11 @@
 import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
-import { ApplicationError, unavailable, type FailureKind } from '../lib/errors.ts';
+import { ApplicationError, RequestCancelled, unavailable, type FailureKind } from '../lib/errors.ts';
 
 /** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
 const QUEUE_FULL_RETRY_SECONDS = 2;
-import { collectReport, type ReportSource } from './storageReports.ts';
+import { collectReport, type ReportSource } from './reports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
 import {
@@ -14,7 +14,7 @@ import {
   type ExportAssemblyJob,
   type JobResult,
   type ReportJob,
-} from './storageReportJobs.ts';
+} from './reportJobs.ts';
 
 export interface ReportRunnerOptions {
   /** Includes the active job; overload fails immediately. Default 16, maximum 100. */
@@ -86,7 +86,7 @@ export class StorageReportRunner {
   }
   private enqueue(work: ReportWork, options: { signal?: AbortSignal }): Promise<JobResult> {
     if (this.closed) return Promise.reject(new Error('Report runner is closed'));
-    if (options.signal?.aborted) return Promise.reject(new Error('Report cancelled'));
+    if (options.signal?.aborted) return Promise.reject(new RequestCancelled('Report cancelled'));
     if (this.queue.length + Number(!!this.active) >= this.maxQueue)
       return Promise.reject(unavailable('Report queue is full', QUEUE_FULL_RETRY_SECONDS));
     return new Promise((resolve, reject) => {
@@ -101,12 +101,12 @@ export class StorageReportRunner {
         if (this.active === pending) {
           this.active = undefined;
           pending.dispose();
-          pending.reject(new Error('Report cancelled'));
+          pending.reject(new RequestCancelled('Report cancelled'));
           if (this.worker) this.stopWorker();
         } else {
           this.queue = this.queue.filter(p => p !== pending);
           pending.dispose();
-          pending.reject(new Error('Report cancelled'));
+          pending.reject(new RequestCancelled('Report cancelled'));
         }
         this.pump();
       };
@@ -159,7 +159,7 @@ export class StorageReportRunner {
     this.pump();
   }
   private startWorker(): void {
-    const worker = new Worker(new URL('./storageReportWorker.ts', import.meta.url), { workerData: this.config });
+    const worker = new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: this.config });
     this.worker = worker;
     const fail = () => {
       if (this.worker !== worker) return;

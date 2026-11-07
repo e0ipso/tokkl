@@ -4,7 +4,7 @@ import { storageFor } from './fixtures/database.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
-import { INVITE_NOT_FOUND } from '../src/domain/accounts.ts';
+import { INVITE_NOT_FOUND } from '../src/domain/accountLinks.ts';
 import { addUser, CSRF, setup, type TestContext } from './helpers.ts';
 
 const DAY_MS = 86_400_000;

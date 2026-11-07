@@ -2,7 +2,7 @@ import { sessionCount as countSessions, tokenRows, corruptRecord } from './fixtu
 import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ACCOUNT_ADDRESS_LIMIT, ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
-import { RESET_NOT_FOUND } from '../src/domain/accounts.ts';
+import { RESET_NOT_FOUND } from '../src/domain/accountLinks.ts';
 import { addUser, CSRF, duringPasswordCheck, PASSWORD, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const HOUR_MS = 3_600_000;

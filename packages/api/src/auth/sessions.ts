@@ -1,8 +1,10 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type { AccountRepositories, AccountRunner, createAccountOperations } from '../domain/accounts.ts';
-import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accounts.ts';
+import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
+import type { createAccountOperations } from '../domain/accounts.ts';
+import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accountLinks.ts';
+import { parseNewAccount, parseNewPassword } from '../commands/accounts.ts';
 import type { User } from '../storage/domain.ts';
-import { clientAddress, readJson } from '../http/context.ts';
+import { clientAddress, readJson } from '../http/request.ts';
 import { forbidden, notFound, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual } from '../lib/crypto.ts';
 import { accountCounters, addressCounter, type FailureLimiter } from './rateLimit.ts';
@@ -13,7 +15,7 @@ import {
   requireCsrfHeader,
   SESSION_COOKIE,
   sessionTokens,
-} from './storageMiddleware.ts';
+} from './middleware.ts';
 
 export interface StorageSessionOptions {
   loginLimiter: FailureLimiter;
@@ -98,7 +100,7 @@ export function createStorageSessions<R extends AccountRepositories>(
     });
     if (result.refused) throw tooManyAttempts('Too many failed attempts, try again later', result.retryAfter);
     if (!result.valid) throw forbidden('Invalid setup code. It is printed in the server log on startup.');
-    const user = await operations.createFirstAdmin(body);
+    const user = await operations.createFirstAdmin(parseNewAccount(body));
     setup.code = null;
     await startSession(req, res, user);
     return res.json({ ok: true });
@@ -107,7 +109,7 @@ export function createStorageSessions<R extends AccountRepositories>(
   const acceptInvite: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
     const { token } = await inviteFor(req);
-    const user = await operations.acceptInvite(token, readJson(req));
+    const user = await operations.acceptInvite(token, parseNewAccount(readJson(req)));
     await startSession(req, res, user);
     return res.json({ ok: true });
   };
@@ -115,7 +117,7 @@ export function createStorageSessions<R extends AccountRepositories>(
   const resetPassword: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
     const { token, user } = await resetFor(req);
-    await operations.resetPassword(token, readJson(req).password);
+    await operations.resetPassword(token, parseNewPassword(readJson(req).password));
     await loginLimiter.reset(accountCounters(user.email, clientAddress(req)));
     return res.json({ ok: true });
   };

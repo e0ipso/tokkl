@@ -7,6 +7,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase, migrations, verifyCurrent } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
+import { withBodies } from '../fixtures/accountBodies.ts';
 import { sha256 } from '../../src/lib/crypto.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -39,9 +40,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const overlap = (first: () => Promise<Response>, second: () => Promise<Response>) => barrier.overlap(first, second);
     const json = async (r: Response) => ({ status: r.status, body: (await r.json()) as unknown });
     const status = (rs: Response[]) => rs.map(r => r.status).sort((a, b) => a - b);
+    const accounts = withBodies(apps[0]!.locals.services.accounts, stores[0]!);
     const account = async (email: string, role: 'admin' | 'user' = 'user'): Promise<User> => {
-      const invite = await apps[0]!.locals.services.accounts.createInvite(admin.id, { role }, 30);
-      return apps[0]!.locals.services.accounts.acceptInvite(invite.token, { email, password: 'correct horse battery' });
+      const invite = await accounts.createInvite(admin.id, { role }, 30);
+      return accounts.acceptInvite(invite.token, { email, password: 'correct horse battery' });
     };
     let admin!: User;
     await t.test('first-admin setup has exactly one winner and one private workspace', async () => {
@@ -158,7 +160,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       assert.equal((await c.db.selectFrom('tags').selectAll().execute()).length, 1);
     });
     await t.test('invite/reset tokens consume exactly once and reset revokes old credentials', async () => {
-      const invite = await apps[0]!.locals.services.accounts.createInvite(admin.id, { role: 'user' }, 30);
+      const invite = await accounts.createInvite(admin.id, { role: 'user' }, 30);
       const accepted = await overlap(
         () =>
           request(0, 'POST', `/api/app/invites/${invite.token}`, {
@@ -185,7 +187,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       assert.ok(consumed.used_at);
       assert.ok(consumed.user_id);
       const user = (await stores[0]!.users.get(Number(consumed.user_id)))!;
-      const reset = await apps[0]!.locals.services.accounts.createPasswordReset(admin.id, user.id);
+      const reset = await accounts.createPasswordReset(admin.id, user.id);
       const rs = await overlap(
         () => request(0, 'POST', `/api/app/password-resets/${reset.token}`, { password: 'replacement password' }),
         () => request(1, 'POST', `/api/app/password-resets/${reset.token}`, { password: 'replacement password' }),

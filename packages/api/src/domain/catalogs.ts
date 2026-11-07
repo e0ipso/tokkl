@@ -1,14 +1,28 @@
-import { PROJECT_COLORS, isHexColor } from '@tokkl/common/colors';
+/**
+ * Clients, projects, tasks and tags of a workspace. Writes take the workspace guard, keep names
+ * unique, and settle the timers whose running entry shows the changed record.
+ */
+import { PROJECT_COLORS } from '@tokkl/common/colors';
 import type { OperationContext, Repositories, ProjectInput } from '../storage/contracts.ts';
 import type { Client, Id, ProjectSummary, TaskSummary, Tag } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
-import { isCurrencyCode } from './workspaceValues.ts';
-import { optionalBool, optionalId, optionalNumber, optionalRate, optionalString, requireName } from '../lib/values.ts';
+import { requireName } from '../lib/values.ts';
+import {
+  MAX_NAME_LENGTH,
+  type ClientChanges,
+  type ClientChoice,
+  type ClientRestore,
+  type NewClient,
+  type NewProject,
+  type NewTask,
+  type ProjectChanges,
+  type ProjectFields,
+  type TaskChanges,
+} from './catalogCommands.ts';
 
 export type CatalogRepositories = Pick<Repositories, 'clients' | 'projects' | 'tasks' | 'tags'>;
 export type CatalogContext = OperationContext<CatalogRepositories>;
-type Body = Record<string, unknown>;
 /** Required for metadata mutations. Prepare discovers/locks affected users before changes.
  * Keep the original baseline on repeated preparation in the same context. Settlement uses
  * that context; publication runs only after commit and release. Tag cleanup joins it too. */
@@ -64,31 +78,28 @@ export async function getTag(ctx: CatalogRepositories, wid: Id, id: Id): Promise
   if (!value) throw notFound('Tag not found');
   return value;
 }
-export function createClient(ctx: CatalogContext, wid: Id, body: Body): Promise<Client> {
+export function createClient(ctx: CatalogContext, wid: Id, client: NewClient): Promise<Client> {
   return write(ctx, wid, async ctx => {
-    const name = requireName(body.name, 'Client name', 255);
-    const notes = optionalString(body.notes, 'notes', 10000) ?? null;
-    unique(await ctx.clients.findByName(wid, name));
-    return ctx.clients.create({ workspaceId: wid, name, notes, archived: false });
+    unique(await ctx.clients.findByName(wid, client.name));
+    return ctx.clients.create({ workspaceId: wid, name: client.name, notes: client.notes, archived: false });
   });
 }
 export function updateClient(
   ctx: CatalogContext,
   wid: Id,
   id: Id,
-  body: Body,
+  changes: ClientChanges,
   effects: CatalogTimerEffects,
 ): Promise<Client> {
   return write(ctx, wid, async ctx => {
     const current = await getClient(ctx, wid, id);
-    const name = body.name === undefined ? current.name : requireName(body.name, 'Client name', 255);
-    const notes = body.notes === undefined ? current.notes : (optionalString(body.notes, 'notes', 10000) ?? null);
+    const name = changes.name ?? current.name;
     unique(await ctx.clients.findByName(wid, name), id);
     await invalidate(ctx, wid, effects);
     return ctx.clients.update(wid, id, {
       name,
-      notes,
-      archived: typeof body.archived === 'boolean' ? body.archived : current.archived,
+      notes: changes.notes === undefined ? current.notes : changes.notes,
+      archived: changes.archived ?? current.archived,
     });
   });
 }
@@ -109,20 +120,15 @@ export function restoreClient(
   ctx: CatalogContext,
   wid: Id,
   id: Id,
-  body: Body,
+  restore: ClientRestore,
   effects: CatalogTimerEffects,
 ): Promise<Client> {
   return write(ctx, wid, async ctx => {
     await getClient(ctx, wid, id);
-    const all = optionalBool(body.restore_all_projects, 'restore_all_projects') ?? false;
-    const ids = body.projects ?? [];
-    if (!Array.isArray(ids) || ids.length > 1000 || ids.some(id => !Number.isSafeInteger(id) || id <= 0))
-      throw invalidInput('Invalid projects');
-    const owned = await ctx.projects.listForClient(wid, id);
-    const allowed = new Set(owned.map(p => p.id));
-    if (ids.some(id => !allowed.has(id))) throw invalidInput('Project does not belong to the client');
+    const owned = new Set((await ctx.projects.listForClient(wid, id)).map(p => p.id));
+    if (restore.projectIds.some(pid => !owned.has(pid))) throw invalidInput('Project does not belong to the client');
     await invalidate(ctx, wid, effects);
-    return ctx.clients.restore(wid, id, ids, all);
+    return ctx.clients.restore(wid, id, restore.projectIds, restore.allProjects);
   });
 }
 export function deleteClient(ctx: CatalogContext, wid: Id, id: Id, effects: CatalogTimerEffects): Promise<void> {
@@ -132,64 +138,50 @@ export function deleteClient(ctx: CatalogContext, wid: Id, id: Id, effects: Cata
     await ctx.clients.deleteAndDetachProjects(wid, id);
   });
 }
-async function resolveClient(ctx: CatalogContext, wid: Id, body: Body, fallback: Id | null): Promise<Id | null> {
-  const id = optionalId('client_id' in body ? body.client_id : body.cid, 'client_id');
-  if (id === undefined) {
-    const name = optionalString(body.client_name, 'client_name', 255);
-    if (!name) return fallback;
-    return ((await ctx.clients.findByName(wid, name.trim())) ?? (await createClient(ctx, wid, { name }))).id;
-  }
-  if (id !== null) await getClient(ctx, wid, id);
-  return id;
+/** The chosen client's id; one chosen by name is created when missing. */
+async function resolveClient(
+  ctx: CatalogContext,
+  wid: Id,
+  choice: ClientChoice | undefined,
+  fallback: Id | null,
+): Promise<Id | null> {
+  if (!choice) return fallback;
+  if ('name' in choice)
+    return (
+      (await ctx.clients.findByName(wid, choice.name)) ??
+      (await createClient(ctx, wid, { name: choice.name, notes: null }))
+    ).id;
+  if (choice.id !== null) await getClient(ctx, wid, choice.id);
+  return choice.id;
 }
-function color(value: unknown, fallback: string): string {
-  if (value === undefined || value === null || value === '') return fallback;
-  if (typeof value !== 'string' || !isHexColor(value)) throw invalidInput('Invalid color: expected #rrggbb');
-  return value.toLowerCase();
-}
-function date(value: unknown, field: string, fallback: string | null): string | null {
-  if (value === undefined) return fallback;
-  if (value === null || value === '') return null;
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
-    throw invalidInput(`Invalid ${field}: expected YYYY-MM-DD`);
-  return value;
-}
-function currency(value: unknown, fallback: string | null): string | null {
-  if (value === undefined) return fallback;
-  if (value === null || value === '') return null;
-  if (typeof value !== 'string' || !isCurrencyCode(value))
-    throw invalidInput('Invalid currency: expected an ISO 4217 code');
-  return value.toUpperCase();
-}
-function projectInput(body: Body, fallback: ProjectInput): ProjectInput {
+/** The stored project fields: each sent field, else the fallback's. */
+function projectInput(fields: ProjectFields, fallback: ProjectInput): ProjectInput {
+  const pick = <K extends keyof ProjectFields & keyof ProjectInput>(key: K) =>
+    (fields[key] === undefined ? fallback[key] : fields[key]) as ProjectInput[K];
   return {
     workspaceId: fallback.workspaceId,
     name: fallback.name,
     clientId: fallback.clientId,
-    color: color(body.color, fallback.color),
-    active: optionalBool(body.active, 'active') ?? fallback.active,
-    isPrivate: optionalBool(body.is_private, 'is_private') ?? fallback.isPrivate,
-    billable: optionalBool(body.billable, 'billable') ?? fallback.billable,
-    estimatedHours:
-      body.estimated_hours === undefined
-        ? fallback.estimatedHours
-        : (optionalNumber(body.estimated_hours, 'estimated_hours') ?? null),
-    rate: body.rate === undefined ? fallback.rate : (optionalRate(body.rate, 'rate') ?? null),
-    currency: currency(body.currency, fallback.currency),
-    fixedFee: body.fixed_fee === undefined ? fallback.fixedFee : (optionalNumber(body.fixed_fee, 'fixed_fee') ?? null),
-    startDate: date(body.start_date, 'start_date', fallback.startDate),
-    endDate: date(body.end_date, 'end_date', fallback.endDate),
-    template: optionalBool(body.template, 'template') ?? fallback.template,
+    color: pick('color'),
+    active: pick('active'),
+    isPrivate: pick('isPrivate'),
+    billable: pick('billable'),
+    estimatedHours: pick('estimatedHours'),
+    rate: pick('rate'),
+    currency: pick('currency'),
+    fixedFee: pick('fixedFee'),
+    startDate: pick('startDate'),
+    endDate: pick('endDate'),
+    template: pick('template'),
   };
 }
-export function createProject(ctx: CatalogContext, wid: Id, body: Body): Promise<ProjectSummary> {
+export function createProject(ctx: CatalogContext, wid: Id, project: NewProject): Promise<ProjectSummary> {
   return write(ctx, wid, async ctx => {
-    const name = requireName(body.name, 'Project name', 255);
-    const clientId = await resolveClient(ctx, wid, body, null);
-    unique(await ctx.projects.findByName(wid, clientId, name));
+    const clientId = await resolveClient(ctx, wid, project.client, null);
+    unique(await ctx.projects.findByName(wid, clientId, project.name));
     const fallback: ProjectInput = {
       workspaceId: wid,
-      name,
+      name: project.name,
       clientId,
       color: PROJECT_COLORS[(await ctx.projects.count(wid)) % PROJECT_COLORS.length]!,
       active: true,
@@ -203,23 +195,23 @@ export function createProject(ctx: CatalogContext, wid: Id, body: Body): Promise
       endDate: null,
       template: false,
     };
-    return ctx.projects.create(projectInput(body, fallback));
+    return ctx.projects.create(projectInput(project, fallback));
   });
 }
 export function updateProject(
   ctx: CatalogContext,
   wid: Id,
   id: Id,
-  body: Body,
+  changes: ProjectChanges,
   effects: CatalogTimerEffects,
 ): Promise<ProjectSummary> {
   return write(ctx, wid, async ctx => {
     const current = await ctx.projects.getMetadata(wid, id);
     if (!current) throw notFound('Project not found');
-    const name = body.name === undefined ? current.name : requireName(body.name, 'Project name', 255);
-    const clientId = await resolveClient(ctx, wid, body, current.clientId);
+    const name = changes.name ?? current.name;
+    const clientId = await resolveClient(ctx, wid, changes.client, current.clientId);
     unique(await ctx.projects.findByName(wid, clientId, name), id);
-    const input = projectInput(body, { ...current, name, clientId });
+    const input = projectInput(changes, { ...current, name, clientId });
     await invalidate(ctx, wid, effects);
     return ctx.projects.update(wid, id, input);
   });
@@ -237,19 +229,18 @@ export function deleteProject(
     await ctx.projects.delete(wid, id, deleteEntries ? 'delete' : 'detach');
   });
 }
-export function createTask(ctx: CatalogContext, wid: Id, pid: Id, body: Body): Promise<TaskSummary> {
+export function createTask(ctx: CatalogContext, wid: Id, pid: Id, task: NewTask): Promise<TaskSummary> {
   return write(ctx, wid, async ctx => {
     const p = await ctx.projects.getRef(wid, pid);
     if (!p) throw notFound('Project not found');
     if (!p.active) throw invalidInput('Can not change tasks of archived project');
-    const name = requireName(body.name, 'Task name', 255);
-    unique(await ctx.tasks.findByName(wid, pid, name));
+    unique(await ctx.tasks.findByName(wid, pid, task.name));
     return ctx.tasks.create({
       workspaceId: wid,
       projectId: pid,
-      name,
-      active: optionalBool(body.active, 'active') ?? true,
-      estimatedSeconds: optionalNumber(body.estimated_seconds, 'estimated_seconds') ?? null,
+      name: task.name,
+      active: task.active ?? true,
+      estimatedSeconds: task.estimatedSeconds ?? null,
     });
   });
 }
@@ -258,21 +249,19 @@ export function updateTask(
   wid: Id,
   pid: Id,
   id: Id,
-  body: Body,
+  changes: TaskChanges,
   effects: CatalogTimerEffects,
 ): Promise<TaskSummary> {
   return write(ctx, wid, async ctx => {
     const current = await ctx.tasks.getMetadata(wid, id);
     if (!current || current.projectId !== pid) throw notFound('Task not found');
-    const name = body.name === undefined ? current.name : requireName(body.name, 'Task name', 255);
+    const name = changes.name ?? current.name;
     unique(await ctx.tasks.findByName(wid, pid, name), id);
-    const active = optionalBool(body.active, 'active');
-    const estimate = optionalNumber(body.estimated_seconds, 'estimated_seconds');
     await invalidate(ctx, wid, effects);
     return ctx.tasks.update(wid, pid, id, {
       name,
-      active: active ?? current.active,
-      estimatedSeconds: estimate === undefined ? current.estimatedSeconds : estimate,
+      active: changes.active ?? current.active,
+      estimatedSeconds: changes.estimatedSeconds === undefined ? current.estimatedSeconds : changes.estimatedSeconds,
     });
   });
 }
@@ -284,18 +273,18 @@ export function deleteTask(ctx: CatalogContext, wid: Id, pid: Id, id: Id, effect
     await ctx.tasks.delete(wid, pid, id);
   });
 }
-export function createTag(ctx: CatalogContext, wid: Id, body: Body): Promise<Tag> {
+export function createTag(ctx: CatalogContext, wid: Id, name: string): Promise<Tag> {
   return write(
     ctx,
     wid,
     async ctx => {
-      const name = requireName(body.name, 'Tag name', 255);
       unique(await ctx.tags.findByName(wid, name), undefined, true);
       return ctx.tags.create(wid, name);
     },
     true,
   );
 }
+/** Tag ids by name, creating missing tags. Each name is trimmed and must not be blank. */
 export function resolveTagNames(ctx: CatalogContext, wid: Id, names: string[]): Promise<Id[]> {
   return write(
     ctx,
@@ -304,7 +293,7 @@ export function resolveTagNames(ctx: CatalogContext, wid: Id, names: string[]): 
       (
         await ctx.tags.resolveNames(
           wid,
-          names.map(name => requireName(name, 'Tag name', 255)),
+          names.map(name => requireName(name, 'Tag name', MAX_NAME_LENGTH)),
         )
       ).map(t => t.id),
     true,
@@ -314,7 +303,7 @@ export function updateTag(
   ctx: CatalogContext,
   wid: Id,
   id: Id,
-  body: Body,
+  name: string,
   effects: CatalogTimerEffects,
 ): Promise<Tag> {
   return write(
@@ -322,7 +311,6 @@ export function updateTag(
     wid,
     async ctx => {
       await getTag(ctx, wid, id);
-      const name = requireName(body.name, 'Tag name', 255);
       unique(await ctx.tags.findByName(wid, name), id, true);
       await invalidate(ctx, wid, effects);
       return ctx.tags.rename(wid, id, name);

@@ -1,6 +1,6 @@
 import { filenameFor } from './fixtures/database.ts';
 import { servicesFor } from './fixtures/database.ts';
-import { StorageReportRunner } from '../src/services/storageReportRunner.ts';
+import { StorageReportRunner } from '../src/services/reportRunner.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -12,7 +12,7 @@ import { fileBackedCopy, setup, type TestContext } from './helpers.ts';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { transaction } from './fixtures/database.ts';
 import { parseCsv } from '../src/lib/csv.ts';
-import { CSV_COLUMNS } from '../src/services/storageExport.ts';
+import { CSV_COLUMNS } from '../src/services/exports.ts';
 
 async function seed(ctx: TestContext) {
   const base = `/api/v9/workspaces/${ctx.wid}`;
