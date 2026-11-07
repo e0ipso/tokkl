@@ -47,6 +47,7 @@ class TimerService : public QObject, protected QDBusContext
     // PropertiesChanged.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
+    Q_PROPERTY(qint64 LocalStartTime READ localStartTime)
     Q_PROPERTY(bool Paused READ paused)
     Q_PROPERTY(qint64 ChainSeconds READ chainSeconds)
     Q_PROPERTY(QString IndicatorState READ indicatorState)
@@ -111,7 +112,11 @@ public:
 
     bool running() const;
     qint64 startTime() const;
+    // The server's start, which StartTime has always published.
     bool paused() const;
+    // The start on this machine's clock, corrected by the state client's
+    // server offset, so elapsed time matches the other apps.
+    qint64 localStartTime() const;
     qint64 chainSeconds() const;
     QString indicatorState() const;
     QString indicatorColor() const;

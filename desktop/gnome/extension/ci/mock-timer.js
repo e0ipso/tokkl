@@ -30,6 +30,7 @@ const mockXml = `<node>
 const types = {
     Running: 'b',
     StartTime: 'x',
+    LocalStartTime: 'x',
     Paused: 'b',
     ChainSeconds: 'x',
     IndicatorState: 's',
@@ -64,6 +65,7 @@ const state = {
     Running: false,
     StartTime: 0,
     Paused: false,
+    LocalStartTime: 0,
     ChainSeconds: 0,
     IndicatorState: 'none',
     IndicatorColor: '',
@@ -150,6 +152,10 @@ function set(values) {
     const derived = {};
     const locked = state.Running || state.Paused || state.SessionActive;
     if (state.ModeLocked !== locked) derived.ModeLocked = locked;
+    // This machine's clock is the server's here, so the local start is the
+    // server's start whenever that changes. A check sets LocalStartTime on
+    // its own to stand for a skewed clock.
+    if ('StartTime' in values && state.LocalStartTime !== state.StartTime) derived.LocalStartTime = state.StartTime;
     const canStart = state.PomodoroMode && !locked && state.Status === 'ready';
     if (state.CanStartSession !== canStart) derived.CanStartSession = canStart;
     if (Object.keys(derived).length > 0) set(derived);

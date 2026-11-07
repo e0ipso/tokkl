@@ -114,7 +114,8 @@ export function projectChoices(projects, chosenProject, label, _) {
  * @param {object} time
  * @param {boolean} time.running
  * @param {boolean} time.paused
- * @param {number} time.startTime the StartTime property
+ * @param {number} time.startTime the LocalStartTime property: the start on
+ *     this machine's clock
  * @param {number} time.chainSeconds the ChainSeconds property
  * @param {boolean} time.pomodoroMode
  * @param {{phase: string, plannedEnd: number, pomodoroNumber: number, longRestEvery: number}|null} time.session

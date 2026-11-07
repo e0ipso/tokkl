@@ -193,7 +193,10 @@ export const TokklIndicator = GObject.registerClass(
                 status: owned ? this._property('Status', 'error') : null,
                 errorString: this._property('ErrorString', ''),
                 running: this._property('Running', false),
-                startTime: this._property('StartTime', 0),
+                // The start on this machine's clock, so elapsed time matches the
+                // other apps when the clocks differ. A service from before
+                // LocalStartTime only has StartTime.
+                startTime: this._property('LocalStartTime', this._property('StartTime', 0)),
                 paused: this._property('Paused', false),
                 chainSeconds: this._property('ChainSeconds', 0),
                 indicatorState: this._property('IndicatorState', ''),

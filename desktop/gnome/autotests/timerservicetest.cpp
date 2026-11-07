@@ -406,6 +406,8 @@ class TimerServiceTest : public QObject
         QJsonValue session = QJsonValue::Null;
         QJsonValue dropped = QJsonValue::Null;
         qint64 revision = 1;
+        // How far the server's clock runs ahead of this machine's.
+        qint64 serverAheadMs = 0;
 
         QString settingsFile() const
         {
@@ -495,7 +497,7 @@ class TimerServiceTest : public QObject
         {
             return json(QJsonObject{
                 {QStringLiteral("revision"), revision},
-                {QStringLiteral("server_time"), iso(clock.now())},
+                {QStringLiteral("server_time"), iso(clock.now().addMSecs(serverAheadMs))},
                 {QStringLiteral("running_entry"), running},
                 {QStringLiteral("pause"), chain},
                 {QStringLiteral("pomodoro"), session},
@@ -637,6 +639,7 @@ private Q_SLOTS:
         const StringMap properties{
             {QStringLiteral("Running"), QStringLiteral("b read")},
             {QStringLiteral("StartTime"), QStringLiteral("x read")},
+            {QStringLiteral("LocalStartTime"), QStringLiteral("x read")},
             {QStringLiteral("Paused"), QStringLiteral("b read")},
             {QStringLiteral("ChainSeconds"), QStringLiteral("x read")},
             {QStringLiteral("IndicatorState"), QStringLiteral("s read")},
@@ -829,6 +832,31 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("IndicatorState")).toString(), QStringLiteral("none"));
+    }
+
+    // The server's clock runs 90 s ahead of this machine's. StartTime keeps
+    // the server's start; LocalStartTime is on this machine's clock, so the
+    // extension's elapsed time, its clock minus LocalStartTime, is the
+    // core's.
+    void localStartTimeFollowsTheServerClock()
+    {
+        Fixture f;
+        f.serverAheadMs = 90000;
+        f.running = entryObject(5, 12, true);
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        const qint64 start = QDateTime::fromString(startedAt, Qt::ISODate).toSecsSinceEpoch();
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), start);
+        const qint64 local = f.get(QStringLiteral("LocalStartTime")).toLongLong();
+        QCOMPARE(local, start - 90);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 90));
+        QCOMPARE(f.clock.now().toSecsSinceEpoch() - local, f.service->m_timer->elapsedSeconds());
+
+        // Stopped elsewhere: both are 0.
+        QVERIFY(f.push(f.change(QJsonValue::Null)));
+        QTRY_COMPARE(f.get(QStringLiteral("Running")).toBool(), false);
+        QCOMPARE(f.get(QStringLiteral("LocalStartTime")).toLongLong(), 0);
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
     }
 
     // A running entry on an archived project: Projects lacks it, but the

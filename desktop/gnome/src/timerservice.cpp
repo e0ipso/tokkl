@@ -154,6 +154,17 @@ qint64 TimerService::startTime() const
 }
 
 bool TimerService::paused() const
+qint64 TimerService::localStartTime() const
+{
+    const std::optional<TimeEntry> entry = m_timer->currentEntry();
+    if (!entry || !entry->isRunning()) {
+        return 0;
+    }
+    // serverNow() is this machine's clock plus the offset, so the start on
+    // this clock is the server's start minus it.
+    return entry->start.addMSecs(-m_client->serverOffsetMs()).toSecsSinceEpoch();
+}
+
 {
     return m_timer->isPaused();
 }

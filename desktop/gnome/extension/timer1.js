@@ -14,6 +14,7 @@ export const TIMER1_INTERFACE = `<node>
   <interface name="org.tokkl.Timer1">
     <property name="Running" type="b" access="read"/>
     <property name="StartTime" type="x" access="read"/>
+    <property name="LocalStartTime" type="x" access="read"/>
     <property name="Paused" type="b" access="read"/>
     <property name="ChainSeconds" type="x" access="read"/>
     <property name="IndicatorState" type="s" access="read"/>
@@ -108,8 +109,9 @@ export const TIMER1_INTERFACE = `<node>
 export const AUTH_MODES = ['token', 'password'];
 
 /**
- * Seconds since startTime, never negative. startTime is the StartTime
- * property: Unix seconds, or 0 when no entry runs.
+ * Seconds since startTime, never negative. startTime is the LocalStartTime
+ * property, the start on this machine's clock: Unix seconds, or 0 when no
+ * entry runs.
  *
  * @param {number} startTime
  * @param {number} nowSeconds the current Unix time in seconds
