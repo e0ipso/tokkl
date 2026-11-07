@@ -5,6 +5,7 @@ import { collectReport } from './reports.ts';
 import type { ReportWork } from './reportRunner.ts';
 import { formatExportJob, formatReportJob } from './reportJobs.ts';
 import { ApplicationError } from '../lib/errors.ts';
+import { redactedDiagnostic } from '../lib/logger.ts';
 
 export interface ReportRequest {
   id: number;
@@ -35,14 +36,13 @@ try {
           port.postMessage({ id, phase: 'formatting' });
           port.postMessage({ id, result: formatReportJob(data, job) });
         } catch (error) {
-          // SQL/driver errors and stacks never leave this thread.
-          port.postMessage({
-            id,
-            error:
-              error instanceof ApplicationError
-                ? { kind: error.kind, message: error.message, retryAfterSeconds: error.retryAfterSeconds }
-                : { message: 'Report failed' },
-          });
+          // SQL/driver messages never leave this thread. An unexpected failure sends its redacted
+          // diagnostic for the parent's log; the client still gets the fixed message.
+          port.postMessage(
+            error instanceof ApplicationError
+              ? { id, error: { kind: error.kind, message: error.message, retryAfterSeconds: error.retryAfterSeconds } }
+              : { id, error: { message: 'Report failed' }, diagnostic: redactedDiagnostic(error) },
+          );
         }
       })
       .catch(async () => {
@@ -54,7 +54,8 @@ try {
       });
   });
   port.postMessage({ ready: true });
-} catch {
-  // Startup errors can contain connection credentials. Report a fixed failure only.
+} catch (error) {
+  // Startup errors can contain connection credentials, so only the redacted diagnostic is sent.
+  port.postMessage({ startupFailed: redactedDiagnostic(error) });
   port.close();
 }

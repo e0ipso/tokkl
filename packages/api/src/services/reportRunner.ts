@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
 import { ApplicationError, RequestCancelled, unavailable, type FailureKind } from '../lib/errors.ts';
+import { redactedDiagnostic, silentLogger, type ErrorDiagnostic, type Logger } from '../lib/logger.ts';
 import { collectReport, type ReportSource } from './reports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
@@ -22,6 +23,8 @@ export interface ReportRunnerOptions {
   /** Includes the active job; overload fails immediately. Default 16, maximum 100. */
   maxQueue?: number;
   onPhase?: (phase: 'reading' | 'formatting') => void;
+  /** Where unexpected report and worker failures are logged, as redacted diagnostics. */
+  logger?: Logger;
 }
 interface Pending {
   id: number;
@@ -40,6 +43,15 @@ interface Reply {
   result?: JobResult;
   /** An application failure keeps its kind and message; anything else arrives without a kind. */
   error?: { kind?: FailureKind; message: string; retryAfterSeconds?: number };
+  /** Sent with an unexpected failure, for the log only. */
+  diagnostic?: ErrorDiagnostic;
+  /** The worker could not open its reader. */
+  startupFailed?: ErrorDiagnostic;
+}
+
+/** The job's kind and the runner's id for it: what a log line may say about a job. */
+function jobFields(p: Pending) {
+  return { jobId: p.id, jobKind: 'assembly' in p.work ? p.work.assembly.kind : p.work.job.kind };
 }
 
 /** One runner per app, one worker/reader, a bounded parent queue and one job in flight. */
@@ -48,6 +60,7 @@ export class ReportRunner {
   private readonly inline: ReportSource;
   private readonly options: ReportRunnerOptions;
   private readonly maxQueue: number;
+  private readonly logger: Logger;
   private worker: Worker | null = null;
   private ready = false;
   private startup: ReturnType<typeof setTimeout> | undefined;
@@ -64,6 +77,7 @@ export class ReportRunner {
     this.inline = inline;
     this.options = options;
     this.maxQueue = options.maxQueue ?? DEFAULT_MAX_QUEUE;
+    this.logger = options.logger ?? silentLogger;
     if (!Number.isSafeInteger(this.maxQueue) || this.maxQueue < 1 || this.maxQueue > MAX_QUEUE_LIMIT)
       throw new Error('Invalid report queue limit');
   }
@@ -134,7 +148,10 @@ export class ReportRunner {
           if (this.active === p) this.finish(p, result);
         })
         .catch(error => {
-          if (this.active === p) this.finish(p, undefined, this.safeError(error));
+          if (this.active !== p) return;
+          if (!(error instanceof ApplicationError))
+            this.logger.error('Report failed', { ...jobFields(p), diagnostic: redactedDiagnostic(error) });
+          this.finish(p, undefined, this.safeError(error));
         })
         .finally(() => {
           this.inlineWork = undefined;
@@ -183,6 +200,10 @@ export class ReportRunner {
     };
     worker.on('message', (message: Reply) => {
       if (this.worker !== worker) return;
+      if (message.startupFailed) {
+        this.logger.error('Report worker failed to start', { diagnostic: message.startupFailed });
+        return;
+      }
       if (message.ready) {
         clearTimeout(this.startup);
         this.ready = true;
@@ -200,6 +221,7 @@ export class ReportRunner {
         }
         return;
       }
+      if (message.diagnostic) this.logger.error('Report failed', { ...jobFields(p), diagnostic: message.diagnostic });
       this.finish(
         p,
         message.result,
@@ -210,9 +232,19 @@ export class ReportRunner {
           : undefined,
       );
     });
-    worker.on('error', fail);
+    worker.on('error', error => {
+      if (this.worker === worker)
+        this.logger.error('Report worker crashed', {
+          ...(this.active && jobFields(this.active)),
+          diagnostic: redactedDiagnostic(error),
+        });
+      fail();
+    });
     worker.on('exit', fail);
-    this.startup = setTimeout(fail, 30000);
+    this.startup = setTimeout(() => {
+      if (this.worker === worker) this.logger.error('Report worker did not start in time');
+      fail();
+    }, 30000);
   }
   private stopWorker(): void {
     const worker = this.worker;

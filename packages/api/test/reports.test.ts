@@ -333,7 +333,7 @@ test('no-time entries count in totals, carry all_day in report rows and leave th
   const csvRows = async (path: string, init: { method: string; body?: Record<string, unknown> }) => {
     const res = await ctx.request(init.method, path, init.body);
     assert.equal(res.status, 200);
-    return parseCsv(await res.text()).slice(1);
+    return (await parseCsv(await res.text())).slice(1);
   };
   // Description, start date, start time, end date, end time and duration.
   const cells = (rows: string[][]): string[][] =>
@@ -790,8 +790,17 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
     { status: 500, body: '"Internal Server Error"' },
     { status: 500, body: '"Internal Server Error"' },
   ]);
-  assert.equal(logged.mock.callCount(), 2);
-  for (const call of logged.mock.calls) assert.match(String(call.arguments[0]), /Request failed/);
+  // One line per failed request, and one for the worker that could not open the file. That one
+  // carries the stack frames but not the error's message, which names the missing file.
+  const lines = logged.mock.calls.map(call => JSON.parse(String(call.arguments[0])) as Record<string, unknown>);
+  assert.deepEqual(lines.map(line => line.msg).sort(), [
+    'Report worker failed to start',
+    'Request failed',
+    'Request failed',
+  ]);
+  const startup = lines.find(line => line.msg === 'Report worker failed to start')!;
+  assert.ok((startup.diagnostic as { frames: string[] }).frames.length > 0);
+  assert.equal(JSON.stringify(startup).includes(file.path), false);
   const crashed = [...workers.started];
   assert.ok(crashed.length >= 1);
   await Promise.all(crashed.map(({ worker, exitCode }) => (exitCode === null ? once(worker, 'exit') : null)));
@@ -807,5 +816,6 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
   const restarted = workers.started.slice(crashed.length);
   assert.equal(restarted.length, 1);
   assert.equal(restarted[0]!.exitCode, null);
-  assert.equal(logged.mock.callCount(), 2);
+  // The restarted worker logs nothing.
+  assert.equal(logged.mock.callCount(), lines.length);
 });

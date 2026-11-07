@@ -3,7 +3,7 @@ import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/request.ts';
 import { parseRevision, parseStartPomodoro } from '../commands/timers.ts';
-export function timerRoutes(deps: Deps): Router {
+export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerStream'>): Router {
   const api = createRouter(),
     auth = deps.auth.requireAuth;
   const timers = (res: Response) => deps.timersFor(res.locals.auth);

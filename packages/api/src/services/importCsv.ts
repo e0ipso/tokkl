@@ -1,4 +1,4 @@
-import { parseCsv } from '../lib/csv.ts';
+import { CsvLimitError, parseCsv, type CsvLimits } from '../lib/csv.ts';
 import { BoundedCache } from '../lib/boundedCache.ts';
 import { invalidInput } from '../lib/errors.ts';
 import { parseDuration } from '@tokkl/common/duration';
@@ -31,6 +31,15 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 const MAX_ROWS = 100_000;
+/** Far beyond a Toggl export, which has about twenty columns and short values. */
+const MAX_COLUMNS = 1000;
+const MAX_VALUE_LENGTH = 1_000_000;
+const LIMITS: CsvLimits = { maxRows: MAX_ROWS + 1, maxFieldsPerRow: MAX_COLUMNS, maxFieldLength: MAX_VALUE_LENGTH };
+const LIMIT_MESSAGES: Readonly<Record<keyof CsvLimits, string>> = {
+  maxRows: `At most ${MAX_ROWS} rows per import`,
+  maxFieldsPerRow: `At most ${MAX_COLUMNS} columns per row`,
+  maxFieldLength: `A value is longer than ${MAX_VALUE_LENGTH} characters`,
+};
 /** Catalog names an import remembers; a failed row clears them. */
 const NAME_CACHE = 256;
 
@@ -126,12 +135,31 @@ function skippedReason(found: ImportUser): string {
 
 type Cell = (row: string[], key: string) => string;
 
-/** Parses the file and checks it has the columns an import needs. `cell` reads one trimmed value. */
-function readTable(text: string): { rows: string[][]; cell: Cell; hasUsers: boolean } {
-  const rows = parseCsv(text),
+/** A parsed Toggl detailed CSV: its rows without the header, and `cell` to read one trimmed value. */
+export interface TogglCsvTable {
+  rows: string[][];
+  cell: Cell;
+  hasUsers: boolean;
+}
+
+/** Parses the file within the import limits, giving the event loop turns as it reads. */
+async function parseLimited(text: string): Promise<string[][]> {
+  try {
+    return await parseCsv(text, LIMITS);
+  } catch (error) {
+    if (error instanceof CsvLimitError) throw invalidInput(LIMIT_MESSAGES[error.limit]);
+    throw error;
+  }
+}
+
+/**
+ * Parses the file and checks it has the columns an import needs. Run it before the import's
+ * transaction, so a large file is read without holding the database.
+ */
+export async function readTogglCsv(text: string): Promise<TogglCsvTable> {
+  const rows = await parseLimited(text),
     header = rows.shift();
   if (!header) throw invalidInput('The file is empty');
-  if (rows.length > MAX_ROWS) throw invalidInput(`At most ${MAX_ROWS} rows per import`);
   const col = columnIndex(header);
   if (col.startDate === undefined || col.startTime === undefined)
     throw invalidInput(
@@ -297,11 +325,11 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
 export async function importTogglCsv(
   ctx: OperationContext<EntryRepositories>,
   userId: number,
-  text: string,
+  table: TogglCsvTable,
   options: { dryRun: boolean; users?: string[] },
   publish: TimerPublication,
 ): Promise<ImportResult> {
-  const { rows, cell, hasUsers } = readTable(text);
+  const { rows, cell, hasUsers } = table;
   const { rowUsers, users } = tableUsers(rows, cell, hasUsers);
   const selected = selection(users, options);
   const user = await protectImport(ctx, userId),

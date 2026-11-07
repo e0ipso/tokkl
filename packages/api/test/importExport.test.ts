@@ -346,6 +346,24 @@ test('JSON export restores into a fresh account, including colors, rates, tasks 
   assert.equal(bad.status, 400);
 });
 
+test('CSV import refuses a file past its row or column limit while reading it, and imports nothing', async () => {
+  const ctx = await setup();
+  const before = await entryCount(ctx);
+  const header = 'Description,Start date,Start time,Duration\n';
+  const refused = async (csv: string, message: string) => {
+    const response = await ctx.request('POST', '/api/app/import/toggl-csv', csv, { 'content-type': 'text/csv' });
+    assert.equal(response.status, 400);
+    assert.equal(await response.json(), message);
+  };
+  await refused(header + 'Row,2026-01-05,08:00:00,00:10:00\n'.repeat(100_001), 'At most 100000 rows per import');
+  await refused(`${header.trimEnd()}${',x'.repeat(997)}\n`, 'At most 1000 columns per row');
+  await refused(
+    `${header}"${'d'.repeat(1_000_001)}",2026-01-05,08:00:00,00:10:00\n`,
+    'A value is longer than 1000000 characters',
+  );
+  assert.equal(await entryCount(ctx), before);
+});
+
 test('CSV import rejects impossible dates instead of rolling them over', async () => {
   const ctx = await setup();
   const csv = [

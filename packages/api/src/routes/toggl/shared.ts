@@ -13,7 +13,7 @@ import type { User, Workspace } from '../../storage/domain.ts';
  * The URL's workspace when the caller is a member of it, 403 otherwise. Write routes check this
  * before they read the body, and the write checks membership again under its locks.
  */
-export function authorizedWorkspace(deps: Deps, req: Request, res: Response): Promise<Workspace> {
+export function authorizedWorkspace(deps: Pick<Deps, 'readFor'>, req: Request, res: Response): Promise<Workspace> {
   return deps.readFor(res.locals.auth, queries => queries.workspace(res.locals.auth.user.id, parseId(req.params.wid)));
 }
 

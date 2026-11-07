@@ -1,9 +1,16 @@
 /** Readers for what a request carries: its JSON or text body, its client address and its cookies. */
-import type { Request } from 'express';
+import express, { type Request, type RequestHandler } from 'express';
 import { invalidInput } from '../lib/errors.ts';
 import type { JsonBody } from '../lib/values.ts';
 
-/** Bodies arrive as raw text (see createApp), so a missing or wrong Content-Type is not an error. */
+/**
+ * Reads the body as text whatever the Content-Type, up to `limit`; the route parses it. Toggl
+ * clients do not always send `Content-Type: application/json`, and the imports take raw CSV or JSON.
+ * A longer body is refused with a 413.
+ */
+export const textBody = (limit: string): RequestHandler => express.text({ type: () => true, limit });
+
+/** Bodies arrive as raw text (see `textBody`), so a missing or wrong Content-Type is not an error. */
 function parseBody(req: Request): unknown {
   const text = typeof req.body === 'string' ? req.body : '';
   try {

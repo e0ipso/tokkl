@@ -9,7 +9,7 @@ import { parseWorkspaceChanges } from '../../commands/accounts.ts';
 import { authorizedWorkspace } from './shared.ts';
 
 /** A workspace's settings and its members. */
-export function workspaceRoutes(deps: Deps): Router {
+export function workspaceRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor'>): Router {
   const api = createRouter();
   api.get(
     '/workspaces/:wid',

@@ -10,7 +10,7 @@ import type { EntryDetails, Id, TimeEntry, User } from '../storage/domain.ts';
 import { ApplicationError, conflict, invalidInput } from '../lib/errors.ts';
 import { isoSeconds } from '../lib/values.ts';
 import { entryResolution, getEntryIn, getTimeEntry, protectEntryOperation, type EntryContext } from './entryAccess.ts';
-import type { EntryChanges, EntryFields, EntryPatchStep, NewEntry } from './entryCommands.ts';
+import type { EntryChanges, EntryFields, EntryPatchStep, EntrySplit, NewEntry } from './entryCommands.ts';
 import {
   applyTagAction,
   currentTagIds,
@@ -219,6 +219,55 @@ async function applyEntryUpdate(
     billable: changes.billable ?? (projectChanged && project ? project.billable : current.billable),
     allDay,
     tagIds,
+  });
+}
+
+/** The two entries a split leaves: the original, cut short, and the new one after it. */
+export interface SplitEntries {
+  first: EntryDetails;
+  second: EntryDetails;
+}
+
+/**
+ * Splits a stopped, timed entry at the grid point nearest `split.at`. The entry keeps the first
+ * half and a new entry with its fields takes the second. The halves come from the entry's snapped
+ * span, so they add up to it. The edit and the create make the same checks as any other, in one
+ * transaction: a refusal leaves the entry as it was.
+ */
+export async function splitTimeEntry(
+  ctx: EntryContext,
+  seen: User,
+  id: Id,
+  split: EntrySplit,
+  publish: TimerPublication,
+): Promise<SplitEntries> {
+  return ctx.transaction(async ctx => {
+    const wid = (await getTimeEntry(ctx, seen.id, id)).workspaceId;
+    const user = await entryWrite(ctx, seen.id, wid, publish);
+    const current = await getEntryIn(ctx, user.id, wid, id);
+    if (current.allDay) throw invalidInput('No-time entries have no start or end time');
+    if (!current.stop) throw conflict('A running time entry can not be split');
+    const resolution = await entryResolution(ctx);
+    const whole = snapToResolution(resolution, user, new Date(current.start), new Date(current.stop));
+    const cut = snapInstant(wholeSeconds(split.at), resolution, user.timezone);
+    if (!whole || cut <= whole.start || cut >= whole.stop)
+      throw invalidInput('The split time must fall inside the entry');
+    const rest: NewEntry = {
+      allDay: false,
+      times: { start: cut, stop: whole.stop },
+      description: current.description,
+      projectId: current.projectId,
+      taskId: current.taskId,
+      tagIds: currentTagIds(current),
+      billable: current.billable,
+      createdWith: split.createdWith,
+    };
+    const second = await ctx.entries.create(await prepareEntry(ctx, user, wid, rest, false));
+    const first = await applyEntryUpdate(ctx, user, wid, id, {
+      times: { start: whole.start, stop: cut },
+      tagAction: 'replace',
+    });
+    return { first, second };
   });
 }
 

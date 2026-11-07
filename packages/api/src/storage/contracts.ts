@@ -306,9 +306,13 @@ export interface TransactionScope<R extends object> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   savepoint<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   beforeCommit(key: string, callback: () => Promise<void>): void;
+  /**
+   * Runs `read` once every before-commit hook has run, just before COMMIT, so an operation can build
+   * its answer from the state the transaction commits. `read` may only read: a hook it registers
+   * fails the transaction.
+   */
+  readAtCommit(read: () => Promise<void>): void;
   afterCommit(callback: () => Promise<void>): void;
-  /** Values that live exactly as long as this transaction, created on first use under `key`. */
-  local<T>(key: string, create: () => T): T;
   lockUserTimer(userId: Id): Promise<void>;
   lockInstanceAdministration(): Promise<void>;
   /** Acquire instance, then ascending workspaces, then ascending users, across all calls. */

@@ -2,27 +2,20 @@ import { type Router } from 'express';
 import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { jsonRead } from './context.ts';
-import { readText } from '../http/request.ts';
-import { query, queryList } from '../http/params.ts';
-import { invalidInput, notFound } from '../lib/errors.ts';
+import { query } from '../http/params.ts';
+import { notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
-import { createSessionHandlers } from '../auth/sessions.ts';
-import { restoreTimeEntry, purgeDeletedEntries } from '../domain/timeEntries.ts';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
-export interface SetupState {
-  code: string | null;
-}
-export function appRoutes(deps: Deps, setup: SetupState): Router {
-  const { storage, config, accounts, loginLimiter, setupLimiter } = deps;
+import { parseEntrySplit } from '../commands/timeEntries.ts';
+import { readJson } from '../http/request.ts';
+
+export type AppRouteDeps = Pick<Deps, 'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount'>;
+
+export function appRoutes(deps: AppRouteDeps): Router {
+  const { sessions } = deps;
   const app = createRouter(),
     auth = deps.auth.requireAuth;
-  const sessions = createSessionHandlers(storage, accounts, {
-    loginLimiter,
-    setupLimiter,
-    sessionDays: config.sessionDays,
-    setup,
-  });
   app.get('/status', sessions.status);
   app.post('/setup', sessions.firstAdmin);
   app.get('/invites/:token', sessions.inviteInfo);
@@ -32,10 +25,18 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.post('/login', sessions.login);
   app.post('/logout', sessions.logout);
   app.post('/time_entries/:id/restore', auth, async (req, res) => {
-    const entry = await deps.entryWrite(res.locals.auth, ctx =>
-      restoreTimeEntry(ctx, res.locals.auth.user, parseId(req.params.id), deps.publish),
-    );
+    const entry = await deps.entriesFor(res.locals.auth).restore(parseId(req.params.id));
     return res.json(serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }));
+  });
+  // Both halves or neither: the entry keeps the first, a new entry takes the second.
+  app.post('/time_entries/:id/split', auth, async (req, res) => {
+    const id = parseId(req.params.id);
+    const { first, second } = await deps.entriesFor(res.locals.auth).split(id, parseEntrySplit(readJson(req)));
+    const presentation = { meta: true, user: res.locals.auth.user };
+    return res.json({
+      first: serializeTimeEntry(first, presentation),
+      second: serializeTimeEntry(second, presentation),
+    });
   });
   app.get(
     '/bounds',
@@ -60,15 +61,11 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   );
   app.delete('/trash', auth, async (_req, res) =>
     res.json({
-      deleted: await deps.entryWrite(res.locals.auth, ctx =>
-        purgeDeletedEntries(ctx, res.locals.auth.user.id, deps.publish),
-      ),
+      deleted: await deps.entriesFor(res.locals.auth).purgeTrash(),
     }),
   );
   app.delete('/trash/:id', auth, async (req, res) => {
-    const deleted = await deps.entryWrite(res.locals.auth, ctx =>
-      purgeDeletedEntries(ctx, res.locals.auth.user.id, deps.publish, parseId(req.params.id)),
-    );
+    const deleted = await deps.entriesFor(res.locals.auth).purgeTrash(parseId(req.params.id));
     if (!deleted) throw notFound('Time entry not found in trash');
     return res.json({ deleted });
   });
@@ -101,31 +98,6 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
       .set('Content-Type', 'text/csv; charset=utf-8')
       .set('Content-Disposition', `attachment; filename="${result.filename}"`)
       .send(result.body);
-  });
-  app.post('/import/toggl-csv', auth, async (req, res) => {
-    const text = readText(req);
-    if (!text.trim()) throw invalidInput('The file is empty');
-    // One `user=<key>` per selected Toggl user; keys may hold commas, so they are never joined.
-    const users = queryList(req, 'user');
-    if (users?.length === 0) throw invalidInput('Invalid user selection');
-    return res.json(
-      await deps
-        .importsFor(res.locals.auth)
-        .importTogglCsv(res.locals.auth.user.id, text, { dryRun: query(req, 'dry_run') === 'true', users }),
-    );
-  });
-  app.post('/import/json', auth, async (req, res) => {
-    let data: unknown;
-    try {
-      data = JSON.parse(readText(req));
-    } catch {
-      throw invalidInput('The file is not valid JSON');
-    }
-    return res.json(
-      await deps
-        .importsFor(res.locals.auth)
-        .importJsonExport(res.locals.auth.user.id, data, { dryRun: query(req, 'dry_run') === 'true' }),
-    );
   });
   return app;
 }

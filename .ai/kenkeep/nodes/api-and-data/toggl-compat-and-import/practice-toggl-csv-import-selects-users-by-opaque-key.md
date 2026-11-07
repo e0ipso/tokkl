@@ -27,6 +27,8 @@ kk_confidence: high
 
 Selected rows always go to the caller's account, in its `default_workspace_id`. After the selection checks, `memberWorkspace` answers 403 when the caller is no longer a member of that workspace, dry runs included.
 
+`readTogglCsv` parses the file before the import's transaction opens. `parseCsv` in `packages/api/src/lib/csv.ts` reads it in stretches of 64 KiB, gives the event loop a turn after each, and stops at the first limit it passes: 100000 rows after the header, 1000 columns in a row, or a value of over a million characters. Each is a 400 with its own message, and nothing is imported.
+
 Imported entries keep their exact times; they are not snapped to the time resolution (see `practice-stopped-entries-snap-to-the-time-resolution-on-write`). `e2e/fixtures-data/transfer/toggl-team.csv` is the multi-user fixture.
 
 <!-- kk:related:start -->

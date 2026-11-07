@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Request, Response } from 'express';
 import { errorHandler, errorReply } from '../src/http/errors.ts';
-import type { Logger } from '../src/lib/logger.ts';
+import { redactedDiagnostic, type Logger } from '../src/lib/logger.ts';
 import { ReportRunner } from '../src/services/reportRunner.ts';
 import {
   conflict,
@@ -131,4 +131,47 @@ test('the report runner refuses an aborted request with a cancellation, not a fa
     error => error instanceof RequestCancelled && error.message === 'Report cancelled',
   );
   await runner.close();
+});
+
+test('a redacted diagnostic keeps the name, a plain code and the frames, never the message', () => {
+  const error = Object.assign(new Error("select 1 where password = 'hunter2'\n    at forged (secret)"), {
+    code: 'ER_PARSE_ERROR',
+  });
+  const diagnostic = redactedDiagnostic(error);
+  assert.equal(diagnostic.name, 'Error');
+  assert.equal(diagnostic.code, 'ER_PARSE_ERROR');
+  assert.ok(diagnostic.frames.length > 0);
+  assert.ok(diagnostic.frames.every(frame => frame.startsWith('at ')));
+  assert.doesNotMatch(JSON.stringify(diagnostic), /hunter2|forged|secret/);
+  // A code that is not a short plain word could carry data, so it is left out.
+  assert.equal(redactedDiagnostic(Object.assign(new Error('x'), { code: 'user me@example.com' })).code, undefined);
+  assert.deepEqual(redactedDiagnostic('thrown text'), { name: 'string', frames: [] });
+});
+
+test('an unexpected inline report failure is logged with its job, not its message', async () => {
+  const lines: Array<{ message: string; fields?: Record<string, unknown> }> = [];
+  const logger: Logger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: (message, fields) => lines.push({ message, fields }),
+    child: () => logger,
+  };
+  const runner = new ReportRunner(
+    { backend: 'sqlite', filename: ':memory:', busyTimeoutMs: 5000 },
+    { readSnapshot: () => Promise.reject(new Error('relation "time_entries" holds private rows')) },
+    { logger },
+  );
+  const job = {
+    kind: 'v3-weekly',
+    filter: { startDate: '2026-01-01', endDate: '2026-01-07' },
+    weekStart: '2026-01-01',
+  };
+  await assert.rejects(runner.run(1, 1, job as never), /^Error: Report failed$/);
+  await runner.close();
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0]!.message, 'Report failed');
+  assert.equal(lines[0]!.fields?.jobKind, 'v3-weekly');
+  assert.equal(lines[0]!.fields?.jobId, 1);
+  assert.doesNotMatch(JSON.stringify(lines), /private rows/);
 });

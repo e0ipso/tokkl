@@ -43,6 +43,14 @@ export interface NewEntry extends EntryFields {
   createdWith?: string;
 }
 
+/** Where to split a stopped entry in two. */
+export interface EntrySplit {
+  /** The cut. It moves to the nearest grid point of the time resolution, as a stop does. */
+  at: Date;
+  /** The `created_with` of the new second half. */
+  createdWith?: string;
+}
+
 export interface EntryChanges extends EntryFields {
   allDay?: boolean;
   times: EntryTimes;

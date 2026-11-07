@@ -1,23 +1,37 @@
 /**
  * The application services the HTTP layer calls: domain operations bound to storage, the signed-in
- * credential checks around them, timer delivery and the report runner. Framework-free; `app.ts`
- * composes them with the HTTP adapters.
+ * credential checks around them, timer delivery and the report runner. Each operation opens its
+ * own transaction and binds what it publishes, so a route parses, calls one operation and presents
+ * the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
-import type { Repositories, Storage, TransactionContext } from '../storage/contracts.ts';
+import type { Repositories, Storage } from '../storage/contracts.ts';
 import type { StorageConfig } from '../storage/config.ts';
+import type { Id, User } from '../storage/domain.ts';
 import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
-import { createAccountOperations, createPreferenceOperations } from '../domain/accounts.ts';
-import { authenticatedUser, isActiveAdmin, type Authentication } from '../domain/credentials.ts';
-import { noWorkspaceAccess } from '../domain/membership.ts';
+import type { InviteRequest, ProfileUpdate, SettingChanges } from '../domain/accountCommands.ts';
+import {
+  createAccountOperations,
+  createPreferenceOperations,
+  type AccountEntryEffects,
+  type AccountOperations,
+  type AccountPasswordAttempt,
+} from '../domain/accounts.ts';
+import {
+  authenticatedUser,
+  isActiveAdmin,
+  type AccountCredential,
+  type Authentication,
+} from '../domain/credentials.ts';
 import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
-import { createAccountEntryEffects, createCatalogTimerEffects } from '../domain/timerEffects.ts';
-import type { CatalogTimerEffects } from '../domain/catalogs.ts';
+import { createAccountEntryEffects } from '../domain/timerEffects.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { createImportOperations } from './importJson.ts';
 import type { ExportAssemblyJob, JobResult } from './reportJobs.ts';
 import { ReportRunner } from './reportRunner.ts';
+import { createCatalogOperations } from './catalogOperations.ts';
+import { createEntryOperations } from './entryOperations.ts';
 import { credentialCheck } from './streamCredentials.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations } from './timerReplies.ts';
@@ -57,6 +71,31 @@ function guardedStorage(storage: Storage, authentication: Authentication, admini
   };
 }
 
+/**
+ * The account operations with the deployment's session length and the timer effects of a time
+ * zone change or an account deletion bound in, so a caller passes only what the request says.
+ */
+function boundAccountOperations(
+  operations: AccountOperations<Repositories>,
+  effects: AccountEntryEffects<Repositories>,
+  sessionDays: number,
+) {
+  return {
+    ...operations,
+    deleteAccount: (actorId: Id, userId: Id, email: string | undefined) =>
+      operations.deleteAccount(actorId, userId, email, effects),
+    updateProfile: (
+      seen: User,
+      credential: AccountCredential,
+      update: ProfileUpdate,
+      attempt?: AccountPasswordAttempt,
+    ) => operations.updateProfile(seen, credential, update, effects, attempt),
+    createInvite: (actorId: Id, request: InviteRequest) => operations.createInvite(actorId, request, sessionDays),
+    updateSettings: (actorId: Id, changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
+  };
+}
+export type SignedInAccountOperations = ReturnType<typeof boundAccountOperations>;
+
 export function createApplicationServices({
   storage,
   storageConfig,
@@ -68,7 +107,8 @@ export function createApplicationServices({
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
-  const reports = new ReportRunner(storageConfig, storage);
+  const reports = new ReportRunner(storageConfig, storage, { logger });
+  const entryEffects = createAccountEntryEffects<Repositories>(publish);
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
     authentication: Authentication,
@@ -84,7 +124,6 @@ export function createApplicationServices({
   }
   return {
     accounts: createAccountOperations(storage, security),
-    entryEffects: createAccountEntryEffects<Repositories>(publish),
     timerStreams,
     publish,
     reports,
@@ -105,8 +144,12 @@ export function createApplicationServices({
       const data = await readFor(authentication, queries => queries.accountExport(authentication.user.id));
       return reports.assembleExport(data, assembly, options);
     },
-    accountsFor: (authentication: Authentication) =>
-      createAccountOperations(guardedStorage(storage, authentication, true), security),
+    accountsFor: (authentication: Authentication): SignedInAccountOperations =>
+      boundAccountOperations(
+        createAccountOperations(guardedStorage(storage, authentication, true), security),
+        entryEffects,
+        sessionDays,
+      ),
     /** Preferences take only the user's guard, so their credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
       createPreferenceOperations(guardedStorage(storage, authentication)),
@@ -114,22 +157,10 @@ export function createApplicationServices({
       presentTimerOperations(createTimerOperations(guardedStorage(storage, authentication), publish)),
     importsFor: (authentication: Authentication) =>
       createImportOperations(guardedStorage(storage, authentication), publish),
-    entryWrite<T>(authentication: Authentication, work: (ctx: TransactionContext) => Promise<T>) {
-      return guardedStorage(storage, authentication).transaction(work);
-    },
-    /** Runs a catalog write under the workspace guard and the guards of every timer it may change. */
-    catalogWrite<T>(
-      authentication: Authentication,
-      wid: number,
-      work: (ctx: TransactionContext, effects: CatalogTimerEffects) => Promise<T>,
-    ) {
-      return guardedStorage(storage, authentication).transaction(async ctx => {
-        await ctx.lockWorkspaces([wid]);
-        if (!(await ctx.workspaces.forMember(authentication.user.id, wid))) throw noWorkspaceAccess();
-        await ctx.lockUsers([authentication.user.id, ...(await ctx.timers.affectedUsers(wid))]);
-        return work(ctx, createCatalogTimerEffects(ctx, publish));
-      });
-    },
+    entriesFor: (authentication: Authentication) =>
+      createEntryOperations(guardedStorage(storage, authentication), authentication.user, publish),
+    catalogsFor: (authentication: Authentication) =>
+      createCatalogOperations(guardedStorage(storage, authentication), authentication.user.id, publish),
     async close() {
       const results = await Promise.allSettled([timerStreams.closeAll(), reports.close()]);
       // Streams are closed, so no new rebuild starts. Let started ones finish before storage closes.
