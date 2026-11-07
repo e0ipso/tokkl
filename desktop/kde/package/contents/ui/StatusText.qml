@@ -85,16 +85,8 @@ QtObject {
         if (id === null || id === undefined) {
             return i18nc("@item:inmenu", "No project");
         }
-        const project = timer.entryProject;
-        if ((timer.running || timer.paused) && project && project.id === id) {
-            return projectLabel(project);
-        }
-        for (const candidate of timer.projects) {
-            if (candidate.id === id) {
-                return projectLabel(candidate);
-            }
-        }
-        return i18nc("@item:inmenu", "Unknown project");
+        const project = timer.chosenProjectDetails;
+        return project ? projectLabel(project) : i18nc("@item:inmenu", "Unknown project");
     }
 
     // One line for the tooltip and the accessible description. It names the

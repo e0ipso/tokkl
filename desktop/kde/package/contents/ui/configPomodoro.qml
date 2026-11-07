@@ -242,8 +242,8 @@ KCM.SimpleKCM {
             objectName: "workMinutes"
             Kirigami.FormData.label: i18nc("@label:spinbox", "Work:")
             enabled: page.lengthsEditable
-            minimum: 1
-            maximum: 180
+            minimum: page.preferences.limits.workMinutes.min
+            maximum: page.preferences.limits.workMinutes.max
             savedValue: page.lengthsRead ? page.preferences.workMinutes : page.cfg_cachedWorkMinutes
             error: page.preferences.workMinutesError
             onModified: page.configurationChanged()
@@ -254,8 +254,8 @@ KCM.SimpleKCM {
             objectName: "shortRestMinutes"
             Kirigami.FormData.label: i18nc("@label:spinbox", "Short rest:")
             enabled: page.lengthsEditable
-            minimum: 1
-            maximum: 60
+            minimum: page.preferences.limits.shortRestMinutes.min
+            maximum: page.preferences.limits.shortRestMinutes.max
             savedValue: page.lengthsRead ? page.preferences.shortRestMinutes : page.cfg_cachedShortRestMinutes
             error: page.preferences.shortRestMinutesError
             onModified: page.configurationChanged()
@@ -266,8 +266,8 @@ KCM.SimpleKCM {
             objectName: "longRestMinutes"
             Kirigami.FormData.label: i18nc("@label:spinbox", "Long rest:")
             enabled: page.lengthsEditable
-            minimum: 1
-            maximum: 60
+            minimum: page.preferences.limits.longRestMinutes.min
+            maximum: page.preferences.limits.longRestMinutes.max
             savedValue: page.lengthsRead ? page.preferences.longRestMinutes : page.cfg_cachedLongRestMinutes
             error: page.preferences.longRestMinutesError
             onModified: page.configurationChanged()
@@ -278,8 +278,8 @@ KCM.SimpleKCM {
             objectName: "longRestEvery"
             Kirigami.FormData.label: i18nc("@label:spinbox", "Long rest every:")
             enabled: page.lengthsEditable
-            minimum: 1
-            maximum: 12
+            minimum: page.preferences.limits.longRestEvery.min
+            maximum: page.preferences.limits.longRestEvery.max
             countsPomodoros: true
             savedValue: page.lengthsRead ? page.preferences.longRestEvery : page.cfg_cachedLongRestEvery
             error: page.preferences.longRestEveryError

@@ -30,7 +30,8 @@ MouseArea {
     readonly property color panelInk: Kirigami.Theme.textColor
     readonly property bool lightPanelInk: panelInk.r * 0.2126 + panelInk.g * 0.7152 + panelInk.b * 0.0722 > 0.5
 
-    readonly property alias words: words
+    // The words the button, its menu and the widget's tooltip share.
+    required property StatusText words
     readonly property alias menu: menu
 
     signal openRequested(url url)
@@ -89,30 +90,24 @@ MouseArea {
 
     Accessible.role: Accessible.Button
     Accessible.name: {
-        if (words.showsSession) {
-            return words.sessionText;
+        if (button.words.showsSession) {
+            return button.words.sessionText;
         }
         if (button.timer.running) {
-            return words.withMode(i18nc("@action:button", "Pause the Tokkl timer"));
+            return button.words.withMode(i18nc("@action:button", "Pause the Tokkl timer"));
         }
         if (button.timer.paused) {
-            return words.withMode(i18nc("@action:button", "Resume the Tokkl timer"));
+            return button.words.withMode(i18nc("@action:button", "Resume the Tokkl timer"));
         }
-        return words.pomodoroMode ? words.withMode(i18nc("@action:button", "Start a Pomodoro session")) : i18nc("@action:button", "Start the Tokkl timer");
+        return button.words.pomodoroMode ? button.words.withMode(i18nc("@action:button", "Start a Pomodoro session")) : i18nc("@action:button", "Start the Tokkl timer");
     }
     // The session's line has no project, so the description names it.
-    Accessible.description: words.showsSession ? words.withMessage(words.projectText) : words.summary
+    Accessible.description: button.words.showsSession ? button.words.withMessage(button.words.projectText) : button.words.summary
     Accessible.focusable: true
     Accessible.onPressAction: {
         if (button.activate()) {
             button.openMenuFromKeyboard();
         }
-    }
-
-    StatusText {
-        id: words
-        timer: button.timer
-        session: button.session
     }
 
     RowLayout {
@@ -136,7 +131,7 @@ MouseArea {
             objectName: "pomodoroGlyph"
             Layout.preferredWidth: Kirigami.Units.iconSizes.small
             Layout.preferredHeight: Kirigami.Units.iconSizes.small
-            visible: words.pomodoroMode
+            visible: button.words.pomodoroMode
             source: Qt.resolvedUrl(button.monochromeIcon ? "../images/hourglass-mono.svg" : "../images/hourglass.svg")
             isMask: button.monochromeIcon
             color: button.monochromeIcon ? button.panelInk : "transparent"
@@ -152,7 +147,7 @@ MouseArea {
         PlasmaComponents.Label {
             id: elapsedLabel
             objectName: "elapsedLabel"
-            text: words.showsSession ? button.session.countdownText : button.timer.elapsedText
+            text: button.words.showsSession ? button.session.countdownText : button.timer.elapsedText
             font.features: {
                 "tnum": 1
             }
@@ -198,7 +193,7 @@ MouseArea {
         id: menu
         timer: button.timer
         session: button.session
-        words: words
+        words: button.words
         onOpenRequested: url => button.openRequested(url)
         onConfigureRequested: button.configureRequested()
     }

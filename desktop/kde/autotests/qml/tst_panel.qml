@@ -27,6 +27,8 @@ TestCase {
 
     property PanelFixture fixture
     property PanelButton button
+    // The words the widget shares between the button and its tooltip.
+    property StatusText words
     // Kirigami.Units.longDuration before a test changed it, or -1.
     property int longDurationBefore: -1
 
@@ -38,6 +40,11 @@ TestCase {
     Component {
         id: buttonComponent
         PanelButton {}
+    }
+
+    Component {
+        id: wordsComponent
+        StatusText {}
     }
 
     // Stands in for Plasmoid.configuration: the four cached lengths, as an
@@ -301,9 +308,14 @@ TestCase {
     function init() {
         revision = 0;
         fixture = fixtureComponent.createObject(testCase);
-        button = buttonComponent.createObject(testCase, {
+        words = wordsComponent.createObject(testCase, {
             timer: fixture.timer,
             session: fixture.session
+        });
+        button = buttonComponent.createObject(testCase, {
+            timer: fixture.timer,
+            session: fixture.session,
+            words: words
         });
         verify(button);
         button.width = button.implicitWidth;
@@ -322,6 +334,7 @@ TestCase {
         }
         button.menu.dismiss();
         button.destroy();
+        words.destroy();
         wait(0);
         fixture.destroy();
         wait(0);

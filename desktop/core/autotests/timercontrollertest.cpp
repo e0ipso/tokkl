@@ -378,6 +378,22 @@ private Q_SLOTS:
         QVERIFY(!shared.canWrite());
     }
 
+    // The menu's project details: none without a project, the running
+    // entry's project, and the active project chosen for the next start.
+    void chosenProjectDetailsFollowTheChoice()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
+        QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
+        QVERIFY(f.answerState("null"));
+        QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QVERIFY(f.timer.chosenProjectDetails().isNull());
+        QVERIFY(f.timer.chooseProject(11));
+        QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("id")).toLongLong(), 11);
+    }
+
     void exposesContextAndEntry()
     {
         Fixture f;

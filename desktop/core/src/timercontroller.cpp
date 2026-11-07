@@ -64,6 +64,9 @@ TimerController::TimerController(Clock *clock, QObject *parent)
     connect(this, &TimerController::selectionChanged, this, &TimerController::choiceChanged);
     connect(this, &TimerController::currentEntryChanged, this, &TimerController::choiceChanged);
     connect(this, &TimerController::chainChanged, this, &TimerController::choiceChanged);
+    for (auto signal : {&TimerController::choiceChanged, &TimerController::entryProjectChanged, &TimerController::projectsChanged}) {
+        connect(this, signal, this, &TimerController::chosenProjectDetailsChanged);
+    }
     // A new next-start project may need its details read.
     connect(this, &TimerController::selectionChanged, this, &TimerController::resolveProject);
     if (m_clock) {
@@ -332,6 +335,23 @@ std::optional<Project> TimerController::entryProject() const
 QVariant TimerController::entryProjectVariant() const
 {
     return m_entryProject ? QVariant(m_entryProject->toVariantMap()) : QVariant::fromValue(nullptr);
+}
+
+QVariant TimerController::chosenProjectDetails() const
+{
+    const std::optional<qint64> id = chosenProject();
+    if (!id) {
+        return QVariant::fromValue(nullptr);
+    }
+    if ((m_entry || isPaused()) && m_entryProject && m_entryProject->id == *id) {
+        return m_entryProject->toVariantMap();
+    }
+    for (const Project &project : m_catalog->projects()) {
+        if (project.id == *id) {
+            return project.toVariantMap();
+        }
+    }
+    return QVariant::fromValue(nullptr);
 }
 
 TimerController::IndicatorState TimerController::indicatorState() const

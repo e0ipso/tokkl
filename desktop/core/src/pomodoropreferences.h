@@ -47,12 +47,17 @@ class PomodoroPreferences : public QObject
     Q_PROPERTY(QString longRestEveryError READ longRestEveryError NOTIFY stateChanged)
     // A failed read, or a failed save that names no field.
     Q_PROPERTY(QString errorString READ errorString NOTIFY stateChanged)
+    // The range and default of each length, so settings pages do not repeat
+    // them: one map per length, keyed workMinutes, shortRestMinutes,
+    // longRestMinutes and longRestEvery, with min, max and default.
+    Q_PROPERTY(QVariantMap limits READ limits CONSTANT)
 
 public:
     // Uses the connection, which it does not own.
     explicit PomodoroPreferences(Connection *connection, QObject *parent = nullptr);
 
     PomodoroConfig config() const;
+    static QVariantMap limits();
     int workMinutes() const;
     int shortRestMinutes() const;
     int longRestMinutes() const;

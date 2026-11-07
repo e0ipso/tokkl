@@ -167,6 +167,11 @@ public:
     // unresolved. A project the instance no longer has is a map with an
     // empty name.
     Q_PROPERTY(QVariant entryProject READ entryProjectVariant NOTIFY entryProjectChanged)
+    // The project map the menu names for chosenProjectId: entryProject while
+    // an entry runs or a chain is paused and it is that project, otherwise
+    // the active project with that id; null for no project or one that is
+    // neither.
+    Q_PROPERTY(QVariant chosenProjectDetails READ chosenProjectDetails NOTIFY chosenProjectDetailsChanged)
     // The project behind chosenProjectId for the panel indicator, and its
     // colour as lowercase #rrggbb. The colour is empty outside the Project
     // state and for any other value. A string keeps the core free of Qt Gui.
@@ -217,6 +222,7 @@ public:
     bool chosenBillable() const;
     std::optional<Project> entryProject() const;
     QVariant entryProjectVariant() const;
+    QVariant chosenProjectDetails() const;
     IndicatorState indicatorState() const;
     QString indicatorColor() const;
 
@@ -264,6 +270,7 @@ Q_SIGNALS:
     void selectionChanged();
     void choiceChanged();
     void entryProjectChanged();
+    void chosenProjectDetailsChanged();
     void indicatorChanged();
 
 private:

@@ -89,6 +89,7 @@ PlasmoidItem {
         monochromeIcon: Plasmoid.configuration.monochromeIcon
         timer: root.timer
         session: root.pomodoro.session
+        words: root.words
         // The configured base URL only: it never holds credentials.
         onOpenRequested: url => Qt.openUrlExternally(url)
         onConfigureRequested: Plasmoid.internalAction("configure").trigger()
