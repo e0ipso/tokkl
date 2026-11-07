@@ -423,6 +423,8 @@ private Q_SLOTS:
     void startsAndEndsOnTheServer()
     {
         Fixture f;
+        // Before an account, the timer's toggle sends nothing.
+        QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);
         QVERIFY(connectAccount(f));
         QVERIFY(!f.session->canStartSession());
 
@@ -431,6 +433,10 @@ private Q_SLOTS:
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
         const qsizetype timerStart = f.last("POST", entriesPath);
         QVERIFY(timerStart >= 0);
+        // While the start waits for its answer, a click is ignored, as
+        // Activate promises over D-Bus.
+        QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);
+        QCOMPARE(f.find("POST", entriesPath).size(), 1);
         const QJsonObject started = runningEntry(30, f.serverNow());
         f.transport.respond(timerStart, FakeTransport::answer(200, QJsonDocument(started).toJson(QJsonDocument::Compact)));
         // The read after the start shows it.

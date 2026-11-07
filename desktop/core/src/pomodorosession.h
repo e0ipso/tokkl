@@ -94,9 +94,9 @@ class PomodoroSession : public QObject
 public:
     // What a left-click did.
     enum class Activation {
-        Handled,
+        Handled, // a request was sent
         OpenMenu, // a session runs before its planned end; the platform opens the menu
-        Ignored, // nothing sent: no account, or an action waits for its answer or its outcome
+        Ignored, // nothing sent: no account, no state read yet, or an action waits for its answer or its outcome
     };
     Q_ENUM(Activation)
 

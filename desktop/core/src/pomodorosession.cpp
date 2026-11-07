@@ -150,10 +150,7 @@ PomodoroSession::Activation PomodoroSession::activate()
         return confirmNextPhase() ? Activation::Handled : Activation::Ignored;
     }
     if (timerHeld() || !m_pomodoroMode) {
-        if (m_timer) {
-            m_timer->toggle();
-        }
-        return Activation::Handled;
+        return m_timer && m_timer->toggle() ? Activation::Handled : Activation::Ignored;
     }
     return startSession() ? Activation::Handled : Activation::Ignored;
 }

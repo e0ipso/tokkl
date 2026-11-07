@@ -1478,9 +1478,14 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), true);
+        // The timer's toggle without an account sends nothing either.
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
         QVERIFY(f.connect());
 
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
+        // A click while the start waits for its answer applies nothing.
+        QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
+        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
         QVERIFY(f.answer("POST", "/workspaces/7/time_entries", json(entryObject(5, 11, true))));
         f.change(entryObject(5, 11, true));
         QVERIFY(f.serve());
