@@ -10,9 +10,11 @@ import { OverlayStackProvider } from './components/overlayStack.tsx';
 import { ToastProvider } from './components/Toast.tsx';
 import './styles.css';
 
+const container = document.getElementById('root');
+if (!container) throw new Error('index.html has no #root element.');
 const queryClient = createQueryClient();
 
-createRoot(document.getElementById('root')!).render(
+createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>

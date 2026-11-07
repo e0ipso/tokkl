@@ -48,6 +48,7 @@ export function RangeControl({
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState(range);
   const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const presets = useRef<(HTMLButtonElement | null)[]>([]);
   const active = preset ?? matchingPreset(range, todayKey, beginningOfWeek, firstDay);
   const activeIndex = active ? PRESETS.indexOf(active) : -1;
@@ -82,8 +83,7 @@ export function RangeControl({
 
   /** Closes the popover and gives focus back to the range button if it was inside the popover. */
   const close = () => {
-    const popover = presets.current[0]?.closest('.popover');
-    const inside = popover?.contains(document.activeElement) ?? false;
+    const inside = panel.current?.contains(document.activeElement) ?? false;
     setOpen(false);
     setFocused(-1);
     if (inside) button.current?.focus();
@@ -135,7 +135,7 @@ export function RangeControl({
         <Icon name="chevronRight" />
       </button>
       {open ? (
-        <Popover anchor={button} label="Period" onClose={close} width={300}>
+        <Popover anchor={button} panel={panel} label="Period" onClose={close} width={300}>
           <div className="range-presets" role="listbox" aria-label="Date range">
             {PRESETS.map((name, index) => (
               <button

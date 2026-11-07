@@ -68,6 +68,7 @@ export function Popover({
   children,
   width = 300,
   align = 'left',
+  panel,
 }: {
   anchor: RefObject<HTMLElement | null>;
   /** The dialog's accessible name. */
@@ -76,8 +77,11 @@ export function Popover({
   children: ReactNode;
   width?: number;
   align?: 'left' | 'right';
+  /** Receives the panel element, for a caller that needs to know whether focus is inside it. */
+  panel?: RefObject<HTMLDivElement | null>;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const own = useRef<HTMLDivElement>(null);
+  const ref = panel ?? own;
   useOverlayLayer();
   useDismiss(ref, onClose, anchor);
   usePlacement(ref, anchor, width, align);
