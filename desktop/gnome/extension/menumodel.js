@@ -108,7 +108,7 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
     if (incomplete) {
         choices.push({
             id: null,
-            label: _('Project list cut short. Use Open Tokkl for the others.'),
+            label: _('Project list cut short. Open Tokkl in a browser for the others.'),
             checked: false,
             note: true,
         });

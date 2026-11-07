@@ -102,7 +102,12 @@ test('a cut-short project list says so before the projects, as KDE and macOS do'
     const choices = projectChoices([{ id: 7, name: 'Alpha' }], 7, projectLabel, identity, true);
     assert.deepEqual(choices, [
         { id: 0, label: 'No project', checked: false },
-        { id: null, label: 'Project list cut short. Use Open Tokkl for the others.', checked: false, note: true },
+        {
+            id: null,
+            label: 'Project list cut short. Open Tokkl in a browser for the others.',
+            checked: false,
+            note: true,
+        },
         { id: 7, label: 'Alpha', checked: true },
     ]);
     assert.equal(
