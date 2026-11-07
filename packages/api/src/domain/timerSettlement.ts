@@ -67,22 +67,6 @@ function timerFingerprint(snapshot: TimerSnapshot, chainTags: TagLabel[]): strin
 }
 const idleFingerprint = timerFingerprint({ running: null, pauseChain: null, session: null, revision: null }, []);
 
-interface PendingReply {
-  view: TimerView;
-  at: Date;
-}
-/** Replies this transaction has handed out for a user; settlement keeps them current until commit. */
-function pendingReplies(ctx: SettlementContext, userId: Id): PendingReply[] {
-  const replies = ctx.local('timer-replies', () => new Map<Id, PendingReply[]>());
-  let list = replies.get(userId);
-  if (!list) replies.set(userId, (list = []));
-  return list;
-}
-/** Keeps `view` equal to the state this transaction commits, through every later settlement. */
-export function holdReply(ctx: SettlementContext, userId: Id, view: TimerView, at: Date): void {
-  pendingReplies(ctx, userId).push({ view, at });
-}
-
 /** Drops a session or pause chain whose entry is no longer the running one; returns what it left. */
 async function dropDetached(ctx: SettlementContext, userId: Id, data: TimerSnapshot): Promise<Set<Id>> {
   const runningId = data.running?.id ?? null;
@@ -128,8 +112,6 @@ export async function settleTimer(ctx: SettlementContext, userId: Id, publish: T
     const view = await buildTimerView(ctx, user, new Date(), data);
     ctx.afterCommit(() => publish(userId, view, user.createdAt));
   }
-  for (const reply of pendingReplies(ctx, userId))
-    Object.assign(reply.view, await buildTimerView(ctx, user, reply.at, data));
   return changed;
 }
 

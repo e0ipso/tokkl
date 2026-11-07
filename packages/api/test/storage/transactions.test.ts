@@ -115,6 +115,29 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           });
         });
         assert.deepEqual(events.slice(-2), ['replacement accepted', 'last']);
+        // A read at commit runs after every hook, those registered after it included.
+        let seen: string | undefined;
+        await runner.transaction(async ctx => {
+          ctx.readAtCommit(async () => {
+            events.push('read');
+            seen = await ctx.settings.get('late');
+          });
+          ctx.beforeCommit('late', async () => {
+            events.push('late');
+            await ctx.settings.put('late', 'yes');
+          });
+        });
+        assert.equal(seen, 'yes');
+        assert.deepEqual(events.slice(-2), ['late', 'read']);
+        // It may only read: work it registers fails the transaction.
+        await assert.rejects(
+          runner.transaction(async ctx => {
+            await ctx.settings.put('read-writes', 'no');
+            ctx.readAtCommit(async () => ctx.beforeCommit('sneaky', async () => {}));
+          }),
+          /registered more work/,
+        );
+        assert.equal(await runner.readSnapshot(r => r.settings.get('read-writes')), undefined);
         const expired = await runner.transaction(async ctx => ctx);
         await assert.rejects(expired.settings.get('outer'), /context is closed/);
         assert.throws(() => expired.afterCommit(async () => {}), /context is closed/);

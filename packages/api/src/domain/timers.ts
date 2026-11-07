@@ -12,7 +12,7 @@ import type { NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
 import { memberWorkspace } from './membership.ts';
 import { createTimeEntry, stopEntryAt } from './timeEntries.ts';
-import { holdReply, settleTimer, touchTimer, type TimerPublication } from './timerSettlement.ts';
+import { settleTimer, touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
 export interface StartPomodoro {
@@ -66,19 +66,22 @@ type ActionWork = (ctx: EntryContext, user: User) => Promise<void>;
 
 export function createTimerOperations<R extends EntryRepositories>(runner: TimerRunner<R>, publish: TimerPublication) {
   /**
-   * Runs `work` on the settled state and answers with the view as committed: every later
-   * settlement in the same transaction, before-commit hooks included, updates the reply.
+   * Runs `work` on the settled state and answers with the view as committed. The view is built
+   * once, after every before-commit hook of the whole transaction has run, and nothing changes it.
    */
-  function action(userId: Id, now: Date, work: ActionWork, wids: Id[] = [], includeDefault = false) {
-    return runner.transaction(async ctx => {
+  async function action(userId: Id, now: Date, work: ActionWork, wids: Id[] = [], includeDefault = false) {
+    let reply: Readonly<TimerView> | undefined;
+    await runner.transaction(async ctx => {
       const user = await protectEntryOperation(ctx, userId, wids, includeDefault);
       await settleTimer(ctx, userId, publish);
       await work(ctx, user);
-      const reply = await buildTimerView(ctx, user, now);
-      holdReply(ctx, user.id, reply, now);
       touchTimer(ctx, user.id, publish);
-      return reply;
+      ctx.readAtCommit(async () => {
+        reply = Object.freeze(await buildTimerView(ctx, user, now));
+      });
     });
+    if (!reply) throw new Error('The timer reply was not built');
+    return reply;
   }
   async function startPomodoroWork(ctx: EntryContext, user: User, start: StartPomodoro, wid: Id, now: Date) {
     const config = { ...getPomodoroSessionConfig(user), ...start.lengths };

@@ -137,10 +137,17 @@ class LockOrder<D> {
 /** One attempt's mutable state: hooks, guards and the flags commit and rollback decisions read. */
 interface Attempt {
   before: Map<string, Hook>;
+  /** Reads that run after the last before-commit hook. */
+  reads: Hook[];
   after: Hook[];
-  locals: Map<string, unknown>;
   rollbackOnly: boolean;
   savepointActive: boolean;
+}
+
+/** Runs the reads registered with `readAtCommit` once no before-commit hook is left. */
+async function readAtCommit(attempt: Attempt): Promise<void> {
+  for (const read of attempt.reads.splice(0)) await read();
+  if (attempt.before.size || attempt.reads.length) throw new Error('A read at commit registered more work');
 }
 
 /** Runs before-commit hooks until none is left; a hook may register further hooks. */
@@ -189,6 +196,7 @@ function createScope<D, R extends object>(
       // The sequential guard permits reuse after release and bounds native statements.
       const name = 'storage_sp_1';
       const savedBefore = new Map(attempt.before);
+      const savedReads = attempt.reads.length;
       const savedAfter = attempt.after.length;
       const savedHeld = locks.savedHeld();
       await execute(db, `SAVEPOINT ${name}`);
@@ -198,6 +206,7 @@ function createScope<D, R extends object>(
         return result;
       } catch (error) {
         attempt.before = savedBefore;
+        attempt.reads.length = savedReads;
         attempt.after.length = savedAfter;
         locks.restoreHeld(savedHeld);
         try {
@@ -215,14 +224,13 @@ function createScope<D, R extends object>(
       check();
       attempt.before.set(key, callback);
     },
+    readAtCommit(read) {
+      check();
+      attempt.reads.push(read);
+    },
     afterCommit(callback) {
       check();
       attempt.after.push(callback);
-    },
-    local<T>(key: string, create: () => T): T {
-      check();
-      if (!attempt.locals.has(key)) attempt.locals.set(key, create());
-      return attempt.locals.get(key) as T;
     },
     lockUserTimer: id => locks.rows('users', [id]),
     lockUsers: ids => locks.rows('users', ids),
@@ -263,6 +271,7 @@ export function createTransactionRunner<D, R extends object>(
         bodyStarted = true;
         const result = await work(context);
         await drainBeforeCommit(attempt);
+        await readAtCommit(attempt);
         if (attempt.rollbackOnly || attempt.savepointActive) throw new Error('Transaction cannot commit');
         if (settings.dryRun) {
           await execute(db, 'ROLLBACK');
@@ -304,8 +313,8 @@ export function createTransactionRunner<D, R extends object>(
       for (let number = 1; ; number++) {
         const attempt: Attempt = {
           before: new Map(),
+          reads: [],
           after: [],
-          locals: new Map(),
           rollbackOnly: false,
           savepointActive: false,
         };
