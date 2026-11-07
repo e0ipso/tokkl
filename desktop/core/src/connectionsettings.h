@@ -25,7 +25,7 @@ struct ConnectionSettings {
     // What settings holds; token sign-in when it names no method.
     static ConnectionSettings read(const QSettings &settings);
     // Writes the three keys and syncs the file. False when the file could
-    // not be written; settings then still holds the values in memory.
+    // not be written; the earlier values then stay, also in memory.
     bool write(QSettings &settings) const;
     void applyTo(Connection &connection) const;
 

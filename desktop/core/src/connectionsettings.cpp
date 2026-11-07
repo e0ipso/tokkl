@@ -19,15 +19,26 @@ ConnectionSettings ConnectionSettings::read(const QSettings &settings)
 
 bool ConnectionSettings::write(QSettings &settings) const
 {
-    settings.setValue(instanceUrlKey, instanceUrl);
-    settings.setValue(authModeKey, authMode);
-    settings.setValue(emailKey, email);
-    settings.sync();
-    if (settings.status() != QSettings::NoError) {
-        qCWarning(lcAuth) << "Could not save the connection settings to" << settings.fileName();
-        return false;
+    const QLatin1StringView keys[] = {instanceUrlKey, authModeKey, emailKey};
+    const QString values[] = {instanceUrl, authMode, email};
+    QVariant before[3];
+    for (int i = 0; i < 3; ++i) {
+        before[i] = settings.value(keys[i]);
+        settings.setValue(keys[i], values[i]);
     }
-    return true;
+    settings.sync();
+    if (settings.status() == QSettings::NoError) {
+        return true;
+    }
+    qCWarning(lcAuth) << "Could not save the connection settings to" << settings.fileName();
+    for (int i = 0; i < 3; ++i) {
+        if (before[i].isValid()) {
+            settings.setValue(keys[i], before[i]);
+        } else {
+            settings.remove(keys[i]);
+        }
+    }
+    return false;
 }
 
 void ConnectionSettings::applyTo(Connection &connection) const
