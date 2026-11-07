@@ -2,6 +2,7 @@ import { formatDuration } from '@tokkl/common/duration';
 import { useServerNow } from '../api/timerHooks.ts';
 import type { TimeEntry, TimerPause } from '../api/types.ts';
 import { barSeconds } from './pauseView.ts';
+import { t } from '../i18n/messages.ts';
 
 /**
  * The timer bar's clock. It is the only part of the bar that ticks, so the second-by-second
@@ -21,7 +22,7 @@ export function TimerClock({
   const elapsed = formatDuration(barSeconds(running, chain, serverNow.getTime()));
   if (!running) {
     return (
-      <span className="timer-clock is-paused" role="timer" aria-label={`${elapsed} elapsed, paused`}>
+      <span className="timer-clock is-paused" role="timer" aria-label={t('timer.clockPaused', { elapsed })}>
         {elapsed}
       </span>
     );
@@ -31,8 +32,8 @@ export function TimerClock({
       type="button"
       className="timer-clock"
       onClick={onEdit}
-      title="Edit start time"
-      aria-label={`${elapsed} elapsed, edit start time`}
+      title={t('timer.editStartTime')}
+      aria-label={t('timer.clockEdit', { elapsed })}
     >
       {elapsed}
     </button>

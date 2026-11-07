@@ -1,5 +1,6 @@
 import { Icon } from './Icon.tsx';
 import type { TimerBarMode } from './timerBarView.ts';
+import { t } from '../i18n/messages.ts';
 
 /** The bar's main button: Add in manual mode, Pause or Resume and Stop for a timer, else Start or Save. */
 export function TimerButtons({
@@ -24,9 +25,15 @@ export function TimerButtons({
 }) {
   if (mode === 'manual') {
     return (
-      <button type="button" className="timer-button add" onClick={onAdd} aria-label="Add entry" title="Add entry">
+      <button
+        type="button"
+        className="timer-button add"
+        onClick={onAdd}
+        aria-label={t('timer.addEntry')}
+        title={t('timer.addEntry')}
+      >
         <Icon name="plus" size={22} />
-        <span className="timer-button-label">Add</span>
+        <span className="timer-button-label">{t('timer.add')}</span>
       </button>
     );
   }
@@ -36,11 +43,11 @@ export function TimerButtons({
         type="button"
         className="timer-button start"
         onClick={onStart}
-        aria-label={saving ? 'Save entry' : 'Start timer'}
-        title="Start (N)"
+        aria-label={saving ? t('timer.saveEntry') : t('timer.startTimer')}
+        title={t('timer.startTitle')}
       >
         <Icon name={saving ? 'check' : 'play'} size={22} />
-        <span className="timer-button-label">{saving ? 'Save' : 'Start'}</span>
+        <span className="timer-button-label">{saving ? t('common.save') : t('timer.start')}</span>
       </button>
     );
   }
@@ -52,11 +59,11 @@ export function TimerButtons({
           className="timer-button pause"
           onClick={onPause}
           disabled={busy}
-          aria-label="Pause timer"
-          title="Pause"
+          aria-label={t('timer.pauseTimer')}
+          title={t('timer.pause')}
         >
           <Icon name="pause" size={22} />
-          <span className="timer-button-label">Pause</span>
+          <span className="timer-button-label">{t('timer.pause')}</span>
         </button>
       ) : (
         <button
@@ -64,11 +71,11 @@ export function TimerButtons({
           className="timer-button start"
           onClick={onResume}
           disabled={busy}
-          aria-label="Resume timer"
-          title="Resume"
+          aria-label={t('timer.resumeTimer')}
+          title={t('timer.resume')}
         >
           <Icon name="play" size={22} />
-          <span className="timer-button-label">Resume</span>
+          <span className="timer-button-label">{t('timer.resume')}</span>
         </button>
       )}
       <button
@@ -76,11 +83,11 @@ export function TimerButtons({
         className="timer-button stop"
         onClick={onStop}
         disabled={busy}
-        aria-label="Stop timer"
-        title="Stop (S)"
+        aria-label={t('timer.stopTimer')}
+        title={t('timer.stopTitle')}
       >
         <Icon name="stop" size={22} />
-        <span className="timer-button-label">Stop</span>
+        <span className="timer-button-label">{t('timer.stop')}</span>
       </button>
     </>
   );
@@ -101,13 +108,17 @@ export function ModeSwitch({
   const running = mode === 'running';
   const manual = mode === 'manual';
   return (
-    <div className="mode-switch" role={running ? undefined : 'group'} aria-label={running ? undefined : 'Entry mode'}>
+    <div
+      className="mode-switch"
+      role={running ? undefined : 'group'}
+      aria-label={running ? undefined : t('timer.entryMode')}
+    >
       {running ? (
         <button
           type="button"
           className="icon-button"
-          title="Discard running entry"
-          aria-label="Discard running entry"
+          title={t('timer.discardRunning')}
+          aria-label={t('timer.discardRunning')}
           onClick={onDiscard}
         >
           <Icon name="trash" size={16} />
@@ -117,8 +128,8 @@ export function ModeSwitch({
           <button
             type="button"
             className={`icon-button${!manual ? ' active' : ''}`}
-            title="Timer mode"
-            aria-label="Timer mode"
+            title={t('timer.timerMode')}
+            aria-label={t('timer.timerMode')}
             aria-pressed={!manual}
             onClick={onTimer}
           >
@@ -127,8 +138,8 @@ export function ModeSwitch({
           <button
             type="button"
             className={`icon-button${manual ? ' active' : ''}`}
-            title="Manual mode (M)"
-            aria-label="Manual mode"
+            title={t('timer.manualModeTitle')}
+            aria-label={t('timer.manualMode')}
             aria-pressed={manual}
             onClick={onManual}
           >

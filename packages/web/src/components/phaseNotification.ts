@@ -1,3 +1,5 @@
+import { t } from '../i18n/messages.ts';
+
 /**
  * The browser's notification permission. 'insecure' is a page served over plain HTTP from another
  * host, where browsers refuse notifications; 'unsupported' is a browser without the API.
@@ -73,13 +75,13 @@ export function notifySessionPhaseEnd(phaseStart: string, phaseLabel: string): N
     // renotify needs a non-empty tag. It is the phase start, the alarm's key, so the tabs of this
     // browser that ring for the same phase share one notification.
     const options = {
-      body: 'Choose Next phase or End session in Tokkl.',
+      body: t('timer.phaseOverBody'),
       icon: ICON_URL,
       tag: `tokkl-pomodoro-session-${phaseStart}`,
       requireInteraction: true,
       renotify: true,
     };
-    const notification = new api(`${phaseLabel} phase over`, options);
+    const notification = new api(t('timer.phaseOverTitle', { phase: phaseLabel }), options);
     notification.onclick = () => {
       window.focus();
       notification.close();

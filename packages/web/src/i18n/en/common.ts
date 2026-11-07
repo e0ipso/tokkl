@@ -8,6 +8,7 @@ export const common = {
   delete: 'Delete',
   done: 'Done',
   tryAgain: 'Try again',
+  undo: 'Undo',
   loading: 'Loading…',
   dismiss: 'Dismiss',
   /** Read before an error toast's message, which the icon alone shows on screen. */

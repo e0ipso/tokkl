@@ -1,16 +1,18 @@
 import { useEffect, useEffectEvent } from 'react';
 import { Modal } from './Overlay.tsx';
 import { useOverlayStack } from './overlayStack.tsx';
+import { t, type MessageKey } from '../i18n/messages.ts';
 
-export const SHORTCUTS: Array<[string, string]> = [
-  ['N', 'Start a new timer'],
-  ['S', 'Stop the running timer'],
-  ['C', 'Continue the most recent entry'],
-  ['M', 'Switch between timer and manual mode'],
-  ['1 – 9', 'Start a pinned favorite'],
-  ['@ / #', 'Pick project / tags from an empty description'],
-  ['Ctrl+Enter', 'Create the project or tag typed in a picker'],
-  ['?', 'Show this list'],
+/** Each key as printed on the keyboard, with the catalog key of what it does. */
+export const SHORTCUTS: Array<[string, MessageKey]> = [
+  ['N', 'timer.shortcutNew'],
+  ['S', 'timer.shortcutStop'],
+  ['C', 'timer.shortcutContinue'],
+  ['M', 'timer.shortcutMode'],
+  ['1 – 9', 'timer.shortcutFavorite'],
+  ['@ / #', 'timer.shortcutPickers'],
+  ['Ctrl+Enter', 'timer.shortcutCreate'],
+  ['?', 'timer.shortcutHelp'],
 ];
 
 function isTyping(target: EventTarget | null): boolean {
@@ -42,14 +44,14 @@ export function useShortcuts(enabled: boolean, handlers: Record<string, () => vo
 
 export function ShortcutHelp({ onClose }: { onClose: () => void }) {
   return (
-    <Modal title="Keyboard shortcuts" onClose={onClose}>
+    <Modal title={t('timer.shortcutsTitle')} onClose={onClose}>
       <dl className="shortcut-list">
         {SHORTCUTS.map(([key, label]) => (
           <div key={key}>
             <dt>
               <kbd>{key}</kbd>
             </dt>
-            <dd>{label}</dd>
+            <dd>{t(label)}</dd>
           </div>
         ))}
       </dl>

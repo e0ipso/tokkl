@@ -9,6 +9,7 @@ import { useFieldErrors } from './FieldError.tsx';
 import { useToast } from './Toast.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from './useEntryFields.ts';
 import type { useRunningDraft } from './useRunningDraft.ts';
+import { t } from '../i18n/messages.ts';
 
 /**
  * Start, Stop, Pause, Resume and Discard for the timer bar, and the idle bar's duration field.
@@ -57,7 +58,7 @@ export function useTimerBarActions({
     // An empty duration starts a running timer; text that does not parse is an error, not empty.
     const typed = !current && timerDuration.trim() !== '';
     const seconds = typed ? parseDuration(timerDuration) : null;
-    if (!timerErrors.validate([['duration', typed && seconds === null && 'Check the duration']])) {
+    if (!timerErrors.validate([['duration', typed && seconds === null && t('timer.checkDuration')]])) {
       fields.current?.hideSuggestions();
       return null;
     }
@@ -73,7 +74,7 @@ export function useTimerBarActions({
           stop: stop.toISOString(),
         });
         // The server snaps the entry to the time resolution, so the toast shows what it stored.
-        toast.show(`Added ${formatDuration(entrySeconds(saved, stop))}`);
+        toast.show(t('entries.added', { duration: formatDuration(entrySeconds(saved, stop)) }));
         setDraft(EMPTY_DRAFT);
       } else {
         const startAt = new Date();
@@ -128,8 +129,8 @@ export function useTimerBarActions({
     }
     // The server keeps no entry that rounds to zero at the time resolution: it went to the trash.
     if (stopped.server_deleted_at) {
-      toast.show('Too short to keep, so the entry went to the trash', {
-        action: { label: 'Undo', run: () => restore.mutate(stopped.id) },
+      toast.show(t('timer.tooShort'), {
+        action: { label: t('common.undo'), run: () => restore.mutate(stopped.id) },
       });
     }
   };
@@ -160,7 +161,9 @@ export function useTimerBarActions({
     if (!current) return;
     try {
       await remove.mutateAsync(current.id);
-      toast.show('Running entry discarded', { action: { label: 'Undo', run: () => restore.mutate(current.id) } });
+      toast.show(t('timer.runningDiscarded'), {
+        action: { label: t('common.undo'), run: () => restore.mutate(current.id) },
+      });
     } catch (error) {
       toast.error(error);
     }

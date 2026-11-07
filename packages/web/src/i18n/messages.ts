@@ -9,7 +9,9 @@ import {
 } from './catalog.ts';
 import { common } from './en/common.ts';
 import { dates } from './en/dates.ts';
+import { entries } from './en/entries.ts';
 import { shell } from './en/shell.ts';
+import { timer } from './en/timer.ts';
 import { LOCALE } from './locale.ts';
 
 /**
@@ -20,6 +22,8 @@ export const en = {
   common,
   dates,
   shell,
+  timer,
+  entries,
 } as const;
 
 export type Catalog = typeof en;

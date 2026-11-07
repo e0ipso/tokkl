@@ -11,8 +11,7 @@ import { entrySeconds, snappedSeconds } from '../lib/snapping.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { useToast } from './Toast.tsx';
 import type { EntryDraft } from './useEntryFields.ts';
-
-const START_END_MESSAGE = 'Enter a start and end time, like 9:00 and 10:30';
+import { t } from '../i18n/messages.ts';
 
 /**
  * The manual form of the timer bar: a date with a start and end time, or with "No times" a
@@ -32,7 +31,7 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
   const save = async (input: TimeEntryInput, shownStop: Date) => {
     const saved = await create.mutateAsync(input);
     // The server snaps the entry to the time resolution, so the toast shows what it stored.
-    toast.show(`Added ${formatDuration(entrySeconds(saved, shownStop))}`);
+    toast.show(t('entries.added', { duration: formatDuration(entrySeconds(saved, shownStop)) }));
     onAdded();
     return saved;
   };
@@ -59,8 +58,8 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
     const range = resolveRange(day, start, end, options);
     const unreadable = !range && unreadableTime(start, options);
     errors.validate([
-      ['start', unreadable === 'start' && START_END_MESSAGE],
-      ['end', unreadable === 'end' && START_END_MESSAGE],
+      ['start', unreadable === 'start' && t('timer.manualStartEnd')],
+      ['end', unreadable === 'end' && t('timer.manualStartEnd')],
     ]);
     if (!range) return;
     try {
@@ -138,11 +137,11 @@ export function ManualEntryFields({
           checked={manual.noTimes}
           onChange={event => manual.switchNoTimes(event.target.checked)}
         />
-        No times
+        {t('timer.noTimes')}
       </label>
       <input
         type="date"
-        aria-label="Date"
+        aria-label={t('timer.date')}
         value={manual.day}
         onChange={event => event.target.value && manual.setDay(event.target.value)}
       />
@@ -150,8 +149,8 @@ export function ManualEntryFields({
         <input
           {...errors.field('duration')}
           className="time-field manual-duration-field"
-          aria-label="Duration"
-          placeholder="Duration"
+          aria-label={t('timer.duration')}
+          placeholder={t('timer.duration')}
           value={manual.durationText}
           onChange={event => manual.setDurationText(event.target.value)}
           onKeyDown={onKeyDown}
@@ -161,8 +160,8 @@ export function ManualEntryFields({
           <input
             {...errors.field('start')}
             className="time-field"
-            aria-label="Start time"
-            placeholder="Start"
+            aria-label={t('timer.startTime')}
+            placeholder={t('timer.startPlaceholder')}
             value={manual.start}
             onChange={event => manual.setStart(event.target.value)}
             onKeyDown={onKeyDown}
@@ -171,8 +170,8 @@ export function ManualEntryFields({
           <input
             {...errors.field('end')}
             className="time-field"
-            aria-label="End time"
-            placeholder="End"
+            aria-label={t('timer.endTime')}
+            placeholder={t('timer.endPlaceholder')}
             value={manual.end}
             onChange={event => manual.setEnd(event.target.value)}
             onKeyDown={onKeyDown}
@@ -186,7 +185,9 @@ export function ManualEntryFields({
             ? formatDuration(snappedSeconds(range.start, range.stop, settings))
             : '0:00:00'}
       </span>
-      {range && localDay(range.stop, settings.timeZone) !== manual.day ? <span className="hint">+1 day</span> : null}
+      {range && localDay(range.stop, settings.timeZone) !== manual.day ? (
+        <span className="hint">{t('timer.nextDay')}</span>
+      ) : null}
       {errors.message('start')}
       {errors.message('end')}
       {errors.message('duration')}
