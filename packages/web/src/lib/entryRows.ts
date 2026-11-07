@@ -1,5 +1,6 @@
 import type { TimeEntry } from '../api/types.ts';
 import { localDay } from './entryTime.ts';
+import { entrySeconds } from './snapping.ts';
 
 /** How the timer page's entry list groups stopped entries into days and rows. */
 
@@ -77,4 +78,21 @@ export function rangeLabel(entries: readonly StoppedEntry[], format: (iso: strin
 export function presentSelection(selected: ReadonlySet<number>, entries: readonly TimeEntry[]): Set<number> {
   const shown = new Set(entries.map(entry => entry.id));
   return new Set([...selected].filter(id => shown.has(id)));
+}
+
+/** Seconds tracked today and this week up to today, running entries counted up to `now`. */
+export function periodTotals(
+  entries: readonly TimeEntry[],
+  now: Date,
+  { todayKey, weekStart, timeZone }: { todayKey: string; weekStart: string; timeZone: string },
+): { todaySeconds: number; weekSeconds: number } {
+  let todaySeconds = 0;
+  let weekSeconds = 0;
+  for (const entry of entries) {
+    const day = localDay(entry.start, timeZone);
+    const seconds = entrySeconds(entry, now);
+    if (day === todayKey) todaySeconds += seconds;
+    if (day >= weekStart && day <= todayKey) weekSeconds += seconds;
+  }
+  return { todaySeconds, weekSeconds };
 }

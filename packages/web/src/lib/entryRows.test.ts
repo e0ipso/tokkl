@@ -4,6 +4,7 @@ import type { TimeEntry } from '../api/types.ts';
 import { duplicateInput } from './duplicateEntry.ts';
 import {
   entriesByDay,
+  periodTotals,
   presentSelection,
   rangeLabel,
   rowsForDay,
@@ -109,4 +110,17 @@ test('duplicateInput copies the times, or the day and stored duration of a no-ti
     start_date: '2026-10-20',
     duration: 7200,
   });
+});
+
+test('periodTotals counts today and the week so far, running entries up to now', () => {
+  const now = new Date('2026-10-21T12:00:00Z');
+  const running = entry({ start: '2026-10-21T11:00:00Z', stop: null });
+  const monday = entry({ start: '2026-10-19T09:00:00Z', stop: '2026-10-19T10:00:00Z' });
+  const lastWeek = entry({ start: '2026-10-16T09:00:00Z', stop: '2026-10-16T10:00:00Z' });
+  const totals = periodTotals([running, monday, lastWeek], now, {
+    todayKey: '2026-10-21',
+    weekStart: '2026-10-19',
+    timeZone: 'UTC',
+  });
+  assert.deepEqual(totals, { todaySeconds: 3600, weekSeconds: 7200 });
 });

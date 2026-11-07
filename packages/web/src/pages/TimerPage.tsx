@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useEntries, useEntryBounds } from '../api/entries.ts';
 import { useProjects } from '../api/projects.ts';
@@ -11,17 +11,35 @@ import { ProjectDot } from '../components/Pickers.tsx';
 import { ShortcutHelp, useShortcuts } from '../components/Shortcuts.tsx';
 import { TimerBar, type TimerBarHandle } from '../components/TimerBar.tsx';
 import { WeekCalendar } from '../components/WeekCalendar.tsx';
-import { localDay } from '../lib/entryTime.ts';
 import { useSettings } from '../api/settings.ts';
 import { useNow } from '../lib/clock.ts';
 import { duration, today } from '../lib/format.ts';
-import { entrySeconds } from '../lib/snapping.ts';
+import { periodTotals } from '../lib/entryRows.ts';
+import { draftOf } from '../components/useEntryFields.ts';
 
 const PAGE_DAYS = 14;
 
-export function TimerPage() {
+/** Today's and this week's tracked time. It ticks on its own, so running time does not re-render the page. */
+function PeriodTotals({ entries }: { entries: TimeEntry[] }) {
   const settings = useSettings();
   const now = useNow(30_000);
+  const todayKey = today(settings.timeZone);
+  const weekStart = startOfWeek(todayKey, settings.beginningOfWeek);
+  const totals = periodTotals(entries, now, { todayKey, weekStart, timeZone: settings.timeZone });
+  return (
+    <>
+      <span>
+        Today <strong>{duration(totals.todaySeconds, settings)}</strong>
+      </span>
+      <span>
+        This week <strong>{duration(totals.weekSeconds, settings)}</strong>
+      </span>
+    </>
+  );
+}
+
+export function TimerPage() {
+  const settings = useSettings();
   const { data: prefs } = usePreferences();
   const savePrefs = useSavePreferences();
   const [days, setDays] = useState(PAGE_DAYS);
@@ -44,60 +62,38 @@ export function TimerPage() {
   const timer = useRef<TimerBarHandle>(null);
   const favorites = prefs?.favorites ?? [];
 
-  const weekStart = startOfWeek(todayKey, settings.beginningOfWeek);
-  const totals = useMemo(() => {
-    let todaySeconds = 0;
-    let weekSeconds = 0;
-    for (const entry of entries) {
-      const day = localDay(entry.start, settings.timeZone);
-      const seconds = entrySeconds(entry, now);
-      if (day === todayKey) todaySeconds += seconds;
-      if (day >= weekStart && day <= todayKey) weekSeconds += seconds;
-    }
-    return { todaySeconds, weekSeconds };
-  }, [entries, now, todayKey, weekStart, settings.timeZone]);
+  const continueEntry = (entry: TimeEntry) => timer.current?.startFrom(draftOf(entry));
+  const startFavorite = (favorite: Favorite) => timer.current?.startFrom(draftOf(favorite));
 
-  const continueEntry = (entry: TimeEntry) =>
-    timer.current?.startFrom({
-      description: entry.description,
-      project_id: entry.project_id,
-      task_id: entry.task_id,
-      tags: entry.tags,
-      billable: entry.billable,
-    });
-  const startFavorite = (favorite: Favorite) => timer.current?.startFrom({ ...favorite });
-
-  const handlers = useMemo(() => {
-    const map: Record<string, () => void> = {
-      n: () => timer.current?.startNew(),
-      s: () => timer.current?.stop(),
-      m: () => timer.current?.toggleManual(),
-      // Like the Continue button: a running timer is stopped at the new entry's start.
-      c: () => {
-        const last = entries.find(entry => entry.stop);
-        if (last) continueEntry(last);
-      },
-      '?': () => setHelp(true),
-    };
-    favorites.forEach((favorite, index) => {
-      map[String(index + 1)] = () => startFavorite(favorite);
-    });
-    return map;
-  }, [entries, favorites]);
+  const handlers: Record<string, () => void> = {
+    n: () => timer.current?.startNew(),
+    s: () => timer.current?.stop(),
+    m: () => timer.current?.toggleManual(),
+    // Like the Continue button: a running timer is stopped at the new entry's start.
+    c: () => {
+      const last = entries.find(entry => entry.stop);
+      if (last) continueEntry(last);
+    },
+    '?': () => setHelp(true),
+  };
+  favorites.forEach((favorite, index) => {
+    handlers[String(index + 1)] = () => startFavorite(favorite);
+  });
   useShortcuts(settings.shortcuts, handlers);
 
   // The empty list's "Manual mode" button goes away once manual mode is on, so focus moves to the
-  // description field instead of dropping to the page. The handle has no focus method for this.
+  // description field instead of dropping to the page.
   const focusAfterManual = useRef(false);
   const switchToManual = () => {
     focusAfterManual.current = true;
     timer.current?.toggleManual();
   };
+  const manualMode = prefs?.manualMode ?? false;
   useEffect(() => {
-    if (!prefs?.manualMode || !focusAfterManual.current) return;
+    if (!manualMode || !focusAfterManual.current) return;
     focusAfterManual.current = false;
-    document.querySelector<HTMLInputElement>('.timer-bar input[aria-label="Description"]')?.focus();
-  }, [prefs?.manualMode]);
+    timer.current?.focus();
+  }, [manualMode]);
 
   const removeFavorite = (index: number) => savePrefs.mutate({ favorites: favorites.filter((_, i) => i !== index) });
 
@@ -105,12 +101,7 @@ export function TimerPage() {
     <div className="page">
       <TimerBar ref={timer} recentEntries={entries} />
       <div className="timer-summary">
-        <span>
-          Today <strong>{duration(totals.todaySeconds, settings)}</strong>
-        </span>
-        <span>
-          This week <strong>{duration(totals.weekSeconds, settings)}</strong>
-        </span>
+        <PeriodTotals entries={entries} />
         <div className="segmented view-switch" role="group" aria-label="View">
           <button
             type="button"
