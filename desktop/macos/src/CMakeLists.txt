@@ -5,8 +5,6 @@ add_library(tokklmacos STATIC
     loginitem.h
     menubarapp.cpp
     menubarapp.h
-    pomodoroalarm.cpp
-    pomodoroalarm.h
     projectindicator.cpp
     projectindicator.h
     settingswindow.cpp

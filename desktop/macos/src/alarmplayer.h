@@ -1,5 +1,7 @@
 #pragma once
 
+#include "alarmoutput.h"
+
 #include <QObject>
 #include <QString>
 
@@ -18,20 +20,16 @@ namespace Tokkl
 // development files are also absent from the Linux hosts, so a QSoundEffect
 // player could not be compiled where the tests run, while the NSSound shim
 // is on the same footing as the other three .mm files. Tests use a fake.
-class AlarmPlayer : public QObject
+//
+// The core's AlarmOutput gives the calls: a loop of the same file that
+// already loops keeps playing, and playOnce() replaces an earlier preview
+// still playing without touching the loop.
+class AlarmPlayer : public QObject, public AlarmOutput
 {
     Q_OBJECT
 
 public:
     using QObject::QObject;
-
-    // Plays file over and over until stop() or another loop(). A loop of the
-    // same file that already loops keeps playing.
-    virtual void loop(const QString &file) = 0;
-    virtual void stop() = 0;
-    // Plays file once, replacing an earlier preview still playing. It does
-    // not touch the loop.
-    virtual void preview(const QString &file) = 0;
 };
 
 }

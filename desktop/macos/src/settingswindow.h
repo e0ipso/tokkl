@@ -25,6 +25,7 @@ class CredentialStore;
 class LoginItem;
 class PomodoroAlarm;
 class PomodoroPreferences;
+class SoundChoices;
 class Transport;
 
 // Connection settings, the login item and the Pomodoro section. The
@@ -53,20 +54,19 @@ class SettingsWindow : public QWidget
     Q_OBJECT
 
 public:
-    static const QString instanceUrlKey;
-    static const QString authModeKey;
-    static const QString emailKey;
+    // The connection keys are ConnectionSettings'.
     static const QString monochromeIconKey;
 
-    // Uses the given transport, store, settings, login item, preferences
-    // and alarm; the window owns none of them. loginItem may be null: the
-    // toggle is hidden. With null preferences the lengths cannot be edited;
-    // with a null alarm Preview plays nothing.
+    // Uses the given transport, store, settings, login item, preferences,
+    // sound choices and alarm; the window owns none of them. loginItem may
+    // be null: the toggle is hidden. With null preferences the lengths
+    // cannot be edited; with a null alarm Preview plays nothing.
     SettingsWindow(Transport *transport,
                    CredentialStore *store,
                    QSettings *settings,
                    LoginItem *loginItem,
                    PomodoroPreferences *preferences,
+                   SoundChoices *sounds,
                    PomodoroAlarm *alarm,
                    QWidget *parent = nullptr);
     ~SettingsWindow() override;
@@ -149,6 +149,7 @@ private:
     LoginItem *m_loginItem;
     ConnectionSetup *m_setup;
     QPointer<PomodoroPreferences> m_preferences;
+    QPointer<SoundChoices> m_sounds;
     QPointer<PomodoroAlarm> m_alarm;
     QTimer m_loadTimer;
     // Counts saves; a store result for an earlier one is dropped.

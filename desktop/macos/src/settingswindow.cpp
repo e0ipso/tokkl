@@ -1,10 +1,12 @@
 #include "settingswindow.h"
 
+#include "connectionsettings.h"
 #include "connectionsetup.h"
 #include "loginitem.h"
 #include "pomodoroalarm.h"
 #include "pomodoropreferences.h"
 #include "pomodorosounds.h"
+#include "soundchoices.h"
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -24,9 +26,6 @@
 namespace Tokkl
 {
 
-const QString SettingsWindow::instanceUrlKey = QStringLiteral("instanceUrl");
-const QString SettingsWindow::authModeKey = QStringLiteral("authMode");
-const QString SettingsWindow::emailKey = QStringLiteral("email");
 const QString SettingsWindow::monochromeIconKey = QStringLiteral("monochromeIcon");
 
 namespace
@@ -86,6 +85,7 @@ SettingsWindow::SettingsWindow(Transport *transport,
                                QSettings *settings,
                                LoginItem *loginItem,
                                PomodoroPreferences *preferences,
+                               SoundChoices *soundChoices,
                                PomodoroAlarm *alarm,
                                QWidget *parent)
     : QWidget(parent, Qt::Window)
@@ -93,6 +93,7 @@ SettingsWindow::SettingsWindow(Transport *transport,
     , m_loginItem(loginItem)
     , m_setup(new ConnectionSetup(transport, store, this))
     , m_preferences(preferences)
+    , m_sounds(soundChoices)
     , m_alarm(alarm)
 {
     setWindowTitle(tr("Tokkl Settings"));
@@ -248,10 +249,10 @@ SettingsWindow::~SettingsWindow() = default;
 void SettingsWindow::load()
 {
     if (m_settings) {
-        m_urlField->setText(m_settings->value(instanceUrlKey).toString());
-        const bool password = m_settings->value(authModeKey, tokenMode).toString() == passwordMode;
-        (password ? m_passwordButton : m_tokenButton)->setChecked(true);
-        m_emailField->setText(m_settings->value(emailKey).toString());
+        const ConnectionSettings connection = ConnectionSettings::read(*m_settings);
+        m_urlField->setText(connection.instanceUrl);
+        (connection.authMode == passwordMode ? m_passwordButton : m_tokenButton)->setChecked(true);
+        m_emailField->setText(connection.email);
         m_monochromeToggle->setChecked(m_settings->value(monochromeIconKey, false).toBool());
     }
     m_testResult->clear();
@@ -321,14 +322,14 @@ void SettingsWindow::finishSave(quint64 serial, const Fields &fields, bool store
         return;
     }
     if (m_settings) {
-        m_settings->setValue(instanceUrlKey, fields.url);
-        m_settings->setValue(authModeKey, fields.authMode);
-        m_settings->setValue(emailKey, fields.email);
         m_settings->setValue(monochromeIconKey, fields.monochromeIcon);
         for (const TransitionKind kind : transitions) {
-            m_settings->setValue(PomodoroAlarm::soundKey(kind), fields.sounds.at(index(kind)));
+            if (m_sounds) {
+                m_settings->setValue(m_sounds->key(kind), fields.sounds.at(index(kind)));
+            }
         }
-        m_settings->sync();
+        // Syncs the keys above with its own.
+        ConnectionSettings{fields.url, fields.authMode, fields.email}.write(*m_settings);
     }
     m_secretStored = true;
     Q_EMIT saved();
@@ -478,7 +479,7 @@ void SettingsWindow::loadSounds()
 {
     for (const TransitionKind kind : transitions) {
         QComboBox *box = m_soundBoxes.at(index(kind));
-        box->setCurrentIndex(box->findData(PomodoroAlarm::chosenSound(m_settings, kind)));
+        box->setCurrentIndex(box->findData(m_sounds ? m_sounds->chosen(kind) : defaultSound(kind)));
     }
 }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "apitypes.h"
+
 #include <QObject>
 #include <QPointer>
 #include <QUrl>
@@ -21,6 +23,7 @@ class PomodoroPreferences;
 class PomodoroSession;
 class SettingsPomodoroStore;
 class SettingsWindow;
+class SoundChoices;
 class StatusItem;
 class StatusMenu;
 class TimerController;
@@ -52,6 +55,9 @@ class MenuBarApp : public QObject
 public:
     // The User-Agent product and the created_with value of the macOS app.
     static QString clientName();
+    // The settings key of a transition's sound: "workToShortRestSound" and
+    // so on.
+    static QString soundKey(TransitionKind kind);
     // The network transport for the app: requests send the User-Agent
     // "tokkl-macos/<Tokkl version>". The caller owns it.
     static Transport *createTransport(QObject *parent = nullptr);
@@ -80,6 +86,7 @@ public:
     PomodoroSession *pomodoroSession() const;
     PomodoroPreferences *pomodoroPreferences() const;
     PomodoroAlarm *pomodoroAlarm() const;
+    SoundChoices *soundChoices() const;
     StatusMenu *statusMenu() const;
     SettingsWindow *settingsWindow() const;
 
@@ -114,6 +121,7 @@ private:
     std::unique_ptr<TimerController> m_timer;
     std::unique_ptr<PomodoroPreferences> m_preferences;
     std::unique_ptr<PomodoroSession> m_session;
+    std::unique_ptr<SoundChoices> m_sounds;
     std::unique_ptr<PomodoroAlarm> m_alarm;
     std::unique_ptr<StatusMenu> m_menu;
     std::unique_ptr<SettingsWindow> m_settingsWindow;
