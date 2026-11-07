@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSavePreferences } from '../../../api/account.ts';
 import { keys } from '../../../api/keys.ts';
@@ -14,6 +13,7 @@ import { formatDuration } from '@tokkl/common/duration';
 import { DEFAULT_POMODORO_SESSION_CONFIG, POMODORO_SESSION_CONFIG_RANGES } from '@tokkl/common/pomodoroSession';
 import { AllowNotifications } from './AllowNotifications.tsx';
 import { SettingsCard } from './SettingsCard.tsx';
+import { useServerDraft } from '../../../components/useServerDraft.ts';
 
 const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD.MM.YYYY', 'DD-MM-YYYY', 'MM-DD-YYYY'] as const;
 
@@ -160,30 +160,14 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
   const queryClient = useQueryClient();
   const fields = useFieldErrors<NumberKey>();
   const save = useSavePreferences();
-  const [edits, setEdits] = useState<Partial<Draft>>({});
-  const serverDraft = toDraft(pick(prefs));
-  const draft: Draft = { ...serverDraft, ...edits };
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
-    setEdits(current => {
-      const next = { ...current };
-      if (!save.isPending && value === serverDraft[key]) delete next[key];
-      else next[key] = value;
-      return next;
-    });
-
-  // Once a save settles, an edit equal to the stored value is no longer an edit. Anything else typed
-  // while the request ran stays, even a value equal to what the server had before the save.
-  const dropEditsEqualTo = (stored: Editable) =>
-    setEdits(current =>
-      Object.fromEntries(
-        Object.entries(current).filter(([key, value]) => !isStored(key as keyof Draft, value, stored)),
-      ),
-    );
+  const form = useServerDraft(toDraft(pick(prefs)), save.isPending);
+  const { draft, edits, set } = form;
+  const dropEditsEqualTo = (stored: Editable) => form.dropEditsMatching((key, value) => isStored(key, value, stored));
 
   const todayKey = today(settings.timeZone);
   const now = new Date();
   // A saved format this form doesn't offer stays selectable instead of silently switching.
-  const dateFormats: string[] = DATE_FORMATS.includes(draft.date_format as (typeof DATE_FORMATS)[number])
+  const dateFormats: string[] = DATE_FORMATS.some(format => format === draft.date_format)
     ? [...DATE_FORMATS]
     : [draft.date_format, ...DATE_FORMATS];
   const twelveHour = isTwelveHour(draft.timeofday_format);
@@ -197,7 +181,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
       ),
     );
     if (!valid) return;
-    if (Object.keys(edits).length === 0) {
+    if (!form.hasEdits) {
       toast.show('No changes to save');
       return;
     }
@@ -222,7 +206,13 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
       <div className="form-grid">
         <label className="field">
           <span>Theme</span>
-          <select value={draft.theme} onChange={event => set('theme', event.target.value as Preferences['theme'])}>
+          <select
+            value={draft.theme}
+            onChange={event => {
+              const theme = THEMES.find(option => option.value === event.target.value);
+              if (theme) set('theme', theme.value);
+            }}
+          >
             {THEMES.map(theme => (
               <option key={theme.value} value={theme.value}>
                 {theme.label}
@@ -257,7 +247,10 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
           <span>Duration format</span>
           <select
             value={draft.duration_format}
-            onChange={event => set('duration_format', event.target.value as DurationFormat)}
+            onChange={event => {
+              const format = DURATION_FORMATS.find(option => option.value === event.target.value);
+              if (format) set('duration_format', format.value);
+            }}
           >
             {DURATION_FORMATS.map(format => (
               <option key={format.value} value={format.value}>
