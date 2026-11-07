@@ -26,27 +26,6 @@ bool isSuccess(const HttpResponse &response)
     return response.outcome == HttpResponse::Outcome::Finished && response.status >= 200 && response.status < 300;
 }
 
-// Retry-After as delta seconds or an HTTP date.
-qint64 retryAfterMs(const QByteArray &header)
-{
-    const QByteArray value = header.trimmed();
-    if (value.isEmpty()) {
-        return Connection::defaultCooldownMs;
-    }
-    bool isNumber = false;
-    const qint64 seconds = value.toLongLong(&isNumber);
-    qint64 ms = Connection::defaultCooldownMs;
-    if (isNumber) {
-        ms = seconds * 1000;
-    } else {
-        const QDateTime when = QDateTime::fromString(QString::fromLatin1(value), Qt::RFC2822Date);
-        if (when.isValid()) {
-            ms = QDateTime::currentDateTimeUtc().msecsTo(when);
-        }
-    }
-    // A bad or hostile header cannot block the widget for hours or retry in a loop.
-    return std::clamp<qint64>(ms, 1000, 3600 * 1000);
-}
 }
 
 Connection::Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent)
@@ -55,8 +34,7 @@ Connection::Connection(Transport *transport, CredentialStore *store, const QStri
     , m_store(store)
     , m_clientName(clientName)
 {
-    m_cooldownTimer.setSingleShot(true);
-    connect(&m_cooldownTimer, &QTimer::timeout, this, &Connection::onCooldownEnded);
+    connect(&m_cooldown, &Cooldown::ended, this, &Connection::onCooldownEnded);
     m_retryTimer.setSingleShot(true);
     connect(&m_retryTimer, &QTimer::timeout, this, &Connection::refreshAccount);
     if (m_store) {
@@ -180,7 +158,7 @@ bool Connection::canWrite() const
 
 QDateTime Connection::rateLimitedUntil() const
 {
-    return coolingDown() ? m_cooldownUntil : QDateTime();
+    return m_cooldown.until();
 }
 
 quint64 Connection::generation() const
@@ -265,8 +243,7 @@ void Connection::settingsChanged()
     m_secret.clear();
     m_authorization.clear();
     m_authPaused = false;
-    m_cooldownUntil = QDateTime();
-    m_cooldownTimer.stop();
+    m_cooldown.clear();
     m_retryTimer.stop();
     m_instance = InstanceUrl();
     setState(m_instanceText.trimmed().isEmpty() ? Unconfigured : LoadingCredentials);
@@ -442,7 +419,7 @@ void Connection::handleMe(const HttpResponse &response)
         refuseCredentials(error);
         return;
     case ApiError::Kind::RateLimited:
-        startCooldown(response.retryAfter);
+        m_cooldown.start(response.retryAfter);
         setState(RateLimited, error.message);
         return;
     case ApiError::Kind::Network:
@@ -538,22 +515,13 @@ bool Connection::hasContext() const
 
 // ----- rate limiting -------------------------------------------------------
 
-void Connection::startCooldown(const QByteArray &retryAfter)
-{
-    const qint64 ms = retryAfterMs(retryAfter);
-    qCWarning(lcNet) << "Rate limited; waiting" << ms << "ms";
-    m_cooldownUntil = QDateTime::currentDateTimeUtc().addMSecs(ms);
-    m_cooldownTimer.start(int(ms));
-}
-
 bool Connection::coolingDown() const
 {
-    return m_cooldownUntil.isValid() && QDateTime::currentDateTimeUtc() < m_cooldownUntil;
+    return m_cooldown.active();
 }
 
 void Connection::onCooldownEnded()
 {
-    m_cooldownUntil = QDateTime();
     if (m_state != RateLimited) {
         Q_EMIT stateChanged();
         return;
@@ -621,7 +589,7 @@ std::optional<ApiError> Connection::refusal(Access access) const
                             : localError(ApiError::Kind::NotConnected, tr("Not connected to a Tokkl account."));
     }
     if (coolingDown()) {
-        return localError(ApiError::Kind::RateLimited, tr("Too many attempts. Wait until %1.").arg(m_cooldownUntil.toLocalTime().toString(Qt::TextDate)));
+        return localError(ApiError::Kind::RateLimited, tr("Too many attempts. Wait until %1.").arg(m_cooldown.until().toLocalTime().toString(Qt::TextDate)));
     }
     if (access == Access::Write && !canWrite()) {
         return localError(ApiError::Kind::NotConnected, tr("Changes are not possible right now."));
@@ -632,7 +600,7 @@ std::optional<ApiError> Connection::refusal(Access access) const
 bool Connection::absorbFailure(const HttpResponse &response, const ApiError &error, Access access)
 {
     if (error.kind == ApiError::Kind::RateLimited) {
-        startCooldown(response.retryAfter);
+        m_cooldown.start(response.retryAfter);
         setState(RateLimited, error.message);
     } else if (access == Access::Account && (error.kind == ApiError::Kind::Forbidden || error.kind == ApiError::Kind::Unauthorized)) {
         refuseCredentials(error);

@@ -13,6 +13,8 @@ add_library(tokklcore STATIC
     connection.h
     connectionsetup.cpp
     connectionsetup.h
+    cooldown.cpp
+    cooldown.h
     credentialstore.cpp
     credentialstore.h
     epoch.h

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "apitypes.h"
+#include "cooldown.h"
 #include "credentialstore.h"
 #include "instanceurl.h"
 #include "transport.h"
@@ -167,7 +168,7 @@ public:
     // Retry-After.
     static constexpr int retryDelayMs = 30000;
     static constexpr int retryJitterMs = 10000;
-    static constexpr int defaultCooldownMs = 60000;
+    static constexpr int defaultCooldownMs = Cooldown::defaultMs;
     // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;
     static constexpr int maxProjectPages = 100;
@@ -215,7 +216,6 @@ private:
     void resetAccount();
     void clearAccountData();
     void setState(State state, const QString &error = QString());
-    void startCooldown(const QByteArray &retryAfter);
     void onCooldownEnded();
     bool coolingDown() const;
     bool hasContext() const;
@@ -284,8 +284,7 @@ private:
     std::optional<qint64> m_nextProjectId;
     bool m_nextBillable = false;
 
-    QDateTime m_cooldownUntil;
-    QTimer m_cooldownTimer;
+    Cooldown m_cooldown;
     QTimer m_retryTimer;
     QSet<PendingReply *> m_pending;
     QSet<PendingStream *> m_streams;
