@@ -4,11 +4,12 @@
 #include "clock.h"
 #include "connection.h"
 #include "epoch.h"
+#include "nextstartdefaults.h"
+#include "projectcatalog.h"
 #include "timerstateclient.h"
 
 #include <QObject>
 #include <QPointer>
-#include <QSet>
 #include <QVariant>
 
 #include <optional>
@@ -52,12 +53,11 @@ namespace Tokkl
 // reconnect, until its reply arrives and a state read after it answers.
 //
 // The next start defaults to the project of the last entry: of the entry
-// that stopped, after every stop (as the stop reply names it, when the panel
-// stopped it), and of the newest entry the API lists when a connection starts
-// or reconnect() runs with nothing running. Only an active project of the
-// workspace counts; otherwise it is no project. A stop seen before the
-// project list waits for it. A pick made while stopped wins until the next
-// start; a reconnect replaces only an automatic default.
+// that stopped (as the stop reply names it, when the panel stopped it), and
+// of the newest entry the API lists when a connection starts or reconnect()
+// runs with nothing running. Only an active project of the workspace counts.
+// NextStartDefaults holds when a default may apply, and ProjectCatalog what
+// is known of the projects.
 //
 // The panel menu edits the choices through chooseProject() and
 // chooseBillable(). chooseProject() sets only the project of the next start
@@ -110,7 +110,6 @@ public:
     };
     Q_ENUM(IndicatorState)
 
-private:
     // Not owned. The connection is the client's.
     Q_PROPERTY(Tokkl::TimerStateClient *stateClient READ stateClient WRITE setStateClient NOTIFY connectionChanged)
     Q_PROPERTY(Tokkl::Connection *connection READ connection NOTIFY connectionChanged)
@@ -292,14 +291,10 @@ private:
     void pickNextStart();
     bool updateEntry(const TimeEntryUpdate &update);
     std::optional<qint64> chosenProject() const;
-    // The details of a project: from projects, else from the single-project
-    // read. gone is set when that read answered 404.
-    std::optional<Project> knownProject(qint64 id, bool *gone = nullptr) const;
     // Reads the chosen project when projects lacks it, then updates
     // entryProject and the indicator.
     void resolveProject();
     void setEntryProject(const std::optional<Project> &project);
-    void updateIndicator();
     // start is true for a start or resume, and entryReply for a v9 write,
     // whose reply is an entry rather than the whole state.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
@@ -329,25 +324,10 @@ private:
     // The pause chain shown: paused, or with m_entry as its clone.
     std::optional<TimerPause> m_chain;
     bool m_sessionActive = false;
-    QList<Project> m_projects;
-    bool m_projectsIncomplete = false;
-    // The project list of this context was read at least once.
-    bool m_projectsKnown = false;
+    // The workspace's projects and the one read on its own.
+    ProjectCatalog *m_catalog;
     std::optional<Project> m_entryProject;
-    // The last project read on its own, because projects lacked it, and
-    // whether the instance answered 404 for it.
-    std::optional<Project> m_lookedUp;
-    bool m_lookedUpGone = false;
-    // The project list was read again after m_lookedUp, so it is read again
-    // too: it may have been renamed, recoloured or deleted since.
-    bool m_lookedUpStale = false;
-    // Counts the project lists read. A single-project read that answers
-    // after a newer list may predate a change that list saw, so its answer
-    // stays stale and is read once more.
-    quint64 m_projectsRevision = 0;
-    QSet<qint64> m_lookupsPending; // ids of the project reads in flight
-    IndicatorState m_indicatorState = IndicatorState::None;
-    QString m_indicatorColor;
+    ProjectCatalog::Indicator m_indicator;
     qint64 m_elapsed = 0;
     QString m_error;
 
@@ -360,18 +340,8 @@ private:
     bool m_keepError = false;
     bool m_workspaceLost = false;
     bool m_rediscoveryUsed = false;
-    bool m_projectsPending = false;
 
-    // The user picked the next-start choice since the last start or stop, so
-    // no automatic default replaces it. Defaults themselves do not set it.
-    bool m_nextStartPicked = false;
-    // The project of an entry that stopped before the project list could
-    // tell whether it is active; applied when the list arrives.
-    std::optional<qint64> m_stopDefault;
-    // Ask for the last entry's project after the next state.
-    bool m_lastEntryWanted = false;
-    quint64 m_lastEntryReads = 0;
-    quint64 m_lastEntryRead = 0; // number of the last-entry read that may apply, or 0
+    NextStartDefaults m_defaults;
 };
 
 }

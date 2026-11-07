@@ -20,6 +20,7 @@ add_library(tokklcore STATIC
     instanceurl.h
     logging.cpp
     logging.h
+    nextstartdefaults.h
     pomodoropreferences.cpp
     pomodoropreferences.h
     pomodorosession.cpp
@@ -28,6 +29,8 @@ add_library(tokklcore STATIC
     pomodorosounds.h
     pomodorostore.cpp
     pomodorostore.h
+    projectcatalog.cpp
+    projectcatalog.h
     timercontroller.cpp
     timercontroller.h
     timerstateclient.cpp
