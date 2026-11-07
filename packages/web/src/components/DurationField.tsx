@@ -1,6 +1,7 @@
 import { useState, type ComponentPropsWithRef } from 'react';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import type { DurationFormat } from '../api/types.ts';
+import { t } from '../i18n/messages.ts';
 
 /**
  * Text field that accepts any duration grammar from @tokkl/common/duration and commits on blur or
@@ -39,7 +40,7 @@ export function DurationField({
       className={className}
       value={editing ? text : shown}
       disabled={disabled}
-      aria-label={ariaLabel ?? 'Duration'}
+      aria-label={ariaLabel ?? t('entries.duration')}
       inputMode="text"
       onFocus={event => {
         setText(shown);

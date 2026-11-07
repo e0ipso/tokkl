@@ -5,6 +5,7 @@ import { Icon } from './Icon.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { TagPicker } from './TagPicker.tsx';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
+import { t } from '../i18n/messages.ts';
 
 /** Actions on the selected entries. Every action ends the selection once the server answers. */
 export function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
@@ -22,41 +23,41 @@ export function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) 
   };
 
   return (
-    <div className="bulk-bar" role="toolbar" aria-label="Bulk actions">
-      <strong>{ids.length} selected</strong>
+    <div className="bulk-bar" role="toolbar" aria-label={t('entries.bulkLabel')}>
+      <strong>{t('entries.bulkSelected', { count: ids.length })}</strong>
       <button ref={projectRef} type="button" className="button button-ghost" onClick={() => setPicker('project')}>
-        <Icon name="folder" size={16} /> Project
+        <Icon name="folder" size={16} /> {t('entries.project')}
       </button>
       <button ref={tagRef} type="button" className="button button-ghost" onClick={() => setPicker('tags')}>
-        <Icon name="tag" size={16} /> Add tags
+        <Icon name="tag" size={16} /> {t('entries.bulkAddTags')}
       </button>
       <button
         type="button"
         className="button button-ghost"
-        onClick={() => patch(entryPatch.billable(true), 'Marked billable')}
+        onClick={() => patch(entryPatch.billable(true), t('entries.bulkMarkedBillable'))}
       >
-        Billable
+        {t('entries.billable')}
       </button>
       <button
         type="button"
         className="button button-ghost"
-        onClick={() => patch(entryPatch.billable(false), 'Marked non-billable')}
+        onClick={() => patch(entryPatch.billable(false), t('entries.bulkMarkedNonBillable'))}
       >
-        Non-billable
+        {t('entries.bulkNonBillable')}
       </button>
       <button type="button" className="button button-danger-ghost" onClick={() => void deleteAll()}>
-        <Icon name="trash" size={16} /> Delete
+        <Icon name="trash" size={16} /> {t('common.delete')}
       </button>
       <span className="spacer" />
       <button type="button" className="button button-ghost" onClick={onDone}>
-        Clear
+        {t('entries.bulkClear')}
       </button>
       {picker === 'project' ? (
         <ProjectPicker
           anchor={projectRef}
           projectId={null}
           taskId={null}
-          onChange={(pid, tid) => patch(entryPatch.project(pid, tid), 'Project updated')}
+          onChange={(pid, tid) => patch(entryPatch.project(pid, tid), t('entries.bulkProjectUpdated'))}
           onClose={() => setPicker(null)}
         />
       ) : null}
@@ -66,7 +67,7 @@ export function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) 
           value={[]}
           onChange={tags => {
             setPicker(null);
-            patch(entryPatch.addTags(tags), 'Tags added');
+            patch(entryPatch.addTags(tags), t('entries.bulkTagsAdded'));
           }}
           onClose={() => setPicker(null)}
         />

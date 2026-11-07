@@ -3,6 +3,7 @@ import { useCreateTag, useTags } from '../api/tags.ts';
 import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
 import { useToast } from './Toast.tsx';
+import { t } from '../i18n/messages.ts';
 
 /** Multi-select tag chooser; unknown names can be created. Works with tag names, like the Toggl API. */
 export function TagPicker({
@@ -42,11 +43,11 @@ export function TagPicker({
   };
 
   return (
-    <Popover anchor={anchor} label="Tags" onClose={onClose} width={260}>
+    <Popover anchor={anchor} label={t('entries.tags')} onClose={onClose} width={260}>
       <input
         className="picker-search"
         autoFocus
-        placeholder="Find or create tags…"
+        placeholder={t('entries.pickerTagSearch')}
         value={query}
         onChange={event => setQuery(event.target.value)}
         onKeyDown={event => {
@@ -65,12 +66,10 @@ export function TagPicker({
         ))}
         {query.trim() && !exact ? (
           <button type="button" className="picker-item picker-create" onClick={() => void create()}>
-            <Icon name="plus" size={14} /> Create tag "{query.trim()}"
+            <Icon name="plus" size={14} /> {t('entries.createTag', { name: query.trim() })}
           </button>
         ) : null}
-        {tags.length === 0 && !query ? (
-          <div className="picker-empty">No tags yet. Type a name to create one.</div>
-        ) : null}
+        {tags.length === 0 && !query ? <div className="picker-empty">{t('entries.noTagsYet')}</div> : null}
       </div>
     </Popover>
   );

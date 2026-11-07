@@ -6,6 +6,7 @@ import { ProjectDot, ProjectLabel, projectColorStyle } from './ProjectLabel.tsx'
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { TagPicker } from './TagPicker.tsx';
 import { suggestedDraft, useEntryFields, type EntryDraft, type Suggestion } from './useEntryFields.ts';
+import { t } from '../i18n/messages.ts';
 
 export interface EntryFieldsHandle {
   focus: () => void;
@@ -78,7 +79,7 @@ export const EntryFields = forwardRef<
           ref={descriptionRef}
           value={draft.description}
           placeholder={placeholder}
-          aria-label="Description"
+          aria-label={t('entries.description')}
           // The suggestions are its popup listbox, as in the project picker's search field.
           role="combobox"
           aria-autocomplete="list"
@@ -127,7 +128,7 @@ export const EntryFields = forwardRef<
           }}
         />
         {suggestions.length > 0 ? (
-          <ul className="suggestions" role="listbox" id={listId} aria-label="Suggestions">
+          <ul className="suggestions" role="listbox" id={listId} aria-label={t('entries.suggestions')}>
             {suggestions.map((s, i) => (
               <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === highlight}>
                 <button
@@ -138,7 +139,7 @@ export const EntryFields = forwardRef<
                     pickSuggestion(s);
                   }}
                 >
-                  <span>{s.description || <em className="muted">(no description)</em>}</span>
+                  <span>{s.description || <em className="muted">{t('entries.noDescription')}</em>}</span>
                   {s.project_id ? (
                     <span className="suggestion-project">
                       <ProjectDot color={s.project_color} /> {s.project_name}
@@ -157,8 +158,8 @@ export const EntryFields = forwardRef<
           type="button"
           className={`icon-button timer-attr timer-project${project ? ' active' : ''}`}
           style={projectColorStyle(project?.color)}
-          title="Project (@)"
-          aria-label="Project"
+          title={t('entries.projectTitle')}
+          aria-label={t('entries.project')}
           disabled={readOnly}
           onClick={() => setPicker('project')}
         >
@@ -168,8 +169,8 @@ export const EntryFields = forwardRef<
           ref={tagButton}
           type="button"
           className={`icon-button timer-attr${draft.tags.length ? ' active' : ''}`}
-          title={draft.tags.length ? draft.tags.join(', ') : 'Tags (#)'}
-          aria-label="Tags"
+          title={draft.tags.length ? draft.tags.join(', ') : t('entries.tagsTitle')}
+          aria-label={t('entries.tags')}
           disabled={readOnly}
           onClick={() => setPicker('tags')}
         >
@@ -179,8 +180,8 @@ export const EntryFields = forwardRef<
         <button
           type="button"
           className={`icon-button timer-attr billable-toggle${draft.billable ? ' active billable' : ''}`}
-          title="Billable"
-          aria-label="Billable"
+          title={t('entries.billable')}
+          aria-label={t('entries.billable')}
           aria-pressed={draft.billable}
           disabled={readOnly}
           onClick={() => onEdit({ billable: !draft.billable })}

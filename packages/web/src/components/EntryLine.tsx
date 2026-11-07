@@ -18,6 +18,7 @@ import { useToast } from './Toast.tsx';
 import { draftOf } from './useEntryFields.ts';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
 import { useRowDescription } from './useRowDescription.ts';
+import { t } from '../i18n/messages.ts';
 
 /** One line in the list. With several entries it edits all of them at once through the bulk API. */
 export function EntryLine({
@@ -69,7 +70,7 @@ export function EntryLine({
   const duplicate = async () => {
     try {
       await create.mutateAsync(duplicateInput(entry, settings.timeZone));
-      toast.show('Entry duplicated');
+      toast.show(t('entries.duplicated'));
     } catch (error) {
       toast.error(error);
     }
@@ -78,11 +79,11 @@ export function EntryLine({
   const pin = () => {
     const favorites = withFavorite(prefs?.favorites ?? [], draftOf(entry));
     if (!favorites) {
-      toast.show(`You can pin up to ${MAX_FAVORITES} favorites`, { kind: 'error' });
+      toast.show(t('entries.favoritesFull', { max: MAX_FAVORITES }), { kind: 'error' });
       return;
     }
     // The favorite shows at once; the toast waits for the server, and a failed save rolls it back.
-    savePrefs.mutate({ favorites }, { onSuccess: () => toast.show('Pinned to favorites'), onError: toast.error });
+    savePrefs.mutate({ favorites }, { onSuccess: () => toast.show(t('entries.pinned')), onError: toast.error });
   };
 
   return (
@@ -90,7 +91,7 @@ export function EntryLine({
       <input
         type="checkbox"
         className="entry-select"
-        aria-label="Select entry"
+        aria-label={t('entries.selectEntry')}
         checked={selected}
         onChange={event => onSelect(event.target.checked)}
       />
@@ -99,8 +100,8 @@ export function EntryLine({
         ref={input}
         className="entry-description"
         value={description}
-        placeholder="Add description"
-        aria-label="Description"
+        placeholder={t('entries.addDescription')}
+        aria-label={t('entries.description')}
         onChange={event => setDescription(event.target.value)}
         onBlur={commitDescription}
         onKeyDown={event => {
@@ -127,7 +128,7 @@ export function EntryLine({
           />
         ) : (
           <span className="add-project">
-            <Icon name="folder" size={14} /> Project
+            <Icon name="folder" size={14} /> {t('entries.project')}
           </span>
         )}
       </button>
@@ -136,7 +137,7 @@ export function EntryLine({
         type="button"
         className={`entry-tags${entry.tags.length ? ' has-tags' : ''}`}
         onClick={() => setPicker('tags')}
-        title="Tags"
+        title={t('entries.tags')}
       >
         {entry.tags.length ? (
           entry.tags.map(tag => (
@@ -152,8 +153,8 @@ export function EntryLine({
         type="button"
         className={`icon-button entry-billable billable-toggle${entry.billable ? ' active billable' : ''}`}
         aria-pressed={entry.billable}
-        aria-label="Billable"
-        title="Billable"
+        aria-label={t('entries.billable')}
+        title={t('entries.billable')}
         onClick={() => patch(entryPatch.billable(!entry.billable))}
       >
         <Icon name="dollar" size={16} />
@@ -163,11 +164,11 @@ export function EntryLine({
         className="entry-times"
         onClick={() => (single ? setEditing(true) : undefined)}
         disabled={!single}
-        title={single ? 'Edit times' : undefined}
-        aria-label={single && !timeRange ? 'Edit times' : undefined}
+        title={single ? t('entries.editTimes') : undefined}
+        aria-label={single && !timeRange ? t('entries.editTimes') : undefined}
       >
         {overlap ? (
-          <span className="overlap-mark" title="Overlaps another entry" aria-label="Overlaps another entry">
+          <span className="overlap-mark" title={t('entries.overlaps')} aria-label={t('entries.overlaps')}>
             !
           </span>
         ) : null}
@@ -187,8 +188,8 @@ export function EntryLine({
         type="button"
         className="icon-button entry-continue"
         onClick={onContinue}
-        title="Continue this entry"
-        aria-label="Continue this entry"
+        title={t('entries.continue')}
+        aria-label={t('entries.continue')}
       >
         <Icon name="play" size={16} />
       </button>
@@ -197,7 +198,7 @@ export function EntryLine({
         type="button"
         className="icon-button"
         onClick={() => setPicker('menu')}
-        aria-label="More actions"
+        aria-label={t('entries.moreActions')}
       >
         <Icon name="more" />
       </button>

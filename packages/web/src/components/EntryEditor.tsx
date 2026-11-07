@@ -17,6 +17,7 @@ import { TagPicker } from './TagPicker.tsx';
 import { useToast } from './Toast.tsx';
 import { draftOf, projectChanges, type EntryDraft } from './useEntryFields.ts';
 import { useEntryTimes, type TimeFieldKey } from './useEntryTimes.ts';
+import { t } from '../i18n/messages.ts';
 
 function isStopped(entry: TimeEntry): entry is TimeEntry & { stop: string } {
   return entry.stop !== null;
@@ -56,7 +57,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
     if (!entry.stop) return;
     try {
       await create.mutateAsync(duplicateInput(entry, settings.timeZone));
-      toast.show('Entry duplicated');
+      toast.show(t('entries.duplicated'));
       onClose();
     } catch (error) {
       toast.error(error);
@@ -66,7 +67,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const destroy = async () => {
     try {
       await remove.mutateAsync(entry.id);
-      toast.show('Entry deleted', { action: { label: 'Undo', run: () => restore.mutate(entry.id) } });
+      toast.show(t('entries.deleted'), { action: { label: t('common.undo'), run: () => restore.mutate(entry.id) } });
       onClose();
     } catch (error) {
       toast.error(error);
@@ -77,17 +78,17 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const rangeStop = times.range?.stop ?? null;
   return (
     <Modal
-      title={running ? 'Edit running entry' : 'Edit entry'}
+      title={running ? t('entries.editRunning') : t('entries.editEntry')}
       onClose={onClose}
       footer={
         <>
           <button type="button" className="button button-danger-ghost" onClick={() => void destroy()}>
-            <Icon name="trash" size={16} /> Delete
+            <Icon name="trash" size={16} /> {t('common.delete')}
           </button>
           <span className="spacer" />
           {!running ? (
             <button type="button" className="button button-ghost" onClick={() => void duplicate()}>
-              <Icon name="copy" size={16} /> Duplicate
+              <Icon name="copy" size={16} /> {t('entries.duplicate')}
             </button>
           ) : null}
           <button
@@ -96,7 +97,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
             onClick={() => void save()}
             disabled={update.isPending}
           >
-            Save
+            {t('common.save')}
           </button>
         </>
       }
@@ -109,7 +110,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
         }}
       >
         <label className="field field-full">
-          <span>Description</span>
+          <span>{t('entries.description')}</span>
           <input
             value={draft.description}
             onChange={event => edit({ description: event.target.value })}
@@ -117,19 +118,19 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           />
         </label>
         <div className="field">
-          <span>Project</span>
+          <span>{t('entries.project')}</span>
           <button ref={projectButton} type="button" className="select-button" onClick={() => setPicker('project')}>
             {draft.project_id ? (
               <ProjectLabel projectId={draft.project_id} taskId={draft.task_id} />
             ) : (
-              <span className="muted">No project</span>
+              <span className="muted">{t('entries.noProject')}</span>
             )}
           </button>
         </div>
         <div className="field">
-          <span>Tags</span>
+          <span>{t('entries.tags')}</span>
           <button ref={tagButton} type="button" className="select-button" onClick={() => setPicker('tags')}>
-            {draft.tags.length ? draft.tags.join(', ') : <span className="muted">No tags</span>}
+            {draft.tags.length ? draft.tags.join(', ') : <span className="muted">{t('entries.noTags')}</span>}
           </button>
         </div>
         <label className="field checkbox-field">
@@ -138,7 +139,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
             checked={draft.billable}
             onChange={event => edit({ billable: event.target.checked })}
           />
-          <span>Billable{project?.billable ? ' (project default)' : ''}</span>
+          <span>{project?.billable ? t('entries.billableProjectDefault') : t('entries.billable')}</span>
         </label>
         {!running ? (
           <label className="manual-switch field-full">
@@ -151,11 +152,11 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
                 (['start', 'end', 'duration'] as const).forEach(fields.clear);
               }}
             />
-            No times
+            {t('entries.noTimes')}
           </label>
         ) : null}
         <label className="field">
-          <span>Date</span>
+          <span>{t('entries.date')}</span>
           <input
             type="date"
             value={times.day}
@@ -164,7 +165,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
         </label>
         {times.noTimes ? (
           <div className="field">
-            <label htmlFor={fields.id('duration')}>Duration</label>
+            <label htmlFor={fields.id('duration')}>{t('entries.duration')}</label>
             <DurationField
               format={settings.durationFormat}
               seconds={times.noTimeLength}
@@ -175,7 +176,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           </div>
         ) : (
           <div className="field">
-            <label htmlFor={fields.id('start')}>Start</label>
+            <label htmlFor={fields.id('start')}>{t('entries.start')}</label>
             <input
               {...fields.field('start')}
               value={times.startText}
@@ -188,7 +189,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
         {!running && !times.noTimes ? (
           <>
             <div className="field">
-              <label htmlFor={fields.id('end')}>End</label>
+              <label htmlFor={fields.id('end')}>{t('entries.end')}</label>
               <input
                 {...fields.field('end')}
                 value={times.endText}
@@ -198,7 +199,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
               {fields.message('end')}
             </div>
             <div className="field">
-              <label htmlFor={fields.id('duration')}>Duration</label>
+              <label htmlFor={fields.id('duration')}>{t('entries.duration')}</label>
               <input
                 {...fields.field('duration')}
                 value={times.durationText}
@@ -210,7 +211,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           </>
         ) : null}
         {rangeStop && localDay(rangeStop, settings.timeZone) !== times.day ? (
-          <p className="field-full hint">Ends the next day, {localDay(rangeStop, settings.timeZone)}.</p>
+          <p className="field-full hint">{t('entries.endsNextDay', { day: localDay(rangeStop, settings.timeZone) })}</p>
         ) : null}
         {isStopped(entry) && !times.noTimes && !entry.all_day ? (
           <EntrySplitField entry={entry} settings={settings} onSplit={onClose} />
