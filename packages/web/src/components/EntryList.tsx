@@ -1,88 +1,49 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePreferences, useSavePreferences } from '../api/account.ts';
-import { useBulkPatch, useCreateEntry, useDeleteEntry, useRestoreEntry, useUpdateEntry } from '../api/entries.ts';
-import { type PatchOperation } from '../api/types.ts';
-import type { Favorite, TimeEntry } from '../api/types.ts';
-import { overlappingIds } from '../lib/entryOverlap.ts';
-import { localDay } from '../lib/entryTime.ts';
+import { useMemo, useState } from 'react';
 import { useSettings } from '../api/settings.ts';
-import { useNow } from '../lib/clock.ts';
+import type { TimeEntry } from '../api/types.ts';
+import { overlappingIds } from '../lib/entryOverlap.ts';
+import {
+  entriesByDay,
+  rangeLabel,
+  rowsForDay,
+  stoppedSeconds,
+  totalSeconds,
+  type EntryRowGroup,
+} from '../lib/entryRows.ts';
 import { dayLabel, duration, formatTime, today } from '../lib/format.ts';
-import { entrySeconds } from '../lib/snapping.ts';
+import { BulkBar } from './BulkBar.tsx';
 import { EmptyState } from './EmptyState.tsx';
-import { EntryEditor } from './EntryEditor.tsx';
+import { EntryLine } from './EntryLine.tsx';
 import { Icon } from './Icon.tsx';
-import { Popover } from './Overlay.tsx';
-import { ProjectLabel, ProjectPicker, TagPicker, projectColorStyle } from './Pickers.tsx';
-import { DurationField } from './DurationField.tsx';
-import { useToast } from './Toast.tsx';
 
-interface Row {
-  key: string;
-  entries: TimeEntry[];
-}
+type Toggle = (ids: number[], on: boolean) => void;
 
-/** The clock range spanned by the timed entries, or '' when there are none. */
-function rangeLabel(entries: TimeEntry[], format: (iso: string) => string): string {
-  const timed = entries.filter(e => e.stop && !e.all_day);
-  if (timed.length === 0) return '';
-  const starts = timed.map(e => e.start).sort();
-  const stops = timed.map(e => e.stop!).sort();
-  return `${format(starts[0]!)} – ${format(stops[stops.length - 1]!)}`;
-}
-
-function similarityKey(entry: TimeEntry): string {
-  return [entry.description, entry.project_id, entry.task_id, entry.billable, [...entry.tags].sort().join(',')].join(
-    '\u0000',
+function EmptyList({ onStartTimer, onManualMode }: { onStartTimer: () => void; onManualMode?: () => void }) {
+  return (
+    <EmptyState
+      icon={<Icon name="timer" size={32} />}
+      title="No time entries in this period"
+      actions={
+        <>
+          <button type="button" className="button button-primary" onClick={onStartTimer}>
+            <Icon name="play" size={14} /> Start timer
+          </button>
+          {onManualMode ? (
+            <button type="button" className="button button-ghost" onClick={onManualMode}>
+              <Icon name="list" size={14} /> Manual mode
+            </button>
+          ) : null}
+        </>
+      }
+    >
+      {onManualMode
+        ? 'Start the timer when you paddle out, or switch to manual mode to log time you already worked.'
+        : 'Start the timer when you paddle out, or fill in the times above to log time you already worked.'}
+    </EmptyState>
   );
 }
 
-const entryCount = (count: number) => (count === 1 ? '1 entry' : `${count} entries`);
-
-/**
- * Deletes each entry on its own, so one failure (say, an entry another device already deleted)
- * does not stop the rest. The toast counts what was deleted and what failed, and Undo restores
- * only the entries this call deleted.
- */
-function useDeleteEntries() {
-  const remove = useDeleteEntry();
-  const restore = useRestoreEntry();
-  const toast = useToast();
-  return async (ids: number[]) => {
-    const results = await Promise.allSettled(ids.map(id => remove.mutateAsync(id)));
-    const deleted = ids.filter((_, index) => results[index]!.status === 'fulfilled');
-    const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
-    const undo = deleted.length ? { label: 'Undo', run: () => deleted.forEach(id => restore.mutate(id)) } : undefined;
-    if (!failure) {
-      toast.show(ids.length > 1 ? `${ids.length} entries deleted` : 'Entry deleted', { action: undo });
-      return;
-    }
-    const reason = failure.reason instanceof Error ? failure.reason.message : String(failure.reason);
-    const failed = ids.length - deleted.length;
-    const message = deleted.length
-      ? `${entryCount(deleted.length)} deleted, ${entryCount(failed)} failed: ${reason}`
-      : failed > 1
-        ? `${failed} entries failed: ${reason}`
-        : reason;
-    toast.show(message, { kind: 'error', action: undo });
-  };
-}
-
-/**
- * Rows are keyed by their oldest member's id, not by the fields they are grouped on, so an edit
- * from another device does not remount the row someone is typing in. A group keeps its key when
- * entries join it (a split adds a newer id).
- */
-function rowsForDay(entries: TimeEntry[], collapse: boolean): Row[] {
-  if (!collapse) return entries.map(entry => ({ key: String(entry.id), entries: [entry] }));
-  const groups = new Map<string, TimeEntry[]>();
-  for (const entry of entries) {
-    const similar = similarityKey(entry);
-    groups.set(similar, [...(groups.get(similar) ?? []), entry]);
-  }
-  return [...groups.values()].map(members => ({ key: String(Math.min(...members.map(e => e.id))), entries: members }));
-}
-
+/** The stopped entries of the shown range, by day, with selection for the bulk bar. */
 export function EntryList({
   entries,
   onContinue,
@@ -98,19 +59,10 @@ export function EntryList({
   const settings = useSettings();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const todayKey = today(settings.timeZone);
-  const days = useMemo(() => {
-    const byDay = new Map<string, TimeEntry[]>();
-    for (const entry of entries) {
-      if (!entry.stop) continue;
-      const key = localDay(entry.start, settings.timeZone);
-      byDay.set(key, [...(byDay.get(key) ?? []), entry]);
-    }
-    return [...byDay].sort(([a], [b]) => b.localeCompare(a));
-  }, [entries, settings.timeZone]);
-
+  const days = useMemo(() => entriesByDay(entries, settings.timeZone), [entries, settings.timeZone]);
   const overlaps = useMemo(() => overlappingIds(entries), [entries]);
 
-  const toggle = (ids: number[], on: boolean) => {
+  const toggle: Toggle = (ids, on) => {
     setSelected(current => {
       const next = new Set(current);
       for (const id of ids) {
@@ -121,36 +73,12 @@ export function EntryList({
     });
   };
 
-  if (days.length === 0) {
-    return (
-      <EmptyState
-        icon={<Icon name="timer" size={32} />}
-        title="No time entries in this period"
-        actions={
-          <>
-            <button type="button" className="button button-primary" onClick={onStartTimer}>
-              <Icon name="play" size={14} /> Start timer
-            </button>
-            {onManualMode ? (
-              <button type="button" className="button button-ghost" onClick={onManualMode}>
-                <Icon name="list" size={14} /> Manual mode
-              </button>
-            ) : null}
-          </>
-        }
-      >
-        {onManualMode
-          ? 'Start the timer when you paddle out, or switch to manual mode to log time you already worked.'
-          : 'Start the timer when you paddle out, or fill in the times above to log time you already worked.'}
-      </EmptyState>
-    );
-  }
+  if (days.length === 0) return <EmptyList onStartTimer={onStartTimer} onManualMode={onManualMode} />;
 
   return (
     <div className="entry-list">
       {selected.size > 0 ? <BulkBar ids={[...selected]} onDone={() => setSelected(new Set())} /> : null}
-      {days.map(([day, list]) => {
-        const total = list.reduce((sum, entry) => sum + entrySeconds(entry, new Date()), 0);
+      {days.map(({ day, entries: list }) => {
         const dayIds = list.map(entry => entry.id);
         const allSelected = dayIds.every(id => selected.has(id));
         return (
@@ -160,7 +88,7 @@ export function EntryList({
                 <input type="checkbox" checked={allSelected} onChange={event => toggle(dayIds, event.target.checked)} />
               </label>
               <h3>{dayLabel(day, todayKey)}</h3>
-              <span className="day-total">{duration(total, settings)}</span>
+              <span className="day-total">{duration(totalSeconds(list), settings)}</span>
             </header>
             <ul className="entries">
               {rowsForDay(list, settings.collapseSimilar).map(row => (
@@ -188,10 +116,10 @@ function EntryRow({
   onToggle,
   onContinue,
 }: {
-  row: Row;
-  selected: Set<number>;
-  overlaps: Set<number>;
-  onToggle: (ids: number[], on: boolean) => void;
+  row: EntryRowGroup;
+  selected: ReadonlySet<number>;
+  overlaps: ReadonlySet<number>;
+  onToggle: Toggle;
   onContinue: (entry: TimeEntry) => void;
 }) {
   const settings = useSettings();
@@ -199,7 +127,7 @@ function EntryRow({
   const entry = row.entries[0]!;
   const ids = row.entries.map(e => e.id);
   const grouped = row.entries.length > 1;
-  const total = row.entries.reduce((sum, e) => sum + entrySeconds(e, new Date()), 0);
+  const format = (iso: string) => formatTime(iso, settings);
 
   return (
     <li className={`entry-row-wrap${grouped ? ' grouped' : ''}`}>
@@ -207,9 +135,9 @@ function EntryRow({
         entries={row.entries}
         selected={ids.every(id => selected.has(id))}
         onSelect={on => onToggle(ids, on)}
-        seconds={total}
+        seconds={totalSeconds(row.entries)}
         overlap={row.entries.some(e => overlaps.has(e.id))}
-        timeRange={rangeLabel(row.entries, iso => formatTime(iso, settings))}
+        timeRange={rangeLabel(row.entries, format)}
         countBadge={
           grouped ? (
             <button
@@ -233,9 +161,9 @@ function EntryRow({
                 entries={[member]}
                 selected={selected.has(member.id)}
                 onSelect={on => onToggle([member.id], on)}
-                seconds={entrySeconds(member, new Date())}
+                seconds={stoppedSeconds(member)}
                 overlap={overlaps.has(member.id)}
-                timeRange={rangeLabel([member], iso => formatTime(iso, settings))}
+                timeRange={rangeLabel([member], format)}
                 onContinue={() => onContinue(member)}
               />
             </li>
@@ -243,384 +171,5 @@ function EntryRow({
         </ul>
       ) : null}
     </li>
-  );
-}
-
-/** One line in the list. With several entries it edits all of them at once through the bulk API. */
-function EntryLine({
-  entries,
-  selected,
-  onSelect,
-  seconds,
-  overlap,
-  timeRange,
-  countBadge,
-  onContinue,
-}: {
-  entries: TimeEntry[];
-  selected: boolean;
-  onSelect: (on: boolean) => void;
-  seconds: number;
-  overlap: boolean;
-  timeRange: string;
-  countBadge?: React.ReactNode;
-  onContinue: () => void;
-}) {
-  const settings = useSettings();
-  const entry = entries[0]!;
-  const single = entries.length === 1;
-  const [description, setDescription] = useState(entry.description);
-  const descriptionRef = useRef<HTMLInputElement>(null);
-  const storedDescription = useRef(entry.description);
-  // Follow the stored description, unless the user is typing a change of their own: a refresh
-  // must not throw that away. Committing it then saves the typed text.
-  useEffect(() => {
-    const typing = document.activeElement === descriptionRef.current && description !== storedDescription.current;
-    storedDescription.current = entry.description;
-    if (!typing) setDescription(entry.description);
-  }, [entry.description]);
-  const [picker, setPicker] = useState<'project' | 'tags' | 'menu' | null>(null);
-  const [editing, setEditing] = useState(false);
-  const projectRef = useRef<HTMLButtonElement>(null);
-  const tagRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLButtonElement>(null);
-  const bulk = useBulkPatch();
-  const update = useUpdateEntry();
-  const create = useCreateEntry();
-  const deleteEntries = useDeleteEntries();
-  const { data: prefs } = usePreferences();
-  const savePrefs = useSavePreferences();
-  const toast = useToast();
-  useNow(60_000);
-
-  const patch = (operations: PatchOperation[]) => {
-    bulk.mutate(
-      { ids: entries.map(e => e.id), operations },
-      {
-        onSuccess: result => {
-          if (result.failure.length) toast.show(result.failure[0]!.message, { kind: 'error' });
-        },
-        onError: toast.error,
-      },
-    );
-  };
-
-  const commitDescription = () => {
-    if (description !== entry.description) patch([{ op: 'replace', path: '/description', value: description }]);
-  };
-
-  const deleteAll = () => deleteEntries(entries.map(e => e.id));
-
-  const duplicate = async () => {
-    try {
-      await create.mutateAsync({
-        description: entry.description,
-        project_id: entry.project_id,
-        task_id: entry.task_id,
-        tags: entry.tags,
-        billable: entry.billable,
-        ...(entry.all_day
-          ? { all_day: true, start_date: localDay(entry.start, settings.timeZone), duration: entry.duration }
-          : { start: entry.start, stop: entry.stop }),
-      });
-      toast.show('Entry duplicated');
-    } catch (error) {
-      toast.error(error);
-    }
-  };
-
-  const pin = () => {
-    const favorite: Favorite = {
-      description: entry.description,
-      project_id: entry.project_id,
-      task_id: entry.task_id,
-      tags: entry.tags,
-      billable: entry.billable,
-    };
-    const favorites = prefs?.favorites ?? [];
-    if (favorites.length >= 9) return toast.show('You can pin up to 9 favorites', { kind: 'error' });
-    savePrefs.mutate({ favorites: [...favorites, favorite] });
-    toast.show('Pinned to favorites');
-  };
-
-  return (
-    <div className={`entry-line${selected ? ' selected' : ''}`}>
-      <input
-        type="checkbox"
-        className="entry-select"
-        aria-label="Select entry"
-        checked={selected}
-        onChange={event => onSelect(event.target.checked)}
-      />
-      {countBadge}
-      <input
-        ref={descriptionRef}
-        className="entry-description"
-        value={description}
-        placeholder="Add description"
-        aria-label="Description"
-        onChange={event => setDescription(event.target.value)}
-        onBlur={commitDescription}
-        onKeyDown={event => {
-          if (event.key === 'Enter') (event.target as HTMLInputElement).blur();
-        }}
-      />
-      <button
-        ref={projectRef}
-        type="button"
-        className={`entry-project${entry.project_id ? ' has-project' : ''}`}
-        style={projectColorStyle(entry.project_id ? entry.project_color : null)}
-        onClick={() => setPicker('project')}
-      >
-        {entry.project_id ? (
-          <ProjectLabel
-            projectId={entry.project_id}
-            taskId={entry.task_id}
-            fallback={{
-              name: entry.project_name,
-              color: entry.project_color,
-              client: entry.client_name,
-              task: entry.task_name,
-            }}
-          />
-        ) : (
-          <span className="add-project">
-            <Icon name="folder" size={14} /> Project
-          </span>
-        )}
-      </button>
-      <button
-        ref={tagRef}
-        type="button"
-        className={`entry-tags${entry.tags.length ? ' has-tags' : ''}`}
-        onClick={() => setPicker('tags')}
-        title="Tags"
-      >
-        {entry.tags.length ? (
-          entry.tags.map(tag => (
-            <span key={tag} className="tag-chip">
-              {tag}
-            </span>
-          ))
-        ) : (
-          <Icon name="tag" size={14} />
-        )}
-      </button>
-      <button
-        type="button"
-        className={`icon-button entry-billable billable-toggle${entry.billable ? ' active billable' : ''}`}
-        aria-pressed={entry.billable}
-        aria-label="Billable"
-        title="Billable"
-        onClick={() => patch([{ op: 'replace', path: '/billable', value: !entry.billable }])}
-      >
-        <Icon name="dollar" size={16} />
-      </button>
-      <button
-        type="button"
-        className="entry-times"
-        onClick={() => (single ? setEditing(true) : undefined)}
-        disabled={!single}
-        title={single ? 'Edit times' : undefined}
-        aria-label={single && !timeRange ? 'Edit times' : undefined}
-      >
-        {overlap ? (
-          <span className="overlap-mark" title="Overlaps another entry" aria-label="Overlaps another entry">
-            !
-          </span>
-        ) : null}
-        {timeRange}
-      </button>
-      {single ? (
-        <DurationField
-          className="entry-duration"
-          seconds={seconds}
-          format={settings.durationFormat}
-          onCommit={next => update.mutate({ id: entry.id, duration: next }, { onError: toast.error })}
-        />
-      ) : (
-        <span className="entry-duration">{duration(seconds, settings)}</span>
-      )}
-      <button
-        type="button"
-        className="icon-button entry-continue"
-        onClick={onContinue}
-        title="Continue this entry"
-        aria-label="Continue this entry"
-      >
-        <Icon name="play" size={16} />
-      </button>
-      <button
-        ref={menuRef}
-        type="button"
-        className="icon-button"
-        onClick={() => setPicker('menu')}
-        aria-label="More actions"
-      >
-        <Icon name="more" />
-      </button>
-
-      {picker === 'project' ? (
-        <ProjectPicker
-          anchor={projectRef}
-          projectId={entry.project_id}
-          taskId={entry.task_id}
-          onChange={(pid, tid) =>
-            patch([
-              { op: 'replace', path: '/project_id', value: pid },
-              { op: 'replace', path: '/task_id', value: tid },
-            ])
-          }
-          onClose={() => setPicker(null)}
-        />
-      ) : null}
-      {picker === 'tags' ? (
-        <TagPicker
-          anchor={tagRef}
-          value={entry.tags}
-          onChange={tags => patch([{ op: 'replace', path: '/tags', value: tags }])}
-          onClose={() => setPicker(null)}
-        />
-      ) : null}
-      {picker === 'menu' ? (
-        <Popover anchor={menuRef} label="Entry actions" onClose={() => setPicker(null)} width={200} align="right">
-          <div className="menu">
-            {single ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setPicker(null);
-                  setEditing(true);
-                }}
-              >
-                <Icon name="edit" size={16} /> Edit
-              </button>
-            ) : null}
-            {single ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setPicker(null);
-                  void duplicate();
-                }}
-              >
-                <Icon name="copy" size={16} /> Duplicate
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setPicker(null);
-                pin();
-              }}
-            >
-              <Icon name="star" size={16} /> Pin as favorite
-            </button>
-            <button
-              type="button"
-              className="danger"
-              onClick={() => {
-                setPicker(null);
-                void deleteAll();
-              }}
-            >
-              <Icon name="trash" size={16} /> Delete{entries.length > 1 ? ` ${entries.length} entries` : ''}
-            </button>
-          </div>
-        </Popover>
-      ) : null}
-      {editing ? <EntryEditor entry={entry} onClose={() => setEditing(false)} /> : null}
-    </div>
-  );
-}
-
-function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
-  const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
-  const projectRef = useRef<HTMLButtonElement>(null);
-  const tagRef = useRef<HTMLButtonElement>(null);
-  const bulk = useBulkPatch();
-  const deleteEntries = useDeleteEntries();
-  const toast = useToast();
-
-  const patch = (operations: PatchOperation[], message: string) => {
-    bulk.mutate(
-      { ids, operations },
-      {
-        onSuccess: result => {
-          toast.show(
-            result.failure.length ? `${result.failure.length} entries failed: ${result.failure[0]!.message}` : message,
-            { kind: result.failure.length ? 'error' : 'info' },
-          );
-          onDone();
-        },
-        onError: toast.error,
-      },
-    );
-  };
-
-  const deleteAll = async () => {
-    await deleteEntries(ids);
-    onDone();
-  };
-
-  return (
-    <div className="bulk-bar" role="toolbar" aria-label="Bulk actions">
-      <strong>{ids.length} selected</strong>
-      <button ref={projectRef} type="button" className="button button-ghost" onClick={() => setPicker('project')}>
-        <Icon name="folder" size={16} /> Project
-      </button>
-      <button ref={tagRef} type="button" className="button button-ghost" onClick={() => setPicker('tags')}>
-        <Icon name="tag" size={16} /> Add tags
-      </button>
-      <button
-        type="button"
-        className="button button-ghost"
-        onClick={() => patch([{ op: 'replace', path: '/billable', value: true }], 'Marked billable')}
-      >
-        Billable
-      </button>
-      <button
-        type="button"
-        className="button button-ghost"
-        onClick={() => patch([{ op: 'replace', path: '/billable', value: false }], 'Marked non-billable')}
-      >
-        Non-billable
-      </button>
-      <button type="button" className="button button-danger-ghost" onClick={() => void deleteAll()}>
-        <Icon name="trash" size={16} /> Delete
-      </button>
-      <span className="spacer" />
-      <button type="button" className="button button-ghost" onClick={onDone}>
-        Clear
-      </button>
-      {picker === 'project' ? (
-        <ProjectPicker
-          anchor={projectRef}
-          projectId={null}
-          taskId={null}
-          onChange={(pid, tid) =>
-            patch(
-              [
-                { op: 'replace', path: '/project_id', value: pid },
-                { op: 'replace', path: '/task_id', value: tid },
-              ],
-              'Project updated',
-            )
-          }
-          onClose={() => setPicker(null)}
-        />
-      ) : null}
-      {picker === 'tags' ? (
-        <TagPicker
-          anchor={tagRef}
-          value={[]}
-          onChange={tags => {
-            setPicker(null);
-            patch([{ op: 'add', path: '/tags', value: tags }], 'Tags added');
-          }}
-          onClose={() => setPicker(null)}
-        />
-      ) : null}
-    </div>
   );
 }
