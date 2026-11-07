@@ -9,6 +9,7 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import * as catalog from '../../src/domain/catalogs.ts';
+import * as presenters from '../../src/presenters/toggl.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
@@ -87,7 +88,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const updated = await runner.transaction(ctx =>
             catalog.updateTask(ctx, 1, 1000, 1, { estimated_seconds: estimate }, effects),
           );
-          assert.equal(catalog.serializeTask(updated).estimated_seconds, estimate);
+          assert.equal(presenters.serializeTask(updated).estimated_seconds, estimate);
         }
         const large = await runner.transaction(ctx =>
           catalog.createProject(ctx, 1, { name: 'Large', estimated_hours: 1e100, fixed_fee: 1e100 }),

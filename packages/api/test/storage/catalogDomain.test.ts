@@ -4,7 +4,10 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
 import * as catalog from '../../src/domain/catalogs.ts';
+import * as presenters from '../../src/presenters/toggl.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { failsWith } from '../fixtures/errors.ts';
+import { errorReply } from '../../src/http/errors.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
@@ -29,7 +32,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         );
         assert.equal(client.name, 'ACME');
         assert.equal(client.archived, false);
-        assert.equal(catalog.serializeClient(client).wid, 1);
+        assert.equal(presenters.serializeClient(client).wid, 1);
         const p = await runner.transaction(ctx =>
           catalog.createProject(ctx, 1, {
             name: ' Website ',
@@ -42,18 +45,18 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         );
         assert.equal(p.clientId, client.id);
         assert.equal(p.color, '#abcdef');
-        assert.equal(catalog.serializeProject(p, 'USD').estimated_seconds, 36000);
+        assert.equal(presenters.serializeProject(p, 'USD').estimated_seconds, 36000);
         const t = await runner.transaction(ctx =>
           catalog.createTask(ctx, 1, p.id, { name: ' Design ', estimated_seconds: 300 }),
         );
-        assert.equal(catalog.serializeTask(t).tracked_seconds, 0);
+        assert.equal(presenters.serializeTask(t).tracked_seconds, 0);
         await assert.rejects(
           runner.transaction(ctx => catalog.createClient(ctx, 1, { name: 'acme' })),
-          { status: 400, message: 'Name has already been taken' },
+          failsWith(400, 'Name has already been taken'),
         );
         await assert.rejects(
           runner.transaction(ctx => catalog.createProject(ctx, 1, { name: 'Bad', rate: 1e10 })),
-          { status: 400, message: 'Invalid rate: expected at most 1000000000' },
+          failsWith(400, 'Invalid rate: expected at most 1000000000'),
         );
         const events: string[] = [];
         const effects: catalog.CatalogTimerEffects = {
@@ -81,7 +84,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.deepEqual(events, ['prepare', 'settle', 'publish']);
         await assert.rejects(
           runner.transaction(ctx => catalog.createTask(ctx, 1, p.id, { name: 'No' })),
-          { status: 400, message: 'Can not change tasks of archived project' },
+          failsWith(400, 'Can not change tasks of archived project'),
         );
         let publications = 0;
         const edits: catalog.CatalogTimerEffects = {
@@ -116,7 +119,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const unrelated = await runner.transaction(ctx => catalog.createProject(ctx, 1, { name: 'Unrelated' }));
         await assert.rejects(
           runner.transaction(ctx => catalog.restoreClient(ctx, 1, client.id, { projects: [unrelated.id] }, edits)),
-          { status: 400, message: 'Project does not belong to the client' },
+          failsWith(400, 'Project does not belong to the client'),
         );
         await runner.transaction(ctx =>
           catalog.restoreClient(ctx, 1, client.id, { restore_all_projects: true }, edits),
@@ -142,7 +145,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.equal(cleared.clientId, null);
         assert.equal(cleared.currency, null);
         assert.equal(cleared.rate, 0);
-        assert.equal(catalog.serializeProject(cleared, 'USD').status, 'upcoming');
+        assert.equal(presenters.serializeProject(cleared, 'USD').status, 'upcoming');
         const changed = await runner.transaction(ctx =>
           catalog.updateTask(ctx, 1, p.id, t.id, { name: ' Changed ', active: false, estimated_seconds: null }, edits),
         );
@@ -164,15 +167,15 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         ] as const)
           await assert.rejects(
             runner.transaction(ctx => catalog.createProject(ctx, 1, body)),
-            { status: 400, message },
+            failsWith(400, message),
           );
         await assert.rejects(
           runner.transaction(ctx => catalog.createClient(ctx, 1, { name: 'X', notes: 4 })),
-          { status: 400, message: 'Invalid notes: expected a string' },
+          failsWith(400, 'Invalid notes: expected a string'),
         );
         await assert.rejects(
           runner.transaction(ctx => catalog.createTag(ctx, 1, { name: null })),
-          { status: 400, message: "Tag name can't be blank" },
+          failsWith(400, "Tag name can't be blank"),
         );
         const names = await runner.transaction(ctx =>
           catalog.resolveTagNames(ctx, 1, [' urgent ', 'URGENT', 'É', 'é']),
@@ -182,12 +185,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const tag = await runner.transaction(ctx => catalog.createTag(ctx, 1, { name: 'Later' }));
         await assert.rejects(
           runner.transaction(ctx => catalog.updateTag(ctx, 1, tag.id, { name: 'URGENT' }, edits)),
-          { status: 400, message: 'A tag with the same name already exists' },
+          failsWith(400, 'A tag with the same name already exists'),
         );
         const renamed = await runner.transaction(ctx =>
           catalog.updateTag(ctx, 1, tag.id, { name: ' Renamed ' }, edits),
         );
-        assert.equal(catalog.serializeTag(renamed).name, 'Renamed');
+        assert.equal(presenters.serializeTag(renamed).name, 'Renamed');
         const before = publications;
         await assert.rejects(
           runner.transaction(async ctx => {
@@ -217,7 +220,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         );
         assert.equal(outcomes.filter(o => o.status === 'fulfilled').length, 1);
         const loser = outcomes.find(o => o.status === 'rejected');
-        assert.equal(loser?.status === 'rejected' && loser.reason.status, 400);
+        assert.equal(loser?.status === 'rejected' && errorReply(loser.reason).status, 400);
       } finally {
         await connection.close();
         await fixture.cleanup();
@@ -245,7 +248,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const t = await runner.transaction(ctx =>
         catalog.createTask(ctx, 1, p.id, { name: 'Fraction', estimated_seconds: 1.5 }),
       );
-      assert.equal(catalog.serializeTask(t).estimated_seconds, 1.5);
+      assert.equal(presenters.serializeTask(t).estimated_seconds, 1.5);
     } finally {
       await connection.close();
       await fixture.cleanup();

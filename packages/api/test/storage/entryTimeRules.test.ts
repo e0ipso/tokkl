@@ -6,9 +6,11 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import * as entries from '../../src/domain/timeEntries.ts';
 import * as catalog from '../../src/domain/catalogs.ts';
+import { serializeTimeEntry } from '../../src/presenters/toggl.ts';
 import { createTimerPublication } from '../../src/domain/timers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
+import { failsWith } from '../fixtures/errors.ts';
 const fixtures = JSON.parse(
   readFileSync(new URL('../../../common/fixtures/snap.json', import.meta.url), 'utf8'),
 ) as Array<{
@@ -43,7 +45,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             runner.transaction(ctx =>
               entries.createTimeEntry(ctx, user, wid, { start: f.input.start, stop: f.input.stop }, publish),
             );
-          if (!f.expected) await assert.rejects(work(), { status: 400 });
+          if (!f.expected) await assert.rejects(work(), failsWith(400));
           else {
             const row = await work();
             assert.equal(row.start, f.expected.start);
@@ -80,7 +82,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           edited.tags.map(t => t.name),
           ['alpha', 'Zulu'],
         );
-        const dto = entries.serializeTimeEntry(edited, { meta: true, user });
+        const dto = serializeTimeEntry(edited, { meta: true, user });
         assert.equal(dto.duration, 0);
         assert.equal(dto.uid, user.id);
         assert.equal(dto.user_name, user.fullName);
@@ -112,11 +114,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         for (const body of [{ project_id: 999999 }, { task_id: 999999 }, { tag_ids: [999999] }])
           await assert.rejects(
             runner.transaction(ctx => entries.updateTimeEntry(ctx, user, wid, e.id, body, publish)),
-            { status: 404 },
+            failsWith(404),
           );
         await assert.rejects(
           runner.transaction(ctx => entries.updateTimeEntry(ctx, user, wid, e.id, { task_id: task.id }, publish)),
-          { status: 400 },
+          failsWith(400),
         );
       });
       await t.test('bad timestamps and all-day validation leave no partial tags or entries', async () => {
@@ -135,7 +137,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             runner.transaction(ctx =>
               entries.createTimeEntry(ctx, user, wid, { ...body, tags: ['not-created'] }, publish),
             ),
-            { status: 400 },
+            failsWith(400),
           );
           assert.equal((await runner.readSnapshot(ctx => ctx.entries.list(user.id))).length, before);
         }
@@ -188,11 +190,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           runner.transaction(ctx =>
             entries.updateTimeEntry(ctx, user, wid, all.id, { start: at('08:00:00').toISOString() }, publish),
           ),
-          { status: 400 },
+          failsWith(400),
         );
         await assert.rejects(
           runner.transaction(ctx => entries.updateTimeEntry(ctx, user, wid, all.id, { all_day: false }, publish)),
-          { status: 400 },
+          failsWith(400),
         );
       });
       await t.test('zero stop removal, back-to-back switching, restore and 999-hour clamp', async () => {

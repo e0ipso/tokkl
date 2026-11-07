@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
 import { parseStorageConfig, type StorageConfig } from './storage/config.ts';
+import { isLogLevel, LOG_LEVELS, type LogLevel } from './lib/logger.ts';
+import { ConfigurationError } from './lib/configurationError.ts';
 
 export interface Config {
   port: number;
@@ -21,6 +23,8 @@ export interface Config {
   sessionDays: number;
   /** Optional fixed setup code; a random one is generated and logged otherwise. */
   setupCode: string | undefined;
+  /** The least severe log level written, from TOKKL_LOG_LEVEL. Defaults to info. */
+  logLevel: LogLevel;
 }
 
 export interface LoadedConfig {
@@ -32,13 +36,7 @@ export interface LoadedConfig {
 /** Its presence requires explicit database selection before startup. */
 export const LEGACY_DATABASE_FILE = 'timetrack.sqlite';
 
-/** An invalid setting. Its message names the setting and holds no secret, so startup prints it. */
-export class ConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConfigurationError';
-  }
-}
+export { ConfigurationError };
 
 function isAddressOrRange(entry: string): boolean {
   const [address = '', prefix, ...rest] = entry.split('/');
@@ -66,9 +64,28 @@ function trustProxy(value: string | undefined): Config['trustProxy'] {
   throw invalidTrustProxy();
 }
 
-function int(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(value ?? '', 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
+function logLevel(value: string | undefined): LogLevel {
+  const level = (value ?? '').trim().toLowerCase() || 'info';
+  if (isLogLevel(level)) return level;
+  throw new ConfigurationError(`Invalid TOKKL_LOG_LEVEL: use one of ${LOG_LEVELS.join(', ')}.`);
+}
+
+/** A whole number from `min` to `max`. Unset or blank means `fallback`; anything else is refused. */
+function integerSetting(name: string, value: string | undefined, fallback: number, min: number, max: number): number {
+  const trimmed = (value ?? '').trim();
+  if (trimmed === '') return fallback;
+  const parsed = /^[0-9]+$/.test(trimmed) ? Number(trimmed) : NaN;
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max)
+    throw new ConfigurationError(`Invalid ${name}: expected a whole number from ${min} to ${max}.`);
+  return parsed;
+}
+
+function hostSetting(value: string | undefined): string {
+  const trimmed = (value ?? '').trim();
+  if (trimmed === '') return '0.0.0.0';
+  if (/[\s\x00-\x1f\x7f]/.test(trimmed))
+    throw new ConfigurationError('Invalid HOST: expected an address or host name.');
+  return trimmed;
 }
 
 /** Reads validated storage selection and unrelated deployment settings. Old data needs explicit selection. */
@@ -89,19 +106,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
       env.TIMETRACK_DATABASE !== undefined ||
       existsSync(join(dataDir, LEGACY_DATABASE_FILE)))
   ) {
-    throw new Error(
+    throw new ConfigurationError(
       'Existing database configuration requires an explicit TOKKL_DATABASE_URL; unsupported schemas must be exported before switching.',
     );
   }
   const config: Config = {
-    port: int(env.PORT, 8080),
-    host: env.HOST ?? '0.0.0.0',
+    port: integerSetting('PORT', env.PORT, 8080, 0, 65535),
+    host: hostSetting(env.HOST),
     dataDir,
     storage: parseStorageConfig(env, dataDir),
     webRoot: resolve(setting('WEB_ROOT') ?? 'dist/web'),
     trustProxy: trustProxy(setting('TRUST_PROXY')),
-    sessionDays: int(setting('SESSION_DAYS'), 30),
+    // The same range an admin can store as session_days.
+    sessionDays: integerSetting('TOKKL_SESSION_DAYS', setting('SESSION_DAYS'), 30, 1, 365),
     setupCode: setting('SETUP_CODE') || undefined,
+    logLevel: logLevel(env.TOKKL_LOG_LEVEL),
   };
 
   const notices: string[] = [];

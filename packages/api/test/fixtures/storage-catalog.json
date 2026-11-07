@@ -685,9 +685,7 @@
     "status": 200,
     "contentType": "application/json; charset=utf-8",
     "disposition": null,
-    "body": [
-      "<id>"
-    ]
+    "body": ["<id>"]
   },
   {
     "name": "archived project",

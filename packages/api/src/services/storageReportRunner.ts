@@ -1,10 +1,13 @@
 import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
-import { HttpError } from '../lib/errors.ts';
+import { ApplicationError, unavailable, type FailureKind } from '../lib/errors.ts';
+
+/** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
+const QUEUE_FULL_RETRY_SECONDS = 2;
 import { collectReport, type ReportSource } from './storageReports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
-import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
+import type { Authentication } from '../domain/credentials.ts';
 import {
   formatExportJob,
   formatReportJob,
@@ -26,14 +29,15 @@ interface Pending {
   dispose(): void;
 }
 export type ReportWork =
-  | { userId: number; workspaceId: number; job: ReportJob; authentication?: StorageAuthentication }
+  | { userId: number; workspaceId: number; job: ReportJob; authentication?: Authentication }
   | { data: AccountExportProjection; assembly: ExportAssemblyJob };
 interface Reply {
   id?: number;
   ready?: boolean;
   phase?: 'reading' | 'formatting';
   result?: JobResult;
-  error?: { status?: number; message: string };
+  /** An application failure keeps its kind and message; anything else arrives without a kind. */
+  error?: { kind?: FailureKind; message: string; retryAfterSeconds?: number };
 }
 
 /** One runner per app, one worker/reader, a bounded parent queue and one job in flight. */
@@ -65,7 +69,7 @@ export class StorageReportRunner {
     userId: number,
     workspaceId: number,
     job: ReportJob,
-    options: { signal?: AbortSignal; authentication?: StorageAuthentication } = {},
+    options: { signal?: AbortSignal; authentication?: Authentication } = {},
   ): Promise<JobResult> {
     return this.enqueue({ userId, workspaceId, job, authentication: options.authentication }, options);
   }
@@ -84,7 +88,7 @@ export class StorageReportRunner {
     if (this.closed) return Promise.reject(new Error('Report runner is closed'));
     if (options.signal?.aborted) return Promise.reject(new Error('Report cancelled'));
     if (this.queue.length + Number(!!this.active) >= this.maxQueue)
-      return Promise.reject(new Error('Report queue is full'));
+      return Promise.reject(unavailable('Report queue is full', QUEUE_FULL_RETRY_SECONDS));
     return new Promise((resolve, reject) => {
       const pending: Pending = {
         id: this.nextId++,
@@ -144,7 +148,7 @@ export class StorageReportRunner {
     this.worker!.postMessage({ id: p.id, work: p.work });
   }
   private safeError(error: unknown): Error {
-    return error instanceof HttpError ? error : new Error('Report failed');
+    return error instanceof ApplicationError ? error : new Error('Report failed');
   }
   private finish(p: Pending, result?: JobResult, error?: Error): void {
     this.active = undefined;
@@ -198,9 +202,9 @@ export class StorageReportRunner {
         p,
         message.result,
         message.error
-          ? message.error.status === undefined
+          ? message.error.kind === undefined
             ? new Error('Report failed')
-            : new HttpError(message.error.status, message.error.message)
+            : new ApplicationError(message.error.kind, message.error.message, message.error.retryAfterSeconds)
           : undefined,
       );
     });

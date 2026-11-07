@@ -4,11 +4,40 @@ import {
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
 import { canonicalTimeZone } from '@tokkl/common/time';
-import { readNewPassword } from '../auth/crypto.ts';
-import { badRequest } from '../lib/errors.ts';
-import { togglTime, optionalString, optionalId } from '../lib/values.ts';
-import type { JsonObject, User, Workspace, MembershipRole, AccountToken } from '../storage/domain.ts';
+import { invalidInput } from '../lib/errors.ts';
+import { optionalString, optionalId } from '../lib/values.ts';
+import type { JsonObject, User } from '../storage/domain.ts';
 import type { AccountChanges } from '../storage/contracts.ts';
+/** Shortest password accepted when one is set. */
+export const MIN_PASSWORD_LENGTH = 8;
+/** Longest password accepted when one is set. Existing longer passwords still verify. */
+export const MAX_PASSWORD_LENGTH = 1024;
+
+/**
+ * The rules for a password being set: first-admin setup, invite acceptance, password change and
+ * password reset. Anything else, a missing value included, is a 400.
+ */
+export function readNewPassword(value: unknown): string {
+  const password = typeof value === 'string' ? value : '';
+  if (password.length < MIN_PASSWORD_LENGTH)
+    throw invalidInput(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  if (password.length > MAX_PASSWORD_LENGTH)
+    throw invalidInput(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
+  return password;
+}
+
+/** One `@` with something on each side and no whitespace: a check for typos, not deliverability. */
+const isEmailAddress = (value: string) => /^[^@\s]+@[^@\s]+$/.test(value);
+
+/**
+ * The account key of an email: trimmed, with only ASCII A-Z lowercased. users.email_key folds the
+ * same letters on every engine, so two emails share a key exactly when they are the same account.
+ * toLowerCase would also fold letters such as Ä that the key keeps apart.
+ */
+export function normalizeEmail(email: string): string {
+  return email.trim().replace(/[A-Z]/g, letter => String.fromCharCode(letter.charCodeAt(0) + 32));
+}
+
 const MAX_ACCOUNT_FAVORITE_DESCRIPTION_LENGTH = 3000;
 /** Defaults for the preferences this app reads. Unknown keys sent by clients are kept as-is. */
 export const DEFAULT_PREFERENCES = {
@@ -108,7 +137,7 @@ const isUsable = (key: string, value: unknown) => PREFERENCE_RULES[key]?.valid(v
 /** Throws 400 for a known preference with a value the app cannot use. */
 export function validatePreferenceChanges(changes: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(changes)) {
-    if (!isUsable(key, value)) throw badRequest(`Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`);
+    if (!isUsable(key, value)) throw invalidInput(`Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`);
   }
 }
 
@@ -128,95 +157,6 @@ export function getPomodoroSessionConfig(user: User): PomodoroSessionConfig {
   };
 }
 
-export function serializeAccount(user: User) {
-  return {
-    id: user.id,
-    email: user.email,
-    fullname: user.fullName,
-    role: user.role,
-    created_at: togglTime(user.createdAt),
-    disabled_at: togglTime(user.disabledAt),
-  };
-}
-
-export function serializeUser(user: User, options: { includeToken: boolean }) {
-  return {
-    id: user.id,
-    api_token: options.includeToken ? user.apiToken : undefined,
-    email: user.email,
-    fullname: user.fullName,
-    timezone: user.timezone,
-    toggl_accounts_id: String(user.id),
-    default_workspace_id: user.defaultWorkspaceId,
-    beginning_of_week: user.beginningOfWeek,
-    image_url: '',
-    created_at: togglTime(user.createdAt),
-    updated_at: togglTime(user.updatedAt),
-    openid_email: null,
-    openid_enabled: false,
-    country_id: null,
-    has_password: true,
-    at: togglTime(user.updatedAt),
-    intercom_hash: undefined,
-    oauth_providers: [],
-    '2fa_enabled': false,
-    authorization_updated_at: togglTime(user.updatedAt),
-  };
-}
-export function serializeWorkspace(ws: Workspace, membership: MembershipRole | undefined) {
-  const admin = membership === 'owner';
-  return {
-    id: ws.id,
-    organization_id: ws.id,
-    name: ws.name,
-    premium: true,
-    business_ws: true,
-    admin,
-    role: admin ? 'admin' : 'user',
-    suspended_at: null,
-    server_deleted_at: null,
-    default_hourly_rate: ws.defaultHourlyRate,
-    rate_last_updated: null,
-    default_currency: ws.defaultCurrency,
-    only_admins_may_create_projects: false,
-    only_admins_may_create_tags: false,
-    only_admins_see_team_dashboard: false,
-    projects_billable_by_default: false,
-    projects_private_by_default: true,
-    projects_enforce_billable: false,
-    limit_public_project_data: false,
-    last_modified: togglTime(ws.updatedAt),
-    reports_collapse: true,
-    rounding: ws.rounding,
-    rounding_minutes: ws.roundingMinutes,
-    api_token: undefined,
-    at: togglTime(ws.updatedAt),
-    logo_url: '',
-    ical_url: '',
-    ical_enabled: false,
-    csv_upload: null,
-    subscription: null,
-    hide_start_end_times: false,
-    disable_timesheet_view: false,
-    disable_approvals: true,
-    disable_expenses: true,
-    working_hours_in_minutes: null,
-    permissions: null,
-    max_data_retention_days: null,
-    te_constraints: null,
-  };
-}
-
-export function serializeInvite(invite: AccountToken) {
-  return {
-    id: invite.id,
-    role: invite.role,
-    note: invite.note,
-    created_by: invite.createdBy,
-    created_at: togglTime(invite.createdAt),
-    expires_at: togglTime(invite.expiresAt),
-  };
-}
 export interface NewAccountInput {
   email: string;
   fullname: string;
@@ -226,23 +166,23 @@ export interface NewAccountInput {
 export function readNewAccount(body: Record<string, unknown>): NewAccountInput {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
-  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Enter a valid email address');
+  if (!isEmailAddress(email)) throw invalidInput('Enter a valid email address');
   const timezone =
     body.timezone === undefined || body.timezone === ''
       ? 'UTC'
       : typeof body.timezone === 'string'
         ? canonicalTimeZone(body.timezone)
         : null;
-  if (!timezone) throw badRequest('Invalid timezone');
+  if (!timezone) throw invalidInput('Invalid timezone');
   return { email, fullname, timezone, password: readNewPassword(body.password) };
 }
 export function readProfileChanges(body: Record<string, unknown>): AccountChanges {
   const email = optionalString(body.email, 'email', 255)?.trim();
-  if (email !== undefined && !/^[^@\s]+@[^@\s]+$/.test(email)) throw badRequest('Invalid email');
+  if (email !== undefined && !isEmailAddress(email)) throw invalidInput('Invalid email');
   const fullName = optionalString(body.fullname, 'fullname', 255);
   const requestedZone = optionalString(body.timezone, 'timezone', 64);
   const timezone = requestedZone === undefined ? undefined : canonicalTimeZone(requestedZone);
-  if (timezone === null) throw badRequest('Invalid timezone');
+  if (timezone === null) throw invalidInput('Invalid timezone');
   const beginningOfWeek = body.beginning_of_week;
   if (
     beginningOfWeek !== undefined &&
@@ -251,7 +191,7 @@ export function readProfileChanges(body: Record<string, unknown>): AccountChange
       beginningOfWeek < 0 ||
       beginningOfWeek > 6)
   )
-    throw badRequest('Invalid beginning_of_week');
+    throw invalidInput('Invalid beginning_of_week');
   const defaultWorkspaceId = optionalId(body.default_workspace_id, 'default_workspace_id');
   return {
     email,

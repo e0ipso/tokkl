@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createStorage } from '../../src/storage/index.ts';
+import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { createApp } from '../../src/app.ts';

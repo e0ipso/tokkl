@@ -1,4 +1,4 @@
-import { badRequest } from './errors.ts';
+import { invalidInput } from './errors.ts';
 
 /** Toggl serialises timestamps as RFC 3339 with an explicit "+00:00" offset. */
 export function togglTime(iso: string | null | undefined): string | null {
@@ -29,7 +29,7 @@ function isRealDateTime(parts: number[]): boolean {
  * impossible dates and non-string values are rejected rather than guessed.
  */
 export function parseInstant(value: unknown, field: string): Date {
-  const invalid = () => badRequest(`Invalid ${field}: expected an RFC 3339 timestamp`);
+  const invalid = () => invalidInput(`Invalid ${field}: expected an RFC 3339 timestamp`);
   const match = typeof value === 'string' ? RFC3339.exec(value) : null;
   if (!match) throw invalid();
   const [offsetHours, offsetMinutes] = [match[7], match[8]].map(part => Number(part ?? 0)) as [number, number];
@@ -48,19 +48,19 @@ export function optionalId(value: unknown, field: string): number | null | undef
   if (value === null || value === 0) return null;
   if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value;
   if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
-  throw badRequest(`Invalid ${field}`);
+  throw invalidInput(`Invalid ${field}`);
 }
 
 export function optionalBool(value: unknown, field: string): boolean | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'boolean') return value;
-  throw badRequest(`Invalid ${field}: expected a boolean`);
+  throw invalidInput(`Invalid ${field}: expected a boolean`);
 }
 
 export function optionalString(value: unknown, field: string, maxLength: number): string | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value !== 'string') throw badRequest(`Invalid ${field}: expected a string`);
-  if (value.length > maxLength) throw badRequest(`${field} must be at most ${maxLength} characters`);
+  if (typeof value !== 'string') throw invalidInput(`Invalid ${field}: expected a string`);
+  if (value.length > maxLength) throw invalidInput(`${field} must be at most ${maxLength} characters`);
   return value;
 }
 
@@ -68,7 +68,7 @@ export function optionalNumber(value: unknown, field: string): number | null | u
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
-  throw badRequest(`Invalid ${field}: expected a non-negative number`);
+  throw invalidInput(`Invalid ${field}: expected a non-negative number`);
 }
 
 /** Highest hourly rate accepted. Keeps rate × 100 and billed amounts finite; larger rates overflow to Infinity in reports. */
@@ -77,34 +77,31 @@ export const MAX_HOURLY_RATE = 1_000_000_000;
 /** An optional hourly rate: a finite non-negative number up to MAX_HOURLY_RATE, or null. */
 export function optionalRate(value: unknown, field: string): number | null | undefined {
   const rate = optionalNumber(value, field);
-  if (rate != null && rate > MAX_HOURLY_RATE) throw badRequest(`Invalid ${field}: expected at most ${MAX_HOURLY_RATE}`);
+  if (rate != null && rate > MAX_HOURLY_RATE)
+    throw invalidInput(`Invalid ${field}: expected at most ${MAX_HOURLY_RATE}`);
   return rate;
 }
 
 export function requireName(value: unknown, field: string, maxLength: number): string {
-  if (typeof value !== 'string' || value.trim() === '') throw badRequest(`${field} can't be blank`);
+  if (typeof value !== 'string' || value.trim() === '') throw invalidInput(`${field} can't be blank`);
   const trimmed = value.trim();
-  if (trimmed.length > maxLength) throw badRequest(`${field} must be at most ${maxLength} characters`);
+  if (trimmed.length > maxLength) throw invalidInput(`${field} must be at most ${maxLength} characters`);
   return trimmed;
-}
-
-export function asBool(value: unknown): boolean {
-  return value === 1 || value === true;
 }
 
 /** Parses "1,2,3" path segments into ids. */
 export function parseIdList(value: string, limit = 100): number[] {
   const ids = value.split(',').map(part => Number(part.trim()));
   if (ids.length === 0 || ids.some(id => !Number.isSafeInteger(id) || id <= 0)) {
-    throw badRequest('Invalid ID list');
+    throw invalidInput('Invalid ID list');
   }
-  if (ids.length > limit) throw badRequest(`At most ${limit} IDs per request`);
+  if (ids.length > limit) throw invalidInput(`At most ${limit} IDs per request`);
   return [...new Set(ids)];
 }
 
 export function parseId(value: string | string[] | undefined): number {
   const id = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN;
-  if (!Number.isSafeInteger(id) || id <= 0) throw badRequest('Invalid ID');
+  if (!Number.isSafeInteger(id) || id <= 0) throw invalidInput('Invalid ID');
   return id;
 }
 

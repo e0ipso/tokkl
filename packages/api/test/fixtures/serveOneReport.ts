@@ -32,6 +32,8 @@ const config: Config = {
   trustProxy: false,
   sessionDays: 30,
   setupCode: undefined,
+  // The parent test reads this process's stdout line by line.
+  logLevel: 'warn',
 };
 const app = createApp({ storage, config, setup: { code: null } });
 const server = app.listen(0, '127.0.0.1');

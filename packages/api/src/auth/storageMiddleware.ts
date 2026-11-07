@@ -1,17 +1,21 @@
 import type { Request, RequestHandler } from 'express';
-import type {
-  AccountCredential,
-  AccountPasswordAttempt,
-  AccountRepositories,
-  AccountRunner,
-} from '../domain/accounts.ts';
-import { isActiveAdmin, isActiveUser } from '../domain/accounts.ts';
+import type { AccountPasswordAttempt, AccountRepositories, AccountRunner } from '../domain/accounts.ts';
+import {
+  credentialHolds,
+  authenticatedUser,
+  type Authentication,
+  findActiveSession,
+  isActiveAdmin,
+  isActiveUser,
+  unchangedActive,
+} from '../domain/credentials.ts';
 import type { User } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
 import { clientAddress, getCookie } from '../http/context.ts';
-import { forbidden, tooManyRequests } from '../lib/errors.ts';
-import { safeEqual, sha256, verifyAgainstDummy, verifyPassword } from './crypto.ts';
+import { forbidden, tooManyAttempts } from '../lib/errors.ts';
+import { safeEqual, verifyAgainstDummy, verifyPassword } from '../lib/crypto.ts';
 import { passwordCounters, type FailureLimiter } from './rateLimit.ts';
+import type { StreamCredentialResult } from '../services/timerStreams.ts';
 
 export const SESSION_COOKIE = 'tokkl_session';
 export const LEGACY_SESSION_COOKIE = 'tt_session';
@@ -19,11 +23,7 @@ export const CSRF_HEADER = 'x-tokkl-csrf';
 export const LEGACY_CSRF_HEADER = 'x-timetrack-csrf';
 
 /** Keep the normalized user and the credential observed by this request together. */
-export interface StorageAuthentication {
-  user: User;
-  credential: AccountCredential;
-  authMethod: 'session' | 'basic';
-}
+export type StorageAuthentication = Authentication;
 export interface StorageAuthLocals {
   auth: StorageAuthentication;
 }
@@ -69,47 +69,23 @@ export async function authenticatePassword<R extends AccountRepositories>(
     if (!seen) return verifyAgainstDummy(password);
     return (await verifyPassword(password, seen.passwordHash)) && isActiveUser(seen);
   });
-  if (result.refused) throw tooManyRequests('Too many failed login attempts, try again later', result.retryAfter);
+  if (result.refused) throw tooManyAttempts('Too many failed login attempts, try again later', result.retryAfter);
   if (!seen || !result.valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }
-const unchangedActive = (current: User | undefined, seen: User): current is User =>
-  isActiveUser(current) && current.passwordHash === seen.passwordHash;
 export async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: User): Promise<User | undefined> {
   const current = await ctx.users.get(seen.id);
   return unchangedActive(current, seen) ? current : undefined;
 }
-/** Apply the credential rules to the user row the caller loaded in this snapshot or under its guards. */
-async function checkCredential(
-  ctx: Pick<Repositories, 'sessions'>,
-  auth: StorageAuthentication,
-  current: User | undefined,
-): Promise<User | undefined> {
-  if (!unchangedActive(current, auth.user)) return;
-  if (auth.credential.kind === 'session') {
-    const session = await ctx.sessions.find(sha256(auth.credential.token));
-    if (!session || session.userId !== current.id || session.expiresAt < new Date().toISOString()) return;
-  } else if (
-    !safeEqual(current.apiToken, auth.credential.kind === 'api-token' ? auth.credential.token : auth.user.apiToken)
-  )
-    return;
-  return current;
-}
 /** Check credentials in the data snapshot for reads, or under the operation's guards for writes. */
-export async function currentCredentialUser(
-  ctx: Pick<Repositories, 'users' | 'sessions'>,
-  auth: StorageAuthentication,
-): Promise<User | undefined> {
-  return checkCredential(ctx, auth, await ctx.users.get(auth.user.id));
-}
-/** A passing stream check carries the user's timer revision, read by the same user statement. */
-export type StreamCredentialResult = { valid: false } | { valid: true; revision: number };
+export const currentCredentialUser = authenticatedUser;
+export type { StreamCredentialResult };
 async function currentCredentialRevision(
   ctx: Pick<Repositories, 'users' | 'sessions'>,
   auth: StorageAuthentication,
 ): Promise<StreamCredentialResult> {
   const current = await ctx.users.getWithTimerRevision(auth.user.id);
-  return current && (await checkCredential(ctx, auth, current.user))
+  return current && (await credentialHolds(ctx, auth.user, auth.credential, current.user))
     ? { valid: true, revision: current.timerRevision }
     : { valid: false };
 }
@@ -154,11 +130,9 @@ export function createStorageAuth<R extends AccountRepositories>(runner: Account
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) requireCsrfHeader(req);
     const auth = await runner.readSnapshot(async ctx => {
       for (const token of sessionTokens(req)) {
-        const session = await ctx.sessions.find(sha256(token));
-        if (!session || session.expiresAt < new Date().toISOString()) continue;
-        const user = await ctx.users.get(session.userId);
-        if (isActiveUser(user))
-          return { user, credential: { kind: 'session' as const, token }, authMethod: 'session' as const };
+        const found = await findActiveSession(ctx, token);
+        if (found)
+          return { user: found.user, credential: { kind: 'session' as const, token }, authMethod: 'session' as const };
       }
     });
     if (!auth) throw forbidden('Incorrect username and/or password');

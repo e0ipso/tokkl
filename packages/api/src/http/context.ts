@@ -1,11 +1,13 @@
 import type { Request, Response, RequestHandler } from 'express';
-import type { Repositories, Storage } from '../storage/contracts.ts';
+import type { Storage } from '../storage/contracts.ts';
+import type { ReadQueries } from '../domain/queries.ts';
 import type { StorageAuthentication } from '../auth/storageMiddleware.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { Config } from '../config.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 import type { TimerStreams } from '../services/timerStreams.ts';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
+import type { Logger } from '../lib/logger.ts';
 
 /** Shared by every router; created once in createApp. */
 export interface Deps extends ApplicationServices {
@@ -30,21 +32,21 @@ declare module 'express-serve-static-core' {
   interface Locals {
     auth: StorageAuthentication;
     workSignal: AbortSignal;
+    /** The request's logger; every line it writes carries the request id. */
+    log: Logger;
+    /** Where the innermost router that saw the request is mounted; see createRouter. */
+    mountPath?: string;
   }
 }
 
 /** Authenticate and collect a JSON response in one snapshot; send only after releasing it. */
 export function jsonRead(
   deps: Deps,
-  work: (req: Request, res: Response, repositories: Repositories) => unknown | Promise<unknown>,
+  work: (req: Request, res: Response, queries: ReadQueries) => unknown,
   administrative = false,
 ): RequestHandler {
   return async (req, res) => {
-    const body = await deps.readFor(
-      res.locals.auth,
-      repositories => Promise.resolve(work(req, res, repositories)),
-      administrative,
-    );
+    const body = await deps.readFor(res.locals.auth, async queries => work(req, res, queries), administrative);
     res.json(body);
   };
 }
@@ -55,37 +57,24 @@ function parseBody(req: Request): unknown {
   try {
     return JSON.parse(text);
   } catch {
-    throw badRequest('Invalid JSON input');
+    throw invalidInput('Invalid JSON input');
   }
 }
 
 export function readJson(req: Request): Record<string, unknown> {
   const body = parseBody(req);
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) throw badRequest('Invalid JSON input');
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) throw invalidInput('Invalid JSON input');
   return body as Record<string, unknown>;
 }
 
 export function readJsonArray(req: Request): unknown[] {
   const body = parseBody(req);
-  if (!Array.isArray(body)) throw badRequest('Invalid JSON input: expected an array');
+  if (!Array.isArray(body)) throw invalidInput('Invalid JSON input: expected an array');
   return body;
 }
 
 export function readText(req: Request): string {
   return typeof req.body === 'string' ? req.body : '';
-}
-
-/** First value of a query parameter, or undefined. */
-export function query(req: Request, name: string): string | undefined {
-  const value = req.query[name];
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
-  return undefined;
-}
-
-export function queryFlag(req: Request, name: string): boolean {
-  const value = query(req, name);
-  return value === 'true' || value === '1';
 }
 
 /**

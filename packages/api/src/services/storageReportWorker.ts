@@ -4,7 +4,7 @@ import { openReportReader } from '../storage/repositories/report-reader.ts';
 import { collectReport } from './storageReports.ts';
 import type { ReportWork } from './storageReportRunner.ts';
 import { formatExportJob, formatReportJob } from './storageReportJobs.ts';
-import { HttpError } from '../lib/errors.ts';
+import { ApplicationError } from '../lib/errors.ts';
 
 export interface ReportRequest {
   id: number;
@@ -39,8 +39,8 @@ try {
           port.postMessage({
             id,
             error:
-              error instanceof HttpError
-                ? { status: error.status, message: error.message }
+              error instanceof ApplicationError
+                ? { kind: error.kind, message: error.message, retryAfterSeconds: error.retryAfterSeconds }
                 : { message: 'Report failed' },
           });
         }

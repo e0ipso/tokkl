@@ -6,10 +6,10 @@ import {
   transitionKind,
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
-import type { TimerState, TimeEntry as HttpTimeEntry } from '@tokkl/types';
+import type { TimerState } from '@tokkl/types';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, TimerSnapshot, User } from '../storage/domain.ts';
-import { badRequest, ConflictWithBody } from '../lib/errors.ts';
+import { calendarInput, invalidInput, StateConflict } from '../lib/errors.ts';
 import { optionalId } from '../lib/values.ts';
 import { getPomodoroSessionConfig } from './accountValues.ts';
 import type { AccountEntryEffects, AccountRepositories } from './accounts.ts';
@@ -18,14 +18,14 @@ import {
   createTimeEntry,
   entryDurationSeconds,
   getTimeEntry,
-  memberWorkspace,
   protectEntryOperation,
   reanchorNoTimeEntries,
-  serializeTimeEntry,
   stopEntryAt,
   type EntryContext,
   type EntryRepositories,
 } from './timeEntries.ts';
+import { serializeTimeEntry } from '../presenters/toggl.ts';
+import { memberWorkspace } from './membership.ts';
 
 /** One local application instance owns this callback. No connection or database identity is exposed.
  * `incarnation` is the user row's `createdAt`. It tells apart accounts that reuse a deleted id. */
@@ -113,9 +113,6 @@ export function createTimerPublication(
     },
   );
 }
-// Returned objects are updated by every settlement in their operation, including later hooks.
-// Only response holders live here. Hooks and publication decisions remain rollback-owned by ctx.
-const responses = new WeakMap<EntryContext, Map<Id, Array<{ state: TimerState; now: Date }>>>();
 const upcoming = {
   workToShortRest: 'shortRest',
   workToLongRest: 'longRest',
@@ -190,7 +187,7 @@ export async function buildTimerState(
   return {
     revision: data.revision?.revision ?? 0,
     server_time: now.toISOString(),
-    running_entry: e ? (serializeTimeEntry(e, { meta: true, user }) as unknown as HttpTimeEntry) : null,
+    running_entry: e ? serializeTimeEntry(e, { meta: true, user }) : null,
     pause: c && {
       paused: c.cloneEntryId === null,
       seconds: c.seconds,
@@ -269,27 +266,21 @@ export async function settleTimer(ctx: EntryContext, userId: Id, publish: TimerP
     const state = await buildTimerState(ctx, user, new Date(), data);
     ctx.afterCommit(() => publish(userId, state, user.createdAt));
   }
-  for (const response of responses.get(ctx)?.get(userId) ?? [])
-    Object.assign(response.state, await buildTimerState(ctx, user, response.now, data));
+  for (const reply of pendingReplies(ctx, userId))
+    Object.assign(reply.state, await buildTimerState(ctx, user, reply.now, data));
   return changed;
+}
+/** Replies this transaction has handed out for a user; settlement keeps them current until commit. */
+function pendingReplies(ctx: EntryContext, userId: Id): Array<{ state: TimerState; now: Date }> {
+  const replies = ctx.local('timer-replies', () => new Map<Id, Array<{ state: TimerState; now: Date }>>());
+  let list = replies.get(userId);
+  if (!list) replies.set(userId, (list = []));
+  return list;
 }
 export function touchTimer(ctx: EntryContext, userId: Id, publish: TimerPublication): void {
   ctx.beforeCommit(`timer:${userId}`, async () => {
     await settleTimer(ctx, userId, publish);
   });
-}
-async function responseState(ctx: EntryContext, user: User, now: Date, publish: TimerPublication): Promise<TimerState> {
-  const state = await buildTimerState(ctx, user, now);
-  let users = responses.get(ctx);
-  if (!users) {
-    users = new Map();
-    responses.set(ctx, users);
-  }
-  const holders = users.get(user.id) ?? [];
-  holders.push({ state, now });
-  users.set(user.id, holders);
-  touchTimer(ctx, user.id, publish);
-  return state;
 }
 const lengthFields = {
   workMinutes: 'work_minutes',
@@ -305,18 +296,18 @@ function readConfig(body: Record<string, unknown>, user: User): PomodoroSessionC
     if (value == null) continue;
     const { min, max } = POMODORO_SESSION_CONFIG_RANGES[key];
     if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
-      throw badRequest(`Invalid ${field}: expected an integer from ${min} to ${max}`);
+      throw invalidInput(`Invalid ${field}: expected an integer from ${min} to ${max}`);
     config[key] = value;
   }
   return config;
 }
 function readRevision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value))
-    throw badRequest('Invalid revision: expected an integer');
+    throw invalidInput('Invalid revision: expected an integer');
   return value;
 }
 async function refusal(ctx: EntryContext, user: User, now: Date, message: string): Promise<never> {
-  throw new ConflictWithBody(message, await buildTimerState(ctx, user, now));
+  throw new StateConflict(message, await buildTimerState(ctx, user, now));
 }
 async function checkRevision(ctx: EntryContext, user: User, seen: number, now: Date) {
   const current = (await ctx.timers.getRevision(user.id))?.revision ?? 0;
@@ -347,6 +338,10 @@ export interface TimerRunner<R extends EntryRepositories> {
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }
 export function createTimerOperations<R extends EntryRepositories>(runner: TimerRunner<R>, publish: TimerPublication) {
+  /**
+   * Runs `work` on the settled state and answers with the state as committed: every later
+   * settlement in the same transaction, before-commit hooks included, updates the reply.
+   */
   async function action(
     userId: Id,
     now: Date,
@@ -358,7 +353,10 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       const user = await protectEntryOperation(ctx, userId, wids, includeDefault);
       await settleTimer(ctx, userId, publish);
       await work(ctx, user);
-      return responseState(ctx, user, now, publish);
+      const reply = await buildTimerState(ctx, user, now);
+      pendingReplies(ctx, user.id).push({ state: reply, now });
+      touchTimer(ctx, user.id, publish);
+      return reply;
     });
   }
   return {
@@ -409,10 +407,12 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       const seen = readRevision(revision);
       return action(userId, now, async (ctx, user) => {
         const s = await sessionAt(ctx, user, seen, now);
-        const { next } = nextPhase(
-          { kind: s.phase.kind, startedAt: new Date(s.phase.startedAt), completed: s.phase.completed },
-          now,
-          s.config,
+        const { next } = calendarInput(() =>
+          nextPhase(
+            { kind: s.phase.kind, startedAt: new Date(s.phase.startedAt), completed: s.phase.completed },
+            now,
+            s.config,
+          ),
         );
         let entryId = s.entryId;
         if (next.kind === 'work') {

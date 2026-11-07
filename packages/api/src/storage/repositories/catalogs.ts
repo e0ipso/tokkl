@@ -5,7 +5,7 @@ import type { Repositories, ProjectInput, TaskInput } from '../contracts.ts';
 import type { Client, Project, Task, Tag, ProjectSummary, TaskSummary } from '../domain.ts';
 import { booleanValue, entityId, finiteNumber, safeInteger, utcInstant } from '../conversion.ts';
 import { StorageConflict } from '../errors.ts';
-import { detachedProjectName } from '../../domain/catalog-names.ts';
+import { detachedProjectName } from './catalog-names.ts';
 import { catalogTotal, catalogWrite, containsName, nameKey, taskEstimate } from './catalog-sql.ts';
 
 const nullable = <T>(value: T | null, convert: (v: T) => number): number | null =>

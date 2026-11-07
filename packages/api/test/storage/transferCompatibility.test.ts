@@ -5,12 +5,8 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { createStorageImports } from '../../src/services/storageImportJson.ts';
-import {
-  buildJsonExport,
-  buildCsvExport,
-  assembleJsonExport,
-  assembleCsvExport,
-} from '../../src/services/storageExport.ts';
+import { assembleJsonExport, assembleCsvExport } from '../../src/services/storageExport.ts';
+import { buildJsonExport, buildCsvExport } from '../fixtures/exports.ts';
 import { createTimerPublication } from '../../src/domain/timers.ts';
 import { deleteTimeEntry } from '../../src/domain/timeEntries.ts';
 import { disposableBackend } from './support/disposableBackend.ts';

@@ -31,10 +31,12 @@ const { createAccountRepositories } = await import('../../src/storage/repositori
 const { createAccountOperations } = await import('../../src/domain/accounts.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
-const { createStorageAuth, credentialCheck } = await import('../../src/auth/storageMiddleware.ts');
+const { createStorageAuth, credentialCheck, passwordAttempt } = await import('../../src/auth/storageMiddleware.ts');
+const { clientAddress } = await import('../../src/http/context.ts');
 const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
-const { HttpError } = await import('../../src/lib/errors.ts');
-const { sha256, verifyPassword, hashPassword } = await import('../../src/auth/crypto.ts');
+const { ApplicationError } = await import('../../src/lib/errors.ts');
+const { errorReply } = await import('../../src/http/errors.ts');
+const { sha256, verifyPassword, hashPassword } = await import('../../src/lib/crypto.ts');
 const { disposableBackend } = await import('./support/disposableBackend.ts');
 const basic = (email: string, password: string) => ({
   authorization: `Basic ${Buffer.from(`${email}:${password}`).toString('base64')}`,
@@ -112,18 +114,22 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       });
       app.get('/admin', auth.requireAuth, auth.requireAdmin, (_req, res) => res.json({ ok: true }));
       app.put('/profile', auth.requireAuth, async (req, res) => {
-        const user = await sessions.updateProfile(
-          req,
-          res.locals.auth,
+        const user = await operations.updateProfile(
+          res.locals.auth.user,
+          res.locals.auth.credential,
           JSON.parse(req.body as string) as Record<string, unknown>,
           effects,
+          passwordAttempt(loginLimiter, res.locals.auth.user.email, clientAddress(req)),
         );
         return res.json({ id: user.id, fullname: user.fullName, api_token: user.apiToken });
       });
       const mapped: unknown[] = [];
       const errors: ErrorRequestHandler = (error: unknown, _req, res, _next) => {
         mapped.push(error);
-        if (error instanceof HttpError) return res.status(error.status).set(error.headers).json(error.message);
+        if (error instanceof ApplicationError) {
+          const reply = errorReply(error);
+          return res.status(reply.status).set(reply.headers).json(reply.body);
+        }
         return res.status(500).json('Internal server error');
       };
       app.use(errors);

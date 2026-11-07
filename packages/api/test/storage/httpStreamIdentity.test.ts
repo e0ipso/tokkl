@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TimerState } from '@tokkl/types';
 import type { StorageAuthentication } from '../../src/auth/storageMiddleware.ts';
-import { createStorage } from '../../src/storage/index.ts';
+import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
 import { testConfig } from '../helpers.ts';

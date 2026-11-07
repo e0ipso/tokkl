@@ -9,7 +9,7 @@ import type { ReportRepositories } from '../../src/services/storageReports.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { collectAccountExport } from '../../src/services/storageExport.ts';
+import { collectAccountExport } from '../fixtures/exports.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';
@@ -19,6 +19,7 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { StorageReportRunner } from '../../src/services/storageReportRunner.ts';
+import { errorReply } from '../../src/http/errors.ts';
 import { collectReport } from '../../src/services/storageReports.ts';
 import {
   formatReportJob,
@@ -249,7 +250,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   await assembly;
   await c.db.deleteFrom('workspace_users').where('user_id', '=', user.id).execute();
   await assert.rejects(runner.run(user.id, user.defaultWorkspaceId, job), error => {
-    assert.equal((error as { status: number }).status, 403);
+    assert.equal(errorReply(error).status, 403);
     assert.equal((error as Error).message, 'User does not have access to this resource.');
     return true;
   });

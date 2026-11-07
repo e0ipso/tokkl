@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { credentialCheck, type StorageAuthentication } from '../../src/auth/storageMiddleware.ts';
-import { sha256 } from '../../src/auth/crypto.ts';
-import { createStorage } from '../../src/storage/index.ts';
+import { sha256 } from '../../src/lib/crypto.ts';
+import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import type { User } from '../../src/storage/domain.ts';
 import { disposableBackend } from './support/disposableBackend.ts';

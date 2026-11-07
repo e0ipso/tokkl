@@ -1,3 +1,4 @@
+import { ConfigurationError } from '../lib/configurationError.ts';
 import { isAbsolute, join, resolve } from 'node:path';
 
 export type Backend = 'sqlite' | 'postgres' | 'mysql' | 'mariadb';
@@ -21,7 +22,7 @@ export interface ServerConfig {
 /** Serializable connection settings. Contains secrets; never log or return this value over HTTP. */
 export type StorageConfig = SqliteConfig | ServerConfig;
 
-export class StorageConfigurationError extends Error {
+export class StorageConfigurationError extends ConfigurationError {
   constructor() {
     super('Invalid TOKKL_DATABASE_URL');
     this.name = 'StorageConfigurationError';

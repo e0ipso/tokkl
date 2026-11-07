@@ -10,7 +10,6 @@ import {
   createTimerPublication,
   createCatalogTimerEffects,
   createAccountEntryEffects,
-  touchTimer,
 } from '../../src/domain/timers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';

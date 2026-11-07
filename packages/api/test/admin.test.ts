@@ -1,5 +1,5 @@
 import { storageFor } from './fixtures/database.ts';
-import { sessionCount as countSessions, tokenRows, corruptRecord } from './fixtures/physical.ts';
+import { sessionCount as countSessions } from './fixtures/physical.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CSRF, PASSWORD, addUser, duringPasswordCheck, sessionCookie, setup, type TestContext } from './helpers.ts';

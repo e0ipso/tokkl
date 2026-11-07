@@ -1,17 +1,20 @@
-import express, { type Router } from 'express';
+import { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
-import { jsonRead, query, readText } from '../http/context.ts';
-import { badRequest, notFound } from '../lib/errors.ts';
+import { createRouter } from '../http/router.ts';
+import { jsonRead, readText } from '../http/context.ts';
+import { query, queryList } from '../http/params.ts';
+import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
 import { createStorageSessions } from '../auth/storageSessions.ts';
-import { restoreTimeEntry, purgeDeletedEntries, serializeTimeEntry } from '../domain/timeEntries.ts';
+import { restoreTimeEntry, purgeDeletedEntries } from '../domain/timeEntries.ts';
+import { serializeTimeEntry } from '../presenters/toggl.ts';
 export interface SetupState {
   code: string | null;
 }
 export function appRoutes(deps: Deps, setup: SetupState): Router {
   const { storage, config, accounts, loginLimiter, setupLimiter } = deps;
-  const app = express.Router(),
+  const app = createRouter(),
     auth = deps.auth.requireAuth;
   const sessions = createStorageSessions(storage, accounts, {
     loginLimiter,
@@ -36,9 +39,9 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.get(
     '/bounds',
     auth,
-    jsonRead(deps, async (_req, res, db) => {
+    jsonRead(deps, async (_req, res, queries) => {
       const user = res.locals.auth.user,
-        row = await db.entries.bounds(user.id);
+        row = await queries.entryBounds(user.id);
       return {
         first_date: row.firstStart ? dateKey(new Date(row.firstStart), user.timezone) : null,
         last_date: row.lastStart ? dateKey(new Date(row.lastStart), user.timezone) : null,
@@ -48,8 +51,8 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   app.get(
     '/trash',
     auth,
-    jsonRead(deps, async (_req, res, db) =>
-      (await db.entries.listDeleted(res.locals.auth.user.id)).map(entry =>
+    jsonRead(deps, async (_req, res, queries) =>
+      (await queries.trash(res.locals.auth.user.id)).map(entry =>
         serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }),
       ),
     ),
@@ -70,7 +73,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
   app.get('/export.json', auth, async (_req, res) => {
     const instant = new Date().toISOString();
-    const data = await deps.readFor(res.locals.auth, db => db.transfers.exportAccount(res.locals.auth.user.id));
+    const data = await deps.readFor(res.locals.auth, queries => queries.accountExport(res.locals.auth.user.id));
     const result = await deps.reports.assembleExport(
       data,
       { kind: 'export-json', exportedAt: instant, filename: `tokkl-${instant.slice(0, 10)}.json` },
@@ -83,7 +86,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
       .send(result.body);
   });
   app.get('/export.csv', auth, async (req, res) => {
-    const data = await deps.readFor(res.locals.auth, db => db.transfers.exportAccount(res.locals.auth.user.id));
+    const data = await deps.readFor(res.locals.auth, queries => queries.accountExport(res.locals.auth.user.id));
     const result = await deps.reports.assembleExport(
       data,
       {
@@ -102,10 +105,10 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
   app.post('/import/toggl-csv', auth, async (req, res) => {
     const text = readText(req);
-    if (!text.trim()) throw badRequest('The file is empty');
-    const selected = req.query.user,
-      users = selected === undefined ? undefined : [selected].flat().filter(key => typeof key === 'string');
-    if (users?.length === 0) throw badRequest('Invalid user selection');
+    if (!text.trim()) throw invalidInput('The file is empty');
+    // One `user=<key>` per selected Toggl user; keys may hold commas, so they are never joined.
+    const users = queryList(req, 'user');
+    if (users?.length === 0) throw invalidInput('Invalid user selection');
     return res.json(
       await deps
         .importsFor(res.locals.auth)
@@ -117,7 +120,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
     try {
       data = JSON.parse(readText(req));
     } catch {
-      throw badRequest('The file is not valid JSON');
+      throw invalidInput('The file is not valid JSON');
     }
     return res.json(
       await deps

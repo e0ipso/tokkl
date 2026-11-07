@@ -4,16 +4,11 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createAccountRepositories } from '../../src/storage/repositories/accounts.ts';
-import { HttpError } from '../../src/lib/errors.ts';
-import { sha256, verifyPassword } from '../../src/auth/crypto.ts';
-import {
-  getPreferences,
-  serializeAccount,
-  serializeInvite,
-  serializeUser,
-  serializeWorkspace,
-  readNewAccount,
-} from '../../src/domain/accountValues.ts';
+import { ApplicationError } from '../../src/lib/errors.ts';
+import { errorReply } from '../../src/http/errors.ts';
+import { sha256, verifyPassword } from '../../src/lib/crypto.ts';
+import { getPreferences, readNewAccount } from '../../src/domain/accountValues.ts';
+import { serializeAccount, serializeInvite, serializeUser, serializeWorkspace } from '../../src/presenters/toggl.ts';
 import { jsonObject } from '../../src/storage/conversion.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -66,7 +61,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const bob = await add('bob@example.test');
       const carol = await add('carol@example.test');
       const error = (status: number, message: string) => (e: unknown) =>
-        e instanceof HttpError && e.status === status && e.message === message;
+        e instanceof ApplicationError && errorReply(e).status === status && e.message === message;
       const calls: string[] = [];
       const effects = {
         async reanchorTimezone(_ctx: unknown, _id: number, oldZone: string, newZone: string) {
@@ -88,10 +83,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await t.test(
         'membership uses workspace roles, hides missing workspaces and validates defaults atomically',
         async () => {
-          await operations.addWorkspaceMember(admin.id, admin.defaultWorkspaceId, bob.id, 'member');
-          await assert.rejects(
-            operations.addWorkspaceMember(bob.id, admin.defaultWorkspaceId, carol.id, 'member'),
-            error(403, 'User does not have access to this resource.'),
+          // No route adds members; the fixture writes the membership the way a shared workspace would.
+          await runner.transaction(ctx =>
+            ctx.workspaces.addMember({ workspaceId: admin.defaultWorkspaceId, userId: bob.id, role: 'member' }),
           );
           await runner.readSnapshot(async ctx => {
             const list = await ctx.workspaces.listMembers(admin.defaultWorkspaceId);
@@ -372,8 +366,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             },
           ),
           e =>
-            error(429, 'Too many failed attempts, try again later')(e) &&
-            (e as HttpError).headers['Retry-After'] === '17',
+            error(429, 'Too many failed attempts, try again later')(e) && errorReply(e).headers['Retry-After'] === '17',
         );
       });
       await t.test('reset, revocation, rotation and deletion during password verification prevent writes', async () => {
@@ -544,7 +537,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         async () => {
           const target = await add('delete@example.test', 'admin');
           const member = await add('shared-member@example.test');
-          await operations.addWorkspaceMember(target.id, target.defaultWorkspaceId, member.id, 'member');
+          await runner.transaction(ctx =>
+            ctx.workspaces.addMember({ workspaceId: target.defaultWorkspaceId, userId: member.id, role: 'member' }),
+          );
           const privateWs = await runner.transaction(async ctx => {
             const ws = await ctx.workspaces.create('Sole workspace');
             await ctx.workspaces.addMember({ workspaceId: ws.id, userId: target.id, role: 'owner' });

@@ -9,7 +9,7 @@ import type { TestContext } from './helpers.ts';
 /*
  * PUT /me with a password awaits scrypt twice: once to check current_password and once to hash the
  * new one. These tests hold one of those scrypt results until another request has committed, so the
- * ordering is fixed without timers. src/auth/crypto.ts binds scrypt when it loads, so the wrapper is
+ * ordering is fixed without timers. src/lib/crypto.ts binds scrypt when it loads, so the wrapper is
  * installed before anything from src is imported, and the app modules are imported afterwards.
  */
 type ScryptCallback = (error: Error | null, key: Buffer) => void;

@@ -4,9 +4,12 @@ import { dateKey, parseDateKey, startOfDay } from '@tokkl/common/time';
 import type { EntryInput, OperationContext, Repositories } from '../storage/contracts.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import type { EntryDetails, TimeEntry, User } from '../storage/domain.ts';
-import { badRequest, conflict, forbidden, notFound, type HttpError } from '../lib/errors.ts';
-import { isoSeconds, optionalBool, optionalId, optionalString, parseInstant, togglTime } from '../lib/values.ts';
+import { ApplicationError, invalidInput, conflict, notFound } from '../lib/errors.ts';
+import { isoSeconds, optionalBool, optionalId, optionalString, parseInstant } from '../lib/values.ts';
 import { resolveTagNames } from './catalogs.ts';
+import { timeResolutionOf } from './instanceSettings.ts';
+import { memoizeAsync } from '../lib/boundedCache.ts';
+import { memberWorkspace, noWorkspaceAccess } from './membership.ts';
 import { touchTimer, type TimerPublication } from './timers.ts';
 
 export type EntryRepositories = Pick<
@@ -15,11 +18,8 @@ export type EntryRepositories = Pick<
 >;
 export type EntryContext = OperationContext<EntryRepositories>;
 export const MAX_DESCRIPTION_LENGTH = 3000;
-export async function memberWorkspace(ctx: EntryRepositories, userId: number, wid: number) {
-  const workspace = await ctx.workspaces.forMember(userId, wid);
-  if (!workspace) throw forbidden('User does not have access to this resource.');
-  return workspace;
-}
+/** Reference lookups an import remembers; a failed row's savepoint clears them all. */
+const IMPORT_REFERENCE_CACHE = 256;
 export async function getTimeEntry(
   ctx: EntryRepositories,
   userId: number,
@@ -50,8 +50,7 @@ export async function protectEntryOperation(
       ...(pause ? [pause.workspaceId] : []),
     ]),
   ];
-  for (const wid of ids)
-    if (!(await ctx.workspaces.get(wid))) throw forbidden('User does not have access to this resource.');
+  for (const wid of ids) if (!(await ctx.workspaces.get(wid))) throw noWorkspaceAccess();
   await ctx.lockWorkspaces(ids);
   await ctx.lockUserTimer(userId);
   const user = await ctx.users.get(userId);
@@ -67,8 +66,7 @@ export async function protectEntryOperation(
   return user;
 }
 export async function entryResolution(ctx: EntryRepositories): Promise<number> {
-  const value = (await ctx.settings.read()).timeResolutionMinutes;
-  return value !== undefined && [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60].includes(value) ? value : 5;
+  return timeResolutionOf(await ctx.settings.read());
 }
 
 interface Draft {
@@ -98,8 +96,8 @@ function snapToResolution(resolution: number, user: User, start: Date, stop: Dat
   return snapSpan(wholeSeconds(start), wholeSeconds(stop), resolution, user.timezone);
 }
 
-function tooShort(resolution: number): HttpError {
-  return badRequest(`Time entry is too short: it rounds to zero at the ${resolution}-minute time resolution`);
+function tooShort(resolution: number): ApplicationError {
+  return invalidInput(`Time entry is too short: it rounds to zero at the ${resolution}-minute time resolution`);
 }
 
 function applyTagAction(current: number[], incoming: number[] | undefined, action: unknown): number[] {
@@ -111,14 +109,14 @@ function applyTagAction(current: number[], incoming: number[] | undefined, actio
 
 function readDuration(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value !== 'number' || !Number.isFinite(value)) throw badRequest('Invalid duration: expected an integer');
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw invalidInput('Invalid duration: expected an integer');
   return Math.trunc(value);
 }
 
 function readStartDate(body: Record<string, unknown>): string | undefined {
   if (body.start_date === undefined || body.start_date === null) return undefined;
   if (typeof body.start_date !== 'string' || !parseDateKey(body.start_date)) {
-    throw badRequest('Invalid start_date: expected YYYY-MM-DD');
+    throw invalidInput('Invalid start_date: expected YYYY-MM-DD');
   }
   return body.start_date;
 }
@@ -138,13 +136,13 @@ function assertConsistentDuration(
   body: Record<string, unknown>,
 ): void {
   if (body.stop != null && stop && duration !== undefined && seconds(stop) - seconds(start) !== duration) {
-    throw badRequest('Stop and duration must be consistent with start');
+    throw invalidInput('Stop and duration must be consistent with start');
   }
 }
 
 function assertWorkspace(body: Record<string, unknown>, wid: number): void {
   const bodyWid = optionalId(body.workspace_id ?? body.wid, 'workspace_id');
-  if (bodyWid && bodyWid !== wid) throw badRequest('Workspace ID in the body does not match the URL');
+  if (bodyWid && bodyWid !== wid) throw invalidInput('Workspace ID in the body does not match the URL');
 }
 
 /**
@@ -155,14 +153,14 @@ function assertWorkspace(body: Record<string, unknown>, wid: number): void {
  */
 function settleSpan(resolution: number, user: User, draft: Draft, { exact = false, unchanged = false } = {}): void {
   if (!draft.stop) return;
-  if (seconds(draft.stop) < seconds(draft.start)) throw badRequest('Stop time must be after start time');
+  if (seconds(draft.stop) < seconds(draft.start)) throw invalidInput('Stop time must be after start time');
   if (!exact) {
     const snapped = snapToResolution(resolution, user, draft.start, draft.stop);
     if (snapped) Object.assign(draft, snapped);
     else if (!unchanged) throw tooShort(resolution);
   }
   if (seconds(draft.stop) - seconds(draft.start) > MAX_DURATION_SECONDS) {
-    throw badRequest('Time entries can not be longer than 999 hours');
+    throw invalidInput('Time entries can not be longer than 999 hours');
   }
 }
 
@@ -177,10 +175,10 @@ export function noTimeSpan(
   duration: number,
   { exact = false } = {},
 ): SnappedSpan {
-  if (duration < 0) throw badRequest('No-time entries can not be running');
+  if (duration < 0) throw invalidInput('No-time entries can not be running');
   const kept = exact ? Math.trunc(duration) : snapDuration(duration, resolution);
-  if (kept <= 0) throw exact ? badRequest('Time entry is too short') : tooShort(resolution);
-  if (kept > MAX_ALL_DAY_SECONDS) throw badRequest('No-time entries can not be longer than 24 hours');
+  if (kept <= 0) throw exact ? invalidInput('Time entry is too short') : tooShort(resolution);
+  if (kept > MAX_ALL_DAY_SECONDS) throw invalidInput('No-time entries can not be longer than 24 hours');
   const start = startOfDay(day, user.timezone);
   return { start, stop: new Date(start.getTime() + kept * 1000) };
 }
@@ -190,11 +188,11 @@ function readNoTimeSpan(resolution: number, user: User, body: Record<string, unk
   let duration = readDuration(body.duration);
   if (start && body.stop !== undefined && body.stop !== null) {
     const stop = parseInstant(body.stop, 'stop');
-    if (seconds(stop) < seconds(start)) throw badRequest('Stop time must be after start time');
+    if (seconds(stop) < seconds(start)) throw invalidInput('Stop time must be after start time');
     assertConsistentDuration(start, stop, duration, body);
     duration ??= seconds(stop) - seconds(start);
   }
-  if (duration === undefined) throw badRequest('No-time entries need a duration');
+  if (duration === undefined) throw invalidInput('No-time entries need a duration');
   const day = readStartDate(body) ?? dateKey(start ?? new Date(), user.timezone);
   return noTimeSpan(resolution, user, day, duration, { exact });
 }
@@ -212,20 +210,20 @@ function readNoTimeUpdate(
   current: TimeEntry,
   body: Record<string, unknown>,
 ): SnappedSpan {
-  if (!current.stop) throw badRequest('No-time entries can not be running');
+  if (!current.stop) throw invalidInput('No-time entries can not be running');
   const wasAllDay = current.allDay;
   const currentStart = new Date(current.start);
   const currentStop = new Date(current.stop);
   const start = body.start == null ? undefined : parseInstant(body.start, 'start');
   const stop = body.stop == null ? undefined : parseInstant(body.stop, 'stop');
   let duration = readDuration(body.duration);
-  if (duration !== undefined && duration < 0) throw badRequest('No-time entries can not be running');
+  if (duration !== undefined && duration < 0) throw invalidInput('No-time entries can not be running');
   if (wasAllDay && start && seconds(start) !== seconds(startOfDay(dateKey(start, user.timezone), user.timezone))) {
-    throw badRequest('No-time entries have no start time: change start_date or duration instead');
+    throw invalidInput('No-time entries have no start time: change start_date or duration instead');
   }
   if (!wasAllDay && stop) {
     const from = start ?? currentStart;
-    if (seconds(stop) < seconds(from)) throw badRequest('Stop time must be after start time');
+    if (seconds(stop) < seconds(from)) throw invalidInput('Stop time must be after start time');
     assertConsistentDuration(from, stop, duration, body);
     duration ??= seconds(stop) - seconds(from);
   }
@@ -238,7 +236,7 @@ function readNoTimeUpdate(
       ? { start: currentStart, stop: currentStop }
       : noTimeSpan(resolution, user, day, duration);
   if (wasAllDay && stop && seconds(stop) !== seconds(span.stop)) {
-    throw badRequest('No-time entries have no end time: change duration instead');
+    throw invalidInput('No-time entries have no end time: change duration instead');
   }
   return span;
 }
@@ -265,10 +263,10 @@ async function readTagIds(
 ): Promise<number[] | undefined> {
   let ids: number[] | undefined;
   if (body.tag_ids != null) {
-    if (!Array.isArray(body.tag_ids)) throw badRequest('Invalid tag_ids: expected an array');
+    if (!Array.isArray(body.tag_ids)) throw invalidInput('Invalid tag_ids: expected an array');
     ids = body.tag_ids.map(value => {
       const id = optionalId(value, 'tag_ids');
-      if (!id) throw badRequest('Invalid tag_ids');
+      if (!id) throw invalidInput('Invalid tag_ids');
       return id;
     });
     const found = await refs.tags(wid, ids);
@@ -276,7 +274,7 @@ async function readTagIds(
   }
   if (body.tags != null) {
     if (!Array.isArray(body.tags) || body.tags.some(t => typeof t !== 'string'))
-      throw badRequest('Invalid tags: expected an array of strings');
+      throw invalidInput('Invalid tags: expected an array of strings');
     ids = [...(ids ?? []), ...(await refs.tagNames(wid, body.tags as string[]))];
   }
   return ids === undefined ? undefined : [...new Set(ids)];
@@ -297,7 +295,7 @@ async function resolveProjectAndTask(
     const task = await refs.task(wid, taskId);
     if (!task) throw notFound('Task not found');
     if (projectId === null) projectId = task.projectId;
-    else if (task.projectId !== projectId) throw badRequest('Task does not belong to the project');
+    else if (task.projectId !== projectId) throw invalidInput('Task does not belong to the project');
   }
   const project = projectId === null ? null : await refs.project(wid, projectId);
   if (projectId !== null && !project) throw notFound('Project not found');
@@ -449,26 +447,15 @@ export async function withExactEntryImport<T>(
     await memberWorkspace(ctx, user.id, wid);
     let active = true,
       rowActive = false;
-    const clear: Array<() => void> = [];
-    function memo<A extends unknown[], V>(read: (...args: A) => Promise<V>): (...args: A) => Promise<V> {
-      const cache = new Map<string, V>();
-      clear.push(() => cache.clear());
-      return async (...args) => {
-        const key = JSON.stringify(args);
-        if (cache.has(key)) return cache.get(key)!;
-        const value = await read(...args);
-        if (cache.size >= 256) cache.delete(cache.keys().next().value!);
-        cache.set(key, value);
-        return value;
-      };
-    }
     const original = entryReferences(ctx);
-    const refs: EntryReferences = {
-      project: memo(original.project),
-      task: memo(original.task),
-      tags: memo(original.tags),
-      tagNames: memo(original.tagNames),
+    const cached = {
+      project: memoizeAsync(original.project, IMPORT_REFERENCE_CACHE),
+      task: memoizeAsync(original.task, IMPORT_REFERENCE_CACHE),
+      tags: memoizeAsync(original.tags, IMPORT_REFERENCE_CACHE),
+      tagNames: memoizeAsync(original.tagNames, IMPORT_REFERENCE_CACHE),
     };
+    const refs: EntryReferences = cached;
+    const clear = Object.values(cached).map(lookup => () => lookup.clear());
     function check() {
       if (!active) throw new Error('Entry import scope is closed');
     }
@@ -516,52 +503,62 @@ export async function updateTimeEntry(
     const user = await protectEntryOperation(ctx, seen.id, [wid]);
     await memberWorkspace(ctx, user.id, wid);
     touchTimer(ctx, user.id, publish);
-    assertWorkspace(body, wid);
-    const current = await getTimeEntry(ctx, user.id, id);
-    if (current.workspaceId !== wid) throw notFound('Time entry not found');
-    const resolution = await entryResolution(ctx),
-      currentStart = new Date(current.start),
-      currentStop = current.stop ? new Date(current.stop) : null;
-    const wasAllDay = current.allDay,
-      allDay = optionalBool(body.all_day, 'all_day') ?? wasAllDay;
-    let start: Date,
-      stop: Date | null,
-      unchanged = false;
-    if (allDay) ({ start, stop } = readNoTimeUpdate(resolution, user, current, body));
-    else {
-      if (wasAllDay && (body.start == null || body.stop == null))
-        throw badRequest('Turning off all_day needs a start and a stop');
-      start = readStart(body, currentStart);
-      const duration = readDuration(body.duration);
-      stop = currentStop;
-      if (body.stop != null) stop = parseInstant(body.stop, 'stop');
-      else if (duration !== undefined) stop = duration >= 0 ? new Date(start.getTime() + duration * 1000) : null;
-      assertConsistentDuration(start, stop, duration, body);
-      unchanged = !wasAllDay && seconds(start) === seconds(currentStart) && stop?.getTime() === currentStop?.getTime();
-    }
-    const { projectId, taskId, project, projectChanged } = await resolveProjectAndTask(ctx, wid, body, current);
-    const billableInput = optionalBool(body.billable, 'billable');
-    const draft: Draft = {
-      projectId,
-      taskId,
-      start,
-      stop,
-      description: optionalString(body.description, 'description', MAX_DESCRIPTION_LENGTH) ?? current.description,
-      billable: billableInput ?? (projectChanged && project ? project.billable : current.billable),
-      tagIds: applyTagAction(currentTagIds(current), await readTagIds(ctx, wid, body), body.tag_action),
-    };
-    if (!allDay) settleSpan(resolution, user, draft, { unchanged });
-    if (!draft.stop && currentStop) await stopRunning(ctx, user, new Date(), id);
-    return ctx.entries.update(user.id, wid, id, {
-      projectId,
-      taskId,
-      description: draft.description,
-      start: new Date(isoSeconds(draft.start)).toISOString(),
-      stop: draft.stop ? new Date(isoSeconds(draft.stop)).toISOString() : null,
-      billable: draft.billable,
-      allDay,
-      tagIds: draft.tagIds,
-    });
+    return applyEntryUpdate(ctx, user, wid, id, body);
+  });
+}
+/** The edit itself. The caller has protected the user, checked the workspace and touched the timer. */
+async function applyEntryUpdate(
+  ctx: EntryContext,
+  user: User,
+  wid: number,
+  id: number,
+  body: Record<string, unknown>,
+): Promise<EntryDetails> {
+  assertWorkspace(body, wid);
+  const current = await getTimeEntry(ctx, user.id, id);
+  if (current.workspaceId !== wid) throw notFound('Time entry not found');
+  const resolution = await entryResolution(ctx),
+    currentStart = new Date(current.start),
+    currentStop = current.stop ? new Date(current.stop) : null;
+  const wasAllDay = current.allDay,
+    allDay = optionalBool(body.all_day, 'all_day') ?? wasAllDay;
+  let start: Date,
+    stop: Date | null,
+    unchanged = false;
+  if (allDay) ({ start, stop } = readNoTimeUpdate(resolution, user, current, body));
+  else {
+    if (wasAllDay && (body.start == null || body.stop == null))
+      throw invalidInput('Turning off all_day needs a start and a stop');
+    start = readStart(body, currentStart);
+    const duration = readDuration(body.duration);
+    stop = currentStop;
+    if (body.stop != null) stop = parseInstant(body.stop, 'stop');
+    else if (duration !== undefined) stop = duration >= 0 ? new Date(start.getTime() + duration * 1000) : null;
+    assertConsistentDuration(start, stop, duration, body);
+    unchanged = !wasAllDay && seconds(start) === seconds(currentStart) && stop?.getTime() === currentStop?.getTime();
+  }
+  const { projectId, taskId, project, projectChanged } = await resolveProjectAndTask(ctx, wid, body, current);
+  const billableInput = optionalBool(body.billable, 'billable');
+  const draft: Draft = {
+    projectId,
+    taskId,
+    start,
+    stop,
+    description: optionalString(body.description, 'description', MAX_DESCRIPTION_LENGTH) ?? current.description,
+    billable: billableInput ?? (projectChanged && project ? project.billable : current.billable),
+    tagIds: applyTagAction(currentTagIds(current), await readTagIds(ctx, wid, body), body.tag_action),
+  };
+  if (!allDay) settleSpan(resolution, user, draft, { unchanged });
+  if (!draft.stop && currentStop) await stopRunning(ctx, user, new Date(), id);
+  return ctx.entries.update(user.id, wid, id, {
+    projectId,
+    taskId,
+    description: draft.description,
+    start: new Date(isoSeconds(draft.start)).toISOString(),
+    stop: draft.stop ? new Date(isoSeconds(draft.stop)).toISOString() : null,
+    billable: draft.billable,
+    allDay,
+    tagIds: draft.tagIds,
   });
 }
 export async function stopTimeEntry(
@@ -653,8 +650,8 @@ const PATCH_FIELDS: Record<string, string> = {
 
 function operationToBody(operation: PatchOperation): Record<string, unknown> {
   const field = PATCH_FIELDS[operation.path];
-  if (!field) throw badRequest(`Unsupported path ${operation.path}`);
-  if (!['add', 'remove', 'replace'].includes(operation.op)) throw badRequest(`Unsupported operation ${operation.op}`);
+  if (!field) throw invalidInput(`Unsupported path ${operation.path}`);
+  if (!['add', 'remove', 'replace'].includes(operation.op)) throw invalidInput(`Unsupported operation ${operation.op}`);
   if (field === 'tags' || field === 'tag_ids') {
     const action = operation.op === 'add' ? 'add' : operation.op === 'remove' ? 'delete' : undefined;
     const value = operation.op === 'remove' && operation.value === undefined ? null : operation.value;
@@ -664,7 +661,7 @@ function operationToBody(operation: PatchOperation): Record<string, unknown> {
   if (operation.op === 'remove') {
     if (field === 'description') return { description: '' };
     if (field === 'project_id' || field === 'task_id') return { [field]: null };
-    throw badRequest(`Cannot remove ${operation.path}`);
+    throw invalidInput(`Cannot remove ${operation.path}`);
   }
   return { [field]: operation.value };
 }
@@ -677,26 +674,31 @@ export async function patchTimeEntries(
   operations: unknown,
   publish: TimerPublication,
 ) {
-  if (!Array.isArray(operations) || operations.length === 0) throw badRequest('Expected an array of patch operations');
+  if (!Array.isArray(operations) || operations.length === 0)
+    throw invalidInput('Expected an array of patch operations');
   return ctx.transaction(async ctx => {
     const user = await protectEntryOperation(ctx, seen.id, [wid]);
     await memberWorkspace(ctx, user.id, wid);
     const success: number[] = [],
       failure: Array<{ id: number; message: string }> = [];
+    touchTimer(ctx, user.id, publish);
     for (const id of ids) {
       try {
         await ctx.savepoint(async sp => {
           for (const raw of operations as PatchOperation[]) {
             if (!raw || typeof raw.op !== 'string' || typeof raw.path !== 'string')
-              throw badRequest('Invalid patch operation');
+              throw invalidInput('Invalid patch operation');
             if ((raw.path === '/start' || raw.path === '/stop') && (await getTimeEntry(sp, user.id, id)).allDay)
-              throw badRequest('No-time entries have no start or end time');
-            await updateTimeEntry(sp, user, wid, id, operationToBody(raw), publish);
+              throw invalidInput('No-time entries have no start or end time');
+            await applyEntryUpdate(sp, user, wid, id, operationToBody(raw));
           }
         });
         success.push(id);
       } catch (error) {
-        failure.push({ id, message: error instanceof Error ? error.message : 'Failed' });
+        // A refused edit fails only its id. Storage conflicts and bugs fail the whole request, so a
+        // retryable conflict retries the transaction and no internal message reaches the client.
+        if (!(error instanceof ApplicationError)) throw error;
+        failure.push({ id, message: error.message });
       }
     }
     return { success, failure };
@@ -705,49 +707,4 @@ export async function patchTimeEntries(
 
 export function entryDurationSeconds(row: Pick<TimeEntry, 'start' | 'stop'>, now = new Date()): number {
   return seconds(row.stop ? new Date(row.stop) : now) - seconds(new Date(row.start));
-}
-
-export function serializeTimeEntry(row: EntryDetails, options: { meta?: boolean; user?: User } = {}) {
-  const tags = row.tags;
-  const start = new Date(row.start);
-  const duration = row.stop ? seconds(new Date(row.stop)) - seconds(start) : -seconds(start);
-  const entry: Record<string, unknown> = {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    project_id: row.projectId,
-    task_id: row.taskId,
-    billable: row.billable,
-    start: togglTime(row.start),
-    stop: togglTime(row.stop),
-    duration,
-    description: row.description,
-    tags: tags.map(tag => tag.name),
-    tag_ids: tags.map(tag => tag.id),
-    duronly: true,
-    all_day: row.allDay,
-    at: togglTime(row.updatedAt),
-    server_deleted_at: togglTime(row.deletedAt),
-    user_id: row.userId,
-    uid: row.userId,
-    wid: row.workspaceId,
-    pid: row.projectId,
-    tid: row.taskId,
-    permissions: null,
-    expense_ids: [],
-  };
-  if (options.meta) {
-    Object.assign(entry, {
-      project_name: row.project?.name ?? null,
-      project_color: row.project?.color ?? null,
-      project_active: row.project?.active ?? null,
-      project_billable: row.project?.billable ?? null,
-      client_id: row.client?.id ?? null,
-      client_name: row.client?.name ?? null,
-      task_name: row.task?.name ?? null,
-      task_active: row.task?.active ?? null,
-      user_name: options.user?.fullName ?? null,
-      user_avatar_url: '',
-    });
-  }
-  return entry;
 }

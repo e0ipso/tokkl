@@ -1,4 +1,5 @@
 import { parseDateKey } from '@tokkl/common/time';
+import { BoundedCache } from '../lib/boundedCache.ts';
 import type { JsonObject, JsonValue, UtcInstant, DateOnly } from './domain.ts';
 
 // Errors describe the expected representation, never the stored value.
@@ -57,14 +58,9 @@ export function jsonObject(value: unknown): JsonObject {
     throw new Error('Invalid storage JSON object');
   return normalized;
 }
-const instantDates = new Map<string, boolean>();
+const instantDates = new BoundedCache<string, boolean>(128);
 function validInstantDate(day: string): boolean {
-  const known = instantDates.get(day);
-  if (known !== undefined) return known;
-  const valid = parseDateKey(day) !== null;
-  instantDates.set(day, valid);
-  if (instantDates.size > 128) instantDates.delete(instantDates.keys().next().value!);
-  return valid;
+  return instantDates.get(day) ?? instantDates.set(day, parseDateKey(day) !== null);
 }
 /** Native timestamps must be configured in UTC; text timestamps must explicitly carry their zone. */
 export function utcInstant(value: unknown): UtcInstant {

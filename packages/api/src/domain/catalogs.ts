@@ -2,16 +2,9 @@ import { PROJECT_COLORS, isHexColor } from '@tokkl/common/colors';
 import type { OperationContext, Repositories, ProjectInput } from '../storage/contracts.ts';
 import type { Client, Id, ProjectSummary, TaskSummary, Tag } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
-import { badRequest, notFound } from '../lib/errors.ts';
-import {
-  optionalBool,
-  optionalId,
-  optionalNumber,
-  optionalRate,
-  optionalString,
-  requireName,
-  togglTime,
-} from '../lib/values.ts';
+import { invalidInput, notFound } from '../lib/errors.ts';
+import { isCurrencyCode } from './workspaceValues.ts';
+import { optionalBool, optionalId, optionalNumber, optionalRate, optionalString, requireName } from '../lib/values.ts';
 
 export type CatalogRepositories = Pick<Repositories, 'clients' | 'projects' | 'tasks' | 'tags'>;
 export type CatalogContext = OperationContext<CatalogRepositories>;
@@ -42,14 +35,14 @@ async function write<T>(
       return await work(operation);
     } catch (error) {
       if (error instanceof StorageConflict && error.kind === 'unique')
-        throw badRequest(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
+        throw invalidInput(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
       throw error;
     }
   });
 }
 function unique(existing: { id: number } | undefined, except?: Id, tag = false): void {
   if (existing && existing.id !== except)
-    throw badRequest(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
+    throw invalidInput(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
 }
 export async function getClient(ctx: CatalogRepositories, wid: Id, id: Id): Promise<Client> {
   const value = await ctx.clients.get(wid, id);
@@ -124,10 +117,10 @@ export function restoreClient(
     const all = optionalBool(body.restore_all_projects, 'restore_all_projects') ?? false;
     const ids = body.projects ?? [];
     if (!Array.isArray(ids) || ids.length > 1000 || ids.some(id => !Number.isSafeInteger(id) || id <= 0))
-      throw badRequest('Invalid projects');
+      throw invalidInput('Invalid projects');
     const owned = await ctx.projects.listForClient(wid, id);
     const allowed = new Set(owned.map(p => p.id));
-    if (ids.some(id => !allowed.has(id))) throw badRequest('Project does not belong to the client');
+    if (ids.some(id => !allowed.has(id))) throw invalidInput('Project does not belong to the client');
     await invalidate(ctx, wid, effects);
     return ctx.clients.restore(wid, id, ids, all);
   });
@@ -151,21 +144,21 @@ async function resolveClient(ctx: CatalogContext, wid: Id, body: Body, fallback:
 }
 function color(value: unknown, fallback: string): string {
   if (value === undefined || value === null || value === '') return fallback;
-  if (typeof value !== 'string' || !isHexColor(value)) throw badRequest('Invalid color: expected #rrggbb');
+  if (typeof value !== 'string' || !isHexColor(value)) throw invalidInput('Invalid color: expected #rrggbb');
   return value.toLowerCase();
 }
 function date(value: unknown, field: string, fallback: string | null): string | null {
   if (value === undefined) return fallback;
   if (value === null || value === '') return null;
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
-    throw badRequest(`Invalid ${field}: expected YYYY-MM-DD`);
+    throw invalidInput(`Invalid ${field}: expected YYYY-MM-DD`);
   return value;
 }
 function currency(value: unknown, fallback: string | null): string | null {
   if (value === undefined) return fallback;
   if (value === null || value === '') return null;
-  if (typeof value !== 'string' || !/^[A-Za-z]{3}$/.test(value))
-    throw badRequest('Invalid currency: expected an ISO 4217 code');
+  if (typeof value !== 'string' || !isCurrencyCode(value))
+    throw invalidInput('Invalid currency: expected an ISO 4217 code');
   return value.toUpperCase();
 }
 function projectInput(body: Body, fallback: ProjectInput): ProjectInput {
@@ -248,7 +241,7 @@ export function createTask(ctx: CatalogContext, wid: Id, pid: Id, body: Body): P
   return write(ctx, wid, async ctx => {
     const p = await ctx.projects.getRef(wid, pid);
     if (!p) throw notFound('Project not found');
-    if (!p.active) throw badRequest('Can not change tasks of archived project');
+    if (!p.active) throw invalidInput('Can not change tasks of archived project');
     const name = requireName(body.name, 'Task name', 255);
     unique(await ctx.tasks.findByName(wid, pid, name));
     return ctx.tasks.create({
@@ -349,107 +342,4 @@ export function deleteTag(ctx: CatalogContext, wid: Id, id: Id, effects: Catalog
     },
     true,
   );
-}
-
-export function serializeClient(row: Client) {
-  return {
-    id: row.id,
-    wid: row.workspaceId,
-    archived: row.archived,
-    name: row.name,
-    at: togglTime(row.updatedAt),
-    notes: row.notes,
-    creator_id: null,
-    integration_provider: null,
-    permissions: null,
-  };
-}
-
-function projectStatus(row: ProjectSummary): string {
-  if (!row.active) return 'archived';
-  const today = new Date().toISOString().slice(0, 10);
-  if (row.startDate && row.startDate > today) return 'upcoming';
-  if (row.endDate && row.endDate < today) return 'ended';
-  return 'active';
-}
-
-export function serializeProject(row: ProjectSummary, defaultCurrency: string) {
-  const actualSeconds = Number(row.actualSeconds);
-  return {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    client_id: row.clientId,
-    name: row.name,
-    is_private: row.isPrivate,
-    active: row.active,
-    at: togglTime(row.updatedAt),
-    created_at: togglTime(row.createdAt),
-    server_deleted_at: null,
-    color: row.color,
-    billable: row.billable,
-    template: row.template,
-    auto_estimates: false,
-    estimated_hours: row.estimatedHours,
-    estimated_seconds: row.estimatedHours === null ? null : Math.round(row.estimatedHours * 3600),
-    rate: row.rate,
-    rate_last_updated: null,
-    currency: row.currency,
-    recurring: false,
-    template_id: null,
-    recurring_parameters: null,
-    fixed_fee: row.fixedFee,
-    actual_hours: Math.floor(actualSeconds / 3600),
-    actual_seconds: actualSeconds,
-    start_date: row.startDate ?? row.createdAt.slice(0, 10),
-    end_date: row.endDate,
-    status: projectStatus(row),
-    wid: row.workspaceId,
-    cid: row.clientId,
-    client_name: row.clientName,
-    can_track_time: true,
-    pinned: false,
-    permissions: null,
-    workspace_default_currency: defaultCurrency,
-    integration_provider: null,
-    external_reference: null,
-  };
-}
-
-export function serializeTask(row: TaskSummary) {
-  return {
-    id: row.id,
-    name: row.name,
-    workspace_id: row.workspaceId,
-    project_id: row.projectId,
-    user_id: null,
-    active: row.active,
-    at: togglTime(row.updatedAt),
-    estimated_seconds: row.estimatedSeconds,
-    // Toggl documents this field as milliseconds despite the name.
-    tracked_seconds: row.trackedMilliseconds,
-    server_deleted_at: null,
-    project_name: row.projectName,
-    project_color: row.projectColor,
-    project_billable: row.projectBillable,
-    project_is_private: row.projectIsPrivate,
-    client_id: row.clientId,
-    client_name: row.clientName,
-    rate: null,
-    recurring: false,
-    permissions: null,
-    integration_provider: null,
-  };
-}
-
-export function serializeTag(row: Tag) {
-  return {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    name: row.name,
-    at: togglTime(row.updatedAt),
-    deleted_at: null,
-    creator_id: null,
-    integration_provider: null,
-    permissions: null,
-  };
 }

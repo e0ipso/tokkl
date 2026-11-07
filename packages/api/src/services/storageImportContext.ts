@@ -1,7 +1,7 @@
 import type { OperationContext } from '../storage/contracts.ts';
 import type { EntryRepositories } from '../domain/timeEntries.ts';
-import { memberWorkspace, protectEntryOperation } from '../domain/timeEntries.ts';
-import { forbidden } from '../lib/errors.ts';
+import { protectEntryOperation } from '../domain/timeEntries.ts';
+import { memberWorkspace, noWorkspaceAccess } from '../domain/membership.ts';
 import { StorageConflict } from '../storage/errors.ts';
 
 export interface ImportRunner<R extends EntryRepositories> {
@@ -20,8 +20,7 @@ export async function protectImport(ctx: OperationContext<EntryRepositories>, us
       ...(pause ? [pause.workspaceId] : []),
     ]),
   ];
-  for (const wid of wids)
-    if (!(await ctx.workspaces.get(wid))) throw forbidden('User does not have access to this resource.');
+  for (const wid of wids) if (!(await ctx.workspaces.get(wid))) throw noWorkspaceAccess();
   await ctx.lockWorkspaces(wids);
   await ctx.lockUsers([...(await ctx.timers.affectedUsers(observed.defaultWorkspaceId)), userId]);
   const user = await ctx.users.get(userId),

@@ -2,20 +2,23 @@ import type { DurationFormat } from '@tokkl/types';
 import { formatDuration } from '@tokkl/common/duration';
 import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '@tokkl/common/time';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
-import type { Repositories } from '../storage/contracts.ts';
-import { serializeClient, serializeProject, serializeTag, serializeTask } from '../domain/catalogs.ts';
-import { getPreferences, serializeUser, serializeWorkspace } from '../domain/accountValues.ts';
-import { serializeTimeEntry } from '../domain/timeEntries.ts';
+import { getPreferences } from '../domain/accountValues.ts';
+import {
+  serializeClient,
+  serializeProject,
+  serializeTag,
+  serializeTask,
+  serializeTimeEntry,
+  serializeUser,
+  serializeWorkspace,
+} from '../presenters/toggl.ts';
 import { toCsv } from '../lib/csv.ts';
-import { badRequest } from '../lib/errors.ts';
+import { invalidInput } from '../lib/errors.ts';
 
 export const EXPORT_FORMAT = 'tokkl-export';
 export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
 export const EXPORT_FORMAT_VERSION = 1;
 type ExportUser = Omit<User, 'passwordHash' | 'apiToken'>;
-export interface ExportRunner<R extends Pick<Repositories, 'transfers'>> {
-  readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
-}
 /** Pure assembly, also callable inside the report worker after snapshot collection. */
 export function assembleJsonExport(data: AccountExportProjection, exportedAt = new Date().toISOString()) {
   // The serializers select public fields; credentials are absent from the input projection.
@@ -35,18 +38,6 @@ export function assembleJsonExport(data: AccountExportProjection, exportedAt = n
     tags: data.tags.map(serializeTag),
     time_entries: data.entries.map(e => serializeTimeEntry(e, { meta: true, user: publicUser })),
   };
-}
-export async function collectAccountExport<R extends Pick<Repositories, 'transfers'>>(
-  runner: ExportRunner<R>,
-  userId: number,
-) {
-  return runner.readSnapshot(repositories => repositories.transfers.exportAccount(userId));
-}
-export async function buildJsonExport<R extends Pick<Repositories, 'transfers'>>(
-  runner: ExportRunner<R>,
-  userId: number,
-) {
-  return assembleJsonExport(await collectAccountExport(runner, userId));
 }
 export const CSV_COLUMNS = [
   'User',
@@ -113,11 +104,11 @@ export function assembleCsvExport(
 ): string {
   let from: string | undefined, to: string | undefined;
   if (range.from) {
-    if (!parseDateKey(range.from)) throw badRequest('Invalid start_date: expected YYYY-MM-DD');
+    if (!parseDateKey(range.from)) throw invalidInput('Invalid start_date: expected YYYY-MM-DD');
     from = startOfDay(range.from, data.user.timezone).toISOString();
   }
   if (range.to) {
-    if (!parseDateKey(range.to)) throw badRequest('Invalid end_date: expected YYYY-MM-DD');
+    if (!parseDateKey(range.to)) throw invalidInput('Invalid end_date: expected YYYY-MM-DD');
     to = startOfDay(addDays(range.to, 1), data.user.timezone).toISOString();
   }
   const items: CsvItem[] = [];
@@ -137,11 +128,4 @@ export function assembleCsvExport(
       });
     }
   return toTogglCsv(items, data.user, durationFormat);
-}
-export async function buildCsvExport<R extends Pick<Repositories, 'transfers'>>(
-  runner: ExportRunner<R>,
-  userId: number,
-  range: { from?: string; to?: string },
-) {
-  return assembleCsvExport(await collectAccountExport(runner, userId), range);
 }

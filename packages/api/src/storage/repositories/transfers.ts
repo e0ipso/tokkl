@@ -15,16 +15,6 @@ export function createTransferRepositories(
 ): Pick<Repositories, 'transfers'> {
   return {
     transfers: {
-      async hasRunningEntry(userId) {
-        let query = db
-          .selectFrom('time_entries')
-          .select('id')
-          .where('user_id', '=', userId)
-          .where('stop', 'is', null)
-          .where('deleted_at', 'is', null);
-        if (backend === 'mysql' || backend === 'mariadb') query = query.where('running_user_id', '=', userId);
-        return !!(await query.executeTakeFirst());
-      },
       async exportAccount(userId): Promise<AccountExportProjection> {
         // Credentials never enter the projection, even transiently.
         const u = await db

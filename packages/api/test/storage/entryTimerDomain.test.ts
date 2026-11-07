@@ -9,6 +9,8 @@ import { createTimerRepositories } from '../../src/storage/repositories/timers.t
 import * as entries from '../../src/domain/timeEntries.ts';
 import { createTimerOperations, createTimerPublication } from '../../src/domain/timers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { failsWith } from '../fixtures/errors.ts';
+import { errorReply } from '../../src/http/errors.ts';
 const at = (time: string) => new Date(`2026-10-14T${time}Z`);
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
@@ -54,9 +56,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const paused = await timer.pauseTimer(user.id, at('09:10:00'));
         assert.equal(paused.pause?.seconds, 600);
         assert.equal(paused.running_entry, null);
-        await assert.rejects(timer.resumeTimer(user.id, 0, at('09:11:00')), {
-          status: 409,
-          body: { ...paused, server_time: at('09:11:00').toISOString() },
+        await assert.rejects(timer.resumeTimer(user.id, 0, at('09:11:00')), error => {
+          assert.deepEqual(errorReply(error), {
+            status: 409,
+            headers: {},
+            body: { ...paused, server_time: at('09:11:00').toISOString() },
+          });
+          return true;
         });
         const resumed = await timer.resumeTimer(user.id, paused.revision, at('09:15:00'));
         assert.deepEqual(resumed.running_entry?.tags, ['a', 'Z']);
@@ -74,8 +80,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           at('11:00:00'),
         );
         const original = cycle.running_entry!.id;
-        await assert.rejects(timer.pauseTimer(user.id, at('11:00:01')), { status: 409 });
-        await assert.rejects(timer.startPomodoro(user.id, {}, at('11:00:01')), { status: 409 });
+        await assert.rejects(timer.pauseTimer(user.id, at('11:00:01')), failsWith(409));
+        await assert.rejects(timer.startPomodoro(user.id, {}, at('11:00:01')), failsWith(409));
         cycle = await timer.nextPomodoroPhase(user.id, cycle.revision, at('11:05:00'));
         assert.equal(cycle.pomodoro?.phase.kind, 'shortRest');
         assert.equal(cycle.running_entry?.id, original);
@@ -105,7 +111,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         cycle = await timer.endPomodoro(user.id, cycle.revision, at('11:20:00'));
         assert.equal(cycle.discarded_pomodoro, null);
         for (const revision of ['0', 0.5, Infinity, null, undefined, true])
-          await assert.rejects(timer.resumeTimer(user.id, revision), { status: 400 });
+          await assert.rejects(timer.resumeTimer(user.id, revision), failsWith(400));
         await runner.transaction(ctx =>
           entries.createTimeEntry(ctx, user, user.defaultWorkspaceId, { start: at('12:00:00').toISOString() }, publish),
         );

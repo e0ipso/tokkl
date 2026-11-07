@@ -1,16 +1,16 @@
-import express, { type Router } from 'express';
+import { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
+import { createRouter } from '../http/router.ts';
 import { jsonRead, readJson } from '../http/context.ts';
 import { parseId, togglTime } from '../lib/values.ts';
-import { serializeAccount, serializeInvite } from '../domain/accountValues.ts';
-import { getInstanceSettings, serializeSettings } from '../domain/accounts.ts';
+import { serializeAccount, serializeInvite, serializeSettings } from '../presenters/toggl.ts';
 export function adminRoutes(deps: Deps): Router {
   const { config } = deps;
-  const api = express.Router();
+  const api = createRouter();
   api.use(deps.auth.requireAuth, deps.auth.requireAdmin);
   api.get(
     '/users',
-    jsonRead(deps, async (_req, _res, db) => (await db.users.list()).map(serializeAccount), true),
+    jsonRead(deps, async (_req, _res, queries) => (await queries.accounts()).map(serializeAccount), true),
   );
   api.patch('/users/:id', async (req, res) =>
     res.json(
@@ -46,11 +46,7 @@ export function adminRoutes(deps: Deps): Router {
   });
   api.get(
     '/invites',
-    jsonRead(
-      deps,
-      async (_req, _res, db) => (await db.tokens.listPendingInvites(new Date().toISOString())).map(serializeInvite),
-      true,
-    ),
+    jsonRead(deps, async (_req, _res, queries) => (await queries.pendingInvites()).map(serializeInvite), true),
   );
   api.delete('/invites/:id', async (req, res) => {
     await deps.accountsFor(res.locals.auth).revokeInvite(res.locals.auth.user.id, parseId(req.params.id));
@@ -58,11 +54,7 @@ export function adminRoutes(deps: Deps): Router {
   });
   api.get(
     '/settings',
-    jsonRead(
-      deps,
-      async (_req, _res, db) => serializeSettings(await getInstanceSettings(db, config.sessionDays)),
-      true,
-    ),
+    jsonRead(deps, async (_req, _res, queries) => serializeSettings(await queries.instanceSettings()), true),
   );
   api.put('/settings', async (req, res) =>
     res.json(

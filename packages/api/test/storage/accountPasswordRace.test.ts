@@ -25,8 +25,9 @@ const { openConnection } = await import('../../src/storage/connections.ts');
 const { createTransactionRunner } = await import('../../src/storage/transactions.ts');
 const { createAccountRepositories } = await import('../../src/storage/repositories/accounts.ts');
 const { createAccountOperations } = await import('../../src/domain/accounts.ts');
-const { verifyPassword } = await import('../../src/auth/crypto.ts');
-const { HttpError } = await import('../../src/lib/errors.ts');
+const { verifyPassword } = await import('../../src/lib/crypto.ts');
+const { ApplicationError } = await import('../../src/lib/errors.ts');
+const { errorReply } = await import('../../src/http/errors.ts');
 const { disposableBackend } = await import('./support/disposableBackend.ts');
 const attempt = {
   async attempt(check: () => Promise<boolean>) {
@@ -119,7 +120,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
                 effects,
                 attempt,
               ),
-              e => e instanceof HttpError && e.status === 403 && e.message === 'Incorrect username and/or password',
+              e =>
+                e instanceof ApplicationError &&
+                errorReply(e).status === 403 &&
+                e.message === 'Incorrect username and/or password',
             );
             assert.equal(committed, true);
             assert.equal(hold, undefined);

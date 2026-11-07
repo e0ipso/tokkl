@@ -1,7 +1,21 @@
 import pg from 'pg';
-import { createLocalTimerBus, type TimerBus, type TimerSignal } from '../domain/timerBus.ts';
 import type { ServerConfig, StorageConfig } from './config.ts';
 import { postgresOptions } from './connections.ts';
+import { createLogger, type Logger } from '../lib/logger.ts';
+
+/** A hint that a user's committed timer revision changed. It never carries state. */
+export type TimerSignal = { userId: number; revision: number };
+/** Carries timer signals between API processes. A receiver rebuilds state from its own database read. */
+export interface TimerBus {
+  send(signal: TimerSignal): void;
+  /** Registers the single receiver. */
+  receive(handler: (signal: TimerSignal) => void): void;
+  close(): Promise<void>;
+}
+/** One process: local commits already deliver their own state, so nothing is sent or received. */
+export function createLocalTimerBus(): TimerBus {
+  return { send() {}, receive() {}, async close() {} };
+}
 
 /** Fixed lowercase identifier, so it is safe as a literal in LISTEN. */
 export const TIMER_BUS_CHANNEL = 'tokkl_timer_signal';
@@ -35,8 +49,8 @@ function parseSignal(payload: string | undefined): TimerSignal | undefined {
 }
 
 /** PostgreSQL carries signals between processes. The other engines run one process's local bus. */
-export function startTimerBus(config: StorageConfig): Promise<TimerBus> {
-  return config.backend === 'postgres' ? startPostgresTimerBus(config) : Promise.resolve(createLocalTimerBus());
+export function startTimerBus(config: StorageConfig, logger: Logger = createLogger()): Promise<TimerBus> {
+  return config.backend === 'postgres' ? startPostgresTimerBus(config, logger) : Promise.resolve(createLocalTimerBus());
 }
 
 /** A graceful end waits for the server. Past the limit the socket is destroyed, so a silent peer
@@ -55,7 +69,7 @@ function endQuietly(client: pg.Client, limitMs?: number): Promise<void> {
   return Promise.race([ended, expired]).finally(() => clearTimeout(timer));
 }
 
-async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {
+async function startPostgresTimerBus(config: ServerConfig, logger: Logger): Promise<TimerBus> {
   // Pool-only fields do not apply to a single client. Never log these options: they hold credentials.
   const { max: _max, idleTimeoutMillis: _idle, ...options } = postgresOptions(config, false);
   let handler: ((signal: TimerSignal) => void) | undefined;
@@ -110,7 +124,7 @@ async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {
     current = undefined;
     void endQuietly(client);
     if (closed) return;
-    console.warn('Timer bus disconnected');
+    logger.warn('Timer bus disconnected');
     schedule();
   }
 
@@ -139,7 +153,7 @@ async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {
     }
     current = client;
     delay = FIRST_RETRY_MS;
-    console.log('Timer bus reconnected');
+    logger.info('Timer bus reconnected');
   }
 
   current = await open();
@@ -150,7 +164,7 @@ async function startPostgresTimerBus(config: ServerConfig): Promise<TimerBus> {
       if (closed || !client) return;
       const payload = JSON.stringify({ userId: signal.userId, revision: signal.revision });
       client.query('SELECT pg_notify($1, $2)', [TIMER_BUS_CHANNEL, payload]).catch(() => {
-        if (!closed) console.warn('Timer bus send failed');
+        if (!closed) logger.warn('Timer bus send failed');
       });
     },
     receive(next) {

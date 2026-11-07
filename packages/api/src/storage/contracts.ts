@@ -237,7 +237,6 @@ export interface EntriesRepository {
     id: Id,
     changes: Partial<Omit<EntryInput, 'userId' | 'workspaceId'>>,
   ): Promise<EntryDetails>;
-  setTags(userId: Id, entryId: Id, tagIds: Id[]): Promise<void>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;
   restore(userId: Id, id: Id): Promise<EntryDetails>;
   listDeleted(userId: Id): Promise<EntryDetails[]>;
@@ -285,8 +284,6 @@ export interface ReportsRepository {
 export interface TransfersRepository {
   /** All related projections are collected in one consistent read snapshot. */
   exportAccount(userId: Id): Promise<AccountExportProjection>;
-  /** Imports use catalog name lookups and EntriesRepository.findDuplicate within savepoints. */
-  hasRunningEntry(userId: Id): Promise<boolean>;
 }
 export interface Repositories {
   users: UsersRepository;
@@ -310,6 +307,8 @@ export interface TransactionScope<R extends object> {
   savepoint<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   beforeCommit(key: string, callback: () => Promise<void>): void;
   afterCommit(callback: () => Promise<void>): void;
+  /** Values that live exactly as long as this transaction, created on first use under `key`. */
+  local<T>(key: string, create: () => T): T;
   lockUserTimer(userId: Id): Promise<void>;
   lockInstanceAdministration(): Promise<void>;
   /** Acquire instance, then ascending workspaces, then ascending users, across all calls. */
@@ -318,7 +317,11 @@ export interface TransactionScope<R extends object> {
 }
 export type OperationContext<R extends object> = R & TransactionScope<R>;
 export type TransactionContext = OperationContext<Repositories>;
-export interface Storage extends Repositories {
+/**
+ * The application's database. Every repository call runs inside an explicit unit of work: a write
+ * transaction, which takes the guards in the documented order, or a read-only snapshot.
+ */
+export interface Storage {
   transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
   readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;

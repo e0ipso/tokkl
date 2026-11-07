@@ -1,8 +1,9 @@
-import express, { type Router } from 'express';
+import { type Router } from 'express';
 import type { Deps } from '../http/context.ts';
+import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/context.ts';
 export function timerRoutes(deps: Deps): Router {
-  const api = express.Router(),
+  const api = createRouter(),
     auth = deps.auth.requireAuth;
   api.get('/timer', auth, async (_req, res) =>
     res.json(await deps.timersFor(res.locals.auth).getTimerState(res.locals.auth.user.id)),

@@ -1,9 +1,10 @@
-import { NO_WORKSPACE_ACCESS } from '../domain/accounts.ts';
-import { badRequest, forbidden } from '../lib/errors.ts';
+import { isRoundingMinutes, ROUNDING_MINUTES } from '../domain/workspaceValues.ts';
+import { noWorkspaceAccess } from '../domain/membership.ts';
+import { invalidInput, forbidden } from '../lib/errors.ts';
 import { addDays, dateKey, daysBetween, parseDateKey, startOfDay, startOfWeek } from '@tokkl/common/time';
 import type { User, Workspace, ReportEntryProjection } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
-import { currentCredentialUser, type StorageAuthentication } from '../auth/storageMiddleware.ts';
+import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 
 export type IdFilter = Array<number | null>;
 
@@ -56,20 +57,18 @@ export interface ReportEntry {
 
 const MAX_RANGE_DAYS = 3660;
 
-/** Rounding steps Toggl accepts, in minutes. 0 turns rounding off. */
-export const ROUNDING_MINUTES = [0, 1, 5, 6, 10, 12, 15, 30, 60, 240];
-
 export function validateRange(
   startDate: unknown,
   endDate: unknown,
   maxDays = MAX_RANGE_DAYS,
 ): { startDate: string; endDate: string } {
   if (typeof startDate !== 'string' || !parseDateKey(startDate))
-    throw badRequest('Invalid start_date: expected YYYY-MM-DD');
-  if (typeof endDate !== 'string' || !parseDateKey(endDate)) throw badRequest('Invalid end_date: expected YYYY-MM-DD');
+    throw invalidInput('Invalid start_date: expected YYYY-MM-DD');
+  if (typeof endDate !== 'string' || !parseDateKey(endDate))
+    throw invalidInput('Invalid end_date: expected YYYY-MM-DD');
   const days = daysBetween(startDate, endDate);
-  if (days < 0) throw badRequest('end_date must not be earlier than start_date');
-  if (days + 1 > maxDays) throw badRequest(`Maximum allowed date range is ${maxDays} days`);
+  if (days < 0) throw invalidInput('end_date must not be earlier than start_date');
+  if (days + 1 > maxDays) throw invalidInput(`Maximum allowed date range is ${maxDays} days`);
   return { startDate, endDate };
 }
 
@@ -99,17 +98,17 @@ export function collectReport(
   userId: number,
   workspaceId: number,
   filter: ReportFilter,
-  authentication?: StorageAuthentication,
+  authentication?: Authentication,
 ): Promise<ReportData> {
   return source.readSnapshot(async repositories => {
     const user = authentication
       ? authentication.user.id === userId
-        ? await currentCredentialUser(repositories, authentication)
+        ? await authenticatedUser(repositories, authentication)
         : undefined
       : await repositories.users.get(userId);
     if (!user) throw forbidden();
     const workspace = await repositories.workspaces.forMember(userId, workspaceId);
-    if (!workspace) throw forbidden(NO_WORKSPACE_ACCESS);
+    if (!workspace) throw noWorkspaceAccess();
     const from = startOfDay(filter.startDate, user.timezone).toISOString();
     const to = startOfDay(addDays(filter.endDate, 1), user.timezone).toISOString();
     const entries = await repositories.reports.collect(userId, workspaceId, { ...filter, from, to });
@@ -359,12 +358,12 @@ export function groupEntries(entries: ReportEntry[], dimension: Dimension, subDi
 
 export function parseIdFilter(value: unknown, field: string): IdFilter | undefined {
   if (value === undefined || value === null) return undefined;
-  if (!Array.isArray(value)) throw badRequest(`Invalid '${field}' value: expected an array`);
-  if (value.length > 1000) throw badRequest(`'${field}' accepts at most 1000 ids`);
+  if (!Array.isArray(value)) throw invalidInput(`Invalid '${field}' value: expected an array`);
+  if (value.length > 1000) throw invalidInput(`'${field}' accepts at most 1000 ids`);
   return value.map(item => {
     if (item === null) return null;
     if (typeof item === 'number' && Number.isSafeInteger(item) && item > 0) return item;
-    throw badRequest(`Invalid '${field}' value`);
+    throw invalidInput(`Invalid '${field}' value`);
   });
 }
 
@@ -372,14 +371,14 @@ export function parseIdFilter(value: unknown, field: string): IdFilter | undefin
 export function filterFromBody(body: Record<string, unknown>, workspace: Workspace, maxDays?: number): ReportFilter {
   const range = validateRange(body.start_date, body.end_date ?? body.start_date, maxDays);
   if (body.billable !== undefined && body.billable !== null && typeof body.billable !== 'boolean') {
-    throw badRequest("Invalid 'billable' value");
+    throw invalidInput("Invalid 'billable' value");
   }
   const timeEntryIds = parseIdFilter(body.time_entry_ids, 'time_entry_ids')?.filter((id): id is number => id !== null);
   const durationBound = (field: string): number | undefined => {
     const value = body[field];
     if (value === undefined || value === null) return undefined;
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
-      throw badRequest(`Invalid '${field}' value`);
+      throw invalidInput(`Invalid '${field}' value`);
     return value;
   };
   const minDurationSeconds = durationBound('min_duration_seconds');
@@ -389,12 +388,12 @@ export function filterFromBody(body: Record<string, unknown>, workspace: Workspa
     maxDurationSeconds !== undefined &&
     minDurationSeconds >= maxDurationSeconds
   ) {
-    throw badRequest('max_duration_seconds must be greater than min_duration_seconds');
+    throw invalidInput('max_duration_seconds must be greater than min_duration_seconds');
   }
   const rounding = body.rounding === undefined ? undefined : Number(body.rounding);
   const roundingMinutes = body.rounding_minutes === undefined ? undefined : Number(body.rounding_minutes);
-  if (roundingMinutes !== undefined && !ROUNDING_MINUTES.includes(roundingMinutes)) {
-    throw badRequest(`Invalid 'rounding_minutes' value, allowed values are: '${ROUNDING_MINUTES.join(', ')}'`);
+  if (roundingMinutes !== undefined && !isRoundingMinutes(roundingMinutes)) {
+    throw invalidInput(`Invalid 'rounding_minutes' value, allowed values are: '${ROUNDING_MINUTES.join(', ')}'`);
   }
   // Toggl applies the workspace rounding only when the request asks for rounding.
   const applyWorkspaceRounding = rounding !== undefined && roundingMinutes === undefined;
