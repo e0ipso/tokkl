@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import { keys } from './keys.ts';
+import { invalidate } from './invalidate.ts';
+import { keys, stale } from './keys.ts';
 import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
   TIMER_ACTION_KEY,
@@ -22,8 +23,9 @@ const pomodoroPath = '/api/app/pomodoro';
 /**
  * Takes a state into the caches: the timer, the running entry and the clock offset. A state older
  * than the cached one is dropped and the cached state is returned. When the state moved past the
- * cached one, lists built from entries refetch, because the change started, stopped or discarded
- * entries. Every source of states (stream, poll, action reply, conflict) goes through here.
+ * cached one, everything derived from entries refetches (`stale.timerChanged`), project and task
+ * totals included, because the change started, stopped or discarded entries. Every source of
+ * states (stream, poll, action reply, conflict) goes through here.
  */
 export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState {
   const cached = qc.getQueryData<TimerState>(keys.timer);
@@ -32,11 +34,7 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
   qc.setQueryData(keys.timer, update.state);
   qc.setQueryData(keys.current, update.current);
   if (update.offset !== null) setClockOffset(update.offset);
-  if (update.changed) {
-    void qc.invalidateQueries({ queryKey: keys.entries });
-    void qc.invalidateQueries({ queryKey: keys.report });
-    void qc.invalidateQueries({ queryKey: keys.trash });
-  }
+  if (update.changed) void invalidate(qc, stale.timerChanged);
   return update.state;
 }
 
