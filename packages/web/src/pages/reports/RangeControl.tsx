@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { arrowTarget } from '../../components/arrowKeys.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
@@ -57,27 +57,27 @@ export function RangeControl({
 
   const shift = (direction: 1 | -1) => update({ range: shiftRange(range, direction) });
   const overlays = useOverlayStack();
-  const shiftRef = useRef(shift);
-  shiftRef.current = shift;
 
+  // The arrow keys move the range from anywhere on the page, unless something else owns them.
+  const onArrow = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    // A widget that already handled the key (and called preventDefault) wins.
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    if (ownsArrows(event.target)) return;
+    if (overlays.isOpen()) return;
+    event.preventDefault();
+    shift(event.key === 'ArrowLeft' ? -1 : 1);
+  });
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      // A widget that already handled the key (and called preventDefault) wins.
-      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      if (ownsArrows(event.target)) return;
-      if (overlays.isOpen()) return;
-      event.preventDefault();
-      shiftRef.current(event.key === 'ArrowLeft' ? -1 : 1);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [overlays]);
+    document.addEventListener('keydown', onArrow);
+    return () => document.removeEventListener('keydown', onArrow);
+  }, []);
 
-  // Opening moves focus to the active preset, as a listbox popup does.
+  // Opening moves focus to the active preset, as a listbox popup does. Only on opening: a later
+  // change of the active preset must not pull focus back.
+  const focusActivePreset = useEffectEvent(() => presets.current[Math.max(activeIndex, 0)]?.focus());
   useEffect(() => {
-    if (open) presets.current[Math.max(activeIndex, 0)]?.focus();
-    // Only on opening; a later change of the active preset must not pull focus back.
+    if (open) focusActivePreset();
   }, [open]);
 
   /** Closes the popover and gives focus back to the range button if it was inside the popover. */

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useCreateEntry, useEntries, useUpdateEntry } from '../api/entries.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { addClockMinutes, addDays, clockSpanOnDay, startOfDay, startOfWeek } from '@tokkl/common/time';
@@ -181,18 +181,17 @@ export function WeekCalendar() {
     setSelectedDay(day);
   };
 
+  // T jumps to today, unless the user is typing or an overlay is open.
+  const onKey = useEffectEvent((event: KeyboardEvent) => {
+    const target = event.target;
+    const typing = target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+    if (typing || overlays.isOpen()) return;
+    if (event.key.toLowerCase() === 't' && !event.ctrlKey && !event.metaKey) selectDay(todayKey);
+  });
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement;
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || overlays.isOpen()) return;
-      if (event.key.toLowerCase() === 't' && !event.ctrlKey && !event.metaKey) {
-        selectDay(todayKey);
-      }
-    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-    // selectDay reads selectedDay, so the listener is renewed when the day changes.
-  }, [todayKey, selectedDay, overlays]);
+  }, []);
 
   const minuteAt = (clientY: number, column: HTMLElement) =>
     ((clientY - column.getBoundingClientRect().top) / HOUR_HEIGHT) * 60;

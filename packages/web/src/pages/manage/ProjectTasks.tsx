@@ -32,8 +32,11 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
     setConfirming(next);
   };
   // Flip the checkbox right away; the refetch after the save confirms it.
-  const [active, setActive] = useState(task.active);
-  useEffect(() => setActive(task.active), [task.active]);
+  // The flip is kept with the stored value it was made against, so a refetch that changes the
+  // stored value replaces it.
+  const [flip, setFlip] = useState<{ active: boolean; over: boolean } | null>(null);
+  const active = flip && flip.over === task.active ? flip.active : task.active;
+  const setActive = (next: boolean) => setFlip({ active: next, over: task.active });
 
   const update = useAction<Partial<Pick<Task, 'name' | 'active'>>, Task>({
     mutationFn: changes => projectRequests.updateTask(wid, project.id, task.id, changes),
@@ -63,7 +66,7 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
         onChange={event => {
           const nextActive = !event.target.checked;
           setActive(nextActive);
-          update.mutate({ active: nextActive }, { onError: () => setActive(task.active) });
+          update.mutate({ active: nextActive }, { onError: () => setFlip(null) });
         }}
       />
       <input
