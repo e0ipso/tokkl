@@ -79,9 +79,10 @@
          started it and in either mode. A restart reads it again. -->
     <property name="SessionActive" type="b" access="read"/>
     <!-- StartSession can send now: Pomodoro mode is on, nothing runs, no
-         session is active, an account is connected, and a state has been
-         read from the server. False while an action waits for its answer
-         or its outcome is not known yet. -->
+         session is active, an account is connected and may write (no 429
+         cooldown, workspace not lost), and a state has been read from the
+         server. False while an action waits for its answer or its outcome
+         is not known yet. Start follows the same rule. -->
     <property name="CanStartSession" type="b" access="read"/>
     <!-- The phase that runs: "work", "shortRest" or "longRest"; empty
          without a session. -->
