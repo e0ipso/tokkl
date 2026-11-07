@@ -24,8 +24,8 @@ for (const delayed of [false, true])
         releasePublication = gate(),
         publicationEntered = gate();
       let holdPublicationCheck = false;
-      const credentialCheck = services.auth.credentialCheck.bind(services.auth);
-      t.mock.method(services.auth, 'credentialCheck', (authentication: StorageAuthentication) => {
+      const credentialCheck = services.streamCredentials.check.bind(services.streamCredentials);
+      t.mock.method(services.streamCredentials, 'check', (authentication: StorageAuthentication) => {
         const check = credentialCheck(authentication);
         return async () => {
           if (holdPublicationCheck) {

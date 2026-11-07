@@ -1,9 +1,6 @@
 import type { Repositories, Storage, TransactionContext } from '../storage/contracts.ts';
 import type { StorageConfig } from '../storage/config.ts';
-// The composition root: it also builds the HTTP auth adapter, whose stream check the timer streams use.
-import { createStorageAuth } from '../auth/storageMiddleware.ts';
 import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
-import type { FailureLimiter } from '../auth/rateLimit.ts';
 import { createAccountOperations } from '../domain/accounts.ts';
 import { isActiveAdmin } from '../domain/credentials.ts';
 import type { TimerState } from '@tokkl/types';
@@ -19,6 +16,7 @@ import {
 } from '../domain/timers.ts';
 import { createStorageImports } from './storageImportJson.ts';
 import { StorageReportRunner } from './storageReportRunner.ts';
+import { credentialCheck } from './streamCredentials.ts';
 import { TimerStreams, type EventStreamResponse, type TimerStreamOptions } from './timerStreams.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { forbidden } from '../lib/errors.ts';
@@ -27,8 +25,6 @@ import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
 export interface ApplicationServiceOptions {
   storage: Storage;
   storageConfig: StorageConfig;
-  /** Failed password attempts, shared by every path that checks a password. */
-  limiter: FailureLimiter;
   streamOptions?: TimerStreamOptions;
   /** Signals timer revisions to other processes. Defaults to the single-process bus. */
   bus?: TimerBus;
@@ -39,7 +35,6 @@ export interface ApplicationServiceOptions {
 export function createApplicationServices({
   storage,
   storageConfig: config,
-  limiter,
   streamOptions,
   bus = createLocalTimerBus(),
   logger = silentLogger,
@@ -98,7 +93,7 @@ export function createApplicationServices({
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const accounts = createAccountOperations(storage, security);
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
-  const auth = createStorageAuth(storage, limiter);
+  const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const reports = new StorageReportRunner(config, storage);
   function protectedStorage(authentication: Authentication, administrative = false): Storage {
     return {
@@ -117,16 +112,17 @@ export function createApplicationServices({
     };
   }
   return {
-    auth,
     accounts,
     entryEffects,
     timerStreams,
     publish,
     reports,
+    /** Builds each timer stream's keep-alive credential check. */
+    streamCredentials,
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
     openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
       publish.claim(authentication.user.id, authentication.user.createdAt);
-      return timerStreams.open(authentication.user.id, res, auth.credentialCheck(authentication));
+      return timerStreams.open(authentication.user.id, res, streamCredentials.check(authentication));
     },
     /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
     readFor<T>(

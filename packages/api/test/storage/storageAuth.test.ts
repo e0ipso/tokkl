@@ -31,7 +31,8 @@ const { createAccountRepositories } = await import('../../src/storage/repositori
 const { createAccountOperations } = await import('../../src/domain/accounts.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
-const { createStorageAuth, credentialCheck, passwordAttempt } = await import('../../src/auth/storageMiddleware.ts');
+const { createStorageAuth, passwordAttempt } = await import('../../src/auth/storageMiddleware.ts');
+const { credentialCheck } = await import('../../src/services/streamCredentials.ts');
 const { clientAddress } = await import('../../src/http/context.ts');
 const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');
@@ -613,7 +614,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         async () => {
           await request('/me', { headers: { cookie } });
           assert.ok(observed);
-          const check = auth.credentialCheck(observed);
+          const check = credentialCheck(runner, observed);
           await connection!.close();
           const count = mapped.length;
           await expectError('/me', 500, 'Internal server error', { headers: basic(admin.apiToken, 'api_token') });
