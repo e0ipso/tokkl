@@ -46,13 +46,14 @@ trap cleanup EXIT
 
 echo "== pack"
 gnome-extensions pack "$source_dir" --force --out-dir="$work" \
-    --extra-source=indicator.js --extra-source=projectindicator.js --extra-source=timer1.js \
+    --extra-source=compat.js --extra-source=indicator.js --extra-source=projectindicator.js \
+    --extra-source=timer1.js --extra-source=timer1proxy.js \
     --extra-source=tokkl.png --extra-source=tokkl-symbolic.symbolic.png \
     --extra-source=hourglass.svg --extra-source=hourglass-symbolic.svg
 zip="$work/$uuid.shell-extension.zip"
 contents="$(unzip -Z1 "$zip" | sort)"
 echo "$contents"
-for file in metadata.json extension.js indicator.js projectindicator.js timer1.js prefs.js stylesheet.css \
+for file in metadata.json extension.js compat.js indicator.js projectindicator.js timer1.js timer1proxy.js prefs.js stylesheet.css \
             tokkl.png tokkl-symbolic.symbolic.png hourglass.svg hourglass-symbolic.svg \
             schemas/org.gnome.shell.extensions.tokkl.gschema.xml; do
     grep -qx "$file" <<<"$contents" || { echo "error: the package lacks $file" >&2; exit 1; }
