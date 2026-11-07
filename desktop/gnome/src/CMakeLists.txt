@@ -28,7 +28,9 @@ target_link_libraries(tokklgnome
 )
 
 if(TOKKL_GNOME_DAEMON)
-    # The QtKeychain credential store, apart so its test can link it.
+    # The keyring wording of the core's QtKeychain store, apart so its test
+    # can link it.
+    add_subdirectory("${TOKKL_CORE_DIR}/keychain" keychain)
     add_library(tokklkeychain STATIC
         keychaincredentialstore.cpp
         keychaincredentialstore.h
@@ -36,9 +38,7 @@ if(TOKKL_GNOME_DAEMON)
     target_include_directories(tokklkeychain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(tokklkeychain
         PUBLIC
-            tokklcore
-        PRIVATE
-            Qt6Keychain::Qt6Keychain
+            tokklqtkeychain
     )
 
     # The sound server backend of the alarm, apart so its test can link it.
