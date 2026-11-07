@@ -8,6 +8,7 @@ const STATUS: Readonly<Record<FailureKind, number>> = {
   'not-found': 404,
   conflict: 409,
   'rate-limited': 429,
+  unavailable: 503,
 };
 
 /** What the client receives for a failure: a status, extra headers and a JSON body. */
@@ -51,7 +52,10 @@ export function errorHandler(logger: Logger): ErrorRequestHandler {
   return (error, _req, res, next) => {
     if (res.headersSent) return next(error);
     const reply = errorReply(error);
-    if (reply.status >= 500) logger.error('Request failed', { error });
+    // The request's logger carries its id, so the line can be matched to the access log.
+    const log = (res.locals.log as Logger | undefined) ?? logger;
+    if (!(error instanceof ApplicationError) && reply.status >= 500) log.error('Request failed', { error });
+    else if (reply.status >= 500) log.warn('Request refused', { status: reply.status, reason: reply.body });
     res.status(reply.status).set(reply.headers).json(reply.body);
   };
 }

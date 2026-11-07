@@ -1,7 +1,10 @@
 import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
-import { ApplicationError, type FailureKind } from '../lib/errors.ts';
+import { ApplicationError, unavailable, type FailureKind } from '../lib/errors.ts';
+
+/** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
+const QUEUE_FULL_RETRY_SECONDS = 2;
 import { collectReport, type ReportSource } from './storageReports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
@@ -85,7 +88,7 @@ export class StorageReportRunner {
     if (this.closed) return Promise.reject(new Error('Report runner is closed'));
     if (options.signal?.aborted) return Promise.reject(new Error('Report cancelled'));
     if (this.queue.length + Number(!!this.active) >= this.maxQueue)
-      return Promise.reject(new Error('Report queue is full'));
+      return Promise.reject(unavailable('Report queue is full', QUEUE_FULL_RETRY_SECONDS));
     return new Promise((resolve, reject) => {
       const pending: Pending = {
         id: this.nextId++,

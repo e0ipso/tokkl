@@ -2,11 +2,11 @@
  * Failures that domain and application code raise on purpose. Each carries a message that is safe
  * to show the client and a kind; `http/errors.ts` is the one place that turns a kind into a status.
  */
-export type FailureKind = 'invalid' | 'forbidden' | 'not-found' | 'conflict' | 'rate-limited';
+export type FailureKind = 'invalid' | 'forbidden' | 'not-found' | 'conflict' | 'rate-limited' | 'unavailable';
 
 export class ApplicationError extends Error {
   readonly kind: FailureKind;
-  /** Whole seconds the client should wait before trying again, for rate-limited failures. */
+  /** Whole seconds the client should wait before trying again, for rate-limited or unavailable failures. */
   readonly retryAfterSeconds: number | undefined;
 
   constructor(kind: FailureKind, message: string, retryAfterSeconds?: number) {
@@ -37,6 +37,9 @@ export const notFound = (message = 'Not found') => new ApplicationError('not-fou
 export const conflict = (message: string) => new ApplicationError('conflict', message);
 export const tooManyAttempts = (message: string, retryAfterSeconds: number) =>
   new ApplicationError('rate-limited', message, retryAfterSeconds);
+/** The server is too busy for this request right now; the client may retry after the delay. */
+export const unavailable = (message: string, retryAfterSeconds: number) =>
+  new ApplicationError('unavailable', message, retryAfterSeconds);
 
 /** Runs a calendar helper on client input, turning its RangeError into an invalid-input failure. */
 export function calendarInput<T>(compute: () => T): T {
