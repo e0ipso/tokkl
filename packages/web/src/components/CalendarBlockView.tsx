@@ -15,6 +15,7 @@ export function CalendarBlockView({
   now,
   settings,
   onPointerDown,
+  onOpen,
 }: {
   block: CalendarBlock;
   drag: CalendarDrag | null;
@@ -22,6 +23,8 @@ export function CalendarBlockView({
   now: Date;
   settings: Settings;
   onPointerDown: (event: PointerEvent<HTMLDivElement>, kind: 'move' | 'resize') => void;
+  /** Opens the entry in the editor, as a click on the block does through the drag gesture. */
+  onOpen: () => void;
 }) {
   const active = drag !== null && drag.kind !== 'create' && drag.entry.id === block.entry.id;
   let top = block.top;
@@ -79,6 +82,17 @@ export function CalendarBlockView({
           {description && projectName ? <span> · {projectName}</span> : null}
         </div>
       )}
+      {/* The block's keyboard and screen reader control, laid over it. A pointer press is the drag
+          gesture's, which opens the editor itself on a click or tap; this button opens it only for a
+          click without a pointer (detail 0): Enter, Space or a screen reader's activation. */}
+      <button
+        type="button"
+        className="calendar-block-open"
+        aria-label={`Edit ${label}`}
+        onClick={event => {
+          if (event.detail === 0) onOpen();
+        }}
+      />
       {block.entry.stop ? <span className="calendar-resize" aria-hidden /> : null}
     </div>
   );

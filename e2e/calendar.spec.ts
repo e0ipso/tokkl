@@ -142,6 +142,39 @@ test('calendar blocks are named by description, project and duration, and short 
   await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
 });
 
+// Each block holds a button that Tab reaches: Enter or Space opens the editor a click opens,
+// and closing the editor puts focus back on the block.
+test('a calendar block opens its editor from the keyboard', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
+  await login(page);
+  const api = await EntityApi.open(page);
+  await api.createEntry({ description: 'Keyboard block', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
+  await page.reload();
+  await openCalendar(page);
+  const block = page
+    .locator('.calendar-column.today')
+    .getByRole('group', { name: 'Keyboard block, 1:00:00', exact: true });
+  const open = block.getByRole('button', { name: 'Edit Keyboard block, 1:00:00', exact: true });
+  const editor = page.getByRole('dialog', { name: 'Edit entry' });
+
+  await open.focus();
+  await page.keyboard.press('Enter');
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel('Description', { exact: true })).toHaveValue('Keyboard block');
+  await page.keyboard.press('Escape');
+  await expect(editor).toHaveCount(0);
+  await expect(open).toBeFocused();
+
+  await page.keyboard.press('Space');
+  await expect(editor).toBeVisible();
+  await editor.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(open).toBeFocused();
+
+  // A mouse click still opens the editor once, through the drag gesture.
+  await block.click();
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+});
+
 // A zero-length entry (stored before the API refused spans that round to zero, or a short timer
 // restored from the trash) can sit where the next entry starts. Lanes follow the stored spans, so
 // the pair shares one lane with the thin marker above its successor. Spans that overlap still sit
@@ -799,6 +832,8 @@ test.describe('all-day creation', () => {
     const expectedDate = (await lastAdd.getAttribute('aria-label'))!.replace('Add all-day entry for ', '');
     await adds.first().click();
     const dialog = page.getByRole('dialog', { name: 'Add all-day entry' });
+    // The draft is not modal: the days behind it stay reachable by Tab.
+    await expect(dialog).not.toHaveAttribute('aria-modal');
     await dialog.getByLabel('Description', { exact: true }).fill('First day draft');
     await dialog.getByRole('button', { name: 'Close', exact: true }).focus();
     for (

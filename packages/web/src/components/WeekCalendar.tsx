@@ -195,6 +195,7 @@ export function WeekCalendar() {
                     now={now}
                     settings={settings}
                     onPointerDown={(event, kind) => gesture.beginBlock(event, kind, block)}
+                    onOpen={() => setEditing(block.entry)}
                   />
                 ))}
                 {drag?.kind === 'create' && drag.day === day ? (
