@@ -158,6 +158,18 @@ TestCase {
         return index;
     }
 
+    // Answers the state reads after a v9 write until the timer can write
+    // again. The reply to a start, stop or billable edit is an entry, so
+    // the timer waits for a read sent after it. A poll already on its way
+    // does not count; the read queued behind it does.
+    function settleState(running) {
+        answerState(running);
+        if (fixture.pending("GET", "/app/timer") >= 0) {
+            answerState(running);
+        }
+        tryCompare(button.timer, "canWrite", true);
+    }
+
     // The pause chain of a stopped entry like entry()'s, with the seconds the
     // server stored for it. A running clone has cloneId.
     function pauseChain(paused, seconds, cloneId, projectId, billable) {
@@ -458,8 +470,8 @@ TestCase {
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
         fixture.respond(waitFor("PATCH", "/time_entries/10/stop"), 200, JSON.stringify(stoppedEntry(10, 11, true, 55)));
-        answerState(null);
-        tryCompare(button.timer, "canWrite", true);
+        // A poll went out while the clone ran.
+        settleState(null);
         verify(!button.timer.running);
         verify(!button.timer.paused);
         compare(label.text, "0:00");
