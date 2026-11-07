@@ -106,6 +106,32 @@ async function write<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: Backend): Pick<Repositories, 'entries'> {
+  /** Replaces an entry's tags with tags of its own workspace. */
+  async function replaceTags(userId: number, id: number, tagIds: readonly number[]): Promise<void> {
+    const entry = await db
+      .selectFrom('time_entries')
+      .select('workspace_id')
+      .where('id', '=', id)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+    if (!entry) throw new Error('Entry record not found');
+    const ids = [...new Set(tagIds)];
+    if (ids.length) {
+      const tags = await db
+        .selectFrom('tags')
+        .select('id')
+        .where('workspace_id', '=', entityId(entry.workspace_id))
+        .where('id', 'in', ids)
+        .execute();
+      if (tags.length !== ids.length) throw new Error('Entry tag not found');
+    }
+    await db.deleteFrom('time_entry_tags').where('time_entry_id', '=', id).execute();
+    for (let i = 0; i < ids.length; i += 400)
+      await db
+        .insertInto('time_entry_tags')
+        .values(ids.slice(i, i + 400).map(tag_id => ({ time_entry_id: id, tag_id })))
+        .execute();
+  }
   const entries: Repositories['entries'] = {
     async list(userId, filter: EntryFilter = {}) {
       let q = entryDetailsQuery(db).where('e.user_id', '=', userId);
@@ -206,36 +232,11 @@ export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: B
           .where('workspace_id', '=', wid)
           .where('id', '=', id)
           .execute();
-        if (changes.tagIds !== undefined) await entries.setTags(userId, id, changes.tagIds);
+        if (changes.tagIds !== undefined) await replaceTags(userId, id, changes.tagIds);
         const result = await entries.get(userId, id, true);
         if (!result || result.workspaceId !== wid) throw new Error('Entry record not found');
         return result;
       });
-    },
-    async setTags(userId, id, tagIds) {
-      const entry = await db
-        .selectFrom('time_entries')
-        .select('workspace_id')
-        .where('id', '=', id)
-        .where('user_id', '=', userId)
-        .executeTakeFirst();
-      if (!entry) throw new Error('Entry record not found');
-      const ids = [...new Set(tagIds)];
-      if (ids.length) {
-        const tags = await db
-          .selectFrom('tags')
-          .select('id')
-          .where('workspace_id', '=', entityId(entry.workspace_id))
-          .where('id', 'in', ids)
-          .execute();
-        if (tags.length !== ids.length) throw new Error('Entry tag not found');
-      }
-      await db.deleteFrom('time_entry_tags').where('time_entry_id', '=', id).execute();
-      for (let i = 0; i < ids.length; i += 400)
-        await db
-          .insertInto('time_entry_tags')
-          .values(ids.slice(i, i + 400).map(tag_id => ({ time_entry_id: id, tag_id })))
-          .execute();
     },
     async softDelete(userId, wid, id, at) {
       await db

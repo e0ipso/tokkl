@@ -18,7 +18,6 @@ import {
 } from '../domain/timers.ts';
 import { createStorageImports } from './storageImportJson.ts';
 import { StorageReportRunner } from './storageReportRunner.ts';
-import { TimerHub } from './timerHub.ts';
 import { TimerStreams, type TimerStreamOptions } from './timerStreams.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { forbidden } from '../lib/errors.ts';
@@ -52,15 +51,12 @@ export function createApplicationServices({
       publish.refresh(id, revision).catch(error => logger.error('Timer refresh failed', { error }));
     },
   });
-  const hub = new TimerHub();
   const ordered = createTimerPublication(
     async (id, state) => {
-      await Promise.allSettled([timerStreams.publish(id, state), hub.publish(id, state)]);
+      // A failed delivery must not fail the commit that caused it; the next state supersedes it.
+      await timerStreams.publish(id, state).catch(error => logger.error('Timer delivery failed', { error }));
     },
-    id => {
-      timerStreams.forgetUser(id);
-      hub.forgetUser(id);
-    },
+    id => timerStreams.forgetUser(id),
     {
       hasStreams: id => timerStreams.hasStreams(id),
       // Read-only on purpose: settling here would commit a new revision and signal it back.
@@ -122,7 +118,6 @@ export function createApplicationServices({
     };
   }
   return {
-    hub,
     auth,
     accounts,
     entryEffects,
@@ -173,7 +168,6 @@ export function createApplicationServices({
       const results = await Promise.allSettled([timerStreams.closeAll(), reports.close()]);
       // Streams are closed, so no new rebuild starts. Let started ones finish before storage closes.
       await Promise.allSettled([...refreshes]);
-      hub.close();
       if (results.some(result => result.status === 'rejected')) throw new Error('Application shutdown failed');
     },
   };

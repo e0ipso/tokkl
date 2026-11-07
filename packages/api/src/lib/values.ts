@@ -89,10 +89,6 @@ export function requireName(value: unknown, field: string, maxLength: number): s
   return trimmed;
 }
 
-export function asBool(value: unknown): boolean {
-  return value === 1 || value === true;
-}
-
 /** Parses "1,2,3" path segments into ids. */
 export function parseIdList(value: string, limit = 100): number[] {
   const ids = value.split(',').map(part => Number(part.trim()));

@@ -70,8 +70,31 @@ export const nextPomodoroPhase = (db: FixtureDatabase, user: User, revision: unk
 export const endPomodoro = (db: FixtureDatabase, user: User, revision: unknown, now?: Date) =>
   timers(db).endPomodoro(user.id, revision, now);
 
-export const subscribeTimer = (db: FixtureDatabase, uid: number, listener: () => void) =>
-  servicesFor(db).hub.subscribe(uid, listener);
+type TimerListener = () => unknown;
+const timerListeners = new WeakMap<object, Map<number, Set<TimerListener>>>();
+/**
+ * Calls `listener` after each timer state the app delivers to `uid`'s streams, and returns the
+ * unsubscribe function. A failing listener is reported on the console and does not stop the others.
+ */
+export function subscribeTimer(db: FixtureDatabase, uid: number, listener: TimerListener): () => void {
+  const streams = servicesFor(db).timerStreams;
+  let users = timerListeners.get(streams);
+  if (!users) {
+    const listening = new Map<number, Set<TimerListener>>();
+    users = listening;
+    timerListeners.set(streams, listening);
+    const deliver = streams.publish.bind(streams);
+    streams.publish = async (id, state) => {
+      await deliver(id, state);
+      const results = await Promise.allSettled([...(listening.get(id) ?? [])].map(async each => each()));
+      for (const result of results) if (result.status === 'rejected') console.error('Timer subscriber failed');
+    };
+  }
+  const listeners = users.get(uid) ?? new Set();
+  users.set(uid, listeners);
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 export const listWorkspacesForUser = (db: FixtureDatabase, uid: number) => storageFor(db).workspaces.listForUser(uid);
 export const createSession = (db: FixtureDatabase, uid: number, days: number, agent: string) =>

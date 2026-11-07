@@ -5,7 +5,6 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { createEntryRepositories } from '../../src/storage/repositories/entries.ts';
 import { createTimerRepositories } from '../../src/storage/repositories/timers.ts';
-import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryAccount } from './support/entry-timer.ts';
 
@@ -99,11 +98,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         },
       });
       const { entries } = createEntryRepositories(db, backend),
-        { timers } = createTimerRepositories(db, backend),
-        { transfers } = createTransferRepositories(db, backend);
+        { timers } = createTimerRepositories(db, backend);
       const operations = [
         ['entry running', async () => assert.equal((await entries.running(user.id))?.id, id)],
-        ['transfer running', async () => assert.equal(await transfers.hasRunningEntry(user.id), true)],
         [
           'affected users',
           async () => assert.deepEqual(await timers.affectedUsers(user.defaultWorkspaceId), [user.id]),
@@ -129,7 +126,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       }
       await storage.entries.softDelete(user.id, user.defaultWorkspaceId, id, new Date().toISOString());
       assert.equal(await entries.running(user.id), undefined);
-      assert.equal(await transfers.hasRunningEntry(user.id), false);
       assert.deepEqual(await timers.affectedUsers(user.defaultWorkspaceId), []);
     },
   );

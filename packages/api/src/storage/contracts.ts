@@ -237,7 +237,6 @@ export interface EntriesRepository {
     id: Id,
     changes: Partial<Omit<EntryInput, 'userId' | 'workspaceId'>>,
   ): Promise<EntryDetails>;
-  setTags(userId: Id, entryId: Id, tagIds: Id[]): Promise<void>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;
   restore(userId: Id, id: Id): Promise<EntryDetails>;
   listDeleted(userId: Id): Promise<EntryDetails[]>;
@@ -285,8 +284,6 @@ export interface ReportsRepository {
 export interface TransfersRepository {
   /** All related projections are collected in one consistent read snapshot. */
   exportAccount(userId: Id): Promise<AccountExportProjection>;
-  /** Imports use catalog name lookups and EntriesRepository.findDuplicate within savepoints. */
-  hasRunningEntry(userId: Id): Promise<boolean>;
 }
 export interface Repositories {
   users: UsersRepository;

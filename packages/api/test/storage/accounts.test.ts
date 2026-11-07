@@ -83,10 +83,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await t.test(
         'membership uses workspace roles, hides missing workspaces and validates defaults atomically',
         async () => {
-          await operations.addWorkspaceMember(admin.id, admin.defaultWorkspaceId, bob.id, 'member');
-          await assert.rejects(
-            operations.addWorkspaceMember(bob.id, admin.defaultWorkspaceId, carol.id, 'member'),
-            error(403, 'User does not have access to this resource.'),
+          // No route adds members; the fixture writes the membership the way a shared workspace would.
+          await runner.transaction(ctx =>
+            ctx.workspaces.addMember({ workspaceId: admin.defaultWorkspaceId, userId: bob.id, role: 'member' }),
           );
           await runner.readSnapshot(async ctx => {
             const list = await ctx.workspaces.listMembers(admin.defaultWorkspaceId);
@@ -538,7 +537,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         async () => {
           const target = await add('delete@example.test', 'admin');
           const member = await add('shared-member@example.test');
-          await operations.addWorkspaceMember(target.id, target.defaultWorkspaceId, member.id, 'member');
+          await runner.transaction(ctx =>
+            ctx.workspaces.addMember({ workspaceId: target.defaultWorkspaceId, userId: member.id, role: 'member' }),
+          );
           const privateWs = await runner.transaction(async ctx => {
             const ws = await ctx.workspaces.create('Sole workspace');
             await ctx.workspaces.addMember({ workspaceId: ws.id, userId: target.id, role: 'owner' });

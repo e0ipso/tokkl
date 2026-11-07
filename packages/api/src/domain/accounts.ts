@@ -256,19 +256,6 @@ export function createAccountOperations<R extends AccountRepositories>(
         ctx.afterCommit(() => security.recheckUser(userId));
       });
     },
-    async addWorkspaceMember(actorId: Id, workspaceId: Id, userId: Id, role: 'owner' | 'member'): Promise<void> {
-      await runner.transaction(async ctx => {
-        await ctx.lockInstanceAdministration();
-        if (!(await ctx.workspaces.get(workspaceId))) throw noWorkspaceAccess();
-        await ctx.lockWorkspaces([workspaceId]);
-        if (!(await ctx.users.get(userId))) throw notFound('User not found');
-        if (!active(await ctx.users.get(actorId))) throw noWorkspaceAccess();
-        await ctx.lockUsers([actorId, userId]);
-        if (!active(await ctx.users.get(actorId)) || (await ctx.workspaces.getRole(actorId, workspaceId)) !== 'owner')
-          throw noWorkspaceAccess();
-        await ctx.workspaces.addMember({ workspaceId, userId, role });
-      });
-    },
     async updateWorkspace(userId: Id, workspaceId: Id, body: Record<string, unknown>): Promise<Workspace> {
       return runner.transaction(async ctx => {
         await ctx.lockInstanceAdministration();

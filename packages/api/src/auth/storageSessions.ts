@@ -1,10 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express';
-import type {
-  AccountEntryEffects,
-  AccountRepositories,
-  AccountRunner,
-  createAccountOperations,
-} from '../domain/accounts.ts';
+import type { AccountRepositories, AccountRunner, createAccountOperations } from '../domain/accounts.ts';
 import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accounts.ts';
 import type { User } from '../storage/domain.ts';
 import { clientAddress, readJson } from '../http/context.ts';
@@ -15,11 +10,9 @@ import {
   authenticatePassword,
   hasCsrfHeader,
   LEGACY_SESSION_COOKIE,
-  passwordAttempt,
   requireCsrfHeader,
   SESSION_COOKIE,
   sessionTokens,
-  type StorageAuthentication,
 } from './storageMiddleware.ts';
 
 export interface StorageSessionOptions {
@@ -136,19 +129,6 @@ export function createStorageSessions<R extends AccountRepositories>(
     res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
     return res.json({ ok: true });
   };
-  const updateProfile = (
-    req: Request,
-    auth: StorageAuthentication,
-    body: Record<string, unknown>,
-    effects: AccountEntryEffects<R>,
-  ) =>
-    operations.updateProfile(
-      auth.user,
-      auth.credential,
-      body,
-      effects,
-      passwordAttempt(loginLimiter, auth.user.email, clientAddress(req)),
-    );
   return {
     status,
     login,
@@ -158,7 +138,5 @@ export function createStorageSessions<R extends AccountRepositories>(
     resetInfo,
     resetPassword,
     logout,
-    startSession,
-    updateProfile,
   };
 }

@@ -9,7 +9,7 @@ import type { ReportRepositories } from '../../src/services/storageReports.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { collectAccountExport } from '../../src/services/storageExport.ts';
+import { collectAccountExport } from '../fixtures/exports.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';

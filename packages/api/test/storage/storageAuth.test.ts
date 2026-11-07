@@ -31,7 +31,8 @@ const { createAccountRepositories } = await import('../../src/storage/repositori
 const { createAccountOperations } = await import('../../src/domain/accounts.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
-const { createStorageAuth, credentialCheck } = await import('../../src/auth/storageMiddleware.ts');
+const { createStorageAuth, credentialCheck, passwordAttempt } = await import('../../src/auth/storageMiddleware.ts');
+const { clientAddress } = await import('../../src/http/context.ts');
 const { createStorageSessions } = await import('../../src/auth/storageSessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');
 const { errorReply } = await import('../../src/http/errors.ts');
@@ -113,11 +114,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       });
       app.get('/admin', auth.requireAuth, auth.requireAdmin, (_req, res) => res.json({ ok: true }));
       app.put('/profile', auth.requireAuth, async (req, res) => {
-        const user = await sessions.updateProfile(
-          req,
-          res.locals.auth,
+        const user = await operations.updateProfile(
+          res.locals.auth.user,
+          res.locals.auth.credential,
           JSON.parse(req.body as string) as Record<string, unknown>,
           effects,
+          passwordAttempt(loginLimiter, res.locals.auth.user.email, clientAddress(req)),
         );
         return res.json({ id: user.id, fullname: user.fullName, api_token: user.apiToken });
       });
