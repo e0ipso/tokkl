@@ -1,6 +1,7 @@
 import { useId, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 import { Icon } from './Icon.tsx';
 import { canStep, stepValue, stepperStatus, type StepperRange } from './lengthStepper.ts';
+import { t } from '../i18n/messages.ts';
 
 /** Props a form passes to the value field, such as the ones useFieldErrors().field returns. */
 export interface StepperInputProps {
@@ -50,8 +51,14 @@ export function LengthStepper({
   const valid = status === 'valid';
   const { min, max } = range;
   const limit =
-    status === 'aboveMax' ? `max ${max}` : status === 'belowMin' ? `at least ${min}` : `${unit} · ${min}–${max}`;
-  const spoken = valid ? `${spokenUnit}, ${min} to ${max}` : `Enter ${min} to ${max} ${spokenUnit}`;
+    status === 'aboveMax'
+      ? t('pomodoro.stepperMax', { max })
+      : status === 'belowMin'
+        ? t('pomodoro.stepperMin', { min })
+        : t('pomodoro.stepperRange', { unit, min, max });
+  const spoken = valid
+    ? t('pomodoro.stepperSpoken', { unit: spokenUnit, min, max })
+    : t('pomodoro.stepperSpokenInvalid', { unit: spokenUnit, min, max });
 
   const step = (direction: 1 | -1) => {
     if (canStep(value, direction, range)) onChange(String(stepValue(value, direction, range)));
@@ -68,7 +75,7 @@ export function LengthStepper({
         type="button"
         className="length-stepper-step"
         tabIndex={-1}
-        aria-label={`${direction > 0 ? 'Increase' : 'Decrease'} ${label}`}
+        aria-label={direction > 0 ? t('pomodoro.increase', { label }) : t('pomodoro.decrease', { label })}
         aria-controls={inputId}
         aria-disabled={allowed ? undefined : true}
         onClick={() => step(direction)}

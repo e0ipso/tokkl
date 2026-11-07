@@ -20,9 +20,10 @@ import type { PomodoroTransition, TimerPomodoro, TimerPomodoroPhase, TimerState 
 import { useClockSelector } from '../lib/clock.ts';
 import { createPomodoroSessionAlarm, phaseAlarm } from './pomodoroSessionAlarm.ts';
 import { notifySessionPhaseEnd } from './phaseNotification.ts';
-import { SESSION_PHASE_LABEL, createDiscardNotices } from './pomodoroSessionPresentation.ts';
+import { createDiscardNotices, phaseLabel } from './pomodoroSessionPresentation.ts';
 import { useToast } from './Toast.tsx';
 import type { EntryDraft } from './useEntryFields.ts';
+import { t } from '../i18n/messages.ts';
 
 /**
  * The server's session as the views read it. It changes only when the state or the ringing does,
@@ -129,8 +130,8 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
     alarmRef.current?.update(ringKey === null || transition === null ? null : { key: ringKey, transition });
   }, [alarmRef, ringKey, transition]);
 
-  const phaseLabel = session ? SESSION_PHASE_LABEL[session.phase.kind] : null;
-  const notify = useEffectEvent((key: string) => (phaseLabel ? notifySessionPhaseEnd(key, phaseLabel) : null));
+  const endedPhase = session ? phaseLabel(session.phase.kind) : null;
+  const notify = useEffectEvent((key: string) => (endedPhase ? notifySessionPhaseEnd(key, endedPhase) : null));
   useEffect(() => {
     if (!ringKey) return;
     const notification = notify(ringKey);
@@ -139,7 +140,7 @@ function AccountSession({ accountId, children }: { accountId: number; children: 
 
   const discards = useRef(createDiscardNotices());
   const announceDiscard = useEffectEvent((next: TimerState) => {
-    if (discards.current(next)) toast.show('This pomodoro was too short to save.');
+    if (discards.current(next)) toast.show(t('pomodoro.tooShort'));
   });
   useEffect(() => {
     if (state) announceDiscard(state);

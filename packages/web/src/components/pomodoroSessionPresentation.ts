@@ -1,10 +1,16 @@
 import type { PomodoroPhaseKind, TimerState } from '../api/types.ts';
+import { t, type MessageKey } from '../i18n/messages.ts';
 
-export const SESSION_PHASE_LABEL: Record<PomodoroPhaseKind, string> = {
-  work: 'Work',
-  shortRest: 'Short rest',
-  longRest: 'Long rest',
-};
+const PHASE_LABEL = {
+  work: 'pomodoro.phaseWork',
+  shortRest: 'pomodoro.phaseShortRest',
+  longRest: 'pomodoro.phaseLongRest',
+} as const satisfies Record<PomodoroPhaseKind, MessageKey>;
+
+/** A phase's name, such as "Short rest". */
+export function phaseLabel(kind: PomodoroPhaseKind): string {
+  return t(PHASE_LABEL[kind]);
+}
 
 /** Whole seconds left until `plannedEnd`, rounded up, or seconds past it, rounded down. */
 export function countdown(plannedEnd: string, now: Date): { overtime: boolean; seconds: number } {
@@ -20,7 +26,8 @@ export function clock(seconds: number): string {
 /** The tab title while a session runs. `now` is the server-corrected time. */
 export function sessionTitle(pomodoro: NonNullable<TimerState['pomodoro']>, now: Date): string {
   const { overtime, seconds } = countdown(pomodoro.phase.planned_end, now);
-  return `${SESSION_PHASE_LABEL[pomodoro.phase.kind]} · ${overtime ? '+' : ''}${clock(seconds)}${overtime ? ' overtime' : ''} · Tokkl`;
+  const parts = { phase: phaseLabel(pomodoro.phase.kind), clock: clock(seconds), app: t('shell.appName') };
+  return overtime ? t('pomodoro.sessionTitleOvertime', parts) : t('pomodoro.sessionTitle', parts);
 }
 
 /**

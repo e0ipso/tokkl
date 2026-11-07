@@ -5,20 +5,25 @@ import type { TimeEntry } from '../../api/types.ts';
 import { EntryFields, type EntryFieldsHandle } from '../../components/EntryFields.tsx';
 import { Loading } from '../../components/PageState.tsx';
 import { usePomodoroSession } from '../../components/PomodoroSessionProvider.tsx';
-import { SESSION_PHASE_LABEL, clock, countdown } from '../../components/pomodoroSessionPresentation.ts';
+import { clock, countdown, phaseLabel } from '../../components/pomodoroSessionPresentation.ts';
 import { EMPTY_DRAFT, draftOf, draftSignature, type EntryDraft } from '../../components/useEntryFields.ts';
 import { useRunningEntryEdits } from './useRunningEntryEdits.ts';
+import { t } from '../../i18n/messages.ts';
 
 /** The phase's countdown on the server's clock, then the overtime. It is the only part that ticks. */
 function SessionCountdown({ plannedEnd }: { plannedEnd: string }) {
   const { overtime, seconds } = countdown(plannedEnd, useServerNow(1000));
   return (
-    <div className="pomodoro-session-countdown" role="timer" aria-label={overtime ? 'Overtime' : 'Time remaining'}>
+    <div
+      className="pomodoro-session-countdown"
+      role="timer"
+      aria-label={overtime ? t('pomodoro.overtime') : t('pomodoro.timeRemaining')}
+    >
       <span className="pomodoro-clock">
         {overtime ? '+' : ''}
         {clock(seconds)}
       </span>
-      <span className="muted">{overtime ? 'Overtime' : 'Time remaining'}</span>
+      <span className="muted">{overtime ? t('pomodoro.overtime') : t('pomodoro.timeRemaining')}</span>
     </div>
   );
 }
@@ -47,33 +52,31 @@ export function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }
     void action();
   };
 
-  if (!session || !phase || !plannedEnd || !transitionKind) return <Loading label="Ending session…" />;
+  if (!session || !phase || !plannedEnd || !transitionKind) return <Loading label={t('pomodoro.ending')} />;
 
   return (
-    <section className="card pomodoro-card" aria-label="Running Pomodoro session">
+    <section className="card pomodoro-card" aria-label={t('pomodoro.runningLabel')}>
       <div role="status">
-        <h2>{SESSION_PHASE_LABEL[phase.kind]}</h2>
-        <p>
-          Pomodoro {session.number} of {session.long_rest_every}
-        </p>
+        <h2>{phaseLabel(phase.kind)}</h2>
+        <p>{t('pomodoro.pomodoroOf', { number: session.number, total: session.long_rest_every })}</p>
       </div>
       <SessionCountdown plannedEnd={phase.planned_end} />
       <div className="pomodoro-actions">
         <button type="button" className="button button-primary" disabled={busy} onClick={settleThen(nextPhase)}>
-          Next phase: {SESSION_PHASE_LABEL[session.upcoming_phase]}
+          {t('pomodoro.nextPhaseNamed', { phase: phaseLabel(session.upcoming_phase) })}
         </button>
         <button type="button" className="button button-ghost" disabled={busy} onClick={settleThen(end)}>
-          End session
+          {t('pomodoro.endSession')}
         </button>
       </div>
-      <p className="hint">Next phase starts immediately, skipping any time remaining in this phase.</p>
+      <p className="hint">{t('pomodoro.nextPhaseHint')}</p>
       <fieldset className="pomodoro-entry-fields">
-        <legend>Entry details</legend>
+        <legend>{t('pomodoro.entryDetails')}</legend>
         <EntryFields
           ref={fieldsRef}
           draft={draft}
           recentEntries={recentEntries}
-          placeholder="What are you working on?"
+          placeholder={t('pomodoro.runningPlaceholder')}
           onType={description => {
             setDraft(current => ({ ...current, description }));
             edits.type(description);
@@ -86,7 +89,7 @@ export function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }
           onEnter={event => event.currentTarget.blur()}
         />
       </fieldset>
-      <p className="hint">Edits apply to this pomodoro and the ones that follow.</p>
+      <p className="hint">{t('pomodoro.editsApply')}</p>
     </section>
   );
 }

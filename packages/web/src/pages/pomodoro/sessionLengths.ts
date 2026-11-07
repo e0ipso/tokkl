@@ -4,44 +4,48 @@ import {
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
 import type { Preferences } from '../../api/types.ts';
+import type { MessageKey } from '../../i18n/messages.ts';
 import { stepperStatus } from '../../components/lengthStepper.ts';
 
-/** The lengths the start form edits for one session, and the preference each one starts from. */
+/**
+ * The lengths the start form edits for one session, and the preference each one starts from. The
+ * label and units are catalog keys.
+ */
 export const LENGTH_FIELDS = [
   {
     key: 'workMinutes',
     preference: 'pomodoro_focus_interval_in_minutes',
-    label: 'Work',
-    unit: 'min',
-    spokenUnit: 'minutes',
+    label: 'pomodoro.lengthWork',
+    unit: 'pomodoro.unitMinutes',
+    spokenUnit: 'pomodoro.spokenMinutes',
   },
   {
     key: 'shortRestMinutes',
     preference: 'pomodoro_break_interval_in_minutes',
-    label: 'Short rest',
-    unit: 'min',
-    spokenUnit: 'minutes',
+    label: 'pomodoro.lengthShortRest',
+    unit: 'pomodoro.unitMinutes',
+    spokenUnit: 'pomodoro.spokenMinutes',
   },
   {
     key: 'longRestMinutes',
     preference: 'pomodoro_long_break_interval_in_minutes',
-    label: 'Long rest',
-    unit: 'min',
-    spokenUnit: 'minutes',
+    label: 'pomodoro.lengthLongRest',
+    unit: 'pomodoro.unitMinutes',
+    spokenUnit: 'pomodoro.spokenMinutes',
   },
   {
     key: 'longRestEvery',
     preference: 'pomodoro_long_break_every',
-    label: 'Long rest every',
-    unit: 'pomodoros',
-    spokenUnit: 'pomodoros',
+    label: 'pomodoro.lengthLongRestEvery',
+    unit: 'pomodoro.unitPomodoros',
+    spokenUnit: 'pomodoro.spokenPomodoros',
   },
 ] as const satisfies ReadonlyArray<{
   key: keyof PomodoroSessionConfig;
   preference: keyof Preferences;
-  label: string;
-  unit: string;
-  spokenUnit: string;
+  label: MessageKey;
+  unit: MessageKey;
+  spokenUnit: MessageKey;
 }>;
 
 export type LengthKey = (typeof LENGTH_FIELDS)[number]['key'];

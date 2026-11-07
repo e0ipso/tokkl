@@ -11,6 +11,7 @@ import { calendar } from './en/calendar.ts';
 import { common } from './en/common.ts';
 import { dates } from './en/dates.ts';
 import { entries } from './en/entries.ts';
+import { pomodoro } from './en/pomodoro.ts';
 import { shell } from './en/shell.ts';
 import { timer } from './en/timer.ts';
 import { LOCALE } from './locale.ts';
@@ -26,6 +27,7 @@ export const en = {
   timer,
   entries,
   calendar,
+  pomodoro,
 } as const;
 
 export type Catalog = typeof en;

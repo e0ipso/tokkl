@@ -6,6 +6,7 @@ import { LengthStepper, LengthStepperGrid } from '../../components/LengthStepper
 import { usePomodoroSession } from '../../components/PomodoroSessionProvider.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from '../../components/useEntryFields.ts';
 import { LENGTH_FIELDS, lengthText, sessionConfig, type LengthEdits, type LengthKey } from './sessionLengths.ts';
+import { t } from '../../i18n/messages.ts';
 
 /** The lengths and entry fields of a new session. The lengths apply to this session only. */
 export function StartForm({ preferences, recentEntries }: { preferences: Preferences; recentEntries: TimeEntry[] }) {
@@ -31,22 +32,22 @@ export function StartForm({ preferences, recentEntries }: { preferences: Prefere
     <form
       ref={form}
       className="card pomodoro-card"
-      aria-label="Start a Pomodoro session"
+      aria-label={t('pomodoro.startLabel')}
       noValidate
       onSubmit={event => {
         event.preventDefault();
         startSession();
       }}
     >
-      <h2>Start a session</h2>
-      <p className="hint">These lengths apply to this session. Your saved preferences stay the same.</p>
+      <h2>{t('pomodoro.startHeading')}</h2>
+      <p className="hint">{t('pomodoro.startHint')}</p>
       <LengthStepperGrid>
         {LENGTH_FIELDS.map(field => (
           <LengthStepper
             key={field.key}
-            label={field.label}
-            unit={field.unit}
-            spokenUnit={field.spokenUnit}
+            label={t(field.label)}
+            unit={t(field.unit)}
+            spokenUnit={t(field.spokenUnit)}
             range={POMODORO_SESSION_CONFIG_RANGES[field.key]}
             value={lengthText(lengthEdits, preferences, field)}
             onChange={text => setLengthEdits(current => ({ ...current, [field.key]: text }))}
@@ -60,11 +61,11 @@ export function StartForm({ preferences, recentEntries }: { preferences: Prefere
         ))}
       </LengthStepperGrid>
       <fieldset className="pomodoro-entry-fields">
-        <legend>Entry details</legend>
+        <legend>{t('pomodoro.entryDetails')}</legend>
         <EntryFields
           draft={draft}
           recentEntries={recentEntries}
-          placeholder="What will you work on?"
+          placeholder={t('pomodoro.startPlaceholder')}
           onType={description => setDraft(current => ({ ...current, description }))}
           onEdit={changes => setDraft(current => ({ ...current, ...changes }))}
           onDescriptionBlur={() => {}}
@@ -72,7 +73,7 @@ export function StartForm({ preferences, recentEntries }: { preferences: Prefere
         />
       </fieldset>
       <button type="submit" className="button button-primary" disabled={busy}>
-        Start
+        {t('pomodoro.start')}
       </button>
     </form>
   );
