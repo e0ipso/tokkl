@@ -13,14 +13,17 @@ import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { logOut, takeLogoutFailure } from '../lib/session.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
+// The page imports bring in manage.css, reports.css and PomodoroPage.css. Their order here is the
+// order of those sheets in the bundle, before styles.css (main.tsx), so it decides the cascade:
+// keep it unless the CSS is checked for the new order.
 import { AdminPage } from '../pages/AdminPage.tsx';
 import { ClientsPage } from '../pages/ClientsPage.tsx';
-import { PomodoroPage } from '../pages/PomodoroPage.tsx';
 import { ProjectsPage } from '../pages/ProjectsPage.tsx';
 import { ReportsPage } from '../pages/ReportsPage.tsx';
 import { SettingsPage } from '../pages/SettingsPage.tsx';
 import { TagsPage } from '../pages/TagsPage.tsx';
 import { TimerPage } from '../pages/TimerPage.tsx';
+import { PomodoroPage } from '../pages/PomodoroPage.tsx';
 import { TrashPage } from '../pages/TrashPage.tsx';
 import { MoreSheet } from './MoreSheet.tsx';
 import { NAV, PHONE_QUERY, isActive, sectionOf, type NavItem } from './nav.ts';
