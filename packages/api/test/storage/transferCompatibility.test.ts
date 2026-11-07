@@ -7,7 +7,7 @@ import { createTransferRepositories } from '../../src/storage/repositories/trans
 import { createStorageImports } from '../../src/services/storageImportJson.ts';
 import { assembleJsonExport, assembleCsvExport } from '../../src/services/storageExport.ts';
 import { buildJsonExport, buildCsvExport } from '../fixtures/exports.ts';
-import { createTimerPublication } from '../../src/domain/timers.ts';
+import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { deleteTimeEntry } from '../../src/domain/timeEntries.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';

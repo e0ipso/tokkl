@@ -5,7 +5,7 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { createStorageImports } from '../../src/services/storageImportJson.ts';
 import { buildJsonExport } from '../fixtures/exports.ts';
-import { createTimerPublication } from '../../src/domain/timers.ts';
+import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { createTimeEntry, stopTimeEntry } from '../../src/domain/timeEntries.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { disposableBackend } from './support/disposableBackend.ts';

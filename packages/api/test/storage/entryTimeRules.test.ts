@@ -7,7 +7,7 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import * as entries from '../../src/domain/timeEntries.ts';
 import * as catalog from '../../src/domain/catalogs.ts';
 import { serializeTimeEntry } from '../../src/presenters/toggl.ts';
-import { createTimerPublication } from '../../src/domain/timers.ts';
+import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
 import { failsWith } from '../fixtures/errors.ts';

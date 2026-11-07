@@ -11,7 +11,7 @@ import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
 import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
-import { createTimerPublication } from '../../src/domain/timers.ts';
+import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.ts';
@@ -366,7 +366,7 @@ test('a refresh that started before the account was forgotten delivers nothing',
     discarded_pomodoro: null,
   });
   let streams = true;
-  const publish = createTimerPublication(
+  const publish = createTimerPublication<TimerState>(
     async (_id, s) => {
       delivered.push(s.revision);
     },
@@ -406,7 +406,7 @@ test('a process drops deliveries for an incarnation of the id other than the one
     discarded_pomodoro: null,
   });
   let rebuilt = { state: state(9), incarnation: 'first' };
-  const publish = createTimerPublication(
+  const publish = createTimerPublication<TimerState>(
     async (_id, s) => {
       delivered.push(s.revision);
     },

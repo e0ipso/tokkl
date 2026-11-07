@@ -13,7 +13,7 @@ import {
   type ExactEntryImport,
 } from '../domain/timeEntries.ts';
 import type { User } from '../storage/domain.ts';
-import type { TimerPublication } from '../domain/timers.ts';
+import type { TimerPublication } from '../domain/timerSettlement.ts';
 import { protectImport, importError } from './storageImportContext.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],

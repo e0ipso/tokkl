@@ -10,7 +10,7 @@ import { resolveTagNames } from './catalogs.ts';
 import { timeResolutionOf } from './instanceSettings.ts';
 import { memoizeAsync } from '../lib/boundedCache.ts';
 import { memberWorkspace, noWorkspaceAccess } from './membership.ts';
-import { touchTimer, type TimerPublication } from './timers.ts';
+import { touchTimer, type TimerPublication } from './timerSettlement.ts';
 
 export type EntryRepositories = Pick<
   Repositories,

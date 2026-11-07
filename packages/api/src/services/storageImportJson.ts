@@ -15,7 +15,8 @@ import {
   type EntryRepositories,
   type ExactEntryImport,
 } from '../domain/timeEntries.ts';
-import { createCatalogTimerEffects, type TimerPublication } from '../domain/timers.ts';
+import { createCatalogTimerEffects } from '../domain/timerEffects.ts';
+import type { TimerPublication } from '../domain/timerSettlement.ts';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { User } from '../storage/domain.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './storageExport.ts';
