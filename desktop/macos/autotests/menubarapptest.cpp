@@ -38,6 +38,7 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QSet>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QSpinBox>
@@ -46,6 +47,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <algorithm>
 #include <memory>
 
 using namespace Tokkl;
@@ -1976,6 +1978,54 @@ private Q_SLOTS:
         QCOMPARE(f.player.previews.last(), soundFile(QStringLiteral("work-to-long-rest")));
         QVERIFY(f.player.loops.isEmpty());
         QVERIFY(!f.settings.contains(MenuBarApp::soundKey(TransitionKind::LongRestToWork)));
+    }
+
+    // Each sound selector has its label as buddy and a name for its
+    // transition, and each Preview button a name of its own. Long rest
+    // every reads 1 pomodoro, 2 pomodoros and so on.
+    void pomodoroControlsAreNamed()
+    {
+        Fixture f;
+        SettingsWindow &window = *f.app.m_settingsWindow.get();
+        const QList<QLabel *> labels = window.findChildren<QLabel *>();
+        QSet<QString> previewNames;
+        const std::array<TransitionKind, 4> kinds{TransitionKind::WorkToShortRest, TransitionKind::ShortRestToWork, TransitionKind::WorkToLongRest,
+                                                  TransitionKind::LongRestToWork};
+        for (const TransitionKind kind : kinds) {
+            QComboBox *box = soundBox(window, kind);
+            QVERIFY(!box->accessibleName().isEmpty());
+            const auto buddy = std::find_if(labels.cbegin(), labels.cend(), [box](const QLabel *label) {
+                return label->buddy() == box;
+            });
+            QVERIFY(buddy != labels.cend());
+            QVERIFY((*buddy)->text().endsWith(QLatin1Char(':')));
+            QPushButton *preview = previewButton(window, kind);
+            QCOMPARE(preview->text(), QStringLiteral("Preview"));
+            previewNames.insert(preview->accessibleName());
+        }
+        QCOMPARE(soundBox(window, TransitionKind::WorkToShortRest)->accessibleName(), QStringLiteral("Work to short rest sound"));
+        QCOMPARE(previewButton(window, TransitionKind::LongRestToWork)->accessibleName(), QStringLiteral("Preview the long rest to work sound"));
+        QCOMPARE(previewNames.size(), 4);
+
+        QSpinBox *every = lengthBox(window, PomodoroField::LongRestEvery);
+        every->setValue(4);
+        QCOMPARE(every->text(), QStringLiteral("4 pomodoros"));
+        every->setValue(1);
+        QCOMPARE(every->text(), QStringLiteral("1 pomodoro"));
+        every->setValue(2);
+        QCOMPARE(every->text(), QStringLiteral("2 pomodoros"));
+        QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->suffix(), QStringLiteral(" min"));
+
+        // Typing a count keeps working with the words around it. The boxes
+        // stay read-only until the lengths are read, which this test skips.
+        every->setReadOnly(false);
+        QLineEdit *edit = every->findChild<QLineEdit *>();
+        QVERIFY(edit);
+        edit->selectAll();
+        QTest::keyClicks(edit, QStringLiteral("3"));
+        every->interpretText();
+        QCOMPARE(every->value(), 3);
+        QCOMPARE(every->text(), QStringLiteral("3 pomodoros"));
     }
 
     void loginItemToggle()
