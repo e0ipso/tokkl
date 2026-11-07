@@ -386,6 +386,40 @@ private Q_SLOTS:
         QVERIFY(!f.session->isActive());
     }
 
+    // A session starts only when the timer could start anything: not during
+    // a 429 cooldown, and not once the workspace is lost, although an
+    // account is bound and a state has been read in both cases.
+    void startSessionWaitsLikeTheTimer_data()
+    {
+        QTest::addColumn<QByteArray>("trigger");
+        QTest::newRow("cooldown") << QByteArray("cooldown");
+        QTest::newRow("lost workspace") << QByteArray("workspace");
+    }
+
+    void startSessionWaitsLikeTheTimer()
+    {
+        QFETCH(QByteArray, trigger);
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.session->setPomodoroMode(true));
+        QVERIFY(f.session->canStartSession());
+
+        f.timer.refresh();
+        if (trigger == "cooldown") {
+            f.transport.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "60"));
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+        } else {
+            f.transport.respond(f.last("GET", "/projects"), FakeTransport::answer(403, "\"User does not have access to this resource.\""));
+            QVERIFY(f.timer.workspaceAccessLost());
+        }
+        QVERIFY(f.timer.isConnected());
+        QVERIFY(f.client.state().has_value());
+        QVERIFY(!f.timer.canStartNew());
+        QVERIFY(!f.session->canStartSession());
+        QVERIFY(!f.session->startSession());
+        QCOMPARE(f.find("POST", startPath).size(), 0);
+    }
+
     void startsAndEndsOnTheServer()
     {
         Fixture f;

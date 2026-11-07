@@ -181,6 +181,11 @@ bool TimerController::canWrite() const
     return m_connection && m_connection->canWrite() && m_clock && m_state && !m_workspaceLost && heldState() && !isBusy();
 }
 
+bool TimerController::canStartNew() const
+{
+    return canWrite() && !isRunning() && !isPaused() && !isSessionActive();
+}
+
 QString TimerController::errorString() const
 {
     if (!m_error.isEmpty()) {
@@ -369,7 +374,7 @@ QString TimerController::formatElapsed(qint64 seconds)
 
 bool TimerController::start()
 {
-    if (!canWrite() || isRunning() || isPaused() || isSessionActive()) {
+    if (!canStartNew()) {
         return false;
     }
     m_next->started();

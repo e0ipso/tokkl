@@ -209,6 +209,11 @@ public:
     bool workspaceAccessLost() const;
     bool isBusy() const;
     bool canWrite() const;
+    // Something new could start now: canWrite(), and nothing runs, no
+    // chain is paused and no session is active. start() and the Pomodoro
+    // session's start both ask this, so the cooldown, a lost workspace and
+    // a write in flight hold both.
+    bool canStartNew() const;
     QString errorString() const;
     Status status() const;
 

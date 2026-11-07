@@ -83,6 +83,8 @@ class PomodoroSession : public QObject
     // The transition that rings, such as "workToShortRest"; empty otherwise.
     Q_PROPERTY(QString ringingTransition READ ringingTransition NOTIFY ringingChanged)
 
+    // Pomodoro mode is on, no session action waits, and the timer could
+    // start something new (TimerController::canStartNew()).
     Q_PROPERTY(bool canStartSession READ canStartSession NOTIFY canStartSessionChanged)
     // The last message for the user: why an action failed, or that a
     // pomodoro was too short to save. It stays until clearMessage(), the
