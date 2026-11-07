@@ -4,9 +4,8 @@ import type { PhysicalDatabase } from '../physical.ts';
 import type { Repositories } from '../contracts.ts';
 import type { AccountExportProjection, MembershipRole, UserRole } from '../domain.ts';
 import { entityId, finiteNumber, jsonObject, safeInteger, utcInstant } from '../conversion.ts';
-import { catalogProjectQuery, catalogTaskQuery } from './catalog-queries.ts';
+import { catalogProjectQuery, catalogTaskQuery, client, projectSummary, tag, taskSummary } from './catalog-queries.ts';
 import { createEntryRepositories } from './entries.ts';
-import { client, tag, projectSummary, taskSummary } from './transfer-projections.ts';
 
 type Db = Kysely<PhysicalDatabase>;
 type Projection<K extends keyof AccountExportProjection> = Promise<AccountExportProjection[K]>;

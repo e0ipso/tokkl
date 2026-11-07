@@ -79,7 +79,7 @@ export function optionalNumber(value: unknown, field: string): number | null | u
 }
 
 /** Highest hourly rate accepted. Keeps rate × 100 and billed amounts finite; larger rates overflow to Infinity in reports. */
-export const MAX_HOURLY_RATE = 1_000_000_000;
+const MAX_HOURLY_RATE = 1_000_000_000;
 
 /** An optional hourly rate: a finite non-negative number up to MAX_HOURLY_RATE, or null. */
 export function optionalRate(value: unknown, field: string): number | null | undefined {

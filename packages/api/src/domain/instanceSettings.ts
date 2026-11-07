@@ -3,8 +3,8 @@ import type { SettingsRepository } from '../storage/contracts.ts';
 import type { InstanceSettings } from '../storage/domain.ts';
 
 /** Every time resolution an admin can choose: the divisors of 60. */
-export const TIME_RESOLUTIONS = Array.from({ length: 60 }, (_, i) => i + 1).filter(isTimeResolution);
-export const DEFAULT_TIME_RESOLUTION = 5;
+const TIME_RESOLUTIONS = Array.from({ length: 60 }, (_, i) => i + 1).filter(isTimeResolution);
+const DEFAULT_TIME_RESOLUTION = 5;
 const DEFAULT_INVITE_DAYS = 7;
 
 interface SettingRule {

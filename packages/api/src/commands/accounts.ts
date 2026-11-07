@@ -11,6 +11,7 @@ import type {
 } from '../domain/accountCommands.ts';
 import {
   isEmailAddress,
+  MAX_ACCOUNT_TEXT_LENGTH,
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   preferenceProblem,
@@ -40,7 +41,7 @@ export function parseNewPassword(value: unknown): string {
 /** First-admin setup and invite acceptance. An absent or empty timezone is UTC. */
 export function parseNewAccount(body: JsonBody): NewAccount {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
+  const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, MAX_ACCOUNT_TEXT_LENGTH) : '';
   if (!isEmailAddress(email)) throw invalidInput('Enter a valid email address');
   const timezone =
     body.timezone === undefined || body.timezone === ''
@@ -82,9 +83,9 @@ function beginningOfWeek(value: unknown): number | undefined {
 }
 
 function accountChanges(body: JsonBody): AccountChanges {
-  const email = optionalString(body.email, 'email', 255)?.trim();
+  const email = optionalString(body.email, 'email', MAX_ACCOUNT_TEXT_LENGTH)?.trim();
   if (email !== undefined && !isEmailAddress(email)) throw invalidInput('Invalid email');
-  const fullName = optionalString(body.fullname, 'fullname', 255);
+  const fullName = optionalString(body.fullname, 'fullname', MAX_ACCOUNT_TEXT_LENGTH);
   const requestedZone = optionalString(body.timezone, 'timezone', 64);
   const timezone = requestedZone === undefined ? undefined : canonicalTimeZone(requestedZone);
   if (timezone === null) throw invalidInput('Invalid timezone');

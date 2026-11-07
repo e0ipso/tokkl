@@ -20,17 +20,17 @@ export const PASSWORD_WINDOW_MS = 15 * 60 * 1000;
 /** Failures for one account from one address: one person at one machine. */
 export const ACCOUNT_ADDRESS_LIMIT = 10;
 /** Failures for one account from any address: guessing spread over many hosts. */
-export const ACCOUNT_LIMIT = 50;
+const ACCOUNT_LIMIT = 50;
 /** Failures from one address for any account: spraying from one host, without locking out a shared NAT. */
 export const ADDRESS_LIMIT = 100;
 /** Wrong setup codes from one address. */
 export const SETUP_CODE_LIMIT = 10;
 
-// Accounts are counted by their normalized email, so two emails share counters exactly when they
-// are the same account.
-export { normalizeEmail };
-
-/** The counters a successful login clears: the account from this address, and the account. */
+/**
+ * The counters a successful login clears: the account from this address, and the account. Accounts
+ * are counted by their normalized email, so two emails share counters exactly when they are the
+ * same account.
+ */
 export function accountCounters(email: string, address: string): Counter[] {
   const account = normalizeEmail(email);
   return [

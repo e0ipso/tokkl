@@ -12,7 +12,7 @@ import type { Workspace } from '../storage/domain.ts';
 
 const MAX_RANGE_DAYS = 3660;
 
-export function validateRange(
+function validateRange(
   startDate: unknown,
   endDate: unknown,
   maxDays = MAX_RANGE_DAYS,
@@ -27,7 +27,7 @@ export function validateRange(
   return { startDate, endDate };
 }
 
-export function parseIdFilter(value: unknown, field: string): IdFilter | undefined {
+function parseIdFilter(value: unknown, field: string): IdFilter | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value)) throw invalidInput(`Invalid '${field}' value: expected an array`);
   if (value.length > 1000) throw invalidInput(`'${field}' accepts at most 1000 ids`);

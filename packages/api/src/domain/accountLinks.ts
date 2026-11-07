@@ -18,7 +18,7 @@ import { isActiveUser } from './credentials.ts';
 
 export const INVITE_NOT_FOUND = 'This invite link is not valid. Ask your admin for a new one.';
 export const RESET_NOT_FOUND = 'This password reset link is not valid. Ask your admin for a new one.';
-export const PASSWORD_RESET_HOURS = 24;
+const PASSWORD_RESET_HOURS = 24;
 
 export async function findUsableInvite(ctx: AccountRepositories, token: string) {
   return ctx.tokens.findUsable(sha256(token), 'invite', now());

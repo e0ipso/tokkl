@@ -13,7 +13,7 @@ import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImpo
 import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../storage/domain.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import { protectImport, importError } from './importGuards.ts';
+import { MAX_IMPORT_ERRORS, protectImport, importError } from './importGuards.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],
   email: ['email'],
@@ -31,7 +31,6 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 const MAX_ROWS = 100_000;
-const MAX_ERRORS = 100;
 /** Catalog names an import remembers; a failed row clears them. */
 const NAME_CACHE = 256;
 
@@ -334,7 +333,7 @@ export async function importTogglCsv(
         const message = importError(error, 'Invalid row');
         result.created_projects.length = projectsBefore;
         result.created_clients.length = clientsBefore;
-        if (result.errors.length < MAX_ERRORS) result.errors.push({ row: index + 2, message });
+        if (result.errors.length < MAX_IMPORT_ERRORS) result.errors.push({ row: index + 2, message });
       }
     }
   });

@@ -2,9 +2,6 @@ import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
 import { ApplicationError, RequestCancelled, unavailable, type FailureKind } from '../lib/errors.ts';
-
-/** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
-const QUEUE_FULL_RETRY_SECONDS = 2;
 import { collectReport, type ReportSource } from './reports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
@@ -15,6 +12,11 @@ import {
   type JobResult,
   type ReportJob,
 } from './reportJobs.ts';
+
+/** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
+const QUEUE_FULL_RETRY_SECONDS = 2;
+const DEFAULT_MAX_QUEUE = 16;
+const MAX_QUEUE_LIMIT = 100;
 
 export interface ReportRunnerOptions {
   /** Includes the active job; overload fails immediately. Default 16, maximum 100. */
@@ -61,8 +63,8 @@ export class ReportRunner {
     this.config = structuredClone(config);
     this.inline = inline;
     this.options = options;
-    this.maxQueue = options.maxQueue ?? 16;
-    if (!Number.isSafeInteger(this.maxQueue) || this.maxQueue < 1 || this.maxQueue > 100)
+    this.maxQueue = options.maxQueue ?? DEFAULT_MAX_QUEUE;
+    if (!Number.isSafeInteger(this.maxQueue) || this.maxQueue < 1 || this.maxQueue > MAX_QUEUE_LIMIT)
       throw new Error('Invalid report queue limit');
   }
   run(

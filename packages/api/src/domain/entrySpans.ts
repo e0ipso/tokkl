@@ -30,7 +30,7 @@ export function snapToResolution(resolution: number, user: User, start: Date, st
   return snapSpan(wholeSeconds(start), wholeSeconds(stop), resolution, user.timezone);
 }
 
-export function tooShort(resolution: number): ApplicationError {
+function tooShort(resolution: number): ApplicationError {
   return invalidInput(`Time entry is too short: it rounds to zero at the ${resolution}-minute time resolution`);
 }
 

@@ -62,7 +62,7 @@ export interface TaskSearch {
 }
 
 /** Toggl's default window for time entry lists that name no range. */
-export const DEFAULT_LIST_DAYS = 9;
+const DEFAULT_LIST_DAYS = 9;
 export const recentEntriesStart = (now = Date.now()) => new Date(now - DEFAULT_LIST_DAYS * 86400000).toISOString();
 
 const changedAfter = <T extends { updatedAt: string }>(rows: T[], since: string | undefined): T[] =>

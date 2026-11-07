@@ -4,6 +4,10 @@ import {
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
 import type { JsonObject, User } from '../storage/domain.ts';
+import { MAX_NAME_LENGTH } from './catalogCommands.ts';
+import { MAX_DESCRIPTION_LENGTH } from './entryCommands.ts';
+/** Longest email or full name an account keeps. */
+export const MAX_ACCOUNT_TEXT_LENGTH = 255;
 /** Shortest password accepted when one is set. */
 export const MIN_PASSWORD_LENGTH = 8;
 /** Longest password accepted when one is set. Existing longer passwords still verify. */
@@ -21,7 +25,6 @@ export function normalizeEmail(email: string): string {
   return email.trim().replace(/[A-Z]/g, letter => String.fromCharCode(letter.charCodeAt(0) + 32));
 }
 
-const MAX_ACCOUNT_FAVORITE_DESCRIPTION_LENGTH = 3000;
 /** Defaults for the preferences this app reads. Unknown keys sent by clients are kept as-is. */
 export const DEFAULT_PREFERENCES = {
   date_format: 'YYYY-MM-DD',
@@ -83,11 +86,11 @@ function isFavorite(value: unknown): boolean {
   const favorite = value as Record<string, unknown>;
   return (
     typeof favorite.description === 'string' &&
-    favorite.description.length <= MAX_ACCOUNT_FAVORITE_DESCRIPTION_LENGTH &&
+    favorite.description.length <= MAX_DESCRIPTION_LENGTH &&
     isOptionalId(favorite.project_id) &&
     isOptionalId(favorite.task_id) &&
     Array.isArray(favorite.tags) &&
-    favorite.tags.every(tag => typeof tag === 'string' && tag.length <= 255) &&
+    favorite.tags.every(tag => typeof tag === 'string' && tag.length <= MAX_NAME_LENGTH) &&
     typeof favorite.billable === 'boolean'
   );
 }

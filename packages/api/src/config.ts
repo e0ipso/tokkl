@@ -34,7 +34,7 @@ export interface LoadedConfig {
 }
 
 /** Its presence requires explicit database selection before startup. */
-export const LEGACY_DATABASE_FILE = 'timetrack.sqlite';
+const LEGACY_DATABASE_FILE = 'timetrack.sqlite';
 
 export { ConfigurationError };
 

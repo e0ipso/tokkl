@@ -2,7 +2,7 @@ import { sql, type RawBuilder } from 'kysely';
 import type { Backend } from '../config.ts';
 import { classifyConflict } from '../errors.ts';
 
-export const asciiNameKey = (value: string): string => value.replace(/[A-Z]/g, char => char.toLowerCase());
+const asciiNameKey = (value: string): string => value.replace(/[A-Z]/g, char => char.toLowerCase());
 export function nameKey(backend: Backend, name: string): RawBuilder<string> {
   const value = asciiNameKey(name);
   return backend === 'mysql' || backend === 'mariadb' ? sql<string>`cast(${value} as binary)` : sql<string>`${value}`;
