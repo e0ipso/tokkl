@@ -77,3 +77,8 @@ export function formatMoney(cents: number, currency: string): string {
     return `${(cents / 100).toFixed(2)} ${currency}`;
   }
 }
+
+/** A count with its noun, such as "1 entry" or "3 entries". */
+export function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`;
+}

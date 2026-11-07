@@ -170,19 +170,3 @@ export function StatusBadge({ archived, label }: { archived: boolean; label?: st
     </span>
   );
 }
-
-export type StatusFilter = 'active' | 'archived' | 'all';
-
-export const STATUS_OPTIONS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
-  { value: 'all', label: 'All' },
-];
-
-export function matchesStatus(archived: boolean, filter: StatusFilter): boolean {
-  return filter === 'all' || (filter === 'archived') === archived;
-}
-
-export function plural(count: number, one: string, many = `${one}s`): string {
-  return `${count} ${count === 1 ? one : many}`;
-}

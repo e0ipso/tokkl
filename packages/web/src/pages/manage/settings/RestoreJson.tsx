@@ -7,7 +7,7 @@ import type { JsonRestoreResult } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useAction } from '../../../components/useAction.ts';
-import { plural } from '../ui.tsx';
+import { plural } from '../../../lib/format.ts';
 
 /** Restores a Tokkl JSON export: preview first, then import. */
 export function RestoreJson() {

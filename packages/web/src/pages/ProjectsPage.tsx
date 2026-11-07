@@ -11,18 +11,9 @@ import { duration, formatMoney } from '../lib/format.ts';
 import { type Settings } from '../lib/settings.ts';
 import { ProjectEditor } from './manage/ProjectEditor.tsx';
 import { useAction } from '../components/useAction.ts';
-import { includesText } from './manage/values.ts';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
-import {
-  ConfirmModal,
-  RowMenu,
-  STATUS_OPTIONS,
-  SearchBox,
-  Segmented,
-  StatusBadge,
-  matchesStatus,
-  type StatusFilter,
-} from './manage/ui.tsx';
+import { ConfirmModal, RowMenu, SearchBox, Segmented, StatusBadge } from './manage/ui.tsx';
+import { STATUS_OPTIONS, includesText, matchesStatus, type StatusFilter } from './manage/values.ts';
 import { ManageList } from './manage/ManageList.tsx';
 import './manage/manage.css';
 

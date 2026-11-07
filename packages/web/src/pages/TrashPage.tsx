@@ -12,7 +12,8 @@ import { duration, formatDateTime } from '../lib/format.ts';
 import { type Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { useAction } from '../components/useAction.ts';
-import { ConfirmModal, plural } from './manage/ui.tsx';
+import { ConfirmModal } from './manage/ui.tsx';
+import { plural } from '../lib/format.ts';
 import './manage/manage.css';
 
 function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings }) {

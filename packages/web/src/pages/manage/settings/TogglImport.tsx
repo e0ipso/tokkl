@@ -7,7 +7,7 @@ import type { ImportResult } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useAction } from '../../../components/useAction.ts';
-import { plural } from '../ui.tsx';
+import { plural } from '../../../lib/format.ts';
 import { importCounts, toggledUsers } from './transferForm.ts';
 
 function ImportSummary({ result }: { result: ImportResult }) {
