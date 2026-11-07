@@ -74,9 +74,8 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
   app.get('/export.json', auth, async (_req, res) => {
     const instant = new Date().toISOString();
-    const data = await deps.readFor(res.locals.auth, queries => queries.accountExport(res.locals.auth.user.id));
-    const result = await deps.reports.assembleExport(
-      data,
+    const result = await deps.exportAccount(
+      res.locals.auth,
       { kind: 'export-json', exportedAt: instant, filename: `tokkl-${instant.slice(0, 10)}.json` },
       { signal: res.locals.workSignal },
     );
@@ -87,9 +86,8 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
       .send(result.body);
   });
   app.get('/export.csv', auth, async (req, res) => {
-    const data = await deps.readFor(res.locals.auth, queries => queries.accountExport(res.locals.auth.user.id));
-    const result = await deps.reports.assembleExport(
-      data,
+    const result = await deps.exportAccount(
+      res.locals.auth,
       {
         kind: 'export-csv',
         range: { from: query(req, 'start_date'), to: query(req, 'end_date') },
