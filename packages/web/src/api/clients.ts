@@ -3,13 +3,14 @@ import { useWid } from './account.ts';
 import { api } from './client.ts';
 import { keys } from './keys.ts';
 import { wsPath } from './paths.ts';
+import { clientListReply } from './replies.ts';
 import type { Client } from './types.ts';
 
 export function useClients() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.clients,
-    queryFn: () => api.get<Client[]>(`${wsPath(wid, 'clients')}?status=both`),
+    queryFn: () => api.get(`${wsPath(wid, 'clients')}?status=both`, { decode: clientListReply }),
     enabled: wid > 0,
   });
 }

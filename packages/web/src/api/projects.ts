@@ -4,6 +4,7 @@ import { api } from './client.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
+import { projectListReply, taskListReply } from './replies.ts';
 import type { Project, Task } from './types.ts';
 
 /** Projects and their tasks. */
@@ -12,7 +13,7 @@ export function useProjects() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.projects,
-    queryFn: () => api.get<Project[]>(`${wsPath(wid, 'projects')}?active=both`),
+    queryFn: () => api.get(`${wsPath(wid, 'projects')}?active=both`, { decode: projectListReply }),
     enabled: wid > 0,
   });
 }
@@ -22,7 +23,7 @@ export function useTasks() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.tasks,
-    queryFn: () => api.get<Task[]>(`${V9}/me/tasks?include_not_active=true`),
+    queryFn: () => api.get(`${V9}/me/tasks?include_not_active=true`, { decode: taskListReply }),
     enabled: wid > 0,
   });
 }
@@ -35,7 +36,8 @@ export function useProjectTasks(projectId: number | null) {
   const wid = useWid();
   return useQuery({
     queryKey: [...keys.tasks, 'project', projectId],
-    queryFn: () => api.get<Task[]>(`${wsPath(wid, 'projects', projectId ?? 0, 'tasks')}?active=both`),
+    queryFn: () =>
+      api.get(`${wsPath(wid, 'projects', projectId ?? 0, 'tasks')}?active=both`, { decode: taskListReply }),
     enabled: wid > 0 && projectId !== null,
   });
 }

@@ -2,7 +2,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, download } from './client.ts';
 import { keys } from './keys.ts';
 import { APP } from './paths.ts';
-import type { DetailedReportPage, Report, ReportQuery, WeeklyReport } from './types.ts';
+import { detailedReportReply, reportReply, weeklyReportReply } from './replies.ts';
+import type { ReportQuery } from './types.ts';
 
 /** The app's report endpoints under /api/app/report. Each keeps the last result on screen while the next loads. */
 
@@ -27,7 +28,7 @@ export type ReportFilterBody = Pick<
 export function useReport(query: ReportQuery | null) {
   return useQuery({
     queryKey: [...keys.report, query],
-    queryFn: () => api.post<Report>(`${APP}/report`, query),
+    queryFn: () => api.post(`${APP}/report`, query, { decode: reportReply }),
     enabled: query !== null,
     placeholderData: keepPreviousData,
     // The summary and the other tabs ask for different groupings; going back to the summary
@@ -43,7 +44,7 @@ export function useDetailedEntries(filters: ReportFilterBody, order: DetailedSor
   const body = { ...filters, ...order, page, page_size: PAGE_SIZE };
   return useQuery({
     queryKey: [...keys.report, 'entries', body],
-    queryFn: () => api.post<DetailedReportPage>(`${APP}/report/entries`, body),
+    queryFn: () => api.post(`${APP}/report/entries`, body, { decode: detailedReportReply }),
     placeholderData: keepPreviousData,
   });
 }
@@ -53,7 +54,7 @@ export function useWeeklyReport(filters: ReportFilterBody, rows: 'projects' | 'c
   const body = { ...filters, rows };
   return useQuery({
     queryKey: [...keys.report, 'weekly', body],
-    queryFn: () => api.post<WeeklyReport>(`${APP}/report/weekly`, body),
+    queryFn: () => api.post(`${APP}/report/weekly`, body, { decode: weeklyReportReply }),
     placeholderData: keepPreviousData,
   });
 }

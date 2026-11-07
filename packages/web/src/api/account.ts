@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { keys } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
+import { meReply, workspaceReply } from './replies.ts';
 import type { Me, Preferences, Workspace } from './types.ts';
 
 /** The signed-in account: /me, its preferences and its workspace. */
 
 export function useMe() {
-  return useQuery({ queryKey: keys.me, queryFn: () => api.get<Me>(`${V9}/me`), staleTime: 60_000 });
+  return useQuery({ queryKey: keys.me, queryFn: () => api.get(`${V9}/me`, { decode: meReply }), staleTime: 60_000 });
 }
 
 /** The account's workspace id. Only call below the auth gate, where /me has loaded. */
@@ -47,7 +48,7 @@ export function useWorkspace() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.workspace,
-    queryFn: () => api.get<Workspace>(wsPath(wid)),
+    queryFn: () => api.get(wsPath(wid), { decode: workspaceReply }),
     enabled: wid > 0,
     staleTime: 60_000,
   });

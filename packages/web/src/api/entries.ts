@@ -5,8 +5,9 @@ import { coversPreviousRange } from './entriesPlaceholder.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
+import { entryBoundsReply, entryListReply, runningEntryReply, timeEntryReply } from './replies.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
-import type { BulkPatchResult, EntryBounds, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
+import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
 
 /** Time entries: lists, the running entry, writes and the trash. */
 
@@ -19,7 +20,10 @@ import type { BulkPatchResult, EntryBounds, PatchOperation, TimeEntry, TimeEntry
 export function useEntries(startDate: string, endDate: string) {
   return useQuery({
     queryKey: [...keys.entries, startDate, endDate],
-    queryFn: () => api.get<TimeEntry[]>(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`),
+    queryFn: () =>
+      api.get(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`, {
+        decode: entryListReply,
+      }),
     refetchInterval: 60_000,
     placeholderData: (previous, previousQuery) =>
       coversPreviousRange(previousQuery?.queryKey, startDate, endDate) ? previous : undefined,
@@ -31,7 +35,7 @@ export function useCurrentEntry() {
   const streaming = useTimerStreaming();
   return useQuery({
     queryKey: keys.current,
-    queryFn: () => api.get<TimeEntry | null>(`${V9}/me/time_entries/current?meta=true`),
+    queryFn: () => api.get(`${V9}/me/time_entries/current?meta=true`, { decode: runningEntryReply }),
     refetchInterval: streaming ? false : 30_000,
   });
 }
@@ -39,19 +43,19 @@ export function useCurrentEntry() {
 export function useEntryBounds() {
   return useQuery({
     queryKey: [...keys.report, 'bounds'],
-    queryFn: () => api.get<EntryBounds>(`${APP}/bounds`),
+    queryFn: () => api.get(`${APP}/bounds`, { decode: entryBoundsReply }),
     refetchInterval: 60_000,
   });
 }
 
 /** Deleted entries, newest deletion first. The server returns at most 1000. */
 export function useTrash() {
-  return useQuery({ queryKey: keys.trash, queryFn: () => api.get<TimeEntry[]>(`${APP}/trash`) });
+  return useQuery({ queryKey: keys.trash, queryFn: () => api.get(`${APP}/trash`, { decode: entryListReply }) });
 }
 
 /** Entry reads and writes outside the hooks below, such as opening one entry from a report row. */
 export const entryRequests = {
-  get: (id: number) => api.get<TimeEntry>(`${V9}/me/time_entries/${id}?meta=true`),
+  get: (id: number) => api.get(`${V9}/me/time_entries/${id}?meta=true`, { decode: timeEntryReply }),
   create: (wid: number, input: TimeEntryInput) =>
     api.post<TimeEntry>(`${wsPath(wid, 'time_entries')}?meta=true`, { created_with: 'tokkl-web', ...input }),
   update: (wid: number, id: number, input: TimeEntryInput) =>
