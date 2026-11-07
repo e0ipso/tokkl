@@ -4,9 +4,11 @@
 #include "clock.h"
 #include "connection.h"
 #include "epoch.h"
+#include "mutationgate.h"
 #include "nextstartdefaults.h"
 #include "projectcatalog.h"
 #include "timerstateclient.h"
+#include "timerview.h"
 
 #include <QObject>
 #include <QPointer>
@@ -327,9 +329,8 @@ private:
     bool m_loaded = false;
 
     // The state shown: the client's latest, or a v9 reply on top of an
-    // older one (m_viewPatched), which only a newer revision replaces.
-    std::optional<TimerState> m_view;
-    bool m_viewPatched = false;
+    // older one.
+    TimerView m_view;
     std::optional<TimeEntry> m_entry;
     // The pause chain shown: paused, or with m_entry as its clone.
     std::optional<TimerPause> m_chain;
@@ -341,10 +342,8 @@ private:
     qint64 m_elapsed = 0;
     QString m_error;
 
-    bool m_mutating = false;
-    // The workspace was lost while a write ran: once it answers, the state
-    // is read before writes return.
-    bool m_settleWhenDone = false;
+    // The write that runs, and the settling a lost workspace asks of it.
+    MutationGate m_gate;
     // m_error is a refused start's or resume's message, or a 409's, which a
     // new state leaves in place.
     bool m_keepError = false;

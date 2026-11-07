@@ -29,6 +29,8 @@ add_library(tokklcore STATIC
     instanceurl.h
     logging.cpp
     logging.h
+    mutationgate.cpp
+    mutationgate.h
     nextstartdefaults.h
     pomodoroalarm.cpp
     pomodoroalarm.h
@@ -48,6 +50,8 @@ add_library(tokklcore STATIC
     timercontroller.h
     timerstateclient.cpp
     timerstateclient.h
+    timerview.cpp
+    timerview.h
     transport.cpp
     transport.h
 )
