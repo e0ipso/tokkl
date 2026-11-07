@@ -595,6 +595,22 @@ ApiError errorFromResponse(const HttpResponse &response)
     return error;
 }
 
+ApiResult<Me> meFromResponse(const HttpResponse &response)
+{
+    if (response.outcome != HttpResponse::Outcome::Finished || response.status < 200 || response.status >= 300) {
+        return ApiResult<Me>::failure(errorFromResponse(response));
+    }
+    const std::optional<QJsonValue> json = parseJsonBody(response.body);
+    if (std::optional<Me> me = json ? decodeMe(*json) : std::nullopt) {
+        return ApiResult<Me>::success(std::move(*me));
+    }
+    ApiError error;
+    error.kind = ApiError::Kind::InvalidResponse;
+    error.status = response.status;
+    error.message = tr("The address did not answer like a Tokkl instance. Check the instance URL.");
+    return ApiResult<Me>::failure(error);
+}
+
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
 {
     QJsonObject object{

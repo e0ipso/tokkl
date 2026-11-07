@@ -18,6 +18,9 @@ QString runText(const TimerController &timer);
 QString statusText(TimerController::Status status);
 // A longer explanation of the status, or an empty string.
 QString detailText(const TimerController &timer);
+// A project id from TimerController, such as chosenProjectId: null, or
+// unset, for no project.
+bool isNoProject(const QVariant &id);
 // A project map from TimerController: its name, client and archived state.
 QString projectLabel(const QVariantMap &project);
 // The project the menu shows: the running or paused entry's, or the next

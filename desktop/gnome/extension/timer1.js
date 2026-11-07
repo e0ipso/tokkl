@@ -116,8 +116,8 @@ export const AUTH_MODES = ['token', 'password'];
  * @returns {number}
  */
 export function elapsedSeconds(startTime, nowSeconds) {
-  if (!(startTime > 0)) return 0;
-  return Math.max(0, Math.floor(nowSeconds) - startTime);
+    if (!(startTime > 0)) return 0;
+    return Math.max(0, Math.floor(nowSeconds) - startTime);
 }
 
 /**
@@ -128,22 +128,29 @@ export function elapsedSeconds(startTime, nowSeconds) {
  * @returns {string}
  */
 export function formatElapsed(seconds) {
-  const total = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  return `${hours}:${String(minutes).padStart(2, '0')}`;
+    const total = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    return `${hours}:${String(minutes).padStart(2, '0')}`;
 }
 
 // M:SS with the minutes unwrapped, so three hours are 180:00.
 function minutesAndSeconds(seconds) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-// Fills each %s or %d of a translated template with the next value, in
-// order, since String.prototype.format exists only inside GNOME Shell.
-function fill(template, ...values) {
-  let next = 0;
-  return template.replace(/%[sd]/g, () => String(values[next++]));
+/**
+ * Fills each %s or %d of a translated template with the next value, in
+ * order. The extension and its preferences use it rather than
+ * String.prototype.format, which exists only inside GNOME Shell.
+ *
+ * @param {string} template
+ * @param {...any} values
+ * @returns {string}
+ */
+export function fill(template, ...values) {
+    let next = 0;
+    return template.replace(/%[sd]/g, () => String(values[next++]));
 }
 
 /**
@@ -157,9 +164,9 @@ function fill(template, ...values) {
  * @returns {{text: string, overtime: boolean}}
  */
 export function countdown(plannedEnd, nowSeconds) {
-  const ms = Math.round((plannedEnd - nowSeconds) * 1000);
-  if (ms > 0) return { text: minutesAndSeconds(Math.ceil(ms / 1000)), overtime: false };
-  return { text: `+${minutesAndSeconds(Math.floor(-ms / 1000))}`, overtime: true };
+    const ms = Math.round((plannedEnd - nowSeconds) * 1000);
+    if (ms > 0) return { text: minutesAndSeconds(Math.ceil(ms / 1000)), overtime: false };
+    return { text: `+${minutesAndSeconds(Math.floor(-ms / 1000))}`, overtime: true };
 }
 
 /**
@@ -171,16 +178,16 @@ export function countdown(plannedEnd, nowSeconds) {
  * @returns {string}
  */
 export function phaseName(phase, _) {
-  switch (phase) {
-    case 'work':
-      return _('Work');
-    case 'shortRest':
-      return _('Short rest');
-    case 'longRest':
-      return _('Long rest');
-    default:
-      return '';
-  }
+    switch (phase) {
+        case 'work':
+            return _('Work');
+        case 'shortRest':
+            return _('Short rest');
+        case 'longRest':
+            return _('Long rest');
+        default:
+            return '';
+    }
 }
 
 /**
@@ -194,15 +201,15 @@ export function phaseName(phase, _) {
  * @returns {string}
  */
 export function sessionLine(session, nowSeconds, _) {
-  const { text, overtime } = countdown(session.plannedEnd, nowSeconds);
-  const time = fill(overtime ? _('%s overtime') : _('%s left'), text);
-  return fill(
-    _('%s · %s · Pomodoro %d of %d'),
-    phaseName(session.phase, _),
-    time,
-    session.pomodoroNumber,
-    session.longRestEvery,
-  );
+    const { text, overtime } = countdown(session.plannedEnd, nowSeconds);
+    const time = fill(overtime ? _('%s overtime') : _('%s left'), text);
+    return fill(
+        _('%s · %s · Pomodoro %d of %d'),
+        phaseName(session.phase, _),
+        time,
+        session.pomodoroNumber,
+        session.longRestEvery,
+    );
 }
 
 /**
@@ -214,7 +221,7 @@ export function sessionLine(session, nowSeconds, _) {
  * @returns {string}
  */
 export function nextPhaseLabel(upcomingPhase, _) {
-  return fill(_('Next phase: %s'), phaseName(upcomingPhase, _));
+    return fill(_('Next phase: %s'), phaseName(upcomingPhase, _));
 }
 
 /**
@@ -225,7 +232,7 @@ export function nextPhaseLabel(upcomingPhase, _) {
  * @returns {string}
  */
 export function pomodoroModeLabel(locked, _) {
-  return locked ? _('Pomodoro mode (locked while running)') : _('Pomodoro mode');
+    return locked ? _('Pomodoro mode (locked while running)') : _('Pomodoro mode');
 }
 
 /**
@@ -240,32 +247,32 @@ export function pomodoroModeLabel(locked, _) {
  * @returns {{text: string, detail: string, mark: string}}
  */
 export function describeStatus(status, errorString, _) {
-  switch (status) {
-    case null:
-      return {
-        text: _('Timer service not running'),
-        detail: _('Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.'),
-        mark: '!',
-      };
-    case 'unconfigured':
-      return {
-        text: _('Not configured'),
-        detail: _('Set the instance URL and credentials in the extension settings.'),
-        mark: '!',
-      };
-    case 'loading':
-      return { text: _('Loading'), detail: '', mark: '…' };
-    case 'ready':
-      return { text: _('Connected'), detail: '', mark: '' };
-    case 'busy':
-      return { text: _('Saving'), detail: '', mark: '…' };
-    case 'stale':
-      return { text: _('Offline, showing the last known state'), detail: errorString, mark: '!' };
-    case 'authentication-blocked':
-      return { text: _('Sign-in refused'), detail: errorString, mark: '!' };
-    default:
-      return { text: _('Error'), detail: errorString, mark: '!' };
-  }
+    switch (status) {
+        case null:
+            return {
+                text: _('Timer service not running'),
+                detail: _('Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.'),
+                mark: '!',
+            };
+        case 'unconfigured':
+            return {
+                text: _('Not configured'),
+                detail: _('Set the instance URL and credentials in the extension settings.'),
+                mark: '!',
+            };
+        case 'loading':
+            return { text: _('Loading'), detail: '', mark: '…' };
+        case 'ready':
+            return { text: _('Connected'), detail: '', mark: '' };
+        case 'busy':
+            return { text: _('Saving'), detail: '', mark: '…' };
+        case 'stale':
+            return { text: _('Offline, showing the last known state'), detail: errorString, mark: '!' };
+        case 'authentication-blocked':
+            return { text: _('Sign-in refused'), detail: errorString, mark: '!' };
+        default:
+            return { text: _('Error'), detail: errorString, mark: '!' };
+    }
 }
 
 /**
@@ -275,7 +282,7 @@ export function describeStatus(status, errorString, _) {
  * @returns {string}
  */
 export function projectLabel(project) {
-  return project.clientName ? `${project.name} (${project.clientName})` : project.name;
+    return project.clientName ? `${project.name} (${project.clientName})` : project.name;
 }
 
 /**
@@ -291,8 +298,8 @@ export function projectLabel(project) {
  * @returns {string}
  */
 export function chosenProjectLabel(projects, chosenProject, chosenProjectName, _) {
-  if (!chosenProject) return _('No project');
-  const project = projects.find(candidate => candidate.id === chosenProject);
-  if (project) return projectLabel(project);
-  return chosenProjectName || _('Unavailable project');
+    if (!chosenProject) return _('No project');
+    const project = projects.find(candidate => candidate.id === chosenProject);
+    if (project) return projectLabel(project);
+    return chosenProjectName || _('Unavailable project');
 }

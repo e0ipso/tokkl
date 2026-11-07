@@ -359,6 +359,41 @@ class TimerControllerTest : public QObject
     }
 
 private Q_SLOTS:
+    // A timer made without a clock, as QML makes it, ticks on the clock of
+    // the state client it is given.
+    void usesTheClientsClock()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        TimerController shared;
+        shared.setStateClient(&f.state);
+        QVERIFY(shared.isRunning());
+        QVERIFY(shared.canWrite());
+        QSignalSpy elapsed(&shared, &TimerController::elapsedChanged);
+        f.clock.advance(60000);
+        QCOMPARE(elapsed.size(), 1);
+        QCOMPARE(shared.elapsedSeconds(), f.timer.elapsedSeconds());
+
+        shared.setStateClient(nullptr);
+        QVERIFY(!shared.canWrite());
+    }
+
+    // The menu's project details: none without a project, the running
+    // entry's project, and the active project chosen for the next start.
+    void chosenProjectDetailsFollowTheChoice()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
+        QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("PATCH", "/stop"), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
+        QVERIFY(f.answerState("null"));
+        QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QVERIFY(f.timer.chosenProjectDetails().isNull());
+        QVERIFY(f.timer.chooseProject(11));
+        QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("id")).toLongLong(), 11);
+    }
+
     void exposesContextAndEntry()
     {
         Fixture f;
@@ -2229,7 +2264,6 @@ private Q_SLOTS:
             QCOMPARE(f.timer.projects().size(), 0);
             f.respond(request, FakeTransport::answer(200, projectPage((page - 1) * Connection::projectPageSize + 1, Connection::projectPageSize, 7)));
         }
-        QVERIFY(f.connection.projectsIncomplete());
         QVERIFY(f.timer.projectsIncomplete());
         // The projects read stay selectable.
         QCOMPARE(f.timer.projects().size(), Connection::maxProjectPages * Connection::projectPageSize);

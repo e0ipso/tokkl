@@ -12,11 +12,11 @@ QString tr(const char *text)
 {
     return QCoreApplication::translate("Tokkl::StatusWords", text);
 }
+}
 
-bool isNullId(const QVariant &id)
+bool isNoProject(const QVariant &id)
 {
     return !id.isValid() || id.isNull();
-}
 }
 
 QString runText(const TimerController &timer)
@@ -83,7 +83,7 @@ QString projectLabel(const QVariantMap &project)
 QString projectText(const TimerController &timer)
 {
     const QVariant id = timer.chosenProjectId();
-    if (isNullId(id)) {
+    if (isNoProject(id)) {
         return tr("No project");
     }
     const qint64 projectId = id.toLongLong();

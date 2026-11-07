@@ -1,6 +1,7 @@
 #pragma once
 
 #include "apitypes.h"
+#include "cooldown.h"
 #include "credentialstore.h"
 #include "instanceurl.h"
 #include "transport.h"
@@ -55,11 +56,7 @@ class Connection : public QObject
     Q_PROPERTY(QDateTime rateLimitedUntil READ rateLimitedUntil NOTIFY stateChanged)
     Q_PROPERTY(quint64 generation READ generation NOTIFY generationChanged)
 
-    Q_PROPERTY(QVariantMap account READ accountMap NOTIFY accountChanged)
     Q_PROPERTY(qint64 workspaceId READ workspaceId NOTIFY accountChanged)
-    Q_PROPERTY(QVariantList projects READ projectList NOTIFY projectsChanged)
-    Q_PROPERTY(bool projectsIncomplete READ projectsIncomplete NOTIFY projectsChanged)
-    Q_PROPERTY(QVariant currentEntry READ currentEntryVariant NOTIFY currentEntryChanged)
 
     // Choices for the next start. null or a project id.
     Q_PROPERTY(QVariant nextProjectId READ nextProjectIdVariant WRITE setNextProjectIdVariant NOTIFY nextStartChanged)
@@ -114,13 +111,6 @@ public:
     // The instance, account and workspace of the validated account as one
     // key, for what a device keeps per account. Empty without one.
     QString owner() const;
-    QList<Project> projects() const;
-    QVariantList projectList() const;
-    // True when the workspace has more active projects than the page limit
-    // allows reading, so projects() is a prefix of them.
-    bool projectsIncomplete() const;
-    std::optional<TimeEntry> currentEntry() const;
-    QVariant currentEntryVariant() const;
 
     std::optional<qint64> nextProjectId() const;
     void setNextProjectId(std::optional<qint64> projectId);
@@ -130,24 +120,20 @@ public:
     void setNextBillable(bool billable);
 
     // Typed operations. They need a bound account, use its workspace, and
-    // refuse while a 429 cooldown runs. Successful replies update the cached
-    // account data. done runs later, and only for a reply of the current
-    // generation.
+    // refuse while a 429 cooldown runs. The connection keeps nothing of
+    // their answers but the account from /me. done runs later, and only for
+    // a reply of the current generation.
     void fetchMe(Callback<Me> done = {});
-    void fetchCurrentEntry(Callback<std::optional<TimeEntry>> done = {});
     // Every active project of the workspace, following the pages up to
     // maxProjectPages. A workspace beyond that still succeeds with the
-    // projects read; projectsIncomplete() reports the cut.
-    void fetchProjects(Callback<QList<Project>> done = {});
+    // projects read, and the list says it is cut short.
+    void fetchProjects(Callback<ProjectList> done = {});
     // One project of the workspace, archived or not.
     void fetchProject(qint64 projectId, Callback<Project> done = {});
     // The account's entries of the last 9 days in every workspace, newest
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
-    // The account's entries that started from start to end, in every
-    // workspace (GET /me/time_entries?start_date=&end_date=).
-    void fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
     // The Pomodoro lengths of the account preferences.
@@ -156,8 +142,8 @@ public:
     // server holds afterwards.
     void savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done = {});
 
-    // The account's timer state, GET /api/app/timer. Like the current entry,
-    // a 401 or 403 means the credentials were refused.
+    // The account's timer state, GET /api/app/timer. Like /me, a 401 or 403
+    // means the credentials were refused.
     void fetchTimerState(Callback<TimerState> done = {});
     // The timer actions. Each needs canWrite(), and done tells apart a change
     // made, a 409 with the server's state, nothing changed, and an unknown
@@ -177,10 +163,12 @@ public:
     // failure or another status changes nothing here.
     PendingStream *openTimerEvents();
 
-    // Delay before an automatic retry after a connectivity failure, and the
-    // cooldown after a 429 without Retry-After.
+    // Delay before an automatic retry after a connectivity failure, plus up
+    // to retryJitterMs more at random, and the cooldown after a 429 without
+    // Retry-After.
     static constexpr int retryDelayMs = 30000;
-    static constexpr int defaultCooldownMs = 60000;
+    static constexpr int retryJitterMs = 10000;
+    static constexpr int defaultCooldownMs = Cooldown::defaultMs;
     // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;
     static constexpr int maxProjectPages = 100;
@@ -200,8 +188,6 @@ Q_SIGNALS:
     void stateChanged();
     void generationChanged();
     void accountChanged();
-    void projectsChanged();
-    void currentEntryChanged();
     void nextStartChanged();
 
 private:
@@ -230,7 +216,6 @@ private:
     void resetAccount();
     void clearAccountData();
     void setState(State state, const QString &error = QString());
-    void startCooldown(const QByteArray &retryAfter);
     void onCooldownEnded();
     bool coolingDown() const;
     bool hasContext() const;
@@ -243,7 +228,7 @@ private:
     enum class Access {
         Read,
         Write, // needs canWrite()
-        Account, // validates the credentials, like refreshAccount(); /me and the current entry
+        Account, // validates the credentials, like refreshAccount(); /me and the timer state
     };
     template<typename T>
     void call(const QByteArray &method,
@@ -261,8 +246,10 @@ private:
               std::function<std::optional<T>(const QJsonValue &)> decode,
               std::function<void(const T &)> apply,
               Callback<T> done);
-    template<typename T>
-    void failLater(ApiError error, Callback<T> done);
+    // Runs done with result from the event loop, unless the generation
+    // changes first.
+    template<typename Result>
+    void deliverLater(std::function<void(const Result &)> done, Result result);
     // The refusal a request got before it was sent, or nullopt when access
     // allows it.
     std::optional<ApiError> refusal(Access access) const;
@@ -294,14 +281,10 @@ private:
     State m_state = Unconfigured;
     QString m_error;
     std::optional<Context> m_context;
-    QList<Project> m_projects;
-    bool m_projectsIncomplete = false;
-    std::optional<TimeEntry> m_currentEntry;
     std::optional<qint64> m_nextProjectId;
     bool m_nextBillable = false;
 
-    QDateTime m_cooldownUntil;
-    QTimer m_cooldownTimer;
+    Cooldown m_cooldown;
     QTimer m_retryTimer;
     QSet<PendingReply *> m_pending;
     QSet<PendingStream *> m_streams;

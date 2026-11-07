@@ -41,6 +41,20 @@ PomodoroPreferences::PomodoroPreferences(Connection *connection, QObject *parent
     onConnectionChanged();
 }
 
+QVariantMap PomodoroPreferences::limits()
+{
+    const PomodoroConfig defaults;
+    const auto limit = [](PomodoroRange range, int value) {
+        return QVariantMap{{QStringLiteral("min"), range.min}, {QStringLiteral("max"), range.max}, {QStringLiteral("default"), value}};
+    };
+    return {
+        {QStringLiteral("workMinutes"), limit(PomodoroConfig::workMinutesRange, defaults.workMinutes)},
+        {QStringLiteral("shortRestMinutes"), limit(PomodoroConfig::shortRestMinutesRange, defaults.shortRestMinutes)},
+        {QStringLiteral("longRestMinutes"), limit(PomodoroConfig::longRestMinutesRange, defaults.longRestMinutes)},
+        {QStringLiteral("longRestEvery"), limit(PomodoroConfig::longRestEveryRange, defaults.longRestEvery)},
+    };
+}
+
 PomodoroConfig PomodoroPreferences::config() const
 {
     return m_config;

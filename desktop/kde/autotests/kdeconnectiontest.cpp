@@ -556,8 +556,11 @@ private Q_SLOTS:
 
         StartEntry start;
         start.start = QDateTime::currentDateTimeUtc();
-        connection.startEntry(start);
-        QTRY_VERIFY(connection.currentEntry().has_value());
+        bool started = false;
+        connection.startEntry(start, [&started](const ApiResult<TimeEntry> &result) {
+            started = result.ok() && result.value->isRunning();
+        });
+        QTRY_VERIFY(started);
 
         const auto posted = std::find_if(m_server.requests.cbegin() + before, m_server.requests.cend(), [](const ReceivedRequest &request) {
             return request.method == "POST";

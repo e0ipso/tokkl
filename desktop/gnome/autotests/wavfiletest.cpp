@@ -1,11 +1,8 @@
-// The alarm player's file lookup and the WAV reader the sound server
-// backend feeds from, against the bundled sounds. Nothing here reaches an
-// audio server; what the player asks of the backend is checked in
-// timerservicetest, and whether sound comes out is checked by hand with
-// pactl.
+// The WAV reader the sound server backend feeds from, against the bundled
+// sounds. Nothing here reaches an audio server; what the alarm asks of the
+// backend is checked in timerservicetest, and whether sound comes out is
+// checked by hand with pactl.
 
-#include "alarmplayer.h"
-#include "pomodorosounds.h"
 #include "wavfile.h"
 
 #include <QByteArray>
@@ -25,11 +22,6 @@ namespace
 QStringList bundledSounds()
 {
     return QString::fromUtf8(TOKKL_POMODORO_SOUND_FILES).split(QLatin1Char('|'));
-}
-
-QString bundledSoundsDir()
-{
-    return QFileInfo(bundledSounds().first()).absolutePath();
 }
 
 // A 44-byte RIFF WAVE header for the given format tag, followed by the
@@ -67,7 +59,7 @@ bool writeFile(const QString &path, const QByteArray &bytes)
 }
 }
 
-class AlarmPlayerTest : public QObject
+class WavFileTest : public QObject
 {
     Q_OBJECT
 
@@ -150,21 +142,7 @@ private Q_SLOTS:
         QVERIFY(!readWavFile(QStringLiteral("/nonexistent/sound.wav"), &error).has_value());
         QVERIFY(error.contains(QStringLiteral("/nonexistent/sound.wav")));
     }
-
-    // The player names a sound's file in the sounds directory, but only for
-    // a sound the catalogue has and a file that is there.
-    void locatesSoundsInTheDirectory()
-    {
-        const QString dir = bundledSoundsDir();
-        QCOMPARE(soundFile(dir, QStringLiteral("work-to-short-rest")), dir + QStringLiteral("/pomodoro-work-to-short-rest.wav"));
-        QCOMPARE(soundFile(dir + QLatin1Char('/'), QStringLiteral("long-rest-to-work")), dir + QStringLiteral("/pomodoro-long-rest-to-work.wav"));
-        QCOMPARE(soundFile(dir, QStringLiteral("gong")), QString());
-        QCOMPARE(soundFile(dir, QString()), QString());
-        QTemporaryDir empty;
-        QVERIFY(empty.isValid());
-        QCOMPARE(soundFile(empty.path(), QStringLiteral("work-to-short-rest")), QString());
-    }
 };
 
-QTEST_GUILESS_MAIN(AlarmPlayerTest)
-#include "alarmplayertest.moc"
+QTEST_GUILESS_MAIN(WavFileTest)
+#include "wavfiletest.moc"

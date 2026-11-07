@@ -10,10 +10,13 @@
 #include "instanceurl.h"
 #include "loginitem.h"
 #include "menubarapp.h"
+#include "connectionsettings.h"
 #include "pomodoroalarm.h"
+#include "soundchoices.h"
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
+#include "settingssave.h"
 #include "settingswindow.h"
 #include "statusimage.h"
 #include "statusitem.h"
@@ -196,7 +199,7 @@ public:
         looping.clear();
         ++stops;
     }
-    void preview(const QString &file) override
+    void playOnce(const QString &file) override
     {
         previews.append(file);
     }
@@ -517,8 +520,8 @@ class MenuBarAppTest : public QObject
                      const QJsonValue &pomodoro = QJsonValue::Null)
         {
             store.secrets.insert(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString()), token);
-            settings.setValue(SettingsWindow::instanceUrlKey, instance);
-            settings.setValue(SettingsWindow::authModeKey, QStringLiteral("token"));
+            settings.setValue(ConnectionSettings::instanceUrlKey, instance);
+            settings.setValue(ConnectionSettings::authModeKey, QStringLiteral("token"));
             app.start();
             if (!waitFor("GET", "/me")) {
                 return false;
@@ -1118,7 +1121,7 @@ private Q_SLOTS:
         QVERIFY(relaunched.item.image.monochromeLogo);
         relaunched.app.showSettings();
         QVERIFY(relaunched.app.settingsWindow()->monochromeToggle()->isChecked());
-        relaunched.settings.setValue(SettingsWindow::monochromeIconKey, false);
+        relaunched.settings.setValue(SettingsSave::monochromeIconKey, false);
         relaunched.app.applySettings();
         QVERIFY(!relaunched.item.image.monochromeLogo);
         QCOMPARE(relaunched.item.image.logo, before.logo);
@@ -1508,7 +1511,7 @@ private Q_SLOTS:
         QCOMPARE(f.player.stops, 1);
 
         // The short rest ends with the sound chosen for it.
-        f.settings.setValue(PomodoroAlarm::soundKey(TransitionKind::ShortRestToWork), QStringLiteral("long-rest-to-work"));
+        f.settings.setValue(MenuBarApp::soundKey(TransitionKind::ShortRestToWork), QStringLiteral("long-rest-to-work"));
         f.advance(60);
         QCOMPARE(f.player.looping, soundFile(QStringLiteral("long-rest-to-work")));
         // The other device ends the session, which stops it too.
@@ -1555,7 +1558,7 @@ private Q_SLOTS:
             return;
         }
 
-        f.settings.setValue(SettingsWindow::monochromeIconKey, true);
+        f.settings.setValue(SettingsSave::monochromeIconKey, true);
         f.app.applySettings();
         QVERIFY(f.item.image.monochromeLogo);
         QCOMPARE(f.item.image.hourglassRect, colour.hourglassRect);
@@ -1602,8 +1605,8 @@ private Q_SLOTS:
         QVERIFY(window.save());
         QTRY_COMPARE(saved.count(), 1);
 
-        QCOMPARE(f.settings.value(SettingsWindow::instanceUrlKey).toString(), QStringLiteral("https://a.example.test/tokkl"));
-        QCOMPARE(f.settings.value(SettingsWindow::authModeKey).toString(), QStringLiteral("token"));
+        QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), QStringLiteral("https://a.example.test/tokkl"));
+        QCOMPARE(f.settings.value(ConnectionSettings::authModeKey).toString(), QStringLiteral("token"));
         const QString key = credentialKey(parseInstanceUrl(QStringLiteral("https://a.example.test/tokkl")), AuthMode::Token, QString());
         QCOMPARE(f.store.secrets.value(key), token);
         QCOMPARE(f.app.connection()->instanceUrl(), QStringLiteral("https://a.example.test/tokkl"));
@@ -1637,8 +1640,8 @@ private Q_SLOTS:
         QCOMPARE(saved.count(), 0);
         QVERIFY(window.isVisible());
         QVERIFY(!window.saveButton()->isEnabled());
-        QVERIFY(!f.settings.contains(SettingsWindow::instanceUrlKey));
-        QVERIFY(!f.settings.contains(SettingsWindow::monochromeIconKey));
+        QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
+        QVERIFY(!f.settings.contains(SettingsSave::monochromeIconKey));
         // The pending save owns a snapshot, even if the checkbox changes.
         window.monochromeToggle()->setChecked(false);
         QVERIFY(f.app.connection()->instanceUrl().isEmpty());
@@ -1646,10 +1649,10 @@ private Q_SLOTS:
         f.store.finish(CredentialResult::Status::Ok);
         QTRY_COMPARE(saved.count(), 1);
         QVERIFY(!window.isVisible());
-        QCOMPARE(f.settings.value(SettingsWindow::instanceUrlKey).toString(), instance);
+        QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), instance);
         QCOMPARE(f.store.secrets.value(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString())), token);
         QCOMPARE(f.app.connection()->instanceUrl(), instance);
-        QVERIFY(f.settings.value(SettingsWindow::monochromeIconKey).toBool());
+        QVERIFY(f.settings.value(SettingsSave::monochromeIconKey).toBool());
         QVERIFY(f.item.image.monochromeLogo);
     }
 
@@ -1675,8 +1678,8 @@ private Q_SLOTS:
         QVERIFY(window.isVisible());
         QCOMPARE(window.secretField()->text(), token);
         QVERIFY(window.saveButton()->isEnabled());
-        QVERIFY(!f.settings.contains(SettingsWindow::instanceUrlKey));
-        QVERIFY(!f.settings.contains(SettingsWindow::monochromeIconKey));
+        QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
+        QVERIFY(!f.settings.contains(SettingsSave::monochromeIconKey));
         QVERIFY(!f.item.image.monochromeLogo);
         QVERIFY(f.store.secrets.isEmpty());
 
@@ -1686,7 +1689,7 @@ private Q_SLOTS:
         f.store.finish(CredentialResult::Status::Ok);
         QTRY_COMPARE(saved.count(), 1);
         QVERIFY(!window.isVisible());
-        QCOMPARE(f.settings.value(SettingsWindow::instanceUrlKey).toString(), instance);
+        QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), instance);
     }
 
     void settingsRefuseCredentialsInTheAddress()
@@ -1697,7 +1700,7 @@ private Q_SLOTS:
         window.urlField()->setText(QStringLiteral("https://bea:secret@a.example.test"));
         QVERIFY(window.urlNote()->isVisibleTo(&window));
         QVERIFY(!window.save());
-        QVERIFY(!f.settings.contains(SettingsWindow::instanceUrlKey));
+        QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
     }
 
     void settingsPasswordAndTestConnection()
@@ -1731,8 +1734,8 @@ private Q_SLOTS:
         QSignalSpy saved(&window, &SettingsWindow::saved);
         QVERIFY(window.save());
         QTRY_COMPARE(saved.count(), 1);
-        QCOMPARE(f.settings.value(SettingsWindow::authModeKey).toString(), QStringLiteral("password"));
-        QCOMPARE(f.settings.value(SettingsWindow::emailKey).toString(), QStringLiteral("bea@example.test"));
+        QCOMPARE(f.settings.value(ConnectionSettings::authModeKey).toString(), QStringLiteral("password"));
+        QCOMPARE(f.settings.value(ConnectionSettings::emailKey).toString(), QStringLiteral("bea@example.test"));
         QCOMPARE(f.store.secrets.size(), 1);
     }
 
@@ -1908,17 +1911,17 @@ private Q_SLOTS:
         QCOMPARE(window.soundBox(TransitionKind::LongRestToWork)->currentIndex(), 3);
 
         box->setCurrentIndex(3);
-        QVERIFY(!f.settings.contains(PomodoroAlarm::soundKey(TransitionKind::WorkToShortRest)));
+        QVERIFY(!f.settings.contains(MenuBarApp::soundKey(TransitionKind::WorkToShortRest)));
         window.urlField()->setText(instance);
         QTest::keyClicks(window.secretField(), token);
         QSignalSpy saved(&window, &SettingsWindow::saved);
         window.saveButton()->click();
         QTRY_COMPARE(saved.count(), 1);
-        QCOMPARE(f.settings.value(PomodoroAlarm::soundKey(TransitionKind::WorkToShortRest)).toString(), QStringLiteral("long-rest-to-work"));
+        QCOMPARE(f.settings.value(MenuBarApp::soundKey(TransitionKind::WorkToShortRest)).toString(), QStringLiteral("long-rest-to-work"));
         // The untouched choices are kept as they showed.
-        QCOMPARE(f.settings.value(PomodoroAlarm::soundKey(TransitionKind::ShortRestToWork)).toString(), QStringLiteral("short-rest-to-work"));
-        QCOMPARE(PomodoroAlarm::chosenSound(&f.settings, TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
-        QCOMPARE(PomodoroAlarm::chosenSound(&f.settings, TransitionKind::ShortRestToWork), QStringLiteral("short-rest-to-work"));
+        QCOMPARE(f.settings.value(MenuBarApp::soundKey(TransitionKind::ShortRestToWork)).toString(), QStringLiteral("short-rest-to-work"));
+        QCOMPARE(f.app.soundChoices()->chosen(TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
+        QCOMPARE(f.app.soundChoices()->chosen(TransitionKind::ShortRestToWork), QStringLiteral("short-rest-to-work"));
 
         Fixture relaunched(f.settings.fileName());
         relaunched.app.showSettings();
@@ -1940,7 +1943,7 @@ private Q_SLOTS:
         QCOMPARE(f.player.previews.size(), 2);
         QCOMPARE(f.player.previews.last(), soundFile(QStringLiteral("work-to-long-rest")));
         QVERIFY(f.player.loops.isEmpty());
-        QVERIFY(!f.settings.contains(PomodoroAlarm::soundKey(TransitionKind::LongRestToWork)));
+        QVERIFY(!f.settings.contains(MenuBarApp::soundKey(TransitionKind::LongRestToWork)));
     }
 
     void loginItemToggle()

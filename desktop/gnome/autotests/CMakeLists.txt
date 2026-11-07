@@ -6,8 +6,8 @@
 # never reached.
 #
 # timerservice drives org.tokkl.Timer1 over the private bus against the
-# core's fake transport, credential store and clock, with a fake alarm
-# backend behind the alarm player. It needs no QtKeychain and no audio.
+# core's fake transport, credential store and clock, with a fake output
+# behind the alarm. It needs no QtKeychain and no audio.
 
 find_program(TOKKL_DBUS_DAEMON dbus-daemon REQUIRED)
 
@@ -15,7 +15,7 @@ set(_gnome_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-gnome")
 set(_gnome_env
     "XDG_DATA_HOME=${_gnome_xdg}/data;XDG_CONFIG_HOME=${_gnome_xdg}/config;XDG_CACHE_HOME=${_gnome_xdg}/cache;XDG_STATE_HOME=${_gnome_xdg}/state")
 
-# The bundled sounds, for the alarm player tests.
+# The bundled sounds, for the alarm and WAV reader tests.
 list(JOIN TOKKL_POMODORO_SOUND_FILES "|" _sound_files)
 
 add_executable(timerservicetest timerservicetest.cpp privatebus.h)
@@ -26,14 +26,14 @@ target_compile_definitions(timerservicetest PRIVATE
     TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
 add_test(NAME timerservice COMMAND timerservicetest)
 
-# alarmplayer checks the player's file lookup and the WAV reader against
-# the bundled sounds, with no audio server.
-add_executable(alarmplayertest alarmplayertest.cpp)
-target_link_libraries(alarmplayertest PRIVATE tokklgnome Qt6::Test)
-target_compile_definitions(alarmplayertest PRIVATE TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
-add_test(NAME alarmplayer COMMAND alarmplayertest)
+# wavfile checks the WAV reader against the bundled sounds, with no audio
+# server.
+add_executable(wavfiletest wavfiletest.cpp)
+target_link_libraries(wavfiletest PRIVATE tokklgnome Qt6::Test)
+target_compile_definitions(wavfiletest PRIVATE TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
+add_test(NAME wavfile COMMAND wavfiletest)
 
-set_tests_properties(timerservice alarmplayer PROPERTIES ENVIRONMENT "${_gnome_env}")
+set_tests_properties(timerservice wavfile PROPERTIES ENVIRONMENT "${_gnome_env}")
 
 if(TOKKL_GNOME_DAEMON)
     # keychainstore runs the QtKeychain store against a GNOME Keyring daemon

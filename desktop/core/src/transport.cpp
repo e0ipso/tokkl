@@ -1,5 +1,7 @@
 #include "transport.h"
 
+#include "logging.h"
+
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -10,13 +12,38 @@ namespace Tokkl
 
 namespace
 {
+// The URL as a log line may show it: no user info, no query.
+QString loggable(const QUrl &url)
+{
+    return url.toDisplayString(QUrl::RemoveUserInfo | QUrl::RemoveQuery | QUrl::RemoveFragment);
+}
+
+void logResponse(const QByteArray &method, const QUrl &url, const HttpResponse &response)
+{
+    switch (response.outcome) {
+    case HttpResponse::Outcome::Finished:
+        qCDebug(lcNet) << method << loggable(url) << "answered" << response.status;
+        break;
+    case HttpResponse::Outcome::NetworkError:
+        qCDebug(lcNet) << method << loggable(url) << "failed:" << response.errorString;
+        break;
+    case HttpResponse::Outcome::Timeout:
+        qCDebug(lcNet) << method << loggable(url) << "timed out";
+        break;
+    case HttpResponse::Outcome::Aborted:
+        qCDebug(lcNet) << method << loggable(url) << "aborted";
+        break;
+    }
+}
+
 class NetworkReply : public PendingReply
 {
     Q_OBJECT
 
 public:
-    NetworkReply(QNetworkReply *reply, int timeoutMs, QObject *parent)
+    NetworkReply(const QByteArray &method, QNetworkReply *reply, int timeoutMs, QObject *parent)
         : PendingReply(parent)
+        , m_method(method)
         , m_reply(reply)
     {
         reply->setParent(this);
@@ -55,9 +82,11 @@ private:
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_reply->errorString();
         }
+        logResponse(m_method, m_reply->url(), response);
         Q_EMIT finished(response);
     }
 
+    QByteArray m_method;
     QNetworkReply *m_reply;
     QTimer m_timer;
     bool m_timedOut = false;
@@ -142,6 +171,7 @@ private:
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_reply->errorString();
         }
+        logResponse(QByteArrayLiteral("GET stream"), m_reply->url(), response);
         Q_EMIT finished(response);
     }
 
@@ -182,7 +212,7 @@ QNetworkRequest NetworkTransport::networkRequest(const HttpRequest &request, con
 PendingReply *NetworkTransport::send(const HttpRequest &request)
 {
     QNetworkReply *reply = m_manager->sendCustomRequest(networkRequest(request, "application/json"), request.method, request.body);
-    return new NetworkReply(reply, m_timeoutMs, this);
+    return new NetworkReply(request.method, reply, m_timeoutMs, this);
 }
 
 PendingStream *NetworkTransport::openStream(const HttpRequest &request)

@@ -2,6 +2,7 @@
 
 #include "apitypes.h"
 #include "clock.h"
+#include "epoch.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
 #include "timerstateclient.h"
@@ -183,9 +184,9 @@ private:
 
     bool m_pomodoroMode = false;
     bool m_pending = false; // an action waits for its answer
-    // Bumped when the connection's generation changes: the answer to an
+    // Advanced when the connection's generation changes: the answer to an
     // action sent before never comes, and one that does is ignored.
-    quint64 m_epoch = 0;
+    Epoch m_epoch;
     QString m_message;
     // The last discarded pomodoro told about, so a state seen twice tells it
     // once.

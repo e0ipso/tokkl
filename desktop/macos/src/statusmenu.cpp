@@ -11,14 +11,6 @@
 namespace Tokkl
 {
 
-namespace
-{
-bool isNullId(const QVariant &id)
-{
-    return !id.isValid() || id.isNull();
-}
-}
-
 StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, QObject *parent)
     : QObject(parent)
     , m_timer(timer)
@@ -316,6 +308,14 @@ void StatusMenu::rebuildProjects()
 
     m_projectMenu->setTitle(tr("Project: %1").arg(StatusWords::projectText(*m_timer)));
     m_projectMenu->menuAction()->setEnabled(choosable);
+
+    const QVariantMap entryProject = m_timer->entryProjectVariant().toMap();
+    const bool archived = hasEntry && !entryProject.isEmpty() && !entryProject.value(QStringLiteral("active")).toBool();
+    ProjectItems items{choosable, chosen, archived ? entryProject : QVariantMap(), m_timer->projectsIncomplete(), m_timer->projects()};
+    if (m_projectItems == items) {
+        return;
+    }
+    m_projectItems = items;
     // Later, not now: this may run inside the triggered signal of one of
     // these actions.
     const QList<QAction *> old = m_projectMenu->actions();
@@ -326,46 +326,47 @@ void StatusMenu::rebuildProjects()
 
     QAction *none = m_projectMenu->addAction(tr("No project"));
     none->setCheckable(true);
-    none->setChecked(isNullId(chosen));
+    none->setChecked(StatusWords::isNoProject(chosen));
     none->setEnabled(choosable);
     connect(none, &QAction::triggered, this, [this] {
         if (m_timer) {
             m_timer->chooseProject(QVariant::fromValue(nullptr));
         }
+        // The action checked itself; a refused choice must not leave it so.
+        m_projectItems.reset();
         refresh();
     });
 
     // The running or paused entry's archived project: shown and checked,
     // never offered for new work.
-    const QVariantMap entryProject = m_timer->entryProjectVariant().toMap();
-    if (hasEntry && !entryProject.isEmpty() && !entryProject.value(QStringLiteral("active")).toBool()) {
-        QAction *archived = m_projectMenu->addAction(StatusWords::projectLabel(entryProject));
-        archived->setCheckable(true);
-        archived->setChecked(true);
-        archived->setEnabled(false);
+    if (!items.archived.isEmpty()) {
+        QAction *archivedAction = m_projectMenu->addAction(StatusWords::projectLabel(items.archived));
+        archivedAction->setCheckable(true);
+        archivedAction->setChecked(true);
+        archivedAction->setEnabled(false);
     }
 
     // The projects read are fewer than the workspace has: say so and point
     // to the web app. Placed before the projects so a long list does not
     // bury it.
-    if (m_timer->projectsIncomplete()) {
+    if (items.incomplete) {
         QAction *cut = m_projectMenu->addAction(tr("Project list cut short. Use Open Tokkl for the others."));
         cut->setEnabled(false);
     }
 
-    const QVariantList projects = m_timer->projects();
-    for (const QVariant &value : projects) {
+    for (const QVariant &value : std::as_const(items.projects)) {
         const QVariantMap project = value.toMap();
         const qint64 id = project.value(QStringLiteral("id")).toLongLong();
         QAction *action = m_projectMenu->addAction(StatusWords::projectLabel(project));
         action->setCheckable(true);
-        action->setChecked(!isNullId(chosen) && chosen.toLongLong() == id);
+        action->setChecked(!StatusWords::isNoProject(chosen) && chosen.toLongLong() == id);
         action->setEnabled(choosable);
         action->setData(id);
         connect(action, &QAction::triggered, this, [this, id] {
             if (m_timer) {
                 m_timer->chooseProject(id);
             }
+            m_projectItems.reset();
             refresh();
         });
     }

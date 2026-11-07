@@ -1,5 +1,7 @@
 #include "macalarmplayer.h"
 
+#include "logging.h"
+
 #import <AppKit/AppKit.h>
 
 // Compiled with ARC.
@@ -15,7 +17,7 @@ NSSound *openSound(const QString &file)
 {
     NSSound *sound = [[NSSound alloc] initWithContentsOfFile:file.toNSString() byReference:YES];
     if (!sound) {
-        qWarning("Tokkl: the alarm sound %s cannot play", qPrintable(file));
+        qCWarning(Tokkl::lcAlarm) << "NSSound cannot open the alarm sound" << file;
     }
     return sound;
 }
@@ -61,7 +63,7 @@ void MacAlarmPlayer::stop()
     d->loopFile.clear();
 }
 
-void MacAlarmPlayer::preview(const QString &file)
+void MacAlarmPlayer::playOnce(const QString &file)
 {
     [d->preview stop];
     d->preview = openSound(file);

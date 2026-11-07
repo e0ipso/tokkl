@@ -8,6 +8,7 @@
 #include "transport.h"
 
 #include <QDateTime>
+#include <algorithm>
 #include <QHash>
 #include <QTimeZone>
 #include <QList>
@@ -206,6 +207,13 @@ public:
         return current;
     }
 
+    // jitter, kept below the bound. 0 unless a test sets it, so delays are
+    // exact.
+    int jitterMs(int boundMs) const override
+    {
+        return boundMs > 0 ? std::min(jitter, boundMs - 1) : 0;
+    }
+
     void advance(qint64 ms)
     {
         current = current.addMSecs(ms);
@@ -213,4 +221,5 @@ public:
     }
 
     QDateTime current{QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC};
+    int jitter = 0;
 };

@@ -4,17 +4,22 @@
 // org.tokkl.Timer1 (described in dbus/org.tokkl.Timer1.xml). The service
 // maps the core's properties onto the interface and forwards the methods;
 // the rules stay in the core. The one thing it adds is where the core's
-// per-device state lives: the mode and the sound choices go to its settings
-// file. The timer and the session are the server's, read through one
-// TimerStateClient.
+// per-device state lives: the connection settings, the mode and the sound
+// choices go to its settings file. The timer and the session are the
+// server's, read through one TimerStateClient. The alarm plays through a
+// PomodoroAlarm that main.cpp builds on session() and soundChoices().
 
 #include <QDBusConnection>
 #include <QDBusContext>
 #include <QList>
 #include <QMap>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QVariantMap>
+
+#include "apitypes.h"
+#include "connectionsettings.h"
 
 class QSettings;
 
@@ -23,9 +28,11 @@ namespace Tokkl
 class Clock;
 class Connection;
 class CredentialStore;
+class PomodoroAlarm;
 class PomodoroPreferences;
 class PomodoroSession;
 class SettingsPomodoroStore;
+class SoundChoices;
 class TimerController;
 class TimerStateClient;
 class Transport;
@@ -64,7 +71,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(bool PomodoroLengthsEditable READ pomodoroLengthsEditable)
     Q_PROPERTY(QMap<QString, QString> PomodoroLengthErrors READ pomodoroLengthErrors)
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
-    Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundChoices)
+    Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
 
 public:
     static const QString serviceName;
@@ -72,6 +79,9 @@ public:
     static const QString interfaceName;
     // The error of a Configure call whose secret the credential store refused.
     static const QString credentialStoreError;
+    // The settings key of a transition's sound: "Sounds/workToShortRest" and
+    // so on.
+    static QString soundKey(TransitionKind kind);
 
     // The client name the service gives the core: the created_with value of
     // the entries it starts. The caller's transport should send it as its
@@ -93,6 +103,10 @@ public:
     Connection *connection() const;
     TimerController *timer() const;
     PomodoroSession *session() const;
+    SoundChoices *soundChoices() const;
+    // The alarm PreviewSound plays on, which the service does not own.
+    // Without one, PreviewSound is refused.
+    void setAlarm(PomodoroAlarm *alarm);
 
     bool running() const;
     qint64 startTime() const;
@@ -123,11 +137,7 @@ public:
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;
     QMap<QString, QString> sounds() const;
-    QList<QVariantMap> soundChoices() const;
-
-    // The id of the sound chosen for a transition (a RingingTransition
-    // name), or empty for a transition the core does not have.
-    QString soundFor(const QString &transition) const;
+    QList<QVariantMap> soundCatalogue() const;
 
 public Q_SLOTS:
     // The org.tokkl.Timer1 methods, called by the generated adaptor.
@@ -148,20 +158,13 @@ public Q_SLOTS:
     bool SetSound(const QString &transition, const QString &soundId);
     bool PreviewSound(const QString &soundId);
 
-Q_SIGNALS:
-    // For the sound player. The alarm starts ringing with the sound chosen
-    // for the transition, or stops (ringing false, soundId empty). Also
-    // emitted when the sound chosen for the ringing transition changes.
-    void alarmChanged(bool ringing, const QString &soundId);
-    // PreviewSound asked for a sound to be played once.
-    void previewRequested(const QString &soundId);
-
 private:
     void loadSettings();
-    void applySettings(const QString &instanceUrl, const QString &authMode, const QString &email);
+    // Saves the settings and gives them to the connection. False, and
+    // nothing changes, when the settings file cannot be written.
+    bool applySettings(const ConnectionSettings &settings);
     QVariantMap snapshot() const;
     void publishChanges();
-    void updateAlarm();
 
     QSettings *m_settings;
     Clock *m_clock;
@@ -169,14 +172,17 @@ private:
     TimerController *m_timer;
     TimerStateClient *m_client;
     SettingsPomodoroStore *m_pomodoroStore;
+    SoundChoices *m_sounds;
     PomodoroPreferences *m_preferences;
     PomodoroSession *m_session;
     CredentialStore *m_store;
+    QPointer<PomodoroAlarm> m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
+    // Counts Configure calls. A keyring write that answers after a later
+    // call leaves that call's settings in place.
+    quint64 m_configureSerial = 0;
     // The property values the bus last saw.
     QVariantMap m_published;
-    // The alarm as the player last heard it: empty while silent.
-    QString m_alarmSound;
 };
 }

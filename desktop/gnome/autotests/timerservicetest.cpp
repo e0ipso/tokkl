@@ -1,8 +1,8 @@
 // org.tokkl.Timer1 driven over a private D-Bus daemon, as the extension uses
 // it, against the core's scripted transport, credential store and clock.
 
-#include "alarmbackend.h"
-#include "alarmplayer.h"
+#include "alarmoutput.h"
+#include "pomodoroalarm.h"
 #include "apitypes.h"
 #include "connection.h"
 #include "fakes.h"
@@ -27,6 +27,7 @@
 #include <QJsonObject>
 #include <QMap>
 #include <QSet>
+#include <QPointer>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QTemporaryDir>
@@ -307,8 +308,8 @@ public Q_SLOTS:
     }
 };
 
-// Records what the alarm player asks of the audio, one line per call.
-class FakeAlarmBackend : public AlarmBackend
+// Records what the alarm asks of the audio, one line per call.
+class FakeAlarmOutput : public AlarmOutput
 {
 public:
     QStringList calls;
@@ -327,6 +328,50 @@ public:
     {
         calls.append(QStringLiteral("stop"));
     }
+};
+
+// A keyring whose writes wait until the test finishes them, in any order.
+// Reads find nothing.
+class HeldStore : public CredentialStore
+{
+    Q_OBJECT
+
+public:
+    struct Write {
+        QString key;
+        QPointer<QObject> context;
+        Callback done;
+    };
+
+    void read(const QString &, QObject *context, Callback done) override
+    {
+        QPointer<QObject> guard(context);
+        QMetaObject::invokeMethod(
+            context,
+            [guard, done] {
+                if (guard) {
+                    done(CredentialResult{CredentialResult::Status::NotFound, QString()});
+                }
+            },
+            Qt::QueuedConnection);
+    }
+
+    void write(const QString &key, const QString &, QObject *context, Callback done) override
+    {
+        held.append(Write{key, context, done});
+    }
+
+    void finish(qsizetype index)
+    {
+        const Write write = held.at(index);
+        const CredentialResult result{CredentialResult::Status::Ok, QString()};
+        reportWrite(write.key, result);
+        if (write.context) {
+            write.done(result);
+        }
+    }
+
+    QList<Write> held;
 };
 
 // The bundled sounds, from the core's sounds/ directory.
@@ -1044,6 +1089,31 @@ private Q_SLOTS:
         QCOMPARE(f.store.writes, 0);
     }
 
+    // Two Configure calls whose keyring writes end in the other order: the
+    // later call's settings stay, whichever write ends last.
+    void laterConfigureWins()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        FakeTransport transport;
+        HeldStore store;
+        FakeClock clock;
+        const QString file = dir.filePath(QStringLiteral("tokkl-timerd.conf"));
+        TimerService service(&transport, &store, file, &clock);
+        const QString other = QStringLiteral("https://b.example.test");
+        service.Configure(instanceUrl, QStringLiteral("token"), QString(), QStringLiteral("tok-a"));
+        service.Configure(other, QStringLiteral("token"), QString(), QStringLiteral("tok-b"));
+        QCOMPARE(store.held.size(), 2);
+        const QString expected = parseInstanceUrl(other).base.toString();
+
+        store.finish(1);
+        QCOMPARE(service.connection()->instanceUrl(), expected);
+        store.finish(0);
+        QCOMPARE(service.connection()->instanceUrl(), expected);
+        const QSettings settings(file, QSettings::IniFormat);
+        QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
+    }
+
     // A second instance cannot take the name, as tokkl-timerd then exits.
     void secondInstanceRefused()
     {
@@ -1170,7 +1240,8 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QString());
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
-        QSignalSpy alarms(f.service.get(), &TimerService::alarmChanged);
+        FakeAlarmOutput output;
+        PomodoroAlarm alarm(f.service->session(), &output, f.service->soundChoices(), bundledSoundsDir());
 
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
@@ -1228,7 +1299,7 @@ private Q_SLOTS:
         QVERIFY(f.serve());
         QVERIFY(f.ping());
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Ringing")).isEmpty());
-        QCOMPARE(alarms.size(), 0);
+        QVERIFY(output.calls.isEmpty());
         f.advance(1);
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QStringLiteral("workToShortRest"));
@@ -1236,8 +1307,7 @@ private Q_SLOTS:
             return f.recorder.valuesOf(QStringLiteral("Ringing")).contains(true);
         }));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("RingingTransition")).contains(QStringLiteral("workToShortRest")));
-        QCOMPARE(alarms.size(), 1);
-        QCOMPARE(alarms.last(), (QVariantList{true, QStringLiteral("long-rest-to-work")}));
+        QCOMPARE(output.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("long-rest-to-work"))});
 
         // Next phase asks the server, which starts the rest; the alarm
         // rings on until the state shows it.
@@ -1245,15 +1315,15 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(f.find("POST", "/pomodoro/next").first()).body).object(), revisionBody(shown));
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
-        QCOMPARE(alarms.size(), 1);
+        QCOMPARE(output.calls.size(), 1);
         const QDateTime rest = f.clock.now();
         QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(shortRest(rest, at), 41))));
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("work"));
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("RingingTransition")).toString(), QString());
-        QCOMPARE(alarms.size(), 2);
-        QCOMPARE(alarms.last(), (QVariantList{false, QString()}));
+        QCOMPARE(output.calls.size(), 2);
+        QCOMPARE(output.calls.last(), QStringLiteral("stop"));
 
         // Rest to work: the server saves the pomodoro, the service sends no entry.
         f.advance(61);
@@ -1504,10 +1574,11 @@ private Q_SLOTS:
         QCOMPARE(reply.errorName(), invalidArgs);
 
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
-        QSignalSpy previews(f.service.get(), &TimerService::previewRequested);
+        FakeAlarmOutput output;
+        PomodoroAlarm alarm(f.service->session(), &output, f.service->soundChoices(), bundledSoundsDir());
+        f.service->setAlarm(&alarm);
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
-        QCOMPARE(previews.size(), 1);
-        QCOMPARE(previews.first(), (QVariantList{QStringLiteral("short-rest-to-work")}));
+        QCOMPARE(output.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
 
         {
             const QSettings settings(f.settingsFile(), QSettings::IniFormat);
@@ -1517,10 +1588,10 @@ private Q_SLOTS:
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
     }
 
-    // The alarm player loops the file of the sound chosen for the ringing
+    // The alarm loops the file of the sound chosen for the ringing
     // transition, follows a change of choice while ringing, stops on Next
-    // phase and on End session, and plays a preview once; with it listening,
-    // PreviewSound is accepted. A player made while the alarm rings starts
+    // phase and on End session, and plays a preview once; once the service
+    // has it, PreviewSound is accepted. An alarm made while one rings starts
     // at once.
     void alarmPlayerDrivesTheBackend()
     {
@@ -1529,8 +1600,9 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
-        FakeAlarmBackend backend;
-        AlarmPlayer player(f.service.get(), &backend, bundledSoundsDir());
+        FakeAlarmOutput backend;
+        PomodoroAlarm player(f.service->session(), &backend, f.service->soundChoices(), bundledSoundsDir());
+        f.service->setAlarm(&player);
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
         QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
         backend.calls.clear();
@@ -1554,8 +1626,8 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("longRestToWork"), QStringLiteral("work-to-short-rest")}).toBool(), true);
         QVERIFY(backend.calls.isEmpty());
         // A second player hears the alarm that already rings.
-        FakeAlarmBackend late;
-        AlarmPlayer latePlayer(f.service.get(), &late, bundledSoundsDir());
+        FakeAlarmOutput late;
+        PomodoroAlarm latePlayer(f.service->session(), &late, f.service->soundChoices(), bundledSoundsDir());
         QCOMPARE(late.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest"))});
 
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);

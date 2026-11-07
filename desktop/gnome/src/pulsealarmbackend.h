@@ -12,7 +12,8 @@
 // GStreamer pipeline needs the core plus the base and good plugin sets for
 // a WAV, several packages for what is one buffer of samples.
 //
-// Each stream is a thread that reads the WAV (wavfile.h), opens a playback
+// Each stream is a thread that plays a WAV read once per file (wavfile.h)
+// and kept for the next ring. It opens a playback
 // stream with a short buffer and writes the samples in small pieces, so a
 // stop takes effect within a fraction of a second and the loop has no gap:
 // the same buffer is written again as soon as the last piece is in. The
@@ -23,7 +24,10 @@
 // or a file that cannot be read, is reported through errorOccurred and
 // leaves the service running without sound.
 
-#include "alarmbackend.h"
+#include "alarmoutput.h"
+#include "wavfile.h"
+
+#include <QHash>
 
 #include <QObject>
 #include <QString>
@@ -32,7 +36,7 @@ namespace Tokkl
 {
 class PulseStream;
 
-class PulseAlarmBackend : public QObject, public AlarmBackend
+class PulseAlarmBackend : public QObject, public AlarmOutput
 {
     Q_OBJECT
 
@@ -55,6 +59,8 @@ private:
 
     PulseStream *m_alarm;
     PulseStream *m_preview;
+    // The files read so far, by path. There are four.
+    QHash<QString, WavData> m_sounds;
 };
 
 }

@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QJsonValue>
+#include <QObject>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -85,6 +86,7 @@ struct Me {
     int timeResolutionMinutes = 1;
 
     QVariantMap toVariantMap() const;
+    bool operator==(const Me &other) const = default;
 };
 
 struct Project {
@@ -98,6 +100,16 @@ struct Project {
     bool billable = false;
 
     QVariantMap toVariantMap() const;
+    bool operator==(const Project &other) const = default;
+};
+
+// The active projects of a workspace as GET /workspaces/{wid}/projects
+// pages them.
+struct ProjectList {
+    QList<Project> projects;
+    // The workspace has more than the pages read could hold, so projects is
+    // a prefix of them.
+    bool incomplete = false;
 };
 
 struct TimeEntry {
@@ -118,6 +130,7 @@ struct TimeEntry {
     }
 
     QVariantMap toVariantMap() const;
+    bool operator==(const TimeEntry &other) const = default;
 };
 
 // An entry of GET /me/time_entries?meta=true with the project flags the meta
@@ -271,6 +284,13 @@ struct ApiError {
     {
         return kind == Kind::Network || kind == Kind::Timeout || kind == Kind::Server;
     }
+
+    // The request failed without saying whether the server acted on it: a
+    // transient failure, or an answer Tokkl could not read.
+    bool outcomeUnknown() const
+    {
+        return isTransient() || kind == Kind::InvalidResponse;
+    }
 };
 
 template<typename T>
@@ -296,12 +316,16 @@ struct ApiResult {
 
 // How a timer action ended.
 struct TimerActionResult {
+    Q_GADGET
+
+public:
     enum class Outcome {
         Applied, // the server made the change; state is the result
         Conflict, // a 409: the server refused it, and state is its current state
         Refused, // nothing changed: refused before sending, or an answer without a state
         Unknown, // no answer, a timeout, a 5xx or an unreadable answer; it may have happened
     };
+    Q_ENUM(Outcome)
 
     Outcome outcome = Outcome::Unknown;
     std::optional<TimerState> state; // for Applied and Conflict
@@ -334,6 +358,11 @@ std::optional<QJsonValue> parseJsonBody(const QByteArray &body);
 // The error a non-2xx or failed response stands for. The API sends errors as
 // a bare JSON string.
 ApiError errorFromResponse(const HttpResponse &response);
+
+// The account in an answer to GET /api/v9/me, or why there is none. A 2xx
+// answer that is not an account is InvalidResponse, with a message that
+// points at the instance URL.
+ApiResult<Me> meFromResponse(const HttpResponse &response);
 
 // createdWith names the client that starts the entry.
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
