@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
+import { createAccountOperations } from '../fixtures/accountBodies.ts';
 import * as catalog from '../fixtures/catalogBodies.ts';
 import * as entries from '../fixtures/entryBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';

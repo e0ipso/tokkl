@@ -9,7 +9,7 @@ import { createApp } from '../../src/app.ts';
 import type { Config } from '../../src/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
+import { createAccountOperations } from './accountBodies.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'tokkl-test-'));
 const databasePath = join(dir, 'tokkl.db');

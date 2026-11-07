@@ -1,5 +1,5 @@
 import { generateApiToken } from '../../src/lib/crypto.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
+import { createAccountOperations } from './accountBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { settleTimer as settle } from '../../src/domain/timerSettlement.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';

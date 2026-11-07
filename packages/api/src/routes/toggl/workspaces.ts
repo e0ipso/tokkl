@@ -4,6 +4,8 @@ import { jsonRead, readJson } from '../../http/context.ts';
 import { createRouter } from '../../http/router.ts';
 import { parseId } from '../../lib/values.ts';
 import { serializeWorkspace, serializeWorkspaceMember } from '../../presenters/toggl.ts';
+import { parseWorkspaceChanges } from '../../commands/accounts.ts';
+import { authorizedWorkspace } from './shared.ts';
 
 /** A workspace's settings and its members. */
 export function workspaceRoutes(deps: Deps): Router {
@@ -17,9 +19,10 @@ export function workspaceRoutes(deps: Deps): Router {
   );
   api.put('/workspaces/:wid', async (req, res) => {
     const userId = res.locals.auth.user.id;
-    const workspace = await deps
-      .accountsFor(res.locals.auth)
-      .updateWorkspace(userId, parseId(req.params.wid), readJson(req));
+    // Membership is checked before the body is read, as on every workspace write.
+    const { id } = await authorizedWorkspace(deps, req, res);
+    const changes = parseWorkspaceChanges(readJson(req));
+    const workspace = await deps.accountsFor(res.locals.auth).updateWorkspace(userId, id, changes);
     const role = await deps.readFor(res.locals.auth, queries => queries.workspaceRole(userId, workspace.id));
     res.json(serializeWorkspace(workspace, role));
   });

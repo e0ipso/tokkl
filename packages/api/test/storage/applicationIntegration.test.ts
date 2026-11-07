@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createAccountOperations } from '../../src/domain/accounts.ts';
+import { createAccountOperations } from '../fixtures/accountBodies.ts';
 import { createApp } from '../../src/app.ts';
 import { testConfig, testServer, setup, addUser } from '../helpers.ts';
 import { addWorkspaceMember } from '../fixtures/domain.ts';

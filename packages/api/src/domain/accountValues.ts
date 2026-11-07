@@ -3,31 +3,14 @@ import {
   POMODORO_SESSION_CONFIG_RANGES,
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
-import { canonicalTimeZone } from '@tokkl/common/time';
-import { invalidInput } from '../lib/errors.ts';
-import { optionalString, optionalId } from '../lib/values.ts';
 import type { JsonObject, User } from '../storage/domain.ts';
-import type { AccountChanges } from '../storage/contracts.ts';
 /** Shortest password accepted when one is set. */
 export const MIN_PASSWORD_LENGTH = 8;
 /** Longest password accepted when one is set. Existing longer passwords still verify. */
 export const MAX_PASSWORD_LENGTH = 1024;
 
-/**
- * The rules for a password being set: first-admin setup, invite acceptance, password change and
- * password reset. Anything else, a missing value included, is a 400.
- */
-export function readNewPassword(value: unknown): string {
-  const password = typeof value === 'string' ? value : '';
-  if (password.length < MIN_PASSWORD_LENGTH)
-    throw invalidInput(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
-  if (password.length > MAX_PASSWORD_LENGTH)
-    throw invalidInput(`Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
-  return password;
-}
-
 /** One `@` with something on each side and no whitespace: a check for typos, not deliverability. */
-const isEmailAddress = (value: string) => /^[^@\s]+@[^@\s]+$/.test(value);
+export const isEmailAddress = (value: string) => /^[^@\s]+@[^@\s]+$/.test(value);
 
 /**
  * The account key of an email: trimmed, with only ASCII A-Z lowercased. users.email_key folds the
@@ -134,11 +117,9 @@ const PREFERENCE_RULES: Record<string, PreferenceRule> = {
 
 const isUsable = (key: string, value: unknown) => PREFERENCE_RULES[key]?.valid(value) ?? true;
 
-/** Throws 400 for a known preference with a value the app cannot use. */
-export function validatePreferenceChanges(changes: Record<string, unknown>): void {
-  for (const [key, value] of Object.entries(changes)) {
-    if (!isUsable(key, value)) throw invalidInput(`Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`);
-  }
+/** Why a preference value is unusable, as the 400 message, or undefined when the app can use it. */
+export function preferenceProblem(key: string, value: unknown): string | undefined {
+  return isUsable(key, value) ? undefined : `Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`;
 }
 
 export function getPreferences(user: User): Preferences {
@@ -154,50 +135,5 @@ export function getPomodoroSessionConfig(user: User): PomodoroSessionConfig {
     shortRestMinutes: preferences.pomodoro_break_interval_in_minutes as number,
     longRestMinutes: preferences.pomodoro_long_break_interval_in_minutes as number,
     longRestEvery: preferences.pomodoro_long_break_every as number,
-  };
-}
-
-export interface NewAccountInput {
-  email: string;
-  fullname: string;
-  timezone: string;
-  password: string;
-}
-export function readNewAccount(body: Record<string, unknown>): NewAccountInput {
-  const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, 255) : '';
-  if (!isEmailAddress(email)) throw invalidInput('Enter a valid email address');
-  const timezone =
-    body.timezone === undefined || body.timezone === ''
-      ? 'UTC'
-      : typeof body.timezone === 'string'
-        ? canonicalTimeZone(body.timezone)
-        : null;
-  if (!timezone) throw invalidInput('Invalid timezone');
-  return { email, fullname, timezone, password: readNewPassword(body.password) };
-}
-export function readProfileChanges(body: Record<string, unknown>): AccountChanges {
-  const email = optionalString(body.email, 'email', 255)?.trim();
-  if (email !== undefined && !isEmailAddress(email)) throw invalidInput('Invalid email');
-  const fullName = optionalString(body.fullname, 'fullname', 255);
-  const requestedZone = optionalString(body.timezone, 'timezone', 64);
-  const timezone = requestedZone === undefined ? undefined : canonicalTimeZone(requestedZone);
-  if (timezone === null) throw invalidInput('Invalid timezone');
-  const beginningOfWeek = body.beginning_of_week;
-  if (
-    beginningOfWeek !== undefined &&
-    (!Number.isInteger(beginningOfWeek) ||
-      typeof beginningOfWeek !== 'number' ||
-      beginningOfWeek < 0 ||
-      beginningOfWeek > 6)
-  )
-    throw invalidInput('Invalid beginning_of_week');
-  const defaultWorkspaceId = optionalId(body.default_workspace_id, 'default_workspace_id');
-  return {
-    email,
-    fullName,
-    timezone,
-    beginningOfWeek: beginningOfWeek as number | undefined,
-    defaultWorkspaceId: defaultWorkspaceId ?? undefined,
   };
 }

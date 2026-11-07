@@ -28,7 +28,7 @@ const { initializeDatabase } = await import('../../src/storage/migrations.ts');
 const { openConnection } = await import('../../src/storage/connections.ts');
 const { createTransactionRunner } = await import('../../src/storage/transactions.ts');
 const { createAccountRepositories } = await import('../../src/storage/repositories/accounts.ts');
-const { createAccountOperations } = await import('../../src/domain/accounts.ts');
+const { createAccountOperations, createDomainAccountOperations } = await import('../fixtures/accountBodies.ts');
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
 const { createStorageAuth, passwordAttempt } = await import('../../src/auth/storageMiddleware.ts');
@@ -84,7 +84,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const blocked = async (limiter: Limiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
       const fail = (keys: Keys) => loginLimiter.attempt(keys, async () => false);
       const setup = { code: 'setup-code' as string | null };
-      const sessions = createStorageSessions(runner, operations, {
+      const sessions = createStorageSessions(runner, createDomainAccountOperations(runner, security), {
         loginLimiter,
         setupLimiter,
         sessionDays: 30,
