@@ -1,4 +1,4 @@
-import type { WorkspacesRepository } from '../storage/contracts.ts';
+import type { WorkspacesReader } from '../storage/contracts.ts';
 import type { Id, Workspace } from '../storage/domain.ts';
 import { forbidden } from '../lib/errors.ts';
 
@@ -9,7 +9,7 @@ export const noWorkspaceAccess = () => forbidden(NO_WORKSPACE_ACCESS);
 
 /** The workspace when `userId` is a member of it; 403 otherwise. A stored default is no exception. */
 export async function memberWorkspace(
-  ctx: { workspaces: WorkspacesRepository },
+  ctx: { workspaces: Pick<WorkspacesReader, 'forMember'> },
   userId: Id,
   workspaceId: Id,
 ): Promise<Workspace> {

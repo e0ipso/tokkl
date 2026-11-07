@@ -2,7 +2,21 @@
  * Read use cases for the HTTP API. Routes receive these bound to one credential-checked snapshot
  * and never see repositories, so workspace scoping, filtering and ordering live here.
  */
-import type { ClientFilter, EntryFilter, ProjectFilter, Repositories } from '../storage/contracts.ts';
+import type {
+  ClientFilter,
+  ClientsReader,
+  EntriesReader,
+  EntryFilter,
+  ProjectFilter,
+  ProjectsReader,
+  SettingsReader,
+  TagsReader,
+  TasksReader,
+  TokensReader,
+  TransfersRepository,
+  UsersReader,
+  WorkspacesReader,
+} from '../storage/contracts.ts';
 import type {
   AccountExportProjection,
   AccountToken,
@@ -24,7 +38,27 @@ import { getInstanceSettings } from './instanceSettings.ts';
 import { getClient, getProject, getTask } from './catalogs.ts';
 import { getTimeEntry } from './entryAccess.ts';
 
-export type ReadRepositories = Omit<Repositories, 'rateLimits'>;
+/** Reads about accounts, the instance and workspace membership. No repository here can write. */
+export interface AccountReadRepositories {
+  users: Pick<UsersReader, 'list'>;
+  workspaces: Pick<WorkspacesReader, 'forMember' | 'listForUser' | 'getRole' | 'countMembers' | 'listMembers'>;
+  settings: SettingsReader;
+  tokens: Pick<TokensReader, 'listPendingInvites'>;
+  transfers: TransfersRepository;
+}
+/** Reads of the clients, projects, tasks and tags in the workspaces a user belongs to. */
+export interface CatalogReadRepositories {
+  workspaces: Pick<WorkspacesReader, 'listForUser'>;
+  clients: Pick<ClientsReader, 'list' | 'get'>;
+  projects: Pick<ProjectsReader, 'list' | 'get'>;
+  tasks: Pick<TasksReader, 'list' | 'get'>;
+  tags: Pick<TagsReader, 'list'>;
+}
+/** Reads of one user's time entries. */
+export interface EntryReadRepositories {
+  entries: Pick<EntriesReader, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted'>;
+}
+export type ReadQueryRepositories = AccountReadRepositories & CatalogReadRepositories & EntryReadRepositories;
 
 /** A workspace with the caller's membership role in it. */
 export interface MemberWorkspace {
@@ -77,19 +111,20 @@ function compareTasks(field: TaskSortField, order: SortOrder) {
       : a.createdAt.localeCompare(b.createdAt)) || a.id - b.id);
 }
 
-export function createReadQueries(r: ReadRepositories, deploymentSessionDays: number) {
-  const memberWorkspaces = (userId: Id) => r.workspaces.listForUser(userId);
-  /** Rows from every workspace the user belongs to, in workspace order. */
-  async function acrossWorkspaces<T>(userId: Id, read: (ws: Workspace) => Promise<T[]>): Promise<T[]> {
-    return (await Promise.all((await memberWorkspaces(userId)).map(read))).flat();
-  }
+/** Rows from every workspace the user belongs to, in workspace order. */
+async function acrossWorkspaces<T>(
+  r: Pick<CatalogReadRepositories, 'workspaces'>,
+  userId: Id,
+  read: (ws: Workspace) => Promise<T[]>,
+): Promise<T[]> {
+  return (await Promise.all((await r.workspaces.listForUser(userId)).map(read))).flat();
+}
+
+export function createAccountQueries(r: AccountReadRepositories, deploymentSessionDays: number) {
   const withRole = async (userId: Id, workspace: Workspace): Promise<MemberWorkspace> => ({
     workspace,
     role: await r.workspaces.getRole(userId, workspace.id),
   });
-  const projectsOf = async (ws: Workspace, filter?: ProjectFilter): Promise<WorkspaceProject[]> =>
-    (await r.projects.list(ws.id, filter)).map(project => ({ project, defaultCurrency: ws.defaultCurrency }));
-
   return {
     instanceSettings: (): Promise<InstanceSettings> => getInstanceSettings(r, deploymentSessionDays),
     /** 403 unless the user is a member; a missing workspace looks the same. */
@@ -98,12 +133,12 @@ export function createReadQueries(r: ReadRepositories, deploymentSessionDays: nu
       return withRole(userId, await memberWorkspace(r, userId, workspaceId));
     },
     async memberWorkspaces(userId: Id, changedSince?: string): Promise<MemberWorkspace[]> {
-      const workspaces = changedAfter(await memberWorkspaces(userId), changedSince);
+      const workspaces = changedAfter(await r.workspaces.listForUser(userId), changedSince);
       return Promise.all(workspaces.map(ws => withRole(userId, ws)));
     },
     async organizations(userId: Id): Promise<Organization[]> {
       return Promise.all(
-        (await memberWorkspaces(userId)).map(async workspace => ({
+        (await r.workspaces.listForUser(userId)).map(async workspace => ({
           workspace,
           owner: (await r.workspaces.getRole(userId, workspace.id)) === 'owner',
           memberCount: await r.workspaces.countMembers(workspace.id),
@@ -114,34 +149,32 @@ export function createReadQueries(r: ReadRepositories, deploymentSessionDays: nu
       r.workspaces.getRole(userId, workspaceId),
     workspaceMembers: async (userId: Id, workspaceId: Id): Promise<WorkspaceMember[]> =>
       r.workspaces.listMembers((await memberWorkspace(r, userId, workspaceId)).id),
-    async relatedData(user: User): Promise<RelatedData> {
-      const workspaces = await memberWorkspaces(user.id);
-      const each = async <T>(read: (ws: Workspace) => Promise<T[]>) => (await Promise.all(workspaces.map(read))).flat();
-      return {
-        workspaces: await Promise.all(workspaces.map(ws => withRole(user.id, ws))),
-        clients: await each(ws => r.clients.list(ws.id)),
-        projects: await each(ws => projectsOf(ws)),
-        tags: await each(ws => r.tags.list(ws.id)),
-        tasks: await each(ws => r.tasks.list(ws.id)),
-        timeEntries: await r.entries.list(user.id, { from: recentEntriesStart() }),
-      };
-    },
+    accountExport: (userId: Id): Promise<AccountExportProjection> => r.transfers.exportAccount(userId),
+    accounts: (): Promise<User[]> => r.users.list(),
+    pendingInvites: (): Promise<AccountToken[]> => r.tokens.listPendingInvites(new Date().toISOString()),
+  };
+}
+
+export function createCatalogQueries(r: CatalogReadRepositories) {
+  const projectsOf = async (ws: Workspace, filter?: ProjectFilter): Promise<WorkspaceProject[]> =>
+    (await r.projects.list(ws.id, filter)).map(project => ({ project, defaultCurrency: ws.defaultCurrency }));
+  return {
     memberProjects: (userId: Id, filter: { includeArchived: boolean; changedSince?: string }) =>
-      acrossWorkspaces(userId, ws =>
+      acrossWorkspaces(r, userId, ws =>
         projectsOf(ws, { active: filter.includeArchived ? 'both' : true, changedSince: filter.changedSince }),
       ),
     memberClients: (userId: Id, changedSince?: string) =>
-      acrossWorkspaces(userId, async ws => changedAfter(await r.clients.list(ws.id), changedSince)),
+      acrossWorkspaces(r, userId, async ws => changedAfter(await r.clients.list(ws.id), changedSince)),
     memberTags: (userId: Id, changedSince?: string) =>
-      acrossWorkspaces(userId, async ws => changedAfter(await r.tags.list(ws.id), changedSince)),
+      acrossWorkspaces(r, userId, async ws => changedAfter(await r.tags.list(ws.id), changedSince)),
     memberTasks: (userId: Id, filter: { includeInactive: boolean; changedSince?: string }) =>
-      acrossWorkspaces(userId, async ws =>
+      acrossWorkspaces(r, userId, async ws =>
         changedAfter(
           await r.tasks.list(ws.id, { active: filter.includeInactive ? undefined : true }),
           filter.changedSince,
         ),
       ),
-    workspaceProjects: (ws: Workspace, filter: ProjectFilter) => projectsOf(ws, filter),
+    workspaceProjects: (ws: Workspace, filter?: ProjectFilter) => projectsOf(ws, filter),
     workspaceProject: (ws: Workspace, id: Id): Promise<ProjectSummary> => getProject(r, ws.id, id),
     async searchTasks(ws: Workspace, search: TaskSearch): Promise<TaskSummary[]> {
       let tasks = changedAfter(
@@ -157,17 +190,46 @@ export function createReadQueries(r: ReadRepositories, deploymentSessionDays: nu
       return r.tasks.list(ws.id, { projectId, active: onlyActive ? true : undefined });
     },
     projectTask: (ws: Workspace, projectId: Id, id: Id): Promise<TaskSummary> => getTask(r, ws.id, id, projectId),
-    workspaceClients: (ws: Workspace, filter: ClientFilter): Promise<Client[]> => r.clients.list(ws.id, filter),
+    workspaceClients: (ws: Workspace, filter?: ClientFilter): Promise<Client[]> => r.clients.list(ws.id, filter),
     workspaceClient: (ws: Workspace, id: Id): Promise<Client> => getClient(r, ws.id, id),
     workspaceTags: (ws: Workspace, search?: string): Promise<Tag[]> => r.tags.list(ws.id, search),
+    /** Every task in the workspace, active or not. */
+    workspaceTasks: (ws: Workspace): Promise<TaskSummary[]> => r.tasks.list(ws.id),
+  };
+}
+
+export function createEntryQueries(r: EntryReadRepositories) {
+  return {
     timeEntries: (userId: Id, filter: EntryFilter): Promise<EntryDetails[]> => r.entries.list(userId, filter),
     runningEntry: (userId: Id): Promise<EntryDetails | undefined> => r.entries.running(userId),
     timeEntry: (userId: Id, id: Id): Promise<EntryDetails> => getTimeEntry(r, userId, id),
     entryBounds: (userId: Id): Promise<EntryBounds> => r.entries.bounds(userId),
     trash: (userId: Id): Promise<EntryDetails[]> => r.entries.listDeleted(userId),
-    accountExport: (userId: Id): Promise<AccountExportProjection> => r.transfers.exportAccount(userId),
-    accounts: (): Promise<User[]> => r.users.list(),
-    pendingInvites: (): Promise<AccountToken[]> => r.tokens.listPendingInvites(new Date().toISOString()),
+  };
+}
+
+/** The account, catalog and entry queries over one snapshot, plus `relatedData`, which spans all three. */
+export function createReadQueries(r: ReadQueryRepositories, deploymentSessionDays: number) {
+  const accounts = createAccountQueries(r, deploymentSessionDays),
+    catalogs = createCatalogQueries(r),
+    entries = createEntryQueries(r);
+  return {
+    ...accounts,
+    ...catalogs,
+    ...entries,
+    async relatedData(user: User): Promise<RelatedData> {
+      const memberships = await accounts.memberWorkspaces(user.id);
+      const workspaces = memberships.map(({ workspace }) => workspace);
+      const each = async <T>(read: (ws: Workspace) => Promise<T[]>) => (await Promise.all(workspaces.map(read))).flat();
+      return {
+        workspaces: memberships,
+        clients: await each(ws => catalogs.workspaceClients(ws)),
+        projects: await each(ws => catalogs.workspaceProjects(ws)),
+        tags: await each(ws => catalogs.workspaceTags(ws)),
+        tasks: await each(ws => catalogs.workspaceTasks(ws)),
+        timeEntries: await entries.timeEntries(user.id, { from: recentEntriesStart() }),
+      };
+    },
   };
 }
 export type ReadQueries = ReturnType<typeof createReadQueries>;

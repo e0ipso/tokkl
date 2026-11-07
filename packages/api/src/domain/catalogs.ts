@@ -3,7 +3,15 @@
  * unique, and settle the timers whose running entry shows the changed record.
  */
 import { PROJECT_COLORS } from '@tokkl/common/colors';
-import type { OperationContext, Repositories, ProjectInput } from '../storage/contracts.ts';
+import type {
+  ClientsReader,
+  OperationContext,
+  ProjectInput,
+  ProjectsReader,
+  Repositories,
+  TagsReader,
+  TasksReader,
+} from '../storage/contracts.ts';
 import type { Client, Id, ProjectSummary, TaskSummary, Tag } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
@@ -57,22 +65,31 @@ function unique(existing: { id: number } | undefined, except?: Id, tag = false):
   if (existing && existing.id !== except)
     throw invalidInput(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
 }
-export async function getClient(ctx: CatalogRepositories, wid: Id, id: Id): Promise<Client> {
+export async function getClient(ctx: { clients: Pick<ClientsReader, 'get'> }, wid: Id, id: Id): Promise<Client> {
   const value = await ctx.clients.get(wid, id);
   if (!value) throw notFound(`No client with ID ${id} was found`);
   return value;
 }
-export async function getProject(ctx: CatalogRepositories, wid: Id, id: Id): Promise<ProjectSummary> {
+export async function getProject(
+  ctx: { projects: Pick<ProjectsReader, 'get'> },
+  wid: Id,
+  id: Id,
+): Promise<ProjectSummary> {
   const value = await ctx.projects.get(wid, id);
   if (!value) throw notFound('Project not found');
   return value;
 }
-export async function getTask(ctx: CatalogRepositories, wid: Id, id: Id, pid?: Id): Promise<TaskSummary> {
+export async function getTask(
+  ctx: { tasks: Pick<TasksReader, 'get'> },
+  wid: Id,
+  id: Id,
+  pid?: Id,
+): Promise<TaskSummary> {
   const value = await ctx.tasks.get(wid, id, pid);
   if (!value) throw notFound('Task not found');
   return value;
 }
-async function getTag(ctx: CatalogRepositories, wid: Id, id: Id): Promise<Tag> {
+async function getTag(ctx: { tags: Pick<TagsReader, 'get'> }, wid: Id, id: Id): Promise<Tag> {
   const value = await ctx.tags.get(wid, id);
   if (!value) throw notFound('Tag not found');
   return value;
