@@ -1,9 +1,9 @@
 #include "alarmplayer.h"
 
 #include "apitypes.h"
+#include "logging.h"
 #include "pomodorosounds.h"
 
-#include <QFileInfo>
 #include <QStandardPaths>
 
 #include <utility>
@@ -164,7 +164,7 @@ void AlarmPlayer::update()
     m_alarm->setLoopCount(QSoundEffect::Infinite);
     connect(m_alarm, &QSoundEffect::statusChanged, this, [this, alarm = m_alarm] {
         if (alarm == m_alarm && alarm->status() == QSoundEffect::Error) {
-            qWarning("Tokkl: the alarm sound %s cannot play", qPrintable(alarm->source().toString()));
+            qCWarning(lcAlarm) << "The alarm sound cannot play:" << alarm->source().toString();
             setPlaying(false);
         }
     });
@@ -180,27 +180,19 @@ QString AlarmPlayer::chosenSound() const
     if (!kind) {
         return QString();
     }
-    const QString chosen = m_sounds.value(m_transition).toString();
-    return isSoundId(chosen) ? chosen : defaultSound(*kind);
+    return Tokkl::chosenSound(m_sounds.value(m_transition).toString(), *kind);
 }
 
 QUrl AlarmPlayer::locate(const QString &soundId) const
 {
-    const std::optional<PomodoroSound> sound = pomodoroSound(soundId);
-    if (!sound) {
-        return QUrl();
-    }
     QString path;
-    if (m_directory.isEmpty()) {
+    if (!m_directory.isEmpty()) {
+        path = soundFile(m_directory, soundId);
+    } else if (const std::optional<PomodoroSound> sound = pomodoroSound(soundId)) {
         path = QStandardPaths::locate(QStandardPaths::GenericDataLocation,
                                       QStringLiteral("plasma/plasmoids/") + QStringLiteral(TOKKL_PLASMOID_ID) + QStringLiteral("/contents/sounds/") + sound->fileName);
-    } else {
-        path = m_directory + QLatin1Char('/') + sound->fileName;
     }
-    if (path.isEmpty() || !QFileInfo::exists(path)) {
-        return QUrl();
-    }
-    return QUrl::fromLocalFile(path);
+    return path.isEmpty() ? QUrl() : QUrl::fromLocalFile(path);
 }
 
 void AlarmPlayer::setSource(const QUrl &url)
