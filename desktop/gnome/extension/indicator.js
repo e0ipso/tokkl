@@ -217,7 +217,7 @@ export const TokklIndicator = GObject.registerClass(
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
                 // Which items show and can be chosen; a service from before
-                // Actions publishes none.
+                // Actions publishes none, and legacyactions.js stands in.
                 actions: this._property('Actions', null),
                 actionError: this._actionError,
             };

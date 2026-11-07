@@ -27,11 +27,17 @@ function actions(overrides = {}) {
 function serviceState(overrides = {}) {
     return {
         status: 'ready',
+        running: false,
+        paused: false,
         projects: [{ id: 7, name: 'Alpha', clientName: 'Acme' }],
         chosenProject: 0,
         chosenProjectName: '',
         billable: false,
         pomodoroMode: false,
+        modeLocked: false,
+        sessionActive: false,
+        canStartSession: false,
+        upcomingPhase: '',
         sessionMessage: '',
         actions: actions(),
         ...overrides,
@@ -108,7 +114,7 @@ test('an active session shows its own items', () => {
     assert.equal(menu.mode.sensitive, false);
 });
 
-test('nothing can be chosen without a service that publishes Actions', () => {
+test('nothing can be chosen without a service', () => {
     const menu = menuFor({ status: null });
     assert.deepEqual(menu.toggle, { text: 'Start', sensitive: false, visible: true });
     assert.equal(menu.project.sensitive, false);
@@ -120,13 +126,6 @@ test('nothing can be chosen without a service that publishes Actions', () => {
         text: 'Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.',
         visible: true,
     });
-    // A service from before Actions leaves the actions as without one.
-    for (const missing of [null, undefined]) {
-        const old = menuFor({ actions: missing });
-        assert.equal(old.toggle.sensitive, false);
-        assert.equal(old.toggle.visible, true);
-        assert.deepEqual(old.project, { text: 'Project: No project', sensitive: false });
-    }
 });
 
 test('the session message shows while there is one', () => {

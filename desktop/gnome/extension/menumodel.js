@@ -2,6 +2,7 @@
 // GNOME Shell in it: indicator.js reads the properties, calls these and puts
 // the result on screen.
 
+import { legacyActions } from './legacyactions.js';
 import {
     chosenProjectLabel,
     countdown,
@@ -29,27 +30,19 @@ import {
  * @property {number} chosenProject
  * @property {string} chosenProjectName
  * @property {boolean} billable
+ * @property {boolean} running
+ * @property {boolean} paused
  * @property {boolean} pomodoroMode
+ * @property {boolean} modeLocked
+ * @property {boolean} sessionActive
+ * @property {boolean} canStartSession
+ * @property {string} upcomingPhase
  * @property {string} sessionMessage
  * @property {Record<string, ActionState>|null} [actions] the Actions property,
  *     missing or null when the service publishes none
  * @property {string} [actionError] the extension's own word on a method call
  *     that failed, empty or missing when none did
  */
-
-// What the menu offers while no service publishes Actions: Start and the
-// choices show and cannot be chosen, and the session's items are hidden.
-// A tokkl-timerd from before the Actions property leaves the menu this way
-// until it is updated with the extension.
-export const OFFLINE_ACTIONS = Object.freeze({
-    run: { visible: true, enabled: false, label: 'start' },
-    startSession: { visible: false, enabled: false, label: 'startSession' },
-    nextPhase: { visible: false, enabled: false, label: '' },
-    endSession: { visible: false, enabled: false, label: 'endSession' },
-    project: { visible: true, enabled: false, label: 'project' },
-    billable: { visible: true, enabled: false, label: 'billable' },
-    mode: { visible: true, enabled: false, label: 'pomodoroMode' },
-});
 
 /**
  * Each menu item's text, whether it shows and whether it can be chosen.
@@ -59,14 +52,16 @@ export const OFFLINE_ACTIONS = Object.freeze({
  * menus follow, with GNOME's policy (writes wait for Status "ready", and a
  * session leaves Project and Billable to the timer). This turns each
  * action's label into words. Start, or Stop while an entry runs or a chain
- * is paused, never pauses: Stop ends the chain.
+ * is paused, never pauses: Stop ends the chain. Without Actions, from no
+ * service or one older than the property, legacyActions() gives the rules
+ * that service's extension had.
  *
  * @param {ServiceState} state
  * @param {{detail: string}} words describeStatus() of the state
  * @param {(text: string) => string} _ gettext
  */
 export function describeMenu(state, words, _) {
-    const actions = { ...OFFLINE_ACTIONS, ...(state.status !== null ? (state.actions ?? {}) : {}) };
+    const actions = state.status !== null && state.actions ? state.actions : legacyActions(state);
     const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
     // Translators: %s is the project's name, or No project.
     let projectText = fill(_('Project: %s'), chosen);
