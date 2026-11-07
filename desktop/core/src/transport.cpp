@@ -72,6 +72,12 @@ private:
             response.outcome = HttpResponse::Outcome::Aborted;
         } else if (m_timedOut) {
             response.outcome = HttpResponse::Outcome::Timeout;
+        } else if (status.isValid() && status.toInt() >= 200 && status.toInt() < 300 && m_reply->error() != QNetworkReply::NoError) {
+            // A success whose body broke off: what arrived may be a prefix
+            // that still decodes. An error status keeps its HTTP meaning,
+            // as Qt reports those as errors too.
+            response.outcome = HttpResponse::Outcome::NetworkError;
+            response.errorString = m_reply->errorString();
         } else if (status.isValid() && status.toInt() > 0) {
             response.outcome = HttpResponse::Outcome::Finished;
             response.status = status.toInt();

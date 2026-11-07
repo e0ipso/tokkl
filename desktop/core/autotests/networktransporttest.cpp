@@ -229,6 +229,50 @@ private Q_SLOTS:
         QCOMPARE(response.retryAfter, QByteArray("120"));
     }
 
+    // A 2xx whose body breaks off is a network failure, even when the part
+    // that arrived would decode. An error status stays an HTTP answer.
+    void truncatedBody_data()
+    {
+        QTest::addColumn<QByteArray>("statusLine");
+        QTest::addColumn<bool>("finished");
+        QTest::newRow("200") << QByteArray("200 OK") << false;
+        QTest::newRow("201") << QByteArray("201 Created") << false;
+        QTest::newRow("404") << QByteArray("404 Not Found") << true;
+        QTest::newRow("500") << QByteArray("500 Internal Server Error") << true;
+    }
+
+    void truncatedBody()
+    {
+        QFETCH(QByteArray, statusLine);
+        QFETCH(bool, finished);
+        LoopbackServer server;
+        // Promises 100 bytes, sends a complete JSON value, then closes.
+        server.response = "HTTP/1.1 " + statusLine + "\r\nContent-Type: application/json\r\nContent-Length: 100\r\nConnection: close\r\n\r\n{\"id\":5}";
+        NetworkTransport transport(clientName);
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic c2VjcmV0", {}});
+        if (finished) {
+            QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
+            QCOMPARE(response.status, QByteArray(statusLine).left(3).toInt());
+        } else {
+            QVERIFY(response.outcome == HttpResponse::Outcome::NetworkError);
+            QCOMPARE(response.status, 0);
+            QVERIFY(response.body.isEmpty());
+            QVERIFY(!response.errorString.isEmpty());
+            QVERIFY(!response.errorString.contains(QLatin1String("c2VjcmV0")));
+        }
+    }
+
+    // A complete 2xx body is a success.
+    void completeBody()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("200 OK", "", "{\"id\":5}");
+        NetworkTransport transport(clientName);
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
+        QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
+        QCOMPARE(response.body, QByteArray("{\"id\":5}"));
+    }
+
     void timeout()
     {
         LoopbackServer server; // reads the request, never answers
