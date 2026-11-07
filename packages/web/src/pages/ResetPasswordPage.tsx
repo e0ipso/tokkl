@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { authRequests } from '../api/auth.ts';
 import { isApiError } from '../api/client.ts';
 import { Brand } from '../components/Brand.tsx';
-import { FieldError, useFieldErrors } from '../components/FieldError.tsx';
-import { Icon } from '../components/Icon.tsx';
+import { useFieldErrors } from '../components/FieldError.tsx';
+import { FormError, errorMessage } from '../components/FormError.tsx';
 import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 
 /**
@@ -30,7 +30,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
       // The link was checked on load, so a 400 is the server's password rules; anything else, such
       // as a spent link or too many attempts, is about the page.
       if (isApiError(err, 400)) fields.validate([['password', err.message]]);
-      else setError(err instanceof Error ? err.message : String(err));
+      else setError(errorMessage(err));
       setBusy(false);
     }
   };
@@ -87,12 +87,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
           />
           {fields.message('password')}
         </div>
-        {error ? (
-          <div className="auth-error">
-            <Icon name="alert" className="error-icon" />
-            <FieldError message={error} />
-          </div>
-        ) : null}
+        <FormError message={error} />
         <button type="submit" className="button button-primary button-block" disabled={busy}>
           Set password
         </button>

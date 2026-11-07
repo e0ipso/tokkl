@@ -7,7 +7,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { Popover } from '../../components/Overlay.tsx';
 import { ProjectDot } from '../../components/Pickers.tsx';
 import { SearchBox, Segmented } from '../manage/ui.tsx';
-import type { BillableFilter, IdFilter, ReportPatch, ReportState } from './urlState.ts';
+import { BILLABLE_FILTERS, isOneOf, type IdFilter, type ReportPatch, type ReportState } from './urlState.ts';
 
 interface Option {
   readonly id: number | null;
@@ -210,7 +210,10 @@ export function Filters({ state, update }: { state: ReportState; update: (patch:
         className={`filter-select${state.billable !== 'all' ? ' active' : ''}`}
         aria-label="Billable"
         value={state.billable}
-        onChange={event => update({ billable: event.target.value as BillableFilter })}
+        onChange={event => {
+          const value = event.target.value;
+          if (isOneOf(value, BILLABLE_FILTERS)) update({ billable: value });
+        }}
       >
         <option value="all">Billable and non-billable</option>
         <option value="billable">Billable only</option>

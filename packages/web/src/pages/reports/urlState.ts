@@ -46,9 +46,17 @@ export type ReportPatch = Partial<Omit<ReportState, 'range' | 'preset'>> & {
 
 const DEFAULT_PRESET: Preset = 'this_week';
 
-function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
-  return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+/** Whether `value` is one of `allowed`. */
+export function isOneOf<T extends string>(value: string | null, allowed: readonly T[]): value is T {
+  return allowed.some(option => option === value);
 }
+
+function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+  return isOneOf(value, allowed) ? value : fallback;
+}
+
+export const SUB_GROUPINGS: readonly SubGrouping[] = [...GROUPINGS, 'none'];
+export const BILLABLE_FILTERS: readonly BillableFilter[] = ['all', 'billable', 'nonbillable'];
 
 /** A leading "not." in an id list marks the filter as negated, e.g. "not.none.4", or just "not.". */
 function isNegated(value: string | null): boolean {
@@ -89,7 +97,7 @@ export function parseState(
     range = presetRange(preset, todayKey, beginningOfWeek, firstDay);
   }
   const grouping = oneOf(params.get('group'), GROUPINGS, 'projects');
-  const sub = oneOf<SubGrouping>(params.get('sub'), [...GROUPINGS, 'none'], 'time_entries');
+  const sub = oneOf(params.get('sub'), SUB_GROUPINGS, 'time_entries');
   const page = Number(params.get('page'));
   return {
     preset,
@@ -103,7 +111,7 @@ export function parseState(
     projectsNot: isNegated(params.get('projects')),
     clientsNot: isNegated(params.get('clients')),
     tagsNot: isNegated(params.get('tags')),
-    billable: oneOf(params.get('billable'), ['all', 'billable', 'nonbillable'] as const, 'all'),
+    billable: oneOf(params.get('billable'), BILLABLE_FILTERS, 'all'),
     description: params.get('q') ?? '',
     sort: oneOf(params.get('sort'), ['date', 'duration', 'description'] as const, 'date'),
     dir: oneOf(params.get('dir'), ['asc', 'desc'] as const, 'desc'),

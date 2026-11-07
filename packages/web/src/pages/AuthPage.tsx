@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { authRequests } from '../api/auth.ts';
 import { Brand } from '../components/Brand.tsx';
-import { FieldError } from '../components/FieldError.tsx';
-import { Icon } from '../components/Icon.tsx';
+import { FormError, errorMessage } from '../components/FormError.tsx';
 import { browserTimeZone } from '../lib/browserTimeZone.ts';
 
 export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
@@ -33,7 +32,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
       }
       await qc.resetQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -90,12 +89,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
             autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
           />
         </label>
-        {error ? (
-          <div className="auth-error">
-            <Icon name="alert" className="error-icon" />
-            <FieldError message={error} />
-          </div>
-        ) : null}
+        <FormError message={error} />
         <button type="submit" className="button button-primary button-block" disabled={busy}>
           {mode === 'setup' ? 'Create admin account' : 'Log in'}
         </button>

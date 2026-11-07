@@ -3,14 +3,13 @@ import { useWid } from '../api/account.ts';
 import { stale } from '../api/keys.ts';
 import { tagRequests, useTags } from '../api/tags.ts';
 import type { Tag } from '../api/types.ts';
-import { EmptyState } from '../components/EmptyState.tsx';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
-import { LoadError, Loading } from '../components/PageState.tsx';
 import { useAction } from '../components/useAction.ts';
 import { includesText } from './manage/values.ts';
 import { focusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, SearchBox } from './manage/ui.tsx';
+import { ManageList } from './manage/ManageList.tsx';
 import './manage/manage.css';
 
 function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
@@ -90,7 +89,8 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
 export function TagsPage() {
   const wid = useWid();
   const fields = useFieldErrors<'name'>();
-  const { data: tags, isLoading, error, refetch } = useTags();
+  const tagsQuery = useTags();
+  const { data: tags } = tagsQuery;
   const [search, setSearch] = useState('');
   const [newName, setNewName] = useState('');
   const [deleting, setDeleting] = useState<Tag | null>(null);
@@ -152,39 +152,27 @@ export function TagsPage() {
         <SearchBox value={search} onChange={setSearch} placeholder="Search tags" />
       </div>
 
-      {error ? <LoadError message={`Could not load tags: ${error.message}`} onRetry={() => void refetch()} /> : null}
-      {isLoading ? <Loading label="Loading tags…" /> : null}
-      {tags && visible.length === 0 ? (
-        tags.length === 0 ? (
-          <EmptyState icon={<Icon name="tag" size={32} />} title="No tags yet">
-            Tags label entries across projects, like "meeting" or "review". Add one above.
-          </EmptyState>
-        ) : (
-          <EmptyState icon={<Icon name="search" size={32} />} title="No tags match your search">
-            Check the spelling, or clear the search.
-          </EmptyState>
-        )
-      ) : null}
-
-      {visible.length > 0 ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Tag</th>
-                <th>
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody ref={tbody}>
-              {visible.map(tag => (
-                <TagRow key={tag.id} tag={tag} onDelete={() => setDeleting(tag)} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      <ManageList
+        query={tagsQuery}
+        visible={visible}
+        noun="tags"
+        empty={{
+          icon: 'tag',
+          title: 'No tags yet',
+          body: <>Tags label entries across projects, like "meeting" or "review". Add one above.</>,
+        }}
+        noMatch={{ title: 'No tags match your search', body: <>Check the spelling, or clear the search.</> }}
+        headers={
+          <>
+            <th>Tag</th>
+          </>
+        }
+        tbodyRef={tbody}
+      >
+        {visible.map(tag => (
+          <TagRow key={tag.id} tag={tag} onDelete={() => setDeleting(tag)} />
+        ))}
+      </ManageList>
       {tags && tags.length > 0 ? (
         <p className="hint manage-footnote">Click a tag to rename it. Renaming updates every entry that uses it.</p>
       ) : null}
