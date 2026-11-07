@@ -1,0 +1,182 @@
+import assert from 'node:assert/strict';
+import { test, type TestContext } from 'node:test';
+import type { AddressInfo } from 'node:net';
+import express from 'express';
+import { openSQLiteDatabase, storageFor } from './fixtures/database.ts';
+import { insertAccount } from './fixtures/domain.ts';
+import type { Authentication } from '../src/domain/credentials.ts';
+import { errorHandler } from '../src/http/errors.ts';
+import { ApplicationError, RequestCancelled } from '../src/lib/errors.ts';
+import { silentLogger } from '../src/lib/logger.ts';
+import { appReportRoutes, reportsV3Routes } from '../src/routes/reports.ts';
+import type { Deps } from '../src/routes/context.ts';
+import { createApplicationServices } from '../src/services/application.ts';
+import { ReportRunner } from '../src/services/reportRunner.ts';
+import type { ReportSource } from '../src/services/reports.ts';
+import type { Storage } from '../src/storage/contracts.ts';
+
+const INLINE = { backend: 'sqlite' as const, filename: ':memory:', busyTimeoutMs: 5000 };
+const WEEKLY = {
+  kind: 'v3-weekly' as const,
+  filter: { startDate: '2026-01-01', endDate: '2026-01-07' },
+  weekStart: '2026-01-01',
+};
+
+/**
+ * A one-place runner whose place is taken by a report that waits until the test ends, so the next
+ * job finds the queue full.
+ */
+function fullRunner(t: TestContext): ReportRunner {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => (release = resolve));
+  const source: ReportSource = {
+    readSnapshot: async () => {
+      await held;
+      throw new Error('released');
+    },
+  };
+  const runner = new ReportRunner(INLINE, source, { maxQueue: 1 });
+  const running = runner.run(1, 1, WEEKLY as never).catch(() => {});
+  t.after(async () => {
+    release();
+    await running;
+    await runner.close();
+  });
+  return runner;
+}
+
+/** Storage that counts its read snapshots. */
+function countingReads(storage: Storage): { storage: Storage; reads: () => number } {
+  let reads = 0;
+  return {
+    storage: {
+      ...storage,
+      readSnapshot: work => {
+        reads++;
+        return storage.readSnapshot(work);
+      },
+    },
+    reads: () => reads,
+  };
+}
+
+test('a full report queue refuses an account export before reading it', async t => {
+  const db = await openSQLiteDatabase();
+  const counted = countingReads(storageFor(db));
+  const services = createApplicationServices({ storage: counted.storage, reports: fullRunner(t), sessionDays: 30 });
+  t.after(() => services.close());
+  const user = await insertAccount(db, {
+    email: 'export@example.test',
+    fullname: 'Export',
+    timezone: 'UTC',
+    passwordHash: 'unused',
+    role: 'user',
+  });
+  const authentication: Authentication = {
+    user,
+    credential: { kind: 'api-token', token: user.apiToken },
+    authMethod: 'basic',
+  };
+  await assert.rejects(
+    services.exportAccount(authentication, { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' }),
+    error =>
+      error instanceof ApplicationError &&
+      error.kind === 'unavailable' &&
+      error.message === 'Report queue is full' &&
+      error.retryAfterSeconds === 2,
+  );
+  assert.equal(counted.reads(), 0);
+});
+
+test('a cancelled account export reads nothing', async t => {
+  const db = await openSQLiteDatabase();
+  const counted = countingReads(storageFor(db));
+  const reports = new ReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) });
+  const services = createApplicationServices({ storage: counted.storage, reports, sessionDays: 30 });
+  t.after(() => services.close());
+  const user = await insertAccount(db, {
+    email: 'cancel@example.test',
+    fullname: 'Cancel',
+    timezone: 'UTC',
+    passwordHash: 'unused',
+    role: 'user',
+  });
+  await assert.rejects(
+    services.exportAccount(
+      { user, credential: { kind: 'api-token', token: user.apiToken }, authMethod: 'basic' },
+      { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' },
+      { signal: AbortSignal.abort() },
+    ),
+    error => error instanceof RequestCancelled,
+  );
+  assert.equal(counted.reads(), 0);
+});
+
+test('a full report queue answers a report request before it reads the workspace', async t => {
+  let reads = 0;
+  const user = { id: 1, defaultWorkspaceId: 1 };
+  const deps = {
+    auth: {
+      requireAuth: (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+        res.locals.auth = { user } as never;
+        next();
+      },
+    },
+    readFor: async () => {
+      reads++;
+      return { id: 1, rounding: 0, roundingMinutes: 0 };
+    },
+    reports: fullRunner(t),
+  } as unknown as Pick<Deps, 'auth' | 'readFor' | 'reports'>;
+  const app = express();
+  app.use(express.text({ type: '*/*' }));
+  app.use((_req, res, next) => {
+    res.locals.workSignal = new AbortController().signal;
+    next();
+  });
+  app.use('/v3', reportsV3Routes(deps));
+  app.use('/app', appReportRoutes(deps));
+  app.use(errorHandler(silentLogger));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(r => server.once('listening', r));
+  t.after(() => new Promise<void>(r => server.close(() => r())));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  for (const path of ['/v3/workspace/1/search/time_entries', '/v3/workspace/1/weekly/time_entries', '/app/report']) {
+    const response = await fetch(base + path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ start_date: '2026-01-01', end_date: '2026-01-07' }),
+    });
+    assert.equal(response.status, 503, path);
+    assert.equal(response.headers.get('retry-after'), '2');
+    assert.equal(await response.json(), 'Report queue is full');
+  }
+  assert.equal(reads, 0);
+});
+
+test('a reserved place counts toward the queue limit until its holder queues a job or gives up', async t => {
+  const runner = new ReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) }, { maxQueue: 1 });
+  t.after(() => runner.close());
+  let release!: () => void;
+  const preparing = runner.reserve({}, () => new Promise<void>(resolve => (release = resolve)));
+  await assert.rejects(
+    runner.reserve({}, async () => {}),
+    /Report queue is full/,
+  );
+  release();
+  await preparing;
+  await assert.rejects(
+    runner.reserve({}, async () => {
+      throw new Error('bad request');
+    }),
+    /bad request/,
+  );
+  assert.equal(await runner.reserve({}, async () => 'free again'), 'free again');
+  await assert.rejects(
+    runner.reserve({}, async slot => {
+      await slot.run(1, 1, WEEKLY as never).catch(() => {});
+      return slot.run(1, 1, WEEKLY as never);
+    }),
+    /A report slot queues one job/,
+  );
+});

@@ -134,14 +134,19 @@ export function createApplicationServices({
       return timerStreams.open(authentication.user.id, res, streamCredentials.check(authentication));
     },
     readFor,
-    /** Reads the signed-in account's export in one snapshot, then formats it on the report runner. */
-    async exportAccount(
+    /**
+     * Takes a place in the report queue, reads the signed-in account's export in one snapshot, then
+     * formats it on the report runner. A full queue or a cancelled request reads nothing.
+     */
+    exportAccount(
       authentication: Authentication,
       assembly: ExportAssemblyJob,
       options: { signal?: AbortSignal } = {},
     ): Promise<JobResult> {
-      const data = await readFor(authentication, queries => queries.accountExport(authentication.user.id));
-      return reports.assembleExport(data, assembly, options);
+      return reports.reserve(options, async slot => {
+        const data = await readFor(authentication, queries => queries.accountExport(authentication.user.id));
+        return slot.assembleExport(data, assembly);
+      });
     },
     accountsFor: (authentication: Authentication): SignedInAccountOperations =>
       boundAccountOperations(

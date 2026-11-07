@@ -49,24 +49,40 @@ interface Reply {
   startupFailed?: ErrorDiagnostic;
 }
 
-/**
- * What the application needs from a report runner: queue a report or an export assembly, and shut
- * down. The composition root builds the runner and hands this to the application services.
- */
-export interface ReportExecutor {
+/** A place in the report queue, held while its caller prepares one job. It queues one job only. */
+export interface ReportSlot {
   run(
     userId: number,
     workspaceId: number,
     job: ReportJob,
-    options?: { signal?: AbortSignal; authentication?: Authentication },
+    options?: { authentication?: Authentication },
   ): Promise<JobResult>;
-  assembleExport(
-    data: AccountExportProjection,
-    assembly: ExportAssemblyJob,
-    options?: { signal?: AbortSignal },
-  ): Promise<JobResult>;
+  assembleExport(data: AccountExportProjection, assembly: ExportAssemblyJob): Promise<JobResult>;
+}
+
+/**
+ * What the application needs from a report runner: reserve a place, queue a report or an export
+ * assembly in it, and shut down. The composition root builds the runner and hands this to the
+ * application services.
+ */
+export interface ReportExecutor {
+  /**
+   * Takes a place in the queue, then runs `work` with it, so a full queue or a cancelled request
+   * is refused before `work` reads anything. The place counts toward the queue limit until `work`
+   * queues its job or settles.
+   */
+  reserve<T>(options: { signal?: AbortSignal }, work: (slot: ReportSlot) => Promise<T>): Promise<T>;
   /** Fails every queued job and stops the worker. */
   close(): Promise<void>;
+}
+
+/** The export without the password hash and API token, which the worker never needs. */
+function credentialFree(data: AccountExportProjection): AccountExportProjection {
+  // Structural typing permits a full User where the credential-free view was expected.
+  const projection = { ...data, user: { ...data.user } };
+  delete (projection.user as Partial<User>).passwordHash;
+  delete (projection.user as Partial<User>).apiToken;
+  return projection;
 }
 
 /** The job's kind and the runner's id for it: what a log line may say about a job. */
@@ -86,6 +102,8 @@ export class ReportRunner implements ReportExecutor {
   private startup: ReturnType<typeof setTimeout> | undefined;
   private active: Pending | undefined;
   private queue: Pending[] = [];
+  /** Places reserved by callers still preparing their job. */
+  private reserved = 0;
   private nextId = 1;
   private closed = false;
   private stopping: Promise<void> | undefined;
@@ -107,24 +125,56 @@ export class ReportRunner implements ReportExecutor {
     job: ReportJob,
     options: { signal?: AbortSignal; authentication?: Authentication } = {},
   ): Promise<JobResult> {
-    return this.enqueue({ userId, workspaceId, job, authentication: options.authentication }, options);
+    return this.reserve(options, slot => slot.run(userId, workspaceId, job, options));
   }
   assembleExport(
     data: AccountExportProjection,
     assembly: ExportAssemblyJob,
     options: { signal?: AbortSignal } = {},
   ): Promise<JobResult> {
-    // Structural typing permits a full User where the credential-free view was expected.
-    const projection = { ...data, user: { ...data.user } };
-    delete (projection.user as Partial<User>).passwordHash;
-    delete (projection.user as Partial<User>).apiToken;
-    return this.enqueue({ data: projection, assembly }, options);
+    return this.reserve(options, slot => slot.assembleExport(data, assembly));
   }
-  private enqueue(work: ReportWork, options: { signal?: AbortSignal }): Promise<JobResult> {
-    if (this.closed) return Promise.reject(new Error('Report runner is closed'));
-    if (options.signal?.aborted) return Promise.reject(new RequestCancelled('Report cancelled'));
-    if (this.queue.length + Number(!!this.active) >= this.maxQueue)
-      return Promise.reject(unavailable('Report queue is full', QUEUE_FULL_RETRY_SECONDS));
+  async reserve<T>(options: { signal?: AbortSignal }, work: (slot: ReportSlot) => Promise<T>): Promise<T> {
+    this.refuse(options.signal);
+    if (this.queue.length + Number(!!this.active) + this.reserved >= this.maxQueue)
+      throw unavailable('Report queue is full', QUEUE_FULL_RETRY_SECONDS);
+    this.reserved++;
+    let held = true;
+    const release = () => {
+      if (!held) return false;
+      held = false;
+      this.reserved--;
+      return true;
+    };
+    /** Turns the reservation into a queued job; `build` runs only once the request still stands. */
+    const submit = (build: () => ReportWork): Promise<JobResult> => {
+      if (!release()) return Promise.reject(new Error('A report slot queues one job'));
+      try {
+        this.refuse(options.signal);
+        return this.enqueue(build(), options.signal);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    };
+    const slot: ReportSlot = {
+      run: (userId, workspaceId, job, { authentication } = {}) =>
+        submit(() => ({ userId, workspaceId, job, authentication })),
+      assembleExport: (data, assembly) => submit(() => ({ data: credentialFree(data), assembly })),
+    };
+    try {
+      return await work(slot);
+    } finally {
+      release();
+    }
+  }
+  /** Throws when the runner is closed or the request already cancelled. */
+  private refuse(signal: AbortSignal | undefined): void {
+    if (this.closed) throw new Error('Report runner is closed');
+    if (signal?.aborted) throw new RequestCancelled('Report cancelled');
+  }
+  /** Queues `work` in a place its caller reserved. */
+  private enqueue(work: ReportWork, signal: AbortSignal | undefined): Promise<JobResult> {
+    const options = { signal };
     return new Promise((resolve, reject) => {
       const pending: Pending = {
         id: this.nextId++,
