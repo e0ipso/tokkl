@@ -133,35 +133,19 @@ export interface SplitSpans {
 }
 
 /**
- * Splits a stopped entry in two. The server has no split, so this creates the second half first;
- * if shortening the original then fails, it deletes the new half again, so a failed split leaves
- * the original as it was.
+ * Splits a stopped entry in two at the halves' shared boundary. The server cuts the entry's
+ * snapped span there and writes both halves in one transaction, so a failed split changes nothing.
+ * Answers the new second half.
  */
 export function useSplitEntry() {
-  const wid = useWid();
   const onSettled = useInvalidateEntries();
   return useMutation({
     mutationFn: async ({ entry, halves }: { entry: TimeEntry; halves: SplitSpans }) => {
-      const { description, project_id, task_id, tags, billable } = entry;
-      const created = await entryRequests.create(wid, {
-        description,
-        project_id,
-        task_id,
-        tags,
-        billable,
-        start: halves.second.start.toISOString(),
-        stop: halves.second.stop.toISOString(),
-      });
-      try {
-        await entryRequests.update(wid, entry.id, {
-          start: halves.first.start.toISOString(),
-          stop: halves.first.stop.toISOString(),
-        });
-      } catch (error) {
-        await entryRequests.remove(wid, created.id).catch(() => undefined);
-        throw error;
-      }
-      return created;
+      const { second } = await api.post<{ first: TimeEntry; second: TimeEntry }>(
+        `${APP}/time_entries/${entry.id}/split`,
+        { at: halves.second.start.toISOString(), created_with: 'tokkl-web' },
+      );
+      return second;
     },
     onSettled,
   });
