@@ -38,6 +38,9 @@ export const TokklIndicator = GObject.registerClass(
             this._ownGesture = null;
             this._syncing = false;
             this._tickId = 0;
+            // Set when a method call fails, so the menu says so; the next call
+            // clears it.
+            this._actionError = '';
 
             // The button lays out one child: the logo, the hourglass of Pomodoro
             // mode, the project indicator and the time, in that order. The logo
@@ -209,6 +212,7 @@ export const TokklIndicator = GObject.registerClass(
                 longRestEvery: this._property('LongRestEvery', 0),
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
+                actionError: this._actionError,
             };
         }
 
@@ -322,7 +326,9 @@ export const TokklIndicator = GObject.registerClass(
         }
 
         /**
-         * Calls a Timer1 method.
+         * Calls a Timer1 method. A failed call, such as one the service never
+         * answered, shows a short message in the menu until the next call,
+         * and the menu shows the service's last known state again.
          *
          * @param {string} method
          * @param {Array} args
@@ -331,9 +337,19 @@ export const TokklIndicator = GObject.registerClass(
          */
         _call(method, args, onReply) {
             if (!this._proxy) return;
+            if (this._actionError) {
+                this._actionError = '';
+                // Leaves the project items alone: this may run in one's activate.
+                this._sync([]);
+            }
             this._proxy[`${method}Remote`](...args, (result, error) => {
                 if (error) console.warn(`Tokkl: ${method} failed: ${error.message}`);
-                if (onReply && this._proxy) onReply(error ? null : result[0]);
+                if (!this._proxy) return;
+                if (error) {
+                    this._actionError = _('The timer service did not answer.');
+                    this._sync([]);
+                }
+                if (onReply) onReply(error ? null : result[0]);
             });
         }
 

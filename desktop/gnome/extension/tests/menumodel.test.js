@@ -98,6 +98,18 @@ test('the session message shows while there is one', () => {
     });
 });
 
+test('a failed call shows its message, ahead of the session message', () => {
+    assert.deepEqual(menuFor({ actionError: 'The timer service did not answer.' }).message, {
+        text: 'The timer service did not answer.',
+        visible: true,
+    });
+    assert.equal(
+        menuFor({ actionError: 'The timer service did not answer.', sessionMessage: 'Too short to save' }).message.text,
+        'The timer service did not answer.',
+    );
+    assert.deepEqual(menuFor({ actionError: '' }).message, { text: '', visible: false });
+});
+
 test('the project choices start with No project and check the chosen one', () => {
     assert.deepEqual(
         projectChoices(

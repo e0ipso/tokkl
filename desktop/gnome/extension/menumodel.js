@@ -29,6 +29,8 @@ import {
  * @property {boolean} canStartSession
  * @property {string} upcomingPhase
  * @property {string} sessionMessage
+ * @property {string} [actionError] the extension's own word on a method call
+ *     that failed, empty or missing when none did
  */
 
 /**
@@ -58,8 +60,11 @@ export function describeMenu(state, words, _) {
     if (state.running) projectText = fill(_('Project: %s (locked while running)'), chosen);
     // Translators: %s is the project's name, or No project.
     else if (state.paused) projectText = fill(_('Project: %s (locked while paused)'), chosen);
+    // A call that failed outranks the service's message: it is newer, and
+    // the service may not have seen the call at all.
+    const message = state.actionError || state.sessionMessage;
     return {
-        message: { text: state.sessionMessage, visible: state.sessionMessage.length > 0 },
+        message: { text: message, visible: message.length > 0 },
         detail: { text: words.detail, visible: words.detail.length > 0 },
         toggle: {
             text: timerHeld ? _('Stop') : _('Start'),
