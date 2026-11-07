@@ -6,17 +6,16 @@ import { Segmented } from '../manage/ui.tsx';
 import { useWeeklyReport, type ReportFilterBody } from '../../api/reports.ts';
 import type { WeeklyReport } from '../../api/types.ts';
 import type { ReportPatch, WeeklyRows } from './urlState.ts';
-
-const ROW_OPTIONS: ReadonlyArray<{ value: WeeklyRows; label: string }> = [
-  { value: 'projects', label: 'Projects' },
-  { value: 'clients', label: 'Clients' },
-];
+import { t } from '../../i18n/messages.ts';
 
 /** Day columns show the weekday; week columns show the part of the week inside the range. */
 function columnLabel(column: WeeklyReport['columns'][number], mode: WeeklyReport['mode']) {
   return mode === 'days'
     ? { label: weekdayName(column.start), sublabel: shortDate(column.start) }
-    : { label: shortDate(column.start), sublabel: column.start === column.end ? '' : `to ${shortDate(column.end)}` };
+    : {
+        label: shortDate(column.start),
+        sublabel: column.start === column.end ? '' : t('reports.columnTo', { date: shortDate(column.end) }),
+      };
 }
 
 export function WeeklyTab({
@@ -35,24 +34,33 @@ export function WeeklyTab({
   const weekly = useWeeklyReport(filters, by);
   const grid = weekly.data;
   const cell = (seconds: number) => (seconds > 0 ? duration(seconds, settings) : <span className="muted">-</span>);
-  const empty = by === 'projects' ? 'Without project' : 'Without client';
+  const empty = by === 'projects' ? t('reports.withoutProject') : t('reports.withoutClient');
+  const rowOptions: ReadonlyArray<{ value: WeeklyRows; label: string }> = [
+    { value: 'projects', label: t('reports.rowsProjects') },
+    { value: 'clients', label: t('reports.rowsClients') },
+  ];
 
   return (
     <div className="report-weekly">
       <div className="toolbar">
-        <Segmented label="Rows" options={ROW_OPTIONS} value={by} onChange={weeklyRows => update({ weeklyRows })} />
+        <Segmented
+          label={t('reports.rows')}
+          options={rowOptions}
+          value={by}
+          onChange={weeklyRows => update({ weeklyRows })}
+        />
         {grid ? (
           <span className="hint">
-            {grid.mode === 'days' ? 'One column per day.' : 'Ranges longer than a week get one column per week.'}
+            {grid.mode === 'days' ? t('reports.oneColumnPerDay') : t('reports.oneColumnPerWeek')}
           </span>
         ) : null}
       </div>
       {weekly.isPending ? (
-        <Loading label="Loading report…" />
+        <Loading label={t('reports.loading')} />
       ) : weekly.isError && !grid ? (
         <LoadError
           className="report-error"
-          message={`Couldn't load the weekly report: ${weekly.error.message}`}
+          message={t('reports.weeklyLoadFailed', { message: weekly.error.message })}
           onRetry={() => void weekly.refetch()}
         />
       ) : grid ? (
@@ -60,7 +68,7 @@ export function WeeklyTab({
           <table className="table weekly-table">
             <thead>
               <tr>
-                <th scope="col">{by === 'projects' ? 'Project' : 'Client'}</th>
+                <th scope="col">{by === 'projects' ? t('reports.project') : t('reports.client')}</th>
                 {grid.columns.map(column => {
                   const { label, sublabel } = columnLabel(column, grid.mode);
                   return (
@@ -73,7 +81,7 @@ export function WeeklyTab({
                   );
                 })}
                 <th scope="col" className="num">
-                  Total
+                  {t('reports.total')}
                 </th>
               </tr>
             </thead>
@@ -99,7 +107,7 @@ export function WeeklyTab({
             </tbody>
             <tfoot>
               <tr>
-                <th scope="row">Total</th>
+                <th scope="row">{t('reports.total')}</th>
                 {grid.column_totals.map((seconds, i) => (
                   <td key={grid.columns[i]!.start} className="num strong">
                     {cell(seconds)}

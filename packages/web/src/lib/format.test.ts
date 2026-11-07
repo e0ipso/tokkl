@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addDays, parseDateKey, zonedParts } from '@tokkl/common/time';
-import { dayLabel, formatDateTime, formatTime, shortDate, weekdayName } from './format.ts';
+import { dayLabel, formatDateTime, formatTime, monthName, shortDate, weekdayName } from './format.ts';
 
 // The helpers moved from English tables to Intl in the interface locale. Each is checked against
 // the table version it replaced, over every day of several years and every minute of a day in
@@ -43,6 +43,31 @@ test('weekday and short date names match the English tables for every day of 202
     assert.equal(weekdayName(key), legacyWeekday(key), key);
     assert.equal(shortDate(key), legacyShortDate(key), key);
   }
+});
+
+test('month names are the English ones, and the short form is their first three letters', () => {
+  const legacy = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  assert.deepEqual(
+    legacy.map((_, index) => monthName(index + 1)),
+    legacy,
+  );
+  assert.deepEqual(
+    legacy.map((_, index) => monthName(index + 1, 'short')),
+    legacy.map(name => name.slice(0, 3)),
+  );
 });
 
 test('day labels say Today and Yesterday, then the weekday and date, with the year when it differs', () => {

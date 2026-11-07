@@ -2,22 +2,23 @@ import { useState } from 'react';
 import type { Grouping, Report, ReportGroup } from '../../api/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { ProjectDot, projectColorStyle } from '../../components/ProjectLabel.tsx';
-import { duration, formatMoney } from '../../lib/format.ts';
+import { duration, formatCount, formatMoney } from '../../lib/format.ts';
 import { type Settings } from '../../lib/settings.ts';
-import { GROUPING_LABELS, formatPercent, groupTitle, money, percent, reportCurrency } from './format.ts';
+import { formatPercent, groupTitle, groupingLabel, groupingNoun, money, percent, reportCurrency } from './format.ts';
 import { SeriesChart } from './SeriesChart.tsx';
 import { GROUPINGS, SUB_GROUPINGS, isOneOf, type ReportPatch, type SubGrouping } from './urlState.ts';
+import { t } from '../../i18n/messages.ts';
 
 function Totals({ report, settings }: { report: Report; settings: Settings }) {
   const { totals } = report;
   return (
     <dl className="report-totals">
       <div className="card">
-        <dt>Total time</dt>
+        <dt>{t('reports.totalTime')}</dt>
         <dd>{duration(totals.seconds, settings)}</dd>
       </div>
       <div className="card">
-        <dt>Billable time</dt>
+        <dt>{t('reports.billableTime')}</dt>
         <dd>
           {duration(totals.billable_seconds, settings)}
           {totals.seconds > 0 ? (
@@ -29,12 +30,12 @@ function Totals({ report, settings }: { report: Report; settings: Settings }) {
         </dd>
       </div>
       <div className="card report-totals-entries">
-        <dt>Entries</dt>
-        <dd>{totals.entry_count.toLocaleString()}</dd>
+        <dt>{t('reports.entries')}</dt>
+        <dd>{formatCount(totals.entry_count)}</dd>
       </div>
       {totals.amounts.length ? (
         <div className="card report-totals-amount">
-          <dt>Amount</dt>
+          <dt>{t('reports.amount')}</dt>
           <dd>
             {totals.amounts.map(amount => (
               <span key={amount.currency} className="report-amount">
@@ -78,7 +79,7 @@ function GroupRow({
   settings: Settings;
 }) {
   const [open, setOpen] = useState(false);
-  const subLabel = subGrouping === 'none' ? '' : GROUPING_LABELS[subGrouping].toLowerCase();
+  const subLabel = subGrouping === 'none' ? '' : groupingNoun(subGrouping);
   const expandable = subLabel !== '' && group.sub_groups.length > 0;
   const title = groupTitle(group.title, grouping);
   const dotColor = grouping === 'projects' ? (group.color ?? 'var(--muted)') : null;
@@ -92,7 +93,7 @@ function GroupRow({
                 type="button"
                 className="icon-button group-toggle"
                 aria-expanded={open}
-                aria-label={`${open ? 'Hide' : 'Show'} ${subLabel} breakdown for ${title}`}
+                aria-label={t(open ? 'reports.hideBreakdown' : 'reports.showBreakdown', { group: subLabel, title })}
                 onClick={() => setOpen(v => !v)}
               >
                 <Icon name={open ? 'chevronDown' : 'chevronRight'} size={16} />
@@ -156,13 +157,13 @@ export function SummaryTab({
   return (
     <div className="report-summary">
       <Totals report={report} settings={settings} />
-      <section className="card report-chart-card" aria-label="Time per period">
+      <section className="card report-chart-card" aria-label={t('reports.timePerPeriod')}>
         <SeriesChart series={report.series} resolution={report.resolution} settings={settings} dimmed={dimmed} />
       </section>
-      <section className="report-breakdown" aria-label="Breakdown">
+      <section className="report-breakdown" aria-label={t('reports.breakdown')}>
         <div className="toolbar breakdown-toolbar">
           <label className="inline-select">
-            <span>Group by</span>
+            <span>{t('reports.groupBy')}</span>
             <select
               value={grouping}
               onChange={event => {
@@ -172,13 +173,13 @@ export function SummaryTab({
             >
               {GROUPINGS.map(name => (
                 <option key={name} value={name}>
-                  {GROUPING_LABELS[name]}
+                  {groupingLabel(name)}
                 </option>
               ))}
             </select>
           </label>
           <label className="inline-select">
-            <span>then by</span>
+            <span>{t('reports.thenBy')}</span>
             <select
               value={subGrouping}
               onChange={event => {
@@ -186,30 +187,28 @@ export function SummaryTab({
                 if (isOneOf(value, SUB_GROUPINGS)) update({ subGrouping: value });
               }}
             >
-              <option value="none">Nothing</option>
+              <option value="none">{t('reports.nothing')}</option>
               {GROUPINGS.filter(name => name !== grouping).map(name => (
                 <option key={name} value={name}>
-                  {GROUPING_LABELS[name]}
+                  {groupingLabel(name)}
                 </option>
               ))}
             </select>
           </label>
-          {mixedCurrencies ? (
-            <span className="hint">Amounts per row are hidden because this report mixes currencies.</span>
-          ) : null}
+          {mixedCurrencies ? <span className="hint">{t('reports.mixedCurrencies')}</span> : null}
         </div>
         <div className={`table-wrap${dimmed ? ' is-dimmed' : ''}`}>
           <table className="table breakdown-table">
             <thead>
               <tr>
-                <th scope="col">{GROUPING_LABELS[grouping]}</th>
+                <th scope="col">{groupingLabel(grouping)}</th>
                 <th scope="col" className="num">
-                  Duration
+                  {t('reports.duration')}
                 </th>
-                <th scope="col">Share</th>
+                <th scope="col">{t('reports.share')}</th>
                 {currency ? (
                   <th scope="col" className="num">
-                    Amount
+                    {t('reports.amount')}
                   </th>
                 ) : null}
               </tr>
@@ -229,11 +228,7 @@ export function SummaryTab({
             </tbody>
           </table>
         </div>
-        {grouping === 'tags' ? (
-          <p className="hint">
-            Entries with several tags count once for each tag, so shares can add up to more than 100%.
-          </p>
-        ) : null}
+        {grouping === 'tags' ? <p className="hint">{t('reports.tagShares')}</p> : null}
       </section>
     </div>
   );

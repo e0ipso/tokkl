@@ -5,6 +5,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import type { DateRange } from './range.ts';
 import type { SortDir, SortKey, SubGrouping } from './urlState.ts';
+import { t } from '../../i18n/messages.ts';
 
 type Kind = 'detailed' | 'summary';
 
@@ -48,7 +49,7 @@ export function ExportButtons({
   };
 
   return (
-    <div className="export-buttons" role="group" aria-label="Export">
+    <div className="export-buttons" role="group" aria-label={t('reports.export')}>
       {(['detailed', 'summary'] as const).map(kind => (
         <button
           key={kind}
@@ -58,7 +59,7 @@ export function ExportButtons({
           onClick={() => void run(kind)}
         >
           <Icon name="download" size={16} />
-          {kind === 'detailed' ? 'CSV (detailed)' : 'CSV (summary)'}
+          {kind === 'detailed' ? t('reports.csvDetailed') : t('reports.csvSummary')}
         </button>
       ))}
     </div>

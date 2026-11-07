@@ -14,6 +14,7 @@ import type { Settings } from './settings.ts';
 // Date keys and hours are formatted as UTC instants, so no time zone can move them to another day.
 const weekdayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', timeZone: 'UTC' });
 const monthFormat = new Intl.DateTimeFormat(LOCALE, { month: 'short', timeZone: 'UTC' });
+const longMonthFormat = new Intl.DateTimeFormat(LOCALE, { month: 'long', timeZone: 'UTC' });
 const dayPeriodFormat = new Intl.DateTimeFormat(LOCALE, { hour: 'numeric', hourCycle: 'h12', timeZone: 'UTC' });
 const relativeDays = new Intl.RelativeTimeFormat(LOCALE, { numeric: 'auto' });
 const countFormat = new Intl.NumberFormat(NUMBER_LOCALE);
@@ -78,6 +79,11 @@ export function formatDateTime(
 export function weekdayName(key: string): string {
   const parsed = parseDateKey(key)!;
   return weekdayFormat.format(utcDay(parsed.year, parsed.month, parsed.day));
+}
+
+/** The name of a month from 1 to 12: "January", or "Jan" when short. */
+export function monthName(month: number, width: 'long' | 'short' = 'long'): string {
+  return (width === 'long' ? longMonthFormat : monthFormat).format(utcDay(2000, month, 1));
 }
 
 /** A date key as a day and a short month name, such as "22 Jun". */

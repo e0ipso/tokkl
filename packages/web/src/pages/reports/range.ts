@@ -1,5 +1,6 @@
 import { addDays, daysBetween, parseDateKey, startOfWeek } from '@tokkl/common/time';
 import { shortDate } from '../../lib/format.ts';
+import { t, type MessageKey } from '../../i18n/messages.ts';
 
 export const PRESETS = [
   'today',
@@ -19,18 +20,23 @@ export const MAX_RANGE_DAYS = 3660;
 
 export type Preset = (typeof PRESETS)[number];
 
-export const PRESET_LABELS: Record<Preset, string> = {
-  today: 'Today',
-  yesterday: 'Yesterday',
-  this_week: 'This week',
-  last_week: 'Last week',
-  this_month: 'This month',
-  last_month: 'Last month',
-  last_30: 'Last 30 days',
-  this_year: 'This year',
-  last_year: 'Last year',
-  all_time: 'All time',
-};
+const PRESET_LABELS = {
+  today: 'reports.presetToday',
+  yesterday: 'reports.presetYesterday',
+  this_week: 'reports.presetThisWeek',
+  last_week: 'reports.presetLastWeek',
+  this_month: 'reports.presetThisMonth',
+  last_month: 'reports.presetLastMonth',
+  last_30: 'reports.presetLast30',
+  this_year: 'reports.presetThisYear',
+  last_year: 'reports.presetLastYear',
+  all_time: 'reports.presetAllTime',
+} as const satisfies Record<Preset, MessageKey>;
+
+/** A preset's name, such as "Last 30 days". */
+export function presetLabel(preset: Preset): string {
+  return t(PRESET_LABELS[preset]);
+}
 
 /** An inclusive range of calendar days, both "YYYY-MM-DD" in the account timezone. */
 export interface DateRange {
@@ -152,7 +158,8 @@ export function shiftRange(range: DateRange, direction: 1 | -1): DateRange {
 export function formatRange(range: DateRange, todayKey: string): string {
   const sameYear = range.from.slice(0, 4) === range.to.slice(0, 4);
   const showYear = !sameYear || range.from.slice(0, 4) !== todayKey.slice(0, 4);
-  const label = (key: string, withYear: boolean) => `${shortDate(key)}${withYear ? ` ${key.slice(0, 4)}` : ''}`;
+  const label = (key: string, withYear: boolean) =>
+    withYear ? t('dates.dateWithYear', { date: shortDate(key), year: key.slice(0, 4) }) : shortDate(key);
   if (range.from === range.to) return label(range.from, showYear);
-  return `${label(range.from, !sameYear)} to ${label(range.to, showYear)}`;
+  return t('reports.range', { from: label(range.from, !sameYear), to: label(range.to, showYear) });
 }

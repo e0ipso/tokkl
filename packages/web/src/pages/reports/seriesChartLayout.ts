@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
 import { parseDateKey } from '@tokkl/common/time';
 import type { Report } from '../../api/types.ts';
-import { shortDate, weekdayName } from '../../lib/format.ts';
+import { monthName, shortDate, weekdayName } from '../../lib/format.ts';
+import { t } from '../../i18n/messages.ts';
 
 /** The pure parts of SeriesChart: its geometry, scale, column shapes and labels. */
 
@@ -150,34 +151,16 @@ export function nextActiveColumn(key: ChartKey, current: number | null, count: n
   return Math.max(0, Math.min(count - 1, from + (key === 'ArrowLeft' ? -1 : 1)));
 }
 
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-function monthName(month: number): string {
-  return MONTHS[month - 1] ?? String(month);
-}
-
 /** The label under a column: a month, a weekday for a week or less of days, or a short date. */
 export function axisLabel(point: Point, resolution: Resolution, count: number, index: number): string {
   const parsed = parseDateKey(point.start);
   if (!parsed) return point.start;
   if (resolution === 'month') {
-    const month = monthName(parsed.month).slice(0, 3);
-    return index === 0 || parsed.month === 1 ? `${month} ${parsed.year}` : month;
+    const month = monthName(parsed.month, 'short');
+    return index === 0 || parsed.month === 1 ? t('dates.monthYear', { month, year: parsed.year }) : month;
   }
-  if (resolution === 'day' && count <= 7) return `${weekdayName(point.start)} ${parsed.day}`;
+  if (resolution === 'day' && count <= 7)
+    return t('dates.weekdayDay', { weekday: weekdayName(point.start), day: parsed.day });
   return shortDate(point.start);
 }
 
@@ -185,7 +168,11 @@ export function axisLabel(point: Point, resolution: Resolution, count: number, i
 export function fullLabel(point: Point, resolution: Resolution): string {
   const parsed = parseDateKey(point.start);
   if (!parsed) return point.start;
-  if (resolution === 'month') return `${monthName(parsed.month)} ${parsed.year}`;
-  if (resolution === 'week') return `Week of ${shortDate(point.start)} ${parsed.year}`;
-  return `${weekdayName(point.start)}, ${shortDate(point.start)} ${parsed.year}`;
+  if (resolution === 'month') return t('dates.monthYear', { month: monthName(parsed.month), year: parsed.year });
+  if (resolution === 'week') return t('reports.weekOf', { date: shortDate(point.start), year: parsed.year });
+  return t('dates.dayLabelWithYear', {
+    weekday: weekdayName(point.start),
+    date: shortDate(point.start),
+    year: parsed.year,
+  });
 }

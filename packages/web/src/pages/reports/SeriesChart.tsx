@@ -15,10 +15,15 @@ import {
   type Resolution,
 } from './seriesChartLayout.ts';
 import { useGeometry, useWidth } from './useChartSize.ts';
+import { t, type MessageKey } from '../../i18n/messages.ts';
 
 const hoursFormat = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 2 });
 
-const UNIT: Record<Resolution, string> = { day: 'day', week: 'week', month: 'month' };
+const DESCRIPTION = {
+  day: 'reports.chartDays',
+  week: 'reports.chartWeeks',
+  month: 'reports.chartMonths',
+} as const satisfies Record<Resolution, MessageKey>;
 
 /**
  * Stacked columns of tracked hours per day, week or month. Billable time sits on the baseline as a
@@ -58,9 +63,7 @@ export function SeriesChart({
   };
 
   const total = series.reduce((sum, p) => sum + p.seconds, 0);
-  const description =
-    `Column chart of tracked hours per ${UNIT[resolution]}, ${count} ${UNIT[resolution]}s, ` +
-    `${duration(total, settings)} in total. Use the arrow keys to read each ${UNIT[resolution]}.`;
+  const description = t(DESCRIPTION[resolution], { count, total: duration(total, settings) });
 
   return (
     <div ref={root} className={`series-chart${dimmed ? ' is-dimmed' : ''}`}>
@@ -72,11 +75,11 @@ export function SeriesChart({
       <div className="chart-legend">
         <span>
           <Swatch series="billable" patternId={keyPattern} size={12} />
-          Billable
+          {t('reports.billable')}
         </span>
         <span>
           <Swatch series="other" patternId={keyPattern} size={12} />
-          Non-billable
+          {t('reports.nonBillable')}
         </span>
       </div>
       <div ref={container} className="chart-frame">
@@ -100,7 +103,7 @@ export function SeriesChart({
               <g key={tick}>
                 <line className="chart-grid" x1={margin.left} x2={width - margin.right} y1={y(tick)} y2={y(tick)} />
                 <text className="chart-tick" x={margin.left - 8} y={y(tick)} dy="0.32em" textAnchor="end">
-                  {hoursFormat.format(tick)} h
+                  {t('reports.hoursTick', { hours: hoursFormat.format(tick) })}
                 </text>
               </g>
             ))}

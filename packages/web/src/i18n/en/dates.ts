@@ -19,4 +19,10 @@ export const dates = {
   dateTime: '{date} {time}',
   /** A span of clock times, such as "09:00 – 10:30". */
   timeRange: '{start} – {end}',
+  /** A short date with its year, such as "22 Jun 2025". */
+  dateWithYear: '{date} {year}',
+  /** A month with its year, such as "January 2026" or "Jan 2026". */
+  monthYear: '{month} {year}',
+  /** A short weekday and the day of the month, such as "Mon 22". */
+  weekdayDay: '{weekday} {day}',
 } as const satisfies MessageGroup;

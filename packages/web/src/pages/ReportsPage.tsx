@@ -14,9 +14,14 @@ import { RangeControl } from './reports/RangeControl.tsx';
 import { SummaryTab } from './reports/SummaryTab.tsx';
 import { TABS, useReportState, type Tab } from './reports/urlState.ts';
 import { WeeklyTab } from './reports/WeeklyTab.tsx';
+import { t, type MessageKey } from '../i18n/messages.ts';
 import './reports/reports.css';
 
-const TAB_LABELS: Record<Tab, string> = { summary: 'Summary', detailed: 'Detailed', weekly: 'Weekly' };
+const TAB_LABELS = {
+  summary: 'reports.tabSummary',
+  detailed: 'reports.tabDetailed',
+  weekly: 'reports.tabWeekly',
+} as const satisfies Record<Tab, MessageKey>;
 
 export function ReportsPage() {
   const settings = useSettings();
@@ -32,12 +37,12 @@ export function ReportsPage() {
 
   let body: React.ReactNode;
   if (report.isPending) {
-    body = <Loading label="Loading report…" />;
+    body = <Loading label={t('reports.loading')} />;
   } else if (report.isError && !data) {
     body = (
       <LoadError
         className="report-error"
-        message={`Couldn't load the report: ${report.error.message}`}
+        message={t('reports.loadFailed', { message: report.error.message })}
         onRetry={() => void report.refetch()}
       />
     );
@@ -53,11 +58,9 @@ export function ReportsPage() {
       <EmptyState
         className={dimmed ? 'is-dimmed' : undefined}
         icon={<Icon name="chart" size={32} />}
-        title={`No time tracked in this range${filtered ? ' with these filters' : ''}`}
+        title={filtered ? t('reports.emptyTitleFiltered') : t('reports.emptyTitle')}
       >
-        {filtered
-          ? 'Loosen a filter, or pick another range with the arrows or the date menu.'
-          : 'Pick another range with the arrows or the date menu.'}
+        {filtered ? t('reports.emptyHintFiltered') : t('reports.emptyHint')}
       </EmptyState>
     );
   } else if (data) {
@@ -89,7 +92,7 @@ export function ReportsPage() {
   return (
     <div className="page reports">
       <header className="page-header reports-header">
-        <h1>Reports</h1>
+        <h1>{t('reports.title')}</h1>
         <RangeControl
           range={state.range}
           preset={state.preset}
@@ -110,7 +113,7 @@ export function ReportsPage() {
         />
       </header>
       <Filters state={state} update={update} />
-      <div className="report-tabs" role="tablist" aria-label="Report type">
+      <div className="report-tabs" role="tablist" aria-label={t('reports.tabsLabel')}>
         {TABS.map(tab => (
           <button
             key={tab}
@@ -122,17 +125,17 @@ export function ReportsPage() {
             className={`report-tab${state.tab === tab ? ' active' : ''}`}
             onClick={() => update({ tab })}
           >
-            {TAB_LABELS[tab]}
+            {t(TAB_LABELS[tab])}
           </button>
         ))}
         {report.isFetching && !report.isPending ? (
           <span className="hint report-refreshing" role="status">
-            Updating…
+            {t('reports.updating')}
           </span>
         ) : null}
         {report.isError && data ? (
           <span className="hint report-stale" role="alert">
-            Couldn't refresh. Showing the last result.
+            {t('reports.refreshFailed')}
           </span>
         ) : null}
       </div>
