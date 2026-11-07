@@ -11,7 +11,6 @@ import { includesText } from './manage/values.ts';
 import { focusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, SearchBox } from './manage/ui.tsx';
 import { ManageList } from './manage/ManageList.tsx';
-import './manage/manage.css';
 import { t } from '../i18n/messages.ts';
 
 function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {

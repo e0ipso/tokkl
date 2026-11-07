@@ -2,6 +2,7 @@ import { array, boolean, nullable, number, object, oneOf, optional, string, type
 import type {
   Client,
   DetailedReportPage,
+  DiscardedPomodoro,
   EntryBounds,
   Me,
   Project,
@@ -11,13 +12,17 @@ import type {
   Tag,
   Task,
   TimeEntry,
+  TimerPause,
+  TimerPomodoro,
+  TimerPomodoroPhase,
+  TimerState,
   WeeklyReport,
   Workspace,
 } from './types.ts';
 
 /**
- * Decoders for the replies the views compute with: the account, the catalogs, entries and
- * reports. Preferences are left as they come: their type is an open record of whatever the
+ * Decoders for the replies the views compute with: the account, the catalogs, entries, the timer
+ * state and reports. Preferences are left as they come: their type is an open record of whatever the
  * clients saved.
  */
 
@@ -109,6 +114,49 @@ export const entryListReply = array(timeEntryReply);
 
 /** The running entry, or null when the timer is stopped. */
 export const runningEntryReply = nullable(timeEntryReply);
+
+const pomodoroPhaseKind = oneOf('work', 'shortRest', 'longRest');
+
+const timerPause: Decoder<TimerPause> = object<TimerPause>({
+  paused: boolean,
+  seconds: number,
+  workspace_id: number,
+  description: string,
+  project_id: nullable(number),
+  task_id: nullable(number),
+  tag_ids: array(number),
+  tags: array(string),
+  billable: boolean,
+  clone_entry_id: nullable(number),
+});
+
+const timerPomodoro: Decoder<TimerPomodoro> = object<TimerPomodoro>({
+  work_minutes: number,
+  short_rest_minutes: number,
+  long_rest_minutes: number,
+  long_rest_every: number,
+  phase: object<TimerPomodoroPhase>({
+    kind: pomodoroPhaseKind,
+    start: string,
+    completed: number,
+    planned_end: string,
+  }),
+  upcoming_phase: pomodoroPhaseKind,
+  transition: oneOf('workToShortRest', 'shortRestToWork', 'workToLongRest', 'longRestToWork'),
+  number: number,
+  entry_id: number,
+  pomodoro_start: string,
+});
+
+/** The timer state of GET /api/app/timer, every timer action, a 409 from one, and the event stream. */
+export const timerStateReply: Decoder<TimerState> = object<TimerState>({
+  revision: number,
+  server_time: string,
+  running_entry: runningEntryReply,
+  pause: nullable(timerPause),
+  pomodoro: nullable(timerPomodoro),
+  discarded_pomodoro: nullable(object<DiscardedPomodoro>({ entry_id: number, start: string, stop: string })),
+});
 
 export const entryBoundsReply: Decoder<EntryBounds> = object<EntryBounds>({
   first_date: nullable(string),

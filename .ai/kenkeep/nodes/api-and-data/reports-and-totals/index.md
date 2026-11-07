@@ -30,7 +30,7 @@ _None._
 - Open [**History-scale bench: npm run bench:history**](../../tooling-and-project/testing/map-history-scale-bench.md) — bench/history.ts times reports, lists, writes and the timer on throwaway year (3k) and decade (30k) fixtures; wrong answers fail it.
 ### #reports
 - Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
-- Open [**styles.css loads last and owns the colour tokens**](../../web-ui-styling-and-layout/theme-and-tokens/practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css wins equal-specificity ties with page CSS, which uses its tokens and no colour literals.
+- Open [**styles.css orders the cascade and owns the colour tokens**](../../web-ui-styling-and-layout/theme-and-tokens/practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css imports every sheet in cascade order, page sheets first; page CSS uses its tokens and no colour literals.
 - Open [**Report totals wrap as a flex row; an Amount figure never breaks**](../../web-ui-styling-and-layout/shell-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md) — Tiles share --tile-basis (220px, 160px at 760px and below); Amount sizes to its nowrap figures. The visual baselines show no Amount tile.
 ### #validation
 - Open [**Parse incoming timestamps with parseInstant**](../time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).

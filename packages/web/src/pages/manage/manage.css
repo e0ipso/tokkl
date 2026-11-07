@@ -1,6 +1,6 @@
 /* Projects, clients, tags, trash and settings pages. Colours come from the tokens in styles/tokens.css,
-   whose contrast table covers the pairs used here. main.tsx imports styles.css after the pages, so
-   a rule here that overrides a styles.css class (.hint, .card) adds that class to win. */
+   whose contrast table covers the pairs used here. styles.css imports this sheet before its app-wide
+   ones, so a rule here that overrides an app-wide class (.hint, .card) adds that class to win. */
 
 .manage-narrow {
   max-width: 720px;

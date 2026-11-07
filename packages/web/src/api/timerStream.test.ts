@@ -61,6 +61,9 @@ test('states pass to the handler, malformed events are ignored, and status repor
   source.emit('timer', JSON.stringify(state(1)));
   source.emit('timer', '{not json');
   source.emit('timer', JSON.stringify({ revision: 'x' }));
+  // A revision and a server time are not enough: the nested parts are checked too.
+  source.emit('timer', JSON.stringify({ revision: 3, server_time: '2026-10-27T10:00:00.000Z' }));
+  source.emit('timer', JSON.stringify({ ...state(4), pause: { paused: true } }));
   source.emit('timer', JSON.stringify(state(2)));
   assert.deepEqual(
     states.map(s => s.revision),

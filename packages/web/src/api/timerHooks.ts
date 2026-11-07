@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import { keys } from './keys.ts';
+import { invalidate } from './invalidate.ts';
+import { keys, stale } from './keys.ts';
 import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
   TIMER_ACTION_KEY,
@@ -11,6 +12,7 @@ import {
   revisionToSend,
   settleOtherWrites,
 } from './timerState.ts';
+import { createTimerOutcome, type TimerOutcome } from './timerOutcome.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { TimeEntryInput, TimerState } from './types.ts';
 import { useNow } from '../lib/clock.ts';
@@ -22,8 +24,9 @@ const pomodoroPath = '/api/app/pomodoro';
 /**
  * Takes a state into the caches: the timer, the running entry and the clock offset. A state older
  * than the cached one is dropped and the cached state is returned. When the state moved past the
- * cached one, lists built from entries refetch, because the change started, stopped or discarded
- * entries. Every source of states (stream, poll, action reply, conflict) goes through here.
+ * cached one, everything derived from entries refetches (`stale.timerChanged`), project and task
+ * totals included, because the change started, stopped or discarded entries. Every source of
+ * states (stream, poll, action reply, conflict) goes through here.
  */
 export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState {
   const cached = qc.getQueryData<TimerState>(keys.timer);
@@ -32,16 +35,28 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
   qc.setQueryData(keys.timer, update.state);
   qc.setQueryData(keys.current, update.current);
   if (update.offset !== null) setClockOffset(update.offset);
-  if (update.changed) {
-    void qc.invalidateQueries({ queryKey: keys.entries });
-    void qc.invalidateQueries({ queryKey: keys.report });
-    void qc.invalidateQueries({ queryKey: keys.trash });
-  }
+  if (update.changed) void invalidate(qc, stale.timerChanged);
   return update.state;
 }
 
 async function readTimerState(qc: QueryClient): Promise<TimerState> {
   return acceptTimerState(qc, await api.get(timerPath, { decode: timerStateOf }));
+}
+
+const outcomes = new WeakMap<QueryClient, TimerOutcome>();
+
+/**
+ * Whether the last Start, Continue or Stop left the timer unknown, shared by every view on this
+ * client so a remounted timer bar still reads the state before its next start.
+ */
+export function useTimerOutcome(): TimerOutcome {
+  const qc = useQueryClient();
+  let outcome = outcomes.get(qc);
+  if (!outcome) {
+    outcome = createTimerOutcome(() => readTimerState(qc));
+    outcomes.set(qc, outcome);
+  }
+  return outcome;
 }
 
 /**
@@ -89,9 +104,11 @@ async function currentRevision(qc: QueryClient): Promise<number> {
 const actionOptions = { mutationKey: TIMER_ACTION_KEY, networkMode: 'always' } as const;
 
 /**
- * Posts a timer action. The reply is the new state. A 409 replaces the cached state with the one in
- * its body and fails with a `TimerActionError` of kind `conflict`; no reply at all fails with kind
- * `offline`. Both carry the message to show. Other failures keep their `ApiError`.
+ * Posts a timer action. The reply is the new state; a reply that is not a whole state fails the
+ * action with the unreadable-state message and leaves the caches alone. A 409 replaces the cached
+ * state with the one in its body and fails with a `TimerActionError` of kind `conflict`; no reply
+ * at all fails with kind `offline`. Both carry the message to show. Other failures, a 409 without a
+ * whole state among them, keep their `ApiError`.
  */
 async function postAction(
   qc: QueryClient,
@@ -99,7 +116,7 @@ async function postAction(
   body: Record<string, unknown> | undefined,
 ): Promise<TimerState> {
   try {
-    return acceptTimerState(qc, await api.post<TimerState>(path, body));
+    return acceptTimerState(qc, await api.post(path, body, { decode: timerStateOf }));
   } catch (error) {
     const explained = explainTimerActionError(error);
     if (explained instanceof TimerActionError && explained.state) acceptTimerState(qc, explained.state);

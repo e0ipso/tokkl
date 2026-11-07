@@ -14,7 +14,6 @@ import { ManageList } from './manage/ManageList.tsx';
 import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, SearchBox, Segmented } from './manage/ui.tsx';
 import { matchesStatus, statusOptions, type StatusFilter } from './manage/values.ts';
-import './manage/manage.css';
 import { t } from '../i18n/messages.ts';
 
 type Pending = { kind: 'archive' | 'delete'; client: Client };

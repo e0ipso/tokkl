@@ -1,5 +1,5 @@
 import type { Grouping, Report } from '../../api/types.ts';
-import { NUMBER_LOCALE } from '../../i18n/locale.ts';
+import { activeLocale } from '../../i18n/locale.ts';
 import { formatMoney } from '../../lib/format.ts';
 import { t, type MessageKey } from '../../i18n/messages.ts';
 
@@ -58,7 +58,10 @@ export function percent(part: number, whole: number): number {
   return whole > 0 ? (part / whole) * 100 : 0;
 }
 
-const percentFormat = new Intl.NumberFormat(NUMBER_LOCALE, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const percentFormat = new Intl.NumberFormat(activeLocale.numberLocale, {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 1,
+});
 
 export function formatPercent(value: number): string {
   return t('reports.percent', { value: percentFormat.format(value) });

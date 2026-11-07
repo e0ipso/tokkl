@@ -9,7 +9,6 @@ import { t } from '../i18n/messages.ts';
 import { today } from '../lib/format.ts';
 import { RunningSession } from './pomodoro/RunningSession.tsx';
 import { StartForm } from './pomodoro/StartForm.tsx';
-import './PomodoroPage.css';
 
 export function PomodoroPage() {
   const { session } = usePomodoroSession();

@@ -16,7 +16,6 @@ import { focusPastRow, keepFocusPastRow } from './manage/rowFocus.ts';
 import { ConfirmModal, RowMenu, SearchBox, Segmented, StatusBadge } from './manage/ui.tsx';
 import { includesText, matchesStatus, statusOptions, type StatusFilter } from './manage/values.ts';
 import { ManageList } from './manage/ManageList.tsx';
-import './manage/manage.css';
 import { t } from '../i18n/messages.ts';
 
 type ClientFilter = 'any' | 'none' | number;

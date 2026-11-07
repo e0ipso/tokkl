@@ -21,12 +21,24 @@ export const keys = {
 };
 
 /**
+ * What the server derives from entries: the lists, the reports, the trash, the time tracked on
+ * projects and tasks, and the tags an entry saved with new tag names creates. Every change to
+ * entries refreshes all of it, whichever way the change arrives.
+ */
+const entryDerived = [keys.entries, keys.report, keys.trash, keys.projects, keys.tasks, keys.tags] as const;
+
+/**
  * What each kind of write makes stale. A write refreshes every query that shows the data it
  * changed, so the code that writes names the change, not the lists.
  */
 export const stale = {
-  /** Any entry write: the lists, the running entry, totals, and the time shown on projects and tags. */
-  entries: [keys.entries, keys.current, keys.timer, keys.report, keys.projects, keys.tags, keys.trash],
+  /** Any entry write from this tab: what entries make, plus the running entry and the timer state. */
+  entries: [...entryDerived, keys.current, keys.timer],
+  /**
+   * A timer state that moved past the cached one, from the stream, a poll or a timer action: the
+   * change started, stopped or discarded entries. The state itself carries the running entry.
+   */
+  timerChanged: entryDerived,
   /** A client write, which projects and entry rows show. */
   clients: [keys.clients, keys.projects, keys.entries, keys.current, keys.report],
   /** A project write from the list, which entry rows, tasks and reports show. */
