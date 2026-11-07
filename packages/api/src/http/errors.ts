@@ -1,5 +1,5 @@
-import type { ErrorRequestHandler } from 'express';
-import { ApplicationError, StateConflict, type FailureKind } from '../lib/errors.ts';
+import type { ErrorRequestHandler, Response } from 'express';
+import { ApplicationError, RequestCancelled, StateConflict, type FailureKind } from '../lib/errors.ts';
 import type { Logger } from '../lib/logger.ts';
 
 const STATUS: Readonly<Record<FailureKind, number>> = {
@@ -47,13 +47,23 @@ export function errorReply(error: unknown): ErrorReply {
   return frameworkErrorReply(error) ?? { status: 500, headers: {}, body: 'Internal Server Error' };
 }
 
-/** The last middleware. Unexpected errors are logged with their stack on the server only. */
+/** True once the client's connection is gone, so nothing written would reach it. */
+const disconnected = (res: Response) => res.destroyed || !res.socket || res.socket.destroyed;
+
+/**
+ * The last middleware. Unexpected errors are logged with their stack on the server only. Work
+ * cancelled because its client went away is expected: it is logged at debug and nothing is sent.
+ */
 export function errorHandler(logger: Logger): ErrorRequestHandler {
   return (error, _req, res, next) => {
-    if (res.headersSent) return next(error);
-    const reply = errorReply(error);
     // The request's logger carries its id, so the line can be matched to the access log.
     const log = (res.locals.log as Logger | undefined) ?? logger;
+    if (error instanceof RequestCancelled && disconnected(res)) {
+      log.debug('Request cancelled', { reason: error.message });
+      return;
+    }
+    if (res.headersSent) return next(error);
+    const reply = errorReply(error);
     if (!(error instanceof ApplicationError) && reply.status >= 500) log.error('Request failed', { error });
     else if (reply.status >= 500) log.warn('Request refused', { status: reply.status, reason: reply.body });
     res.status(reply.status).set(reply.headers).json(reply.body);

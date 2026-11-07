@@ -1,7 +1,7 @@
 import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
-import { ApplicationError, unavailable, type FailureKind } from '../lib/errors.ts';
+import { ApplicationError, RequestCancelled, unavailable, type FailureKind } from '../lib/errors.ts';
 
 /** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
 const QUEUE_FULL_RETRY_SECONDS = 2;
@@ -86,7 +86,7 @@ export class StorageReportRunner {
   }
   private enqueue(work: ReportWork, options: { signal?: AbortSignal }): Promise<JobResult> {
     if (this.closed) return Promise.reject(new Error('Report runner is closed'));
-    if (options.signal?.aborted) return Promise.reject(new Error('Report cancelled'));
+    if (options.signal?.aborted) return Promise.reject(new RequestCancelled('Report cancelled'));
     if (this.queue.length + Number(!!this.active) >= this.maxQueue)
       return Promise.reject(unavailable('Report queue is full', QUEUE_FULL_RETRY_SECONDS));
     return new Promise((resolve, reject) => {
@@ -101,12 +101,12 @@ export class StorageReportRunner {
         if (this.active === pending) {
           this.active = undefined;
           pending.dispose();
-          pending.reject(new Error('Report cancelled'));
+          pending.reject(new RequestCancelled('Report cancelled'));
           if (this.worker) this.stopWorker();
         } else {
           this.queue = this.queue.filter(p => p !== pending);
           pending.dispose();
-          pending.reject(new Error('Report cancelled'));
+          pending.reject(new RequestCancelled('Report cancelled'));
         }
         this.pump();
       };
