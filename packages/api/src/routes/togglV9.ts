@@ -8,16 +8,24 @@ import { parseDateOrInstant, parseId, parseIdList, togglTime } from '../lib/valu
 import { startOfDay } from '@tokkl/common/time';
 import type { EntryFilter, ProjectFilter } from '../storage/contracts.ts';
 import type { User, Workspace } from '../storage/domain.ts';
-import { getPreferences, serializeUser, serializeWorkspace } from '../domain/accountValues.ts';
+import { getPreferences } from '../domain/accountValues.ts';
 import { getInstanceSettings, memberWorkspace, type AccountRepositories } from '../domain/accounts.ts';
 import * as catalog from '../domain/catalogs.ts';
+import {
+  serializeClient,
+  serializeProject,
+  serializeTag,
+  serializeTask,
+  serializeTimeEntry,
+  serializeUser,
+  serializeWorkspace,
+} from '../presenters/toggl.ts';
 import {
   createTimeEntry,
   updateTimeEntry,
   stopTimeEntry,
   deleteTimeEntry,
   patchTimeEntries,
-  serializeTimeEntry,
   getTimeEntry,
 } from '../domain/timeEntries.ts';
 const {
@@ -27,21 +35,17 @@ const {
   restoreClient,
   setClientArchived,
   getClient,
-  serializeClient,
   createProject,
   updateProject,
   deleteProject,
   getProject,
-  serializeProject,
   createTask,
   updateTask,
   deleteTask,
   getTask,
-  serializeTask,
   createTag,
   updateTag,
   deleteTag,
-  serializeTag,
 } = catalog;
 const DEFAULT_LIST_DAYS = 9;
 function changedSince(req: Request): string | undefined {

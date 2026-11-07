@@ -10,6 +10,7 @@ import { createTimeEntry, stopTimeEntry } from '../../src/domain/timeEntries.ts'
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
+import { failsWith } from '../fixtures/errors.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
@@ -179,11 +180,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.equal(preview.created, 2);
           assert.deepEqual(await state(), before);
           assert.deepEqual(events, beforeEvents);
-          await assert.rejects(imports.importTogglCsv(user.id, csv, { dryRun: false }), { status: 400 });
-          await assert.rejects(imports.importTogglCsv(user.id, csv, { dryRun: false, users: [] }), { status: 400 });
-          await assert.rejects(imports.importTogglCsv(user.id, csv, { dryRun: false, users: ['unknown'] }), {
-            status: 400,
-          });
+          await assert.rejects(imports.importTogglCsv(user.id, csv, { dryRun: false }), failsWith(400));
+          await assert.rejects(imports.importTogglCsv(user.id, csv, { dryRun: false, users: [] }), failsWith(400));
+          await assert.rejects(
+            imports.importTogglCsv(user.id, csv, { dryRun: false, users: ['unknown'] }),
+            failsWith(400),
+          );
           const options = { dryRun: false, users: [preview.users![0]!.key] };
           const result = await imports.importTogglCsv(user.id, csv, options);
           assert.deepEqual([result.created, result.errors.map(e => e.row)], [1, [2, 4]]);
@@ -257,7 +259,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
                 { format: 'tokkl-export', clients: [{ id: 9, name: 'intruder' }] },
                 { dryRun },
               ),
-              { status: 403 },
+              failsWith(403),
             );
           assert.deepEqual(await state(), before);
         });

@@ -10,6 +10,7 @@ import * as entries from '../../src/domain/timeEntries.ts';
 import { createTimerOperations, createTimerPublication } from '../../src/domain/timers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
+import { errorReply } from '../../src/http/errors.ts';
 function gate() {
   let resolve!: () => void;
   const promise = new Promise<void>(r => {
@@ -70,7 +71,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const outcomes = await Promise.allSettled([first, timers[0]!.startPomodoro(user.id, {}, at('09:00:01'))]);
           assert.equal(outcomes.filter(o => o.status === 'fulfilled').length, 1);
           const refusal = outcomes.find(o => o.status === 'rejected');
-          assert.equal(refusal?.status === 'rejected' && refusal.reason.status, 409);
+          assert.equal(refusal?.status === 'rejected' && errorReply(refusal.reason).status, 409);
           const state = await timers[0]!.getTimerState(user.id);
           assert.equal(state.revision, 1);
           assert.equal(state.pomodoro?.entry_id, state.running_entry?.id);
@@ -86,7 +87,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           );
           assert.equal(outcomes.filter(o => o.status === 'fulfilled').length, 1);
           const refusal = outcomes.find(o => o.status === 'rejected');
-          assert.equal(refusal?.status === 'rejected' && refusal.reason.status, 409);
+          assert.equal(refusal?.status === 'rejected' && errorReply(refusal.reason).status, 409);
           assert.equal((await timers[0]!.getTimerState(user.id)).revision, before.revision + 1);
         });
         await t.test('returned state includes mutations made by later before-commit hooks', async () => {

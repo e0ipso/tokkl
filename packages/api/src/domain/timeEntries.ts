@@ -5,7 +5,7 @@ import type { EntryInput, OperationContext, Repositories } from '../storage/cont
 import { StorageConflict } from '../storage/errors.ts';
 import type { EntryDetails, TimeEntry, User } from '../storage/domain.ts';
 import { invalidInput, conflict, forbidden, notFound, type ApplicationError } from '../lib/errors.ts';
-import { isoSeconds, optionalBool, optionalId, optionalString, parseInstant, togglTime } from '../lib/values.ts';
+import { isoSeconds, optionalBool, optionalId, optionalString, parseInstant } from '../lib/values.ts';
 import { resolveTagNames } from './catalogs.ts';
 import { touchTimer, type TimerPublication } from './timers.ts';
 
@@ -706,49 +706,4 @@ export async function patchTimeEntries(
 
 export function entryDurationSeconds(row: Pick<TimeEntry, 'start' | 'stop'>, now = new Date()): number {
   return seconds(row.stop ? new Date(row.stop) : now) - seconds(new Date(row.start));
-}
-
-export function serializeTimeEntry(row: EntryDetails, options: { meta?: boolean; user?: User } = {}) {
-  const tags = row.tags;
-  const start = new Date(row.start);
-  const duration = row.stop ? seconds(new Date(row.stop)) - seconds(start) : -seconds(start);
-  const entry: Record<string, unknown> = {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    project_id: row.projectId,
-    task_id: row.taskId,
-    billable: row.billable,
-    start: togglTime(row.start),
-    stop: togglTime(row.stop),
-    duration,
-    description: row.description,
-    tags: tags.map(tag => tag.name),
-    tag_ids: tags.map(tag => tag.id),
-    duronly: true,
-    all_day: row.allDay,
-    at: togglTime(row.updatedAt),
-    server_deleted_at: togglTime(row.deletedAt),
-    user_id: row.userId,
-    uid: row.userId,
-    wid: row.workspaceId,
-    pid: row.projectId,
-    tid: row.taskId,
-    permissions: null,
-    expense_ids: [],
-  };
-  if (options.meta) {
-    Object.assign(entry, {
-      project_name: row.project?.name ?? null,
-      project_color: row.project?.color ?? null,
-      project_active: row.project?.active ?? null,
-      project_billable: row.project?.billable ?? null,
-      client_id: row.client?.id ?? null,
-      client_name: row.client?.name ?? null,
-      task_name: row.task?.name ?? null,
-      task_active: row.task?.active ?? null,
-      user_name: options.user?.fullName ?? null,
-      user_avatar_url: '',
-    });
-  }
-  return entry;
 }

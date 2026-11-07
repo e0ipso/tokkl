@@ -6,7 +6,7 @@ import type { User } from '../../src/storage/domain.ts';
 import { storageFor, servicesFor, transaction, currentContext, type FixtureDatabase } from './database.ts';
 export type { UserRole, User } from '../../src/storage/domain.ts';
 export { MAX_FAVORITES } from '../../src/domain/accountValues.ts';
-export { serializeTimeEntry } from '../../src/domain/timeEntries.ts';
+export { serializeTimeEntry } from '../../src/presenters/toggl.ts';
 const silent = createTimerPublication(async () => {});
 const publication = (db: FixtureDatabase) => servicesFor(db)?.publish ?? silent;
 export function createFirstAdmin(db: FixtureDatabase, body: Record<string, unknown>) {

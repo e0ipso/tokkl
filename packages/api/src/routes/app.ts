@@ -6,7 +6,8 @@ import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
 import { createStorageSessions } from '../auth/storageSessions.ts';
-import { restoreTimeEntry, purgeDeletedEntries, serializeTimeEntry } from '../domain/timeEntries.ts';
+import { restoreTimeEntry, purgeDeletedEntries } from '../domain/timeEntries.ts';
+import { serializeTimeEntry } from '../presenters/toggl.ts';
 export interface SetupState {
   code: string | null;
 }

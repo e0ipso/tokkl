@@ -3,9 +3,16 @@ import { formatDuration } from '@tokkl/common/duration';
 import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '@tokkl/common/time';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Repositories } from '../storage/contracts.ts';
-import { serializeClient, serializeProject, serializeTag, serializeTask } from '../domain/catalogs.ts';
-import { getPreferences, serializeUser, serializeWorkspace } from '../domain/accountValues.ts';
-import { serializeTimeEntry } from '../domain/timeEntries.ts';
+import { getPreferences } from '../domain/accountValues.ts';
+import {
+  serializeClient,
+  serializeProject,
+  serializeTag,
+  serializeTask,
+  serializeTimeEntry,
+  serializeUser,
+  serializeWorkspace,
+} from '../presenters/toggl.ts';
 import { toCsv } from '../lib/csv.ts';
 import { invalidInput } from '../lib/errors.ts';
 

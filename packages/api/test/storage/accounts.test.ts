@@ -7,14 +7,8 @@ import { createAccountRepositories } from '../../src/storage/repositories/accoun
 import { ApplicationError } from '../../src/lib/errors.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { sha256, verifyPassword } from '../../src/auth/crypto.ts';
-import {
-  getPreferences,
-  serializeAccount,
-  serializeInvite,
-  serializeUser,
-  serializeWorkspace,
-  readNewAccount,
-} from '../../src/domain/accountValues.ts';
+import { getPreferences, readNewAccount } from '../../src/domain/accountValues.ts';
+import { serializeAccount, serializeInvite, serializeUser, serializeWorkspace } from '../../src/presenters/toggl.ts';
 import { jsonObject } from '../../src/storage/conversion.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { disposableBackend } from './support/disposableBackend.ts';

@@ -3,15 +3,7 @@ import type { OperationContext, Repositories, ProjectInput } from '../storage/co
 import type { Client, Id, ProjectSummary, TaskSummary, Tag } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
-import {
-  optionalBool,
-  optionalId,
-  optionalNumber,
-  optionalRate,
-  optionalString,
-  requireName,
-  togglTime,
-} from '../lib/values.ts';
+import { optionalBool, optionalId, optionalNumber, optionalRate, optionalString, requireName } from '../lib/values.ts';
 
 export type CatalogRepositories = Pick<Repositories, 'clients' | 'projects' | 'tasks' | 'tags'>;
 export type CatalogContext = OperationContext<CatalogRepositories>;
@@ -349,107 +341,4 @@ export function deleteTag(ctx: CatalogContext, wid: Id, id: Id, effects: Catalog
     },
     true,
   );
-}
-
-export function serializeClient(row: Client) {
-  return {
-    id: row.id,
-    wid: row.workspaceId,
-    archived: row.archived,
-    name: row.name,
-    at: togglTime(row.updatedAt),
-    notes: row.notes,
-    creator_id: null,
-    integration_provider: null,
-    permissions: null,
-  };
-}
-
-function projectStatus(row: ProjectSummary): string {
-  if (!row.active) return 'archived';
-  const today = new Date().toISOString().slice(0, 10);
-  if (row.startDate && row.startDate > today) return 'upcoming';
-  if (row.endDate && row.endDate < today) return 'ended';
-  return 'active';
-}
-
-export function serializeProject(row: ProjectSummary, defaultCurrency: string) {
-  const actualSeconds = Number(row.actualSeconds);
-  return {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    client_id: row.clientId,
-    name: row.name,
-    is_private: row.isPrivate,
-    active: row.active,
-    at: togglTime(row.updatedAt),
-    created_at: togglTime(row.createdAt),
-    server_deleted_at: null,
-    color: row.color,
-    billable: row.billable,
-    template: row.template,
-    auto_estimates: false,
-    estimated_hours: row.estimatedHours,
-    estimated_seconds: row.estimatedHours === null ? null : Math.round(row.estimatedHours * 3600),
-    rate: row.rate,
-    rate_last_updated: null,
-    currency: row.currency,
-    recurring: false,
-    template_id: null,
-    recurring_parameters: null,
-    fixed_fee: row.fixedFee,
-    actual_hours: Math.floor(actualSeconds / 3600),
-    actual_seconds: actualSeconds,
-    start_date: row.startDate ?? row.createdAt.slice(0, 10),
-    end_date: row.endDate,
-    status: projectStatus(row),
-    wid: row.workspaceId,
-    cid: row.clientId,
-    client_name: row.clientName,
-    can_track_time: true,
-    pinned: false,
-    permissions: null,
-    workspace_default_currency: defaultCurrency,
-    integration_provider: null,
-    external_reference: null,
-  };
-}
-
-export function serializeTask(row: TaskSummary) {
-  return {
-    id: row.id,
-    name: row.name,
-    workspace_id: row.workspaceId,
-    project_id: row.projectId,
-    user_id: null,
-    active: row.active,
-    at: togglTime(row.updatedAt),
-    estimated_seconds: row.estimatedSeconds,
-    // Toggl documents this field as milliseconds despite the name.
-    tracked_seconds: row.trackedMilliseconds,
-    server_deleted_at: null,
-    project_name: row.projectName,
-    project_color: row.projectColor,
-    project_billable: row.projectBillable,
-    project_is_private: row.projectIsPrivate,
-    client_id: row.clientId,
-    client_name: row.clientName,
-    rate: null,
-    recurring: false,
-    permissions: null,
-    integration_provider: null,
-  };
-}
-
-export function serializeTag(row: Tag) {
-  return {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    name: row.name,
-    at: togglTime(row.updatedAt),
-    deleted_at: null,
-    creator_id: null,
-    integration_provider: null,
-    permissions: null,
-  };
 }

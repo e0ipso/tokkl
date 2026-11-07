@@ -152,14 +152,6 @@ export async function getInstanceSettings(ctx: AccountRepositories, sessionDays:
       : 5,
   };
 }
-export function serializeSettings(settings: InstanceSettings) {
-  return {
-    session_days: settings.sessionDays,
-    invite_days: settings.inviteDays,
-    time_resolution_minutes: settings.timeResolutionMinutes,
-  };
-}
-
 export function createAccountOperations<R extends AccountRepositories>(
   runner: AccountRunner<R>,
   security: AccountSecurityEffects,

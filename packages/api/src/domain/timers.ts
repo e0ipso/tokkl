@@ -6,7 +6,7 @@ import {
   transitionKind,
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
-import type { TimerState, TimeEntry as HttpTimeEntry } from '@tokkl/types';
+import type { TimerState } from '@tokkl/types';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, TimerSnapshot, User } from '../storage/domain.ts';
 import { calendarInput, invalidInput, StateConflict } from '../lib/errors.ts';
@@ -21,11 +21,11 @@ import {
   memberWorkspace,
   protectEntryOperation,
   reanchorNoTimeEntries,
-  serializeTimeEntry,
   stopEntryAt,
   type EntryContext,
   type EntryRepositories,
 } from './timeEntries.ts';
+import { serializeTimeEntry } from '../presenters/toggl.ts';
 
 /** One local application instance owns this callback. No connection or database identity is exposed.
  * `incarnation` is the user row's `createdAt`. It tells apart accounts that reuse a deleted id. */
@@ -190,7 +190,7 @@ export async function buildTimerState(
   return {
     revision: data.revision?.revision ?? 0,
     server_time: now.toISOString(),
-    running_entry: e ? (serializeTimeEntry(e, { meta: true, user }) as unknown as HttpTimeEntry) : null,
+    running_entry: e ? serializeTimeEntry(e, { meta: true, user }) : null,
     pause: c && {
       paused: c.cloneEntryId === null,
       seconds: c.seconds,

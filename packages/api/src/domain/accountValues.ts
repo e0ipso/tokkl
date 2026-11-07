@@ -6,8 +6,8 @@ import {
 import { canonicalTimeZone } from '@tokkl/common/time';
 import { readNewPassword } from '../auth/crypto.ts';
 import { invalidInput } from '../lib/errors.ts';
-import { togglTime, optionalString, optionalId } from '../lib/values.ts';
-import type { JsonObject, User, Workspace, MembershipRole, AccountToken } from '../storage/domain.ts';
+import { optionalString, optionalId } from '../lib/values.ts';
+import type { JsonObject, User } from '../storage/domain.ts';
 import type { AccountChanges } from '../storage/contracts.ts';
 const MAX_ACCOUNT_FAVORITE_DESCRIPTION_LENGTH = 3000;
 /** Defaults for the preferences this app reads. Unknown keys sent by clients are kept as-is. */
@@ -128,95 +128,6 @@ export function getPomodoroSessionConfig(user: User): PomodoroSessionConfig {
   };
 }
 
-export function serializeAccount(user: User) {
-  return {
-    id: user.id,
-    email: user.email,
-    fullname: user.fullName,
-    role: user.role,
-    created_at: togglTime(user.createdAt),
-    disabled_at: togglTime(user.disabledAt),
-  };
-}
-
-export function serializeUser(user: User, options: { includeToken: boolean }) {
-  return {
-    id: user.id,
-    api_token: options.includeToken ? user.apiToken : undefined,
-    email: user.email,
-    fullname: user.fullName,
-    timezone: user.timezone,
-    toggl_accounts_id: String(user.id),
-    default_workspace_id: user.defaultWorkspaceId,
-    beginning_of_week: user.beginningOfWeek,
-    image_url: '',
-    created_at: togglTime(user.createdAt),
-    updated_at: togglTime(user.updatedAt),
-    openid_email: null,
-    openid_enabled: false,
-    country_id: null,
-    has_password: true,
-    at: togglTime(user.updatedAt),
-    intercom_hash: undefined,
-    oauth_providers: [],
-    '2fa_enabled': false,
-    authorization_updated_at: togglTime(user.updatedAt),
-  };
-}
-export function serializeWorkspace(ws: Workspace, membership: MembershipRole | undefined) {
-  const admin = membership === 'owner';
-  return {
-    id: ws.id,
-    organization_id: ws.id,
-    name: ws.name,
-    premium: true,
-    business_ws: true,
-    admin,
-    role: admin ? 'admin' : 'user',
-    suspended_at: null,
-    server_deleted_at: null,
-    default_hourly_rate: ws.defaultHourlyRate,
-    rate_last_updated: null,
-    default_currency: ws.defaultCurrency,
-    only_admins_may_create_projects: false,
-    only_admins_may_create_tags: false,
-    only_admins_see_team_dashboard: false,
-    projects_billable_by_default: false,
-    projects_private_by_default: true,
-    projects_enforce_billable: false,
-    limit_public_project_data: false,
-    last_modified: togglTime(ws.updatedAt),
-    reports_collapse: true,
-    rounding: ws.rounding,
-    rounding_minutes: ws.roundingMinutes,
-    api_token: undefined,
-    at: togglTime(ws.updatedAt),
-    logo_url: '',
-    ical_url: '',
-    ical_enabled: false,
-    csv_upload: null,
-    subscription: null,
-    hide_start_end_times: false,
-    disable_timesheet_view: false,
-    disable_approvals: true,
-    disable_expenses: true,
-    working_hours_in_minutes: null,
-    permissions: null,
-    max_data_retention_days: null,
-    te_constraints: null,
-  };
-}
-
-export function serializeInvite(invite: AccountToken) {
-  return {
-    id: invite.id,
-    role: invite.role,
-    note: invite.note,
-    created_by: invite.createdBy,
-    created_at: togglTime(invite.createdAt),
-    expires_at: togglTime(invite.expiresAt),
-  };
-}
 export interface NewAccountInput {
   email: string;
   fullname: string;
