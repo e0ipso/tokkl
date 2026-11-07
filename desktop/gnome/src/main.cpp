@@ -16,11 +16,15 @@
 #include <QStandardPaths>
 
 #include <csignal>
+#include <cstdio>
 #include <sys/socket.h>
 #include <unistd.h>
 
 namespace
 {
+// The program's own messages. The two that end it before the event loop
+// runs go straight to stderr instead, where D-Bus activation and the
+// activation test read them; Qt may send category output to the journal.
 Q_LOGGING_CATEGORY(lcTimerd, "tokkl.timerd", QtInfoMsg)
 
 // The write end of the pipe the signal handler wakes the event loop with.
@@ -48,7 +52,7 @@ bool quitOnTerminate(QCoreApplication &app)
         notifier->setEnabled(false);
         char byte;
         [[maybe_unused]] const ssize_t read = ::read(fds[1], &byte, 1);
-        qCInfo(lcTimerd) << "Terminating";
+        qCInfo(lcTimerd) << "terminating";
         QCoreApplication::quit();
     });
     struct sigaction action = {};
@@ -65,12 +69,12 @@ int main(int argc, char **argv)
     QCoreApplication::setApplicationName(QStringLiteral("tokkl-timerd"));
     QCoreApplication::setApplicationVersion(QStringLiteral(TOKKL_VERSION_STRING));
     if (!quitOnTerminate(app)) {
-        qCWarning(lcTimerd) << "Cannot catch SIGTERM; the service will exit without leaving the bus";
+        qCWarning(lcTimerd) << "cannot catch SIGTERM; the service will exit without leaving the bus";
     }
 
     QDBusConnection bus = QDBusConnection::sessionBus();
     if (!bus.isConnected()) {
-        qCCritical(lcTimerd) << "No session bus:" << bus.lastError().message();
+        std::fprintf(stderr, "tokkl-timerd: no session bus: %s\n", qPrintable(bus.lastError().message()));
         return 1;
     }
 
@@ -81,12 +85,13 @@ int main(int argc, char **argv)
     // The Pomodoro alarm, from the bundled sounds the package installs.
     Tokkl::PulseAlarmBackend alarmBackend(QCoreApplication::applicationName());
     QObject::connect(&alarmBackend, &Tokkl::PulseAlarmBackend::errorOccurred, &service, [](const QString &message) {
-        qCWarning(lcTimerd) << "No sound:" << message;
+        qCWarning(lcTimerd).noquote() << "no sound:" << message;
     });
     Tokkl::PomodoroAlarm alarm(service.session(), &alarmBackend, service.soundChoices(), QStringLiteral(TOKKL_SOUNDS_DIR));
     service.setAlarm(&alarm);
     if (!service.registerOn(bus)) {
-        qCCritical(lcTimerd) << "Could not own" << Tokkl::TimerService::serviceName << "on the session bus:" << bus.lastError().message();
+        std::fprintf(stderr, "tokkl-timerd: could not own %s on the session bus: %s\n", qPrintable(Tokkl::TimerService::serviceName),
+                     qPrintable(bus.lastError().message()));
         return 1;
     }
     return app.exec();
