@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { useFocusTrap } from './useFocusTrap.ts';
 import { useOverlayLayer } from './overlayStack.tsx';
 
 function useDismiss(ref: RefObject<HTMLElement | null>, onClose: () => void, anchor: RefObject<HTMLElement | null>) {
@@ -108,7 +107,6 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const isTopmost = useOverlayLayer();
-  const trapFocus = useFocusTrap();
   // Read on the first render, before anything inside the modal can take focus.
   const [opener] = useState(() => document.activeElement);
   useEffect(() => {
@@ -141,14 +139,7 @@ export function Modal({
         onClose();
       }}
     >
-      <div
-        ref={ref}
-        className={`modal${wide ? ' modal-wide' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onKeyDown={trapFocus}
-      >
+      <div ref={ref} className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className="modal-header">
           <h2>{title}</h2>
           <button type="button" className="icon-button modal-close" onClick={onClose} aria-label="Close">
