@@ -206,6 +206,105 @@ export async function verifyCurrent(connection: StorageConnection<PhysicalDataba
     throw new StorageMigrationError('inconsistent-schema');
   }
 }
+/** How long a migrator waits for another one to finish before it gives up. */
+const MIGRATION_LOCK_WAIT_MS = 30_000;
+/** Pause between SQLite attempts to take the write lock. */
+const SQLITE_LOCK_POLL_MS = 20;
+/** SQLite's SQLITE_BUSY result code. */
+const SQLITE_BUSY = 5;
+/** The PostgreSQL advisory lock key pair the migrators share. */
+const MIGRATION_ADVISORY_LOCK = '783213, 1';
+
+/**
+ * The migration lock as far as it was taken. A failure part way still restores what was changed:
+ * SQLite's busy timeout, and the lock itself once `locked`.
+ */
+interface MigrationLock {
+  /** The MySQL/MariaDB named lock, per database; empty for the other engines. */
+  readonly name: string;
+  locked: boolean;
+  busyTimeout?: number;
+}
+
+async function migrationLockName(db: Kysely<PhysicalDatabase>, backend: Backend): Promise<string> {
+  if (!serverDDL(backend)) return '';
+  return `tokkl-migrate-${digest((await sql`select database() as name`.execute(db)).rows).slice(0, 32)}`;
+}
+
+/**
+ * SQLite and PostgreSQL migrate in one transaction under the lock. MySQL and MariaDB commit each
+ * DDL statement, so only the named lock serializes them.
+ */
+async function lockMigrations(db: Kysely<PhysicalDatabase>, backend: Backend, lock: MigrationLock): Promise<void> {
+  if (backend === 'sqlite') {
+    // Zero busy wait avoids blocking this process while another async owner needs to commit.
+    lock.busyTimeout = Number((await sql.raw<{ timeout: number }>('PRAGMA busy_timeout').execute(db)).rows[0]!.timeout);
+    await run(db, 'PRAGMA busy_timeout=0');
+    const deadline = Date.now() + MIGRATION_LOCK_WAIT_MS;
+    for (;;) {
+      try {
+        await run(db, 'BEGIN IMMEDIATE');
+        lock.locked = true;
+        return;
+      } catch (error) {
+        if ((error as { errcode?: number }).errcode !== SQLITE_BUSY || Date.now() >= deadline) throw error;
+        await setTimeout(SQLITE_LOCK_POLL_MS);
+      }
+    }
+  }
+  if (backend === 'postgres') {
+    await run(db, `SELECT pg_advisory_lock(${MIGRATION_ADVISORY_LOCK})`);
+    lock.locked = true;
+    await run(db, 'BEGIN');
+    return;
+  }
+  const seconds = sql.lit(MIGRATION_LOCK_WAIT_MS / 1000);
+  const result = await sql<{ acquired: number }>`SELECT GET_LOCK(${lock.name}, ${seconds}) as acquired`.execute(db);
+  if (Number(result.rows[0]?.acquired) !== 1) throw new StorageMigrationError('migration-failed');
+  lock.locked = true;
+}
+
+async function unlockMigrations(db: Kysely<PhysicalDatabase>, backend: Backend, lock: MigrationLock): Promise<void> {
+  if (lock.busyTimeout !== undefined) await run(db, `PRAGMA busy_timeout=${lock.busyTimeout}`);
+  if (lock.locked && backend === 'postgres') await run(db, `SELECT pg_advisory_unlock(${MIGRATION_ADVISORY_LOCK})`);
+  if (lock.locked && serverDDL(backend)) await sql`SELECT RELEASE_LOCK(${lock.name})`.execute(db);
+}
+
+/** Creates the ledger on first run and applies every migration past the recorded version. */
+async function applyPending(
+  db: Kysely<PhysicalDatabase>,
+  backend: Backend,
+  available: readonly Migration[],
+  afterStatement: (() => Promise<void>) | undefined,
+): Promise<void> {
+  const version = await history(db, backend, available);
+  if (!version) await run(db, createTableDDL(backend, 'storage_migrations', ledgerColumns));
+  for (const migration of available.slice(version)) {
+    // Autocommit engines persist this intent BEFORE the first implicit DDL commit. A crash or
+    // failure leaves 'applying', and every future initializer refuses without replaying DDL.
+    await db
+      .insertInto('storage_migrations')
+      .values({
+        version: migration.version,
+        name: migration.name,
+        checksum: digest(migration),
+        state: 'applying',
+        schema_hash: null,
+      })
+      .execute();
+    for (const statement of migration.statements) {
+      await run(db, statement);
+      await afterStatement?.();
+    }
+    const fingerprint = await schemaFingerprint(db, backend);
+    await db
+      .updateTable('storage_migrations')
+      .set({ state: 'complete', schema_hash: fingerprint })
+      .where('version', '=', migration.version)
+      .execute();
+  }
+}
+
 /** Not exported through application contracts. Explicit history override supports upgrade/fault fixtures. */
 export async function migrate(
   connection: StorageConnection<PhysicalDatabase>,
@@ -219,72 +318,16 @@ export async function migrate(
     if (available.some((migration, index) => migration.version !== index + 1))
       throw new StorageMigrationError('inconsistent-schema');
     await connection.db.connection().execute(async db => {
-      let locked = false;
-      let busyTimeout: number | undefined;
-      const lockName = !serverDDL(backend)
-        ? ''
-        : `tokkl-migrate-${digest((await sql`select database() as name`.execute(db)).rows).slice(0, 32)}`;
+      const lock: MigrationLock = { name: await migrationLockName(db, backend), locked: false };
       try {
-        if (backend === 'sqlite') {
-          // Zero busy wait avoids blocking this process while another async owner needs to commit.
-          busyTimeout = Number(
-            (await sql.raw<{ timeout: number }>('PRAGMA busy_timeout').execute(db)).rows[0]!.timeout,
-          );
-          await run(db, 'PRAGMA busy_timeout=0');
-          const deadline = Date.now() + 30000;
-          for (;;) {
-            try {
-              await run(db, 'BEGIN IMMEDIATE');
-              locked = true;
-              break;
-            } catch (error) {
-              if ((error as { errcode?: number }).errcode !== 5 || Date.now() >= deadline) throw error;
-              await setTimeout(20);
-            }
-          }
-        } else if (backend === 'postgres') {
-          await run(db, 'SELECT pg_advisory_lock(783213, 1)');
-          locked = true;
-          await run(db, 'BEGIN');
-        } else {
-          const lock = await sql<{ acquired: number }>`SELECT GET_LOCK(${lockName}, 30) as acquired`.execute(db);
-          if (Number(lock.rows[0]?.acquired) !== 1) throw new StorageMigrationError('migration-failed');
-          locked = true;
-        }
-        const version = await history(db, backend, available);
-        if (!version) await run(db, createTableDDL(backend, 'storage_migrations', ledgerColumns));
-        for (const migration of available.slice(version)) {
-          // Autocommit engines persist this intent BEFORE the first implicit DDL commit. A crash or
-          // failure leaves 'applying', and every future initializer refuses without replaying DDL.
-          await db
-            .insertInto('storage_migrations')
-            .values({
-              version: migration.version,
-              name: migration.name,
-              checksum: digest(migration),
-              state: 'applying',
-              schema_hash: null,
-            })
-            .execute();
-          for (const statement of migration.statements) {
-            await run(db, statement);
-            await afterStatement?.();
-          }
-          const fingerprint = await schemaFingerprint(db, backend);
-          await db
-            .updateTable('storage_migrations')
-            .set({ state: 'complete', schema_hash: fingerprint })
-            .where('version', '=', migration.version)
-            .execute();
-        }
+        await lockMigrations(db, backend, lock);
+        await applyPending(db, backend, available, afterStatement);
         if (!serverDDL(backend)) await run(db, 'COMMIT');
       } catch (error) {
-        if (locked && !serverDDL(backend)) await run(db, 'ROLLBACK').catch(() => {});
+        if (lock.locked && !serverDDL(backend)) await run(db, 'ROLLBACK').catch(() => {});
         throw error;
       } finally {
-        if (busyTimeout !== undefined) await run(db, `PRAGMA busy_timeout=${busyTimeout}`);
-        if (locked && backend === 'postgres') await run(db, 'SELECT pg_advisory_unlock(783213, 1)');
-        if (locked && serverDDL(backend)) await sql`SELECT RELEASE_LOCK(${lockName})`.execute(db);
+        await unlockMigrations(db, backend, lock);
       }
     });
   } catch (error) {

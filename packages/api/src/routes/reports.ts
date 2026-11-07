@@ -1,5 +1,5 @@
 import { type Request, type Response, type Router } from 'express';
-import type { Deps } from '../http/context.ts';
+import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/request.ts';
 import { calendarInput, invalidInput } from '../lib/errors.ts';
@@ -21,6 +21,9 @@ import { lenientNumber } from '../http/params.ts';
 
 /** Toggl's Reports API v3 rejects ranges longer than a year. */
 const TOGGL_MAX_DAYS = 366;
+/** The detailed search's page size when none is sent, and the largest it clamps to. */
+const TOGGL_DEFAULT_PAGE_SIZE = 50;
+const TOGGL_MAX_PAGE_SIZE = 1000;
 
 /** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
 function workspaceFor(deps: Deps, req: Request, res: Response): Promise<Workspace> {
@@ -60,7 +63,7 @@ export function reportsV3Routes(deps: Deps): Router {
   api.post('/workspace/:wid/search/time_entries', async (req, res) => {
     const { ws, body, filter } = await v3Filter(req, res);
     const orderBy = parseOrderBy(body.order_by);
-    const pageSize = Math.min(Math.max(lenientNumber(body.page_size, 50), 1), 1000);
+    const pageSize = Math.min(Math.max(lenientNumber(body.page_size, TOGGL_DEFAULT_PAGE_SIZE), 1), TOGGL_MAX_PAGE_SIZE);
     const firstRow = Math.max(lenientNumber(body.first_row_number, 1), 1);
     await send(deps, res, ws, {
       kind: 'v3-search',
@@ -149,7 +152,8 @@ export function reportsV3Routes(deps: Deps): Router {
   return api;
 }
 
-/** The largest page the web app's detailed report may request. */
+/** The web app's detailed report page size when none is sent, and the largest it may request. */
+const APP_DEFAULT_PAGE_SIZE = 100;
 const APP_MAX_PAGE_SIZE = 500;
 
 /** Report endpoint for the web app: totals, a time series and groupings in one response. */
@@ -185,7 +189,7 @@ export function appReportRoutes(deps: Deps): Router {
   api.post('/report/entries', deps.auth.requireAuth, async (req, res) => {
     const { ws, body, filter } = await appFilter(req, res);
     const { sort, dir } = parseDetailedOrder(body);
-    const pageSize = parsePositiveInt(body.page_size, 100, 'page_size');
+    const pageSize = parsePositiveInt(body.page_size, APP_DEFAULT_PAGE_SIZE, 'page_size');
     if (pageSize > APP_MAX_PAGE_SIZE) throw invalidInput(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
     const page = parsePositiveInt(body.page, 1, 'page');
     await send(deps, res, ws, { kind: 'app-entries', filter, sort, dir, pageSize, page });

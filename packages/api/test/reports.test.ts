@@ -1,6 +1,6 @@
 import { filenameFor } from './fixtures/database.ts';
 import { servicesFor } from './fixtures/database.ts';
-import { StorageReportRunner } from '../src/services/reportRunner.ts';
+import { ReportRunner } from '../src/services/reportRunner.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -741,7 +741,7 @@ test('SQLite file: reports on a file-backed database are built in the worker and
   await seed(ctx);
   const file = await fileBackedCopy(ctx);
   // An in-memory database builds reports inline; a file-backed one hands them to the worker.
-  assert.equal(servicesFor(ctx.db).reports instanceof StorageReportRunner, true);
+  assert.equal(servicesFor(ctx.db).reports instanceof ReportRunner, true);
   assert.equal(filenameFor(file.db), file.path);
   const workers = watchWorkers();
   t.after(workers.stop);

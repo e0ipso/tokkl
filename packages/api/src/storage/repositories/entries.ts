@@ -8,7 +8,7 @@ import { classifyConflict } from '../errors.ts';
 
 const nullableId = (v: number | string | null) => (v === null ? null : entityId(v));
 const instant = (v: string | null) => (v === null ? null : utcInstant(v));
-export function entryValue(r: Selectable<TimeEntriesRow>): TimeEntry {
+function entryValue(r: Selectable<TimeEntriesRow>): TimeEntry {
   return {
     id: entityId(r.id),
     userId: entityId(r.user_id),
@@ -41,7 +41,7 @@ function values(input: Partial<EntryInput>): Updateable<TimeEntriesRow> {
     deleted_at: input.deletedAt,
   };
 }
-export function entryDetailsQuery(db: Kysely<PhysicalDatabase>) {
+function entryDetailsQuery(db: Kysely<PhysicalDatabase>) {
   return db
     .selectFrom('time_entries as e')
     .leftJoin('projects as p', 'p.id', 'e.project_id')

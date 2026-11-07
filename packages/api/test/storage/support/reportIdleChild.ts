@@ -1,7 +1,7 @@
 import { initializeDatabase } from '../../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../../src/storage/repositories/reports.ts';
-import { StorageReportRunner } from '../../../src/services/reportRunner.ts';
+import { ReportRunner } from '../../../src/services/reportRunner.ts';
 import { disposableBackend } from './disposableBackend.ts';
 import { entryAccount, entryTimerFactory } from './entry-timer.ts';
 const fixture = await disposableBackend('sqlite');
@@ -12,7 +12,7 @@ try {
     ...createReportRepositories(db, 'sqlite'),
   }));
   const user = await operations.transaction(r => r.users.createAccount(entryAccount('idle')));
-  const runner = new StorageReportRunner(fixture.config, operations);
+  const runner = new ReportRunner(fixture.config, operations);
   const result = await runner.run(user.id, user.defaultWorkspaceId, {
     kind: 'app-report',
     filter: { startDate: '2026-10-01', endDate: '2026-10-31' },

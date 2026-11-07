@@ -17,21 +17,19 @@ import { passwordCounters, type FailureLimiter } from './rateLimit.ts';
 
 export const SESSION_COOKIE = 'tokkl_session';
 export const LEGACY_SESSION_COOKIE = 'tt_session';
-export const CSRF_HEADER = 'x-tokkl-csrf';
-export const LEGACY_CSRF_HEADER = 'x-timetrack-csrf';
+const CSRF_HEADER = 'x-tokkl-csrf';
+const LEGACY_CSRF_HEADER = 'x-timetrack-csrf';
 
-/** Keep the normalized user and the credential observed by this request together. */
-export type StorageAuthentication = Authentication;
-export interface StorageAuthLocals {
-  auth: StorageAuthentication;
+interface AuthLocals {
+  auth: Authentication;
 }
-export type StorageAuthHandler = RequestHandler<
-  Record<string, string>,
-  unknown,
-  unknown,
-  Request['query'],
-  StorageAuthLocals
->;
+declare module 'express-serve-static-core' {
+  interface Locals {
+    /** Set by `requireAuth` for every route behind it. */
+    auth: Authentication;
+  }
+}
+export type AuthHandler = RequestHandler<Record<string, string>, unknown, unknown, Request['query'], AuthLocals>;
 
 export function hasCsrfHeader(req: Request): boolean {
   return req.headers[CSRF_HEADER] === '1' || req.headers[LEGACY_CSRF_HEADER] === '1';
@@ -71,12 +69,12 @@ export async function authenticatePassword<R extends AccountRepositories>(
   if (!seen || !result.valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }
-export async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: User): Promise<User | undefined> {
+async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: User): Promise<User | undefined> {
   const current = await ctx.users.get(seen.id);
   return unchangedActive(current, seen) ? current : undefined;
 }
-export function createStorageAuth<R extends AccountRepositories>(runner: AccountRunner<R>, limiter: FailureLimiter) {
-  const authenticate = async (req: Request): Promise<StorageAuthentication> => {
+export function createAuthMiddleware<R extends AccountRepositories>(runner: AccountRunner<R>, limiter: FailureLimiter) {
+  const authenticate = async (req: Request): Promise<Authentication> => {
     const header = req.headers.authorization;
     if (header) {
       const decoded = decodeBasic(header);
@@ -109,11 +107,11 @@ export function createStorageAuth<R extends AccountRepositories>(runner: Account
     if (!auth) throw forbidden('Incorrect username and/or password');
     return auth;
   };
-  const requireAuth: StorageAuthHandler = async (req, res, next) => {
+  const requireAuth: AuthHandler = async (req, res, next) => {
     res.locals.auth = await authenticate(req);
     return next();
   };
-  const requireAdmin: StorageAuthHandler = (_req, res, next) => {
+  const requireAdmin: AuthHandler = (_req, res, next) => {
     if (!res.locals.auth || !isActiveAdmin(res.locals.auth.user)) throw forbidden('Admin access required');
     return next();
   };
@@ -123,4 +121,4 @@ export function createStorageAuth<R extends AccountRepositories>(runner: Account
     requireAdmin,
   };
 }
-export type StorageAuth = ReturnType<typeof createStorageAuth>;
+export type AuthMiddleware = ReturnType<typeof createAuthMiddleware>;

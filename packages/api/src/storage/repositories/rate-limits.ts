@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { sql, type Kysely } from 'kysely';
+import { sql, type ExpressionBuilder, type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { RateLimitCounterKey, RateLimitReservation, RateLimitsRepository } from '../contracts.ts';
 import type { PhysicalDatabase } from '../physical.ts';
@@ -8,6 +8,33 @@ import { safeInteger, utcInstant } from '../conversion.ts';
 /** Most rows one write deletes from each table. Later writes take the rest. */
 const CLEANUP_BATCH = 500;
 const later = (now: string, ms: number) => new Date(Date.parse(now) + ms).toISOString();
+
+interface CounterState {
+  failures: number;
+  resetAt: string;
+  live: number;
+}
+
+/** Whether the counter row in scope has a reservation that has not expired. */
+function liveReservation(eb: ExpressionBuilder<PhysicalDatabase, 'rate_limit_counters'>, now: string) {
+  return eb.exists(
+    eb
+      .selectFrom('rate_limit_reservations')
+      .select('id')
+      .whereRef('rate_limit_reservations.key_hash', '=', 'rate_limit_counters.key_hash')
+      .where('expires_at', '>', now),
+  );
+}
+
+/** A counter at its limit blocks; otherwise live reservations that fill any counter refuse for slots. */
+function refusalFor(
+  counters: readonly (CounterState & { limit: number })[],
+): Exclude<RateLimitReservation, { ok: true }> | undefined {
+  const blocked = counters.filter(counter => counter.failures >= counter.limit);
+  if (blocked.length) return { ok: false, reason: 'blocked', resetAts: blocked.map(counter => counter.resetAt) };
+  if (counters.some(counter => counter.failures + counter.live >= counter.limit)) return { ok: false, reason: 'slots' };
+  return undefined;
+}
 
 /**
  * Every write locks its counters by primary key in ascending key order, so overlapping counter sets
@@ -74,86 +101,80 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
       .selectFrom('rate_limit_counters')
       .select('key_hash')
       .where('reset_at', '<=', now)
-      .where(eb =>
-        eb.not(
-          eb.exists(
-            eb
-              .selectFrom('rate_limit_reservations')
-              .select('id')
-              .whereRef('rate_limit_reservations.key_hash', '=', 'rate_limit_counters.key_hash')
-              .where('expires_at', '>', now),
-          ),
-        ),
-      )
+      .where(eb => eb.not(liveReservation(eb, now)))
       .limit(CLEANUP_BATCH);
     if (server) counters = counters.forUpdate().skipLocked();
     const idle = (await counters.execute()).map(row => row.key_hash);
     if (idle.length) await db.deleteFrom('rate_limit_counters').where('key_hash', 'in', idle).execute();
   }
+  /** Locks every counter in key order and reads its window and live reservations under the lock. */
+  async function lockAll(
+    counters: readonly RateLimitCounterKey[],
+    now: string,
+    windowMs: number,
+  ): Promise<Map<string, CounterState>> {
+    const seen = new Map<string, CounterState>();
+    for (const { keyHash } of ordered(counters)) {
+      await lock(keyHash, now, windowMs);
+      const row = await db
+        .selectFrom('rate_limit_counters')
+        .select(eb => [
+          'failures',
+          'reset_at',
+          eb
+            .selectFrom('rate_limit_reservations')
+            .select(e => e.fn.countAll().as('n'))
+            .where('key_hash', '=', keyHash)
+            .where('expires_at', '>', now)
+            .as('live'),
+        ])
+        .where('key_hash', '=', keyHash)
+        .executeTakeFirstOrThrow();
+      seen.set(keyHash, {
+        failures: safeInteger(row.failures),
+        resetAt: utcInstant(row.reset_at),
+        live: safeInteger(row.live),
+      });
+    }
+    return seen;
+  }
+  /** One reservation per counter, each expiring after the lease. Returns their ids. */
+  async function addReservations(
+    counters: readonly RateLimitCounterKey[],
+    now: string,
+    leaseMs: number,
+  ): Promise<string[]> {
+    const rows = counters.map(({ keyHash }) => ({
+      id: randomUUID(),
+      key_hash: keyHash,
+      expires_at: later(now, leaseMs),
+    }));
+    if (rows.length) await db.insertInto('rate_limit_reservations').values(rows).execute();
+    return rows.map(row => row.id);
+  }
+  /** A refusal keeps no idle counter, so refused attempts cannot fill the table with new keys. */
+  async function dropIdle(counters: readonly RateLimitCounterKey[], now: string): Promise<void> {
+    await db
+      .deleteFrom('rate_limit_counters')
+      .where(
+        'key_hash',
+        'in',
+        counters.map(counter => counter.keyHash),
+      )
+      .where('failures', '=', 0)
+      .where(eb => eb.not(liveReservation(eb, now)))
+      .execute();
+  }
   return {
     async reserve(counters, at, windowMs, leaseMs) {
       const now = utcInstant(at);
-      const seen = new Map<string, { failures: number; resetAt: string; live: number }>();
-      for (const { keyHash } of ordered(counters)) {
-        await lock(keyHash, now, windowMs);
-        const row = await db
-          .selectFrom('rate_limit_counters')
-          .select(eb => [
-            'failures',
-            'reset_at',
-            eb
-              .selectFrom('rate_limit_reservations')
-              .select(e => e.fn.countAll().as('n'))
-              .where('key_hash', '=', keyHash)
-              .where('expires_at', '>', now)
-              .as('live'),
-          ])
-          .where('key_hash', '=', keyHash)
-          .executeTakeFirstOrThrow();
-        seen.set(keyHash, {
-          failures: safeInteger(row.failures),
-          resetAt: utcInstant(row.reset_at),
-          live: safeInteger(row.live),
-        });
-      }
-      const current = counters.map(counter => ({ ...seen.get(counter.keyHash)!, limit: counter.limit }));
-      const blocked = current.filter(counter => counter.failures >= counter.limit);
-      let result: RateLimitReservation;
-      if (blocked.length) result = { ok: false, reason: 'blocked', resetAts: blocked.map(counter => counter.resetAt) };
-      else if (current.some(counter => counter.failures + counter.live >= counter.limit))
-        result = { ok: false, reason: 'slots' };
-      else {
-        const rows = counters.map(({ keyHash }) => ({
-          id: randomUUID(),
-          key_hash: keyHash,
-          expires_at: later(now, leaseMs),
-        }));
-        if (rows.length) await db.insertInto('rate_limit_reservations').values(rows).execute();
-        result = { ok: true, reservations: rows.map(row => row.id) };
-      }
-      // A refusal keeps no idle counter, so refused attempts cannot fill the table with new keys.
-      if (!result.ok) {
-        await db
-          .deleteFrom('rate_limit_counters')
-          .where(
-            'key_hash',
-            'in',
-            counters.map(counter => counter.keyHash),
-          )
-          .where('failures', '=', 0)
-          .where(eb =>
-            eb.not(
-              eb.exists(
-                eb
-                  .selectFrom('rate_limit_reservations')
-                  .select('id')
-                  .whereRef('rate_limit_reservations.key_hash', '=', 'rate_limit_counters.key_hash')
-                  .where('expires_at', '>', now),
-              ),
-            ),
-          )
-          .execute();
-      }
+      const seen = await lockAll(counters, now, windowMs);
+      const refusal = refusalFor(counters.map(counter => ({ ...seen.get(counter.keyHash)!, limit: counter.limit })));
+      const result: RateLimitReservation = refusal ?? {
+        ok: true,
+        reservations: await addReservations(counters, now, leaseMs),
+      };
+      if (!result.ok) await dropIdle(counters, now);
       await cleanup(now);
       return result;
     },

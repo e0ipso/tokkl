@@ -9,7 +9,7 @@ export type AccountRepositories = Pick<
   Repositories,
   'users' | 'workspaces' | 'settings' | 'tokens' | 'sessions' | 'rateLimits'
 >;
-export function role(value: string): UserRole {
+function role(value: string): UserRole {
   if (value !== 'admin' && value !== 'user') throw new Error('Invalid storage account role');
   return value;
 }

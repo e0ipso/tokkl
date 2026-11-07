@@ -17,7 +17,7 @@ export type LocalTimerPublication = TimerPublication & { forgetUser(userId: Id):
 
 const orderedTags = (tags: TagLabel[]) => [...tags].sort((a, b) => a.id - b.id).map(t => ({ id: t.id, name: t.name }));
 /** Canonical domain fields only. Audit/driver JSON representations never number visible state. */
-export function timerFingerprint(snapshot: TimerSnapshot, chainTags: TagLabel[]): string {
+function timerFingerprint(snapshot: TimerSnapshot, chainTags: TagLabel[]): string {
   const e = snapshot.running,
     c = snapshot.pauseChain,
     s = snapshot.session;

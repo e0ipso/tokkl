@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { StorageAuthentication } from '../../src/auth/middleware.ts';
+import type { Authentication } from '../../src/domain/credentials.ts';
 import { credentialCheck } from '../../src/services/streamCredentials.ts';
 import { sha256 } from '../../src/lib/crypto.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
@@ -63,12 +63,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           );
           return token;
         };
-        const authFor = (owner: User, credential: StorageAuthentication['credential']): StorageAuthentication => ({
+        const authFor = (owner: User, credential: Authentication['credential']): Authentication => ({
           user: owner,
           credential,
           authMethod: credential.kind === 'session' ? 'session' : 'basic',
         });
-        const check = (auth: StorageAuthentication) => counted(credentialCheck(storage, auth));
+        const check = (auth: Authentication) => counted(credentialCheck(storage, auth));
 
         const user = await add(),
           other = await add();
@@ -78,7 +78,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           session: authFor(user, { kind: 'session', token: await session(user) }),
         };
         const expectedStatements = { 'api-token': 1, password: 1, session: 2 };
-        for (const [kind, auth] of Object.entries(accepted) as Array<[keyof typeof accepted, StorageAuthentication]>) {
+        for (const [kind, auth] of Object.entries(accepted) as Array<[keyof typeof accepted, Authentication]>) {
           const result = await check(auth);
           assert.deepEqual(result.value, { valid: true, revision: 0 }, `${kind} without timer state`);
           assert.equal(result.statements - snapshot, expectedStatements[kind], `${kind} statements`);
@@ -92,7 +92,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             discardedPomodoro: null,
           }),
         );
-        for (const [kind, auth] of Object.entries(accepted) as Array<[keyof typeof accepted, StorageAuthentication]>) {
+        for (const [kind, auth] of Object.entries(accepted) as Array<[keyof typeof accepted, Authentication]>) {
           const result = await check(auth);
           assert.deepEqual(result.value, { valid: true, revision: 41 }, `${kind} with timer state`);
           assert.equal(result.statements - snapshot, expectedStatements[kind], `${kind} statements with timer state`);
@@ -107,7 +107,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         });
         assert.equal(await storage.readSnapshot(ctx => ctx.users.getWithTimerRevision(other.id + 1000)), undefined);
 
-        const refused: Record<string, StorageAuthentication> = {
+        const refused: Record<string, Authentication> = {
           'wrong api token': authFor(user, { kind: 'api-token', token: other.apiToken }),
           'stale password hash': authFor({ ...user, passwordHash: 'previous-hash' }, { kind: 'password' }),
           'stale api token for password': authFor({ ...user, apiToken: 'previous-token' }, { kind: 'password' }),

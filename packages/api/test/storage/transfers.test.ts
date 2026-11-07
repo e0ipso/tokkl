@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
-import { createStorageImports } from '../../src/services/importJson.ts';
+import { createImportOperations } from '../../src/services/importJson.ts';
 import { buildJsonExport, buildCsvExport } from '../fixtures/exports.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -20,7 +20,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       publish = createTimerPublication(async (id, state) => {
         events.push([id, state]);
       });
-    const imports = createStorageImports(runner, publish);
+    const imports = createImportOperations(runner, publish);
     try {
       const user = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('transfer')));
       const data = {

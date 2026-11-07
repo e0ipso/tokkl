@@ -1,13 +1,13 @@
 import { type Router } from 'express';
-import type { Deps } from '../http/context.ts';
+import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
-import { jsonRead } from '../http/context.ts';
+import { jsonRead } from './context.ts';
 import { readText } from '../http/request.ts';
 import { query, queryList } from '../http/params.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
-import { createStorageSessions } from '../auth/sessions.ts';
+import { createSessionHandlers } from '../auth/sessions.ts';
 import { restoreTimeEntry, purgeDeletedEntries } from '../domain/timeEntries.ts';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
 export interface SetupState {
@@ -17,7 +17,7 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   const { storage, config, accounts, loginLimiter, setupLimiter } = deps;
   const app = createRouter(),
     auth = deps.auth.requireAuth;
-  const sessions = createStorageSessions(storage, accounts, {
+  const sessions = createSessionHandlers(storage, accounts, {
     loginLimiter,
     setupLimiter,
     sessionDays: config.sessionDays,
@@ -74,9 +74,8 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
   });
   app.get('/export.json', auth, async (_req, res) => {
     const instant = new Date().toISOString();
-    const data = await deps.readFor(res.locals.auth, queries => queries.accountExport(res.locals.auth.user.id));
-    const result = await deps.reports.assembleExport(
-      data,
+    const result = await deps.exportAccount(
+      res.locals.auth,
       { kind: 'export-json', exportedAt: instant, filename: `tokkl-${instant.slice(0, 10)}.json` },
       { signal: res.locals.workSignal },
     );
@@ -87,9 +86,8 @@ export function appRoutes(deps: Deps, setup: SetupState): Router {
       .send(result.body);
   });
   app.get('/export.csv', auth, async (req, res) => {
-    const data = await deps.readFor(res.locals.auth, queries => queries.accountExport(res.locals.auth.user.id));
-    const result = await deps.reports.assembleExport(
-      data,
+    const result = await deps.exportAccount(
+      res.locals.auth,
       {
         kind: 'export-csv',
         range: { from: query(req, 'start_date'), to: query(req, 'end_date') },

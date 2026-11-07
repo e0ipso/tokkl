@@ -19,7 +19,7 @@ export interface ErrorReply {
 }
 
 /** The reply for an application failure. A refused state change answers with the current state. */
-export function applicationErrorReply(error: ApplicationError): ErrorReply {
+function applicationErrorReply(error: ApplicationError): ErrorReply {
   const headers: Record<string, string> =
     error.retryAfterSeconds === undefined ? {} : { 'Retry-After': String(error.retryAfterSeconds) };
   return {

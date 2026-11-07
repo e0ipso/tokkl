@@ -19,7 +19,7 @@ import type { TimerPublication } from '../domain/timerSettlement.ts';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { User } from '../storage/domain.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './exports.ts';
-import { protectImport, importError, type ImportRunner } from './importGuards.ts';
+import { MAX_IMPORT_ERRORS, protectImport, importError, type ImportRunner } from './importGuards.ts';
 import { importTogglCsv } from './importCsv.ts';
 export interface JsonImportResult {
   dry_run: boolean;
@@ -32,8 +32,6 @@ export interface JsonImportResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 type Item = Record<string, unknown>;
-/** Errors a restore reports; the rest are counted in the totals only. */
-const MAX_ERRORS = 100;
 function list(value: unknown, field: string): Item[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw invalidInput(`Invalid export file: "${field}" must be an array`);
@@ -74,7 +72,7 @@ async function unit(
   } catch (error) {
     const message = importError(error, 'Invalid record');
     Object.assign(result, counts);
-    if (result.errors.length < MAX_ERRORS) result.errors.push({ entity, id: item.id, message });
+    if (result.errors.length < MAX_IMPORT_ERRORS) result.errors.push({ entity, id: item.id, message });
   }
 }
 
@@ -212,7 +210,7 @@ function exporterZone(file: Item, user: User): string {
  * then entries, skipping duplicates. Joins the supplied operation; the outer runner controls the
  * dry-run rollback and retries.
  */
-export async function importJsonExport(
+async function importJsonExport(
   ctx: OperationContext<EntryRepositories>,
   userId: number,
   data: unknown,
@@ -258,7 +256,10 @@ export async function importJsonExport(
   return restore.result;
 }
 /** Construct once with the application's shared ordered publication callback. */
-export function createStorageImports<R extends EntryRepositories>(runner: ImportRunner<R>, publish: TimerPublication) {
+export function createImportOperations<R extends EntryRepositories>(
+  runner: ImportRunner<R>,
+  publish: TimerPublication,
+) {
   return {
     importJsonExport: (userId: number, data: unknown, options: { dryRun: boolean }) =>
       runner.transaction(ctx => importJsonExport(ctx, userId, data, options, publish), { dryRun: options.dryRun }),

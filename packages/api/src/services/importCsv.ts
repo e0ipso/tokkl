@@ -13,7 +13,7 @@ import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImpo
 import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../storage/domain.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import { protectImport, importError } from './importGuards.ts';
+import { MAX_IMPORT_ERRORS, protectImport, importError } from './importGuards.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],
   email: ['email'],
@@ -31,7 +31,6 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 const MAX_ROWS = 100_000;
-const MAX_ERRORS = 100;
 /** Catalog names an import remembers; a failed row clears them. */
 const NAME_CACHE = 256;
 
@@ -198,6 +197,46 @@ function rowSpan(row: string[], cell: Cell, user: User): RowSpan {
   return { start, stop, noTime: null };
 }
 
+/** The new-entry body for one row, in the shape `parseNewEntry` takes from the API. */
+function rowEntry(row: string[], cell: Cell, span: RowSpan, projectId: number | null, taskId: number | null) {
+  return {
+    description: cell(row, 'description'),
+    ...(span.noTime
+      ? { all_day: true, start_date: span.noTime.day, duration: span.noTime.duration }
+      : { start: span.start.toISOString(), stop: span.stop.toISOString() }),
+    project_id: projectId,
+    task_id: taskId,
+    billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
+    tags: cell(row, 'tags')
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean),
+    created_with: 'tokkl-csv-import',
+  };
+}
+
+/** The result before any row runs: the file's users, and which of them the selection skips. */
+function emptyResult(
+  dryRun: boolean,
+  rows: number,
+  users: Map<string, ImportUser>,
+  selected: Set<string> | null,
+): ImportResult {
+  return {
+    dry_run: dryRun,
+    rows,
+    created: 0,
+    skipped_duplicates: 0,
+    created_projects: [],
+    created_clients: [],
+    errors: [],
+    users: [...users.values()],
+    skipped: [...users.values()]
+      .filter(u => selected && !selected.has(u.key))
+      .map(u => ({ rows: u.rows, reason: skippedReason(u) })),
+  };
+}
+
 /**
  * Finds or creates the clients, projects and tasks rows name, remembering the ids. The memory is
  * only valid while the import's guards are held, and a failed row clears it with its savepoint.
@@ -267,45 +306,19 @@ export async function importTogglCsv(
   const selected = selection(users, options);
   const user = await protectImport(ctx, userId),
     wid = user.defaultWorkspaceId;
-  const result: ImportResult = {
-    dry_run: options.dryRun,
-    rows: rows.length,
-    created: 0,
-    skipped_duplicates: 0,
-    created_projects: [],
-    created_clients: [],
-    errors: [],
-    users: [...users.values()],
-    skipped: [...users.values()]
-      .filter(u => selected && !selected.has(u.key))
-      .map(u => ({ rows: u.rows, reason: skippedReason(u) })),
-  };
+  const result = emptyResult(options.dryRun, rows.length, users, selected);
   const names = catalogNames(ctx, wid, result);
   async function importRow(writer: ExactEntryImport, row: string[]): Promise<void> {
-    const { start, stop, noTime } = rowSpan(row, cell, user);
+    const span = rowSpan(row, cell, user);
     const pid = await names.projectId(cell(row, 'project'), cell(row, 'client')),
       description = cell(row, 'description');
-    const key = { userId, start: start.toISOString(), stop: stop.toISOString(), description, projectId: pid };
+    const key = { userId, start: span.start.toISOString(), stop: span.stop.toISOString(), description, projectId: pid };
     if (await ctx.entries.findDuplicate(key)) {
       result.skipped_duplicates++;
       return;
     }
-    await writer.create(
-      parseNewEntry({
-        description,
-        ...(noTime
-          ? { all_day: true, start_date: noTime.day, duration: noTime.duration }
-          : { start: start.toISOString(), stop: stop.toISOString() }),
-        project_id: pid,
-        task_id: await names.taskId(pid, cell(row, 'task')),
-        billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
-        tags: cell(row, 'tags')
-          .split(',')
-          .map(t => t.trim())
-          .filter(Boolean),
-        created_with: 'tokkl-csv-import',
-      }),
-    );
+    const taskId = await names.taskId(pid, cell(row, 'task'));
+    await writer.create(parseNewEntry(rowEntry(row, cell, span, pid, taskId)));
     result.created++;
   }
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {
@@ -320,7 +333,7 @@ export async function importTogglCsv(
         const message = importError(error, 'Invalid row');
         result.created_projects.length = projectsBefore;
         result.created_clients.length = clientsBefore;
-        if (result.errors.length < MAX_ERRORS) result.errors.push({ row: index + 2, message });
+        if (result.errors.length < MAX_IMPORT_ERRORS) result.errors.push({ row: index + 2, message });
       }
     }
   });

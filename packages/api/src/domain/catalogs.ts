@@ -73,7 +73,7 @@ export async function getTask(ctx: CatalogRepositories, wid: Id, id: Id, pid?: I
   if (!value) throw notFound('Task not found');
   return value;
 }
-export async function getTag(ctx: CatalogRepositories, wid: Id, id: Id): Promise<Tag> {
+async function getTag(ctx: CatalogRepositories, wid: Id, id: Id): Promise<Tag> {
   const value = await ctx.tags.get(wid, id);
   if (!value) throw notFound('Tag not found');
   return value;

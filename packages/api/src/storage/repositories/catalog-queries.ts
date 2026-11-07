@@ -7,9 +7,9 @@ import type { Client, Project, Task, Tag, ProjectSummary, TaskSummary } from '..
 import { booleanValue, entityId, finiteNumber, safeInteger, utcInstant } from '../conversion.ts';
 import { catalogTotal, taskEstimate } from './catalog-sql.ts';
 
-export const nullable = <T>(value: T | null, convert: (v: T) => number): number | null =>
+const nullable = <T>(value: T | null, convert: (v: T) => number): number | null =>
   value === null ? null : convert(value);
-export const times = (r: { created_at: string; updated_at: string }) => ({
+const times = (r: { created_at: string; updated_at: string }) => ({
   createdAt: utcInstant(r.created_at),
   updatedAt: utcInstant(r.updated_at),
 });

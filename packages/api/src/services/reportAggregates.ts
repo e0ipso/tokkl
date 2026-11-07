@@ -133,7 +133,7 @@ export interface GroupKey {
 }
 
 /** Keys for an entry along a dimension. Tags can yield several keys; an untagged entry yields one null key. */
-export function keysFor(entry: ReportEntry, dimension: Dimension): GroupKey[] {
+function keysFor(entry: ReportEntry, dimension: Dimension): GroupKey[] {
   switch (dimension) {
     case 'project':
       return [{ id: entry.projectId, title: entry.projectName ?? '', color: entry.projectColor }];

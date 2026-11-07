@@ -4,7 +4,7 @@ import expectedTransfers from './support/transfer-expected.json' with { type: 'j
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
-import { createStorageImports } from '../../src/services/importJson.ts';
+import { createImportOperations } from '../../src/services/importJson.ts';
 import { assembleJsonExport, assembleCsvExport } from '../../src/services/exports.ts';
 import { buildJsonExport, buildCsvExport } from '../fixtures/exports.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
@@ -48,7 +48,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       }));
       t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-30T12:00:00.000Z') });
       const publish = createTimerPublication(async () => {}),
-        imports = createStorageImports(runner, publish);
+        imports = createImportOperations(runner, publish);
       let expectedIndex = 0;
       const legacy = {
         request: async (..._args: unknown[]) => {

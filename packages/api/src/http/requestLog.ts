@@ -2,6 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import type { Logger } from '../lib/logger.ts';
 
+declare module 'express-serve-static-core' {
+  interface Locals {
+    /** The request's logger; every line it writes carries the request id. */
+    log: Logger;
+    /** Where the innermost router that saw the request is mounted; see createRouter. */
+    mountPath?: string;
+  }
+}
+
 /** A caller-chosen id is kept only when it is short and plain, so it cannot forge log fields. */
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 

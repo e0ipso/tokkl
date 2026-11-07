@@ -3,6 +3,9 @@ import { protectEntryOperation, type EntryRepositories } from '../domain/entryAc
 import { memberWorkspace, noWorkspaceAccess } from '../domain/membership.ts';
 import { StorageConflict } from '../storage/errors.ts';
 
+/** Errors an import reports; the rest are counted in the totals only. */
+export const MAX_IMPORT_ERRORS = 100;
+
 export interface ImportRunner<R extends EntryRepositories> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
 }

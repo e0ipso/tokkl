@@ -17,7 +17,7 @@ import { invalidInput } from '../lib/errors.ts';
 
 export const EXPORT_FORMAT = 'tokkl-export';
 export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
-export const EXPORT_FORMAT_VERSION = 1;
+const EXPORT_FORMAT_VERSION = 1;
 type ExportUser = Omit<User, 'passwordHash' | 'apiToken'>;
 /** Pure assembly, also callable inside the report worker after snapshot collection. */
 export function assembleJsonExport(data: AccountExportProjection, exportedAt = new Date().toISOString()) {

@@ -15,8 +15,9 @@ import type { CatalogTimerEffects } from '../domain/catalogs.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
-import { createStorageImports } from './importJson.ts';
-import { StorageReportRunner } from './reportRunner.ts';
+import { createImportOperations } from './importJson.ts';
+import type { ExportAssemblyJob, JobResult } from './reportJobs.ts';
+import { ReportRunner } from './reportRunner.ts';
 import { credentialCheck } from './streamCredentials.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations } from './timerReplies.ts';
@@ -67,7 +68,20 @@ export function createApplicationServices({
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
-  const reports = new StorageReportRunner(storageConfig, storage);
+  const reports = new ReportRunner(storageConfig, storage);
+  /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
+  function readFor<T>(
+    authentication: Authentication,
+    work: (queries: ReadQueries) => Promise<T>,
+    administrative = false,
+  ) {
+    return storage.readSnapshot(async repositories => {
+      const user = await authenticatedUser(repositories, authentication);
+      if (!user) throw refused();
+      if (administrative && !isActiveAdmin(user)) throw forbidden('Admin access required');
+      return work(createReadQueries(repositories, sessionDays));
+    });
+  }
   return {
     accounts: createAccountOperations(storage, security),
     entryEffects: createAccountEntryEffects<Repositories>(publish),
@@ -81,14 +95,15 @@ export function createApplicationServices({
       publish.claim(authentication.user.id, authentication.user.createdAt);
       return timerStreams.open(authentication.user.id, res, streamCredentials.check(authentication));
     },
-    /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
-    readFor<T>(authentication: Authentication, work: (queries: ReadQueries) => Promise<T>, administrative = false) {
-      return storage.readSnapshot(async repositories => {
-        const user = await authenticatedUser(repositories, authentication);
-        if (!user) throw refused();
-        if (administrative && !isActiveAdmin(user)) throw forbidden('Admin access required');
-        return work(createReadQueries(repositories, sessionDays));
-      });
+    readFor,
+    /** Reads the signed-in account's export in one snapshot, then formats it on the report runner. */
+    async exportAccount(
+      authentication: Authentication,
+      assembly: ExportAssemblyJob,
+      options: { signal?: AbortSignal } = {},
+    ): Promise<JobResult> {
+      const data = await readFor(authentication, queries => queries.accountExport(authentication.user.id));
+      return reports.assembleExport(data, assembly, options);
     },
     accountsFor: (authentication: Authentication) =>
       createAccountOperations(guardedStorage(storage, authentication, true), security),
@@ -98,7 +113,7 @@ export function createApplicationServices({
     timersFor: (authentication: Authentication) =>
       presentTimerOperations(createTimerOperations(guardedStorage(storage, authentication), publish)),
     importsFor: (authentication: Authentication) =>
-      createStorageImports(guardedStorage(storage, authentication), publish),
+      createImportOperations(guardedStorage(storage, authentication), publish),
     entryWrite<T>(authentication: Authentication, work: (ctx: TransactionContext) => Promise<T>) {
       return guardedStorage(storage, authentication).transaction(work);
     },
