@@ -124,7 +124,7 @@ location /api/app/timer/events {
 }
 ```
 
-Each user may hold 10 streams on each instance. Opening an 11th on the same instance closes the oldest there, so a user whose streams spread across several instances may hold more in total.
+Each user may hold 10 streams on each instance. Opening an 11th on the same instance closes the oldest there, so a user whose streams spread across several instances may hold more in total. An instance holds at most 1000 streams in all. Past that it answers a new one with a 503 and `Retry-After`, and clients poll until they reconnect.
 
 ## Running several instances
 
