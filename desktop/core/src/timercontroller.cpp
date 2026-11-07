@@ -739,14 +739,14 @@ void TimerController::fetchProjects()
     }
     m_projectsPending = true;
 
-    m_connection->fetchProjects(m_epoch.guard(this, [this](const ApiResult<QList<Project>> &result) {
+    m_connection->fetchProjects(m_epoch.guard(this, [this](const ApiResult<ProjectList> &result) {
         m_projectsPending = false;
         if (m_workspaceLost) {
             return;
         }
         if (result.ok()) {
-            m_projects = *result.value;
-            m_projectsIncomplete = m_connection && m_connection->projectsIncomplete();
+            m_projects = result.value->projects;
+            m_projectsIncomplete = result.value->incomplete;
             m_projectsKnown = true;
             m_lookedUpStale = m_lookedUp.has_value();
             ++m_projectsRevision;

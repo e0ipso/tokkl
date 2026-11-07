@@ -2229,7 +2229,6 @@ private Q_SLOTS:
             QCOMPARE(f.timer.projects().size(), 0);
             f.respond(request, FakeTransport::answer(200, projectPage((page - 1) * Connection::projectPageSize + 1, Connection::projectPageSize, 7)));
         }
-        QVERIFY(f.connection.projectsIncomplete());
         QVERIFY(f.timer.projectsIncomplete());
         // The projects read stay selectable.
         QCOMPARE(f.timer.projects().size(), Connection::maxProjectPages * Connection::projectPageSize);

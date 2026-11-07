@@ -49,6 +49,20 @@ QByteArray entryBody(qint64 id, qint64 workspace, bool running = true)
     return QJsonDocument(entry).toJson(QJsonDocument::Compact);
 }
 
+// GET /api/app/timer with nothing running.
+QByteArray stateBody(qint64 revision = 1)
+{
+    return QJsonDocument(QJsonObject{
+                             {QStringLiteral("revision"), revision},
+                             {QStringLiteral("server_time"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
+                             {QStringLiteral("running_entry"), QJsonValue::Null},
+                             {QStringLiteral("pause"), QJsonValue::Null},
+                             {QStringLiteral("pomodoro"), QJsonValue::Null},
+                             {QStringLiteral("discarded_pomodoro"), QJsonValue::Null},
+                         })
+        .toJson(QJsonDocument::Compact);
+}
+
 QByteArray projectsBody(qint64 workspace)
 {
     return QStringLiteral(R"([{"id":11,"workspace_id":%1,"client_id":null,"client_name":null,"name":"Alpha","color":"#06aaf5","active":true,"billable":true}])")
@@ -107,16 +121,13 @@ class ConnectionTest : public QObject
         return f.connection.state() == Connection::Connected;
     }
 
-    // Fill every piece of account data and next-start choice.
+    // Set the next-start choices, the only data the connection keeps
+    // besides the account.
     static bool populate(Fixture &f)
     {
-        f.connection.fetchProjects();
-        f.transport.respondLast(FakeTransport::answer(200, projectsBody(f.connection.workspaceId())));
-        f.connection.fetchCurrentEntry();
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, f.connection.workspaceId())));
         f.connection.setNextProjectId(11);
         f.connection.setNextBillable(true);
-        return f.connection.projects().size() == 1 && f.connection.currentEntry().has_value();
+        return f.connection.nextProjectId() == 11 && f.connection.nextBillable();
     }
 
     static void verifyCleared(const Connection &connection)
@@ -126,9 +137,6 @@ class ConnectionTest : public QObject
         QVERIFY(!connection.account().has_value());
         QCOMPARE(connection.workspaceId(), 0);
         QVERIFY(connection.accountMap().isEmpty());
-        QVERIFY(connection.projects().isEmpty());
-        QVERIFY(!connection.currentEntry().has_value());
-        QVERIFY(connection.currentEntryVariant().isNull());
         QVERIFY(!connection.nextProjectId().has_value());
         QVERIFY(!connection.nextBillable());
     }
@@ -221,8 +229,8 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f, 3, 42));
-        std::optional<ApiResult<QList<Project>>> received;
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        std::optional<ApiResult<ProjectList>> received;
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             received = result;
         });
         const qsizetype before = f.transport.requests.size();
@@ -236,32 +244,31 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), before + Connection::maxProjectPages - 1);
         QVERIFY(received);
         QVERIFY(received->ok());
-        QCOMPARE(received->value->size(), Connection::maxProjectPages * Connection::projectPageSize);
+        QCOMPARE(received->value->projects.size(), Connection::maxProjectPages * Connection::projectPageSize);
         // The truncated list is reported, not passed off as the whole list.
-        QVERIFY(f.connection.projectsIncomplete());
-        QCOMPARE(f.connection.projectList().size(), Connection::maxProjectPages * Connection::projectPageSize);
+        QVERIFY(received->value->incomplete);
 
         // A short last page ends the reading as complete, and clears the flag.
         received.reset();
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             received = result;
         });
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1000, 3, 42)));
         QVERIFY(received && received->ok());
-        QVERIFY(!f.connection.projectsIncomplete());
-        QCOMPARE(received->value->size(), Connection::projectPageSize + 3);
+        QVERIFY(!received->value->incomplete);
+        QCOMPARE(received->value->projects.size(), Connection::projectPageSize + 3);
 
         // A full page of nothing new is a server ignoring the paging, and
         // also ends the reading as before.
         received.reset();
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             received = result;
         });
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
         QVERIFY(received && received->ok());
-        QVERIFY(!f.connection.projectsIncomplete());
+        QVERIFY(!received->value->incomplete);
     }
 
     void projectsFollowEveryPage()
@@ -280,9 +287,9 @@ private Q_SLOTS:
         };
 
         QList<Project> received;
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             QVERIFY(result.ok());
-            received = *result.value;
+            received = result.value->projects;
         });
         f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true&page=2&per_page=200"));
@@ -290,17 +297,18 @@ private Q_SLOTS:
         // Another workspace's project is never offered.
         f.transport.respondLast(FakeTransport::answer(200, page(1000, 1, 42).chopped(1) + ',' + page(1001, 1, 9).sliced(1)));
         QCOMPARE(received.size(), Connection::projectPageSize + 1);
-        QCOMPARE(f.connection.projectList().size(), Connection::projectPageSize + 1);
         QCOMPARE(received.last().id, 1000);
 
         // A server that ignores the paging parameters sends the same full
         // page again; reading stops there.
         const qsizetype before = f.transport.requests.size();
-        f.connection.fetchProjects();
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
+            received = result.value->projects;
+        });
         f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
         f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
         QCOMPARE(f.transport.requests.size(), before + 2);
-        QCOMPARE(f.connection.projectList().size(), Connection::projectPageSize);
+        QCOMPARE(received.size(), Connection::projectPageSize);
 
         // One project, archived or not, of the bound workspace only.
         std::optional<Project> archived;
@@ -334,21 +342,29 @@ private Q_SLOTS:
         QCOMPARE(f.connection.workspaceId(), 42);
         QCOMPARE(f.connection.accountMap().value(QStringLiteral("defaultWorkspaceId")).toLongLong(), 42);
 
-        f.connection.fetchProjects();
+        std::optional<ApiResult<ProjectList>> projects;
+        f.connection.fetchProjects([&projects](const ApiResult<ProjectList> &result) {
+            projects = result;
+        });
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true&page=1&per_page=200"));
         f.transport.respondLast(FakeTransport::answer(200, projectsBody(42)));
-        QCOMPARE(f.connection.projectList().size(), 1);
+        QVERIFY(projects && projects->ok());
+        QCOMPARE(projects->value->projects.size(), 1);
 
         StartEntry start;
         start.start = QDateTime::currentDateTimeUtc();
         start.projectId = 11;
-        f.connection.startEntry(start);
+        std::optional<ApiResult<TimeEntry>> started;
+        f.connection.startEntry(start, [&started](const ApiResult<TimeEntry> &result) {
+            started = result;
+        });
         const HttpRequest post = f.transport.requests.last();
         QCOMPARE(post.method, QByteArray("POST"));
         QCOMPARE(path(post), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries"));
         QCOMPARE(QJsonDocument::fromJson(post.body).object().value(QLatin1String("workspace_id")).toInteger(), 42);
         f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42)));
-        QCOMPARE(f.connection.currentEntry()->id, 5);
+        QVERIFY(started && started->ok());
+        QCOMPARE(started->value->id, 5);
 
         TimeEntryUpdate update;
         update.description = QStringLiteral("Deep work");
@@ -357,11 +373,15 @@ private Q_SLOTS:
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries/5"));
         f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42)));
 
-        f.connection.stopEntry(5);
+        std::optional<ApiResult<TimeEntry>> stopped;
+        f.connection.stopEntry(5, [&stopped](const ApiResult<TimeEntry> &result) {
+            stopped = result;
+        });
         QCOMPARE(f.transport.requests.last().method, QByteArray("PATCH"));
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries/5/stop"));
         f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42, false)));
-        QVERIFY(!f.connection.currentEntry().has_value());
+        QVERIFY(stopped && stopped->ok());
+        QVERIFY(!stopped->value->isRunning());
 
         for (const HttpRequest &request : std::as_const(f.transport.requests)) {
             QVERIFY2(!path(request).contains(QLatin1String("/workspaces/1/")), qPrintable(path(request)));
@@ -373,14 +393,15 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f));
 
-        std::optional<ApiResult<std::optional<TimeEntry>>> current;
-        f.connection.fetchCurrentEntry([&](const auto &result) {
+        std::optional<ApiResult<TimerState>> current;
+        f.connection.fetchTimerState([&](const auto &result) {
             current = result;
         });
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/time_entries/current"));
-        f.transport.respondLast(FakeTransport::answer(200, "null"));
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/timer"));
+        f.transport.respondLast(FakeTransport::answer(200, stateBody(4)));
         QVERIFY(current && current->ok());
-        QVERIFY(!current->value->has_value());
+        QCOMPARE(current->value->revision, 4);
+        QVERIFY(!current->value->runningEntry);
 
         std::optional<ApiResult<Me>> me;
         f.connection.fetchMe([&](const auto &result) {
@@ -399,7 +420,7 @@ private Q_SLOTS:
         QVERIFY(stopped->error.kind == ApiError::Kind::Client);
         QCOMPARE(stopped->error.message, QStringLiteral("Time entry not found"));
 
-        std::optional<ApiResult<QList<Project>>> projects;
+        std::optional<ApiResult<ProjectList>> projects;
         f.connection.fetchProjects([&](const auto &result) {
             projects = result;
         });
@@ -698,7 +719,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f));
         QVERIFY(populate(f));
-        std::optional<ApiResult<QList<Project>>> result;
+        std::optional<ApiResult<ProjectList>> result;
         f.connection.fetchProjects([&](const auto &r) {
             result = r;
         });
@@ -716,7 +737,7 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f));
         QVERIFY(populate(f));
 
-        std::optional<ApiResult<QList<Project>>> projects;
+        std::optional<ApiResult<ProjectList>> projects;
         f.connection.fetchProjects([&](const auto &r) {
             projects = r;
         });
@@ -764,9 +785,9 @@ private Q_SLOTS:
         verifyCleared(f.connection);
     }
 
-    // The current entry request validates the account like /me: the
+    // The timer state request validates the account like /me: the
     // middleware answers 403 or 401 there for refused credentials.
-    void currentEntryRefusedPausesAuthentication_data()
+    void timerStateRefusedPausesAuthentication_data()
     {
         QTest::addColumn<int>("status");
         QTest::addColumn<QByteArray>("body");
@@ -774,7 +795,7 @@ private Q_SLOTS:
         QTest::newRow("401") << 401 << QByteArray("\"Invalid credentials\"");
     }
 
-    void currentEntryRefusedPausesAuthentication()
+    void timerStateRefusedPausesAuthentication()
     {
         QFETCH(int, status);
         QFETCH(QByteArray, body);
@@ -784,10 +805,10 @@ private Q_SLOTS:
         QSignalSpy accountChanged(&f.connection, &Connection::accountChanged);
 
         bool answered = false;
-        f.connection.fetchCurrentEntry([&](const auto &) {
+        f.connection.fetchTimerState([&](const auto &) {
             answered = true;
         });
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/time_entries/current"));
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/timer"));
         f.transport.respondLast(FakeTransport::answer(status, body));
         QCOMPARE(f.connection.state(), Connection::AuthenticationFailed);
         QVERIFY(f.connection.errorString().contains(QString::fromUtf8(body).remove(QLatin1Char('"'))));
@@ -848,7 +869,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f));
         QVERIFY(populate(f));
-        std::optional<ApiResult<QList<Project>>> limited;
+        std::optional<ApiResult<ProjectList>> limited;
         f.connection.fetchProjects([&](const auto &r) {
             limited = r;
         });
@@ -862,8 +883,8 @@ private Q_SLOTS:
         QVERIFY2(wait > Connection::defaultCooldownMs - 5000 && wait <= Connection::defaultCooldownMs, qPrintable(QString::number(wait)));
 
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<std::optional<TimeEntry>>> refused;
-        f.connection.fetchCurrentEntry([&](const auto &r) {
+        std::optional<ApiResult<TimerState>> refused;
+        f.connection.fetchTimerState([&](const auto &r) {
             refused = r;
         });
         QTRY_VERIFY(refused.has_value());
@@ -907,17 +928,16 @@ private Q_SLOTS:
             Fixture f;
             QVERIFY(connectAccount(f));
             QVERIFY(populate(f));
-            f.connection.fetchCurrentEntry();
+            f.connection.fetchTimerState();
             f.transport.respondLast(response);
             QCOMPARE(f.connection.state(), Connection::Disconnected);
             QVERIFY(f.connection.isStale());
             QVERIFY(f.connection.isConnected());
             QVERIFY(f.connection.canWrite());
-            QCOMPARE(f.connection.currentEntry()->id, 5);
-            QCOMPARE(f.connection.projects().size(), 1);
+            QCOMPARE(f.connection.nextProjectId(), std::optional<qint64>(11));
 
-            f.connection.fetchCurrentEntry();
-            f.transport.respondLast(FakeTransport::answer(200, "null"));
+            f.connection.fetchTimerState();
+            f.transport.respondLast(FakeTransport::answer(200, stateBody()));
             QCOMPARE(f.connection.state(), Connection::Connected);
             QVERIFY(!f.connection.isStale());
         }
@@ -945,7 +965,7 @@ private Q_SLOTS:
         const quint64 generation = f.connection.generation();
 
         // A request is in flight when the address changes.
-        f.connection.fetchCurrentEntry();
+        f.connection.fetchTimerState();
         QPointer<FakeReply> pending = f.transport.replies.last();
 
         f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
@@ -955,7 +975,7 @@ private Q_SLOTS:
         QVERIFY(pending && pending->aborted);
 
         // The old answer arrives late and changes nothing.
-        pending->deliver(FakeTransport::answer(200, entryBody(77, 7)));
+        pending->deliver(FakeTransport::answer(200, stateBody()));
         verifyCleared(f.connection);
     }
 
@@ -996,8 +1016,8 @@ private Q_SLOTS:
         verifyCleared(f.connection);
 
         if (change == QLatin1String("secret")) {
-            // /me, projects, current entry, the aborted projects request, then /me again.
-            QTRY_COMPARE(f.transport.requests.size(), 5);
+            // /me, the aborted projects request, then /me again.
+            QTRY_COMPARE(f.transport.requests.size(), 3);
             QCOMPARE(f.transport.requests.last().authorization, QByteArray("Basic ") + QByteArray("bea@example.test:new-pw").toBase64());
         }
     }
@@ -1029,16 +1049,15 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f));
         bool called = false;
-        f.connection.fetchCurrentEntry([&](const auto &) {
+        f.connection.fetchTimerState([&](const auto &) {
             called = true;
         });
         QPointer<FakeReply> pending = f.transport.replies.last();
         f.connection.setEmail(QStringLiteral("ignored-in-token-mode@example.test"));
         f.connection.setAuthModeString(QStringLiteral("password"));
-        pending->deliver(FakeTransport::answer(200, entryBody(5, 7)));
+        pending->deliver(FakeTransport::answer(200, stateBody()));
         QTest::qWait(10);
         QVERIFY(!called);
-        QVERIFY(!f.connection.currentEntry().has_value());
     }
 
     void identityChangeOnRevalidation()
@@ -1052,8 +1071,6 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, meBody(4, 8)));
         QVERIFY(f.connection.generation() > generation);
         QCOMPARE(f.connection.workspaceId(), 8);
-        QVERIFY(f.connection.projects().isEmpty());
-        QVERIFY(!f.connection.currentEntry().has_value());
         QVERIFY(!f.connection.nextProjectId().has_value());
     }
 

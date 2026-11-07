@@ -4,7 +4,6 @@
 
 #include <QCoreApplication>
 #include <QRandomGenerator>
-#include <QUrlQuery>
 
 #include <algorithm>
 #include <utility>
@@ -213,35 +212,6 @@ QString Connection::owner() const
         return QString();
     }
     return QStringLiteral("%1 %2 %3").arg(webUrl().toString(QUrl::FullyEncoded)).arg(m_context->me.id).arg(m_context->me.defaultWorkspaceId);
-}
-
-QList<Project> Connection::projects() const
-{
-    return m_projects;
-}
-
-bool Connection::projectsIncomplete() const
-{
-    return m_projectsIncomplete;
-}
-
-QVariantList Connection::projectList() const
-{
-    QVariantList list;
-    for (const Project &project : m_projects) {
-        list.append(project.toVariantMap());
-    }
-    return list;
-}
-
-std::optional<TimeEntry> Connection::currentEntry() const
-{
-    return m_currentEntry;
-}
-
-QVariant Connection::currentEntryVariant() const
-{
-    return m_currentEntry ? QVariant(m_currentEntry->toVariantMap()) : QVariant::fromValue(nullptr);
 }
 
 std::optional<qint64> Connection::nextProjectId() const
@@ -536,24 +506,13 @@ void Connection::resetAccount()
 void Connection::clearAccountData()
 {
     const bool hadAccount = m_context.has_value();
-    const bool hadProjects = !m_projects.isEmpty() || m_projectsIncomplete;
-    const bool hadEntry = m_currentEntry.has_value();
     const bool hadChoices = m_nextProjectId.has_value() || m_nextBillable;
     m_context.reset();
-    m_projects.clear();
-    m_projectsIncomplete = false;
-    m_currentEntry.reset();
     m_nextProjectId.reset();
     m_nextBillable = false;
     if (hadAccount) {
         Q_EMIT accountChanged();
         Q_EMIT stateChanged();
-    }
-    if (hadProjects) {
-        Q_EMIT projectsChanged();
-    }
-    if (hadEntry) {
-        Q_EMIT currentEntryChanged();
     }
     if (hadChoices) {
         Q_EMIT nextStartChanged();
@@ -568,7 +527,7 @@ void Connection::setState(State state, const QString &error)
     m_state = state;
     m_error = error;
     // Error texts are for the user and never carry a secret.
-    qCInfo(lcAuth).nospace() << "Connection state " << state << (error.isEmpty() ? QString() : QStringLiteral(": ") + error);
+    qCInfo(lcAuth).nospace().noquote() << "Connection state " << state << (error.isEmpty() ? QString() : QStringLiteral(": ") + error);
     Q_EMIT stateChanged();
 }
 
@@ -617,6 +576,14 @@ void Connection::send(const QByteArray &method, const QString &path, const QByte
 
 void Connection::send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler)
 {
+    if (!m_transport) {
+        // The transport went first, as at shutdown. The request fails like
+        // one that found no network.
+        HttpResponse response;
+        response.errorString = tr("Tokkl has no network access.");
+        deliverLater<HttpResponse>(std::move(handler), response);
+        return;
+    }
     const quint64 generation = m_generation;
     PendingReply *reply = m_transport->send(HttpRequest{method, url, m_authorization, body});
     m_pending.insert(reply);
@@ -756,33 +723,15 @@ void Connection::fetchMe(Callback<Me> done)
         std::move(done));
 }
 
-void Connection::fetchCurrentEntry(Callback<std::optional<TimeEntry>> done)
-{
-    call<std::optional<TimeEntry>>(
-        "GET",
-        QStringLiteral("/me/time_entries/current"),
-        QByteArray(),
-        Access::Account,
-        &decodeCurrentEntry,
-        [this](const std::optional<TimeEntry> &entry) {
-            const bool changed = entry != m_currentEntry;
-            m_currentEntry = entry;
-            if (changed) {
-                Q_EMIT currentEntryChanged();
-            }
-        },
-        std::move(done));
-}
-
 struct Connection::ProjectPages {
     qint64 workspace = 0;
     int page = 1;
     QList<Project> projects;
     QSet<qint64> seen;
-    Callback<QList<Project>> done;
+    Callback<ProjectList> done;
 };
 
-void Connection::fetchProjects(Callback<QList<Project>> done)
+void Connection::fetchProjects(Callback<ProjectList> done)
 {
     auto pages = std::make_shared<ProjectPages>();
     pages->workspace = workspaceId();
@@ -804,7 +753,7 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
         [this, pages](const ApiResult<QList<Project>> &result) {
             if (!result.ok()) {
                 if (pages->done) {
-                    pages->done(result);
+                    pages->done(ApiResult<ProjectList>::failure(result.error));
                 }
                 return;
             }
@@ -829,11 +778,8 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
                 return;
             }
             // Still more after the last page read: the list is cut short.
-            m_projects = pages->projects;
-            m_projectsIncomplete = more;
-            Q_EMIT projectsChanged();
             if (pages->done) {
-                pages->done(ApiResult<QList<Project>>::success(pages->projects));
+                pages->done(ApiResult<ProjectList>::success(ProjectList{pages->projects, more}));
             }
         });
 }
@@ -867,65 +813,35 @@ void Connection::fetchRecentEntries(Callback<QList<ListedEntry>> done)
 void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
 {
     const qint64 workspace = workspaceId();
-    call<TimeEntry>(
-        "POST",
-        QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
-        encodeStartEntry(entry, workspace, m_clientName),
-        Access::Write,
-        &decodeTimeEntry,
-        [this](const TimeEntry &started) {
-            m_currentEntry = started.isRunning() ? std::optional<TimeEntry>(started) : std::nullopt;
-            Q_EMIT currentEntryChanged();
-        },
-        std::move(done));
-}
-
-void Connection::fetchEntriesBetween(const QDateTime &start, const QDateTime &end, Callback<QList<TimeEntry>> done)
-{
-    QUrlQuery query;
-    query.addQueryItem(QStringLiteral("start_date"), start.toUTC().toString(Qt::ISODate));
-    query.addQueryItem(QStringLiteral("end_date"), end.toUTC().toString(Qt::ISODate));
-    call<QList<TimeEntry>>("GET",
-                           QStringLiteral("/me/time_entries?") + query.toString(QUrl::FullyEncoded),
-                           QByteArray(),
-                           Access::Read,
-                           &decodeTimeEntries,
-                           {},
-                           std::move(done));
+    call<TimeEntry>("POST",
+                    QStringLiteral("/workspaces/%1/time_entries").arg(workspace),
+                    encodeStartEntry(entry, workspace, m_clientName),
+                    Access::Write,
+                    &decodeTimeEntry,
+                    {},
+                    std::move(done));
 }
 
 void Connection::stopEntry(qint64 entryId, Callback<TimeEntry> done)
 {
-    call<TimeEntry>(
-        "PATCH",
-        QStringLiteral("/workspaces/%1/time_entries/%2/stop").arg(workspaceId()).arg(entryId),
-        QByteArray(),
-        Access::Write,
-        &decodeTimeEntry,
-        [this](const TimeEntry &stopped) {
-            if (m_currentEntry && m_currentEntry->id == stopped.id) {
-                m_currentEntry.reset();
-                Q_EMIT currentEntryChanged();
-            }
-        },
-        std::move(done));
+    call<TimeEntry>("PATCH",
+                    QStringLiteral("/workspaces/%1/time_entries/%2/stop").arg(workspaceId()).arg(entryId),
+                    QByteArray(),
+                    Access::Write,
+                    &decodeTimeEntry,
+                    {},
+                    std::move(done));
 }
 
 void Connection::updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done)
 {
-    call<TimeEntry>(
-        "PUT",
-        QStringLiteral("/workspaces/%1/time_entries/%2").arg(workspaceId()).arg(entryId),
-        encodeTimeEntryUpdate(update),
-        Access::Write,
-        &decodeTimeEntry,
-        [this](const TimeEntry &updated) {
-            if (m_currentEntry && m_currentEntry->id == updated.id) {
-                m_currentEntry = updated.isRunning() ? std::optional<TimeEntry>(updated) : std::nullopt;
-                Q_EMIT currentEntryChanged();
-            }
-        },
-        std::move(done));
+    call<TimeEntry>("PUT",
+                    QStringLiteral("/workspaces/%1/time_entries/%2").arg(workspaceId()).arg(entryId),
+                    encodeTimeEntryUpdate(update),
+                    Access::Write,
+                    &decodeTimeEntry,
+                    {},
+                    std::move(done));
 }
 
 void Connection::fetchPreferences(Callback<PomodoroConfig> done)
@@ -1023,7 +939,7 @@ void Connection::endPomodoro(qint64 revision, ActionCallback done)
 
 PendingStream *Connection::openTimerEvents()
 {
-    if (refusal(Access::Read)) {
+    if (refusal(Access::Read) || !m_transport) {
         return nullptr;
     }
     const quint64 generation = m_generation;

@@ -103,6 +103,15 @@ struct Project {
     bool operator==(const Project &other) const = default;
 };
 
+// The active projects of a workspace as GET /workspaces/{wid}/projects
+// pages them.
+struct ProjectList {
+    QList<Project> projects;
+    // The workspace has more than the pages read could hold, so projects is
+    // a prefix of them.
+    bool incomplete = false;
+};
+
 struct TimeEntry {
     qint64 id = 0;
     qint64 workspaceId = 0;
