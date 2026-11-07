@@ -8,6 +8,7 @@
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorostore.h"
+#include "settingssave.h"
 #include "settingswindow.h"
 #include "soundchoices.h"
 #include "statusitem.h"
@@ -208,7 +209,7 @@ void MenuBarApp::updateItem()
     m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer, *m_session));
     m_statusItem->setToolTip(StatusWords::summary(*m_timer, *m_session));
     m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer, *m_session));
-    const bool monochrome = m_settings && m_settings->value(SettingsWindow::monochromeIconKey, false).toBool();
+    const bool monochrome = m_settings && m_settings->value(SettingsSave::monochromeIconKey, false).toBool();
     m_statusItem->setImage(
         StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()), monochrome, m_session->pomodoroMode()));
 }

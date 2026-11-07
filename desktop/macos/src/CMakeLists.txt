@@ -7,6 +7,8 @@ add_library(tokklmacos STATIC
     menubarapp.h
     projectindicator.cpp
     projectindicator.h
+    settingssave.cpp
+    settingssave.h
     settingswindow.cpp
     settingswindow.h
     statusimage.cpp

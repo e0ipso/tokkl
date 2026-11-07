@@ -16,6 +16,7 @@
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
+#include "settingssave.h"
 #include "settingswindow.h"
 #include "statusimage.h"
 #include "statusitem.h"
@@ -1120,7 +1121,7 @@ private Q_SLOTS:
         QVERIFY(relaunched.item.image.monochromeLogo);
         relaunched.app.showSettings();
         QVERIFY(relaunched.app.settingsWindow()->monochromeToggle()->isChecked());
-        relaunched.settings.setValue(SettingsWindow::monochromeIconKey, false);
+        relaunched.settings.setValue(SettingsSave::monochromeIconKey, false);
         relaunched.app.applySettings();
         QVERIFY(!relaunched.item.image.monochromeLogo);
         QCOMPARE(relaunched.item.image.logo, before.logo);
@@ -1557,7 +1558,7 @@ private Q_SLOTS:
             return;
         }
 
-        f.settings.setValue(SettingsWindow::monochromeIconKey, true);
+        f.settings.setValue(SettingsSave::monochromeIconKey, true);
         f.app.applySettings();
         QVERIFY(f.item.image.monochromeLogo);
         QCOMPARE(f.item.image.hourglassRect, colour.hourglassRect);
@@ -1640,7 +1641,7 @@ private Q_SLOTS:
         QVERIFY(window.isVisible());
         QVERIFY(!window.saveButton()->isEnabled());
         QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
-        QVERIFY(!f.settings.contains(SettingsWindow::monochromeIconKey));
+        QVERIFY(!f.settings.contains(SettingsSave::monochromeIconKey));
         // The pending save owns a snapshot, even if the checkbox changes.
         window.monochromeToggle()->setChecked(false);
         QVERIFY(f.app.connection()->instanceUrl().isEmpty());
@@ -1651,7 +1652,7 @@ private Q_SLOTS:
         QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), instance);
         QCOMPARE(f.store.secrets.value(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString())), token);
         QCOMPARE(f.app.connection()->instanceUrl(), instance);
-        QVERIFY(f.settings.value(SettingsWindow::monochromeIconKey).toBool());
+        QVERIFY(f.settings.value(SettingsSave::monochromeIconKey).toBool());
         QVERIFY(f.item.image.monochromeLogo);
     }
 
@@ -1678,7 +1679,7 @@ private Q_SLOTS:
         QCOMPARE(window.secretField()->text(), token);
         QVERIFY(window.saveButton()->isEnabled());
         QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
-        QVERIFY(!f.settings.contains(SettingsWindow::monochromeIconKey));
+        QVERIFY(!f.settings.contains(SettingsSave::monochromeIconKey));
         QVERIFY(!f.item.image.monochromeLogo);
         QVERIFY(f.store.secrets.isEmpty());
 
