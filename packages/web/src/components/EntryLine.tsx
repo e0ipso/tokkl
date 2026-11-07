@@ -97,8 +97,11 @@ export function EntryLine({
       toast.show(`You can pin up to ${MAX_FAVORITES} favorites`, { kind: 'error' });
       return;
     }
-    savePrefs.mutate({ favorites: [...favorites, draftOf(entry)] });
-    toast.show('Pinned to favorites');
+    // The favorite shows at once; the toast waits for the server, and a failed save rolls it back.
+    savePrefs.mutate(
+      { favorites: [...favorites, draftOf(entry)] },
+      { onSuccess: () => toast.show('Pinned to favorites'), onError: toast.error },
+    );
   };
 
   /** Closes the menu, then runs the item. */
