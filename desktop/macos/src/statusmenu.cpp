@@ -239,18 +239,22 @@ void StatusMenu::rebuildProjects()
     // paused.
     const bool hasEntry = m_timer->isRunning() || m_timer->isPaused();
     const bool choosable = m_timer->canWrite() && !hasEntry;
-    const QVariant chosen = m_timer->chosenProjectId();
 
     m_projectMenu->setTitle(tr("Project: %1").arg(StatusWords::projectText(*m_timer)));
     m_projectMenu->menuAction()->setEnabled(choosable);
 
     const QVariantMap entryProject = m_timer->entryProjectVariant().toMap();
     const bool archived = hasEntry && !entryProject.isEmpty() && !entryProject.value(QStringLiteral("active")).toBool();
-    ProjectItems items{choosable, chosen, archived ? entryProject : QVariantMap(), m_timer->projectsIncomplete(), m_timer->projects()};
+    const ProjectItems items{choosable, m_timer->chosenProjectId(), archived ? entryProject : QVariantMap(), m_timer->projectsIncomplete(), m_timer->projects()};
     if (m_projectItems == items) {
         return;
     }
     m_projectItems = items;
+    fillProjectMenu(items);
+}
+
+void StatusMenu::fillProjectMenu(const ProjectItems &items)
+{
     // Later, not now: this may run inside the triggered signal of one of
     // these actions.
     const QList<QAction *> old = m_projectMenu->actions();
@@ -259,18 +263,7 @@ void StatusMenu::rebuildProjects()
         action->deleteLater();
     }
 
-    QAction *none = m_projectMenu->addAction(tr("No project"));
-    none->setCheckable(true);
-    none->setChecked(StatusWords::isNoProject(chosen));
-    none->setEnabled(choosable);
-    connect(none, &QAction::triggered, this, [this] {
-        if (m_timer) {
-            m_timer->chooseProject(QVariant::fromValue(nullptr));
-        }
-        // The action checked itself; a refused choice must not leave it so.
-        m_projectItems.reset();
-        refresh();
-    });
+    addProjectChoice(tr("No project"), QVariant::fromValue(nullptr), StatusWords::isNoProject(items.chosen), items.choosable);
 
     // The running or paused entry's archived project: shown and checked,
     // never offered for new work.
@@ -292,19 +285,26 @@ void StatusMenu::rebuildProjects()
     for (const QVariant &value : std::as_const(items.projects)) {
         const QVariantMap project = value.toMap();
         const qint64 id = project.value(QStringLiteral("id")).toLongLong();
-        QAction *action = m_projectMenu->addAction(StatusWords::projectLabel(project));
-        action->setCheckable(true);
-        action->setChecked(!StatusWords::isNoProject(chosen) && chosen.toLongLong() == id);
-        action->setEnabled(choosable);
-        action->setData(id);
-        connect(action, &QAction::triggered, this, [this, id] {
-            if (m_timer) {
-                m_timer->chooseProject(id);
-            }
-            m_projectItems.reset();
-            refresh();
-        });
+        const bool checked = !StatusWords::isNoProject(items.chosen) && items.chosen.toLongLong() == id;
+        addProjectChoice(StatusWords::projectLabel(project), id, checked, items.choosable)->setData(id);
     }
+}
+
+QAction *StatusMenu::addProjectChoice(const QString &label, const QVariant &projectId, bool checked, bool enabled)
+{
+    QAction *action = m_projectMenu->addAction(label);
+    action->setCheckable(true);
+    action->setChecked(checked);
+    action->setEnabled(enabled);
+    connect(action, &QAction::triggered, this, [this, projectId] {
+        if (m_timer) {
+            m_timer->chooseProject(projectId);
+        }
+        // The action checked itself; a refused choice must not leave it so.
+        m_projectItems.reset();
+        refresh();
+    });
+    return action;
 }
 
 }

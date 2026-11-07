@@ -68,7 +68,23 @@ private:
     // The app's tests trigger and read the actions.
     friend class ::MenuBarAppTest;
 
+    // What the project items show. They are rebuilt only when it changes,
+    // not on every refresh.
+    struct ProjectItems {
+        bool choosable = false;
+        QVariant chosen;
+        // The running or paused entry's archived project, or empty.
+        QVariantMap archived;
+        bool incomplete = false;
+        QVariantList projects;
+
+        bool operator==(const ProjectItems &other) const = default;
+    };
+
     void rebuildProjects();
+    void fillProjectMenu(const ProjectItems &items);
+    // A checkable item that chooses projectId, null for no project.
+    QAction *addProjectChoice(const QString &label, const QVariant &projectId, bool checked, bool enabled);
     void refresh();
     void refreshState();
     void refreshSession();
@@ -96,18 +112,6 @@ private:
     QAction *m_settingsAction = nullptr;
     QAction *m_quitAction = nullptr;
     QMetaObject::Connection m_generationWatch;
-    // What the project items show. They are rebuilt only when it changes,
-    // not on every refresh.
-    struct ProjectItems {
-        bool choosable = false;
-        QVariant chosen;
-        // The running or paused entry's archived project, or empty.
-        QVariantMap archived;
-        bool incomplete = false;
-        QVariantList projects;
-
-        bool operator==(const ProjectItems &other) const = default;
-    };
     std::optional<ProjectItems> m_projectItems;
 };
 
