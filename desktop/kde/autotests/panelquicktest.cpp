@@ -56,7 +56,12 @@ public:
     explicit PanelFixture(QObject *parent = nullptr)
         : QObject(parent)
     {
+    }
+
+    TimerCoordinator *bound()
+    {
         m_timer.setStateClient(&m_client);
+        return m_timer.coordinator();
     }
 
     TimerController *timer()
@@ -191,8 +196,10 @@ private:
     QSettings m_settings{m_dir.filePath(QStringLiteral("pomodoro.ini")), QSettings::IniFormat};
     SettingsPomodoroStore m_pomodoroStore{&m_settings};
     PomodoroPreferences m_preferences{&m_connection};
-    // Last, so it goes first: it still reads the others while it ends.
-    PomodoroSession m_session{&m_clock, &m_timer, &m_client, &m_pomodoroStore};
+    // Last, so it goes first: it still reads the others while it ends. It
+    // reads and acts through the timer's state client, so the timer gets
+    // the client first.
+    PomodoroSession m_session{&m_clock, bound(), &m_pomodoroStore};
     QSet<qsizetype> m_answered;
 };
 
