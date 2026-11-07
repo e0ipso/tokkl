@@ -6,21 +6,21 @@ import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useAction } from '../../../components/useAction.ts';
 import { parseOptionalAmount } from '../values.ts';
 import { SettingsCard } from './SettingsCard.tsx';
+import { t } from '../../../i18n/messages.ts';
 
 /** The rounding steps Toggl accepts, in minutes. */
 const ROUNDING_MINUTES = [0, 1, 5, 6, 10, 12, 15, 30, 60, 240] as const;
 
 const ROUNDING_MODES = [
-  { value: 0, label: 'To the nearest step' },
-  { value: 1, label: 'Up' },
-  { value: -1, label: 'Down' },
+  { value: 0, label: 'settings.roundNearest' },
+  { value: 1, label: 'settings.roundUp' },
+  { value: -1, label: 'settings.roundDown' },
 ] as const;
 
 function stepLabel(minutes: number): string {
-  if (minutes === 0) return "Don't round";
-  if (minutes === 60) return '1 hour';
-  if (minutes % 60 === 0) return `${minutes / 60} hours`;
-  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
+  if (minutes === 0) return t('settings.dontRound');
+  if (minutes % 60 === 0) return t('settings.stepHours', { count: minutes / 60 });
+  return t('settings.stepMinutes', { count: minutes });
 }
 
 export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
@@ -35,16 +35,16 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
   const save = useAction<WorkspaceChanges, Workspace>({
     mutationFn: body => accountRequests.saveWorkspace(wid, body),
     invalidate: stale.workspace,
-    success: 'Workspace saved',
+    success: t('settings.workspaceSaved'),
   });
 
   const submit = () => {
     const code = currency.trim().toUpperCase();
     const parsedRate = parseOptionalAmount(rate);
     const valid = fields.validate([
-      ['name', !name.trim() && 'Enter a workspace name'],
-      ['currency', !/^[A-Z]{3}$/.test(code) && 'Currency must be a 3-letter code, like EUR'],
-      ['rate', parsedRate === undefined && 'Hourly rate must be a number of 0 or more'],
+      ['name', !name.trim() && t('settings.enterWorkspaceName')],
+      ['currency', !/^[A-Z]{3}$/.test(code) && t('settings.currencyInvalid')],
+      ['rate', parsedRate === undefined && t('settings.rateInvalid')],
     ]);
     if (!valid || parsedRate === undefined) return;
     save.mutate({
@@ -61,10 +61,10 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
     : [...ROUNDING_MINUTES, roundingMinutes].sort((a, b) => a - b);
 
   return (
-    <SettingsCard id="workspace" title="Workspace" onSubmit={submit} saving={save.isPending}>
+    <SettingsCard id="workspace" title={t('settings.sectionWorkspace')} onSubmit={submit} saving={save.isPending}>
       <div className="form-grid">
         <div className="field field-full">
-          <label htmlFor={fields.id('name')}>Name</label>
+          <label htmlFor={fields.id('name')}>{t('settings.name')}</label>
           <input
             {...fields.field('name')}
             value={name}
@@ -74,7 +74,7 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
           {fields.message('name')}
         </div>
         <div className="field">
-          <label htmlFor={fields.id('currency')}>Default currency</label>
+          <label htmlFor={fields.id('currency')}>{t('settings.defaultCurrency')}</label>
           <input
             {...fields.field('currency')}
             value={currency}
@@ -85,19 +85,19 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
           {fields.message('currency')}
         </div>
         <div className="field">
-          <label htmlFor={fields.id('rate')}>Default hourly rate</label>
+          <label htmlFor={fields.id('rate')}>{t('settings.defaultHourlyRate')}</label>
           <input
             {...fields.field('rate')}
             inputMode="decimal"
             value={rate}
-            placeholder="No rate"
+            placeholder={t('settings.noRate')}
             onChange={event => setRate(event.target.value)}
           />
           {fields.message('rate')}
         </div>
-        <p className="hint field-full">Billable entries on projects without their own rate use this rate.</p>
+        <p className="hint field-full">{t('settings.rateHint')}</p>
         <label className="field">
-          <span>Round durations in reports</span>
+          <span>{t('settings.roundDurations')}</span>
           <select value={roundingMinutes} onChange={event => setRoundingMinutes(Number(event.target.value))}>
             {steps.map(minutes => (
               <option key={minutes} value={minutes}>
@@ -107,7 +107,7 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
           </select>
         </label>
         <label className="field">
-          <span>Rounding direction</span>
+          <span>{t('settings.roundingDirection')}</span>
           <select
             value={rounding}
             disabled={roundingMinutes === 0}
@@ -115,15 +115,12 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
           >
             {ROUNDING_MODES.map(mode => (
               <option key={mode.value} value={mode.value}>
-                {mode.label}
+                {t(mode.label)}
               </option>
             ))}
           </select>
         </label>
-        <p className="hint field-full">
-          The Reports page rounds each entry. Tracked entries keep their exact times. Toggl API report calls round only
-          when they ask for it.
-        </p>
+        <p className="hint field-full">{t('settings.roundingHint')}</p>
       </div>
     </SettingsCard>
   );

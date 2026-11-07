@@ -13,6 +13,7 @@ import type { Settings } from './settings.ts';
 
 // Date keys and hours are formatted as UTC instants, so no time zone can move them to another day.
 const weekdayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', timeZone: 'UTC' });
+const longWeekdayFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', timeZone: 'UTC' });
 const monthFormat = new Intl.DateTimeFormat(LOCALE, { month: 'short', timeZone: 'UTC' });
 const longMonthFormat = new Intl.DateTimeFormat(LOCALE, { month: 'long', timeZone: 'UTC' });
 const dayPeriodFormat = new Intl.DateTimeFormat(LOCALE, { hour: 'numeric', hourCycle: 'h12', timeZone: 'UTC' });
@@ -81,6 +82,12 @@ export function weekdayName(key: string): string {
   return weekdayFormat.format(utcDay(parsed.year, parsed.month, parsed.day));
 }
 
+/** The full name of a day of the week, from 0 for Sunday to 6 for Saturday. */
+export function dayOfWeekName(day: number): string {
+  // 1 January 2023 was a Sunday.
+  return longWeekdayFormat.format(utcDay(2023, 1, 1 + day));
+}
+
 /** The name of a month from 1 to 12: "January", or "Jan" when short. */
 export function monthName(month: number, width: 'long' | 'short' = 'long'): string {
   return (width === 'long' ? longMonthFormat : monthFormat).format(utcDay(2000, month, 1));
@@ -121,9 +128,4 @@ export function formatMoney(cents: number, currency: string): string {
   } catch {
     return t('common.moneyFallback', { amount: (cents / 100).toFixed(2), currency });
   }
-}
-
-/** A count with its noun, such as "1 entry" or "3 entries". */
-export function plural(count: number, one: string, many = `${one}s`): string {
-  return `${count} ${count === 1 ? one : many}`;
 }

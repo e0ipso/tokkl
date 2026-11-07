@@ -7,7 +7,7 @@ import type { ImportResult } from '../../../api/types.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useAction } from '../../../components/useAction.ts';
-import { plural } from '../../../lib/format.ts';
+import { t } from '../../../i18n/messages.ts';
 import { importCounts, toggledUsers } from './transferForm.ts';
 
 function ImportSummary({ result }: { result: ImportResult }) {
@@ -16,38 +16,34 @@ function ImportSummary({ result }: { result: ImportResult }) {
   return (
     <div className="import-summary" aria-live="polite">
       <ul className="import-stats">
-        <li>{plural(result.rows, 'row')} in the file</li>
-        <li>
-          {plural(result.created, 'entry', 'entries')} {preview ? 'to import' : 'imported'}
-        </li>
-        <li>{result.skipped_duplicates} already here, skipped</li>
-        {otherUsers > 0 ? <li>{plural(otherUsers, 'row')} from other Toggl users, skipped</li> : null}
-        {failed > 0 ? <li className="is-error">{plural(failed, 'row')} with problems</li> : null}
+        <li>{t('settings.rowsInFile', { count: result.rows })}</li>
+        <li>{t(preview ? 'settings.entriesToImport' : 'settings.entriesImported', { count: result.created })}</li>
+        <li>{t('settings.alreadyHere', { count: result.skipped_duplicates })}</li>
+        {otherUsers > 0 ? <li>{t('settings.otherUsersRows', { count: otherUsers })}</li> : null}
+        {failed > 0 ? <li className="is-error">{t('settings.problemRows', { count: failed })}</li> : null}
       </ul>
       {result.created_projects.length > 0 ? (
         <p>
-          {preview ? 'New projects: ' : 'Created projects: '}
-          {result.created_projects.join(', ')}
+          {t(preview ? 'settings.newProjects' : 'settings.createdProjects', {
+            list: result.created_projects.join(', '),
+          })}
         </p>
       ) : null}
       {result.created_clients.length > 0 ? (
         <p>
-          {preview ? 'New clients: ' : 'Created clients: '}
-          {result.created_clients.join(', ')}
+          {t(preview ? 'settings.newClients' : 'settings.createdClients', { list: result.created_clients.join(', ') })}
         </p>
       ) : null}
       {result.errors.length > 0 ? (
         <details className="import-errors" open={result.errors.length <= 5}>
           <summary>
             {result.errors.length < failed
-              ? `First ${result.errors.length} problems`
-              : plural(result.errors.length, 'problem')}
+              ? t('settings.firstProblems', { count: result.errors.length })
+              : t('settings.problemCount', { count: result.errors.length })}
           </summary>
           <ul>
             {result.errors.map(error => (
-              <li key={error.row}>
-                Row {error.row}: {error.message}
-              </li>
+              <li key={error.row}>{t('settings.problemRow', { row: error.row, message: error.message })}</li>
             ))}
           </ul>
         </details>
@@ -68,7 +64,7 @@ function ImportUsers({
 }) {
   return (
     <fieldset className="import-users">
-      <legend>This file has entries from {users.length} Toggl users. Choose whose entries to import.</legend>
+      <legend>{t('settings.importUsers', { count: users.length })}</legend>
       {users.map(user => (
         <label key={user.key} className="field checkbox-field">
           <input
@@ -77,9 +73,9 @@ function ImportUsers({
             onChange={event => onToggle(user.key, event.target.checked)}
           />
           <span>
-            {user.user || user.email || 'No Toggl user'}
+            {user.user || user.email || t('settings.noTogglUser')}
             {user.user && user.email ? <span className="muted"> {user.email}</span> : null}
-            <span className="muted"> · {plural(user.rows, 'row')}</span>
+            <span className="muted"> · {t('settings.rowCount', { count: user.rows })}</span>
           </span>
         </label>
       ))}
@@ -103,7 +99,7 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
     onSuccess: (imported, { dryRun, request }) => {
       if (!dryRun) {
         void invalidate(qc, stale.imported);
-        toast.show(`Imported ${plural(imported.created, 'entry', 'entries')}`);
+        toast.show(t('settings.imported', { count: imported.created }));
       }
       if (request !== latest.current) return;
       setResult(imported);
@@ -153,22 +149,18 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
 
   return (
     <>
-      <h3 className="settings-subheading">Import from Toggl Track</h3>
-      <p className="hint">
-        In Toggl Track, go to Reports → Detailed, pick the date range, then Export → CSV. Upload that file here. Times
-        in the file are read in the account timezone, {timeZone}. Entries that are already here get skipped, so
-        importing the same file twice is safe.
-      </p>
+      <h3 className="settings-subheading">{t('settings.importTitle')}</h3>
+      <p className="hint">{t('settings.importHint', { timeZone })}</p>
       <div className="inline-controls settings-row">
         <label className="button button-ghost file-button">
-          <Icon name="upload" size={16} /> Choose CSV file
+          <Icon name="upload" size={16} /> {t('settings.chooseCsv')}
           <input ref={fileInput} type="file" accept=".csv,text/csv" onChange={event => void chooseFile(event)} />
         </label>
         {file ? <span className="muted file-name">{file.name}</span> : null}
       </div>
 
       {runImport.isPending ? (
-        <p className="hint">{runImport.variables?.dryRun ? 'Checking the file…' : 'Importing…'}</p>
+        <p className="hint">{runImport.variables?.dryRun ? t('settings.checkingFile') : t('settings.importing')}</p>
       ) : null}
       {file && result?.dry_run && mustChoose ? (
         <ImportUsers users={result.users} selected={selected} onToggle={toggleUser} />
@@ -183,10 +175,10 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
             disabled={runImport.isPending || result.created === 0 || (mustChoose && selected.length === 0)}
             onClick={() => send(file.text, false, selected)}
           >
-            <Icon name="upload" size={16} /> Import {plural(result.created, 'entry', 'entries')}
+            <Icon name="upload" size={16} /> {t('settings.importCount', { count: result.created })}
           </button>
           <button type="button" className="button button-ghost" onClick={reset}>
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       ) : null}

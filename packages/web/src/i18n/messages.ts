@@ -14,6 +14,7 @@ import { entries } from './en/entries.ts';
 import { manage } from './en/manage.ts';
 import { pomodoro } from './en/pomodoro.ts';
 import { reports } from './en/reports.ts';
+import { settings } from './en/settings.ts';
 import { shell } from './en/shell.ts';
 import { timer } from './en/timer.ts';
 import { LOCALE } from './locale.ts';
@@ -32,6 +33,7 @@ export const en = {
   pomodoro,
   reports,
   manage,
+  settings,
 } as const;
 
 export type Catalog = typeof en;
@@ -64,15 +66,22 @@ type ParamArgs<Key extends MessageKey> = keyof MessageParams<Key> extends never 
 const pluralRules = new Intl.PluralRules(LOCALE);
 
 /**
- * The message for `key` in the interface language, with its placeholders filled. A plural message
- * picks its form for `params.count`.
+ * The text of `key` before its placeholders are filled: for a plural message, the form for
+ * `count`. A key missing from the catalog comes back as itself.
  */
-export function t<Key extends MessageKey>(key: Key, ...[params]: ParamArgs<Key>): string {
+export function template(key: MessageKey, count?: number): string {
   const dot = key.indexOf('.');
   const group: MessageGroup = en[key.slice(0, dot) as Feature];
   const message = group[key.slice(dot + 1)];
   if (message === undefined) return key;
+  return typeof message === 'string' ? message : pluralForm(message, Number(count), pluralRules);
+}
+
+/**
+ * The message for `key` in the interface language, with its placeholders filled. A plural message
+ * picks its form for `params.count`.
+ */
+export function t<Key extends MessageKey>(key: Key, ...[params]: ParamArgs<Key>): string {
   const values: Readonly<Record<string, MessageValue>> = params ?? {};
-  const text = typeof message === 'string' ? message : pluralForm(message, Number(values.count), pluralRules);
-  return interpolate(text, values);
+  return interpolate(template(key, typeof values.count === 'number' ? values.count : undefined), values);
 }
