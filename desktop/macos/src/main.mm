@@ -5,6 +5,7 @@
 #include "macloginitem.h"
 #include "macstatusitem.h"
 #include "menubarapp.h"
+#include "translations.h"
 #include "transport.h"
 
 #include <QApplication>
@@ -40,6 +41,10 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationDomain(QStringLiteral("canpicasoft.com"));
     QApplication::setApplicationName(QStringLiteral("Tokkl"));
     QApplication::setApplicationVersion(QStringLiteral(TOKKL_VERSION_STRING));
+    // The core's catalog and the app's own, from Contents/Resources/locale.
+    const QStringList localeDirs{QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/locale")};
+    Tokkl::installTranslations(Tokkl::coreCatalog, localeDirs);
+    Tokkl::installTranslations(QStringLiteral("tokkl_macos_qt"), localeDirs);
     // Closing the settings window leaves the menu bar item running.
     QApplication::setQuitOnLastWindowClosed(false);
 

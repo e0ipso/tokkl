@@ -55,6 +55,10 @@ target_sources(tokklbackend PRIVATE
     companion.h
     qmltypes.h
 )
+# Loads the catalog of the core's tr() messages when the module loads, from
+# locale/<lang>/LC_MESSAGES/tokklcore_qt.qm in the XDG data dirs. The QML
+# strings use KI18n; see desktop/core/src/translations.h.
+ecm_create_qm_loader(tokklbackend tokklcore_qt)
 
 target_compile_definitions(tokklbackend PRIVATE
     TOKKL_VERSION_STRING="${TOKKL_RESOLVED_VERSION}"

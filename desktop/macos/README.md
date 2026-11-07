@@ -108,6 +108,14 @@ The build signs the bundle ad hoc. An ad hoc signature changes with every build,
 
 On a machine without macOS, the same commands build no app but run the tests: `menubarapp`, `infoplist`, the core's tests, and `keychaincredentialstore` when QtKeychain is installed. The `macos` CI job builds and tests the app on `macos-latest` with a pinned Qt from the Qt installer and a pinned QtKeychain built from source, both set up by `.github/actions/macos-build`. It then packages and checks a DMG with the two scripts. The release waits for it.
 
+## Translations
+
+The app's own strings and the core's messages use Qt's `tr()`, under the
+catalogues `tokkl_macos_qt` and `tokklcore_qt`. `main.mm` loads both for the
+system language from `Tokkl.app/Contents/Resources/locale/<lang>/LC_MESSAGES/<catalogue>.qm`,
+the layout the KDE and GNOME companions use. No translations ship yet, so the
+app shows the English text. `desktop/core/src/translations.h` has the details.
+
 ## Releases
 
 semantic-release decides the version on the Linux runner of the `release` job, and the app builds only on macOS. After the release job has tagged `v<version>` and created the GitHub release, the `macos-release` job builds the app from that tag with `-DTOKKL_VERSION=<version>`. It checks that the tag's `package.json` has that version, so the bundle's `CFBundleVersion` is the release version. It then runs `package-dmg.sh` and `check-dmg.sh`. The `macos-publish` job attaches `Tokkl-<version>-arm64.dmg` to the release with `gh release upload`. It is a separate Linux job so that the job that builds QtKeychain and the app never holds a token that can write to the repository. The release needs no Apple certificate, password or other secret.

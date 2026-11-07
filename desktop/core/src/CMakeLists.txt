@@ -54,6 +54,8 @@ add_library(tokklcore STATIC
     timerview.h
     transport.cpp
     transport.h
+    translations.cpp
+    translations.h
 )
 set_target_properties(tokklcore PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_features(tokklcore PUBLIC cxx_std_20)

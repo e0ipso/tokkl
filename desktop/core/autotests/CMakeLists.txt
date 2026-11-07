@@ -2,8 +2,9 @@
 # controller and its parts, timer state client, Pomodoro preferences and
 # Pomodoro session, against the scripted transport, credential store and
 # clock in fakes.h, of the Pomodoro store on a temporary QSettings file, of
-# the real transport against an in-process loopback server, and of the
-# bundled Pomodoro sounds and glyph against their sums and masters.
+# the translation loader on temporary catalogs, of the real transport
+# against an in-process loopback server, and of the bundled Pomodoro sounds
+# and glyph against their sums and masters.
 # They never reach a credential store, another host or real configuration;
 # private XDG dirs make sure of the last.
 
@@ -35,6 +36,7 @@ tokkl_core_test(timer timercontrollertest.cpp tokklcorefakes)
 tokkl_core_test(timerparts timerpartstest.cpp)
 tokkl_core_test(timerstateclient timerstateclienttest.cpp tokklcorefakes)
 tokkl_core_test(pomodorostore pomodorostoretest.cpp)
+tokkl_core_test(translations translationstest.cpp)
 tokkl_core_test(pomodoropreferences pomodoropreferencestest.cpp tokklcorefakes)
 tokkl_core_test(pomodorosession pomodorosessiontest.cpp tokklcorefakes)
 tokkl_core_test(pomodorosounds pomodorosoundstest.cpp)
