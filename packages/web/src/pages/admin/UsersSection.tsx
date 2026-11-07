@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import type { AdminAccount } from '../../api/types.ts';
+import { closeModalThen } from '../../components/Overlay.tsx';
 import type { Settings } from '../../lib/settings.ts';
 import { focusPastRow, rowAction } from '../manage/rowFocus.ts';
 import { SettingsCard } from '../manage/settings/SettingsCard.tsx';
@@ -78,8 +79,10 @@ export function UsersSection({
           onClose={() => setDeleting(null)}
           onDeleted={() => {
             // The modal had focus; the row that opened it goes away once the list refetches.
-            focusPastRow(tbody.current, deleting.id, 'delete', title.current);
-            setDeleting(null);
+            closeModalThen(
+              () => setDeleting(null),
+              () => focusPastRow(tbody.current, deleting.id, 'delete', title.current),
+            );
           }}
         />
       ) : null}

@@ -5,6 +5,7 @@ import { tagRequests, useTags } from '../api/tags.ts';
 import type { Tag } from '../api/types.ts';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
+import { closeModalThen } from '../components/Overlay.tsx';
 import { useAction } from '../components/useAction.ts';
 import { includesText } from './manage/values.ts';
 import { focusPastRow } from './manage/rowFocus.ts';
@@ -109,8 +110,10 @@ export function TagsPage() {
     success: (_result, tag) => `Deleted ${tag.name}`,
     onSuccess: (_result, tag) => {
       // The dialog had focus and would give it back to the row's Delete button, which goes away.
-      focusPastRow(tbody.current, tag.id, 'delete', heading.current);
-      setDeleting(null);
+      closeModalThen(
+        () => setDeleting(null),
+        () => focusPastRow(tbody.current, tag.id, 'delete', heading.current),
+      );
     },
   });
 

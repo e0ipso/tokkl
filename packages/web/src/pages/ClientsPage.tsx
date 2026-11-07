@@ -5,6 +5,7 @@ import { stale } from '../api/keys.ts';
 import { useProjects } from '../api/projects.ts';
 import type { Client } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
+import { closeModalThen } from '../components/Overlay.tsx';
 import { useAction } from '../components/useAction.ts';
 import { ClientEditor } from './manage/ClientEditor.tsx';
 import { ClientRow } from './manage/ClientRow.tsx';
@@ -40,8 +41,12 @@ export function ClientsPage() {
     onSuccess: (_result, client) => {
       // The dialog had focus and would give it back to the row's menu button. When the row leaves
       // the list, that button goes with it.
-      if (!matchesStatus(true, status)) focusPastRow(tbody.current, client.id, 'menu', heading.current);
-      setPending(null);
+      closeModalThen(
+        () => setPending(null),
+        () => {
+          if (!matchesStatus(true, status)) focusPastRow(tbody.current, client.id, 'menu', heading.current);
+        },
+      );
     },
   });
   const restore = useAction<Client>({
@@ -58,8 +63,10 @@ export function ClientsPage() {
     invalidate: stale.clients,
     success: (_result, client) => `Deleted ${client.name}`,
     onSuccess: (_result, client) => {
-      focusPastRow(tbody.current, client.id, 'menu', heading.current);
-      setPending(null);
+      closeModalThen(
+        () => setPending(null),
+        () => focusPastRow(tbody.current, client.id, 'menu', heading.current),
+      );
     },
   });
 

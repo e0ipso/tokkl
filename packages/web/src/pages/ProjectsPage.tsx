@@ -5,6 +5,7 @@ import { stale } from '../api/keys.ts';
 import { projectRequests, useProjects, type ProjectDeletionMode } from '../api/projects.ts';
 import type { Project } from '../api/types.ts';
 import { Icon } from '../components/Icon.tsx';
+import { closeModalThen } from '../components/Overlay.tsx';
 import { ProjectDot } from '../components/ProjectLabel.tsx';
 import { useSettings } from '../api/settings.ts';
 import { duration, formatMoney } from '../lib/format.ts';
@@ -95,8 +96,10 @@ export function ProjectsPage() {
         : `Deleted ${project.name}. Its entries no longer have a project`,
     onSuccess: (_result, { project }) => {
       // The dialog had focus and would give it back to the row's menu button, which goes away.
-      focusPastRow(tbody.current, project.id, 'menu', heading.current);
-      setDeleting(null);
+      closeModalThen(
+        () => setDeleting(null),
+        () => focusPastRow(tbody.current, project.id, 'menu', heading.current),
+      );
     },
   });
 

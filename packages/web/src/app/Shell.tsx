@@ -8,6 +8,7 @@ import { Brand } from '../components/Brand.tsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LongTimerReminder } from '../components/LongTimerReminder.tsx';
+import { closeModalThen } from '../components/Overlay.tsx';
 import { PomodoroSessionBanner } from '../components/PomodoroSessionBanner.tsx';
 import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { useToast } from '../components/Toast.tsx';
@@ -96,10 +97,11 @@ export function Shell() {
   // Leaving the phone layout removes the More button, so the sheet must not reopen on the way back.
   if (!phone && moreOpen) setMoreOpen(false);
 
-  const closeMore = () => {
-    setMoreOpen(false);
-    moreButton.current?.focus();
-  };
+  const closeMore = () =>
+    closeModalThen(
+      () => setMoreOpen(false),
+      () => moreButton.current?.focus(),
+    );
 
   const linkProps = (item: NavItem) => ({
     item,

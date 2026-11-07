@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { INERT_EXEMPT } from './inertOutside.ts';
 
 interface Toast {
   id: number;
@@ -42,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="toasts" role="status" aria-live="polite">
+      <div className="toasts" role="status" aria-live="polite" {...{ [INERT_EXEMPT]: '' }}>
         {toasts.map(toast => (
           <div
             key={toast.id}

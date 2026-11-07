@@ -301,3 +301,36 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(active.boxShadow).toBe('none');
   });
 }
+
+// A modal dialog keeps Tab inside itself and makes the page behind inert; closing it wakes the
+// page and puts focus back on the button that opened it.
+test('a modal dialog contains Tab and makes the page behind inert', async ({ page }) => {
+  await login(page);
+  const api = await EntityApi.open(page);
+  await api.createProject({ name: 'Contained' });
+  await page.getByRole('link', { name: 'Projects' }).click();
+  const edit = page.getByRole('button', { name: 'Edit Contained', exact: true });
+  await edit.focus();
+  await page.keyboard.press('Enter');
+  const editor = page.getByRole('dialog', { name: 'Edit project' });
+  const insideInert = (target: Locator) => target.evaluate(element => element.closest('[inert]') !== null);
+  await expect(editor).toHaveAttribute('aria-modal', 'true');
+  await expect.poll(() => insideInert(page.locator('main'))).toBe(true);
+  expect(await insideInert(edit)).toBe(true);
+  expect(await insideInert(editor)).toBe(false);
+  // Toasts stay live: their messages are announced and their buttons sit above the backdrop.
+  expect(await insideInert(page.locator('.toasts'))).toBe(false);
+
+  const close = editor.getByRole('button', { name: 'Close', exact: true });
+  const last = editor.locator('.modal-footer button').last();
+  await last.focus();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(last).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(editor).toHaveCount(0);
+  expect(await insideInert(page.locator('main'))).toBe(false);
+  await expect(edit).toBeFocused();
+});

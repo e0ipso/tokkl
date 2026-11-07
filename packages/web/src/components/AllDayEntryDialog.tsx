@@ -53,8 +53,10 @@ export function AllDayEntryDialog({
   };
 
   return (
+    // Not modal: Tab can leave the draft for another day's add button, which replaces it.
     <Modal
       title="Add all-day entry"
+      modal={false}
       onClose={onClose}
       footer={
         <>
