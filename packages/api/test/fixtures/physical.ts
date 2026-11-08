@@ -35,6 +35,13 @@ export async function copySQLiteFile(handle: FixtureDatabase, filename: string):
 export async function tokenRows(handle: FixtureDatabase): Promise<Array<Record<string, any>>> {
   return normalizeRows(await physical(handle).selectFrom('account_tokens').selectAll().orderBy('id').execute());
 }
+export async function idempotencyKeyCount(handle: FixtureDatabase): Promise<number> {
+  const row = await physical(handle)
+    .selectFrom('idempotency_keys')
+    .select(({ fn }) => fn.countAll().as('n'))
+    .executeTakeFirstOrThrow();
+  return Number(row.n);
+}
 export async function sessionCount(handle: FixtureDatabase, userId?: number): Promise<number> {
   let q = physical(handle)
     .selectFrom('sessions')

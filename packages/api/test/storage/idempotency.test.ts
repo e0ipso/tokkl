@@ -68,7 +68,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await ctx.idempotencyKeys.insert(record('old', at(IDEMPOTENCY_RETENTION_MS + 1000)));
           await ctx.idempotencyKeys.insert(record('new', at(1000)));
         });
-        await runner.transaction(ctx => ctx.idempotencyKeys.deleteExpired(at(IDEMPOTENCY_RETENTION_MS)));
+        assert.equal(
+          await runner.transaction(ctx => ctx.idempotencyKeys.deleteExpired(at(IDEMPOTENCY_RETENTION_MS))),
+          1,
+        );
         await runner.transaction(async ctx => {
           assert.equal(await ctx.idempotencyKeys.find('old'), undefined);
           assert.equal((await ctx.idempotencyKeys.find('new'))?.createdAt, at(1000));

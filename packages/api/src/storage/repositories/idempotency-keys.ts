@@ -5,7 +5,7 @@ import type { PhysicalDatabase } from '../physical.ts';
 import { entityId, utcInstant } from '../conversion.ts';
 import { classifyConflict, StorageConflict } from '../errors.ts';
 
-/** Most expired records one write deletes. Later writes take the rest. */
+/** Most expired records one call deletes. The maintenance job calls again for the rest. */
 const CLEANUP_BATCH = 100;
 
 export function createIdempotencyKeysRepository(
@@ -60,6 +60,7 @@ export function createIdempotencyKeysRepository(
       if (server) expired = expired.forUpdate().skipLocked();
       const keys = (await expired.execute()).map(row => row.key_hash);
       if (keys.length) await db.deleteFrom('idempotency_keys').where('key_hash', 'in', keys).execute();
+      return keys.length;
     },
   };
 }

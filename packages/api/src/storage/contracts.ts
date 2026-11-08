@@ -306,8 +306,11 @@ export interface IdempotencyKeysRepository {
    */
   insert(record: IdempotencyRecord): Promise<void>;
   delete(keyHash: string): Promise<void>;
-  /** Deletes up to a batch of records created before `before`, skipping rows other writes hold. */
-  deleteExpired(before: UtcInstant): Promise<void>;
+  /**
+   * Deletes up to a batch of records created before `before`, skipping rows other writes hold, and
+   * returns how many it deleted.
+   */
+  deleteExpired(before: UtcInstant): Promise<number>;
 }
 export interface TimersReader {
   read(userId: Id): Promise<TimerSnapshot>;
