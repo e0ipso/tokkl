@@ -235,32 +235,55 @@ private Q_SLOTS:
         QCOMPARE(me->toVariantMap().value(QStringLiteral("timeResolutionMinutes")), QVariant(minutes));
     }
 
-    void decodeMeServerApi_data()
+    void statusServerApi_data()
     {
-        QTest::addColumn<QByteArray>("field"); // added to a valid body
+        QTest::addColumn<int>("status"); // 0 for no HTTP answer
+        QTest::addColumn<QByteArray>("body");
         QTest::addColumn<qint64>("version");
         QTest::addColumn<QList<bool>>("capabilities"); // app-preferences, timer-actions, timer-edit, pomodoro-revision
 
-        QTest::newRow("older server") << QByteArray() << qint64(0) << QList<bool>{false, false, false, false};
-        QTest::newRow("current server") << QByteArray(R"(,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"])")
-                                        << qint64(1) << QList<bool>{true, true, true, true};
-        QTest::newRow("unknown names ignored") << QByteArray(R"(,"api_version":2,"capabilities":["timer-actions","time-travel",7,null])") << qint64(2)
+        const QList<bool> none{false, false, false, false};
+        QTest::newRow("older server") << 200 << QByteArray(R"({"setup_required":false})") << qint64(0) << none;
+        QTest::newRow("current server")
+            << 200 << QByteArray(R"({"setup_required":false,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})")
+            << qint64(1) << QList<bool>{true, true, true, true};
+        QTest::newRow("unknown names ignored") << 200 << QByteArray(R"({"api_version":2,"capabilities":["timer-actions","time-travel",7,null]})") << qint64(2)
                                                << QList<bool>{false, true, false, false};
-        QTest::newRow("unreadable") << QByteArray(R"(,"api_version":"1","capabilities":"timer-actions")") << qint64(0)
-                                    << QList<bool>{false, false, false, false};
+        QTest::newRow("unreadable") << 200 << QByteArray(R"({"api_version":"1","capabilities":"timer-actions"})") << qint64(0) << none;
+        QTest::newRow("not an object") << 200 << QByteArray(R"(["timer-actions"])") << qint64(0) << none;
+        QTest::newRow("not JSON") << 200 << QByteArray("<html></html>") << qint64(0) << none;
+        QTest::newRow("refused") << 404 << QByteArray(R"({"api_version":1,"capabilities":["timer-actions"]})") << qint64(0) << none;
+        QTest::newRow("server error") << 503 << QByteArray() << qint64(0) << none;
+        QTest::newRow("no answer") << 0 << QByteArray() << qint64(0) << none;
     }
 
-    // What the server announces picks the routes; an announcement that
-    // cannot be read does not refuse the account.
-    void decodeMeServerApi()
+    // GET /api/app/status announces what picks the routes. An answer
+    // without the announcement, or no 2xx answer at all, announces nothing.
+    void statusServerApi()
     {
-        QFETCH(QByteArray, field);
+        QFETCH(int, status);
+        QFETCH(QByteArray, body);
         QFETCH(qint64, version);
         QFETCH(QList<bool>, capabilities);
-        const std::optional<Me> me = Tokkl::decodeMe(*parseJsonBody(R"({"id":3,"email":"b@example.com","default_workspace_id":9)" + field + "}"));
+        HttpResponse response;
+        if (status) {
+            response.outcome = HttpResponse::Outcome::Finished;
+            response.status = status;
+            response.body = body;
+        }
+        const ServerApi server = serverApiFromResponse(response);
+        QCOMPARE(server.version, version);
+        QCOMPARE((QList<bool>{server.appPreferences, server.timerActions, server.timerEdit, server.pomodoroRevision}), capabilities);
+    }
+
+    // The announcement in a /me body, as an earlier server sent it, does
+    // not refuse the account.
+    void decodeMeAcceptsServerApi()
+    {
+        const std::optional<Me> me = Tokkl::decodeMe(*parseJsonBody(
+            R"({"id":3,"email":"b@example.com","default_workspace_id":9,"api_version":1,"capabilities":["app-preferences","timer-actions"]})"));
         QVERIFY(me);
-        QCOMPARE(me->server.version, version);
-        QCOMPARE((QList<bool>{me->server.appPreferences, me->server.timerActions, me->server.timerEdit, me->server.pomodoroRevision}), capabilities);
+        QCOMPARE(me->id, 3);
     }
 
     void decodeEntries()

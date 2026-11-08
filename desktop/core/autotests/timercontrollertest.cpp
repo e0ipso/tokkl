@@ -28,9 +28,8 @@ const QByteArray editPath = "/app/timer/edit";
 // The v9 route of a server from before the app's start and stop.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
-// The account on a current server, or with current false on a server from
-// before the capabilities, which has no app start, stop or edit.
-QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
+// The account. What its server announces comes from GET /api/app/status.
+QByteArray meBody(qint64 id, qint64 workspace)
 {
     const QJsonObject me{
         {QStringLiteral("id"), id},
@@ -40,7 +39,7 @@ QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
         {QStringLiteral("default_workspace_id"), workspace},
         {QStringLiteral("beginning_of_week"), 1},
     };
-    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
+    return QJsonDocument(me).toJson(QJsonDocument::Compact);
 }
 
 QJsonObject entryObject(qint64 id, qint64 workspace, const QString &start, bool running = true, std::optional<qint64> project = std::nullopt)
@@ -213,12 +212,13 @@ class TimerControllerTest : public QObject
         TimerController timer{&clock};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
-        // connectAccount() answers /me as a server from before the
+        // connectAccount() signs in to a server from before the
         // capabilities.
         bool olderServer = false;
 
         Fixture()
         {
+            transport.status = FakeTransport::currentStatus();
             timer.setStateClient(&state);
         }
 
@@ -309,6 +309,7 @@ class TimerControllerTest : public QObject
                                const QJsonValue &pause = QJsonValue::Null,
                                const QJsonValue &pomodoro = QJsonValue::Null)
     {
+        f.transport.status = f.olderServer ? FakeTransport::olderStatus() : FakeTransport::currentStatus();
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
         f.connection.setInstanceUrl(url);
@@ -317,7 +318,7 @@ class TimerControllerTest : public QObject
             })) {
             return false;
         }
-        f.respond(before, FakeTransport::answer(200, meBody(userId, workspace, !f.olderServer)));
+        f.respond(before, FakeTransport::answer(200, meBody(userId, workspace)));
         const qsizetype read = f.last("GET", statePath);
         const qsizetype projects = f.last("GET", "/projects");
         if (!f.unanswered(read) || !f.unanswered(projects)) {

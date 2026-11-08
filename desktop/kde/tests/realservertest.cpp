@@ -544,15 +544,18 @@ class RealServerTest : public QObject
         s.idle();
         QCOMPARE(s.transport.log.size(), before);
 
-        // An explicit reconnect asks once more and stops again.
+        // An explicit reconnect asks once more and stops again. The refusal
+        // ended the generation, so the server's announcement is read first.
         s.connection.reconnect();
-        QTRY_COMPARE_WITH_TIMEOUT(s.transport.since(before).size(), 1, timeoutMs);
-        QTRY_VERIFY_WITH_TIMEOUT(s.transport.since(before).first()->response.has_value(), timeoutMs);
+        QTRY_COMPARE_WITH_TIMEOUT(s.transport.since(before).size(), 2, timeoutMs);
+        QTRY_VERIFY_WITH_TIMEOUT(s.transport.since(before).last()->response.has_value(), timeoutMs);
+        QCOMPARE(s.transport.sinceApp(before, "GET", QStringLiteral("/status")).size(), 1);
+        QCOMPARE(s.transport.since(before).first()->response->status, 200);
         QCOMPARE(s.transport.since(before, "GET", QStringLiteral("/me")).size(), 1);
-        QCOMPARE(s.transport.since(before).first()->response->status, 403);
+        QCOMPARE(s.transport.since(before).last()->response->status, 403);
         QTRY_COMPARE_WITH_TIMEOUT(s.connection.state(), Connection::AuthenticationFailed, timeoutMs);
         s.idle();
-        QCOMPARE(s.transport.log.size(), before + 1);
+        QCOMPARE(s.transport.log.size(), before + 2);
     }
 
 private Q_SLOTS:
@@ -689,6 +692,9 @@ private Q_SLOTS:
         QTest::qWait(500);
 
         QVERIFY(s.ready(b));
+        // The new instance's GET /api/app/status, read once, picks the app routes.
+        QCOMPARE(s.transport.sinceApp(switchedAt, "GET", QStringLiteral("/status")).size(), 1);
+        QVERIFY(s.connection.server().timerActions);
         QCOMPARE(s.timer.currentEntry()->id, b.running->id);
         QCOMPARE(s.timer.currentEntry()->description, b.running->description);
         QCOMPARE(s.timer.currentEntry()->start, b.running->start);

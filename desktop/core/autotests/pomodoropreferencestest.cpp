@@ -22,9 +22,8 @@ const QString shortRestKey = QStringLiteral("pomodoro_break_interval_in_minutes"
 const QString longRestKey = QStringLiteral("pomodoro_long_break_interval_in_minutes");
 const QString everyKey = QStringLiteral("pomodoro_long_break_every");
 
-// The account on a current server, or with current false on a server from
-// before the capabilities, which has no /api/app/me/preferences.
-QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
+// The account. What its server announces comes from GET /api/app/status.
+QByteArray meBody(qint64 id, qint64 workspace)
 {
     const QJsonObject me{
         {QStringLiteral("id"), id},
@@ -33,7 +32,7 @@ QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
         {QStringLiteral("timezone"), QStringLiteral("UTC")},
         {QStringLiteral("default_workspace_id"), workspace},
     };
-    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
+    return QJsonDocument(me).toJson(QJsonDocument::Compact);
 }
 
 // The whole preferences object the server answers with, including a key of
@@ -67,6 +66,11 @@ class PomodoroPreferencesTest : public QObject
         Connection connection{&transport, &credentials, testClientName()};
         PomodoroPreferences preferences{&connection};
 
+        Fixture()
+        {
+            transport.status = FakeTransport::currentStatus();
+        }
+
         bool lastIs(const QByteArray &method, const QString &path) const
         {
             const HttpRequest &request = transport.requests.last();
@@ -91,14 +95,17 @@ class PomodoroPreferencesTest : public QObject
         });
     }
 
-    // Configure the instance and answer /me. Leaves the preferences read the
-    // connection triggers unanswered.
+    // Configure the instance and answer /me, on a current server or, with
+    // current false, on one from before the capabilities, which has no
+    // /api/app/me/preferences. Leaves the preferences read the connection
+    // triggers unanswered.
     static bool connectAccount(Fixture &f, const QString &url, qint64 userId, qint64 workspace, bool current = true)
     {
+        f.transport.status = current ? FakeTransport::currentStatus() : FakeTransport::olderStatus();
         if (!configure(f, url)) {
             return false;
         }
-        f.transport.respondLast(FakeTransport::answer(200, meBody(userId, workspace, current)));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(userId, workspace)));
         return f.connection.state() == Connection::Connected;
     }
 

@@ -229,7 +229,7 @@ QString soundFile(const QString &id)
 QByteArray meBody()
 {
     return QByteArrayLiteral(
-        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})");
+        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})");
 }
 
 // The running entry that started at startedAt.
@@ -438,10 +438,11 @@ class MenuBarAppTest : public QObject
 
     struct Fixture {
         // The settings live in settingsFile, or in a file of the fixture's
-        // own when it is empty.
+        // own when it is empty. The server is a current one.
         explicit Fixture(const QString &settingsFile = QString())
             : settings(settingsFile.isEmpty() ? dir.filePath(QStringLiteral("tokkl.ini")) : settingsFile, QSettings::IniFormat)
         {
+            transport.status = FakeTransport::currentStatus();
             // The sounds the bundle would hold in Contents/Resources/sounds.
             app.m_alarm.get()->setSoundsDirectory(QStringLiteral(TOKKL_SOUNDS_DIR));
         }

@@ -37,9 +37,9 @@ const QByteArray endPath = "/app/pomodoro/end";
 const QByteArray timerStartPath = "/app/timer/start";
 const QString tooShort = QStringLiteral("This pomodoro was too short to save.");
 
-// The account on a current server, or with current false on a server from
-// before the capabilities.
-QByteArray meBody(bool current = true)
+// The account. Its server is a current one: the fixture's transport
+// answers GET /api/app/status with the capabilities.
+QByteArray meBody()
 {
     const QJsonObject me{
         {QStringLiteral("id"), 3},
@@ -49,7 +49,7 @@ QByteArray meBody(bool current = true)
         {QStringLiteral("default_workspace_id"), 7},
         {QStringLiteral("beginning_of_week"), 1},
     };
-    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
+    return QJsonDocument(me).toJson(QJsonDocument::Compact);
 }
 
 QString iso(const QDateTime &time)
@@ -250,6 +250,7 @@ class PomodoroSessionTest : public QObject
 
         explicit Fixture(bool withSession = true)
         {
+            transport.status = FakeTransport::currentStatus();
             timer.setStateClient(&client);
             if (withSession) {
                 createSession();

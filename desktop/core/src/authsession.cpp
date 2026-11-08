@@ -110,6 +110,12 @@ std::optional<Me> AuthSession::account() const
     return m_context->me;
 }
 
+ServerApi AuthSession::server() const
+{
+    // An account binds only after the announcement of its generation.
+    return hasAccount() && m_announcement.generation == m_generation ? m_announcement.server : ServerApi();
+}
+
 ApiClient &AuthSession::api()
 {
     return m_api;
@@ -234,6 +240,29 @@ void AuthSession::authenticate(bool explicitRequest)
     if (!hasAccount()) {
         setState(Connecting);
     }
+    if (m_announcement.generation != m_generation) {
+        readAnnouncement();
+    } else if (m_announcement.settled) {
+        sendMe();
+    }
+    // Otherwise the read in flight sends /me once it settles.
+}
+
+void AuthSession::readAnnouncement()
+{
+    // Once per generation. Its answer never touches the session state: a
+    // failure only means the routes of a server without the announcement,
+    // and a later generation asks again.
+    m_announcement = Announcement{m_generation, false, ServerApi()};
+    m_api.send("GET", instance().app(QStringLiteral("/status")), QByteArray(), [this](const HttpResponse &response) {
+        m_announcement.settled = true;
+        m_announcement.server = serverApiFromResponse(response);
+        sendMe();
+    });
+}
+
+void AuthSession::sendMe()
+{
     m_api.send("GET", instance().api(QStringLiteral("/me")), QByteArray(), [this](const HttpResponse &response) {
         handleMe(response);
     });
@@ -302,8 +331,10 @@ void AuthSession::pauseAuthentication(const QString &message)
 void AuthSession::bind(const Me &me)
 {
     if (hasAccount() && (m_context->me.id != me.id || m_context->me.defaultWorkspaceId != me.defaultWorkspaceId)) {
-        // The same credentials now name another account or workspace.
+        // The same credentials now name another account or workspace. The
+        // instance is the same, so what it announced still holds.
         resetAccount();
+        m_announcement.generation = m_generation;
     }
     const bool changed = !hasAccount() || m_context->me != me;
     m_context = Context{m_generation, me};

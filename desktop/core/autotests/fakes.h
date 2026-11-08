@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <QHash>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimeZone>
 #include <QList>
@@ -23,9 +24,9 @@ inline QString testClientName()
     return QStringLiteral("tokkl-test");
 }
 
-// What a current server announces in GET /api/v9/me, for a test to insert
-// into its /me object. A /me without it is a server from before the
-// announcement, which has none of the /api/app routes it names.
+// What a current server announces in GET /api/app/status besides
+// setup_required. A server from before the announcement sends neither field
+// and has none of the /api/app routes it names.
 inline QJsonObject currentServerApi()
 {
     return QJsonObject{
@@ -33,16 +34,6 @@ inline QJsonObject currentServerApi()
         {QStringLiteral("capabilities"),
          QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}},
     };
-}
-
-// object with currentServerApi() added.
-inline QJsonObject withCurrentServerApi(QJsonObject object)
-{
-    const QJsonObject api = currentServerApi();
-    for (auto it = api.begin(); it != api.end(); ++it) {
-        object.insert(it.key(), it.value());
-    }
-    return object;
 }
 
 class FakeReply : public Tokkl::PendingReply
@@ -102,12 +93,52 @@ class FakeTransport : public Tokkl::Transport
 public:
     using Tokkl::Transport::Transport;
 
+    // GET /api/app/status of a server from before the announcement, and of
+    // a current one.
+    static Tokkl::HttpResponse olderStatus()
+    {
+        return answer(200, R"({"setup_required":false})");
+    }
+
+    static Tokkl::HttpResponse currentStatus()
+    {
+        QJsonObject body = currentServerApi();
+        body.insert(QStringLiteral("setup_required"), false);
+        return answer(200, QJsonDocument(body).toJson(QJsonDocument::Compact));
+    }
+
+    // GET /api/app/status is recorded apart from the other requests, so
+    // their indexes stay as they were. Unless holdStatus is set, it gets
+    // status from the event loop; a held one waits for respondStatus().
     Tokkl::PendingReply *send(const Tokkl::HttpRequest &request) override
     {
-        requests.append(request);
         auto *reply = new FakeReply(this);
+        if (request.method == "GET" && request.url.path().endsWith(QLatin1String("/api/app/status"))) {
+            statusRequests.append(request);
+            statusReplies.append(reply);
+            if (!holdStatus) {
+                QMetaObject::invokeMethod(
+                    this,
+                    [reply = QPointer<FakeReply>(reply), response = status] {
+                        if (reply) {
+                            reply->deliver(response);
+                        }
+                    },
+                    Qt::QueuedConnection);
+            }
+            return reply;
+        }
+        requests.append(request);
         replies.append(reply);
         return reply;
+    }
+
+    void respondStatus(qsizetype index, const Tokkl::HttpResponse &response)
+    {
+        QPointer<FakeReply> reply = statusReplies.at(index);
+        if (reply) {
+            reply->deliver(response);
+        }
     }
 
     // Streams are recorded apart from requests, so the indexes of requests
@@ -159,6 +190,11 @@ public:
 
     QList<Tokkl::HttpRequest> requests;
     QList<QPointer<FakeReply>> replies;
+    // The answer GET /api/app/status gets, and whether it waits for the test.
+    Tokkl::HttpResponse status = olderStatus();
+    bool holdStatus = false;
+    QList<Tokkl::HttpRequest> statusRequests;
+    QList<QPointer<FakeReply>> statusReplies;
     QList<Tokkl::HttpRequest> streamRequests;
     QList<QPointer<FakeStream>> streams;
 };
