@@ -15,13 +15,12 @@ import {
     elapsedSeconds,
     fill,
     formatElapsed,
-    hasRequestMethods,
     nextPhaseLabel,
     phaseName,
     pomodoroModeLabel,
     projectLabel,
-    publishes,
     sessionLine,
+    supportsService,
 } from '../timer1.js';
 
 const identity = text => text;
@@ -146,39 +145,32 @@ test('a translation that reorders the session line shows the same values', () =>
     assert.equal(sessionLine(session, 1_700_000_000, reordered), 'Pomodoro 2/4: Short rest (4:10 left)');
 });
 
-test('a fallback is picked by InterfaceVersion, or without one by the property being there', () => {
-    for (const property of ['Actions', 'Presentation', 'PomodoroLengthLimits']) {
-        assert.equal(publishes(1, property, true), true, property);
-        assert.equal(publishes(2, property, true), true, property);
-        // A version says what the service publishes, whatever the proxy
-        // holds at the moment.
-        assert.equal(publishes(1, property, false), true, property);
-        assert.equal(publishes(0, property, true), true, property);
-        assert.equal(publishes(0, property, false), false, property);
+test('a service below the floor is not used, and the menu asks for an update', () => {
+    assert.equal(OLDEST_SUPPORTED_INTERFACE_VERSION, 1);
+    assert.equal(supportsService(0), false);
+    assert.equal(supportsService(1), true);
+    assert.equal(supportsService(2), true);
+    for (const status of ['ready', 'error', 'loading']) {
+        assert.deepEqual(describeStatus(status, 'Network down', identity, 0), {
+            text: 'This timer service is too old; update tokkl-timerd.',
+            detail: '',
+            mark: '!',
+        });
     }
-    assert.equal(publishes(1, 'Unknown', false), false);
+    assert.equal(describeStatus('ready', '', identity, 1).text, 'Connected');
+    assert.equal(describeStatus(null, '', identity, 0).text, 'Timer service not running');
 });
 
-test('the Request methods are picked by InterfaceVersion alone', () => {
-    assert.equal(hasRequestMethods(0), false);
-    assert.equal(hasRequestMethods(1), true);
-    assert.equal(hasRequestMethods(2), true);
-});
-
-// The fallbacks for a service from before InterfaceVersion live only while
-// the floor admits such a service. Raising the floor without deleting them,
-// or deleting them while the floor is 0, fails here.
-test('the fallbacks for older services follow the support floor', () => {
+// No fallback for a service below the floor is left behind.
+test('the fallbacks for older services are gone', () => {
     const extension = name => existsSync(new URL(`../${name}`, import.meta.url));
-    const legacyPresentation = readFileSync(new URL('../menumodel.js', import.meta.url), 'utf8').includes(
-        'export function legacyPresentation',
+    const source = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+    assert.equal(extension('legacyactions.js'), false, 'legacyactions.js');
+    assert.equal(extension('legacylimits.js'), false, 'legacylimits.js');
+    assert.equal(source('menumodel.js').includes('legacyPresentation'), false, 'legacyPresentation() in menumodel.js');
+    assert.equal(
+        source('timerrequests.js').includes('hasRequestMethods'),
+        false,
+        'the plain methods in timerrequests.js',
     );
-    const plainMethods = readFileSync(new URL('../timerrequests.js', import.meta.url), 'utf8').includes(
-        'hasRequestMethods(',
-    );
-    const older = OLDEST_SUPPORTED_INTERFACE_VERSION < 1;
-    assert.equal(extension('legacyactions.js'), older, 'legacyactions.js');
-    assert.equal(extension('legacylimits.js'), older, 'legacylimits.js');
-    assert.equal(legacyPresentation, older, 'legacyPresentation() in menumodel.js');
-    assert.equal(plainMethods, older, 'the plain methods in timerrequests.js');
 });

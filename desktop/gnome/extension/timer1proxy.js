@@ -5,7 +5,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import { BUS_NAME, OBJECT_PATH, TIMER1_XML_FILE, publishes } from './timer1.js';
+import { BUS_NAME, OBJECT_PATH, TIMER1_XML_FILE } from './timer1.js';
 
 /**
  * The interface description packed next to this module, as text. It is the
@@ -73,19 +73,4 @@ export function cachedProperty(proxy, name, fallback) {
     if (!serviceRunning(proxy)) return fallback;
     const value = proxy.get_cached_property(name);
     return value ? value.recursiveUnpack() : fallback;
-}
-
-/**
- * A property the extension has a fallback for, or null when the service
- * does not publish it, by its InterfaceVersion or, without one, by whether
- * the property is there (publishes() in timer1.js). The caller uses the
- * fallback for null.
- *
- * @param {Gio.DBusProxy | null} proxy
- * @param {'Actions'|'Presentation'|'PomodoroLengthLimits'} name
- * @returns {any}
- */
-export function publishedProperty(proxy, name) {
-    const value = cachedProperty(proxy, name, null);
-    return publishes(cachedProperty(proxy, 'InterfaceVersion', 0), name, value !== null) ? value : null;
 }

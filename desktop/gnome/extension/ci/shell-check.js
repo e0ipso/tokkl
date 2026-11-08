@@ -962,25 +962,25 @@ await step('a session started on another device shows in Timer mode', async () =
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 
-await step('a service without InterfaceVersion gets the plain Start and Stop', async () => {
+await step('a service below the floor gets one line asking for an update and no calls', async () => {
     actAsOlderService(true);
     const version = () => shell(`${button}._proxy.get_cached_property('InterfaceVersion')?.unpack()`);
     await waitFor('InterfaceVersion 0', () => version() === 0 || version());
-    let before = mockCalls().length;
+    const outdated = 'This timer service is too old; update tokkl-timerd.';
+    await waitFor('the update line', () => statusLine() === outdated || statusLine());
+    await waitFor('the mark', () => label() === '0:00!' || label());
+    if (sensitive('_toggleItem') || sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('a control stayed sensitive');
+    if (shell(`${button}._detailItem.visible`)) throw new Error('a detail showed');
+    if (shell(`${button}._messageItem.visible`)) throw new Error('a message showed');
+    const before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Start', () => (mockCalls().length > before && lastCall()[0] === 'Start') || mockCalls());
-    await waitFor('Running', () => timerProperty('Running') === true);
-    const first = mockCalls().slice(before);
-    // The version decides: no Request method is tried first.
-    if (JSON.stringify(first) !== JSON.stringify([['Start']])) throw new Error(`Start sent ${JSON.stringify(first)}`);
-    if (shell(`${button}._messageItem.visible`)) throw new Error('the fallback showed a message');
-    await waitFor('Stop', () => toggleItem() === 'Stop' || toggleItem());
-    before = mockCalls().length;
-    shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Stop', () => (mockCalls().length > before && lastCall()[0] === 'Stop') || mockCalls());
-    await waitFor('Stopped', () => timerProperty('Running') === false);
-    const second = mockCalls().slice(before);
-    if (JSON.stringify(second) !== JSON.stringify([['Stop']])) throw new Error(`Stop sent ${JSON.stringify(second)}`);
+    shell(`${button}._activate()`);
+    await waitFor('the menu', () => menuOpen() === true);
+    await delay(300);
+    const sent = mockCalls().slice(before);
+    if (sent.length) throw new Error(`the older service got ${JSON.stringify(sent)}`);
+    shell(`${button}.menu.close()`);
     actAsOlderService(false);
     await waitFor('InterfaceVersion 1', () => version() === 1 || version());
     await waitFor('0:00', () => label() === '0:00' || label());

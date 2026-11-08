@@ -47,7 +47,7 @@ To use the extension from a checkout instead, pack it first. The extension reads
 rm -rf /tmp/tokkl-extension && cp -r desktop/gnome/extension /tmp/tokkl-extension
 cp desktop/gnome/dbus/org.tokkl.Timer1.xml /tmp/tokkl-extension/
 gnome-extensions pack /tmp/tokkl-extension --force --out-dir=/tmp \
-    --extra-source=compat.js --extra-source=indicator.js --extra-source=legacyactions.js --extra-source=legacylimits.js \
+    --extra-source=compat.js --extra-source=indicator.js \
     --extra-source=menumodel.js \
     --extra-source=projectindicator.js --extra-source=projectindicatorview.js \
     --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=timerrequests.js --extra-source=typedsecret.js \
@@ -67,7 +67,7 @@ To upgrade, install the new zip, then log out and in. To remove it, run `gnome-e
 
 ### Supported service versions
 
-The extension updates from extensions.gnome.org and the service from a package, so a new extension often talks to an older `tokkl-timerd`. The oldest service it supports is InterfaceVersion 0: a `tokkl-timerd` from before the `InterfaceVersion` property, 2.1.0 or older. `OLDEST_SUPPORTED_INTERFACE_VERSION` in `extension/timer1.js` states the same floor. For such a service the extension decides the menu's actions (`legacyactions.js`), the time's words (`legacyPresentation()` in `menumodel.js`) and the Pomodoro length limits (`legacylimits.js`) itself, and sends Start, Stop, Pause and Resume by the plain methods (`timerrequests.js`). InterfaceVersion 1 publishes all of these. Once no supported distribution ships a service older than InterfaceVersion 1, the floor goes up to 1 and those fallbacks are deleted in the same change; the extension's tests fail while one outlives the floor.
+The extension updates from extensions.gnome.org and the service from a package, so a new extension often talks to an older `tokkl-timerd`. The oldest service it supports is InterfaceVersion 1, the first `tokkl-timerd` after 2.1.0; `OLDEST_SUPPORTED_INTERFACE_VERSION` in `extension/timer1.js` states the same floor. Against an older service, or one without the `InterfaceVersion` property, the menu shows "This timer service is too old; update tokkl-timerd." with nothing to choose, and the extension calls none of its methods. The service in turn needs a Tokkl server from the first release after 2.1.0, and says so in its `ErrorString` against an older one.
 
 ## Connect to Tokkl
 

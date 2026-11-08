@@ -4,16 +4,9 @@
 // whether the server applied the write and, if not, why. The plain methods
 // only say whether a request was sent, and their failure lands in the
 // shared Status and ErrorString, where a caller cannot tell it from
-// anything else.
-//
-// The extension updates from extensions.gnome.org while the service comes
-// from a package, so a new extension often talks to an older service. The
-// Request methods came with InterfaceVersion 1 (hasRequestMethods() in
-// timer1.js); a service below it gets the plain method, as it did before.
-// Delete that path when OLDEST_SUPPORTED_INTERFACE_VERSION in timer1.js
-// becomes 1. Nothing here imports from GNOME Shell, so Node runs its tests.
-
-import { hasRequestMethods } from './timer1.js';
+// anything else. Every supported service has the Request methods
+// (OLDEST_SUPPORTED_INTERFACE_VERSION in timer1.js). Nothing here imports
+// from GNOME Shell, so Node runs its tests.
 
 /**
  * @typedef {(method: string, done: (reply: any[] | null, error: any) => void) => void} Call
@@ -24,12 +17,9 @@ import { hasRequestMethods } from './timer1.js';
 export class TimerRequests {
     /**
      * @param {Call} call
-     * @param {() => number} interfaceVersion the service's InterfaceVersion
-     *     now, 0 for a service without it
      */
-    constructor(call, interfaceVersion) {
+    constructor(call) {
         this._call = call;
-        this._interfaceVersion = interfaceVersion;
         /** @type {Map<number, (ok: boolean, error: string) => void>} */
         this._waiting = new Map();
     }
@@ -38,8 +28,7 @@ export class TimerRequests {
      * Sends Start, Stop, Pause or Resume. sent says whether the service sent
      * a request, or is null when the call itself failed; finished comes
      * later, once, for a request the service follows, with whether the
-     * server applied it and the service's words when it did not. A service
-     * with only the plain methods never calls finished.
+     * server applied it and the service's words when it did not.
      *
      * @param {'Start' | 'Stop' | 'Pause' | 'Resume'} action
      * @param {{sent?: (sent: boolean | null, error: any) => void,
@@ -47,10 +36,6 @@ export class TimerRequests {
      */
     send(action, handlers = {}) {
         const sent = handlers.sent ?? (() => {});
-        if (!hasRequestMethods(this._interfaceVersion())) {
-            this._call(action, (reply, error) => sent(error ? null : Boolean(reply[0]), error));
-            return;
-        }
         this._call(`Request${action}`, (reply, error) => {
             if (error) {
                 sent(null, error);

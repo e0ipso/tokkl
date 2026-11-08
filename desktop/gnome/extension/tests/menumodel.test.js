@@ -128,6 +128,18 @@ test('nothing can be chosen without a service', () => {
     });
 });
 
+test('an older service gets the menu of no service and one line asking for an update', () => {
+    const state = serviceState({ status: 'error', actions: null });
+    const menu = describeMenu(state, describeStatus(state.status, '', identity, 0), identity);
+    assert.deepEqual(menu.toggle, { text: 'Start', sensitive: false, visible: true });
+    assert.equal(menu.project.sensitive, false);
+    assert.equal(menu.billable.sensitive, false);
+    assert.equal(menu.mode.sensitive, false);
+    assert.equal(menu.startSession.visible, false);
+    assert.equal(menu.detail.visible, false);
+    assert.equal(menu.message.visible, false);
+});
+
 test('the session message shows while there is one', () => {
     assert.deepEqual(menuFor({ sessionMessage: 'Too short to save' }).message, {
         text: 'Too short to save',
@@ -207,6 +219,9 @@ test('the project choices start with No project and check the chosen one', () =>
 });
 
 const ready = describeStatus('ready', '', identity);
+// The Presentation the service publishes with the GNOME policy, for a
+// ready timer outside a session.
+const timerPresentation = { summary: ['activity', 'project', 'connection'], menuLine: ['connection'], mark: 'none' };
 const stopped = {
     status: 'ready',
     running: false,
@@ -215,6 +230,7 @@ const stopped = {
     chainSeconds: 0,
     pomodoroMode: false,
     session: null,
+    presentation: timerPresentation,
 };
 
 test('a running chain shows its total on the button and in the name', () => {
@@ -227,7 +243,12 @@ test('a running chain shows its total on the button and in the name', () => {
 });
 
 test('a paused chain leads the status line with its total', () => {
-    const time = { ...stopped, paused: true, chainSeconds: 3660 };
+    const time = {
+        ...stopped,
+        paused: true,
+        chainSeconds: 3660,
+        presentation: { ...timerPresentation, menuLine: ['activity', 'connection'] },
+    };
     const shown = describeTime(time, ready, '', 5000, identity);
     assert.equal(shown.button, '1:01');
     assert.equal(shown.status, 'Paused 1:01 · Connected');
@@ -236,14 +257,32 @@ test('a paused chain leads the status line with its total', () => {
 
 test('a stopped timer names the status, its detail and Pomodoro mode', () => {
     const offline = describeStatus('stale', 'No network', identity);
-    const shown = describeTime({ ...stopped, status: 'stale', pomodoroMode: true }, offline, '', 0, identity);
+    const presentation = {
+        summary: ['activity', 'project', 'connection', 'detail', 'pomodoroMode'],
+        menuLine: ['connection'],
+        mark: 'alert',
+    };
+    const shown = describeTime(
+        { ...stopped, status: 'stale', pomodoroMode: true, presentation },
+        offline,
+        '',
+        0,
+        identity,
+    );
     assert.equal(shown.button, '0:00!');
     assert.equal(shown.accessibleName, 'Stopped · Offline, showing the last known state · No network · Pomodoro mode');
 });
 
 test('a session counts its phase down instead', () => {
     const session = { phase: 'work', plannedEnd: 2000, pomodoroNumber: 2, longRestEvery: 4 };
-    const shown = describeTime({ ...stopped, pomodoroMode: true, session }, ready, '', 2000 - 90, identity);
+    const presentation = { summary: ['session', 'project', 'connection'], menuLine: ['session'], mark: 'none' };
+    const shown = describeTime(
+        { ...stopped, pomodoroMode: true, session, presentation },
+        ready,
+        '',
+        2000 - 90,
+        identity,
+    );
     assert.equal(shown.button, '1:30');
     assert.equal(shown.status, 'Work · 1:30 left · Pomodoro 2 of 4');
     assert.equal(shown.accessibleName, 'Work · 1:30 left · Pomodoro 2 of 4 · Connected');

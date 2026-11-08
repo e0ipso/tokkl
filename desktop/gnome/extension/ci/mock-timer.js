@@ -4,8 +4,8 @@
 // records every method call. A second interface, org.tokkl.Timer1Mock,
 // lets the check read the calls, change properties, start a session as
 // another device would, have the server refuse the next request, act as a
-// service from before InterfaceVersion and the Request methods, and stop
-// the mock. Configure
+// service older than the extension supports (InterfaceVersion 0, no Request
+// methods), and stop the mock. Configure
 // with an address that contains "replaced" fails as a call a later one
 // replaced.
 //

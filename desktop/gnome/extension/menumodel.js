@@ -2,7 +2,6 @@
 // GNOME Shell in it: indicator.js reads the properties, calls these and puts
 // the result on screen.
 
-import { legacyActions } from './legacyactions.js';
 import {
     chosenProjectLabel,
     countdown,
@@ -42,11 +41,24 @@ import {
  *     alarm sound did not play; empty or missing when it played, or from a
  *     service older than the property
  * @property {Record<string, ActionState>|null} [actions] the Actions property,
- *     missing or null when the service publishes none
+ *     missing or null without a service the extension can use
  * @property {string} [actionError] the extension's own word on a method call
  *     that failed, or the service's on a request it saw refused; empty or
  *     missing when there is none
  */
+
+// The menu without a service the extension can use, as when nothing owns
+// the bus name or the service is older than the extension supports: Start
+// and the switches show, and nothing can be chosen.
+const OFFLINE_ACTIONS = {
+    run: { visible: true, enabled: false, label: 'start' },
+    startSession: { visible: false, enabled: false, label: 'startSession' },
+    nextPhase: { visible: false, enabled: false, label: '' },
+    endSession: { visible: false, enabled: false, label: 'endSession' },
+    project: { visible: true, enabled: false, label: 'project' },
+    billable: { visible: true, enabled: false, label: 'billable' },
+    mode: { visible: true, enabled: false, label: 'pomodoroMode' },
+};
 
 /**
  * Each menu item's text, whether it shows and whether it can be chosen.
@@ -56,16 +68,15 @@ import {
  * menus follow, with GNOME's policy (writes also wait for Status "ready").
  * This turns each
  * action's label into words. Start, or Stop while an entry runs or a chain
- * is paused, never pauses: Stop ends the chain. Without Actions, from no
- * service or one older than the property, legacyActions() gives the rules
- * that service's extension had.
+ * is paused, never pauses: Stop ends the chain. Without a service the
+ * extension can use nothing can be chosen.
  *
  * @param {ServiceState} state
  * @param {{detail: string}} words describeStatus() of the state
  * @param {(text: string) => string} _ gettext
  */
 export function describeMenu(state, words, _) {
-    const actions = state.status !== null && state.actions ? state.actions : legacyActions(state);
+    const actions = state.status !== null && state.actions ? state.actions : OFFLINE_ACTIONS;
     const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
     // Translators: %s is the project's name, or No project.
     let projectText = fill(_('Project: %s'), chosen);
@@ -134,7 +145,6 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
     return choices;
 }
 
-// How the button's time ends for each mark of the Presentation property.
 // How the button's time ends for each mark of a Presentation, keyed as the
 // core keys them (statusMarkKeys() in desktop/core/src/statuspresentation.h).
 export const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
@@ -149,31 +159,17 @@ export const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' }
  */
 
 /**
- * The Presentation a service from before that property leaves the
- * extension to decide, by the rules the extension had: the core's
- * StatusPolicy::gnome(). Also the words with no service. A service that
- * publishes InterfaceVersion 1 or later publishes Presentation (publishes()
- * in timer1.js). Delete the older-service use when
- * OLDEST_SUPPORTED_INTERFACE_VERSION in timer1.js becomes 1; keep only what
- * the button shows with no service (status null). The accessible name
- * always names the project and the connection, its detail when there is
- * one, and outside a session the Pomodoro mode. The status line is the session's line during a session,
- * and otherwise the connection, after the paused total while paused.
+ * The Presentation without a service the extension can use: the
+ * connection's words alone on the status line, and the time marked.
  *
- * @param {{status: string|null, paused: boolean, pomodoroMode: boolean, session: object|null}} time
- *     status is the Status property, null when nothing owns the bus name
  * @param {{detail: string}} words describeStatus()
  * @returns {Presentation}
  */
-export function legacyPresentation(time, words) {
-    const detail = words.detail ? ['detail'] : [];
-    const mark =
-        { ready: 'none', loading: 'pending', busy: 'pending', unconfigured: 'unconfigured' }[time.status] ?? 'alert';
-    if (time.session) return { summary: ['session', 'project', 'connection', ...detail], menuLine: ['session'], mark };
+function offlinePresentation(words) {
     return {
-        summary: ['activity', 'project', 'connection', ...detail, ...(time.pomodoroMode ? ['pomodoroMode'] : [])],
-        menuLine: time.paused ? ['activity', 'connection'] : ['connection'],
-        mark,
+        summary: ['activity', 'project', 'connection', ...(words.detail ? ['detail'] : [])],
+        menuLine: ['connection'],
+        mark: 'alert',
     };
 }
 
@@ -224,7 +220,7 @@ export function partTexts(time, words, indicatorLabel, nowSeconds, _) {
  * of the timer. Elapsed time is the chain total: what the chain's paused
  * entries stored plus the running entry's own time, frozen while paused.
  * Which parts the line and the name show, and how the time ends, is the
- * service's Presentation, or legacyPresentation() without it.
+ * service's Presentation, or offlinePresentation() without one.
  *
  * @param {object} time
  * @param {string|null} time.status the Status property, null when nothing
@@ -237,7 +233,8 @@ export function partTexts(time, words, indicatorLabel, nowSeconds, _) {
  * @param {boolean} time.pomodoroMode
  * @param {{phase: string, plannedEnd: number, pomodoroNumber: number, longRestEvery: number}|null} time.session
  *     the session's properties while one is active
- * @param {Presentation|null} [time.presentation] the Presentation property
+ * @param {Presentation|null} [time.presentation] the Presentation property,
+ *     null without a service the extension can use
  * @param {{text: string, detail: string, mark: string}} words describeStatus()
  * @param {string} indicatorLabel the project indicator's accessible name
  * @param {number} nowSeconds the current Unix time in seconds
@@ -245,7 +242,7 @@ export function partTexts(time, words, indicatorLabel, nowSeconds, _) {
  * @returns {{button: string, status: string, accessibleName: string}}
  */
 export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
-    const presentation = time.presentation ?? legacyPresentation(time, words);
+    const presentation = time.presentation ?? offlinePresentation(words);
     const texts = partTexts(time, words, indicatorLabel, nowSeconds, _);
     // The parts' words, those with any, joined by " · ".
     const render = parts =>
