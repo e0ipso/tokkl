@@ -74,19 +74,17 @@ QString detailText(const TimerModel &timer)
     }
 }
 
-QString projectLabel(const QVariantMap &project)
+QString projectLabel(const ProjectLabelParts &parts)
 {
-    const QString name = project.value(QStringLiteral("name")).toString();
-    if (name.isEmpty()) {
+    if (parts.missing) {
         // The entry names a project the instance no longer has.
         return tr("Unavailable project");
     }
-    QString label = name;
-    const QString client = project.value(QStringLiteral("clientName")).toString();
-    if (!client.isEmpty()) {
-        label = tr("%1 (%2)").arg(label, client);
+    QString label = parts.name;
+    if (!parts.client.isEmpty()) {
+        label = tr("%1 (%2)").arg(label, parts.client);
     }
-    if (!project.value(QStringLiteral("active")).toBool()) {
+    if (parts.archived) {
         label = tr("%1 (archived)").arg(label);
     }
     return label;
@@ -97,8 +95,8 @@ QString projectText(const TimerModel &timer)
     if (isNoProject(timer.chosenProjectId())) {
         return tr("No project");
     }
-    const QVariant details = timer.chosenProjectDetails();
-    return details.isNull() ? tr("Unknown project") : projectLabel(details.toMap());
+    const ProjectLabelParts parts = timer.chosenProjectLabel();
+    return parts.name.isEmpty() && !parts.missing ? tr("Unknown project") : projectLabel(parts);
 }
 
 

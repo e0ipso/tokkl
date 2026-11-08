@@ -411,8 +411,11 @@ private Q_SLOTS:
         QVERIFY(f.answerState("null"));
         QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
         QVERIFY(f.timer.chosenProjectDetails().isNull());
+        QCOMPARE(f.timer.chosenProjectLabel(), ProjectLabelParts());
         QVERIFY(f.timer.chooseProject(11));
         QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("id")).toLongLong(), 11);
+        QCOMPARE(f.timer.chosenProjectLabel().name, QStringLiteral("Alpha"));
+        QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
     }
 
     void exposesContextAndEntry()

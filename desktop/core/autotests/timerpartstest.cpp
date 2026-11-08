@@ -269,6 +269,35 @@ private Q_SLOTS:
         QVERIFY(rows.at(1).toMap().value(QStringLiteral("project")).toMap().isEmpty());
         QCOMPARE(rows.at(2).toMap().value(QStringLiteral("project")).toMap().value(QStringLiteral("id")).toLongLong(), 11);
         QVERIFY(!rows.at(2).toMap().contains(QStringLiteral("checked")));
+        // Each row carries the parts of its label; the note has none.
+        const QVariantMap archivedLabel = rows.at(0).toMap().value(QStringLiteral("label")).toMap();
+        QCOMPARE(archivedLabel.value(QStringLiteral("name")).toString(), legacy.name);
+        QCOMPARE(archivedLabel.value(QStringLiteral("archived")).toBool(), true);
+        QVERIFY(rows.at(1).toMap().value(QStringLiteral("label")).toMap().isEmpty());
+        QCOMPARE(rows.at(2).toMap().value(QStringLiteral("label")).toMap().value(QStringLiteral("archived")).toBool(), false);
+    }
+
+    // The parts every panel words a project's label from.
+    void projectLabelParts()
+    {
+        Project project;
+        project.id = 4;
+        project.name = QStringLiteral("Website");
+        project.clientName = QStringLiteral("Acme");
+        ProjectLabelParts parts = ProjectLabelParts::of(project);
+        QCOMPARE(parts, (ProjectLabelParts{QStringLiteral("Website"), QStringLiteral("Acme"), false, false}));
+        project.active = false;
+        QVERIFY(ProjectLabelParts::of(project).archived);
+        // A project the instance no longer has: an empty name.
+        project.name.clear();
+        parts = ProjectLabelParts::of(project);
+        QCOMPARE(parts, (ProjectLabelParts{QString(), QString(), false, true}));
+        QCOMPARE(parts.toVariantMap(),
+                 (QVariantMap{{QStringLiteral("name"), QString()},
+                              {QStringLiteral("client"), QString()},
+                              {QStringLiteral("archived"), false},
+                              {QStringLiteral("missing"), true}}));
+        QCOMPARE(ProjectLabelParts(), (ProjectLabelParts{QString(), QString(), false, false}));
     }
 };
 

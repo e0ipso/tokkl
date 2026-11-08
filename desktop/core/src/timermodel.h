@@ -259,6 +259,10 @@ public:
     // the active project with that id; null for no project or one that is
     // neither.
     Q_PROPERTY(QVariant chosenProjectDetails READ chosenProjectDetails NOTIFY chosenProjectDetailsChanged)
+    // chosenProjectDetails as the parts every panel words its label from
+    // (ProjectLabelParts::toVariantMap()): empty parts for no project and
+    // for one that is neither held nor active.
+    Q_PROPERTY(QVariantMap chosenProjectLabel READ chosenProjectLabelVariant NOTIFY chosenProjectDetailsChanged)
     // The project behind chosenProjectId for the panel indicator, and its
     // colour as lowercase #rrggbb. The colour is empty outside the Project
     // state and for any other value. A string keeps the core free of Qt Gui.
@@ -320,6 +324,8 @@ public:
     std::optional<Project> entryProject() const;
     QVariant entryProjectVariant() const;
     QVariant chosenProjectDetails() const;
+    ProjectLabelParts chosenProjectLabel() const;
+    QVariantMap chosenProjectLabelVariant() const;
     IndicatorState indicatorState() const;
     QString indicatorColor() const;
 

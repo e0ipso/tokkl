@@ -195,7 +195,7 @@ PlasmaComponents.Menu {
                 checkable: !isNote
                 selected: modelData.kind === "archived" || (isProject && menu.timer.chosenProjectId === modelData.project.id)
                 enabled: isProject && projectMenu.choosable
-                text: isNote ? i18nc("@item:inmenu", "Project list cut short. Use Open Tokkl for the others.") : menu.words.projectLabel(modelData.project)
+                text: isNote ? i18nc("@item:inmenu", "Project list cut short. Use Open Tokkl for the others.") : menu.words.projectLabel(modelData.label)
                 Accessible.description: isNote ? i18nc("@info:whatsthis", "The workspace has more active projects than this menu can list. Open Tokkl in the web app to choose the others.") : ""
                 onTriggered: {
                     if (isProject) {

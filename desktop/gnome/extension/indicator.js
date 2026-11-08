@@ -230,7 +230,7 @@ export const TokklIndicator = GObject.registerClass(
                 projects: this._property('Projects', []),
                 projectsIncomplete: this._property('ProjectsIncomplete', false),
                 chosenProject: this._property('ChosenProject', 0),
-                chosenProjectName: this._property('ChosenProjectName', ''),
+                chosenProjectLabel: this._property('ChosenProjectLabel', {}),
                 billable: this._property('Billable', false),
                 pomodoroMode: this._property('PomodoroMode', false),
                 modeLocked: this._property('ModeLocked', false),

@@ -31,9 +31,10 @@ QString detailText(const TimerModel &timer);
 // A project id from TimerModel, such as chosenProjectId: null, or
 // unset, for no project.
 bool isNoProject(const QVariant &id);
-// A project map from TimerModel: its name, client and archived state.
-QString projectLabel(const QVariantMap &project);
-// The project the menu shows, TimerModel::chosenProjectDetails(): the
+// The words for the parts of a project's label: "Name (Client)", then
+// "(archived)", or "Unavailable project" for one the instance no longer has.
+QString projectLabel(const ProjectLabelParts &parts);
+// The project the menu shows, TimerModel::chosenProjectLabel(): the
 // running or paused entry's, or the next start's.
 QString projectText(const TimerModel &timer);
 // What the item does on a primary click, for screen readers, for an action

@@ -20,12 +20,13 @@ export const AUTH_MODES = ['token', 'password'];
 
 // The oldest tokkl-timerd the extension supports, by the InterfaceVersion it
 // publishes. Version 1 publishes Actions, Presentation, PomodoroLengthLimits
-// and the Request methods, and the extension relies on all of them. A
+// and the Request methods, and version 2 ChosenProjectLabel; the extension
+// relies on all of them. A
 // service below it, or one without InterfaceVersion (tokkl-timerd 2.1.0 and
 // older), gets no menu of its own: the menu says to update tokkl-timerd
 // (describeStatus()) and sends it nothing. desktop/gnome/README.md states the
 // same floor.
-export const OLDEST_SUPPORTED_INTERFACE_VERSION = 1;
+export const OLDEST_SUPPORTED_INTERFACE_VERSION = 2;
 
 /**
  * Whether the extension can use a service with this InterfaceVersion.
@@ -252,20 +253,23 @@ export function projectLabel(project) {
 }
 
 /**
- * The label of ChosenProject: "No project" for 0, the project's label when it
- * is in Projects, else its ChosenProjectName (a running entry's archived
- * project), and "Unavailable project" without a name (a project the instance
- * no longer has, or one still being read).
+ * The label of ChosenProject from the parts the service publishes in
+ * ChosenProjectLabel, as the KDE and macOS menus word them: "No project" for
+ * 0, "Unavailable project" for one the instance no longer has, "Unknown
+ * project" while it has no name, and otherwise "Name (Client)" with
+ * "(archived)" after it for an archived project.
  *
- * @param {Array<{id: number, name: string, clientName?: string}>} projects
- * @param {number} chosenProject
- * @param {string} chosenProjectName
+ * @param {number} chosenProject the ChosenProject property
+ * @param {{name?: string, client?: string, archived?: boolean, missing?: boolean}} label
+ *     the ChosenProjectLabel property
  * @param {(text: string) => string} _ gettext
  * @returns {string}
  */
-export function chosenProjectLabel(projects, chosenProject, chosenProjectName, _) {
+export function chosenProjectLabel(chosenProject, label, _) {
     if (!chosenProject) return _('No project');
-    const project = projects.find(candidate => candidate.id === chosenProject);
-    if (project) return projectLabel(project);
-    return chosenProjectName || _('Unavailable project');
+    if (label.missing) return _('Unavailable project');
+    if (!label.name) return _('Unknown project');
+    const named = projectLabel({ name: label.name, clientName: label.client });
+    // Translators: %s is the project's name, with its client in parentheses.
+    return label.archived ? fill(_('%s (archived)'), named) : named;
 }

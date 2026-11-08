@@ -27,7 +27,8 @@ import {
  * @property {Array<{id: number, name: string, clientName?: string}>} projects
  * @property {boolean} [projectsIncomplete]
  * @property {number} chosenProject
- * @property {string} chosenProjectName
+ * @property {{name?: string, client?: string, archived?: boolean, missing?: boolean}} chosenProjectLabel
+ *     the ChosenProjectLabel property
  * @property {boolean} billable
  * @property {boolean} running
  * @property {boolean} paused
@@ -77,7 +78,7 @@ const OFFLINE_ACTIONS = {
  */
 export function describeMenu(state, words, _) {
     const actions = state.status !== null && state.actions ? state.actions : OFFLINE_ACTIONS;
-    const chosen = chosenProjectLabel(state.projects, state.chosenProject, state.chosenProjectName, _);
+    const chosen = chosenProjectLabel(state.chosenProject, state.chosenProjectLabel, _);
     // Translators: %s is the project's name, or No project.
     let projectText = fill(_('Project: %s'), chosen);
     // Translators: %s is the project's name, or No project.

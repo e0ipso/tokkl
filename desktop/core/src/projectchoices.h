@@ -10,6 +10,25 @@
 namespace Tokkl
 {
 
+// What every panel words a project's label from, each with its own words:
+// the name, then the client in parentheses, then that the project is
+// archived; or that the instance no longer has it. A project still being
+// read has no parts: an empty name that is not missing.
+struct ProjectLabelParts {
+    QString name;
+    QString client;
+    bool archived = false;
+    // The instance no longer has the project.
+    bool missing = false;
+
+    // A project the instance no longer has is one with an empty name.
+    static ProjectLabelParts of(const Project &project);
+    // name, client, archived and missing, for QML and the D-Bus service.
+    QVariantMap toVariantMap() const;
+
+    bool operator==(const ProjectLabelParts &other) const = default;
+};
+
 // The project submenu of every desktop panel, as rows each platform puts in
 // its own menu with its own words. The menu starts with No project, then
 // has the rows: the running or paused entry's project when it is archived
@@ -51,7 +70,8 @@ struct ProjectChoices {
 
     bool incomplete() const;
     // The rows for QML: maps with kind ("archived", "incomplete" or
-    // "project") and project (a project map; empty for the note). Whether a
+    // "project"), project (a project map; empty for the note) and label
+    // (ProjectLabelParts::toVariantMap(); empty for the note). Whether a
     // row is checked or enabled is left out, so the list changes only with
     // the projects and the held entry's project, and a menu that is open
     // keeps its items while the choice changes.

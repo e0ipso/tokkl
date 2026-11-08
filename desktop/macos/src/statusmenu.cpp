@@ -260,7 +260,7 @@ void StatusMenu::fillProjectMenu(const ProjectChoices &choices)
         switch (row.kind) {
         case ProjectChoices::Row::Kind::Archived: {
             // Shown and checked, never offered for new work.
-            QAction *archivedAction = m_projectMenu->addAction(StatusWords::projectLabel(row.project.toVariantMap()));
+            QAction *archivedAction = m_projectMenu->addAction(StatusWords::projectLabel(ProjectLabelParts::of(row.project)));
             archivedAction->setCheckable(true);
             archivedAction->setChecked(row.checked);
             archivedAction->setEnabled(false);
@@ -274,7 +274,7 @@ void StatusMenu::fillProjectMenu(const ProjectChoices &choices)
             break;
         }
         case ProjectChoices::Row::Kind::Project:
-            addProjectChoice(StatusWords::projectLabel(row.project.toVariantMap()), row.project.id, row.checked, row.enabled)->setData(row.project.id);
+            addProjectChoice(StatusWords::projectLabel(ProjectLabelParts::of(row.project)), row.project.id, row.checked, row.enabled)->setData(row.project.id);
             break;
         }
     }

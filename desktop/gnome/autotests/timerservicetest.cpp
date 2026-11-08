@@ -722,6 +722,7 @@ private Q_SLOTS:
             {QStringLiteral("ProjectsIncomplete"), QStringLiteral("b read")},
             {QStringLiteral("ChosenProject"), QStringLiteral("x read")},
             {QStringLiteral("ChosenProjectName"), QStringLiteral("s read")},
+            {QStringLiteral("ChosenProjectLabel"), QStringLiteral("a{sv} read")},
             {QStringLiteral("Billable"), QStringLiteral("b read")},
             {QStringLiteral("Status"), QStringLiteral("s read")},
             {QStringLiteral("ErrorString"), QStringLiteral("s read")},
@@ -754,7 +755,7 @@ private Q_SLOTS:
         // fallbacks by.
         const QVariant version = f.get(QStringLiteral("InterfaceVersion"));
         QCOMPARE(version.metaType(), QMetaType::fromType<uint>());
-        QCOMPARE(version.toUInt(), 1u);
+        QCOMPARE(version.toUInt(), 2u);
         const QMap<QString, QStringList> methods{
             {QStringLiteral("Start"), {QStringLiteral("out b")}},
             {QStringLiteral("Stop"), {QStringLiteral("out b")}},
@@ -1121,6 +1122,12 @@ private Q_SLOTS:
         }));
         QCOMPARE(f.get(QStringLiteral("IndicatorColor")).toString(), QStringLiteral("#2da608"));
         QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QStringLiteral("Legacy"));
+        // The label's parts say it is archived, so the extension words it
+        // as the KDE and macOS menus do.
+        const QVariantMap label = qdbus_cast<QVariantMap>(f.get(QStringLiteral("ChosenProjectLabel")));
+        QCOMPARE(label.value(QStringLiteral("name")).toString(), QStringLiteral("Legacy"));
+        QCOMPARE(label.value(QStringLiteral("archived")).toBool(), true);
+        QCOMPARE(label.value(QStringLiteral("missing")).toBool(), false);
         const QList<QVariantMap> projects = qdbus_cast<QList<QVariantMap>>(f.get(QStringLiteral("Projects")));
         for (const QVariantMap &project : projects) {
             QVERIFY(project.value(QStringLiteral("id")).toLongLong() != 99);

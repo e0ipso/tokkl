@@ -5,6 +5,28 @@
 namespace Tokkl
 {
 
+ProjectLabelParts ProjectLabelParts::of(const Project &project)
+{
+    ProjectLabelParts parts;
+    parts.missing = project.name.isEmpty();
+    if (!parts.missing) {
+        parts.name = project.name;
+        parts.client = project.clientName;
+        parts.archived = !project.active;
+    }
+    return parts;
+}
+
+QVariantMap ProjectLabelParts::toVariantMap() const
+{
+    return {
+        {QStringLiteral("name"), name},
+        {QStringLiteral("client"), client},
+        {QStringLiteral("archived"), archived},
+        {QStringLiteral("missing"), missing},
+    };
+}
+
 ProjectChoices ProjectChoices::build(const QList<Project> &projects,
                                      bool incomplete,
                                      std::optional<qint64> chosen,
@@ -53,9 +75,11 @@ QVariantList ProjectChoices::toVariantList() const
             kind = QStringLiteral("project");
             break;
         }
+        const bool note = row.kind == Row::Kind::Incomplete;
         list.append(QVariantMap{
             {QStringLiteral("kind"), kind},
-            {QStringLiteral("project"), row.kind == Row::Kind::Incomplete ? QVariantMap() : row.project.toVariantMap()},
+            {QStringLiteral("project"), note ? QVariantMap() : row.project.toVariantMap()},
+            {QStringLiteral("label"), note ? QVariantMap() : ProjectLabelParts::of(row.project).toVariantMap()},
         });
     }
     return list;

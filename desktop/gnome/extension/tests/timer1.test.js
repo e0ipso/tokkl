@@ -63,19 +63,20 @@ test('every Status value has words and a mark', () => {
     assert.match(describeStatus('unconfigured', '', identity).detail, /settings/);
 });
 
+// The words for ChosenProjectLabel, as the KDE and macOS menus word the
+// same parts.
 test('project labels name the client, an archived project and the missing project', () => {
-    const projects = [
-        { id: 7, name: 'Website', clientName: 'Acme' },
-        { id: 9, name: 'Internal', clientName: '' },
-    ];
-    assert.equal(projectLabel(projects[0]), 'Website (Acme)');
-    assert.equal(projectLabel(projects[1]), 'Internal');
-    assert.equal(chosenProjectLabel(projects, 0, '', identity), 'No project');
-    assert.equal(chosenProjectLabel(projects, 9, 'Internal', identity), 'Internal');
-    assert.equal(chosenProjectLabel(projects, 7, 'Website', identity), 'Website (Acme)');
-    // A running entry's archived project is not in Projects but has a name.
-    assert.equal(chosenProjectLabel(projects, 42, 'Legacy', identity), 'Legacy');
-    assert.equal(chosenProjectLabel(projects, 42, '', identity), 'Unavailable project');
+    const parts = (name, client = '', archived = false, missing = false) => ({ name, client, archived, missing });
+    assert.equal(projectLabel({ name: 'Website', clientName: 'Acme' }), 'Website (Acme)');
+    assert.equal(projectLabel({ name: 'Internal', clientName: '' }), 'Internal');
+    assert.equal(chosenProjectLabel(0, parts(''), identity), 'No project');
+    assert.equal(chosenProjectLabel(9, parts('Internal'), identity), 'Internal');
+    assert.equal(chosenProjectLabel(7, parts('Website', 'Acme'), identity), 'Website (Acme)');
+    assert.equal(chosenProjectLabel(42, parts('Legacy', '', true), identity), 'Legacy (archived)');
+    assert.equal(chosenProjectLabel(42, parts('Legacy', 'Acme', true), identity), 'Legacy (Acme) (archived)');
+    assert.equal(chosenProjectLabel(42, parts('', '', false, true), identity), 'Unavailable project');
+    assert.equal(chosenProjectLabel(42, parts(''), identity), 'Unknown project');
+    assert.equal(chosenProjectLabel(42, {}, identity), 'Unknown project');
 });
 
 test('the countdown rounds the time left up and the overtime down', () => {
@@ -146,10 +147,11 @@ test('a translation that reorders the session line shows the same values', () =>
 });
 
 test('a service below the floor is not used, and the menu asks for an update', () => {
-    assert.equal(OLDEST_SUPPORTED_INTERFACE_VERSION, 1);
+    assert.equal(OLDEST_SUPPORTED_INTERFACE_VERSION, 2);
     assert.equal(supportsService(0), false);
-    assert.equal(supportsService(1), true);
+    assert.equal(supportsService(1), false);
     assert.equal(supportsService(2), true);
+    assert.equal(supportsService(3), true);
     for (const status of ['ready', 'error', 'loading']) {
         assert.deepEqual(describeStatus(status, 'Network down', identity, 0), {
             text: 'This timer service is too old; update tokkl-timerd.',
@@ -157,7 +159,8 @@ test('a service below the floor is not used, and the menu asks for an update', (
             mark: '!',
         });
     }
-    assert.equal(describeStatus('ready', '', identity, 1).text, 'Connected');
+    assert.equal(describeStatus('ready', '', identity, 1).text, 'This timer service is too old; update tokkl-timerd.');
+    assert.equal(describeStatus('ready', '', identity, 2).text, 'Connected');
     assert.equal(describeStatus(null, '', identity, 0).text, 'Timer service not running');
 });
 

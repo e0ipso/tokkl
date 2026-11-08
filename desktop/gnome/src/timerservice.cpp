@@ -253,24 +253,12 @@ qint64 TimerService::chosenProject() const
 
 QString TimerService::chosenProjectName() const
 {
-    const qint64 id = chosenProject();
-    if (id == 0) {
-        return QString();
-    }
-    // The running or paused entry's project is resolved by the core even
-    // when it is archived and so missing from projects.
-    const std::optional<Project> entryProject = m_timer->entryProject();
-    if ((m_timer->isRunning() || m_timer->isPaused()) && entryProject && entryProject->id == id) {
-        return entryProject->name;
-    }
-    const QVariantList projects = m_timer->projects();
-    for (const QVariant &value : projects) {
-        const QVariantMap project = value.toMap();
-        if (project.value(QStringLiteral("id")).toLongLong() == id) {
-            return project.value(QStringLiteral("name")).toString();
-        }
-    }
-    return QString();
+    return m_timer->chosenProjectLabel().name;
+}
+
+QVariantMap TimerService::chosenProjectLabel() const
+{
+    return m_timer->chosenProjectLabelVariant();
 }
 
 bool TimerService::billable() const
