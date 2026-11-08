@@ -112,6 +112,21 @@ std::size_t index(TransitionKind kind)
     return std::size_t(kind);
 }
 
+int lengthOf(const PomodoroConfig &config, PomodoroField field)
+{
+    switch (field) {
+    case PomodoroField::WorkMinutes:
+        return config.workMinutes;
+    case PomodoroField::ShortRestMinutes:
+        return config.shortRestMinutes;
+    case PomodoroField::LongRestMinutes:
+        return config.longRestMinutes;
+    case PomodoroField::LongRestEvery:
+        return config.longRestEvery;
+    }
+    return 0;
+}
+
 PomodoroRange lengthRange(PomodoroField field)
 {
     switch (field) {
@@ -257,10 +272,13 @@ SettingsWindow::SettingsWindow(Transport *transport,
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Close);
     m_saveButton = buttons->button(QDialogButtonBox::Save);
+    m_saveError = noteLabel();
+    m_saveError->hide();
 
     auto *layout = new QVBoxLayout(this);
     layout->addLayout(form);
     layout->addWidget(pomodoro);
+    layout->addWidget(m_saveError);
     layout->addWidget(buttons);
 
     // Load the stored secret for the account on screen once the user stops
@@ -291,7 +309,9 @@ SettingsWindow::SettingsWindow(Transport *transport,
     connect(m_loginToggle, &QCheckBox::toggled, this, &SettingsWindow::onLoginToggled);
 
     if (m_preferences) {
-        connect(m_preferences, &PomodoroPreferences::changed, this, &SettingsWindow::loadLengths);
+        connect(m_preferences, &PomodoroPreferences::changed, this, [this] {
+            loadLengths(true);
+        });
         connect(m_preferences, &PomodoroPreferences::stateChanged, this, &SettingsWindow::updatePomodoro);
     }
 
@@ -304,7 +324,7 @@ SettingsWindow::SettingsWindow(Transport *transport,
     // load() runs when the window opens, so nothing reads the store before.
     updateFields();
     updateLoginItem();
-    loadLengths();
+    loadLengths(false);
     loadSounds();
     updatePomodoro();
 }
@@ -323,12 +343,13 @@ void SettingsWindow::load()
     m_testResult->clear();
     m_save->cancel();
     m_saveButton->setEnabled(true);
+    m_saveError->hide();
     // Drop a secret typed and not saved; the stored one loads below.
     m_setup->editSecret(QString());
     m_secretField->clear();
     onAccountChanged();
     updateLoginItem();
-    loadLengths();
+    loadLengths(false);
     loadSounds();
     if (m_preferences) {
         m_preferences->refresh();
@@ -357,14 +378,18 @@ bool SettingsWindow::save()
     values.lengths.shortRestMinutes = m_lengthBoxes.at(index(PomodoroField::ShortRestMinutes))->value();
     values.lengths.longRestMinutes = m_lengthBoxes.at(index(PomodoroField::LongRestMinutes))->value();
     values.lengths.longRestEvery = m_lengthBoxes.at(index(PomodoroField::LongRestEvery))->value();
+    values.lengthsOwner = m_lengthsOwner;
     // Disabled before the save starts, which may finish at once.
     m_saveButton->setEnabled(false);
+    m_saveError->hide();
     return m_save->start(values);
 }
 
 void SettingsWindow::onSaveFinished(bool close)
 {
     m_saveButton->setEnabled(true);
+    m_saveError->setText(m_save->errorString());
+    m_saveError->setVisible(!m_save->errorString().isEmpty());
     if (close) {
         QWidget::close();
     }
@@ -459,19 +484,33 @@ void SettingsWindow::onLoginToggled(bool enabled)
     }
 }
 
-void SettingsWindow::loadLengths()
+void SettingsWindow::loadLengths(bool keepEdits)
 {
     const PomodoroConfig config = m_preferences ? m_preferences->config() : PomodoroConfig{};
-    m_lengthBoxes.at(index(PomodoroField::WorkMinutes))->setValue(config.workMinutes);
-    m_lengthBoxes.at(index(PomodoroField::ShortRestMinutes))->setValue(config.shortRestMinutes);
-    m_lengthBoxes.at(index(PomodoroField::LongRestMinutes))->setValue(config.longRestMinutes);
-    m_lengthBoxes.at(index(PomodoroField::LongRestEvery))->setValue(config.longRestEvery);
+    const QString owner = m_preferences ? m_preferences->owner() : QString();
+    // An edit is meant for the account it was made on.
+    keepEdits = keepEdits && owner == m_lengthsOwner;
+    m_lengthsOwner = owner;
+    for (const PomodoroField field : lengthFields) {
+        QSpinBox *box = m_lengthBoxes.at(index(field));
+        int &shown = m_lengthsShown.at(index(field));
+        const bool edited = keepEdits && box->value() != shown;
+        shown = lengthOf(config, field);
+        if (!edited) {
+            box->setValue(shown);
+        }
+    }
 }
 
 // Shows the preferences' state: whether the lengths can be edited, the
 // errors, and the end of a save in flight.
 void SettingsWindow::updatePomodoro()
 {
+    // Another account whose lengths equal the ones shown announces no new
+    // lengths, but the edits still belonged to the one before.
+    if (m_preferences && m_preferences->owner() != m_lengthsOwner) {
+        loadLengths(true);
+    }
     const bool editable = m_preferences && m_preferences->isEditable();
     for (const PomodoroField field : lengthFields) {
         const QString error = m_preferences ? m_preferences->fieldError(field) : QString();

@@ -63,6 +63,11 @@ PomodoroConfig PomodoroPreferences::config() const
     return m_config;
 }
 
+QString PomodoroPreferences::owner() const
+{
+    return m_owner;
+}
+
 int PomodoroPreferences::workMinutes() const
 {
     return m_config.workMinutes;

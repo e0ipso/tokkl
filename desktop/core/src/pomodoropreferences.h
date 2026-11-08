@@ -58,6 +58,10 @@ public:
     explicit PomodoroPreferences(Connection *connection, QObject *parent = nullptr);
 
     PomodoroConfig config() const;
+    // The account the lengths shown belong to, as Connection::owner() names
+    // it; empty while they are the defaults of no account. An edit made on
+    // these lengths is meant for this account only.
+    QString owner() const;
     static QVariantMap limits();
     int workMinutes() const;
     int shortRestMinutes() const;
