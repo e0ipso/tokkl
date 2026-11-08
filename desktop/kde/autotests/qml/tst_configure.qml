@@ -158,10 +158,7 @@ Item {
                 email: "bea@example.test",
                 fullname: "Bea",
                 timezone: "UTC",
-                default_workspace_id: 7,
-                // A current server's announcement.
-                api_version: 1,
-                capabilities: ["app-preferences", "timer-actions", "timer-edit", "pomodoro-revision"]
+                default_workspace_id: 7
             });
         }
 

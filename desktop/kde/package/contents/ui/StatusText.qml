@@ -142,7 +142,7 @@ QtObject {
 
     // The words so far with the part of a part key added; undefined for any
     // other key.
-    function partWords(key: string, shown: var) {
+    function partWords(key: string, shown: var): var {
         switch (key) {
         case "activity":
             return shown.concat([i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText)]);
@@ -164,7 +164,7 @@ QtObject {
     }
 
     // The connection's state for a status key; undefined for any other key.
-    function statusWord(key: string) {
+    function statusWord(key: string): var {
         switch (key) {
         case "unconfigured":
             return i18nc("@info:status", "Not configured");
@@ -187,7 +187,7 @@ QtObject {
 
     // What the primary click does, for an action key, or the session's line
     // while it acts on the session; undefined for any other key.
-    function actionWord(key: string) {
+    function actionWord(key: string): var {
         switch (key) {
         case "session":
             return sessionText;

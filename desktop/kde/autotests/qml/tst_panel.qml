@@ -88,10 +88,7 @@ TestCase {
             fullname: "Bea",
             timezone: "UTC",
             default_workspace_id: workspace,
-            beginning_of_week: 1,
-            // A current server's announcement.
-            api_version: 1,
-            capabilities: ["app-preferences", "timer-actions", "timer-edit", "pomodoro-revision"]
+            beginning_of_week: 1
         });
     }
 

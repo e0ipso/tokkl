@@ -57,6 +57,8 @@ public:
     explicit PanelFixture(QObject *parent = nullptr)
         : QObject(parent)
     {
+        // A current server: GET /api/app/status names its capabilities.
+        m_transport.status = FakeTransport::currentStatus();
     }
 
     TimerCoordinator *bound()
@@ -208,7 +210,11 @@ private:
 // page makes. They live as long as the process.
 FakeTransport *setupTransport()
 {
-    static auto *transport = new FakeTransport;
+    static auto *transport = [] {
+        auto *made = new FakeTransport;
+        made->status = FakeTransport::currentStatus();
+        return made;
+    }();
     return transport;
 }
 
