@@ -904,6 +904,51 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), sent);
     }
 
+    // A 503 that says when to come back starts the same cooldown as a 429:
+    // on /me, on a request with a bound account, and on the status read.
+    // Requests wait, the account stays, and validation resumes afterwards.
+    void unavailableWithRetryAfterCoolsDown()
+    {
+        {
+            Fixture f;
+            QVERIFY(connectAccount(f));
+            std::optional<ApiResult<ProjectList>> refused;
+            f.connection.fetchProjects([&](const auto &r) {
+                refused = r;
+            });
+            f.transport.respondLast(FakeTransport::answer(503, "\"Report queue is full\"", "120"));
+            QVERIFY(refused && refused->error.kind == ApiError::Kind::Server);
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+            QVERIFY(f.connection.isConnected());
+            QVERIFY(!f.connection.canWrite());
+            const qint64 wait = QDateTime::currentDateTimeUtc().msecsTo(f.connection.rateLimitedUntil());
+            QVERIFY2(wait > 115000 && wait <= 120000, qPrintable(QString::number(wait)));
+            const qsizetype sent = f.transport.requests.size();
+            f.connection.fetchTimerState();
+            QTest::qWait(10);
+            QCOMPARE(f.transport.requests.size(), sent);
+        }
+        {
+            Fixture f;
+            f.store.secrets.insert(tokenKey(), token);
+            f.connection.setInstanceUrl(instance);
+            QTRY_COMPARE(f.transport.requests.size(), 1);
+            f.transport.respondLast(FakeTransport::answer(503, QByteArray(), "1"));
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+            QTRY_COMPARE_WITH_TIMEOUT(f.transport.requests.size(), 2, 3000);
+            f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+            QCOMPARE(f.connection.state(), Connection::Connected);
+        }
+        {
+            Fixture f;
+            f.transport.status = FakeTransport::answer(503, QByteArray(), "60");
+            f.store.secrets.insert(tokenKey(), token);
+            f.connection.setInstanceUrl(instance);
+            QTRY_COMPARE(f.connection.state(), Connection::RateLimited);
+            QVERIFY(f.transport.requests.isEmpty());
+        }
+    }
+
     void transientFailuresAreNotAuthenticationFailures_data()
     {
         QTest::addColumn<int>("outcome");

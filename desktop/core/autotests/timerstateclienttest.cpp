@@ -434,6 +434,57 @@ private Q_SLOTS:
         QCOMPARE(f.reads(), reads + 3);
     }
 
+    // The stream's retry field is the shortest wait before a reconnect, for
+    // the streams after it too. The backoff still doubles above it, the
+    // jitter still applies, and no wait goes past the cap. A field that is
+    // not digits is ignored, and a new generation forgets it.
+    void retryFieldSetsTheShortestWait()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.answerRead(stateBody(1, f.clock.now()));
+
+        f.transport.lastStream()->push(QByteArray("retry: 5000\n") + eventFrame(stateBody(1, f.clock.now())));
+        QVERIFY(f.client.streaming());
+        f.transport.lastStream()->end(cleanEnd());
+        QCOMPARE(f.secondsToNextStream(), 5);
+        // 1, 2 and 4 s of backoff stay under the floor; 8 s goes past it.
+        const QList<int> waits{5, 5, 8, 16};
+        for (int wait : waits) {
+            f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+            QCOMPARE(f.secondsToNextStream(), wait);
+        }
+
+        // A floor above the cap is the cap.
+        f.transport.lastStream()->push(QByteArray("retry: 600000\n\n"));
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 60);
+
+        // Not digits: ignored, the floor stays.
+        f.transport.lastStream()->push(QByteArray("retry: 1s\n\n"));
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 60);
+
+        // Another account starts from the defaults again.
+        QVERIFY(connectAccount(f, instanceB));
+        f.answerRead(stateBody(1, f.clock.now()));
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 1);
+    }
+
+    // The floor takes the jitter like any wait.
+    void retryFieldKeepsTheJitter()
+    {
+        Fixture f;
+        f.clock.jitter = 3000;
+        QVERIFY(connectAccount(f));
+        f.answerRead(stateBody(1, f.clock.now()));
+        f.transport.lastStream()->push(QByteArray("retry: 8000\n\n"));
+        // 8 s plus up to 2 s, which the fake keeps at 1.999 s.
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 10);
+    }
+
     // The clock's jitter lengthens each wait by up to a quarter of it.
     void reconnectAddsJitter()
     {

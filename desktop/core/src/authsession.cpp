@@ -257,7 +257,7 @@ void AuthSession::readAnnouncement()
     m_api.send("GET", instance().app(QStringLiteral("/status")), QByteArray(), [this](const HttpResponse &response) {
         m_announcement.pending = false;
         const ApiError error = errorFromResponse(response);
-        if (response.outcome != HttpResponse::Outcome::Finished || error.kind == ApiError::Kind::Server || error.kind == ApiError::Kind::RateLimited) {
+        if (response.outcome != HttpResponse::Outcome::Finished || error.kind == ApiError::Kind::Server || asksToWait(response)) {
             handleFailure(response, error);
             return;
         }
@@ -288,13 +288,14 @@ void AuthSession::handleMe(const HttpResponse &response)
 
 void AuthSession::handleFailure(const HttpResponse &response, const ApiError &error)
 {
+    if (asksToWait(response)) {
+        startCooldown(response.retryAfter, error.message);
+        return;
+    }
     switch (error.kind) {
     case ApiError::Kind::Forbidden:
     case ApiError::Kind::Unauthorized:
         refuseCredentials(error);
-        return;
-    case ApiError::Kind::RateLimited:
-        startCooldown(response.retryAfter, error.message);
         return;
     case ApiError::Kind::Network:
     case ApiError::Kind::Timeout:
@@ -458,7 +459,7 @@ void AuthSession::answered()
 
 bool AuthSession::absorbFailure(const HttpResponse &response, const ApiError &error, ApiAccess access)
 {
-    if (error.kind == ApiError::Kind::RateLimited) {
+    if (asksToWait(response)) {
         startCooldown(response.retryAfter, error.message);
     } else if (access == ApiAccess::Account && refusesCredentials(error)) {
         refuseCredentials(error);

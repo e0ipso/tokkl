@@ -227,7 +227,7 @@ PendingStream *ApiClient::openStream(const QUrl &url)
         // Streams end for many reasons, and the caller reads the state after
         // one. Only a refusal says something about the session.
         const ApiError error = errorFromResponse(response);
-        if (error.kind == ApiError::Kind::RateLimited || error.kind == ApiError::Kind::Forbidden || error.kind == ApiError::Kind::Unauthorized) {
+        if (asksToWait(response) || error.kind == ApiError::Kind::Forbidden || error.kind == ApiError::Kind::Unauthorized) {
             m_session.absorbFailure(response, error, ApiAccess::Account);
         }
     });

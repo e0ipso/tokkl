@@ -249,7 +249,8 @@ before the change. When `/me` or `/me/time_entries/current` answers 403 the widg
 account and stops retrying until you choose Reconnect from its context menu or
 change the settings; the saved secret stays in the wallet so you can correct it. A 429
 answer pauses requests for the `Retry-After` time (60 seconds when the server
-sends none). Connection failures, timeouts and 5xx answers keep the last account
+sends none), and so does a 503 that carries `Retry-After`. The event stream
+reconnects no sooner than its `retry:` field asks. Connection failures, timeouts and 5xx answers keep the last account
 data, marked stale. Redirects are not followed, so the credentials never go to
 another address; enter the final address instead.
 

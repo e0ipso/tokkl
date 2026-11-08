@@ -442,6 +442,34 @@ private Q_SLOTS:
         QVERIFY(!message.contains(QLatin1String("token")));
     }
 
+    void asksToWait_data()
+    {
+        QTest::addColumn<int>("status"); // 0 for no HTTP answer
+        QTest::addColumn<QByteArray>("retryAfter");
+        QTest::addColumn<bool>("waits");
+        QTest::newRow("429") << 429 << QByteArray() << true;
+        QTest::newRow("429 with Retry-After") << 429 << QByteArray("30") << true;
+        QTest::newRow("503 with Retry-After") << 503 << QByteArray("30") << true;
+        QTest::newRow("503 with a date") << 503 << QByteArray("Wed, 21 Oct 2026 07:28:00 GMT") << true;
+        QTest::newRow("503 alone") << 503 << QByteArray() << false;
+        QTest::newRow("503 with a blank header") << 503 << QByteArray("  ") << false;
+        QTest::newRow("502 with Retry-After") << 502 << QByteArray("30") << false;
+        QTest::newRow("no answer") << 0 << QByteArray("30") << false;
+    }
+
+    // A 429, or a 503 that says when to come back, asks the client to wait.
+    void asksToWait()
+    {
+        QFETCH(int, status);
+        QFETCH(QByteArray, retryAfter);
+        QFETCH(bool, waits);
+        HttpResponse response;
+        response.outcome = status ? HttpResponse::Outcome::Finished : HttpResponse::Outcome::Timeout;
+        response.status = status;
+        response.retryAfter = retryAfter;
+        QCOMPARE(Tokkl::asksToWait(response), waits);
+    }
+
     void encodeStart()
     {
         StartEntry entry;

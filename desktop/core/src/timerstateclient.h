@@ -29,6 +29,8 @@ class Clock;
 // When a stream ends or fails the client reads the state again if the stream
 // had delivered, and opens a new stream after a wait that starts at 1 s and
 // doubles up to 60 s, plus up to a quarter more from the clock's jitter. A
+// stream's retry field raises that wait to at least the time it names, also
+// for later streams of the generation, still at most 60 s before the jitter. A
 // stream that delivered for 60 s starts the wait over. A timer event that is
 // not a readable state, also after good ones, drops the stream: the state is
 // read at once and polled until a stream delivers again, and the next stream
@@ -151,6 +153,8 @@ private:
     void onStreamData(const QByteArray &data);
     void onStreamEnded();
     void readLine(QByteArrayView line);
+    // The retry field: the server's reconnect wait in milliseconds.
+    void readRetry(QByteArrayView value);
     // Drops a stream that sent more than maxEventBytes for one event.
     void dropOversizedStream();
     // Drops a stream that sent a timer event that is not a timer state,
@@ -190,6 +194,9 @@ private:
     bool m_streaming = false;
     QDateTime m_streamingSince;
     int m_backoffMs = reconnectMinMs;
+    // The server's retry field, the shortest wait before a reconnect; 0
+    // until a stream sends one.
+    int m_retryFloorMs = 0;
     QDateTime m_reconnectAt;
 };
 

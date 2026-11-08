@@ -106,6 +106,14 @@ ApiError errorFromResponse(const HttpResponse &response)
     return error;
 }
 
+bool asksToWait(const HttpResponse &response)
+{
+    if (response.outcome != HttpResponse::Outcome::Finished) {
+        return false;
+    }
+    return response.status == 429 || (response.status == 503 && !response.retryAfter.trimmed().isEmpty());
+}
+
 ApiResult<Me> meFromResponse(const HttpResponse &response)
 {
     if (response.outcome != HttpResponse::Outcome::Finished || response.status < 200 || response.status >= 300) {

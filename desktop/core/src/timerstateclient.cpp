@@ -190,6 +190,7 @@ void TimerStateClient::onGenerationChanged()
     closeStream();
     m_reconnectAt = QDateTime();
     m_backoffMs = reconnectMinMs;
+    m_retryFloorMs = 0;
     m_reading = false;
     m_readAgain = false;
     m_nextPoll = QDateTime();
@@ -275,7 +276,8 @@ void TimerStateClient::scheduleReconnect()
     if (!m_clock) {
         return;
     }
-    const int waitMs = m_backoffMs + m_clock->jitterMs(m_backoffMs / reconnectJitterDivisor);
+    const int baseMs = std::max(m_backoffMs, m_retryFloorMs);
+    const int waitMs = baseMs + m_clock->jitterMs(baseMs / reconnectJitterDivisor);
     m_reconnectAt = m_clock->now().addMSecs(waitMs);
     qCDebug(lcNet) << "Event stream reconnects in" << waitMs << "ms";
     m_backoffMs = std::min(m_backoffMs * 2, reconnectMaxMs);
@@ -377,8 +379,22 @@ void TimerStateClient::readLine(QByteArrayView line)
         }
         m_event.data += value;
         m_event.hasData = true;
+    } else if (field == "retry") {
+        readRetry(value);
     }
-    // id, retry and any other field are not used.
+    // id and any other field are not used.
+}
+
+void TimerStateClient::readRetry(QByteArrayView value)
+{
+    // ASCII digits only, as the event stream format says; anything else is
+    // ignored. A longer wait than the cap means the cap.
+    if (value.isEmpty() || value.size() > 9 || !std::all_of(value.begin(), value.end(), [](char c) {
+            return c >= '0' && c <= '9';
+        })) {
+        return;
+    }
+    m_retryFloorMs = std::min(int(value.toInt()), reconnectMaxMs);
 }
 
 void TimerStateClient::dispatchEvent()

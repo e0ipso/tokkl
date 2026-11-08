@@ -301,7 +301,7 @@ struct ApiError {
         Network, // no HTTP answer
         Timeout,
         Server, // 5xx
-        RateLimited, // 429, or a cooldown from an earlier 429
+        RateLimited, // 429, or a cooldown from an earlier 429 or 503 (asksToWait())
         Forbidden, // 403
         Unauthorized, // 401
         Redirect, // 3xx; redirects are not followed
@@ -404,6 +404,11 @@ std::optional<QJsonValue> parseJsonBody(const QByteArray &body);
 // The error a non-2xx or failed response stands for. The API sends errors as
 // a bare JSON string.
 ApiError errorFromResponse(const HttpResponse &response);
+
+// The server asks the client to wait before it sends anything more: a 429,
+// or a 503 with Retry-After. The session's cooldown honours it. A 503
+// without the header is a plain server error.
+bool asksToWait(const HttpResponse &response);
 
 // The account in an answer to GET /api/v9/me, or why there is none. A 2xx
 // answer that is not an account is InvalidResponse, with a message that

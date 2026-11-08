@@ -308,6 +308,19 @@ private Q_SLOTS:
         QCOMPARE(session.failures.first().second, ApiAccess::Account);
     }
 
+    // A 503 that says when to come back is the session's to wait out.
+    void aStreamUnavailableWithRetryAfterGoesToTheSession()
+    {
+        FakeTransport transport;
+        ScriptedSession session;
+        ApiClient client(&transport, session);
+        QVERIFY(client.openStream(testUrl));
+        transport.lastStream()->end(FakeTransport::answer(503, "\"busy\"", "30"));
+        QCOMPARE(session.failures.size(), 1);
+        QCOMPARE(session.failures.first().first, ApiError::Kind::Server);
+        QCOMPARE(session.failures.first().second, ApiAccess::Account);
+    }
+
     void aStreamThatEndsOtherwiseChangesNothing()
     {
         FakeTransport transport;

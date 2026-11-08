@@ -8,8 +8,8 @@
 namespace Tokkl
 {
 
-// The wait a 429 asks for. Retry-After gives it as delta seconds or an HTTP
-// date; without the header it is defaultMs. Any value is clamped to 1 s to
+// The wait a 429, or a 503 with Retry-After, asks for. Retry-After gives it
+// as delta seconds or an HTTP date; without the header it is defaultMs. Any value is clamped to 1 s to
 // 1 h, so a bad or hostile header can neither block the app for hours nor
 // make it retry in a loop.
 class Cooldown : public QObject

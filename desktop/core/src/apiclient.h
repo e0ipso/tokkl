@@ -109,8 +109,9 @@ public:
 
     // Opens an event stream, or returns nullptr without a transport or when
     // the session refuses a read. The caller reads the stream's signals;
-    // the client deletes it after finished(). A 401, 403 or 429 that ends
-    // it goes to the session as a failure of an Account request.
+    // the client deletes it after finished(). A 401, 403 or 429, or a 503
+    // with Retry-After, that ends it goes to the session as a failure of an
+    // Account request.
     PendingStream *openStream(const QUrl &url);
 
     // Aborts every request and stream in flight. Call it once the session's
