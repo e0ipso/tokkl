@@ -1,5 +1,5 @@
-// ChosenProject on its own, with ProjectLoader's read of a project the list
-// lacks: what the menu and the panel indicator show of the chosen project,
+// ChosenProject on its own, with the catalog's read of a project the list
+// lacks, as the timer starts it: what the menu and the panel indicator show of the chosen project,
 // and when the project is read. timercontrollertest covers both through the
 // controller.
 
@@ -7,7 +7,6 @@
 #include "connection.h"
 #include "fakes.h"
 #include "projectcatalog.h"
-#include "projectloader.h"
 
 #include <QSignalSpy>
 #include <QTest>
@@ -49,13 +48,13 @@ struct Fixture {
         return connection.isConnected() && catalog.listKnown();
     }
 
-    // What the loader does for a choice: reads the project when the list
-    // lacks it, then has it shown.
+    // What the timer does for a choice (TimerModel::lookUpProject()): reads
+    // the project when the list lacks it, then has it shown.
     void choose(std::optional<qint64> id, bool ofEntry, Connection *readVia)
     {
         chosen = id;
-        if (id) {
-            ProjectLoader::lookUp(catalog, readVia, *id, workspace, [this](qint64 projectId) {
+        if (id && readVia && catalog.needsLookUp(*id)) {
+            catalog.lookUp(readVia, *id, workspace, [this](qint64 projectId) {
                 return chosen == projectId;
             });
         }

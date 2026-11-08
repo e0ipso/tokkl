@@ -439,14 +439,34 @@ void TimerModel::wantLastEntry()
     m_next->wantLastEntry();
 }
 
-ProjectCatalog &TimerModel::catalog()
+void TimerModel::readProjects()
 {
-    return *m_catalog;
+    m_catalog->fetch(m_connection);
 }
 
-NextStartSelection &TimerModel::selection()
+void TimerModel::lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted)
 {
-    return *m_next;
+    if (m_connection && m_catalog->needsLookUp(id)) {
+        m_catalog->lookUp(m_connection, id, workspaceId(), std::move(stillWanted));
+    }
+}
+
+bool TimerModel::takeLastEntryWanted()
+{
+    return m_next->takeLastEntryWanted();
+}
+
+void TimerModel::readLastEntry(std::function<bool()> stillWanted)
+{
+    m_next->readLastEntry(std::move(stillWanted));
+}
+
+void TimerModel::onProjectsAnswered(QObject *context, std::function<void()> answered)
+{
+    // After the model's own handlers of the same signals, connected when it
+    // was built, which apply a next-start default that waited for the list.
+    connect(m_catalog, &ProjectCatalog::listLoaded, context, answered);
+    connect(m_catalog, &ProjectCatalog::projectResolved, context, answered);
 }
 
 void TimerModel::showChosenProject()
