@@ -18,13 +18,17 @@ export interface AllowedResponse {
 // sent without the cookie. A 403 that carries the cookie still fails the scenario.
 const SESSION_COOKIE = /(?:^|;\s*)tokkl_session=/;
 
-// The app closes its timer event stream itself when the stream delivers nothing for a minute, and
-// opens another. A fake browser clock moved ahead of the server's keep-alives does that, so the
-// browser reports the closed request as aborted. Any other failure of the stream still counts.
-const TIMER_STREAM_PATH = '/api/app/timer/events';
-
-function isClosedTimerStream(method: string, url: string, errorText: string | undefined): boolean {
-  return method === 'GET' && new URL(url).pathname === TIMER_STREAM_PATH && errorText === 'net::ERR_ABORTED';
+// The app cancels reads it no longer needs, and the browser reports each one as aborted:
+// - TanStack Query aborts a query's request when a refetch replaces it or no view observes it any
+//   more, such as an invalidation while the previous read is in flight.
+// - The app closes its timer event stream (a GET) itself when the stream goes silent for a minute
+//   or sends a state it cannot read, and opens another. A fake browser clock moved ahead of the
+//   server's keep-alives does that.
+// A GET changes nothing on the server, so dropping one is normal behaviour, not an error. An aborted
+// write still fails the scenario, because the app never cancels one and its outcome is unknown, and
+// so does every other failure, of a GET included (a refused connection, a reset, a DNS error).
+function isCancelledRead(method: string, errorText: string | undefined): boolean {
+  return method === 'GET' && errorText === 'net::ERR_ABORTED';
 }
 
 async function isLoggedOutProbe(response: Response): Promise<boolean> {
@@ -57,7 +61,7 @@ export class RuntimeErrors {
       this.pending.push(this.checkResponse(response));
     });
     page.on('requestfailed', request => {
-      if (isClosedTimerStream(request.method(), request.url(), request.failure()?.errorText)) return;
+      if (isCancelledRead(request.method(), request.failure()?.errorText)) return;
       this.issues.push({
         kind: 'requestfailed',
         text: `${request.method()} ${request.url()}: ${request.failure()?.errorText}`,
